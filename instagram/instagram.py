@@ -13,7 +13,7 @@ from autohive_integrations_sdk import (
 
 from helpers import INSTAGRAM_GRAPH_API_BASE
 
-instagram = Integration.load(os.path.join(os.path.dirname(__file__), "config.json"))
+instagram = Integration.load()
 
 sys.modules.setdefault("instagram", sys.modules[__name__])
 

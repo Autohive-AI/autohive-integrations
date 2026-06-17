@@ -1,2349 +1,661 @@
-import unittest
-from unittest.mock import AsyncMock, Mock, patch
-from context import microsoft365
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+import aiohttp
+import pytest
+from autohive_integrations_sdk import FetchResponse, ResultType
+from microsoft365.microsoft365 import microsoft365
+
+pytestmark = pytest.mark.integration
+
+CRED = os.getenv("MICROSOFT365_ACCESS_TOKEN", "")
+TEST_RECIPIENT = os.getenv("MICROSOFT365_TEST_RECIPIENT_EMAIL", "")
+TEST_ATTENDEE = os.getenv("MICROSOFT365_TEST_ATTENDEE_EMAIL", "")
+TEST_SCHEDULE_EMAIL = os.getenv("MICROSOFT365_TEST_SCHEDULE_EMAIL", "")
+
+skip_if_no_creds = pytest.mark.skipif(not CRED, reason="MICROSOFT365_ACCESS_TOKEN required")
+skip_if_no_recipient = pytest.mark.skipif(not TEST_RECIPIENT, reason="MICROSOFT365_TEST_RECIPIENT_EMAIL required")
+skip_if_no_attendee = pytest.mark.skipif(not TEST_ATTENDEE, reason="MICROSOFT365_TEST_ATTENDEE_EMAIL required")
+skip_if_no_schedule = pytest.mark.skipif(not TEST_SCHEDULE_EMAIL, reason="MICROSOFT365_TEST_SCHEDULE_EMAIL required")
+
+# Shared state for chained tests (create → use → delete).
+# Tests run in declaration order; dependent tests skip when a prior step failed.
+_state: dict = {}
 
 
-class TestMicrosoft365Integration(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
+@pytest.fixture
+def live_context(make_context):
+    async def real_fetch(url, *, method="GET", params=None, headers=None, json=None, body=None, **kwargs):
+        # SDK may pass binary upload data as `data` kwarg rather than `body`
+        payload = kwargs.get("data", body)
+        async with aiohttp.ClientSession() as session:
+            async with session.request(
+                method,
+                url,
+                params=params,
+                json=json,
+                data=payload,
+                headers={"Authorization": f"Bearer {CRED}", **(dict(headers or {}))},
+            ) as resp:
+                try:
+                    data = await resp.json(content_type=None)
+                except Exception:
+                    data = await resp.read()
+                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
-    async def test_send_email_success(self):
-        """Test successful email sending."""
-        # Mock successful API response
-        self.mock_context.fetch.return_value = None
+    ctx = make_context(auth={"auth_type": "PlatformOauth2", "credentials": {"access_token": CRED}})
+    ctx.fetch.side_effect = real_fetch
+    return ctx
 
-        # Create action handler
-        handler = microsoft365.SendEmailAction()
 
-        # Test inputs
-        inputs = {
-            "to": "test@example.com",
-            "subject": "Test Email",
-            "body": "This is a test email",
+# ============================================================
+# EMAIL — READ
+# ============================================================
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_emails_live(live_context):
+    result = await microsoft365.execute_action("list_emails", {"limit": 5}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    data = result.result.data
+    assert "emails" in data
+    if data["emails"]:
+        _state["email_id"] = data["emails"][0]["id"]
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_emails_with_fields_live(live_context):
+    result = await microsoft365.execute_action(
+        "list_emails",
+        {"limit": 3, "fields": ["id", "subject", "sender", "receivedDateTime", "hasAttachments", "bodyPreview"]},
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    emails = result.result.data["emails"]
+    for email in emails:
+        assert "body" not in email, "body should be excluded when not in fields"
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_emails_from_contact_live(live_context):
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact",
+        {"contact_email": "noreply@microsoft.com", "limit": 3},
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "emails" in result.result.data
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_read_email_live(live_context):
+    email_id = _state.get("email_id")
+    if not email_id:
+        pytest.skip("No email_id from test_list_emails_live")
+    result = await microsoft365.execute_action(
+        "read_email", {"email_id": email_id, "include_attachments": False}, live_context
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "email" in result.result.data
+    assert result.result.data["email"]["id"] == email_id
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_search_emails_live(live_context):
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 5}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "messages" in result.result.data
+
+
+# ============================================================
+# EMAIL — WRITE (chained; each step skips if prior failed)
+# ============================================================
+
+
+@skip_if_no_creds
+@skip_if_no_recipient
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_01_create_draft_email_live(live_context):
+    result = await microsoft365.execute_action(
+        "create_draft_email",
+        {
+            "subject": "[Autohive Integration Test] Draft",
+            "body": "This is an integration test draft. Safe to delete.",
             "body_type": "Text",
-        }
-
-        # Execute action
-        result = await handler.execute(inputs, self.mock_context)
-
-        # Verify result
-        self.assertTrue(result.data["result"])
-
-        # Verify API call
-        self.mock_context.fetch.assert_called_once()
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("sendMail", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-
-    async def test_send_email_with_cc_bcc(self):
-        """Test email sending with CC and BCC."""
-        self.mock_context.fetch.return_value = None
-
-        handler = microsoft365.SendEmailAction()
-        inputs = {
-            "to": "test@example.com",
-            "subject": "Test Email",
-            "body": "Test body",
-            "cc": ["cc@example.com"],
-            "bcc": ["bcc@example.com"],
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-
-        # Check that the API was called with CC and BCC recipients
-        call_args = self.mock_context.fetch.call_args
-        email_data = call_args[1]["json"]
-        self.assertIn("ccRecipients", email_data["message"])
-        self.assertIn("bccRecipients", email_data["message"])
-
-    async def test_create_calendar_event_success(self):
-        """Test successful calendar event creation."""
-        # Mock API response
-        mock_response = {
-            "id": "event123",
-            "webLink": "https://outlook.office365.com/calendar/event123",
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.CreateCalendarEventAction()
-        inputs = {
-            "subject": "Test Event",
-            "start_time": "2024-08-01T14:00:00Z",
-            "end_time": "2024-08-01T15:00:00Z",
-            "location": "Conference Room",
-            "attendees": ["attendee@example.com"],
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["id"], "event123")
-        self.assertIn("webLink", result.data)
-
-    async def test_upload_file_success(self):
-        """Test successful file upload."""
-        # Mock API response
-        mock_response = {
-            "id": "file123",
-            "webUrl": "https://onedrive.com/file123",
-            "size": 1024,
-            "@microsoft.graph.downloadUrl": "https://download.url",
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.UploadFileAction()
-        inputs = {
-            "filename": "test.txt",
-            "content": "Test content",
-            "content_type": "text/plain",
-            "folder_path": "/Documents",
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["id"], "file123")
-        self.assertEqual(result.data["size"], 1024)
-
-    async def test_list_files_success(self):
-        """Test successful file listing."""
-        # Mock API response
-        mock_response = {
-            "value": [
-                {
-                    "id": "file1",
-                    "name": "document.pdf",
-                    "size": 2048,
-                    "lastModifiedDateTime": "2024-08-01T10:00:00Z",
-                    "webUrl": "https://onedrive.com/file1",
-                },
-                {
-                    "id": "folder1",
-                    "name": "My Folder",
-                    "lastModifiedDateTime": "2024-08-01T09:00:00Z",
-                    "webUrl": "https://onedrive.com/folder1",
-                    "folder": {},
-                },
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListFilesAction()
-        inputs = {"folder_path": "/", "limit": 100}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["files"]), 2)
-        self.assertIsNone(result.data["files"][0]["folder"])  # document.pdf (no folder facet)
-        self.assertIsNotNone(result.data["files"][1]["folder"])  # My Folder (has folder facet)
-
-    async def test_error_handling(self):
-        """Test error handling in actions."""
-        # Mock API error
-        self.mock_context.fetch.side_effect = Exception("API Error")
-
-        handler = microsoft365.SendEmailAction()
-        inputs = {"to": "test@example.com", "subject": "Test", "body": "Test"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])
-        self.assertIn("error", result.data)
-        self.assertEqual(result.data["error"], "API Error")
-
-    async def test_search_onedrive_files_success(self):
-        """Test successful OneDrive file search."""
-        # Mock API response
-        mock_response = {
-            "value": [
-                {
-                    "id": "file123",
-                    "name": "quarterly-report.docx",
-                    "size": 4096,
-                    "lastModifiedDateTime": "2024-08-01T10:00:00Z",
-                    "webUrl": "https://onedrive.com/file123",
-                    "file": {"mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
-                },
-                {
-                    "id": "folder456",
-                    "name": "Documents",
-                    "lastModifiedDateTime": "2024-08-01T09:00:00Z",
-                    "webUrl": "https://onedrive.com/folder456",
-                    "folder": {"childCount": 10},
-                },
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.SearchOneDriveFilesAction()
-        inputs = {"query": "quarterly report", "limit": 10}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["files"]), 2)
-        self.assertEqual(result.data["query"], "quarterly report")
-
-        # Check file item structure
-        file_item = result.data["files"][0]
-        self.assertEqual(file_item["id"], "file123")
-        self.assertEqual(file_item["name"], "quarterly-report.docx")
-        self.assertIn("file", file_item)
-
-        # Check folder item structure
-        folder_item = result.data["files"][1]
-        self.assertEqual(folder_item["id"], "folder456")
-        self.assertIn("folder", folder_item)
-
-        # Verify API call with URL encoding
-        call_args = self.mock_context.fetch.call_args
-        api_url = call_args[0][0]
-        self.assertIn("search(q='quarterly%20report')", api_url)
-
-    @patch("microsoft365.microsoft365.fetch_binary_content")
-    async def test_read_onedrive_file_content_success(self, mock_fetch_binary):
-        """Test successful OneDrive file content reading."""
-        # Mock metadata response
-        mock_metadata = {
-            "id": "file123",
-            "name": "document.docx",
-            "size": 2048,
-            "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "webUrl": "https://onedrive.com/file123",
-        }
-
-        # Mock content response (PDF conversion)
-        mock_content = b"%PDF-1.4\n%fake PDF content for testing"
-
-        # Mock context.fetch for metadata and fetch_binary_content for content
-        self.mock_context.fetch.return_value = mock_metadata
-        mock_fetch_binary.return_value = mock_content
-
-        handler = microsoft365.ReadOneDriveFileContentAction()
-        inputs = {"file_id": "file123"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["metadata"]["id"], "file123")
-        self.assertEqual(result.data["file"]["name"], "document.docx")
-        self.assertEqual(result.data["metadata"]["size"], 2048)
-        self.assertEqual(result.data["file"]["contentType"], "application/pdf")
-        self.assertIsNotNone(result.data["file"]["content"])  # Should have base64 encoded PDF
-
-        # Verify API calls
-        self.mock_context.fetch.assert_called_once()  # Metadata call
-        mock_fetch_binary.assert_called_once()  # Binary content call
-
-        # Check metadata call
-        metadata_call = self.mock_context.fetch.call_args
-        self.assertIn("/drive/items/file123", metadata_call[0][0])
-        self.assertIn("$select", metadata_call[1]["params"])
-
-        # Check binary content call (PDF conversion for Office doc)
-        binary_call_args = mock_fetch_binary.call_args[0]
-        self.assertIn("/drive/items/file123/content", binary_call_args[0])
-        self.assertIn("format=pdf", binary_call_args[0])
-
-    async def test_read_onedrive_file_content_non_office_file(self):
-        """Test file content reading for non-Office files (no PDF conversion)."""
-        # Mock metadata response for text file
-        mock_metadata = {
-            "id": "file456",
-            "name": "notes.txt",
-            "size": 512,
-            "mimeType": "text/plain",
-            "webUrl": "https://onedrive.com/file456",
-        }
-
-        # Mock content response
-        mock_content = b"Sample text content"
-
-        self.mock_context.fetch.side_effect = [mock_metadata, mock_content]
-
-        handler = microsoft365.ReadOneDriveFileContentAction()
-        inputs = {"file_id": "file456"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["file"]["name"], "notes.txt")
-        self.assertEqual(result.data["file"]["contentType"], "text/plain")
-        self.assertIsNotNone(result.data["file"]["content"])  # Should have base64 encoded content
-
-        # Check content call (no PDF conversion for text file)
-        content_call = self.mock_context.fetch.call_args_list[1]
-        self.assertIn("/drive/items/file456/content", content_call[0][0])
-        self.assertNotIn("format=pdf", content_call[0][0])
-
-    @patch("microsoft365.microsoft365.fetch_binary_content")
-    async def test_read_onedrive_file_content_native_pdf(self, mock_fetch_binary):
-        """Test file content reading for native PDF files."""
-        # Mock metadata response for PDF file
-        mock_metadata = {
-            "id": "file789",
-            "name": "AICPA_SOC2_Compliance_Guide_on_AWS.pdf",
-            "size": 755287,
-            "mimeType": "application/pdf",
-            "webUrl": "https://onedrive.com/file789",
-        }
-
-        # Mock PDF binary content
-        mock_content = b"%PDF-1.4\n%\xc4\xe5\xf2\xe5\xeb\xa7\xf3\xa0\xd0\xc4\xc6 Native PDF content with binary data"
-
-        # Mock context.fetch for metadata and fetch_binary_content for content
-        self.mock_context.fetch.return_value = mock_metadata
-        mock_fetch_binary.return_value = mock_content
-
-        handler = microsoft365.ReadOneDriveFileContentAction()
-        inputs = {"file_id": "file789"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["file"]["name"], "AICPA_SOC2_Compliance_Guide_on_AWS.pdf")
-        self.assertEqual(result.data["file"]["contentType"], "application/pdf")
-        self.assertIsNotNone(result.data["file"]["content"])  # Should have base64 encoded content
-
-        # Verify binary fetch was called with correct URL
-        mock_fetch_binary.assert_called_once()
-        call_args = mock_fetch_binary.call_args[0]
-        self.assertIn("/drive/items/file789/content", call_args[0])
-        self.assertNotIn("format=pdf", call_args[0])
-
-    async def test_read_onedrive_file_content_with_content_error(self):
-        """Test file content reading when content retrieval fails."""
-        # Mock metadata response
-        mock_metadata = {
-            "id": "file789",
-            "name": "restricted.pdf",
-            "size": 1024,
-            "mimeType": "application/pdf",
-            "webUrl": "https://onedrive.com/file789",
-        }
-
-        # Mock content error
-        self.mock_context.fetch.side_effect = [
-            mock_metadata,
-            Exception("Access denied"),
-        ]
-
-        handler = microsoft365.ReadOneDriveFileContentAction()
-        inputs = {"file_id": "file789"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])  # Operation fails when content retrieval fails
-        self.assertEqual(result.data["file"]["name"], "restricted.pdf")
-        self.assertEqual(result.data["file"]["content"], "")  # Empty content on failure
-        self.assertIn("Access denied", result.data["error"])
-
-
-class TestListCalendarEventsAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for calendar events listing tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_list_calendar_events_with_date_range(self):
-        """Test listing calendar events with date range filtering using calendarView."""
-        # Mock API response from calendarView
-        mock_response = {
-            "value": [
-                {
-                    "id": "event123",
-                    "subject": "Team Meeting",
-                    "start": {
-                        "dateTime": "2024-08-20T14:00:00.0000000",
-                        "timeZone": "UTC",
-                    },
-                    "end": {
-                        "dateTime": "2024-08-20T15:00:00.0000000",
-                        "timeZone": "UTC",
-                    },
-                    "location": {"displayName": "Conference Room A"},
-                    "bodyPreview": "Weekly team sync",
-                    "organizer": {
-                        "emailAddress": {
-                            "address": "organizer@example.com",
-                            "name": "Organizer Name",
-                        }
-                    },
-                    "attendees": [
-                        {
-                            "emailAddress": {
-                                "address": "attendee@example.com",
-                                "name": "Attendee Name",
-                            },
-                            "status": {"response": "accepted"},
-                        }
-                    ],
-                    "webLink": "https://outlook.office365.com/calendar/item123",
-                    "isAllDay": False,
-                }
-            ]
-        }
-
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListCalendarEventsAction()
-        inputs = {
-            "start_datetime": "2024-08-20T00:00:00Z",
-            "end_datetime": "2024-08-20T23:59:59Z",
-            "limit": 50,
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["events"]), 1)
-        self.assertEqual(result.data["events"][0]["subject"], "Team Meeting")
-        self.assertEqual(result.data["events"][0]["location"], "Conference Room A")
-
-        # Verify calendarView endpoint is called with date parameters
-        call_args = self.mock_context.fetch.call_args[0][0]
-        self.assertIn("/me/calendarView", call_args)
-        self.assertIn("startDateTime=2024-08-20T00:00:00Z", call_args)
-        self.assertIn("endDateTime=2024-08-20T23:59:59Z", call_args)
-
-
-class TestCreateDraftEmailAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for draft email tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_create_draft_email_success(self):
-        """Test successful draft email creation."""
-        # Mock API response
-        mock_response = {
-            "id": "draft123",
-            "subject": "Test Draft",
-            "createdDateTime": "2024-08-20T10:00:00Z",
-            "isDraft": True,
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.CreateDraftEmailAction()
-        inputs = {
-            "subject": "Test Draft",
-            "body": "This is a test draft",
+            "to_recipients": [TEST_RECIPIENT],
+        },
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "draft_id" in result.result.data
+    _state["draft_id"] = result.result.data["draft_id"]
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_02_mark_email_read_live(live_context):
+    draft_id = _state.get("draft_id")
+    if not draft_id:
+        pytest.skip("No draft_id from test_01")
+    result = await microsoft365.execute_action("mark_email_read", {"email_id": draft_id, "is_read": True}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_03_send_draft_email_live(live_context):
+    draft_id = _state.get("draft_id")
+    if not draft_id:
+        pytest.skip("No draft_id from test_01")
+    result = await microsoft365.execute_action("send_draft_email", {"draft_id": draft_id}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.result.data.get("sent") is True
+
+
+@skip_if_no_creds
+@skip_if_no_recipient
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_04_send_email_live(live_context):
+    result = await microsoft365.execute_action(
+        "send_email",
+        {
+            "to": TEST_RECIPIENT,
+            "subject": "[Autohive Integration Test] Direct Send",
+            "body": "Integration test email — safe to delete.",
             "body_type": "Text",
-            "to_recipients": ["test@example.com"],
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["draft_id"], "draft123")
-        self.assertEqual(result.data["subject"], "Test Draft")
-        self.assertTrue(result.data["is_draft"])
-
-        # Verify API call
-        self.mock_context.fetch.assert_called_once()
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/me/messages", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-
-    async def test_create_draft_email_with_all_recipients(self):
-        """Test draft creation with CC and BCC recipients."""
-        mock_response = {
-            "id": "draft456",
-            "subject": "Complete Draft",
-            "createdDateTime": "2024-08-20T10:00:00Z",
-            "isDraft": True,
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.CreateDraftEmailAction()
-        inputs = {
-            "subject": "Complete Draft",
-            "body": "Draft with all recipient types",
-            "to_recipients": [{"address": "to@example.com", "name": "To User"}],
-            "cc_recipients": ["cc@example.com"],
-            "bcc_recipients": [{"address": "bcc@example.com"}],
-            "importance": "High",
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["draft_id"], "draft456")
-
-        # Check the message structure in the API call
-        call_args = self.mock_context.fetch.call_args
-        message_body = call_args[1]["json"]
-        self.assertIn("ccRecipients", message_body)
-        self.assertIn("bccRecipients", message_body)
-        self.assertEqual(message_body["importance"], "High")
-
-
-class TestSendDraftEmailAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for send draft tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_send_draft_email_success(self):
-        """Test successful draft sending."""
-        # Mock API response (202 Accepted with no body)
-        self.mock_context.fetch.return_value = None
-
-        handler = microsoft365.SendDraftEmailAction()
-        inputs = {"draft_id": "draft123"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["draft_id"], "draft123")
-        self.assertEqual(result.data["status"], "sent")
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/me/messages/draft123/send", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-        self.assertEqual(call_args[1]["headers"]["Content-Length"], "0")
-
-
-class TestReplyToEmailAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for reply tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_reply_to_email_success(self):
-        """Test successful email reply."""
-        # Mock API response (202 Accepted with no body)
-        self.mock_context.fetch.return_value = None
-
-        handler = microsoft365.ReplyToEmailAction()
-        inputs = {"message_id": "msg123", "comment": "Thanks for the email!"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["message_id"], "msg123")
-        self.assertEqual(result.data["operation"], "reply")
-        self.assertEqual(result.data["status"], "sent")
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/me/messages/msg123/reply", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-        self.assertEqual(call_args[1]["json"]["comment"], "Thanks for the email!")
-
-    async def test_reply_to_email_without_comment(self):
-        """Test email reply without comment."""
-        self.mock_context.fetch.return_value = None
-
-        handler = microsoft365.ReplyToEmailAction()
-        inputs = {"message_id": "msg456"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["message_id"], "msg456")
-
-        # Verify API call with empty JSON body
-        call_args = self.mock_context.fetch.call_args
-        self.assertEqual(call_args[1]["json"], {})
-
-
-class TestForwardEmailAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for forward tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_forward_email_success(self):
-        """Test successful email forwarding."""
-        # Mock API response (202 Accepted with no body)
-        self.mock_context.fetch.return_value = None
-
-        handler = microsoft365.ForwardEmailAction()
-        inputs = {
-            "message_id": "msg789",
-            "to_recipients": [
-                "forward@example.com",
-                {"address": "user@test.com", "name": "Test User"},
-            ],
-            "comment": "FYI",
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["message_id"], "msg789")
-        self.assertEqual(result.data["operation"], "forward")
-        self.assertEqual(result.data["status"], "sent")
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/me/messages/msg789/forward", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-
-        # Check recipients structure
-        forward_data = call_args[1]["json"]
-        self.assertEqual(len(forward_data["toRecipients"]), 2)
-        self.assertEqual(forward_data["comment"], "FYI")
-
-
-class TestDownloadEmailAttachmentAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for attachment download tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    @patch("microsoft365.microsoft365.fetch_binary_content")
-    async def test_download_attachment_success(self, mock_fetch_binary):
-        """Test successful attachment download."""
-        # Mock attachment metadata
-        mock_metadata = {
-            "id": "att123",
-            "name": "document.pdf",
-            "contentType": "application/pdf",
-            "size": 1024,
-            "isInline": False,
-        }
-
-        # Mock binary content
-        mock_binary_content = b"PDF binary data here"
-
-        self.mock_context.fetch.return_value = mock_metadata
-        mock_fetch_binary.return_value = mock_binary_content
-
-        handler = microsoft365.DownloadEmailAttachmentAction()
-        inputs = {
-            "message_id": "msg123",
-            "attachment_id": "att123",
-            "include_content": True,
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        # Verify file structure (matches OneDrive/SharePoint format)
-        self.assertEqual(result.data["file"]["name"], "document.pdf")
-        self.assertEqual(result.data["file"]["contentType"], "application/pdf")
-        self.assertIsNotNone(result.data["file"]["content"])  # Base64 encoded
-        # Verify metadata structure
-        self.assertEqual(result.data["metadata"]["id"], "att123")
-        self.assertEqual(result.data["metadata"]["name"], "document.pdf")
-        self.assertEqual(result.data["metadata"]["size"], 1024)
-        self.assertEqual(result.data["metadata"]["message_id"], "msg123")
-        self.assertFalse(result.data["metadata"]["is_inline"])
-
-        # Verify API calls
-        self.mock_context.fetch.assert_called_once()
-        mock_fetch_binary.assert_called_once()
-
-    async def test_download_attachment_metadata_only(self):
-        """Test attachment metadata retrieval without content."""
-        mock_metadata = {
-            "id": "att456",
-            "name": "image.jpg",
-            "contentType": "image/jpeg",
-            "size": 2048,
-            "isInline": True,
-        }
-
-        self.mock_context.fetch.return_value = mock_metadata
-
-        handler = microsoft365.DownloadEmailAttachmentAction()
-        inputs = {
-            "message_id": "msg456",
-            "attachment_id": "att456",
-            "include_content": False,
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])  # False because content not retrieved
-        self.assertEqual(result.data["file"]["content"], "")  # No content
-        self.assertEqual(result.data["file"]["name"], "image.jpg")
-        self.assertTrue(result.data["metadata"]["is_inline"])
-
-
-class TestSearchEmailsAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for search tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_search_emails_success(self):
-        """Test successful email search."""
-        # Mock search API response
-        mock_response = {
-            "value": [
-                {
-                    "hitsContainers": [
-                        {
-                            "total": 2,
-                            "hits": [
-                                {
-                                    "resource": {
-                                        "id": "msg1",
-                                        "subject": "Project Update",
-                                        "from": {
-                                            "emailAddress": {
-                                                "address": "sender@example.com",
-                                                "name": "Sender Name",
-                                            }
-                                        },
-                                        "receivedDateTime": "2024-08-20T10:00:00Z",
-                                        "bodyPreview": "Here is the project update...",
-                                        "hasAttachments": True,
-                                    }
-                                },
-                                {
-                                    "resource": {
-                                        "id": "msg2",
-                                        "subject": "Meeting Notes",
-                                        "from": {
-                                            "emailAddress": {
-                                                "address": "colleague@example.com",
-                                                "name": "Colleague",
-                                            }
-                                        },
-                                        "receivedDateTime": "2024-08-19T15:30:00Z",
-                                        "bodyPreview": "Notes from today's meeting...",
-                                        "hasAttachments": False,
-                                    }
-                                },
-                            ],
-                        }
-                    ]
-                }
-            ]
-        }
-
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.SearchEmailsAction()
-        inputs = {"query": "project meeting", "limit": 25, "enable_top_results": True}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["query"], "project meeting")
-        self.assertEqual(result.data["total_results"], 2)
-        self.assertEqual(len(result.data["messages"]), 2)
-
-        # Check first message structure
-        first_msg = result.data["messages"][0]
-        self.assertEqual(first_msg["message_id"], "msg1")
-        self.assertEqual(first_msg["subject"], "Project Update")
-        self.assertTrue(first_msg["has_attachments"])
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("search/query", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-
-        # Check search request structure
-        search_request = call_args[1]["json"]["requests"][0]
-        self.assertEqual(search_request["entityTypes"], ["message"])
-        self.assertEqual(search_request["query"]["queryString"], "project meeting")
-        self.assertTrue(search_request["enableTopResults"])
-
-    async def test_search_emails_no_results(self):
-        """Test search with no results."""
-        mock_response = {"value": [{"hitsContainers": [{"total": 0, "hits": []}]}]}
-
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.SearchEmailsAction()
-        inputs = {"query": "nonexistent"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["total_results"], 0)
-        self.assertEqual(len(result.data["messages"]), 0)
-
-    async def test_search_emails_with_null_fields(self):
-        """Test email search handles null subject and bodyPreview fields."""
-        # Mock response with None values for optional fields
-        mock_response = {
-            "value": [
-                {
-                    "hitsContainers": [
-                        {
-                            "total": 1,
-                            "hits": [
-                                {
-                                    "resource": {
-                                        "id": "msg1",
-                                        "subject": None,  # Null subject
-                                        "from": {
-                                            "emailAddress": {
-                                                "address": "sender@example.com",
-                                                "name": "Sender Name",
-                                            }
-                                        },
-                                        "receivedDateTime": "2024-08-20T10:00:00Z",
-                                        "bodyPreview": None,  # Null bodyPreview
-                                        "hasAttachments": False,
-                                    }
-                                }
-                            ],
-                        }
-                    ]
-                }
-            ]
-        }
-
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.SearchEmailsAction()
-        inputs = {"query": "test"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["total_results"], 1)
-
-        # Verify null values are converted to empty strings
-        first_msg = result.data["messages"][0]
-        self.assertEqual(first_msg["subject"], "")
-        self.assertEqual(first_msg["body_preview"], "")
-        self.assertIsInstance(first_msg["subject"], str)
-        self.assertIsInstance(first_msg["body_preview"], str)
-
-
-class TestSearchSharePointSitesAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for SharePoint sites search tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_search_sharepoint_sites_success(self):
-        """Test successful SharePoint sites search."""
-        # Mock API response
-        mock_response = {
-            "value": [
-                {
-                    "id": "contoso.sharepoint.com,da60e844-ba1d-49bc,712a596e-90a1-49e3",
-                    "name": "Team A Site",
-                    "displayName": "Team A Collaboration Site",
-                    "description": "Site for Team A projects",
-                    "webUrl": "https://contoso.sharepoint.com/sites/siteA",
-                    "createdDateTime": "2024-01-15T10:00:00Z",
-                    "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-                }
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.SearchSharePointSitesAction()
-        inputs = {"query": "Team A"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["query"], "Team A")
-        self.assertEqual(len(result.data["sites"]), 1)
-        self.assertEqual(result.data["total_sites"], 1)
-        self.assertEqual(result.data["sites"][0]["name"], "Team A Site")
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/sites", call_args[0][0])
-        self.assertEqual(call_args[1]["params"]["search"], "Team A")
-
-
-class TestGetSharePointSiteDetailsAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for SharePoint site details tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_get_sharepoint_site_details_success(self):
-        """Test successful SharePoint site details retrieval."""
-        # Mock API response
-        mock_response = {
-            "id": "contoso.sharepoint.com,da60e844-ba1d-49bc,712a596e-90a1-49e3",
-            "displayName": "Team A Collaboration Site",
-            "name": "Team A Site",
-            "description": "Site for Team A projects and documentation",
-            "webUrl": "https://contoso.sharepoint.com/sites/siteA",
-            "createdDateTime": "2024-01-15T10:00:00Z",
-            "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-            "isPersonalSite": False,
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.GetSharePointSiteDetailsAction()
-        inputs = {"site_id": "contoso.sharepoint.com,da60e844-ba1d-49bc,712a596e-90a1-49e3"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["site"]["name"], "Team A Site")
-        self.assertEqual(result.data["site"]["display_name"], "Team A Collaboration Site")
-        self.assertFalse(result.data["site"]["is_personal_site"])
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/sites/contoso.sharepoint.com", call_args[0][0])
-
-
-class TestListSharePointLibrariesAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for SharePoint libraries tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_list_sharepoint_libraries_success(self):
-        """Test successful SharePoint libraries listing."""
-        # Mock API response
-        mock_response = {
-            "value": [
-                {
-                    "id": "b!-RIj2DuyvEyV1T4NlOaMHk8XkS_I8MdFlUCq1BlcjgmhRfAj3-Z8RY2VpuvV_tpd",
-                    "name": "Documents",
-                    "description": "Shared Documents",
-                    "driveType": "documentLibrary",
-                    "webUrl": "https://contoso.sharepoint.com/sites/siteA/Shared Documents",
-                    "createdDateTime": "2024-01-15T10:00:00Z",
-                    "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-                    "owner": {
-                        "user": {
-                            "displayName": "Site Owner",
-                            "email": "owner@contoso.com",
-                        }
-                    },
-                    "quota": {
-                        "total": 1099511627776,
-                        "remaining": 1099217021300,
-                        "used": 294606476,
-                        "deleted": 0,
-                        "state": "normal",
-                    },
-                }
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListSharePointLibrariesAction()
-        inputs = {"site_id": "test-site-id"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["site_id"], "test-site-id")
-        self.assertEqual(len(result.data["libraries"]), 1)
-        self.assertEqual(result.data["total_libraries"], 1)
-
-        library = result.data["libraries"][0]
-        self.assertEqual(library["name"], "Documents")
-        self.assertEqual(library["drive_type"], "documentLibrary")
-        self.assertIn("quota", library)
-        self.assertIn("owner", library)
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/sites/test-site-id/drives", call_args[0][0])
-
-
-class TestSearchSharePointDocumentsAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for SharePoint documents search tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_search_sharepoint_documents_success(self):
-        """Test successful SharePoint documents search across multiple drives."""
-        # Mock drives response (Step 1: Get all drives)
-        mock_drives_response = {
-            "value": [
-                {"id": "drive1", "name": "Documents", "driveType": "documentLibrary"},
-                {
-                    "id": "drive2",
-                    "name": "HRDocumentLibrary",
-                    "driveType": "documentLibrary",
-                },
-            ]
-        }
-
-        # Mock search results for each drive (Step 2: Search each drive)
-        mock_search_response_drive1 = {
-            "value": [
-                {
-                    "id": "doc123",
-                    "name": "Project Plan.docx",
-                    "size": 45678,
-                    "lastModifiedDateTime": "2024-08-20T10:00:00Z",
-                    "webUrl": "https://contoso.sharepoint.com/sites/siteA/Documents/Project Plan.docx",
-                    "file": {"mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
-                }
-            ]
-        }
-
-        mock_search_response_drive2 = {
-            "value": [
-                {
-                    "id": "doc456",
-                    "name": "HR Policy.pdf",
-                    "size": 23456,
-                    "lastModifiedDateTime": "2024-08-19T15:30:00Z",
-                    "webUrl": "https://contoso.sharepoint.com/sites/siteA/HRDocumentLibrary/HR Policy.pdf",
-                    "file": {"mimeType": "application/pdf"},
-                }
-            ]
-        }
-
-        # Configure mock to return different responses for different calls
-        self.mock_context.fetch.side_effect = [
-            mock_drives_response,  # First call: GET /sites/{site-id}/drives
-            mock_search_response_drive1,  # Second call: GET /drives/drive1/root/search
-            mock_search_response_drive2,  # Third call: GET /drives/drive2/root/search
-        ]
-
-        handler = microsoft365.SearchSharePointDocumentsAction()
-        inputs = {"site_id": "test-site-id", "query": "project plan", "limit": 10}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        # Verify the result
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["site_id"], "test-site-id")
-        self.assertEqual(result.data["query"], "project plan")
-        self.assertEqual(len(result.data["files"]), 2)
-        self.assertEqual(result.data["total_files"], 2)
-        self.assertEqual(result.data["drives_searched"], 2)
-        self.assertEqual(result.data["total_drives"], 2)
-
-        # Verify file details include drive information
-        files = result.data["files"]
-        self.assertEqual(files[0]["name"], "Project Plan.docx")
-        self.assertEqual(files[0]["drive_id"], "drive1")
-        self.assertEqual(files[0]["drive_name"], "Documents")
-        self.assertEqual(files[1]["name"], "HR Policy.pdf")
-        self.assertEqual(files[1]["drive_id"], "drive2")
-        self.assertEqual(files[1]["drive_name"], "HRDocumentLibrary")
-
-        # Verify the API calls were made correctly
-        self.assertEqual(self.mock_context.fetch.call_count, 3)
-        call_args_list = self.mock_context.fetch.call_args_list
-
-        # First call: Get drives
-        self.assertIn("/sites/test-site-id/drives", call_args_list[0][0])
-
-        # Second call: Search first drive
-        self.assertIn("/drives/drive1/root/search", call_args_list[1][0])
-        self.assertIn("project%20plan", call_args_list[1][0])
-
-        # Third call: Search second drive
-        self.assertIn("/drives/drive2/root/search", call_args_list[2][0])
-        self.assertIn("project%20plan", call_args_list[2][0])
-
-
-class TestListSharePointPagesAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for SharePoint pages tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_list_sharepoint_pages_success(self):
-        """Test successful SharePoint pages listing."""
-        # Mock API response
-        mock_response = {
-            "value": [
-                {
-                    "id": "page123",
-                    "name": "Home.aspx",
-                    "title": "Welcome to Team A",
-                    "webUrl": "https://contoso.sharepoint.com/sites/siteA/SitePages/Home.aspx",
-                    "pageLayout": "home",
-                    "createdDateTime": "2024-01-15T10:00:00Z",
-                    "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-                    "createdBy": {"user": {"displayName": "John Doe", "email": "john@contoso.com"}},
-                }
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListSharePointPagesAction()
-        inputs = {"site_id": "test-site-id"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["site_id"], "test-site-id")
-        self.assertEqual(len(result.data["pages"]), 1)
-        self.assertEqual(result.data["total_pages"], 1)
-
-        page = result.data["pages"][0]
-        self.assertEqual(page["name"], "Home.aspx")
-        self.assertEqual(page["title"], "Welcome to Team A")
-        self.assertEqual(page["page_layout"], "home")
-        self.assertIn("created_by", page)
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/sites/test-site-id/pages/microsoft.graph.sitePage", call_args[0][0])
-
-
-class TestReadSharePointDocumentAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for SharePoint document reading tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    @patch("microsoft365.microsoft365.fetch_binary_content")
-    async def test_read_sharepoint_document_success(self, mock_fetch_binary):
-        """Test successful SharePoint document reading."""
-        # Mock metadata response
-        mock_metadata = {
-            "id": "doc123",
-            "name": "SharePoint_Report.docx",
-            "size": 3072,
-            "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "webUrl": "https://contoso.sharepoint.com/sites/siteA/Documents/SharePoint_Report.docx",
-        }
-
-        # Mock PDF content from conversion
-        mock_content = b"%PDF-1.4\n%SharePoint document converted to PDF"
-
-        self.mock_context.fetch.return_value = mock_metadata
-        mock_fetch_binary.return_value = mock_content
-
-        handler = microsoft365.ReadSharePointDocumentAction()
-        inputs = {"site_id": "test-site-id", "file_id": "doc123"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["file"]["name"], "SharePoint_Report.docx")
-        self.assertEqual(result.data["file"]["contentType"], "application/pdf")
-        self.assertEqual(result.data["metadata"]["site_id"], "test-site-id")
-        self.assertIsNotNone(result.data["file"]["content"])  # Base64 encoded PDF
-
-        # Verify API calls
-        self.mock_context.fetch.assert_called_once()  # Metadata call
-        mock_fetch_binary.assert_called_once()  # Binary content call
-
-        # Check binary content call includes format=pdf for Office docs
-        binary_call_args = mock_fetch_binary.call_args[0]
-        self.assertIn("/sites/test-site-id/drive/items/doc123/content", binary_call_args[0])
-        self.assertIn("format=pdf", binary_call_args[0])
-
-    @patch("microsoft365.microsoft365.fetch_binary_content")
-    async def test_read_sharepoint_document_with_drive_id_success(self, mock_fetch_binary):
-        """Test successful SharePoint document reading with specific drive ID."""
-        # Mock metadata response
-        mock_metadata = {
-            "id": "doc456",
-            "name": "HR_Policy.pdf",
-            "size": 4096,
-            "mimeType": "application/pdf",
-            "webUrl": "https://contoso.sharepoint.com/sites/siteA/HRDocumentLibrary/HR_Policy.pdf",
-        }
-        # Mock PDF content
-        mock_content = b"%PDF-1.4\n%HR Policy document"
-        self.mock_context.fetch.return_value = mock_metadata
-        mock_fetch_binary.return_value = mock_content
-
-        handler = microsoft365.ReadSharePointDocumentAction()
-        inputs = {
-            "site_id": "test-site-id",
-            "file_id": "doc456",
-            "drive_id": "drive123",
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["file"]["name"], "HR_Policy.pdf")
-        self.assertEqual(result.data["file"]["contentType"], "application/pdf")
-        self.assertEqual(result.data["metadata"]["site_id"], "test-site-id")
-        self.assertEqual(result.data["metadata"]["drive_id"], "drive123")
-        self.assertIsNotNone(result.data["file"]["content"])  # Base64 encoded PDF
-
-        # Verify API calls use drive-specific endpoints
-        metadata_call_args = self.mock_context.fetch.call_args[0]
-        self.assertIn("/drives/drive123/items/doc456", metadata_call_args[0])
-
-        # Check binary content call uses drive-specific endpoint
-        binary_call_args = mock_fetch_binary.call_args[0]
-        self.assertIn("/drives/drive123/items/doc456/content", binary_call_args[0])
-
-
-class TestListMailFoldersAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for mail folder listing tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_list_mail_folders_success(self):
-        """Test successful mail folder listing."""
-        # Mock API response
-        mock_response = {
-            "value": [
-                {
-                    "id": "AQMkADYAAAIBDAAAAA==",
-                    "displayName": "Inbox",
-                    "parentFolderId": "AQMkADYAAAIBCAAAAA==",
-                    "childFolderCount": 2,
-                    "unreadItemCount": 10,
-                    "totalItemCount": 50,
-                    "isHidden": False,
-                },
-                {
-                    "id": "AQMkADYAAAIBXQAAAA==",
-                    "displayName": "Archive",
-                    "parentFolderId": "AQMkADYAAAIBCAAAAA==",
-                    "childFolderCount": 0,
-                    "unreadItemCount": 0,
-                    "totalItemCount": 100,
-                    "isHidden": False,
-                },
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListMailFoldersAction()
-        inputs = {"include_hidden": False, "include_children": False}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["folders"]), 2)
-        self.assertEqual(result.data["total_count"], 2)
-        self.assertEqual(result.data["folders"][0]["displayName"], "Inbox")
-        self.assertEqual(result.data["folders"][1]["displayName"], "Archive")
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/me/mailFolders", call_args[0][0])
-
-    async def test_list_mail_folders_pagination(self):
-        """Test mail folder listing handles pagination correctly when more than 10 folders exist."""
-        # First page with @odata.nextLink
-        mock_page1 = {
-            "value": [
-                {
-                    "id": "AQMkADYAAAIBDAAAAA==",
-                    "displayName": "Inbox",
-                    "parentFolderId": "AQMkADYAAAIBCAAAAA==",
-                    "childFolderCount": 0,
-                    "unreadItemCount": 10,
-                    "totalItemCount": 50,
-                    "isHidden": False,
-                },
-                {
-                    "id": "AQMkADYAAAIBXQAAAA==",
-                    "displayName": "Archive",
-                    "parentFolderId": "AQMkADYAAAIBCAAAAA==",
-                    "childFolderCount": 0,
-                    "unreadItemCount": 0,
-                    "totalItemCount": 100,
-                    "isHidden": False,
-                },
-            ],
-            "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/mailFolders?$skiptoken=xxx",
-        }
-        # Second page without @odata.nextLink (last page)
-        mock_page2 = {
-            "value": [
-                {
-                    "id": "AQMkADYAAAIBEAAAAA==",
-                    "displayName": "Drafts",
-                    "parentFolderId": "AQMkADYAAAIBCAAAAA==",
-                    "childFolderCount": 0,
-                    "unreadItemCount": 2,
-                    "totalItemCount": 5,
-                    "isHidden": False,
-                }
-            ]
-        }
-        self.mock_context.fetch.side_effect = [mock_page1, mock_page2]
-
-        handler = microsoft365.ListMailFoldersAction()
-        inputs = {"include_hidden": False, "include_children": False}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        # Should have all 3 folders from both pages
-        self.assertEqual(len(result.data["folders"]), 3)
-        self.assertEqual(result.data["total_count"], 3)
-        self.assertEqual(result.data["folders"][0]["displayName"], "Inbox")
-        self.assertEqual(result.data["folders"][1]["displayName"], "Archive")
-        self.assertEqual(result.data["folders"][2]["displayName"], "Drafts")
-
-        # Verify fetch was called twice (once for each page)
-        self.assertEqual(self.mock_context.fetch.call_count, 2)
-
-    async def test_list_mail_folders_with_children(self):
-        """Test mail folder listing with recursive child folder retrieval."""
-        # Mock root folders response
-        mock_root_response = {
-            "value": [
-                {
-                    "id": "AQMkADYAAAIBDAAAAA==",
-                    "displayName": "Inbox",
-                    "parentFolderId": "AQMkADYAAAIBCAAAAA==",
-                    "childFolderCount": 1,
-                    "unreadItemCount": 10,
-                    "totalItemCount": 50,
-                    "isHidden": False,
-                }
-            ]
-        }
-
-        # Mock child folders response
-        mock_child_response = {
-            "value": [
-                {
-                    "id": "AQMkADYAAAIBEAAAAA==",
-                    "displayName": "Clients",
-                    "parentFolderId": "AQMkADYAAAIBDAAAAA==",
-                    "childFolderCount": 0,
-                    "unreadItemCount": 5,
-                    "totalItemCount": 20,
-                    "isHidden": False,
-                }
-            ]
-        }
-
-        self.mock_context.fetch.side_effect = [mock_root_response, mock_child_response]
-
-        handler = microsoft365.ListMailFoldersAction()
-        inputs = {"include_hidden": False, "include_children": True}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["folders"]), 2)  # Inbox + Clients
-        self.assertEqual(result.data["total_count"], 2)
-
-        # Verify both folders are returned
-        folder_names = [f["displayName"] for f in result.data["folders"]]
-        self.assertIn("Inbox", folder_names)
-        self.assertIn("Clients", folder_names)
-
-    async def test_list_mail_folders_with_hidden(self):
-        """Test mail folder listing including hidden folders."""
-        mock_response = {
-            "value": [
-                {
-                    "id": "AQMkADYAAAIBDAAAAA==",
-                    "displayName": "Inbox",
-                    "parentFolderId": "AQMkADYAAAIBCAAAAA==",
-                    "childFolderCount": 0,
-                    "unreadItemCount": 10,
-                    "totalItemCount": 50,
-                    "isHidden": False,
-                },
-                {
-                    "id": "AQMkADYAAAIBFAAAAA==",
-                    "displayName": "Clutter",
-                    "parentFolderId": "AQMkADYAAAIBCAAAAA==",
-                    "childFolderCount": 0,
-                    "unreadItemCount": 0,
-                    "totalItemCount": 5,
-                    "isHidden": True,
-                },
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListMailFoldersAction()
-        inputs = {"include_hidden": True, "include_children": False}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["folders"]), 2)
-
-        # Verify hidden folder parameter was passed
-        call_args = self.mock_context.fetch.call_args
-        self.assertEqual(call_args[1]["params"]["includeHiddenFolders"], "true")
-
-    async def test_list_mail_folders_specific_parent(self):
-        """Test listing child folders of a specific parent folder."""
-        mock_response = {
-            "value": [
-                {
-                    "id": "AQMkADYAAAIBEAAAAA==",
-                    "displayName": "Projects",
-                    "parentFolderId": "AQMkADYAAAIBDAAAAA==",
-                    "childFolderCount": 0,
-                    "unreadItemCount": 3,
-                    "totalItemCount": 15,
-                    "isHidden": False,
-                }
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListMailFoldersAction()
-        inputs = {"folder_id": "AQMkADYAAAIBDAAAAA==", "include_children": False}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["folders"]), 1)
-        self.assertEqual(result.data["folders"][0]["displayName"], "Projects")
-
-        # Verify API call uses childFolders endpoint
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/me/mailFolders/AQMkADYAAAIBDAAAAA==/childFolders", call_args[0][0])
-
-
-class TestGetMailFolderAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for get mail folder tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_get_mail_folder_by_id_success(self):
-        """Test getting a mail folder by ID."""
-        mock_response = {
-            "id": "AQMkADYAAAIBDAAAAA==",
-            "displayName": "Inbox",
-            "parentFolderId": "AQMkADYAAAIBCAAAAA==",
-            "childFolderCount": 2,
-            "unreadItemCount": 10,
-            "totalItemCount": 50,
-            "isHidden": False,
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.GetMailFolderAction()
-        inputs = {"folder_id": "AQMkADYAAAIBDAAAAA=="}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["folder"]["id"], "AQMkADYAAAIBDAAAAA==")
-        self.assertEqual(result.data["folder"]["displayName"], "Inbox")
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/me/mailFolders/AQMkADYAAAIBDAAAAA==", call_args[0][0])
-
-    async def test_get_mail_folder_by_well_known_name(self):
-        """Test getting a mail folder by well-known name."""
-        mock_response = {
-            "id": "AQMkADYAAAIBXQAAAA==",
-            "displayName": "Archive",
-            "parentFolderId": "AQMkADYAAAIBCAAAAA==",
-            "childFolderCount": 0,
-            "unreadItemCount": 0,
-            "totalItemCount": 100,
-            "isHidden": False,
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.GetMailFolderAction()
-        inputs = {"folder_id": "archive"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["folder"]["displayName"], "Archive")
-
-        # Verify API call uses well-known name
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/me/mailFolders/archive", call_args[0][0])
-
-    async def test_get_mail_folder_not_found(self):
-        """Test getting a non-existent mail folder."""
-        self.mock_context.fetch.side_effect = Exception("Resource not found")
-
-        handler = microsoft365.GetMailFolderAction()
-        inputs = {"folder_id": "nonexistent"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])
-        self.assertIn("error", result.data)
-
-
-class TestMoveEmailAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for move email tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_move_email_with_folder_id_success(self):
-        """Test moving email to folder using folder ID."""
-        mock_response = {
-            "id": "msg123-moved",
-            "parentFolderId": "AQMkADYAAAIBXQAAAA==",
-            "subject": "Test Email",
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.MoveEmailAction()
-        inputs = {"email_id": "msg123", "destination_folder_id": "AQMkADYAAAIBXQAAAA=="}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["id"], "msg123-moved")
-        self.assertEqual(result.data["parentFolderId"], "AQMkADYAAAIBXQAAAA==")
-        self.assertEqual(result.data["subject"], "Test Email")
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/me/messages/msg123/move", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-        self.assertEqual(call_args[1]["json"]["destinationId"], "AQMkADYAAAIBXQAAAA==")
-
-    async def test_move_email_with_well_known_name_success(self):
-        """Test moving email to folder using well-known name."""
-        mock_response = {
-            "id": "msg456-moved",
-            "parentFolderId": "AQMkADYAAAIBGAAAAA==",
-            "subject": "Another Test Email",
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.MoveEmailAction()
-        inputs = {"email_id": "msg456", "destination_folder_id": "deleteditems"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["id"], "msg456-moved")
-
-        # Verify API call uses well-known name
-        call_args = self.mock_context.fetch.call_args
-        self.assertEqual(call_args[1]["json"]["destinationId"], "deleteditems")
-
-    async def test_move_email_failure(self):
-        """Test move email failure handling."""
-        self.mock_context.fetch.side_effect = Exception("Folder not found")
-
-        handler = microsoft365.MoveEmailAction()
-        inputs = {"email_id": "msg789", "destination_folder_id": "invalid-folder"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])
-        self.assertIn("error", result.data)
-        self.assertIn("Folder not found", result.data["error"])
-
-
-class TestReadSharePointPageContentAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for SharePoint page content tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_read_sharepoint_page_content_success(self):
-        """Test successful SharePoint page content reading."""
-        # Mock API response with canvasLayout
-        mock_response = {
-            "id": "page123",
-            "name": "Home.aspx",
-            "title": "Welcome to SharePoint",
-            "webUrl": "https://contoso.sharepoint.com/sites/siteA/SitePages/Home.aspx",
-            "pageLayout": "home",
-            "createdDateTime": "2024-01-15T10:00:00Z",
-            "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-            "createdBy": {"user": {"displayName": "Page Creator", "email": "creator@contoso.com"}},
-            "canvasLayout": {
-                "horizontalSections": [
-                    {
-                        "layout": "oneColumn",
-                        "columns": [
-                            {
-                                "webparts": [
-                                    {
-                                        "@odata.type": "#oneDrive.textWebPart",
-                                        "innerHtml": "<h1>Welcome</h1><p>This is the home page content.</p>",
-                                    }
-                                ]
-                            }
-                        ],
-                    }
-                ]
-            },
-        }
-
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ReadSharePointPageContentAction()
-        inputs = {
-            "site_id": "test-site-id",
-            "page_id": "page123",
-            "include_content": True,
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["site_id"], "test-site-id")
-        self.assertEqual(result.data["page"]["name"], "Home.aspx")
-        self.assertEqual(result.data["page"]["title"], "Welcome to SharePoint")
-        self.assertEqual(result.data["page"]["page_layout"], "home")
-        self.assertIn("content", result.data["page"])  # canvasLayout content
-        self.assertIn("created_by", result.data["page"])
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn(
-            "/sites/test-site-id/pages/page123/microsoft.graph.sitePage",
-            call_args[0][0],
-        )
-        self.assertIn("$expand", call_args[1]["params"])
-        self.assertEqual(call_args[1]["params"]["$expand"], "canvasLayout")
-
-    async def test_read_sharepoint_page_content_metadata_only(self):
-        """Test SharePoint page metadata retrieval without content."""
-        mock_response = {
-            "id": "page456",
-            "name": "About.aspx",
-            "title": "About Us",
-            "webUrl": "https://contoso.sharepoint.com/sites/siteA/SitePages/About.aspx",
-            "pageLayout": "article",
-        }
-
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ReadSharePointPageContentAction()
-        inputs = {
-            "site_id": "test-site-id",
-            "page_id": "page456",
-            "include_content": False,
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["page"]["title"], "About Us")
-        self.assertNotIn("content", result.data["page"])  # No content when include_content=False
-
-        # Verify API call doesn't include $expand
-        call_args = self.mock_context.fetch.call_args
-        self.assertNotIn("$expand", call_args[1]["params"])
-
-    # ---- SharePoint Subsites & Folder Contents Tests ----
-
-
-class TestListSharePointSubsitesAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for SharePoint subsites tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
-
-    async def test_list_sharepoint_subsites_success(self):
-        """Test successful listing of SharePoint subsites."""
-        mock_response = {
-            "value": [
-                {
-                    "id": "contoso.sharepoint.com,sub1-guid,sub1-web-guid",
-                    "name": "HR Subsite",
-                    "displayName": "Human Resources",
-                    "description": "HR team subsite",
-                    "webUrl": "https://contoso.sharepoint.com/sites/main/hr",
-                    "createdDateTime": "2024-03-01T10:00:00Z",
-                    "lastModifiedDateTime": "2024-08-15T09:00:00Z",
-                    "isPersonalSite": False,
-                },
-                {
-                    "id": "contoso.sharepoint.com,sub2-guid,sub2-web-guid",
-                    "name": "Finance Subsite",
-                    "displayName": "Finance",
-                    "description": "Finance team subsite",
-                    "webUrl": "https://contoso.sharepoint.com/sites/main/finance",
-                    "createdDateTime": "2024-04-01T10:00:00Z",
-                    "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-                    "isPersonalSite": False,
-                },
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListSharePointSubsitesAction()
-        inputs = {"site_id": "contoso.sharepoint.com,main-guid,main-web-guid"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["total_subsites"], 2)
-        self.assertEqual(len(result.data["subsites"]), 2)
-        self.assertEqual(result.data["subsites"][0]["name"], "HR Subsite")
-        self.assertEqual(result.data["subsites"][0]["display_name"], "Human Resources")
-        self.assertEqual(result.data["subsites"][1]["name"], "Finance Subsite")
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn(
-            "/sites/contoso.sharepoint.com,main-guid,main-web-guid/sites",
-            call_args[0][0],
+        },
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.result.data.get("sent") is True
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_05_reply_to_email_live(live_context):
+    email_id = _state.get("email_id")
+    if not email_id:
+        pytest.skip("No email_id from test_list_emails_live")
+    result = await microsoft365.execute_action(
+        "reply_to_email",
+        {"message_id": email_id, "comment": "Integration test reply — safe to ignore."},
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.result.data.get("sent") is True
+
+
+@skip_if_no_creds
+@skip_if_no_recipient
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_06_forward_email_live(live_context):
+    email_id = _state.get("email_id")
+    if not email_id:
+        pytest.skip("No email_id from test_list_emails_live")
+    result = await microsoft365.execute_action(
+        "forward_email",
+        {
+            "message_id": email_id,
+            "to_recipients": [TEST_RECIPIENT],
+            "comment": "Integration test forward — safe to ignore.",
+        },
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.result.data.get("sent") is True
+
+
+# ============================================================
+# EMAIL — FOLDERS
+# ============================================================
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_mail_folders_live(live_context):
+    result = await microsoft365.execute_action(
+        "list_mail_folders", {"include_hidden": False, "include_children": False}, live_context
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    data = result.result.data
+    assert "folders" in data
+    if data["folders"]:
+        _state["inbox_folder_id"] = next(
+            (f["id"] for f in data["folders"] if f.get("displayName") == "Inbox"),
+            data["folders"][0]["id"],
         )
 
-    async def test_list_sharepoint_subsites_with_limit(self):
-        """Test listing subsites with a limit parameter."""
-        mock_response = {"value": []}
-        self.mock_context.fetch.return_value = mock_response
 
-        handler = microsoft365.ListSharePointSubsitesAction()
-        inputs = {
-            "site_id": "contoso.sharepoint.com,main-guid,main-web-guid",
-            "limit": 5,
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        call_args = self.mock_context.fetch.call_args
-        self.assertEqual(call_args[1]["params"]["$top"], 5)
-
-    async def test_list_sharepoint_subsites_empty(self):
-        """Test listing subsites when site has no subsites."""
-        mock_response = {"value": []}
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListSharePointSubsitesAction()
-        inputs = {"site_id": "contoso.sharepoint.com,main-guid,main-web-guid"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["total_subsites"], 0)
-        self.assertEqual(result.data["subsites"], [])
-
-    async def test_list_sharepoint_subsites_error(self):
-        """Test error handling when listing subsites fails."""
-        self.mock_context.fetch.side_effect = Exception("Site not found")
-
-        handler = microsoft365.ListSharePointSubsitesAction()
-        inputs = {"site_id": "invalid-site-id"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])
-        self.assertIn("Site not found", result.data["error"])
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_get_mail_folder_live(live_context):
+    result = await microsoft365.execute_action("get_mail_folder", {"folder_id": "inbox"}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "folder" in result.result.data
+    assert result.result.data["folder"]["id"]
 
 
-class TestListSharePointFolderContentsAction(unittest.TestCase):
-    def setUp(self):
-        """Set up test fixtures for SharePoint folder contents tests."""
-        self.mock_context = Mock()
-        self.mock_context.fetch = AsyncMock()
+@skip_if_no_creds
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_move_email_live(live_context):
+    email_id = _state.get("email_id")
+    if not email_id:
+        pytest.skip("No email_id from test_list_emails_live")
+    result = await microsoft365.execute_action(
+        "move_email",
+        {"email_id": email_id, "destination_folder_id": "drafts"},
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.result.data["id"]
+    moved_id = result.result.data["id"]
+    back = await microsoft365.execute_action(
+        "move_email",
+        {"email_id": moved_id, "destination_folder_id": "inbox"},
+        live_context,
+    )
+    assert back.type != ResultType.ACTION_ERROR, f"Move-back cleanup failed: {back.result.message}"
 
-    async def test_list_folder_contents_root_success(self):
-        """Test listing root folder contents of a document library."""
-        mock_response = {
-            "value": [
-                {
-                    "id": "folder-1",
-                    "name": "Reports",
-                    "webUrl": "https://contoso.sharepoint.com/sites/main/Documents/Reports",
-                    "size": 0,
-                    "createdDateTime": "2024-01-10T10:00:00Z",
-                    "lastModifiedDateTime": "2024-08-15T09:00:00Z",
-                    "folder": {"childCount": 12},
-                    "createdBy": {"user": {"displayName": "John Smith"}},
-                    "lastModifiedBy": {"user": {"displayName": "Jane Doe"}},
-                },
-                {
-                    "id": "file-1",
-                    "name": "Q3 Summary.docx",
-                    "webUrl": "https://contoso.sharepoint.com/sites/main/Documents/Q3 Summary.docx",
-                    "size": 45678,
-                    "createdDateTime": "2024-07-01T10:00:00Z",
-                    "lastModifiedDateTime": "2024-08-20T14:30:00Z",
-                    "file": {"mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
-                    "createdBy": {"user": {"displayName": "Jane Doe"}},
-                    "lastModifiedBy": {"user": {"displayName": "Jane Doe"}},
-                },
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
 
-        handler = microsoft365.ListSharePointFolderContentsAction()
-        inputs = {"drive_id": "drive-123"}
+# ============================================================
+# EMAIL — ATTACHMENTS
+# ============================================================
 
-        result = await handler.execute(inputs, self.mock_context)
 
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["folder_id"], "root")
-        self.assertEqual(result.data["total_items"], 2)
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_download_email_attachment_live(live_context):
+    result = await microsoft365.execute_action(
+        "list_emails", {"limit": 20, "fields": ["id", "hasAttachments"]}, live_context
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    email_with_att = next((e for e in result.result.data["emails"] if e.get("hasAttachments")), None)
+    if not email_with_att:
+        pytest.skip("No emails with attachments found in inbox")
 
-        # Check folder item
-        folder_item = result.data["items"][0]
-        self.assertTrue(folder_item["is_folder"])
-        self.assertEqual(folder_item["child_count"], 12)
-        self.assertEqual(folder_item["name"], "Reports")
+    read_result = await microsoft365.execute_action(
+        "read_email", {"email_id": email_with_att["id"], "include_attachments": True}, live_context
+    )
+    assert read_result.type != ResultType.ACTION_ERROR, read_result.result.message
+    attachments = read_result.result.data.get("attachments", [])
+    if not attachments:
+        pytest.skip("Email reported hasAttachments but no attachments returned")
 
-        # Check file item
-        file_item = result.data["items"][1]
-        self.assertFalse(file_item["is_folder"])
-        self.assertEqual(
-            file_item["mime_type"],
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        )
-        self.assertEqual(file_item["size"], 45678)
+    att_id = attachments[0]["id"]
+    result = await microsoft365.execute_action(
+        "download_email_attachment",
+        {"message_id": email_with_att["id"], "attachment_id": att_id, "include_content": True},
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "file" in result.result.data
+    assert result.result.data["file"]["content"], "attachment content should be non-empty"
+    assert "metadata" in result.result.data
 
-        # Verify API call uses root path
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/drives/drive-123/root/children", call_args[0][0])
 
-    async def test_list_folder_contents_subfolder_success(self):
-        """Test listing contents of a specific subfolder."""
-        mock_response = {
-            "value": [
-                {
-                    "id": "file-2",
-                    "name": "Report.pdf",
-                    "webUrl": "https://contoso.sharepoint.com/sites/main/Documents/Reports/Report.pdf",
-                    "size": 102400,
-                    "createdDateTime": "2024-06-01T10:00:00Z",
-                    "lastModifiedDateTime": "2024-06-15T09:00:00Z",
-                    "file": {"mimeType": "application/pdf"},
-                }
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
+# ============================================================
+# CALENDAR
+# ============================================================
 
-        handler = microsoft365.ListSharePointFolderContentsAction()
-        inputs = {"drive_id": "drive-123", "folder_id": "folder-1"}
 
-        result = await handler.execute(inputs, self.mock_context)
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_calendar_events_live(live_context):
+    result = await microsoft365.execute_action("list_calendar_events", {"limit": 5}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "events" in result.result.data
 
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["folder_id"], "folder-1")
-        self.assertEqual(result.data["total_items"], 1)
-        self.assertEqual(result.data["items"][0]["name"], "Report.pdf")
 
-        # Verify API call uses folder path
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("/drives/drive-123/items/folder-1/children", call_args[0][0])
+@skip_if_no_creds
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_07_create_calendar_event_live(live_context):
+    result = await microsoft365.execute_action(
+        "create_calendar_event",
+        {
+            "subject": "[Autohive Integration Test] Event",
+            "start_time": "2026-12-01T10:00:00",
+            "end_time": "2026-12-01T11:00:00",
+            "body": "Integration test event — safe to delete.",
+        },
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "id" in result.result.data
+    _state["calendar_event_id"] = result.result.data["id"]
 
-    async def test_list_folder_contents_with_pagination(self):
-        """Test that has_more is set when next page link exists."""
-        mock_response = {
-            "value": [{"id": "file-1", "name": "file.txt", "size": 100}],
-            "@odata.nextLink": "https://graph.microsoft.com/v1.0/next-page-token",
-        }
-        self.mock_context.fetch.return_value = mock_response
 
-        handler = microsoft365.ListSharePointFolderContentsAction()
-        inputs = {"drive_id": "drive-123"}
+@skip_if_no_creds
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_08_update_calendar_event_live(live_context):
+    event_id = _state.get("calendar_event_id")
+    if not event_id:
+        pytest.skip("No calendar_event_id from test_07")
+    result = await microsoft365.execute_action(
+        "update_calendar_event",
+        {"event_id": event_id, "subject": "[Autohive Integration Test] Event (Updated)"},
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert result.result.data["id"] == event_id
 
-        result = await handler.execute(inputs, self.mock_context)
 
-        self.assertTrue(result.data["result"])
-        self.assertTrue(result.data["has_more"])
+@skip_if_no_creds
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_09_delete_calendar_event_live(live_context):
+    event_id = _state.get("calendar_event_id")
+    if not event_id:
+        pytest.skip("No calendar_event_id from test_07")
+    resp = await live_context.fetch(
+        f"https://graph.microsoft.com/v1.0/me/events/{event_id}",
+        method="DELETE",
+    )
+    assert resp.status in (204, 200), f"Calendar event cleanup failed: {resp.status}"
+    _state.pop("calendar_event_id", None)
 
-    async def test_list_folder_contents_error(self):
-        """Test error handling when folder listing fails."""
-        self.mock_context.fetch.side_effect = Exception("Drive not found")
 
-        handler = microsoft365.ListSharePointFolderContentsAction()
-        inputs = {"drive_id": "invalid-drive"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])
-        self.assertIn("Drive not found", result.data["error"])
-
-    # ---- Meeting Scheduling & Room Management Tests ----
-
-    async def test_find_meeting_times_success(self):
-        """Test successful meeting time suggestion."""
-        mock_response = {
-            "meetingTimeSuggestions": [
-                {
-                    "meetingTimeSlot": {
-                        "start": {
-                            "dateTime": "2024-08-20T10:00:00.0000000",
-                            "timeZone": "UTC",
-                        },
-                        "end": {
-                            "dateTime": "2024-08-20T11:00:00.0000000",
-                            "timeZone": "UTC",
-                        },
-                    },
-                    "confidence": 100,
-                    "organizerAvailability": "free",
-                    "attendeeAvailability": [
-                        {
-                            "attendee": {"emailAddress": {"address": "john@example.com"}},
-                            "availability": "free",
-                        },
-                        {
-                            "attendee": {"emailAddress": {"address": "sarah@example.com"}},
-                            "availability": "free",
-                        },
-                    ],
-                    "locations": [
-                        {
-                            "displayName": "Conference Room A",
-                            "locationEmailAddress": "conf-a@example.com",
-                        }
-                    ],
-                },
-                {
-                    "meetingTimeSlot": {
-                        "start": {
-                            "dateTime": "2024-08-20T14:00:00.0000000",
-                            "timeZone": "UTC",
-                        },
-                        "end": {
-                            "dateTime": "2024-08-20T15:00:00.0000000",
-                            "timeZone": "UTC",
-                        },
-                    },
-                    "confidence": 80,
-                    "organizerAvailability": "free",
-                    "attendeeAvailability": [
-                        {
-                            "attendee": {"emailAddress": {"address": "john@example.com"}},
-                            "availability": "free",
-                        },
-                        {
-                            "attendee": {"emailAddress": {"address": "sarah@example.com"}},
-                            "availability": "tentative",
-                        },
-                    ],
-                    "locations": [],
-                },
-            ],
-            "emptySuggestionsReason": "",
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.FindMeetingTimesAction()
-        inputs = {
-            "attendees": ["john@example.com", "sarah@example.com"],
-            "duration_minutes": 60,
-            "start_datetime": "2024-08-19T08:00:00Z",
-            "end_datetime": "2024-08-23T18:00:00Z",
-            "max_candidates": 5,
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["meeting_time_suggestions"]), 2)
-        self.assertEqual(result.data["meeting_time_suggestions"][0]["confidence"], 100)
-        self.assertEqual(
-            result.data["meeting_time_suggestions"][0]["attendee_availability"][0]["email"],
-            "john@example.com",
-        )
-        self.assertEqual(
-            result.data["meeting_time_suggestions"][0]["suggested_locations"][0]["displayName"],
-            "Conference Room A",
-        )
-
-        # Verify API call
-        self.mock_context.fetch.assert_called_once()
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("findMeetingTimes", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-
-    async def test_find_meeting_times_no_suggestions(self):
-        """Test when no meeting times are available."""
-        mock_response = {
-            "meetingTimeSuggestions": [],
-            "emptySuggestionsReason": "attendeesUnavailable",
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.FindMeetingTimesAction()
-        inputs = {"attendees": ["john@example.com"], "duration_minutes": 60}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["meeting_time_suggestions"]), 0)
-        self.assertEqual(result.data["empty_suggestions_reason"], "attendeesUnavailable")
-
-    async def test_find_meeting_times_with_location_constraint(self):
-        """Test finding meeting times with a specific room."""
-        mock_response = {
-            "meetingTimeSuggestions": [
-                {
-                    "meetingTimeSlot": {
-                        "start": {
-                            "dateTime": "2024-08-20T10:00:00.0000000",
-                            "timeZone": "UTC",
-                        },
-                        "end": {
-                            "dateTime": "2024-08-20T11:00:00.0000000",
-                            "timeZone": "UTC",
-                        },
-                    },
-                    "confidence": 100,
-                    "organizerAvailability": "free",
-                    "attendeeAvailability": [],
-                    "locations": [],
-                }
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.FindMeetingTimesAction()
-        inputs = {
-            "attendees": ["john@example.com"],
+@skip_if_no_creds
+@skip_if_no_attendee
+@pytest.mark.asyncio
+async def test_find_meeting_times_live(live_context):
+    result = await microsoft365.execute_action(
+        "find_meeting_times",
+        {
+            "attendees": [TEST_ATTENDEE],
             "duration_minutes": 30,
-            "location_constraint": "conf-room@example.com",
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        # Verify location constraint was sent
-        call_args = self.mock_context.fetch.call_args
-        body = call_args[1]["json"]
-        self.assertIn("locationConstraint", body)
-        self.assertEqual(
-            body["locationConstraint"]["locations"][0]["locationEmailAddress"],
-            "conf-room@example.com",
-        )
-
-    async def test_find_meeting_times_error(self):
-        """Test error handling for find meeting times."""
-        self.mock_context.fetch.side_effect = Exception("API Error: Insufficient permissions")
-
-        handler = microsoft365.FindMeetingTimesAction()
-        inputs = {"attendees": ["john@example.com"]}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])
-        self.assertIn("API Error", result.data["error"])
-
-    async def test_get_schedule_success(self):
-        """Test successful schedule retrieval."""
-        mock_response = {
-            "value": [
-                {
-                    "scheduleId": "john@example.com",
-                    "availabilityView": "0000220000",
-                    "scheduleItems": [
-                        {
-                            "status": "busy",
-                            "start": {
-                                "dateTime": "2024-08-20T10:00:00.0000000",
-                                "timeZone": "UTC",
-                            },
-                            "end": {
-                                "dateTime": "2024-08-20T11:00:00.0000000",
-                                "timeZone": "UTC",
-                            },
-                            "subject": "Team Standup",
-                            "location": "Teams",
-                            "isPrivate": False,
-                        }
-                    ],
-                    "workingHours": {
-                        "startTime": "08:00:00.0000000",
-                        "endTime": "17:00:00.0000000",
-                        "daysOfWeek": [
-                            "monday",
-                            "tuesday",
-                            "wednesday",
-                            "thursday",
-                            "friday",
-                        ],
-                        "timeZone": {"name": "Pacific Standard Time"},
-                    },
-                },
-                {
-                    "scheduleId": "sarah@example.com",
-                    "availabilityView": "0000000000",
-                    "scheduleItems": [],
-                    "workingHours": {
-                        "startTime": "09:00:00.0000000",
-                        "endTime": "18:00:00.0000000",
-                        "daysOfWeek": [
-                            "monday",
-                            "tuesday",
-                            "wednesday",
-                            "thursday",
-                            "friday",
-                        ],
-                        "timeZone": {"name": "Eastern Standard Time"},
-                    },
-                },
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.GetScheduleAction()
-        inputs = {
-            "schedules": ["john@example.com", "sarah@example.com"],
-            "start_datetime": "2024-08-20T08:00:00Z",
-            "end_datetime": "2024-08-20T18:00:00Z",
-            "availability_view_interval": 30,
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["schedules"]), 2)
-        self.assertEqual(result.data["schedules"][0]["email"], "john@example.com")
-        self.assertEqual(result.data["schedules"][0]["availability_view"], "0000220000")
-        self.assertEqual(len(result.data["schedules"][0]["schedule_items"]), 1)
-        self.assertEqual(result.data["schedules"][0]["schedule_items"][0]["status"], "busy")
-        self.assertEqual(
-            result.data["schedules"][0]["working_hours"]["timezone"],
-            "Pacific Standard Time",
-        )
-        self.assertEqual(len(result.data["schedules"][1]["schedule_items"]), 0)
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("getSchedule", call_args[0][0])
-        self.assertEqual(call_args[1]["method"], "POST")
-
-    async def test_get_schedule_error(self):
-        """Test error handling for get schedule."""
-        self.mock_context.fetch.side_effect = Exception("Network error")
-
-        handler = microsoft365.GetScheduleAction()
-        inputs = {
-            "schedules": ["john@example.com"],
-            "start_datetime": "2024-08-20T08:00:00Z",
-            "end_datetime": "2024-08-20T18:00:00Z",
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])
-        self.assertIn("Network error", result.data["error"])
-
-    async def test_list_rooms_all_rooms(self):
-        """Test listing all meeting rooms."""
-        mock_response = {
-            "value": [
-                {
-                    "id": "room1",
-                    "displayName": "Conference Room A",
-                    "emailAddress": "conf-a@example.com",
-                    "capacity": 10,
-                    "building": "Building 1",
-                    "floorNumber": 2,
-                    "floorLabel": "2nd Floor",
-                    "isWheelChairAccessible": True,
-                    "audioDeviceName": "Polycom",
-                    "videoDeviceName": "Logitech Rally",
-                    "displayDeviceName": 'Samsung 65"',
-                    "phone": "555-0101",
-                },
-                {
-                    "id": "room2",
-                    "displayName": "Boardroom",
-                    "emailAddress": "boardroom@example.com",
-                    "capacity": 20,
-                    "building": "Building 1",
-                    "floorNumber": 3,
-                    "floorLabel": "3rd Floor",
-                    "isWheelChairAccessible": True,
-                    "audioDeviceName": "Cisco",
-                    "videoDeviceName": "Cisco Webex Board",
-                    "displayDeviceName": "Cisco Webex Board 85",
-                    "phone": "555-0102",
-                },
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListRoomsAction()
-        inputs = {"list_type": "rooms", "limit": 50}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["total_count"], 2)
-        self.assertEqual(result.data["rooms"][0]["display_name"], "Conference Room A")
-        self.assertEqual(result.data["rooms"][0]["email_address"], "conf-a@example.com")
-        self.assertEqual(result.data["rooms"][0]["capacity"], 10)
-        self.assertEqual(result.data["rooms"][1]["display_name"], "Boardroom")
-
-        # Verify API call
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("microsoft.graph.room", call_args[0][0])
-
-    async def test_list_rooms_room_lists(self):
-        """Test listing room lists (buildings)."""
-        mock_response = {
-            "value": [
-                {
-                    "id": "list1",
-                    "displayName": "Building A",
-                    "emailAddress": "building-a@example.com",
-                    "phone": "",
-                }
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListRoomsAction()
-        inputs = {"list_type": "room_lists"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["total_count"], 1)
-        self.assertEqual(result.data["rooms"][0]["display_name"], "Building A")
-
-        call_args = self.mock_context.fetch.call_args
-        self.assertIn("roomList", call_args[0][0])
-
-    async def test_list_rooms_in_list(self):
-        """Test listing rooms in a specific room list."""
-        mock_response = {
-            "value": [
-                {
-                    "id": "room1",
-                    "displayName": "Room 101",
-                    "emailAddress": "room101@example.com",
-                    "capacity": 6,
-                    "building": "Building A",
-                    "floorNumber": 1,
-                }
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.ListRoomsAction()
-        inputs = {
-            "list_type": "rooms_in_list",
-            "room_list_email": "building-a@example.com",
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(result.data["total_count"], 1)
-        self.assertEqual(result.data["rooms"][0]["email_address"], "room101@example.com")
-
-    async def test_list_rooms_in_list_missing_email(self):
-        """Test error when room list email is missing."""
-        handler = microsoft365.ListRoomsAction()
-        inputs = {"list_type": "rooms_in_list"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])
-        self.assertIn("room_list_email is required", result.data["error"])
-
-    async def test_list_rooms_error(self):
-        """Test error handling for list rooms."""
-        self.mock_context.fetch.side_effect = Exception("Forbidden: Insufficient privileges")
-
-        handler = microsoft365.ListRoomsAction()
-        inputs = {"list_type": "rooms"}
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])
-        self.assertIn("Forbidden", result.data["error"])
-
-    async def test_check_room_availability_all_available(self):
-        """Test checking room availability when all rooms are free."""
-        mock_response = {
-            "value": [
-                {
-                    "scheduleId": "conf-a@example.com",
-                    "availabilityView": "0000",
-                    "scheduleItems": [],
-                },
-                {
-                    "scheduleId": "conf-b@example.com",
-                    "availabilityView": "0000",
-                    "scheduleItems": [],
-                },
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.CheckRoomAvailabilityAction()
-        inputs = {
-            "room_emails": ["conf-a@example.com", "conf-b@example.com"],
-            "start_datetime": "2024-08-20T14:00:00Z",
-            "end_datetime": "2024-08-20T15:00:00Z",
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertEqual(len(result.data["rooms"]), 2)
-        self.assertTrue(result.data["rooms"][0]["is_available"])
-        self.assertTrue(result.data["rooms"][1]["is_available"])
-        self.assertEqual(result.data["available_rooms"], ["conf-a@example.com", "conf-b@example.com"])
-        self.assertEqual(result.data["unavailable_rooms"], [])
-
-    async def test_check_room_availability_with_conflicts(self):
-        """Test checking room availability when some rooms have conflicts."""
-        mock_response = {
-            "value": [
-                {
-                    "scheduleId": "conf-a@example.com",
-                    "availabilityView": "0000",
-                    "scheduleItems": [],
-                },
-                {
-                    "scheduleId": "conf-b@example.com",
-                    "availabilityView": "2200",
-                    "scheduleItems": [
-                        {
-                            "status": "busy",
-                            "start": {
-                                "dateTime": "2024-08-20T14:00:00.0000000",
-                                "timeZone": "UTC",
-                            },
-                            "end": {
-                                "dateTime": "2024-08-20T14:30:00.0000000",
-                                "timeZone": "UTC",
-                            },
-                            "subject": "Existing Meeting",
-                        }
-                    ],
-                },
-            ]
-        }
-        self.mock_context.fetch.return_value = mock_response
-
-        handler = microsoft365.CheckRoomAvailabilityAction()
-        inputs = {
-            "room_emails": ["conf-a@example.com", "conf-b@example.com"],
-            "start_datetime": "2024-08-20T14:00:00Z",
-            "end_datetime": "2024-08-20T15:00:00Z",
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertTrue(result.data["result"])
-        self.assertTrue(result.data["rooms"][0]["is_available"])
-        self.assertFalse(result.data["rooms"][1]["is_available"])
-        self.assertEqual(len(result.data["rooms"][1]["conflicts"]), 1)
-        self.assertEqual(result.data["rooms"][1]["conflicts"][0]["subject"], "Existing Meeting")
-        self.assertEqual(result.data["available_rooms"], ["conf-a@example.com"])
-        self.assertEqual(result.data["unavailable_rooms"], ["conf-b@example.com"])
-
-    async def test_check_room_availability_error(self):
-        """Test error handling for check room availability."""
-        self.mock_context.fetch.side_effect = Exception("Timeout")
-
-        handler = microsoft365.CheckRoomAvailabilityAction()
-        inputs = {
-            "room_emails": ["conf-a@example.com"],
-            "start_datetime": "2024-08-20T14:00:00Z",
-            "end_datetime": "2024-08-20T15:00:00Z",
-        }
-
-        result = await handler.execute(inputs, self.mock_context)
-
-        self.assertFalse(result.data["result"])
-        self.assertIn("Timeout", result.data["error"])
+            "start_datetime": "2026-12-01T08:00:00Z",
+            "end_datetime": "2026-12-01T18:00:00Z",
+        },
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "meeting_time_suggestions" in result.result.data
 
 
-if __name__ == "__main__":
-    unittest.main()
+@skip_if_no_creds
+@skip_if_no_schedule
+@pytest.mark.asyncio
+async def test_get_schedule_live(live_context):
+    result = await microsoft365.execute_action(
+        "get_schedule",
+        {
+            "schedules": [TEST_SCHEDULE_EMAIL],
+            "start_datetime": "2026-12-01T08:00:00Z",
+            "end_datetime": "2026-12-01T18:00:00Z",
+            "availability_view_interval": 60,
+        },
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "schedules" in result.result.data
+
+
+# ============================================================
+# ONEDRIVE
+# ============================================================
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_files_live(live_context):
+    result = await microsoft365.execute_action("list_files", {"folder_path": "/"}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    data = result.result.data
+    assert "files" in data
+    if data["files"]:
+        _state["onedrive_file_id"] = data["files"][0]["id"]
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_search_onedrive_files_live(live_context):
+    result = await microsoft365.execute_action("search_onedrive_files", {"query": "test", "limit": 5}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "files" in result.result.data
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_10_upload_file_live(live_context):
+    unique_name = f"autohive_integration_test_{int(time.time())}.txt"
+    result = await microsoft365.execute_action(
+        "upload_file",
+        {
+            "filename": unique_name,
+            "content": "Integration test file — safe to delete.",
+            "content_type": "text/plain",
+            "folder_path": "/",
+        },
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "id" in result.result.data
+    _state["uploaded_file_id"] = result.result.data["id"]
+    _state["uploaded_file_name"] = unique_name
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_read_onedrive_file_content_live(live_context):
+    file_id = _state.get("uploaded_file_id") or _state.get("onedrive_file_id")
+    if not file_id:
+        pytest.skip("No file_id available")
+    result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": file_id}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "file" in result.result.data
+    assert result.result.data["file"]["content"], "file content should be non-empty"
+    assert "metadata" in result.result.data
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_11_delete_uploaded_file_live(live_context):
+    file_id = _state.get("uploaded_file_id")
+    if not file_id:
+        pytest.skip("No uploaded_file_id from test_10_upload_file_live")
+    resp = await live_context.fetch(
+        f"https://graph.microsoft.com/v1.0/me/drive/items/{file_id}",
+        method="DELETE",
+    )
+    assert resp.status in (204, 200), f"File cleanup failed: {resp.status}"
+    _state.pop("uploaded_file_id", None)
+
+
+# ============================================================
+# CONTACTS
+# ============================================================
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_read_contacts_live(live_context):
+    result = await microsoft365.execute_action("read_contacts", {"limit": 5}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "contacts" in result.result.data
+
+
+# ============================================================
+# SHAREPOINT
+# ============================================================
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_search_sharepoint_sites_live(live_context):
+    result = await microsoft365.execute_action("search_sharepoint_sites", {"query": "test"}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    data = result.result.data
+    assert "sites" in data
+    if data["sites"]:
+        _state["sharepoint_site_id"] = data["sites"][0]["id"]
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_get_sharepoint_site_details_live(live_context):
+    site_id = _state.get("sharepoint_site_id")
+    if not site_id:
+        pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
+    result = await microsoft365.execute_action("get_sharepoint_site_details", {"site_id": site_id}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "site" in result.result.data
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_sharepoint_libraries_live(live_context):
+    site_id = _state.get("sharepoint_site_id")
+    if not site_id:
+        pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
+    result = await microsoft365.execute_action("list_sharepoint_libraries", {"site_id": site_id}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    data = result.result.data
+    assert "libraries" in data
+    if data["libraries"]:
+        _state["sharepoint_drive_id"] = data["libraries"][0]["id"]
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_search_sharepoint_documents_live(live_context):
+    site_id = _state.get("sharepoint_site_id")
+    if not site_id:
+        pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
+    result = await microsoft365.execute_action(
+        "search_sharepoint_documents",
+        {"site_id": site_id, "query": "test", "limit": 5},
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    data = result.result.data
+    assert "files" in data
+    if data["files"]:
+        _state["sharepoint_file_id"] = data["files"][0]["id"]
+        _state["sharepoint_file_drive_id"] = data["files"][0].get("drive_id", "")
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_read_sharepoint_document_live(live_context):
+    site_id = _state.get("sharepoint_site_id")
+    file_id = _state.get("sharepoint_file_id")
+    if not site_id or not file_id:
+        pytest.skip("No sharepoint site/file from earlier tests")
+    result = await microsoft365.execute_action(
+        "read_sharepoint_document",
+        {
+            "site_id": site_id,
+            "file_id": file_id,
+            "drive_id": _state.get("sharepoint_file_drive_id", ""),
+        },
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "file" in result.result.data
+    assert "metadata" in result.result.data
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_sharepoint_pages_live(live_context):
+    site_id = _state.get("sharepoint_site_id")
+    if not site_id:
+        pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
+    result = await microsoft365.execute_action("list_sharepoint_pages", {"site_id": site_id}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    data = result.result.data
+    assert "pages" in data
+    if data["pages"]:
+        _state["sharepoint_page_id"] = data["pages"][0]["id"]
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_read_sharepoint_page_content_live(live_context):
+    site_id = _state.get("sharepoint_site_id")
+    page_id = _state.get("sharepoint_page_id")
+    if not site_id or not page_id:
+        pytest.skip("No sharepoint site/page from earlier tests")
+    result = await microsoft365.execute_action(
+        "read_sharepoint_page_content",
+        {"site_id": site_id, "page_id": page_id, "include_content": True},
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "page" in result.result.data
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_sharepoint_subsites_live(live_context):
+    site_id = _state.get("sharepoint_site_id")
+    if not site_id:
+        pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
+    result = await microsoft365.execute_action("list_sharepoint_subsites", {"site_id": site_id}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "subsites" in result.result.data
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_sharepoint_folder_contents_live(live_context):
+    drive_id = _state.get("sharepoint_drive_id")
+    if not drive_id:
+        pytest.skip("No sharepoint_drive_id from test_list_sharepoint_libraries_live")
+    result = await microsoft365.execute_action("list_sharepoint_folder_contents", {"drive_id": drive_id}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "items" in result.result.data
+
+
+# ============================================================
+# ROOMS
+# ============================================================
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_rooms_live(live_context):
+    result = await microsoft365.execute_action("list_rooms", {"list_type": "rooms", "limit": 10}, live_context)
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    data = result.result.data
+    assert "rooms" in data
+    if data["rooms"]:
+        _state["room_email"] = data["rooms"][0]["email_address"]
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_check_room_availability_live(live_context):
+    room_email = _state.get("room_email")
+    if not room_email:
+        pytest.skip("No room_email from test_list_rooms_live")
+    result = await microsoft365.execute_action(
+        "check_room_availability",
+        {
+            "room_emails": [room_email],
+            "start_datetime": "2026-12-01T10:00:00Z",
+            "end_datetime": "2026-12-01T11:00:00Z",
+        },
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert "rooms" in result.result.data
