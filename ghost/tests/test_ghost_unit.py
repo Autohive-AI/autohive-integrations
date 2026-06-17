@@ -164,8 +164,8 @@ async def test_upload_image(mock_context, tmp_path):
     assert "url" in result.result.data["image"]
     url = mock_context.fetch.call_args[0][0]
     assert "admin/images/upload" in url
-    # multipart body passed as bytes, not files=
-    body = mock_context.fetch.call_args[1].get("body")
+    # multipart body passed as data=, not files= or body=
+    body = mock_context.fetch.call_args[1].get("data")
     assert body is not None
     assert b"test.png" in body
 
