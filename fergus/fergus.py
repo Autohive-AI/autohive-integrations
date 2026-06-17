@@ -20,7 +20,7 @@ def _auth_headers(api_token: str, include_content_type: bool = False) -> Dict[st
 
 
 def _get_token(context: ExecutionContext) -> str:
-    token = context.auth.get("api_token")
+    token = context.auth.get("credentials", {}).get("api_token")
     if not token:
         raise ValueError("Fergus Personal Access Token is required in auth (field 'api_token').")
     return token

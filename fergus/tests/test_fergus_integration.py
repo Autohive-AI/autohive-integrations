@@ -36,7 +36,7 @@ def live_context(make_context):
                     data = await resp.text()
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
-    ctx = make_context(auth={"api_token": FERGUS_API_TOKEN})
+    ctx = make_context(auth={"credentials": {"api_token": FERGUS_API_TOKEN}})
     ctx.fetch.side_effect = real_fetch
     return ctx
 
