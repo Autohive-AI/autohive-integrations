@@ -308,7 +308,7 @@ class UploadImageAction(ActionHandler):
                 f"{base}/ghost/api/admin/images/upload/",
                 method="POST",
                 headers=headers,
-                body=body,
+                data=body,
             )
             images = resp.data.get("images", [])
             return ActionResult(data={"image": images[0] if images else None}, cost_usd=0.0)
