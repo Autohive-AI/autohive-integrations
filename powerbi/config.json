@@ -1,6 +1,6 @@
 {
     "name": "Power BI",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Power BI integration for managing workspaces, datasets, reports, and dashboards",
     "entry_point": "powerbi.py",
     "auth": {
@@ -61,14 +61,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "workspaces",
-                    "result"
+                    "workspaces"
                 ]
             }
         },
@@ -93,14 +89,10 @@
                     "workspace": {
                         "type": "object",
                         "description": "Workspace details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "workspace",
-                    "result"
+                    "workspace"
                 ]
             }
         },
@@ -148,14 +140,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "datasets",
-                    "result"
+                    "datasets"
                 ]
             }
         },
@@ -184,14 +172,10 @@
                     "dataset": {
                         "type": "object",
                         "description": "Dataset details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dataset",
-                    "result"
+                    "dataset"
                 ]
             }
         },
@@ -287,9 +271,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     },
@@ -297,9 +278,7 @@
                         "type": "string"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "get_refresh_history": {
@@ -352,14 +331,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "refreshes",
-                    "result"
+                    "refreshes"
                 ]
             }
         },
@@ -401,14 +376,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "reports",
-                    "result"
+                    "reports"
                 ]
             }
         },
@@ -437,14 +408,10 @@
                     "report": {
                         "type": "object",
                         "description": "Report details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "report",
-                    "result"
+                    "report"
                 ]
             }
         },
@@ -497,14 +464,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "datasources",
-                    "result"
+                    "datasources"
                 ]
             }
         },
@@ -554,14 +517,9 @@
                     },
                     "embedUrl": {
                         "type": "string"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "refresh_report": {
@@ -595,9 +553,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     },
@@ -605,9 +560,7 @@
                         "type": "string"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "export_report": {
@@ -645,16 +598,11 @@
                     "export_id": {
                         "type": "string"
                     },
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "get_export_status": {
@@ -689,14 +637,10 @@
                     },
                     "percentComplete": {
                         "type": "integer"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "status",
-                    "result"
+                    "status"
                 ]
             }
         },
@@ -735,14 +679,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dashboards",
-                    "result"
+                    "dashboards"
                 ]
             }
         },
@@ -771,14 +711,10 @@
                     "dashboard": {
                         "type": "object",
                         "description": "Dashboard details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dashboard",
-                    "result"
+                    "dashboard"
                 ]
             }
         },
@@ -827,14 +763,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "tiles",
-                    "result"
+                    "tiles"
                 ]
             }
         },
@@ -911,10 +843,9 @@
                     "id": {"type": "string", "description": "ID of the created report"},
                     "display_name": {"type": "string", "description": "Name of the created report"},
                     "workspace_id": {"type": "string", "description": "Workspace ID where the report was created"},
-                    "web_url": {"type": "string", "description": "URL to open the report in Power BI"},
-                    "result": {"type": "boolean"}
+                    "web_url": {"type": "string", "description": "URL to open the report in Power BI"}
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "execute_queries": {
@@ -956,14 +887,10 @@
                     "results": {
                         "type": "array",
                         "description": "Query results"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "results",
-                    "result"
+                    "results"
                 ]
             }
         }
