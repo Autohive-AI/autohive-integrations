@@ -136,12 +136,13 @@ class MergeConversationsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             conversation_id = inputs["conversation_id"]
-            await context.fetch(
+            response = await context.fetch(
                 f"{BASE_URL}/conversations/{conversation_id}/merge",
                 method="POST",
                 headers=_get_headers(context),
                 json={"target": inputs["target_conversation_id"]},
             )
+            _check_response(response)
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
@@ -338,11 +339,12 @@ class DeleteDraftAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             draft_id = inputs["draft_id"]
-            await context.fetch(
+            response = await context.fetch(
                 f"{BASE_URL}/drafts/{draft_id}",
                 method="DELETE",
                 headers=_get_headers(context),
             )
+            _check_response(response)
             return ActionResult(data={"result": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)

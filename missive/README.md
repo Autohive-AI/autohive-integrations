@@ -1,6 +1,6 @@
 # Missive
 
-Missive is a collaborative team inbox app that unifies email, SMS, WhatsApp, and live chat into shared conversations. This integration provides 22 actions covering conversations, messages, drafts, posts, contacts, and analytics.
+Missive is a collaborative team inbox app that unifies email, SMS, WhatsApp, and live chat into shared conversations. This integration covers conversations, messages, drafts, posts, contacts, and analytics.
 
 ## Auth Setup
 
