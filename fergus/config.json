@@ -14,7 +14,7 @@
           "type": "string",
           "format": "password",
           "label": "Fergus Personal Access Token",
-          "help_text": "Generate a Personal Access Token from Settings \u00e2\u2020\u2019 Fergus API inside your Fergus account."
+          "description": "Generate a Personal Access Token from Settings > Fergus API inside your Fergus account."
         }
       }
     }
