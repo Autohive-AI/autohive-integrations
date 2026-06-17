@@ -11,7 +11,7 @@ API Version: v1.2
 Reference: https://developer.uber.com/docs/riders/introduction
 """
 
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any, Optional, Callable, TypeVar
 from functools import wraps
 import os
@@ -58,22 +58,13 @@ def handle_uber_errors(action_name: str):
                 return await func(self, inputs, context)
 
             except UberAPIError as e:
-                return ActionResult(
-                    data={"result": False, "error": e.message, "error_type": e.error_type}, cost_usd=0.0
-                )
+                return ActionError(message=e.message)
 
             except Exception as e:
                 error_str = str(e)
                 error_type = classify_error(error_str)
 
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": f"Uber API error in {action_name}: {error_str}",
-                        "error_type": error_type,
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message=f"Uber API error in {action_name} [{error_type}]: {error_str}")
 
         return wrapper
 
@@ -222,8 +213,8 @@ async def uber_fetch(
     if json_body:
         kwargs["json"] = json_body
 
-    response = await context.fetch(url, **kwargs)
-    return response
+    fetch_response = await context.fetch(url, **kwargs)
+    return fetch_response.data
 
 
 # =============================================================================
@@ -576,8 +567,8 @@ async def uber_fetch_v1(
     if json_body:
         kwargs["json"] = json_body
 
-    response = await context.fetch(url, **kwargs)
-    return response
+    fetch_response = await context.fetch(url, **kwargs)
+    return fetch_response.data
 
 
 @uber.action("link_loyalty_account")

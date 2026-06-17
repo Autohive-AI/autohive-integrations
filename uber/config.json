@@ -1,7 +1,7 @@
 {
     "name": "uber",
     "display_name": "Uber Ride Requests",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Uber Ride Requests integration for getting ride estimates, booking rides, tracking ride status, and retrieving receipts",
     "entry_point": "uber.py",
     "supports_billing": false,
@@ -54,15 +54,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "description": "Error category: validation_error, auth_error, rate_limited, not_found, api_error",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -121,15 +112,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "description": "Error category",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -173,14 +155,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -223,20 +197,12 @@
                 "type": "object",
                 "properties": {
                     "estimate": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "description": "Detailed fare estimate"
                     },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -307,40 +273,32 @@
                 "type": "object",
                 "properties": {
                     "request_id": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "Unique ride request ID"
                     },
                     "status": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "Current ride status"
                     },
                     "eta": {
-                        "type": "integer",
+                        "type": ["integer", "null"],
                         "description": "ETA in minutes"
                     },
                     "surge_multiplier": {
-                        "type": "number",
+                        "type": ["number", "null"],
                         "description": "Surge pricing multiplier"
                     },
                     "driver": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "description": "Driver details when assigned"
                     },
                     "vehicle": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "description": "Vehicle details when assigned"
                     },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -362,20 +320,12 @@
                 "type": "object",
                 "properties": {
                     "ride": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "description": "Ride details including status, driver, vehicle, location"
                     },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -397,20 +347,12 @@
                 "type": "object",
                 "properties": {
                     "href": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "URL to the ride tracking map"
                     },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -434,14 +376,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -463,20 +397,12 @@
                 "type": "object",
                 "properties": {
                     "receipt": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "description": "Receipt details including charges, distance, duration"
                     },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -493,20 +419,12 @@
                 "type": "object",
                 "properties": {
                     "user": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "description": "User profile information"
                     },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -556,14 +474,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -592,20 +502,12 @@
                         }
                     },
                     "last_used": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "ID of last used payment method"
                     },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -647,20 +549,12 @@
                         "description": "Whether the account was successfully linked"
                     },
                     "response": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "description": "Response from Uber API"
                     },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -686,20 +580,12 @@
                         "description": "Whether the account was successfully unlinked"
                     },
                     "response": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "description": "Response from Uber API"
                     },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
@@ -753,20 +639,12 @@
                         "description": "Whether the data was successfully submitted"
                     },
                     "response": {
-                        "type": "object",
+                        "type": ["object", "null"],
                         "description": "Response from Uber API"
                     },
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    },
-                    "error_type": {
-                        "type": "string",
-                        "enum": ["validation_error", "auth_error", "rate_limited", "not_found", "server_error", "api_error"]
                     }
                 }
             }
