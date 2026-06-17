@@ -30,6 +30,8 @@ def live_context(make_context):
             ) as resp:
                 try:
                     data = await resp.json(content_type=None)
+                    if isinstance(data, dict) and data.get("result") == "success" and "data" in data:
+                        data = data["data"]
                 except Exception:
                     data = await resp.text()
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
