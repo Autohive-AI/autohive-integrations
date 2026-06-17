@@ -1,7 +1,7 @@
 {
     "name": "canva",
     "display_name": "Canva",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Canva integration for managing assets, designs, and folders",
     "entry_point": "canva.py",
     "supports_connected_account": true,
@@ -38,17 +38,9 @@
                         "items": {
                             "type": "string"
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "upload_asset": {
@@ -93,17 +85,9 @@
                     "status": {
                         "type": "string",
                         "description": "Initial job status"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_asset_upload_status": {
@@ -150,17 +134,9 @@
                                 "description": "Asset thumbnail information"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_asset": {
@@ -207,17 +183,9 @@
                                 "description": "Last update timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "update_asset": {
@@ -246,17 +214,8 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["result"]
+                "properties": {},
+                "required": []
             }
         },
         "delete_asset": {
@@ -274,17 +233,8 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["result"]
+                "properties": {},
+                "required": []
             }
         },
         "create_design": {
@@ -331,17 +281,9 @@
                                 "description": "URLs for accessing the design"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "list_designs": {
@@ -402,17 +344,9 @@
                     "continuation": {
                         "type": "string",
                         "description": "Token for next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["designs", "result"]
+                "required": ["designs"]
             }
         },
         "get_design": {
@@ -456,17 +390,9 @@
                                 "description": "URLs for accessing the design"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "export_design": {
@@ -544,17 +470,9 @@
                     "job_id": {
                         "type": "string",
                         "description": "Export job ID"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_export_status": {
@@ -583,17 +501,9 @@
                         "items": {
                             "type": "string"
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "import_design": {
@@ -642,17 +552,9 @@
                     "status": {
                         "type": "string",
                         "description": "Initial job status"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_design_import_status": {
@@ -695,17 +597,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "import_design_from_url": {
@@ -739,17 +633,9 @@
                     "status": {
                         "type": "string",
                         "description": "Initial job status"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_url_import_status": {
@@ -796,17 +682,9 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "create_folder": {
@@ -842,17 +720,9 @@
                                 "description": "Folder name"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "get_folder": {
@@ -892,17 +762,9 @@
                                 "description": "Last update timestamp"
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "list_folder_items": {
@@ -949,17 +811,9 @@
                     "continuation": {
                         "type": "string",
                         "description": "Token for next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["items", "result"]
+                "required": ["items"]
             }
         },
         "update_folder": {
@@ -981,17 +835,8 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["result"]
+                "properties": {},
+                "required": []
             }
         },
         "delete_folder": {
@@ -1009,17 +854,8 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["result"]
+                "properties": {},
+                "required": []
             }
         },
         "move_item_to_folder": {
@@ -1041,17 +877,8 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["result"]
+                "properties": {},
+                "required": []
             }
         }
     }

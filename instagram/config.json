@@ -1,6 +1,6 @@
 {
     "name": "Instagram",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Instagram Business/Creator integration for managing posts, comments, and insights",
     "supports_connected_account": true,
     "entry_point": "instagram.py",
@@ -176,7 +176,8 @@
                     },
                     "media_url": {
                         "type": "string",
-                        "description": "Required for IMAGE, VIDEO, REELS: Public URL of the media file"
+                        "description": "Required for IMAGE, VIDEO, REELS: Public URL of the media file. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                        "x-autohive-input": "file-public-url"
                     },
                     "caption": {
                         "type": "string",
@@ -185,9 +186,11 @@
                     "children": {
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "Public URL of a carousel media item. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                            "x-autohive-input": "file-public-url"
                         },
-                        "description": "Required for CAROUSEL: Array of media URLs for carousel items"
+                        "description": "Required for CAROUSEL: Array of media URLs for carousel items. You may attach files in the chat — the platform will upload them to public URLs automatically."
                     },
                     "alt_text": {
                         "type": "string",
@@ -231,7 +234,8 @@
                     },
                     "media_url": {
                         "type": "string",
-                        "description": "Public URL of the media file"
+                        "description": "Public URL of the media file. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                        "x-autohive-input": "file-public-url"
                     }
                 },
                 "required": [

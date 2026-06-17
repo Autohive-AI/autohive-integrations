@@ -1,7 +1,7 @@
 {
     "name": "Asana",
     "display_name": "Asana",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Asana integration for managing tasks, projects, workspaces, and team collaboration",
     "entry_point": "asana.py",
     "auth": {
@@ -17,7 +17,6 @@
             "stories:read",
             "stories:write",
             "workspaces:read",
-            "teams:read",
             "users:read"
         ]
     },
@@ -72,17 +71,9 @@
                     "task": {
                         "type": "object",
                         "description": "Created task details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["task", "result"]
+                "required": ["task"]
             }
         },
         "get_task": {
@@ -111,17 +102,9 @@
                     "task": {
                         "type": "object",
                         "description": "Task details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["task", "result"]
+                "required": ["task"]
             }
         },
         "update_task": {
@@ -167,17 +150,9 @@
                     "task": {
                         "type": "object",
                         "description": "Updated task details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["task", "result"]
+                "required": ["task"]
             }
         },
         "list_tasks": {
@@ -227,17 +202,9 @@
                     "tasks": {
                         "type": "array",
                         "description": "List of tasks"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["tasks", "result"]
+                "required": ["tasks"]
             }
         },
         "delete_task": {
@@ -256,16 +223,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "deleted": {
                         "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "description": "Whether the task was deleted"
                     }
                 },
-                "required": ["result"]
+                "required": ["deleted"]
             }
         },
         "list_projects": {
@@ -300,17 +263,9 @@
                     "projects": {
                         "type": "array",
                         "description": "List of projects"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["projects", "result"]
+                "required": ["projects"]
             }
         },
         "get_project": {
@@ -339,17 +294,9 @@
                     "project": {
                         "type": "object",
                         "description": "Project details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["project", "result"]
+                "required": ["project"]
             }
         },
         "create_project": {
@@ -391,17 +338,9 @@
                     "project": {
                         "type": "object",
                         "description": "Created project details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["project", "result"]
+                "required": ["project"]
             }
         },
         "update_project": {
@@ -443,17 +382,9 @@
                     "project": {
                         "type": "object",
                         "description": "Updated project details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["project", "result"]
+                "required": ["project"]
             }
         },
         "delete_project": {
@@ -472,16 +403,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "deleted": {
                         "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "description": "Whether the project was deleted"
                     }
                 },
-                "required": ["result"]
+                "required": ["deleted"]
             }
         },
         "get_project_by_name": {
@@ -544,17 +471,9 @@
                     "not_found": {
                         "type": "boolean",
                         "description": "Whether the project was not found"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": ["not_found"]
             }
         },
         "list_sections": {
@@ -581,17 +500,9 @@
                     "sections": {
                         "type": "array",
                         "description": "List of sections"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["sections", "result"]
+                "required": ["sections"]
             }
         },
         "create_section": {
@@ -617,17 +528,9 @@
                     "section": {
                         "type": "object",
                         "description": "Created section details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["section", "result"]
+                "required": ["section"]
             }
         },
         "update_section": {
@@ -653,17 +556,9 @@
                     "section": {
                         "type": "object",
                         "description": "Updated section details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["section", "result"]
+                "required": ["section"]
             }
         },
         "add_task_to_section": {
@@ -686,16 +581,12 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
+                    "added": {
                         "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
+                        "description": "Whether the task was added to the section"
                     }
                 },
-                "required": ["result"]
+                "required": ["added"]
             }
         },
         "create_story": {
@@ -721,17 +612,9 @@
                     "story": {
                         "type": "object",
                         "description": "Created story/comment details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["story", "result"]
+                "required": ["story"]
             }
         },
         "list_stories": {
@@ -758,17 +641,9 @@
                     "stories": {
                         "type": "array",
                         "description": "List of stories/comments"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["stories", "result"]
+                "required": ["stories"]
             }
         },
         "create_subtask": {
@@ -806,17 +681,9 @@
                     "subtask": {
                         "type": "object",
                         "description": "Created subtask details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["subtask", "result"]
+                "required": ["subtask"]
             }
         },
         "list_workspaces": {
@@ -846,17 +713,9 @@
                     "workspaces": {
                         "type": "array",
                         "description": "List of workspaces"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["workspaces", "result"]
+                "required": ["workspaces"]
             }
         },
         "get_workspace": {
@@ -885,17 +744,9 @@
                     "workspace": {
                         "type": "object",
                         "description": "Workspace details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["workspace", "result"]
+                "required": ["workspace"]
             }
         },
         "get_user": {
@@ -925,17 +776,9 @@
                     "user": {
                         "type": "object",
                         "description": "User details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["user", "result"]
+                "required": ["user"]
             }
         }
     }
