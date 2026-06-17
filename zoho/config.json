@@ -174,15 +174,15 @@
                                 "description": "Unique ID of the contact"
                             },
                             "Last_Name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Last name of the contact"
                             },
                             "First_Name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "First name of the contact"
                             },
                             "Full_Name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Full name of the contact"
                             },
                             "Email": {
@@ -198,19 +198,19 @@
                                 "description": "Mobile number"
                             },
                             "Account_Name": {
-                                "type": "object",
+                                "type": ["object", "null"],
                                 "description": "Associated account details"
                             },
                             "Title": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Job title"
                             },
                             "Created_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Creation timestamp"
                             },
                             "Modified_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Last modified timestamp"
                             }
                         }
@@ -444,15 +444,15 @@
                                     "description": "Unique ID of the contact"
                                 },
                                 "Last_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last name"
                                 },
                                 "First_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "First name"
                                 },
                                 "Full_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Full name"
                                 },
                                 "Email": {
@@ -468,11 +468,11 @@
                                     "description": "Associated account"
                                 },
                                 "Created_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Creation timestamp"
                                 },
                                 "Modified_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last modified timestamp"
                                 }
                             }
@@ -608,11 +608,11 @@
                                     "description": "Unique ID of the contact"
                                 },
                                 "Last_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last name"
                                 },
                                 "First_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "First name"
                                 },
                                 "Email": {
@@ -832,19 +832,19 @@
                                 "description": "Unique ID of the account"
                             },
                             "Account_Name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Company/organization name"
                             },
                             "Account_Type": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Type of account"
                             },
                             "Industry": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Industry"
                             },
                             "Annual_Revenue": {
-                                "type": "number",
+                                "type": ["number", "null"],
                                 "description": "Annual revenue"
                             },
                             "Phone": {
@@ -856,15 +856,15 @@
                                 "description": "Website URL"
                             },
                             "Owner": {
-                                "type": "object",
+                                "type": ["object", "null"],
                                 "description": "Account owner details"
                             },
                             "Created_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Creation timestamp"
                             },
                             "Modified_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Last modified timestamp"
                             }
                         }
@@ -1122,7 +1122,7 @@
                                     "description": "Unique ID of the account"
                                 },
                                 "Account_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Account name"
                                 },
                                 "Account_Type": {
@@ -1146,15 +1146,15 @@
                                     "description": "Website"
                                 },
                                 "Owner": {
-                                    "type": "object",
+                                    "type": ["object", "null"],
                                     "description": "Account owner"
                                 },
                                 "Created_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Creation timestamp"
                                 },
                                 "Modified_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last modified timestamp"
                                 }
                             }
@@ -1290,7 +1290,7 @@
                                     "description": "Unique ID of the account"
                                 },
                                 "Account_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Account name"
                                 },
                                 "Account_Type": {
@@ -1485,11 +1485,11 @@
                                 "description": "Unique ID of the deal"
                             },
                             "Deal_Name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Deal name"
                             },
                             "Stage": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Current deal stage"
                             },
                             "Pipeline": {
@@ -1517,15 +1517,15 @@
                                 "description": "Primary contact"
                             },
                             "Owner": {
-                                "type": "object",
+                                "type": ["object", "null"],
                                 "description": "Deal owner details"
                             },
                             "Created_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Creation timestamp"
                             },
                             "Modified_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Last modified timestamp"
                             }
                         }
@@ -1750,11 +1750,11 @@
                                     "description": "Unique ID of the deal"
                                 },
                                 "Deal_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Deal name"
                                 },
                                 "Stage": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Current stage"
                                 },
                                 "Pipeline": {
@@ -1782,15 +1782,15 @@
                                     "description": "Primary contact"
                                 },
                                 "Owner": {
-                                    "type": "object",
+                                    "type": ["object", "null"],
                                     "description": "Deal owner"
                                 },
                                 "Created_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Creation timestamp"
                                 },
                                 "Modified_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last modified timestamp"
                                 }
                             }
@@ -1926,11 +1926,11 @@
                                     "description": "Unique ID of the deal"
                                 },
                                 "Deal_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Deal name"
                                 },
                                 "Stage": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Current stage"
                                 },
                                 "Amount": {
@@ -2155,7 +2155,7 @@
                                 "description": "Unique ID of the lead"
                             },
                             "Last_Name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Last name"
                             },
                             "First_Name": {
@@ -2163,7 +2163,7 @@
                                 "description": "First name"
                             },
                             "Full_Name": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Full name"
                             },
                             "Company": {
@@ -2191,15 +2191,15 @@
                                 "description": "Job title"
                             },
                             "Owner": {
-                                "type": "object",
+                                "type": ["object", "null"],
                                 "description": "Lead owner details"
                             },
                             "Created_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Creation timestamp"
                             },
                             "Modified_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Last modified timestamp"
                             }
                         }
@@ -2458,7 +2458,7 @@
                                     "description": "Unique ID of the lead"
                                 },
                                 "Last_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last name"
                                 },
                                 "First_Name": {
@@ -2486,15 +2486,15 @@
                                     "description": "Lead status"
                                 },
                                 "Owner": {
-                                    "type": "object",
+                                    "type": ["object", "null"],
                                     "description": "Lead owner"
                                 },
                                 "Created_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Creation timestamp"
                                 },
                                 "Modified_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last modified timestamp"
                                 }
                             }
@@ -2630,7 +2630,7 @@
                                     "description": "Unique ID of the lead"
                                 },
                                 "Last_Name": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last name"
                                 },
                                 "First_Name": {
@@ -2906,7 +2906,7 @@
                                 "description": "Unique ID of the task"
                             },
                             "Subject": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Task subject"
                             },
                             "Status": {
@@ -2934,15 +2934,15 @@
                                 "description": "Assigned user/contact"
                             },
                             "Owner": {
-                                "type": "object",
+                                "type": ["object", "null"],
                                 "description": "Task owner details"
                             },
                             "Created_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Creation timestamp"
                             },
                             "Modified_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Last modified timestamp"
                             }
                         }
@@ -3145,7 +3145,7 @@
                                     "description": "Unique ID of the task"
                                 },
                                 "Subject": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Task subject"
                                 },
                                 "Status": {
@@ -3169,15 +3169,15 @@
                                     "description": "Assigned user/contact"
                                 },
                                 "Owner": {
-                                    "type": "object",
+                                    "type": ["object", "null"],
                                     "description": "Task owner"
                                 },
                                 "Created_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Creation timestamp"
                                 },
                                 "Modified_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last modified timestamp"
                                 }
                             }
@@ -3313,7 +3313,7 @@
                                     "description": "Unique ID of the task"
                                 },
                                 "Subject": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Task subject"
                                 },
                                 "Status": {
@@ -3492,15 +3492,15 @@
                                 "description": "Unique ID of the event"
                             },
                             "Event_Title": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Event title"
                             },
                             "Start_DateTime": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Start date and time"
                             },
                             "End_DateTime": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "End date and time"
                             },
                             "All_day": {
@@ -3524,15 +3524,15 @@
                                 "description": "Assigned user/contact"
                             },
                             "Owner": {
-                                "type": "object",
+                                "type": ["object", "null"],
                                 "description": "Event owner details"
                             },
                             "Created_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Creation timestamp"
                             },
                             "Modified_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Last modified timestamp"
                             }
                         }
@@ -3726,15 +3726,15 @@
                                     "description": "Unique ID of the event"
                                 },
                                 "Event_Title": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Event title"
                                 },
                                 "Start_DateTime": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Start date and time"
                                 },
                                 "End_DateTime": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "End date and time"
                                 },
                                 "All_day": {
@@ -3754,15 +3754,15 @@
                                     "description": "Assigned user/contact"
                                 },
                                 "Owner": {
-                                    "type": "object",
+                                    "type": ["object", "null"],
                                     "description": "Event owner"
                                 },
                                 "Created_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Creation timestamp"
                                 },
                                 "Modified_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last modified timestamp"
                                 }
                             }
@@ -3888,15 +3888,15 @@
                                     "description": "Unique ID of the event"
                                 },
                                 "Event_Title": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Event title"
                                 },
                                 "Start_DateTime": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Start date and time"
                                 },
                                 "End_DateTime": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "End date and time"
                                 },
                                 "Venue": {
@@ -4078,15 +4078,15 @@
                                 "description": "Unique ID of the call"
                             },
                             "Subject": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Call subject"
                             },
                             "Call_Type": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Call type"
                             },
                             "Call_Start_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Call start time"
                             },
                             "Call_Duration": {
@@ -4110,15 +4110,15 @@
                                 "description": "Contact/User"
                             },
                             "Owner": {
-                                "type": "object",
+                                "type": ["object", "null"],
                                 "description": "Call owner details"
                             },
                             "Created_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Creation timestamp"
                             },
                             "Modified_Time": {
-                                "type": "string",
+                                "type": ["string", "null"],
                                 "description": "Last modified timestamp"
                             }
                         }
@@ -4324,15 +4324,15 @@
                                     "description": "Unique ID of the call"
                                 },
                                 "Subject": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Call subject"
                                 },
                                 "Call_Type": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Call type"
                                 },
                                 "Call_Start_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Call start time"
                                 },
                                 "Call_Duration": {
@@ -4352,15 +4352,15 @@
                                     "description": "Contact/User"
                                 },
                                 "Owner": {
-                                    "type": "object",
+                                    "type": ["object", "null"],
                                     "description": "Call owner"
                                 },
                                 "Created_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Creation timestamp"
                                 },
                                 "Modified_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Last modified timestamp"
                                 }
                             }
@@ -4486,15 +4486,15 @@
                                     "description": "Unique ID of the call"
                                 },
                                 "Subject": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Call subject"
                                 },
                                 "Call_Type": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Call type"
                                 },
                                 "Call_Start_Time": {
-                                    "type": "string",
+                                    "type": ["string", "null"],
                                     "description": "Call start time"
                                 },
                                 "Call_Duration": {

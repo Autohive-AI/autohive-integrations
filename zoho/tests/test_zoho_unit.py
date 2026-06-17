@@ -181,6 +181,17 @@ class TestHelpers:
         params = build_notes_query_params({"per_page": 9999})
         assert params["per_page"] == "200"
 
+    def test_build_notes_query_params_defaults_fields(self):
+        # Zoho's Notes list endpoint rejects requests without a fields param,
+        # so the builder must supply a default when none is specified.
+        params = build_notes_query_params({})
+        assert "Note_Content" in params["fields"]
+        assert "Note_Title" in params["fields"]
+
+    def test_build_notes_query_params_explicit_fields(self):
+        params = build_notes_query_params({"fields": ["Note_Title", "Owner"]})
+        assert params["fields"] == "Note_Title,Owner"
+
     def test_get_default_fields_known_and_unknown(self):
         assert "Deal_Name" in get_default_fields_for_module("Deals")
         assert get_default_fields_for_module("Mystery") == ["id"]

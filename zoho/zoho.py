@@ -615,12 +615,16 @@ def build_notes_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         per_page = min(int(inputs["per_page"]), 200)  # Max 200 per Zoho API
         params["per_page"] = str(per_page)
 
-    # Add fields parameter
+    # Add fields parameter - Zoho Notes API requires this parameter
     if inputs.get("fields"):
         if isinstance(inputs["fields"], list):
             params["fields"] = ",".join(inputs["fields"])
         else:
             params["fields"] = inputs["fields"]
+    else:
+        # Default note fields when none specified (Zoho rejects the request without fields)
+        default_fields = ["Note_Title", "Note_Content", "Owner", "Created_Time", "Modified_Time", "Parent_Id"]
+        params["fields"] = ",".join(default_fields)
 
     return params
 
