@@ -1,6 +1,6 @@
 {
   "name": "Webcal",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "WebCalendar API integration for fetching and processing calendar events.",
   "display_name": "Webcal",
   "entry_point": "webcal.py",

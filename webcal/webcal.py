@@ -19,8 +19,8 @@ class WebCalendarAPI:
         # Fetch the calendar data
         response = await context.fetch(url)
 
-        # Parse the iCal data
-        return Calendar.from_ical(response)
+        # Parse the iCal data (SDK 2.0.0: body is on response.data)
+        return Calendar.from_ical(response.data)
 
     @staticmethod
     def convert_to_timezone(dt, timezone_str: str):
