@@ -115,7 +115,7 @@ def build_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         params["approved"] = inputs["approved"]
 
     # Add fields parameter - Zoho API requires this parameter
-    if "fields" in inputs and inputs["fields"]:
+    if inputs.get("fields"):
         params["fields"] = ",".join(inputs["fields"])
     else:
         # Default contact fields when none specified
@@ -151,7 +151,7 @@ def build_account_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         params["approved"] = inputs["approved"]
 
     # Add fields parameter - Zoho API requires this parameter
-    if "fields" in inputs and inputs["fields"]:
+    if inputs.get("fields"):
         params["fields"] = ",".join(inputs["fields"])
     else:
         # Default account fields when none specified
@@ -224,7 +224,7 @@ def build_deal_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         params["approved"] = inputs["approved"]
 
     # Add fields parameter - Zoho API requires this parameter
-    if "fields" in inputs and inputs["fields"]:
+    if inputs.get("fields"):
         params["fields"] = ",".join(inputs["fields"])
     else:
         # Default deal fields when none specified
@@ -304,7 +304,7 @@ def build_lead_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         params["approved"] = inputs["approved"]
 
     # Add fields parameter - Zoho API requires this parameter
-    if "fields" in inputs and inputs["fields"]:
+    if inputs.get("fields"):
         params["fields"] = ",".join(inputs["fields"])
     else:
         # Default lead fields when none specified
@@ -364,7 +364,7 @@ def build_task_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         params["approved"] = inputs["approved"]
 
     # Add fields parameter - Zoho API requires this parameter
-    if "fields" in inputs and inputs["fields"]:
+    if inputs.get("fields"):
         params["fields"] = ",".join(inputs["fields"])
     else:
         # Default task fields when none specified
@@ -418,7 +418,7 @@ def build_event_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         params["sort_order"] = inputs["sort_order"]
 
     # Add fields parameter - Zoho API requires this parameter
-    if "fields" in inputs and inputs["fields"]:
+    if inputs.get("fields"):
         params["fields"] = ",".join(inputs["fields"])
     else:
         # Default event fields when none specified
@@ -474,7 +474,7 @@ def build_call_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         params["sort_order"] = inputs["sort_order"]
 
     # Add fields parameter - Zoho API requires this parameter
-    if "fields" in inputs and inputs["fields"]:
+    if inputs.get("fields"):
         params["fields"] = ",".join(inputs["fields"])
     else:
         # Default call fields when none specified
@@ -512,7 +512,7 @@ def build_related_records_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         params["sort_order"] = inputs["sort_order"]
 
     # Add fields parameter if specified
-    if "fields" in inputs and inputs["fields"]:
+    if inputs.get("fields"):
         params["fields"] = ",".join(inputs["fields"])
 
     return params
@@ -545,7 +545,7 @@ def build_search_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         params["per_page"] = str(inputs["per_page"])
 
     # Add fields
-    if "fields" in inputs and inputs["fields"]:
+    if inputs.get("fields"):
         params["fields"] = ",".join(inputs["fields"])
 
     # Add search-specific parameters
@@ -616,7 +616,7 @@ def build_notes_query_params(inputs: Dict[str, Any]) -> Dict[str, str]:
         params["per_page"] = str(per_page)
 
     # Add fields parameter
-    if "fields" in inputs and inputs["fields"]:
+    if inputs.get("fields"):
         if isinstance(inputs["fields"], list):
             params["fields"] = ",".join(inputs["fields"])
         else:
@@ -677,7 +677,7 @@ class GetContact(ActionHandler):
 
             # Build query parameters
             params = {}
-            if "fields" in inputs and inputs["fields"]:
+            if inputs.get("fields"):
                 params["fields"] = ",".join(inputs["fields"])
 
             # Make API request
@@ -864,7 +864,7 @@ class GetAccount(ActionHandler):
 
             # Build query parameters
             params = {}
-            if "fields" in inputs and inputs["fields"]:
+            if inputs.get("fields"):
                 params["fields"] = ",".join(inputs["fields"])
             else:
                 # Default account fields
@@ -1066,7 +1066,7 @@ class GetDeal(ActionHandler):
 
             # Build query parameters
             params = {}
-            if "fields" in inputs and inputs["fields"]:
+            if inputs.get("fields"):
                 params["fields"] = ",".join(inputs["fields"])
             else:
                 # Default deal fields
@@ -1267,7 +1267,7 @@ class GetLead(ActionHandler):
 
             # Build query parameters
             params = {}
-            if "fields" in inputs and inputs["fields"]:
+            if inputs.get("fields"):
                 params["fields"] = ",".join(inputs["fields"])
             else:
                 # Default lead fields
@@ -1432,27 +1432,27 @@ class ConvertLead(ActionHandler):
             if inputs.get("create_deal", False):
                 deal_data = {}
                 if "deal_name" in inputs:
-                    deal_data["Deal_Name"] = inputs["deal_name"]
+                    deal_data["Deal_Name"] = inputs.get("deal_name")
                 if "deal_stage" in inputs:
-                    deal_data["Stage"] = inputs["deal_stage"]
+                    deal_data["Stage"] = inputs.get("deal_stage")
                 if "deal_amount" in inputs:
-                    deal_data["Amount"] = inputs["deal_amount"]
+                    deal_data["Amount"] = inputs.get("deal_amount")
                 if "closing_date" in inputs:
-                    deal_data["Closing_Date"] = inputs["closing_date"]
+                    deal_data["Closing_Date"] = inputs.get("closing_date")
 
                 conversion_data["Deals"] = deal_data
 
             # Add conversion options
             if "overwrite" in inputs:
-                conversion_data["overwrite"] = inputs["overwrite"]
+                conversion_data["overwrite"] = inputs.get("overwrite")
             if "notify_lead_owner" in inputs:
-                conversion_data["notify_lead_owner"] = inputs["notify_lead_owner"]
+                conversion_data["notify_lead_owner"] = inputs.get("notify_lead_owner")
             if "move_attachments_to" in inputs:
-                conversion_data["move_attachments_to"] = {"api_name": inputs["move_attachments_to"]}
+                conversion_data["move_attachments_to"] = {"api_name": inputs.get("move_attachments_to")}
             if "assign_to" in inputs:
-                conversion_data["assign_to"] = {"id": inputs["assign_to"]}
+                conversion_data["assign_to"] = {"id": inputs.get("assign_to")}
             if "carry_over_tags" in inputs:
-                conversion_data["carry_over_tags"] = inputs["carry_over_tags"]
+                conversion_data["carry_over_tags"] = inputs.get("carry_over_tags")
 
             # Wrap in required "data" array format
             payload = {"data": [conversion_data]}
@@ -1536,7 +1536,7 @@ class GetTask(ActionHandler):
 
             # Build query parameters
             params = {}
-            if "fields" in inputs and inputs["fields"]:
+            if inputs.get("fields"):
                 params["fields"] = ",".join(inputs["fields"])
             else:
                 # Default task fields
@@ -1736,7 +1736,7 @@ class GetEvent(ActionHandler):
 
             # Build query parameters
             params = {}
-            if "fields" in inputs and inputs["fields"]:
+            if inputs.get("fields"):
                 params["fields"] = ",".join(inputs["fields"])
             else:
                 # Default event fields
@@ -1937,7 +1937,7 @@ class GetCall(ActionHandler):
 
             # Build query parameters
             params = {}
-            if "fields" in inputs and inputs["fields"]:
+            if inputs.get("fields"):
                 params["fields"] = ",".join(inputs["fields"])
             else:
                 # Default call fields
@@ -2104,7 +2104,7 @@ class GetRelatedRecords(ActionHandler):
             params = build_related_records_params(inputs)
 
             # Add default fields if not specified
-            if "fields" not in inputs or not inputs["fields"]:
+            if not inputs.get("fields"):
                 default_fields = get_default_fields_for_module(related_module)
                 params["fields"] = ",".join(default_fields)
 
@@ -2390,7 +2390,7 @@ class CreateNote(ActionHandler):
             # Build note data
             note_data = {"Note_Content": inputs["Note_Content"]}
 
-            if "Note_Title" in inputs and inputs["Note_Title"]:
+            if inputs.get("Note_Title"):
                 note_data["Note_Title"] = inputs["Note_Title"]
 
             # Create request payload
@@ -2457,7 +2457,7 @@ class GetNote(ActionHandler):
 
             # Build query parameters
             params = {}
-            if "fields" in inputs and inputs["fields"]:
+            if inputs.get("fields"):
                 if isinstance(inputs["fields"], list):
                     params["fields"] = ",".join(inputs["fields"])
                 else:
@@ -2488,10 +2488,10 @@ class UpdateNote(ActionHandler):
             # Build update data - only Note_Title and Note_Content can be updated
             update_data = {}
 
-            if "Note_Title" in inputs and inputs["Note_Title"]:
+            if inputs.get("Note_Title"):
                 update_data["Note_Title"] = inputs["Note_Title"]
 
-            if "Note_Content" in inputs and inputs["Note_Content"]:
+            if inputs.get("Note_Content"):
                 update_data["Note_Content"] = inputs["Note_Content"]
 
             # Create request payload
