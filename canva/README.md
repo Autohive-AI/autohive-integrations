@@ -23,6 +23,17 @@ This integration uses OAuth 2.0 with PKCE (Proof Key for Code Exchange) for secu
 
 ## Actions
 
+### User
+
+#### Get User Capabilities
+Get the capabilities available to the authenticated user based on their Canva plan (Free, Pro, Enterprise). Use this to check whether a user has access to premium features (e.g. `export:pro_quality`) before attempting operations that require them.
+
+**Inputs:**
+- None
+
+**Outputs:**
+- `capabilities`: Array of capability strings available to the user (e.g. `design:content:write`, `export:pro_quality`, `folder:write`)
+
 ### Asset Management
 
 #### Upload Asset
@@ -34,8 +45,6 @@ Upload an asset (image, video, or audio) to Canva's asset library.
 **Outputs:**
 - `job_id`: Upload job ID for status tracking
 - `status`: Initial job status
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 **Note:** This is an asynchronous operation. Use `get_asset_upload_status` to poll for completion.
 
@@ -48,8 +57,6 @@ Check the status of an asset upload job and retrieve asset details when complete
 **Outputs:**
 - `status`: Upload status (in_progress, success, failed)
 - `asset`: Complete asset details including id, name, tags, thumbnail (only if status is "success")
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 **Example Response (Success):**
 ```json
@@ -66,8 +73,7 @@ Check the status of an asset upload job and retrieve asset details when complete
       "height": 335,
       "url": "https://document-export.canva.com/..."
     }
-  },
-  "result": true
+  }
 }
 ```
 
@@ -79,8 +85,6 @@ Retrieve metadata for a specific asset.
 
 **Outputs:**
 - `asset`: Asset metadata including id, name, tags, timestamps
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 #### Update Asset
 Update an asset's name or tags.
@@ -91,8 +95,7 @@ Update an asset's name or tags.
 - `tags` (optional): New tags for the asset
 
 **Outputs:**
-- `result`: Boolean indicating success
-- `error`: Error message if failed
+- None (returns an empty result on success)
 
 #### Delete Asset
 Delete an asset (moves to trash).
@@ -101,8 +104,7 @@ Delete an asset (moves to trash).
 - `asset_id` (required): Asset ID
 
 **Outputs:**
-- `result`: Boolean indicating success
-- `error`: Error message if failed
+- None (returns an empty result on success)
 
 ### Design Management
 
@@ -116,8 +118,6 @@ Create a new blank Canva design using preset types.
 
 **Outputs:**
 - `design`: Created design details including id, title, and URLs
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 **Example:**
 ```json
@@ -139,8 +139,6 @@ List user's Canva designs with optional filtering and sorting.
 **Outputs:**
 - `designs`: Array of design objects with id, title, timestamps
 - `continuation`: Token for next page of results
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 #### Get Design
 Retrieve metadata for a specific design.
@@ -150,8 +148,6 @@ Retrieve metadata for a specific design.
 
 **Outputs:**
 - `design`: Design metadata including id, title, timestamps, URLs
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 #### Export Design
 Export a Canva design to various formats.
@@ -172,8 +168,6 @@ Export a Canva design to various formats.
 
 **Outputs:**
 - `job_id`: Export job ID for status tracking
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 **Note:** This is an asynchronous operation. Use `get_export_status` to poll for completion and retrieve download URLs.
 
@@ -186,8 +180,6 @@ Check the status of a design export job and get download URLs.
 **Outputs:**
 - `status`: Export status (in_progress, success, failed)
 - `urls`: Array of download URLs for exported files
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 #### Import Design
 Import external design files (PDF, PPTX, etc.) into Canva as editable designs.
@@ -199,8 +191,6 @@ Import external design files (PDF, PPTX, etc.) into Canva as editable designs.
 **Outputs:**
 - `job_id`: Import job ID for status tracking
 - `status`: Initial job status
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 **Note:** This is an asynchronous operation. Use `get_design_import_status` to poll for completion. Large files may be split into multiple Canva designs.
 
@@ -213,8 +203,6 @@ Check the status of a design import job and retrieve imported design details.
 **Outputs:**
 - `status`: Import status (in_progress, success, failed)
 - `designs`: Array of imported design objects with id, title, urls (only if status is "success")
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 #### Import Design from URL
 Import a design from a publicly accessible URL instead of uploading binary data.
@@ -227,8 +215,6 @@ Import a design from a publicly accessible URL instead of uploading binary data.
 **Outputs:**
 - `job_id`: URL import job ID for status tracking
 - `status`: Initial job status (typically "in_progress")
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 **Example:**
 ```json
@@ -250,8 +236,6 @@ Check the status of a URL import job and retrieve imported design details.
 **Outputs:**
 - `status`: Import status (in_progress, success, failed)
 - `designs`: Array of imported design objects with id, title, urls (only if status is "success")
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 ### Folder Management
 
@@ -264,8 +248,6 @@ Create a new folder in Canva.
 
 **Outputs:**
 - `folder`: Created folder details with id and name
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 #### Get Folder
 Retrieve metadata for a specific folder.
@@ -275,8 +257,6 @@ Retrieve metadata for a specific folder.
 
 **Outputs:**
 - `folder`: Folder metadata including id, name, timestamps
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 #### List Folder Items
 List all items (designs, assets, folders) in a folder.
@@ -288,8 +268,6 @@ List all items (designs, assets, folders) in a folder.
 **Outputs:**
 - `items`: Array of items with id, name, and type
 - `continuation`: Token for next page of results
-- `result`: Boolean indicating success
-- `error`: Error message if failed
 
 #### Update Folder
 Update a folder's name.
@@ -299,8 +277,7 @@ Update a folder's name.
 - `name` (required): New folder name
 
 **Outputs:**
-- `result`: Boolean indicating success
-- `error`: Error message if failed
+- None (returns an empty result on success)
 
 #### Delete Folder
 Delete a folder.
@@ -309,8 +286,7 @@ Delete a folder.
 - `folder_id` (required): Folder ID
 
 **Outputs:**
-- `result`: Boolean indicating success
-- `error`: Error message if failed
+- None (returns an empty result on success)
 
 #### Move Item to Folder
 Move an item (design, asset, or folder) to a different folder.
@@ -320,8 +296,7 @@ Move an item (design, asset, or folder) to a different folder.
 - `destination_folder_id` (required): Destination folder ID (use 'root' for top level)
 
 **Outputs:**
-- `result`: Boolean indicating success
-- `error`: Error message if failed
+- None (returns an empty result on success)
 
 **Note:** Video assets cannot be moved.
 
@@ -349,15 +324,7 @@ Move an item (design, asset, or folder) to a different folder.
 
 ## Error Handling
 
-All actions return a `result` boolean field indicating success or failure. When an action fails, an `error` field contains the error message. This allows workflows to handle errors gracefully.
-
-Example error response:
-```json
-{
-  "result": false,
-  "error": "Invalid design_id provided"
-}
-```
+On success, each action returns its output data directly. When an action fails, it raises an `ActionError` whose message describes the failure (e.g. an invalid ID, missing permissions, or an upstream API error). Autohive surfaces this error to the workflow so it can be handled or retried.
 
 ## Pagination
 
@@ -371,9 +338,13 @@ Asset uploads and design exports are asynchronous operations. Use the correspond
 
 The Canva Connect API implements rate limiting. This integration handles rate limits automatically through the SDK's error handling and retry mechanisms.
 
-## Version
+## Version History
 
-Current version: 1.0.0
+- **2.0.0** - Upgraded to Autohive Integrations SDK 2.0.0
+  - `context.fetch()` now returns a `FetchResponse`; all response access uses `.data`
+  - Failures raise `ActionError` instead of returning `result`/`error` fields in the output
+  - No change to action behaviour, inputs, or outputs (other than dropping the internal `result`/`error` fields)
+- **1.0.0** - Initial release with asset, design, and folder management actions
 
 ## API Reference
 
