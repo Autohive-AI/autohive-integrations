@@ -57,6 +57,8 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Dynamics 365
 
+| dynamics365 | Microsoft Dynamics 365 CRM integration for managing Accounts, Contacts, Leads, Opportunities, and Tasks | Platform OAuth2 |
+
 [dynamics365](dynamics365): Microsoft Dynamics 365 CRM integration for managing the full sales lifecycle through the OData v4 REST API. Supports listing, retrieving, creating, and updating Accounts, Contacts, Leads, and Opportunities, qualifying leads into downstream CRM records, and creating Tasks linked to any CRM entity. Features platform OAuth2 authentication, OData filter expressions for server-side search, and navigation property bindings for entity relationships. Includes 17 actions covering Accounts (4), Contacts (4), Leads (4 including qualify), Opportunities (3), and Tasks (2). Ideal for CRM automation, sales pipeline management, lead nurturing workflows, and contact data synchronization.
 
 ### Dropbox

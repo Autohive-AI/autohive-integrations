@@ -54,19 +54,25 @@ async def _get(context: ExecutionContext, path: str, params: Optional[Dict] = No
 
 async def _post(context: ExecutionContext, path: str, body: Dict) -> Any:
     url = f"{_base_url(context)}/{path}"
-    resp = await context.fetch(url, method="POST", json=body, headers={
-        **_auth_headers(context), "Content-Type": "application/json"
-    })
+    resp = await context.fetch(
+        url, method="POST", json=body, headers={**_auth_headers(context), "Content-Type": "application/json"}
+    )
     _check(resp.data if hasattr(resp, "data") else resp)
     return resp.data if hasattr(resp, "data") else resp
 
 
 async def _patch(context: ExecutionContext, path: str, body: Dict) -> None:
     url = f"{_base_url(context)}/{path}"
-    resp = await context.fetch(url, method="PATCH", json=body, headers={
-        **_auth_headers(context), "Content-Type": "application/json",
-        "If-Match": "*",
-    })
+    resp = await context.fetch(
+        url,
+        method="PATCH",
+        json=body,
+        headers={
+            **_auth_headers(context),
+            "Content-Type": "application/json",
+            "If-Match": "*",
+        },
+    )
     data = resp.data if hasattr(resp, "data") else resp
     if data:
         _check(data)
@@ -78,6 +84,7 @@ def _build_filter(conditions: list) -> Optional[str]:
 
 
 # ---- Accounts ----
+
 
 @dynamics365.action("list_accounts")
 class ListAccountsAction(ActionHandler):
@@ -162,6 +169,7 @@ class UpdateAccountAction(ActionHandler):
 
 
 # ---- Contacts ----
+
 
 @dynamics365.action("list_contacts")
 class ListContactsAction(ActionHandler):
@@ -251,6 +259,7 @@ class UpdateContactAction(ActionHandler):
 
 # ---- Leads ----
 
+
 @dynamics365.action("list_leads")
 class ListLeadsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
@@ -333,6 +342,7 @@ class QualifyLeadAction(ActionHandler):
 
 # ---- Opportunities ----
 
+
 @dynamics365.action("list_opportunities")
 class ListOpportunitiesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
@@ -392,6 +402,7 @@ class CreateOpportunityAction(ActionHandler):
 
 
 # ---- Tasks ----
+
 
 @dynamics365.action("list_tasks")
 class ListTasksAction(ActionHandler):

@@ -17,6 +17,7 @@ def make_fetch(data):
 
 # ---- list_accounts ----
 
+
 @pytest.mark.asyncio
 async def test_list_accounts(mock_context):
     mock_context.fetch = make_fetch({"value": [{"accountid": "a1", "name": "Acme"}]})
@@ -29,9 +30,7 @@ async def test_list_accounts(mock_context):
 @pytest.mark.asyncio
 async def test_list_accounts_with_filter(mock_context):
     mock_context.fetch = make_fetch({"value": []})
-    result = await dynamics365.execute_action(
-        "list_accounts", {"name": "Test", "limit": 5}, mock_context
-    )
+    result = await dynamics365.execute_action("list_accounts", {"name": "Test", "limit": 5}, mock_context)
     assert result.type == ResultType.ACTION
     call_kwargs = mock_context.fetch.call_args[1]
     assert "contains(name,'Test')" in call_kwargs.get("params", {}).get("$filter", "")
@@ -47,6 +46,7 @@ async def test_list_accounts_error(mock_context):
 
 
 # ---- get_account ----
+
 
 @pytest.mark.asyncio
 async def test_get_account(mock_context):
@@ -65,6 +65,7 @@ async def test_get_account_api_error(mock_context):
 
 
 # ---- create_account ----
+
 
 @pytest.mark.asyncio
 async def test_create_account(mock_context):
@@ -94,6 +95,7 @@ async def test_create_account_sends_correct_fields(mock_context):
 
 # ---- update_account ----
 
+
 @pytest.mark.asyncio
 async def test_update_account(mock_context):
     mock_context.fetch = make_fetch(None)
@@ -109,6 +111,7 @@ async def test_update_account(mock_context):
 
 # ---- list_contacts ----
 
+
 @pytest.mark.asyncio
 async def test_list_contacts(mock_context):
     mock_context.fetch = make_fetch({"value": [{"contactid": "c1", "lastname": "Smith"}]})
@@ -120,9 +123,7 @@ async def test_list_contacts(mock_context):
 @pytest.mark.asyncio
 async def test_list_contacts_with_email_filter(mock_context):
     mock_context.fetch = make_fetch({"value": []})
-    result = await dynamics365.execute_action(
-        "list_contacts", {"email": "john@example.com"}, mock_context
-    )
+    result = await dynamics365.execute_action("list_contacts", {"email": "john@example.com"}, mock_context)
     assert result.type == ResultType.ACTION
     call_kwargs = mock_context.fetch.call_args[1]
     assert "emailaddress1 eq 'john@example.com'" in call_kwargs["params"]["$filter"]
@@ -137,6 +138,7 @@ async def test_list_contacts_error(mock_context):
 
 # ---- get_contact ----
 
+
 @pytest.mark.asyncio
 async def test_get_contact(mock_context):
     mock_context.fetch = make_fetch({"contactid": "c1", "firstname": "John", "lastname": "Smith"})
@@ -146,6 +148,7 @@ async def test_get_contact(mock_context):
 
 
 # ---- create_contact ----
+
 
 @pytest.mark.asyncio
 async def test_create_contact(mock_context):
@@ -174,6 +177,7 @@ async def test_create_contact_with_account_binding(mock_context):
 
 # ---- update_contact ----
 
+
 @pytest.mark.asyncio
 async def test_update_contact(mock_context):
     mock_context.fetch = make_fetch(None)
@@ -187,6 +191,7 @@ async def test_update_contact(mock_context):
 
 
 # ---- list_leads ----
+
 
 @pytest.mark.asyncio
 async def test_list_leads(mock_context):
@@ -206,6 +211,7 @@ async def test_list_leads_with_name_filter(mock_context):
 
 # ---- get_lead ----
 
+
 @pytest.mark.asyncio
 async def test_get_lead(mock_context):
     mock_context.fetch = make_fetch({"leadid": "l1", "lastname": "Jones"})
@@ -215,6 +221,7 @@ async def test_get_lead(mock_context):
 
 
 # ---- create_lead ----
+
 
 @pytest.mark.asyncio
 async def test_create_lead(mock_context):
@@ -243,6 +250,7 @@ async def test_create_lead_sends_correct_fields(mock_context):
 
 # ---- qualify_lead ----
 
+
 @pytest.mark.asyncio
 async def test_qualify_lead(mock_context):
     mock_context.fetch = make_fetch({"value": [{"id": "new-c1", "logicalname": "contact"}]})
@@ -256,6 +264,7 @@ async def test_qualify_lead(mock_context):
 
 
 # ---- list_opportunities ----
+
 
 @pytest.mark.asyncio
 async def test_list_opportunities(mock_context):
@@ -275,6 +284,7 @@ async def test_list_opportunities_status_filter(mock_context):
 
 # ---- get_opportunity ----
 
+
 @pytest.mark.asyncio
 async def test_get_opportunity(mock_context):
     mock_context.fetch = make_fetch({"opportunityid": "o1", "name": "Big Deal"})
@@ -284,6 +294,7 @@ async def test_get_opportunity(mock_context):
 
 
 # ---- create_opportunity ----
+
 
 @pytest.mark.asyncio
 async def test_create_opportunity(mock_context):
@@ -311,6 +322,7 @@ async def test_create_opportunity_with_account(mock_context):
 
 # ---- list_tasks ----
 
+
 @pytest.mark.asyncio
 async def test_list_tasks(mock_context):
     mock_context.fetch = make_fetch({"value": [{"activityid": "t1", "subject": "Follow up"}]})
@@ -328,6 +340,7 @@ async def test_list_tasks_status_filter(mock_context):
 
 
 # ---- create_task ----
+
 
 @pytest.mark.asyncio
 async def test_create_task(mock_context):

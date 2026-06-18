@@ -57,6 +57,7 @@ def live_context(make_context):
 
 # ---- Accounts ----
 
+
 @pytest.mark.asyncio
 async def test_list_accounts_live(live_context):
     result = await dynamics365.execute_action("list_accounts", {"limit": 5}, live_context)
@@ -69,9 +70,7 @@ async def test_list_accounts_live(live_context):
 async def test_get_account_live(live_context):
     if not D365_TEST_ACCOUNT_ID:
         pytest.skip("D365_TEST_ACCOUNT_ID not set")
-    result = await dynamics365.execute_action(
-        "get_account", {"account_id": D365_TEST_ACCOUNT_ID}, live_context
-    )
+    result = await dynamics365.execute_action("get_account", {"account_id": D365_TEST_ACCOUNT_ID}, live_context)
     assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data["account"]["accountid"] == D365_TEST_ACCOUNT_ID
 
@@ -102,6 +101,7 @@ async def test_create_update_account_live(live_context):
 
 # ---- Contacts ----
 
+
 @pytest.mark.asyncio
 async def test_list_contacts_live(live_context):
     result = await dynamics365.execute_action("list_contacts", {"limit": 5}, live_context)
@@ -113,9 +113,7 @@ async def test_list_contacts_live(live_context):
 async def test_get_contact_live(live_context):
     if not D365_TEST_CONTACT_ID:
         pytest.skip("D365_TEST_CONTACT_ID not set")
-    result = await dynamics365.execute_action(
-        "get_contact", {"contact_id": D365_TEST_CONTACT_ID}, live_context
-    )
+    result = await dynamics365.execute_action("get_contact", {"contact_id": D365_TEST_CONTACT_ID}, live_context)
     assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data["contact"]["contactid"] == D365_TEST_CONTACT_ID
 
@@ -132,6 +130,7 @@ async def test_create_contact_live(live_context):
 
 
 # ---- Leads ----
+
 
 @pytest.mark.asyncio
 async def test_list_leads_live(live_context):
@@ -161,6 +160,7 @@ async def test_create_lead_live(live_context):
 
 
 # ---- Opportunities ----
+
 
 @pytest.mark.asyncio
 async def test_list_opportunities_live(live_context):
@@ -192,6 +192,7 @@ async def test_create_opportunity_live(live_context):
 
 
 # ---- Tasks ----
+
 
 @pytest.mark.asyncio
 async def test_list_tasks_live(live_context):
