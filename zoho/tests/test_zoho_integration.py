@@ -157,36 +157,41 @@ class TestContactLifecycle:
         contact_id = _assert_ok(create)["contact"]["id"]
         assert contact_id
 
-        # get
-        got = await zoho.execute_action("get_contact", {"contact_id": contact_id}, live_context)
-        assert _assert_ok(got)["contact"]["id"] == contact_id
+        # Once IDs exist, all cleanup runs in finally so a failed update/assertion
+        # never leaves a contact or note behind in the live CRM.
+        note_id = None
+        try:
+            # get
+            got = await zoho.execute_action("get_contact", {"contact_id": contact_id}, live_context)
+            assert _assert_ok(got)["contact"]["id"] == contact_id
 
-        # update
-        updated = await zoho.execute_action(
-            "update_contact", {"contact_id": contact_id, "Title": "Updated by integration test"}, live_context
-        )
-        assert _assert_ok(updated)["contact"]["id"] == contact_id
+            # update
+            updated = await zoho.execute_action(
+                "update_contact", {"contact_id": contact_id, "Title": "Updated by integration test"}, live_context
+            )
+            assert _assert_ok(updated)["contact"]["id"] == contact_id
 
-        # note on the contact
-        note = await zoho.execute_action(
-            "create_note",
-            {"module": "Contacts", "record_id": contact_id, "Note_Content": "integration test note"},
-            live_context,
-        )
-        note_id = _assert_ok(note)["note"]["id"]
-        assert note_id
+            # note on the contact
+            note = await zoho.execute_action(
+                "create_note",
+                {"module": "Contacts", "record_id": contact_id, "Note_Content": "integration test note"},
+                live_context,
+            )
+            note_id = _assert_ok(note)["note"]["id"]
+            assert note_id
 
-        notes = await zoho.execute_action(
-            "get_contact_notes", {"module": "Contacts", "record_id": contact_id}, live_context
-        )
-        assert isinstance(_assert_ok(notes)["notes"], list)
+            notes = await zoho.execute_action(
+                "get_contact_notes", {"module": "Contacts", "record_id": contact_id}, live_context
+            )
+            assert isinstance(_assert_ok(notes)["notes"], list)
+        finally:
+            # delete the note (if created), then the contact
+            if note_id:
+                del_note = await zoho.execute_action("delete_note", {"note_id": note_id}, live_context)
+                _assert_ok(del_note)
 
-        # delete the note, then the contact
-        del_note = await zoho.execute_action("delete_note", {"note_id": note_id}, live_context)
-        _assert_ok(del_note)
-
-        deleted = await zoho.execute_action("delete_contact", {"contact_id": contact_id}, live_context)
-        assert _assert_ok(deleted)["details"]["id"] == contact_id
+            deleted = await zoho.execute_action("delete_contact", {"contact_id": contact_id}, live_context)
+            assert _assert_ok(deleted)["details"]["id"] == contact_id
 
 
 @pytest.mark.destructive
@@ -201,8 +206,10 @@ class TestDealLifecycle:
         deal_id = _assert_ok(create)["deal"]["id"]
         assert deal_id
 
-        updated = await zoho.execute_action("update_deal", {"deal_id": deal_id, "Amount": 2000}, live_context)
-        assert _assert_ok(updated)["deal"]["id"] == deal_id
-
-        deleted = await zoho.execute_action("delete_deal", {"deal_id": deal_id}, live_context)
-        assert _assert_ok(deleted)["details"]["id"] == deal_id
+        # Cleanup in finally so a failed update/assertion never leaves a deal behind.
+        try:
+            updated = await zoho.execute_action("update_deal", {"deal_id": deal_id, "Amount": 2000}, live_context)
+            assert _assert_ok(updated)["deal"]["id"] == deal_id
+        finally:
+            deleted = await zoho.execute_action("delete_deal", {"deal_id": deal_id}, live_context)
+            assert _assert_ok(deleted)["details"]["id"] == deal_id
