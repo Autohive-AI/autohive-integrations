@@ -77,6 +77,35 @@ def live_context(make_context):
 
 @skip_if_no_creds
 @pytest.mark.asyncio
+async def test_list_contacts_live(live_context):
+    result = await imis.execute_action("list_contacts", {"limit": 5}, live_context)
+    assert result.type == ResultType.ACTION, result.result.message
+    assert isinstance(result.result.data["contacts"], list)
+    assert "count" in result.result.data
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_contacts_with_name_filter_live(live_context):
+    if not IMIS_TEST_PARTY_ID:
+        pytest.skip("IMIS_TEST_PARTY_ID not set — needed to resolve a known contact name")
+    # Get a known contact first, then search by their name
+    get_result = await imis.execute_action("get_contact", {"party_id": IMIS_TEST_PARTY_ID}, live_context)
+    assert get_result.type == ResultType.ACTION, get_result.result.message
+    contact = get_result.result.data["contact"]
+    last_name = contact.get("LastName", "")
+    if not last_name:
+        pytest.skip("Contact has no LastName to search by")
+    result = await imis.execute_action("list_contacts", {"name": last_name, "limit": 10}, live_context)
+    assert result.type == ResultType.ACTION, result.result.message
+    assert isinstance(result.result.data["contacts"], list)
+    # The known contact should appear in results
+    ids = [str(c.get("Id", "")) for c in result.result.data["contacts"]]
+    assert IMIS_TEST_PARTY_ID in ids
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
 async def test_list_events_live(live_context):
     result = await imis.execute_action("list_events", {"limit": 5}, live_context)
     assert result.type == ResultType.ACTION, result.result.message
