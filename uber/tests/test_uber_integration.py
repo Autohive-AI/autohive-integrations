@@ -232,19 +232,25 @@ class TestRideLifecycle:
         request_id = request_data["request_id"]
         assert request_id
 
-        # check its status
-        status_result = await uber_integration.execute_action(
-            "get_ride_status", {"request_id": request_id}, live_context
-        )
-        status_data = _data_or_skip(status_result, "get_ride_status")
-        assert status_data["ride"].get("request_id") == request_id or "status" in status_data["ride"]
+        # Once a ride exists we MUST cancel it, even if a check below raises or skips
+        # (e.g. a transient non-2xx on the status/map call now surfaces as ACTION_ERROR
+        # and _data_or_skip would otherwise exit before cleanup, orphaning a real ride).
+        try:
+            # check its status
+            status_result = await uber_integration.execute_action(
+                "get_ride_status", {"request_id": request_id}, live_context
+            )
+            status_data = _data_or_skip(status_result, "get_ride_status")
+            assert status_data["ride"].get("request_id") == request_id or "status" in status_data["ride"]
 
-        # fetch the live tracking map for the active ride (href may be null until accepted)
-        map_result = await uber_integration.execute_action("get_ride_map", {"request_id": request_id}, live_context)
-        if map_result.type == ResultType.ACTION:
-            assert "href" in map_result.result.data
-
-        # always clean up — cancel the ride we created
-        cancel_result = await uber_integration.execute_action("cancel_ride", {"request_id": request_id}, live_context)
-        cancel_data = _data_or_skip(cancel_result, "cancel_ride")
-        assert cancel_data["result"] is True
+            # fetch the live tracking map for the active ride (href may be null until accepted)
+            map_result = await uber_integration.execute_action("get_ride_map", {"request_id": request_id}, live_context)
+            if map_result.type == ResultType.ACTION:
+                assert "href" in map_result.result.data
+        finally:
+            # always clean up — cancel the ride we created
+            cancel_result = await uber_integration.execute_action(
+                "cancel_ride", {"request_id": request_id}, live_context
+            )
+            assert cancel_result.type == ResultType.ACTION
+            assert cancel_result.result.data["result"] is True

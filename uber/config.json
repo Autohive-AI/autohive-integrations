@@ -44,9 +44,9 @@
                             "properties": {
                                 "product_id": { "type": "string", "description": "Unique product identifier" },
                                 "display_name": { "type": "string", "description": "Display name (e.g., UberX, UberXL)" },
-                                "description": { "type": "string", "description": "Product description" },
-                                "capacity": { "type": "integer", "description": "Maximum passenger capacity" },
-                                "image": { "type": "string", "description": "URL to product image" }
+                                "description": { "type": ["string", "null"], "description": "Product description" },
+                                "capacity": { "type": ["integer", "null"], "description": "Maximum passenger capacity" },
+                                "image": { "type": ["string", "null"], "description": "URL to product image" }
                             }
                         }
                     },
@@ -100,11 +100,11 @@
                                 "product_id": { "type": "string", "description": "Product identifier" },
                                 "display_name": { "type": "string", "description": "Product display name" },
                                 "estimate": { "type": "string", "description": "Formatted price estimate (e.g., '$12-15')" },
-                                "low_estimate": { "type": "number", "description": "Low end of price estimate" },
-                                "high_estimate": { "type": "number", "description": "High end of price estimate" },
-                                "currency_code": { "type": "string", "description": "Currency code (e.g., USD)" },
-                                "duration": { "type": "integer", "description": "Estimated duration in seconds" },
-                                "distance": { "type": "number", "description": "Estimated distance in miles" }
+                                "low_estimate": { "type": ["number", "null"], "description": "Low end of price estimate (null for metered/TAXI fares)" },
+                                "high_estimate": { "type": ["number", "null"], "description": "High end of price estimate (null for metered/TAXI fares)" },
+                                "currency_code": { "type": ["string", "null"], "description": "Currency code (e.g., USD)" },
+                                "duration": { "type": ["integer", "null"], "description": "Estimated duration in seconds" },
+                                "distance": { "type": ["number", "null"], "description": "Estimated distance in miles" }
                             }
                         }
                     },
@@ -147,7 +147,7 @@
                             "properties": {
                                 "product_id": { "type": "string", "description": "Product identifier" },
                                 "display_name": { "type": "string", "description": "Product display name" },
-                                "estimate": { "type": "integer", "description": "ETA in seconds" }
+                                "estimate": { "type": ["integer", "null"], "description": "ETA in seconds" }
                             }
                         }
                     },
@@ -458,10 +458,10 @@
                             "type": "object",
                             "properties": {
                                 "request_id": { "type": "string", "description": "Ride request ID" },
-                                "status": { "type": "string", "description": "Ride status" },
-                                "start_time": { "type": "integer", "description": "Start time as Unix timestamp" },
-                                "end_time": { "type": "integer", "description": "End time as Unix timestamp" },
-                                "distance": { "type": "number", "description": "Distance traveled in miles" },
+                                "status": { "type": ["string", "null"], "description": "Ride status" },
+                                "start_time": { "type": ["integer", "null"], "description": "Start time as Unix timestamp" },
+                                "end_time": { "type": ["integer", "null"], "description": "End time as Unix timestamp (null until the ride completes)" },
+                                "distance": { "type": ["number", "null"], "description": "Distance traveled in miles (null until the ride completes)" },
                                 "product_id": { "type": "string", "description": "Product identifier" }
                             }
                         }
@@ -495,8 +495,8 @@
                             "type": "object",
                             "properties": {
                                 "payment_method_id": { "type": "string", "description": "Payment method ID" },
-                                "type": { "type": "string", "description": "Payment type (e.g., credit_card, paypal)" },
-                                "description": { "type": "string", "description": "Payment method description" }
+                                "type": { "type": ["string", "null"], "description": "Payment type (e.g., credit_card, paypal)" },
+                                "description": { "type": ["string", "null"], "description": "Payment method description" }
                             }
                         }
                     },
