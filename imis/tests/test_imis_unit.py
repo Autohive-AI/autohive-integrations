@@ -4,17 +4,17 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
-from autohive_integrations_sdk import ResultType
+from unittest.mock import AsyncMock
+from autohive_integrations_sdk import FetchResponse, ResultType
 from imis.imis import imis  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
-TOKEN_RESPONSE = MagicMock(data={"access_token": "test-token"})  # nosec B105
+TOKEN_RESPONSE = FetchResponse(status=200, headers={}, data={"access_token": "test-token"})  # nosec B105
 
 
 def _resp(data):
-    return MagicMock(data=data)
+    return FetchResponse(status=200, headers={}, data=data)
 
 
 # ---- Contacts ----
@@ -25,7 +25,7 @@ async def test_get_contact(mock_context):
     contact = {"Id": "12345", "FirstName": "Alice", "LastName": "Smith"}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(contact)])
     result = await imis.execute_action("get_contact", {"party_id": "12345"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["contact"]["Id"] == "12345"
 
 
@@ -47,7 +47,7 @@ async def test_update_contact(mock_context):
         {"party_id": "12345", "email": "new@example.com"},
         mock_context,
     )
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["contact"]["PrimaryEmail"] == "new@example.com"
 
 
@@ -66,7 +66,7 @@ async def test_list_events(mock_context):
     events_resp = {"Items": [{"Id": "EVT1", "Title": "Annual Conference"}], "Count": 1}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(events_resp)])
     result = await imis.execute_action("list_events", {"limit": 10}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert len(result.result.data["events"]) == 1
     assert result.result.data["count"] == 1
 
@@ -80,7 +80,7 @@ async def test_list_events_with_date_filter(mock_context):
         {"from_date": "2025-01-01", "to_date": "2025-12-31"},
         mock_context,
     )
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["events"] == []
 
 
@@ -89,7 +89,7 @@ async def test_get_event(mock_context):
     event = {"Id": "EVT1", "Title": "Annual Conference", "StartDate": "2025-09-01"}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(event)])
     result = await imis.execute_action("get_event", {"event_id": "EVT1"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["event"]["Title"] == "Annual Conference"
 
 
@@ -109,7 +109,7 @@ async def test_create_event(mock_context):
         {"title": "New Event", "start_date": "2025-10-01T09:00:00", "location": "Auckland"},
         mock_context,
     )
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["event"]["Id"] == "EVT2"
 
 
@@ -123,7 +123,7 @@ async def test_update_event(mock_context):
         {"event_id": "EVT1", "title": "New Title"},
         mock_context,
     )
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["event"]["Title"] == "New Title"
 
 
@@ -142,7 +142,7 @@ async def test_list_registrations(mock_context):
     regs_resp = {"Items": [{"Id": "REG1", "EventId": "EVT1", "PartyId": "12345"}], "Count": 1}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(regs_resp)])
     result = await imis.execute_action("list_registrations", {"event_id": "EVT1"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["count"] == 1
 
 
@@ -155,7 +155,7 @@ async def test_create_registration(mock_context):
         {"event_id": "EVT1", "party_id": "12345"},
         mock_context,
     )
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["registration"]["Id"] == "REG2"
 
 
@@ -178,7 +178,7 @@ async def test_list_media_assets(mock_context):
     assets_resp = {"Items": [{"Id": "ASSET1", "Name": "hero-image.jpg"}], "Count": 1}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(assets_resp)])
     result = await imis.execute_action("list_media_assets", {}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert len(result.result.data["assets"]) == 1
 
 
@@ -187,7 +187,7 @@ async def test_list_media_assets_with_search(mock_context):
     assets_resp = {"Items": [], "Count": 0}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(assets_resp)])
     result = await imis.execute_action("list_media_assets", {"search": "banner"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["assets"] == []
 
 
@@ -196,7 +196,7 @@ async def test_get_media_asset(mock_context):
     asset = {"Id": "ASSET1", "Name": "hero.jpg", "Url": "https://example.com/hero.jpg"}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(asset)])
     result = await imis.execute_action("get_media_asset", {"asset_id": "ASSET1"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["asset"]["Id"] == "ASSET1"
 
 
@@ -219,7 +219,7 @@ async def test_create_contact(mock_context):
         {"last_name": "Jones", "first_name": "Bob", "email": "bob@example.com"},
         mock_context,
     )
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["contact"]["Id"] == "99999"
 
 
@@ -238,7 +238,7 @@ async def test_list_groups(mock_context):
     groups_resp = {"Items": [{"Id": "GRP1", "Name": "Members"}], "Count": 1}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(groups_resp)])
     result = await imis.execute_action("list_groups", {}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["count"] == 1
 
 
@@ -247,7 +247,7 @@ async def test_get_group(mock_context):
     group = {"Id": "GRP1", "Name": "Members"}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(group)])
     result = await imis.execute_action("get_group", {"group_id": "GRP1"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["group"]["Name"] == "Members"
 
 
@@ -263,7 +263,7 @@ async def test_add_group_member(mock_context):
     member = {"GroupId": "GRP1", "PartyId": "12345"}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(member)])
     result = await imis.execute_action("add_group_member", {"group_id": "GRP1", "party_id": "12345"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["member"]["PartyId"] == "12345"
 
 
@@ -271,7 +271,7 @@ async def test_add_group_member(mock_context):
 async def test_remove_group_member(mock_context):
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(None)])
     result = await imis.execute_action("remove_group_member", {"group_id": "GRP1", "party_id": "12345"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["deleted"] is True
 
 
@@ -282,7 +282,7 @@ async def test_remove_group_member(mock_context):
 async def test_delete_registration(mock_context):
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(None)])
     result = await imis.execute_action("delete_registration", {"registration_id": "REG1"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["deleted"] is True
 
 
@@ -301,7 +301,7 @@ async def test_list_tags(mock_context):
     tags_resp = {"Items": [{"Tag": "vip"}, {"Tag": "member"}], "Count": 2}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(tags_resp)])
     result = await imis.execute_action("list_tags", {}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["count"] == 2
 
 
@@ -310,7 +310,7 @@ async def test_add_tag(mock_context):
     tag_resp = {"PartyId": "12345", "Tag": "vip"}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(tag_resp)])
     result = await imis.execute_action("add_tag", {"party_id": "12345", "tag": "vip"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["tag"]["Tag"] == "vip"
 
 
@@ -329,7 +329,7 @@ async def test_run_query(mock_context):
     query_resp = {"Items": [{"Name": "Alice"}, {"Name": "Bob"}], "Count": 2}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(query_resp)])
     result = await imis.execute_action("run_query", {"query_name": "$/Contact/AllContacts"}, mock_context)
-    assert result.type != ResultType.ACTION_ERROR
+    assert result.type == ResultType.ACTION
     assert result.result.data["count"] == 2
     assert len(result.result.data["results"]) == 2
 

@@ -6,10 +6,11 @@ imis = Integration.load()
 
 
 async def get_access_token(context: ExecutionContext) -> str:
-    site_url = context.auth.get("site_url", "").rstrip("/")
-    username = context.auth.get("username", "")
-    password = context.auth.get("password", "")
-    client_id = context.auth.get("client_id", "iMIS")
+    creds = context.auth.get("credentials", context.auth)
+    site_url = creds.get("site_url", "").rstrip("/")
+    username = creds.get("username", "")
+    password = creds.get("password", "")
+    client_id = creds.get("client_id", "iMIS")
 
     body = urlencode(
         {
@@ -24,7 +25,7 @@ async def get_access_token(context: ExecutionContext) -> str:
         f"{site_url}/token/",
         method="POST",
         headers={"Content-Type": "application/x-www-form-urlencoded"},
-        body=body,
+        data=body,
     )
 
     if not isinstance(resp.data, dict) or "access_token" not in resp.data:
@@ -40,7 +41,8 @@ async def api_request(
     json_data: Optional[Dict[str, Any]] = None,
     params: Optional[Dict[str, Any]] = None,
 ) -> Any:
-    site_url = context.auth.get("site_url", "").rstrip("/")
+    creds = context.auth.get("credentials", context.auth)
+    site_url = creds.get("site_url", "").rstrip("/")
     access_token = await get_access_token(context)
     headers = {
         "Authorization": f"Bearer {access_token}",
