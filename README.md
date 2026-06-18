@@ -55,6 +55,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [box](box): Manages files and folders in Box cloud storage. Supports listing shared folders, searching files, downloading file contents, uploading files, and browsing folder contents with recursive support. Uses OAuth2 authentication.
 
+### Dynamics 365
+
+[dynamics365](dynamics365): Microsoft Dynamics 365 CRM integration for managing the full sales lifecycle through the OData v4 REST API. Supports listing, retrieving, creating, and updating Accounts, Contacts, Leads, and Opportunities, qualifying leads into downstream CRM records, and creating Tasks linked to any CRM entity. Features platform OAuth2 authentication, OData filter expressions for server-side search, and navigation property bindings for entity relationships. Includes 17 actions covering Accounts (4), Contacts (4), Leads (4 including qualify), Opportunities (3), and Tasks (2). Ideal for CRM automation, sales pipeline management, lead nurturing workflows, and contact data synchronization.
+
 ### Dropbox
 
 [dropbox](dropbox): Cloud file storage integration with Dropbox API v2 for comprehensive file and folder management. Supports folder listing with recursive browsing and cursor-based pagination, file and folder metadata retrieval, temporary download link generation (valid for 4 hours), file uploads with conflict handling modes (add, overwrite), folder creation, and complete file operations (delete, move, copy with autorename support). Features OAuth 2.0 authentication with automatic token management and support for mounted folders. Includes 8 actions covering file browsing, metadata access, uploads, and file organization. Ideal for file synchronization, backup workflows, document management, and cloud storage automation.
