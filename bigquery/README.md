@@ -238,6 +238,38 @@ BigQuery supports the following data types for table schemas:
 
 Field modes: `NULLABLE` (default), `REQUIRED`, `REPEATED` (array)
 
+## Testing
+
+### Unit tests
+
+Unit tests mock all HTTP calls and run by default in CI:
+
+```bash
+python -m pytest bigquery/tests/test_bigquery_unit.py
+```
+
+### Integration tests
+
+Integration tests call the real BigQuery REST API. They require two environment
+variables (see the root `.env.example`):
+
+- `BIGQUERY_ACCESS_TOKEN` — an OAuth2 access token with the
+  `https://www.googleapis.com/auth/bigquery` scope
+- `BIGQUERY_PROJECT_ID` — a Google Cloud project ID you can query/write to
+
+**Run the safe, read-only tests:**
+
+```bash
+pytest bigquery/tests/test_bigquery_integration.py -m "integration and not destructive"
+```
+
+**Run the destructive tests** ⚠️ — these **create and delete real datasets and
+tables** in your project. Only run against a project where that is acceptable:
+
+```bash
+pytest bigquery/tests/test_bigquery_integration.py -m "integration and destructive"
+```
+
 ## Resources
 
 - [BigQuery Documentation](https://cloud.google.com/bigquery/docs)
