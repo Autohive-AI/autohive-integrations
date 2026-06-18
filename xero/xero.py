@@ -6,8 +6,9 @@ from autohive_integrations_sdk import (
     ActionError,
     ConnectedAccountHandler,
     ConnectedAccountInfo,
+    RateLimitError,
 )
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import asyncio
 import base64
 import logging
@@ -117,11 +118,14 @@ class XeroRateLimitExceededException(Exception):
 
         super().__init__(
             f"Xero API rate limit for tenant {tenant_id} requires waiting {requested_delay}s, "
-            f"exceeds maximum wait time of {max_wait_time}s"
+            f"exceeds maximum wait time of {max_wait_time}s. Please try again in a minute."
         )
 
 
 class XeroRateLimiter:
+    # Xero allows up to 5 concurrent API calls per connected app
+    MAX_CONCURRENT_REQUESTS = 5
+
     def __init__(
         self,
         default_retry_delay: int = 5,
@@ -130,6 +134,7 @@ class XeroRateLimiter:
     ):
         """
         Handles Xero API rate limiting by retrying requests on 429 errors.
+        Caps concurrency at 5 simultaneous requests as per Xero API limits.
 
         The integration Lambda is killed after 30 seconds, so max_wait_time
         caps the *cumulative* time spent sleeping across all retries. Any
@@ -141,21 +146,27 @@ class XeroRateLimiter:
         self.default_retry_delay = default_retry_delay
         self.max_retries = max_retries
         self.max_wait_time = max_wait_time
+        # Lazily initialised: asyncio.Semaphore must be created inside a running
+        # event loop on Python ≤3.9, so we defer creation to first use.
+        # NOTE: this semaphore is intra-process only — it does not limit
+        # concurrency across separate Lambda invocations. Xero's 5-concurrent-call
+        # limit is enforced per connected app across all callers, so this only
+        # helps when multiple async tasks share the same process (e.g. tests).
+        self._semaphore: Optional[asyncio.Semaphore] = None
 
-    def _extract_retry_delay(self, error_response) -> int:
-        """Extract retry delay from error response headers"""
-        if hasattr(error_response, "headers"):
-            retry_after = error_response.headers.get("Retry-After")
-            if retry_after:
-                try:
-                    return int(retry_after)
-                except ValueError:
-                    pass
-        return self.default_retry_delay
+    def _get_semaphore(self) -> asyncio.Semaphore:
+        if self._semaphore is None:
+            self._semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_REQUESTS)
+        return self._semaphore
 
     async def make_request(self, context: ExecutionContext, url: str, tenant_id: str, **kwargs) -> Any:
-        """Make request to Xero API with automatic retry on rate limit errors"""
-        # Add tenant header to the request
+        """Make request to Xero API with automatic retry on rate limit errors.
+
+        Enforces Xero's concurrency limit (max 5 simultaneous calls) via a semaphore.
+        On HTTP 429, waits the Retry-After duration and retries up to max_retries times.
+        Raises XeroRateLimitExceededException when the Retry-After delay would push
+        cumulative sleeping past max_wait_time (too long to wait inside the Lambda).
+        """
         headers = kwargs.get("headers", {})
         headers["xero-tenant-id"] = tenant_id
         kwargs["headers"] = headers
@@ -163,32 +174,29 @@ class XeroRateLimiter:
         last_error = None
         total_waited = 0
 
-        for attempt in range(self.max_retries + 1):
-            try:
-                response = await context.fetch(url, **kwargs)
-                return response.data
+        async with self._get_semaphore():
+            for attempt in range(self.max_retries + 1):
+                try:
+                    response = await context.fetch(url, **kwargs)
+                    return response.data
 
-            except asyncio.CancelledError:
-                # Defensive: convert Python-side task cancellation into a
-                # regular exception so action handlers return a clean
-                # ActionError if cancellation reaches the coroutine. This does
-                # not catch Lambda hard timeouts, which kill the OS process
-                # with no catchable Python exception.
-                logger.warning("CancelledError during Xero request to %s — converting to TimeoutError", url)
-                raise TimeoutError(f"Xero request to {url} was cancelled before completing. Please try again.")
+                except asyncio.CancelledError:
+                    # Defensive: convert Python-side task cancellation into a
+                    # regular exception so action handlers return a clean
+                    # ActionError if cancellation reaches the coroutine. This does
+                    # not catch Lambda hard timeouts, which kill the OS process
+                    # with no catchable Python exception.
+                    logger.warning("CancelledError during Xero request to %s — converting to TimeoutError", url)
+                    raise TimeoutError(f"Xero request to {url} was cancelled before completing. Please try again.")
 
-            except Exception as e:
-                last_error = e
-                error_str = str(e).lower()
+                except RateLimitError as e:
+                    last_error = e
 
-                # Check if it's a rate limit error (HTTP 429)
-                if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
-                    # Don't retry on the last attempt
                     if attempt >= self.max_retries:
                         break
 
-                    # Get delay from response headers or use default
-                    delay = self._extract_retry_delay(e)
+                    # Retry-After is provided by Xero on every 429 response
+                    delay = e.retry_after if e.retry_after else self.default_retry_delay
 
                     # Enforce the cumulative sleep budget: the Lambda only
                     # lives for 30s, so never sleep past max_wait_time in
@@ -202,15 +210,12 @@ class XeroRateLimiter:
                         )
                         raise XeroRateLimitExceededException(delay, self.max_wait_time, tenant_id)
 
-                    # Short delay - proceed with waiting and retry
                     await asyncio.sleep(delay)
                     total_waited += delay
-                    continue
 
-                # For non-rate-limit errors, fail immediately
-                raise e
+                except Exception:
+                    raise
 
-        # All retries exhausted, raise the last error
         raise last_error
 
 
