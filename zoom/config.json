@@ -33,8 +33,7 @@
             "meeting:read:list_past_participants",
             "user:read:meeting_template_detail",
             "user:read:user",
-            "user:read:list_permissions",
-            "zoomapp:inmeeting"
+            "user:read:list_permissions"
         ]
     },
     "actions": {
