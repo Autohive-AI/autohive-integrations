@@ -37,6 +37,53 @@
     }
   },
   "actions": {
+    "list_contacts": {
+      "display_name": "List Contacts",
+      "description": "Search and list contacts (people or organisations) in iMIS with optional filters.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Filter contacts by name (partial match)"
+          },
+          "email": {
+            "type": "string",
+            "description": "Filter contacts by email address"
+          },
+          "member_type": {
+            "type": "string",
+            "description": "Filter by member type code (e.g. IND, ORG)"
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter by status code (e.g. A for active)"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of contacts to return (default: 20)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of contacts to skip for pagination (default: 0)"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "description": "List of matching contacts"
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of matching contacts"
+          }
+        }
+      }
+    },
     "get_contact": {
       "display_name": "Get Contact",
       "description": "Retrieve a contact (person or organisation) by their iMIS Party ID.",

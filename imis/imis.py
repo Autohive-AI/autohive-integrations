@@ -62,6 +62,31 @@ async def api_request(
 # ---- Contacts ----
 
 
+@imis.action("list_contacts")
+class ListContactsAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            params: Dict[str, Any] = {
+                "limit": inputs.get("limit", 20),
+                "offset": inputs.get("offset", 0),
+            }
+            if inputs.get("name"):
+                params["Name"] = inputs["name"]
+            if inputs.get("email"):
+                params["Email"] = inputs["email"]
+            if inputs.get("member_type"):
+                params["MemberTypeCode"] = inputs["member_type"]
+            if inputs.get("status"):
+                params["StatusCode"] = inputs["status"]
+
+            data = await api_request(context, "GET", "Party", params=params)
+            items = data.get("Items", []) if isinstance(data, dict) else []
+            count = data.get("Count", len(items)) if isinstance(data, dict) else len(items)
+            return ActionResult(data={"contacts": items, "count": count}, cost_usd=0.0)
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
 @imis.action("get_contact")
 class GetContactAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):

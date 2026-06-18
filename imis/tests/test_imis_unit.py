@@ -21,6 +21,36 @@ def _resp(data):
 
 
 @pytest.mark.asyncio
+async def test_list_contacts(mock_context):
+    items = [{"Id": "1", "FirstName": "Alice"}, {"Id": "2", "FirstName": "Bob"}]
+    mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp({"Items": items, "Count": 2})])
+    result = await imis.execute_action("list_contacts", {}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert len(result.result.data["contacts"]) == 2
+    assert result.result.data["count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_list_contacts_with_filters(mock_context):
+    items = [{"Id": "1", "FirstName": "Alice", "PrimaryEmail": "alice@example.com"}]
+    mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp({"Items": items, "Count": 1})])
+    result = await imis.execute_action("list_contacts", {"name": "Alice", "email": "alice@example.com"}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert result.result.data["count"] == 1
+    call_params = mock_context.fetch.call_args_list[1][1]["params"]
+    assert call_params["Name"] == "Alice"
+    assert call_params["Email"] == "alice@example.com"
+
+
+@pytest.mark.asyncio
+async def test_list_contacts_error(mock_context):
+    mock_context.fetch = AsyncMock(side_effect=Exception("api error"))
+    result = await imis.execute_action("list_contacts", {}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "api error" in result.result.message
+
+
+@pytest.mark.asyncio
 async def test_get_contact(mock_context):
     contact = {"Id": "12345", "FirstName": "Alice", "LastName": "Smith"}
     mock_context.fetch = AsyncMock(side_effect=[TOKEN_RESPONSE, _resp(contact)])
