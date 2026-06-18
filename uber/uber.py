@@ -228,8 +228,8 @@ class GetProductsAction(ActionHandler):
 
     @handle_uber_errors("get_products")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        lat = inputs.get("latitude")
-        lng = inputs.get("longitude")
+        lat = inputs["latitude"]
+        lng = inputs["longitude"]
 
         coord_error = validate_coordinates(lat, lng)
         if coord_error:
@@ -253,10 +253,10 @@ class GetPriceEstimateAction(ActionHandler):
 
     @handle_uber_errors("get_price_estimate")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        start_lat = inputs.get("start_latitude")
-        start_lng = inputs.get("start_longitude")
-        end_lat = inputs.get("end_latitude")
-        end_lng = inputs.get("end_longitude")
+        start_lat = inputs["start_latitude"]
+        start_lng = inputs["start_longitude"]
+        end_lat = inputs["end_latitude"]
+        end_lng = inputs["end_longitude"]
 
         start_error = validate_coordinates(start_lat, start_lng, "start_")
         if start_error:
@@ -288,8 +288,8 @@ class GetTimeEstimateAction(ActionHandler):
 
     @handle_uber_errors("get_time_estimate")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        start_lat = inputs.get("start_latitude")
-        start_lng = inputs.get("start_longitude")
+        start_lat = inputs["start_latitude"]
+        start_lng = inputs["start_longitude"]
 
         coord_error = validate_coordinates(start_lat, start_lng, "start_")
         if coord_error:
@@ -316,11 +316,11 @@ class GetRideEstimateAction(ActionHandler):
 
     @handle_uber_errors("get_ride_estimate")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        product_id = inputs.get("product_id")
-        start_lat = inputs.get("start_latitude")
-        start_lng = inputs.get("start_longitude")
-        end_lat = inputs.get("end_latitude")
-        end_lng = inputs.get("end_longitude")
+        product_id = inputs["product_id"]
+        start_lat = inputs["start_latitude"]
+        start_lng = inputs["start_longitude"]
+        end_lat = inputs["end_latitude"]
+        end_lng = inputs["end_longitude"]
 
         product_error = validate_id(product_id, "product_id")
         if product_error:
@@ -362,11 +362,11 @@ class RequestRideAction(ActionHandler):
 
     @handle_uber_errors("request_ride")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        product_id = inputs.get("product_id")
-        start_lat = inputs.get("start_latitude")
-        start_lng = inputs.get("start_longitude")
-        end_lat = inputs.get("end_latitude")
-        end_lng = inputs.get("end_longitude")
+        product_id = inputs["product_id"]
+        start_lat = inputs["start_latitude"]
+        start_lng = inputs["start_longitude"]
+        end_lat = inputs["end_latitude"]
+        end_lng = inputs["end_longitude"]
 
         product_error = validate_id(product_id, "product_id")
         if product_error:
@@ -388,17 +388,17 @@ class RequestRideAction(ActionHandler):
             "end_longitude": end_lng,
         }
 
-        optional_string_fields = [
-            "start_address",
-            "start_nickname",
-            "end_address",
-            "end_nickname",
-            "fare_id",
-            "surge_confirmation_id",
-            "payment_method_id",
-        ]
-        for field in optional_string_fields:
-            value = inputs.get(field)
+        # Accessed explicitly (not via a loop variable) so config-code sync can see them.
+        optional_string_fields = {
+            "start_address": inputs.get("start_address"),
+            "start_nickname": inputs.get("start_nickname"),
+            "end_address": inputs.get("end_address"),
+            "end_nickname": inputs.get("end_nickname"),
+            "fare_id": inputs.get("fare_id"),
+            "surge_confirmation_id": inputs.get("surge_confirmation_id"),
+            "payment_method_id": inputs.get("payment_method_id"),
+        }
+        for field, value in optional_string_fields.items():
             if value and isinstance(value, str) and value.strip():
                 body[field] = value.strip()
 
@@ -577,8 +577,8 @@ class LinkLoyaltyAccountAction(ActionHandler):
 
     @handle_uber_errors("link_loyalty_account")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        partner_id = inputs.get("partner_id")
-        member_id = inputs.get("member_id")
+        partner_id = inputs["partner_id"]
+        member_id = inputs["member_id"]
 
         partner_error = validate_id(partner_id, "partner_id")
         if partner_error:
@@ -609,7 +609,7 @@ class UnlinkLoyaltyAccountAction(ActionHandler):
 
     @handle_uber_errors("unlink_loyalty_account")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        partner_id = inputs.get("partner_id")
+        partner_id = inputs["partner_id"]
 
         partner_error = validate_id(partner_id, "partner_id")
         if partner_error:
@@ -628,8 +628,8 @@ class SubmitFlightBookingDataAction(ActionHandler):
 
     @handle_uber_errors("submit_flight_booking_data")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        partner_id = inputs.get("partner_id")
-        booking_id = inputs.get("booking_id")
+        partner_id = inputs["partner_id"]
+        booking_id = inputs["booking_id"]
 
         partner_error = validate_id(partner_id, "partner_id")
         if partner_error:
@@ -641,17 +641,17 @@ class SubmitFlightBookingDataAction(ActionHandler):
 
         body: Dict[str, Any] = {"partner_id": partner_id.strip(), "booking_id": booking_id.strip()}
 
-        # Add optional flight details
-        optional_fields = [
-            "flight_number",
-            "departure_airport",
-            "arrival_airport",
-            "departure_time",
-            "arrival_time",
-            "passenger_name",
-        ]
-        for field in optional_fields:
-            value = inputs.get(field)
+        # Add optional flight details. Accessed explicitly (not via a loop variable)
+        # so config-code sync can see each schema parameter is used.
+        optional_fields = {
+            "flight_number": inputs.get("flight_number"),
+            "departure_airport": inputs.get("departure_airport"),
+            "arrival_airport": inputs.get("arrival_airport"),
+            "departure_time": inputs.get("departure_time"),
+            "arrival_time": inputs.get("arrival_time"),
+            "passenger_name": inputs.get("passenger_name"),
+        }
+        for field, value in optional_fields.items():
             if value and isinstance(value, str) and value.strip():
                 body[field] = value.strip()
 

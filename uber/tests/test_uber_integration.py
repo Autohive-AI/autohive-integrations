@@ -22,7 +22,7 @@ import sys
 import aiohttp
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from autohive_integrations_sdk import FetchResponse, ResultType
+from autohive_integrations_sdk import FetchResponse, ResultType, HTTPError, RateLimitError
 
 # The integration folder ships an __init__.py that turns `uber` into a package
 # exposing only the integration object, so `import uber` is ambiguous with uber.py.
@@ -59,6 +59,17 @@ def live_context():
                     data = await resp.json(content_type=None)
                 except Exception:
                     data = await resp.text()
+                # Mirror the SDK's ExecutionContext.fetch contract: non-2xx responses
+                # raise instead of returning a FetchResponse. Without this, a failed
+                # live call (expired token, missing scope, deprecated endpoint) would
+                # hand the error body to the action as normal data, and the action's
+                # `.get()` defaults would produce an empty-but-successful ACTION result
+                # — letting the suite pass while every live call is actually failing.
+                if resp.status == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 60))
+                    raise RateLimitError(retry_after, resp.status, "Rate limit exceeded", data)
+                if resp.status >= 400:
+                    raise HTTPError(resp.status, str(data), data)
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     ctx = MagicMock(name="ExecutionContext")

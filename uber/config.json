@@ -12,7 +12,6 @@
         "scopes": [
             "profile",
             "history",
-            "places",
             "partner-loyalty.link-account"
         ]
     },
