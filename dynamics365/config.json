@@ -1,0 +1,374 @@
+{
+  "name": "Microsoft Dynamics 365",
+  "version": "2.0.0",
+  "description": "Microsoft Dynamics 365 CRM integration for managing Accounts, Contacts, Leads, Opportunities, and Tasks",
+  "entry_point": "dynamics365.py",
+  "auth": {
+    "type": "platform",
+    "provider": "Microsoft Dynamics 365",
+    "scopes": [
+      "offline_access",
+      "https://org.crm.dynamics.com/user_impersonation"
+    ]
+  },
+  "actions": {
+    "list_accounts": {
+      "display_name": "List Accounts",
+      "description": "List CRM accounts with optional filtering",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Filter by account name (contains)"},
+          "industry": {"type": "string", "description": "Filter by industry code"},
+          "limit": {"type": "integer", "description": "Maximum number of records to return (default: 20)", "default": 20},
+          "select": {"type": "string", "description": "Comma-separated list of fields to return"}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "accounts": {"type": "array", "description": "List of account records"},
+          "count": {"type": "integer", "description": "Number of accounts returned"}
+        }
+      }
+    },
+    "get_account": {
+      "display_name": "Get Account",
+      "description": "Get a single CRM account by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {"type": "string", "description": "The account GUID"}
+        },
+        "required": ["account_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "account": {"type": "object", "description": "The account record"}
+        }
+      }
+    },
+    "create_account": {
+      "display_name": "Create Account",
+      "description": "Create a new CRM account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Account name"},
+          "email": {"type": "string", "description": "Primary email address"},
+          "phone": {"type": "string", "description": "Primary phone number"},
+          "website": {"type": "string", "description": "Website URL"},
+          "industry": {"type": "string", "description": "Industry code"},
+          "city": {"type": "string", "description": "City"},
+          "country": {"type": "string", "description": "Country"},
+          "description": {"type": "string", "description": "Account description"}
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "account": {"type": "object", "description": "The created account record"}
+        }
+      }
+    },
+    "update_account": {
+      "display_name": "Update Account",
+      "description": "Update an existing CRM account",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account_id": {"type": "string", "description": "The account GUID"},
+          "name": {"type": "string", "description": "Account name"},
+          "email": {"type": "string", "description": "Primary email address"},
+          "phone": {"type": "string", "description": "Primary phone number"},
+          "website": {"type": "string", "description": "Website URL"},
+          "description": {"type": "string", "description": "Account description"}
+        },
+        "required": ["account_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated": {"type": "boolean", "description": "Whether the update succeeded"},
+          "account_id": {"type": "string", "description": "The updated account GUID"}
+        }
+      }
+    },
+    "list_contacts": {
+      "display_name": "List Contacts",
+      "description": "List CRM contacts with optional filtering",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "first_name": {"type": "string", "description": "Filter by first name (contains)"},
+          "last_name": {"type": "string", "description": "Filter by last name (contains)"},
+          "email": {"type": "string", "description": "Filter by email address"},
+          "account_id": {"type": "string", "description": "Filter by parent account GUID"},
+          "limit": {"type": "integer", "description": "Maximum number of records to return (default: 20)", "default": 20},
+          "select": {"type": "string", "description": "Comma-separated list of fields to return"}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contacts": {"type": "array", "description": "List of contact records"},
+          "count": {"type": "integer", "description": "Number of contacts returned"}
+        }
+      }
+    },
+    "get_contact": {
+      "display_name": "Get Contact",
+      "description": "Get a single CRM contact by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {"type": "string", "description": "The contact GUID"}
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contact": {"type": "object", "description": "The contact record"}
+        }
+      }
+    },
+    "create_contact": {
+      "display_name": "Create Contact",
+      "description": "Create a new CRM contact",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "first_name": {"type": "string", "description": "First name"},
+          "last_name": {"type": "string", "description": "Last name"},
+          "email": {"type": "string", "description": "Email address"},
+          "phone": {"type": "string", "description": "Phone number"},
+          "job_title": {"type": "string", "description": "Job title"},
+          "account_id": {"type": "string", "description": "Parent account GUID"},
+          "city": {"type": "string", "description": "City"},
+          "country": {"type": "string", "description": "Country"}
+        },
+        "required": ["last_name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contact": {"type": "object", "description": "The created contact record"}
+        }
+      }
+    },
+    "update_contact": {
+      "display_name": "Update Contact",
+      "description": "Update an existing CRM contact",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {"type": "string", "description": "The contact GUID"},
+          "first_name": {"type": "string", "description": "First name"},
+          "last_name": {"type": "string", "description": "Last name"},
+          "email": {"type": "string", "description": "Email address"},
+          "phone": {"type": "string", "description": "Phone number"},
+          "job_title": {"type": "string", "description": "Job title"}
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated": {"type": "boolean", "description": "Whether the update succeeded"},
+          "contact_id": {"type": "string", "description": "The updated contact GUID"}
+        }
+      }
+    },
+    "list_leads": {
+      "display_name": "List Leads",
+      "description": "List CRM leads with optional filtering",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "first_name": {"type": "string", "description": "Filter by first name (contains)"},
+          "last_name": {"type": "string", "description": "Filter by last name (contains)"},
+          "email": {"type": "string", "description": "Filter by email address"},
+          "status": {"type": "string", "description": "Filter by status code"},
+          "limit": {"type": "integer", "description": "Maximum number of records to return (default: 20)", "default": 20}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "leads": {"type": "array", "description": "List of lead records"},
+          "count": {"type": "integer", "description": "Number of leads returned"}
+        }
+      }
+    },
+    "get_lead": {
+      "display_name": "Get Lead",
+      "description": "Get a single CRM lead by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_id": {"type": "string", "description": "The lead GUID"}
+        },
+        "required": ["lead_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "lead": {"type": "object", "description": "The lead record"}
+        }
+      }
+    },
+    "create_lead": {
+      "display_name": "Create Lead",
+      "description": "Create a new CRM lead",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "first_name": {"type": "string", "description": "First name"},
+          "last_name": {"type": "string", "description": "Last name"},
+          "email": {"type": "string", "description": "Email address"},
+          "phone": {"type": "string", "description": "Phone number"},
+          "company": {"type": "string", "description": "Company name"},
+          "topic": {"type": "string", "description": "Lead topic / subject"},
+          "source": {"type": "string", "description": "Lead source code"},
+          "description": {"type": "string", "description": "Lead description / notes"}
+        },
+        "required": ["last_name", "company"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "lead": {"type": "object", "description": "The created lead record"}
+        }
+      }
+    },
+    "qualify_lead": {
+      "display_name": "Qualify Lead",
+      "description": "Qualify a lead, optionally creating an account, contact, and/or opportunity",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "lead_id": {"type": "string", "description": "The lead GUID to qualify"},
+          "create_account": {"type": "boolean", "description": "Create an account from the lead", "default": true},
+          "create_contact": {"type": "boolean", "description": "Create a contact from the lead", "default": true},
+          "create_opportunity": {"type": "boolean", "description": "Create an opportunity from the lead", "default": false}
+        },
+        "required": ["lead_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "qualified": {"type": "boolean", "description": "Whether the lead was qualified successfully"},
+          "created_entities": {"type": "array", "description": "List of entities created during qualification"}
+        }
+      }
+    },
+    "list_opportunities": {
+      "display_name": "List Opportunities",
+      "description": "List CRM opportunities with optional filtering",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Filter by opportunity name (contains)"},
+          "account_id": {"type": "string", "description": "Filter by parent account GUID"},
+          "status": {"type": "string", "description": "Filter by status code (Open, Won, Lost)"},
+          "limit": {"type": "integer", "description": "Maximum number of records to return (default: 20)", "default": 20}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "opportunities": {"type": "array", "description": "List of opportunity records"},
+          "count": {"type": "integer", "description": "Number of opportunities returned"}
+        }
+      }
+    },
+    "get_opportunity": {
+      "display_name": "Get Opportunity",
+      "description": "Get a single CRM opportunity by ID",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "opportunity_id": {"type": "string", "description": "The opportunity GUID"}
+        },
+        "required": ["opportunity_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "opportunity": {"type": "object", "description": "The opportunity record"}
+        }
+      }
+    },
+    "create_opportunity": {
+      "display_name": "Create Opportunity",
+      "description": "Create a new CRM opportunity",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Opportunity name"},
+          "account_id": {"type": "string", "description": "Parent account GUID"},
+          "estimated_value": {"type": "number", "description": "Estimated revenue value"},
+          "close_date": {"type": "string", "description": "Estimated close date (ISO 8601 format)"},
+          "description": {"type": "string", "description": "Opportunity description"},
+          "probability": {"type": "integer", "description": "Win probability percentage (0-100)"}
+        },
+        "required": ["name"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "opportunity": {"type": "object", "description": "The created opportunity record"}
+        }
+      }
+    },
+    "list_tasks": {
+      "display_name": "List Tasks",
+      "description": "List CRM tasks/activities with optional filtering",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "regarding_id": {"type": "string", "description": "Filter by regarding entity GUID"},
+          "status": {"type": "string", "description": "Filter by status (Open, Completed, Cancelled)"},
+          "limit": {"type": "integer", "description": "Maximum number of records to return (default: 20)", "default": 20}
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tasks": {"type": "array", "description": "List of task records"},
+          "count": {"type": "integer", "description": "Number of tasks returned"}
+        }
+      }
+    },
+    "create_task": {
+      "display_name": "Create Task",
+      "description": "Create a new CRM task/activity",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "subject": {"type": "string", "description": "Task subject"},
+          "description": {"type": "string", "description": "Task description"},
+          "due_date": {"type": "string", "description": "Due date (ISO 8601 format)"},
+          "priority": {
+            "type": "string",
+            "description": "Priority (Low, Normal, High)",
+            "enum": ["Low", "Normal", "High"],
+            "default": "Normal"
+          },
+          "regarding_id": {"type": "string", "description": "GUID of the entity this task is regarding"},
+          "regarding_type": {"type": "string", "description": "Entity type for regarding (account, contact, opportunity, lead)"}
+        },
+        "required": ["subject"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {"type": "object", "description": "The created task record"}
+        }
+      }
+    }
+  }
+}
