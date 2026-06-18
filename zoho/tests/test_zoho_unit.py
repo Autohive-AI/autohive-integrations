@@ -533,6 +533,62 @@ class TestSearchActions:
 
 
 # =============================================================================
+# 204 / empty body — response.data is None (regression for Codex P2)
+# =============================================================================
+
+
+class TestNoneResponseBody:
+    """Zoho returns HTTP 204 with no body for empty modules and missing records;
+    SDK 2 surfaces that as ``response.data is None``. List/search reads must
+    return an empty result set, and single-record reads must fall through to a
+    graceful not-found ActionError instead of an AttributeError leaking through
+    the broad ``except`` as a misleading generic failure."""
+
+    @pytest.mark.parametrize("action,key", LIST_ACTIONS)
+    @pytest.mark.asyncio
+    async def test_list_none_body_is_empty_success(self, action, key):
+        ctx = make_ctx(None)
+        result = await zoho.execute_action(action, {}, ctx)
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data[key] == []
+        assert result.result.data["info"] == {}
+
+    @pytest.mark.parametrize("action,key", SEARCH_ACTIONS)
+    @pytest.mark.asyncio
+    async def test_search_none_body_is_empty_success(self, action, key):
+        ctx = make_ctx(None)
+        result = await zoho.execute_action(action, {"search_type": "word", "word": "x"}, ctx)
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data[key] == []
+
+    @pytest.mark.parametrize("action,id_field,key", GET_ACTIONS)
+    @pytest.mark.asyncio
+    async def test_get_none_body_is_graceful_not_found(self, action, id_field, key):
+        ctx = make_ctx(None)
+        result = await zoho.execute_action(action, {id_field: "42"}, ctx)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "AttributeError" not in (result.result.message or "")
+
+    @pytest.mark.asyncio
+    async def test_related_records_none_body_is_empty_success(self):
+        ctx = make_ctx(None)
+        result = await zoho.execute_action(
+            "get_related_records",
+            {"module": "Accounts", "record_id": "1", "related_module": "Contacts"},
+            ctx,
+        )
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["related_records"] == []
+
+    @pytest.mark.asyncio
+    async def test_coql_none_body_is_empty_success(self):
+        ctx = make_ctx(None)
+        result = await zoho.execute_action("execute_coql_query", {"select_query": "select id from Contacts"}, ctx)
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["data"] == []
+
+
+# =============================================================================
 # CONVERT LEAD
 # =============================================================================
 
