@@ -294,16 +294,15 @@ class CreateMessageAction(ActionHandler):
 class CreateDraftAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            body: Dict[str, Any] = {
-                "channel": {"id": inputs["channel_id"]},
-                "body": inputs["body"],
-            }
+            body: Dict[str, Any] = {"body": inputs["body"]}
             if inputs.get("from_field") is not None:
                 body["from_field"] = inputs["from_field"]
             if inputs.get("subject") is not None:
                 body["subject"] = inputs["subject"]
             if inputs.get("conversation_id") is not None:
-                body["conversation"] = {"id": inputs["conversation_id"]}
+                body["conversation"] = inputs["conversation_id"]
+            if inputs.get("account") is not None:
+                body["account"] = inputs["account"]
             if inputs.get("send") is not None:
                 body["send"] = inputs["send"]
             if inputs.get("send_at") is not None:
@@ -311,9 +310,9 @@ class CreateDraftAction(ActionHandler):
             if inputs.get("auto_followup") is not None:
                 body["auto_followup"] = inputs["auto_followup"]
             if inputs.get("team_id") is not None:
-                body["team"] = {"id": inputs["team_id"]}
+                body["team"] = inputs["team_id"]
             if inputs.get("assignee_id") is not None:
-                body["add_assignees"] = [{"id": inputs["assignee_id"]}]
+                body["add_assignees"] = [inputs["assignee_id"]]
             if inputs.get("to"):
                 body["to_fields"] = inputs["to"]
             if inputs.get("cc"):

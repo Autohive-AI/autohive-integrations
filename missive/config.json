@@ -499,16 +499,16 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "channel_id": {
-            "type": "string",
-            "description": "Channel ID to send from"
-          },
           "from_field": {
             "type": "object",
             "description": "Sender identity for the draft (name and address)",
             "properties": {
-              "name": {"type": "string"},
-              "address": {"type": "string"}
+              "name": {
+                "type": "string"
+              },
+              "address": {
+                "type": "string"
+              }
             }
           },
           "subject": {
@@ -588,10 +588,13 @@
           "assignee_id": {
             "type": "string",
             "description": "Assign to a user"
+          },
+          "account": {
+            "type": "string",
+            "description": "Email account ID to send from (required for new email drafts)"
           }
         },
         "required": [
-          "channel_id",
           "body"
         ]
       },

@@ -145,7 +145,7 @@ async def test_create_message():
 
 async def test_create_draft():
     ctx = make_ctx({"drafts": {"id": "dr1"}})
-    result = await missive.execute_action("create_draft", {"channel_id": "ch1", "body": "Draft body"}, ctx)
+    result = await missive.execute_action("create_draft", {"body": "Draft body"}, ctx)
     data = result.result.data
     assert data["result"] is True
 
@@ -258,26 +258,27 @@ async def test_create_draft_request_shape():
     await missive.execute_action(
         "create_draft",
         {
-            "channel_id": "ch1",
             "body": "Hello",
             "subject": "Test subject",
             "conversation_id": "conv1",
             "team_id": "team1",
             "assignee_id": "user1",
+            "account": "acc1",
             "to": [{"name": "Alice", "address": "alice@example.com"}],
         },
         ctx,
     )
     _, kwargs = ctx.fetch.call_args
     payload = kwargs["json"]["drafts"]
-    assert payload["channel"] == {"id": "ch1"}
     assert payload["body"] == "Hello"
     assert payload["subject"] == "Test subject"
-    assert payload["conversation"] == {"id": "conv1"}
-    assert payload["team"] == {"id": "team1"}
-    assert payload["add_assignees"] == [{"id": "user1"}]
+    assert payload["conversation"] == "conv1"
+    assert payload["team"] == "team1"
+    assert payload["add_assignees"] == ["user1"]
+    assert payload["account"] == "acc1"
     assert payload["to_fields"] == [{"name": "Alice", "address": "alice@example.com"}]
     assert "channel_id" not in payload
+    assert "channel" not in payload
     assert "conversation_id" not in payload
     assert "team_id" not in payload
     assert "assignee_id" not in payload
@@ -352,7 +353,7 @@ async def test_create_draft_non2xx_returns_error():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(return_value=err(422, "Invalid channel"))
     ctx.auth = {"api_token": "test_token"}  # nosec B105
-    result = await missive.execute_action("create_draft", {"channel_id": "bad", "body": "Hi"}, ctx)
+    result = await missive.execute_action("create_draft", {"body": "Hi"}, ctx)
     assert result.result.data["result"] is False
     assert "Invalid channel" in result.result.data["error"]
 
