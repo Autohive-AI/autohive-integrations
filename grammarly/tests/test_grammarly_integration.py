@@ -112,7 +112,7 @@ async def test_get_writing_score_results(live_context):
 async def test_get_user_analytics(live_context):
     result = await grammarly.execute_action(
         "get_user_analytics",
-        {"date_from": "2024-01-01", "date_to": "2024-01-31"},
+        {"date_from": "2025-12-01", "date_to": "2025-12-31"},
         live_context,
     )
     assert result.type == ResultType.ACTION, result.result.message
