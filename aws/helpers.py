@@ -5,20 +5,22 @@ from decimal import Decimal
 from typing import Any, Dict
 
 import boto3
-from autohive_integrations_sdk import ActionResult, ExecutionContext
+from autohive_integrations_sdk import ActionError, ActionResult, ExecutionContext
 
 
 def create_boto3_client(context: ExecutionContext, service_name: str):
-    credentials = context.auth.get("credentials", {})
-    access_key = credentials.get("aws_access_key_id")
-    secret_key = credentials.get("aws_secret_access_key")
+    creds = context.auth.get("credentials") or context.auth
+    access_key = creds.get("aws_access_key_id")
+    secret_key = creds.get("aws_secret_access_key")
     if not access_key or not secret_key:
         raise ValueError("AWS credentials are missing: aws_access_key_id and aws_secret_access_key are required")
+    session_token = creds.get("aws_session_token")
     return boto3.client(
         service_name,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
-        region_name=credentials.get("aws_region", "us-east-1"),
+        region_name=creds.get("aws_region", "us-east-1"),
+        aws_session_token=session_token or None,
     )
 
 
@@ -42,13 +44,16 @@ def serialize_response(obj: Any) -> Any:
 
 
 def success_result(data: Dict[str, Any]) -> ActionResult:
-    return ActionResult(data={"result": True, **serialize_response(data)})
+    return ActionResult(data=serialize_response(data), cost_usd=0.0)
 
 
-def error_result(e: Exception) -> ActionResult:
+def error_result(e: Exception) -> ActionError:
     error_msg = str(e)
-    error_code = ""
     if hasattr(e, "response"):
         error_code = e.response.get("Error", {}).get("Code", "")
-        error_msg = e.response.get("Error", {}).get("Message", error_msg)
-    return ActionResult(data={"result": False, "error": error_msg, "error_code": error_code})
+        api_msg = e.response.get("Error", {}).get("Message", "")
+        if error_code and api_msg:
+            error_msg = f"{error_code}: {api_msg}"
+        elif api_msg:
+            error_msg = api_msg
+    return ActionError(message=error_msg)

@@ -1,7 +1,7 @@
 {
     "name": "aws",
     "display_name": "Amazon Web Services",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "AWS security and monitoring integration for Security Hub, GuardDuty, CloudWatch, and CloudTrail",
     "entry_point": "aws.py",
     "auth": {
@@ -27,6 +27,13 @@
                     "format": "text",
                     "label": "AWS Region",
                     "help_text": "AWS region (e.g. us-east-1, eu-west-1)"
+                },
+                "aws_session_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "AWS Session Token",
+                    "help_text": "Optional session token for temporary AWS credentials (e.g. from STS AssumeRole)",
+                    "required": false
                 }
             }
         }
@@ -64,20 +71,11 @@
                         "description": "List of Security Hub findings"
                     },
                     "next_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination token for the next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -93,7 +91,9 @@
                         "description": "The ARN of the Security Hub finding to retrieve"
                     }
                 },
-                "required": ["finding_arn"]
+                "required": [
+                    "finding_arn"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -101,18 +101,6 @@
                     "finding": {
                         "type": "object",
                         "description": "The Security Hub finding details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -133,14 +121,22 @@
                     "workflow_status": {
                         "type": "string",
                         "description": "The new workflow status to set",
-                        "enum": ["NEW", "NOTIFIED", "RESOLVED", "SUPPRESSED"]
+                        "enum": [
+                            "NEW",
+                            "NOTIFIED",
+                            "RESOLVED",
+                            "SUPPRESSED"
+                        ]
                     },
                     "note": {
                         "type": "string",
                         "description": "Optional note to add to the findings"
                     }
                 },
-                "required": ["finding_arns", "workflow_status"]
+                "required": [
+                    "finding_arns",
+                    "workflow_status"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -152,18 +148,6 @@
                     "unprocessed_findings": {
                         "type": "array",
                         "description": "List of finding ARNs that could not be updated"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -202,20 +186,11 @@
                         "description": "List of Security Hub insights"
                     },
                     "next_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination token for the next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -250,20 +225,11 @@
                         }
                     },
                     "next_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination token for the next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -297,7 +263,9 @@
                         "description": "Pagination token from a previous request"
                     }
                 },
-                "required": ["detector_id"]
+                "required": [
+                    "detector_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -310,20 +278,11 @@
                         }
                     },
                     "next_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination token for the next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -346,7 +305,10 @@
                         }
                     }
                 },
-                "required": ["detector_id", "finding_ids"]
+                "required": [
+                    "detector_id",
+                    "finding_ids"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -354,18 +316,6 @@
                     "findings": {
                         "type": "array",
                         "description": "List of detailed GuardDuty findings"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -388,7 +338,10 @@
                         }
                     }
                 },
-                "required": ["detector_id", "finding_ids"]
+                "required": [
+                    "detector_id",
+                    "finding_ids"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -396,18 +349,6 @@
                     "success": {
                         "type": "boolean",
                         "description": "Whether the findings were successfully archived"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -448,20 +389,11 @@
                         "description": "List of CloudWatch metrics with namespace, name, and dimensions"
                     },
                     "next_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination token for the next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -488,7 +420,11 @@
                         "description": "End of the time range in ISO 8601 format (e.g. 2024-01-02T00:00:00Z)"
                     }
                 },
-                "required": ["metric_data_queries", "start_time", "end_time"]
+                "required": [
+                    "metric_data_queries",
+                    "start_time",
+                    "end_time"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -496,18 +432,6 @@
                     "metric_data_results": {
                         "type": "array",
                         "description": "List of metric data results with timestamps and values"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -532,7 +456,11 @@
                     "state_value": {
                         "type": "string",
                         "description": "Filter alarms by state",
-                        "enum": ["OK", "ALARM", "INSUFFICIENT_DATA"]
+                        "enum": [
+                            "OK",
+                            "ALARM",
+                            "INSUFFICIENT_DATA"
+                        ]
                     },
                     "max_records": {
                         "type": "integer",
@@ -559,20 +487,11 @@
                         "description": "List of composite alarms"
                     },
                     "next_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination token for the next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -597,7 +516,11 @@
                     "history_item_type": {
                         "type": "string",
                         "description": "Filter by history item type",
-                        "enum": ["ConfigurationUpdate", "StateUpdate", "Action"]
+                        "enum": [
+                            "ConfigurationUpdate",
+                            "StateUpdate",
+                            "Action"
+                        ]
                     },
                     "start_date": {
                         "type": "string",
@@ -628,20 +551,11 @@
                         "description": "List of alarm history items with timestamp, type, and summary"
                     },
                     "next_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination token for the next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -659,14 +573,22 @@
                     "state_value": {
                         "type": "string",
                         "description": "The state value to set",
-                        "enum": ["OK", "ALARM", "INSUFFICIENT_DATA"]
+                        "enum": [
+                            "OK",
+                            "ALARM",
+                            "INSUFFICIENT_DATA"
+                        ]
                     },
                     "state_reason": {
                         "type": "string",
                         "description": "A human-readable reason for the state change"
                     }
                 },
-                "required": ["alarm_name", "state_value", "state_reason"]
+                "required": [
+                    "alarm_name",
+                    "state_value",
+                    "state_reason"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -674,18 +596,6 @@
                     "success": {
                         "type": "boolean",
                         "description": "Whether the alarm state was successfully set"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -722,20 +632,11 @@
                         "description": "List of log groups with name, ARN, creation time, and stored bytes"
                     },
                     "next_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination token for the next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -781,7 +682,9 @@
                         "description": "Pagination token from a previous request"
                     }
                 },
-                "required": ["log_group_name"]
+                "required": [
+                    "log_group_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -795,20 +698,11 @@
                         "description": "List of log streams that were searched"
                     },
                     "next_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination token for the next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -852,7 +746,10 @@
                         "description": "Pagination token from a previous request"
                     }
                 },
-                "required": ["log_group_name", "log_stream_name"]
+                "required": [
+                    "log_group_name",
+                    "log_stream_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -862,24 +759,18 @@
                         "description": "List of log events with timestamp and message"
                     },
                     "next_forward_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Token for fetching the next set of events going forward in time"
                     },
                     "next_backward_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Token for fetching the next set of events going backward in time"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -927,20 +818,11 @@
                         "description": "List of CloudTrail events with event name, time, user, and resources"
                     },
                     "next_token": {
-                        "type": ["string", "null"],
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Pagination token for the next page of results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -972,18 +854,6 @@
                     "trails": {
                         "type": "array",
                         "description": "List of CloudTrail trail configurations"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -999,7 +869,9 @@
                         "description": "The trail name or ARN to get status for"
                     }
                 },
-                "required": ["trail_name"]
+                "required": [
+                    "trail_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1007,18 +879,6 @@
                     "trail_status": {
                         "type": "object",
                         "description": "Trail status including logging state, latest delivery time, and any delivery errors"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
@@ -1034,7 +894,9 @@
                         "description": "The trail name or ARN to get event selectors for"
                     }
                 },
-                "required": ["trail_name"]
+                "required": [
+                    "trail_name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1050,18 +912,6 @@
                     "advanced_event_selectors": {
                         "type": "array",
                         "description": "List of advanced event selectors configured on the trail"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": ["string", "null"],
-                        "description": "Error message if the operation failed"
-                    },
-                    "error_code": {
-                        "type": ["string", "null"],
-                        "description": "AWS-specific error code if the operation failed (e.g. AccessDeniedException, ThrottlingException)"
                     }
                 }
             }
