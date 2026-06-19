@@ -356,10 +356,22 @@ class ListResponsesAction(ActionHandler):
             form_id = inputs["form_id"]
             params = {}
 
-            param_keys = ["page_size", "since", "until", "after", "before", "sort", "query", "fields"]
-            for key in param_keys:
-                if inputs.get(key):
-                    params[key] = inputs[key]
+            if inputs.get("page_size"):
+                params["page_size"] = inputs["page_size"]
+            if inputs.get("since"):
+                params["since"] = inputs["since"]
+            if inputs.get("until"):
+                params["until"] = inputs["until"]
+            if inputs.get("after"):
+                params["after"] = inputs["after"]
+            if inputs.get("before"):
+                params["before"] = inputs["before"]
+            if inputs.get("sort"):
+                params["sort"] = inputs["sort"]
+            if inputs.get("query"):
+                params["query"] = inputs["query"]
+            if inputs.get("fields"):
+                params["fields"] = inputs["fields"]
 
             if inputs.get("completed") is not None:
                 params["completed"] = str(inputs["completed"]).lower()
