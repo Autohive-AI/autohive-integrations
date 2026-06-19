@@ -1,7 +1,7 @@
 {
   "name": "Supabase",
   "display_name": "Supabase",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Integration with Supabase for database operations, storage, and authentication management",
   "entry_point": "supabase.py",
   "auth": {
@@ -56,7 +56,9 @@
             "description": "Number of records to skip (for pagination)"
           }
         },
-        "required": ["table"]
+        "required": [
+          "table"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -68,10 +70,6 @@
           "count": {
             "type": "integer",
             "description": "Number of records returned"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -99,7 +97,10 @@
             "description": "Column(s) for upsert conflict resolution (enables upsert mode)"
           }
         },
-        "required": ["table", "records"]
+        "required": [
+          "table",
+          "records"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -111,10 +112,6 @@
           "count": {
             "type": "integer",
             "description": "Number of records inserted"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -142,7 +139,11 @@
             "description": "Whether to return the updated records (default: true)"
           }
         },
-        "required": ["table", "data", "filters"]
+        "required": [
+          "table",
+          "data",
+          "filters"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -154,10 +155,6 @@
           "count": {
             "type": "integer",
             "description": "Number of records updated"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -181,7 +178,10 @@
             "description": "Whether to return the deleted records (default: false)"
           }
         },
-        "required": ["table", "filters"]
+        "required": [
+          "table",
+          "filters"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -193,10 +193,6 @@
           "count": {
             "type": "integer",
             "description": "Number of records deleted"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -216,17 +212,15 @@
             "description": "Parameters to pass to the function"
           }
         },
-        "required": ["function_name"]
+        "required": [
+          "function_name"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Function return value"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -245,10 +239,6 @@
           "buckets": {
             "type": "array",
             "description": "List of storage buckets"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -264,7 +254,9 @@
             "description": "ID of the bucket"
           }
         },
-        "required": ["bucket_id"]
+        "required": [
+          "bucket_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -272,10 +264,6 @@
           "bucket": {
             "type": "object",
             "description": "Bucket details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -303,7 +291,9 @@
             "description": "Array of allowed MIME types (optional)"
           }
         },
-        "required": ["name"]
+        "required": [
+          "name"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -311,10 +301,6 @@
           "bucket": {
             "type": "object",
             "description": "Created bucket details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -330,7 +316,9 @@
             "description": "ID of the bucket to delete"
           }
         },
-        "required": ["bucket_id"]
+        "required": [
+          "bucket_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -338,10 +326,6 @@
           "deleted": {
             "type": "boolean",
             "description": "Whether the bucket was deleted"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -373,7 +357,9 @@
             "description": "Search string to filter files"
           }
         },
-        "required": ["bucket_id"]
+        "required": [
+          "bucket_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -381,10 +367,6 @@
           "files": {
             "type": "array",
             "description": "List of files and folders"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -404,7 +386,10 @@
             "description": "Array of file paths to delete"
           }
         },
-        "required": ["bucket_id", "paths"]
+        "required": [
+          "bucket_id",
+          "paths"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -412,10 +397,6 @@
           "deleted": {
             "type": "array",
             "description": "List of deleted file paths"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -435,7 +416,10 @@
             "description": "Path to the file within the bucket"
           }
         },
-        "required": ["bucket_id", "path"]
+        "required": [
+          "bucket_id",
+          "path"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -443,10 +427,6 @@
           "public_url": {
             "type": "string",
             "description": "Public URL of the file"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -478,10 +458,6 @@
           "total": {
             "type": "integer",
             "description": "Total number of users"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -497,7 +473,9 @@
             "description": "The user's UUID"
           }
         },
-        "required": ["user_id"]
+        "required": [
+          "user_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -505,10 +483,6 @@
           "user": {
             "type": "object",
             "description": "User details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -524,7 +498,9 @@
             "description": "The user's UUID"
           }
         },
-        "required": ["user_id"]
+        "required": [
+          "user_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -532,10 +508,6 @@
           "deleted": {
             "type": "boolean",
             "description": "Whether the user was deleted"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
