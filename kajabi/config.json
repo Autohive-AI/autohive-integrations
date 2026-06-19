@@ -1,0 +1,563 @@
+{
+  "name": "Kajabi",
+  "display_name": "Kajabi",
+  "version": "1.0.0",
+  "description": "Integration with Kajabi for managing contacts, courses, blog posts, and membership offers.",
+  "entry_point": "kajabi.py",
+  "auth": {
+    "type": "custom",
+    "title": "API Key",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API Key",
+          "help_text": "Your Kajabi API key from Settings > Integrations > API"
+        }
+      }
+    }
+  },
+  "actions": {
+    "list_contacts": {
+      "display_name": "List Contacts",
+      "description": "List contacts with optional search and pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search": {
+            "type": "string",
+            "description": "Fuzzy search on name or email"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Items per page (default 20, max 100)"
+          },
+          "sort": {
+            "type": "string",
+            "description": "Sort field, prefix with - for descending (e.g. -created_at)"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contacts": {"type": "array"},
+          "total": {"type": "integer"}
+        }
+      }
+    },
+    "get_contact": {
+      "display_name": "Get Contact",
+      "description": "Retrieve a contact by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID"
+          }
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "email": {"type": "string"}
+        }
+      }
+    },
+    "create_contact": {
+      "display_name": "Create Contact",
+      "description": "Create a new contact in Kajabi.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Full name"
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address"
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "Phone number"
+          },
+          "subscribed": {
+            "type": "boolean",
+            "description": "Whether the contact is subscribed to marketing emails"
+          }
+        },
+        "required": ["name", "email"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "email": {"type": "string"}
+        }
+      }
+    },
+    "update_contact": {
+      "display_name": "Update Contact",
+      "description": "Update an existing contact's details.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Full name"
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address"
+          },
+          "phone_number": {
+            "type": "string",
+            "description": "Phone number"
+          },
+          "subscribed": {
+            "type": "boolean",
+            "description": "Whether the contact is subscribed to marketing emails"
+          }
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "email": {"type": "string"}
+        }
+      }
+    },
+    "delete_contact": {
+      "display_name": "Delete Contact",
+      "description": "Permanently delete a contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID to delete"
+          }
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "list_contact_tags": {
+      "display_name": "List Contact Tags",
+      "description": "List all contact tags.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name_contains": {
+            "type": "string",
+            "description": "Filter tags by name"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Items per page"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tags": {"type": "array"},
+          "total": {"type": "integer"}
+        }
+      }
+    },
+    "get_contact_tag": {
+      "display_name": "Get Contact Tag",
+      "description": "Retrieve a contact tag by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tag_id": {
+            "type": "string",
+            "description": "The tag ID"
+          }
+        },
+        "required": ["tag_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"}
+        }
+      }
+    },
+    "add_tag_to_contact": {
+      "display_name": "Add Tag to Contact",
+      "description": "Add one or more tags to a contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID"
+          },
+          "tag_ids": {
+            "type": "array",
+            "description": "List of tag IDs to add",
+            "items": {"type": "string"}
+          }
+        },
+        "required": ["contact_id", "tag_ids"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "added": {"type": "boolean"}
+        }
+      }
+    },
+    "remove_tag_from_contact": {
+      "display_name": "Remove Tag from Contact",
+      "description": "Remove one or more tags from a contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID"
+          },
+          "tag_ids": {
+            "type": "array",
+            "description": "List of tag IDs to remove",
+            "items": {"type": "string"}
+          }
+        },
+        "required": ["contact_id", "tag_ids"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "removed": {"type": "boolean"}
+        }
+      }
+    },
+    "list_contact_notes": {
+      "display_name": "List Contact Notes",
+      "description": "List notes for a specific contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "Filter notes by contact ID"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Items per page (max 100)"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "notes": {"type": "array"},
+          "total": {"type": "integer"}
+        }
+      }
+    },
+    "get_contact_note": {
+      "display_name": "Get Contact Note",
+      "description": "Retrieve a contact note by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "note_id": {
+            "type": "string",
+            "description": "The note ID"
+          }
+        },
+        "required": ["note_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "body": {"type": "string"}
+        }
+      }
+    },
+    "create_contact_note": {
+      "display_name": "Create Contact Note",
+      "description": "Create a note on a contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID to attach the note to"
+          },
+          "body": {
+            "type": "string",
+            "description": "The note content"
+          }
+        },
+        "required": ["contact_id", "body"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "body": {"type": "string"}
+        }
+      }
+    },
+    "update_contact_note": {
+      "display_name": "Update Contact Note",
+      "description": "Update the content of a contact note.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "note_id": {
+            "type": "string",
+            "description": "The note ID"
+          },
+          "body": {
+            "type": "string",
+            "description": "The updated note content"
+          }
+        },
+        "required": ["note_id", "body"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "body": {"type": "string"}
+        }
+      }
+    },
+    "delete_contact_note": {
+      "display_name": "Delete Contact Note",
+      "description": "Delete a contact note.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "note_id": {
+            "type": "string",
+            "description": "The note ID to delete"
+          }
+        },
+        "required": ["note_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {"type": "boolean"}
+        }
+      }
+    },
+    "list_contact_offers": {
+      "display_name": "List Contact Offers",
+      "description": "List the offers (product access) granted to a contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID"
+          }
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "offers": {"type": "array"}
+        }
+      }
+    },
+    "grant_offer_to_contact": {
+      "display_name": "Grant Offer to Contact",
+      "description": "Grant a Kajabi offer (product access) to a contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID"
+          },
+          "offer_id": {
+            "type": "string",
+            "description": "The offer ID to grant"
+          },
+          "send_welcome_email": {
+            "type": "boolean",
+            "description": "Whether to send the customer welcome email"
+          }
+        },
+        "required": ["contact_id", "offer_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "granted": {"type": "boolean"}
+        }
+      }
+    },
+    "revoke_offer_from_contact": {
+      "display_name": "Revoke Offer from Contact",
+      "description": "Revoke a Kajabi offer from a contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID"
+          },
+          "offer_id": {
+            "type": "string",
+            "description": "The offer ID to revoke"
+          }
+        },
+        "required": ["contact_id", "offer_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "revoked": {"type": "boolean"}
+        }
+      }
+    },
+    "list_courses": {
+      "display_name": "List Courses",
+      "description": "List all courses in the Kajabi site.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title_contains": {
+            "type": "string",
+            "description": "Filter courses by title"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Items per page"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "courses": {"type": "array"},
+          "total": {"type": "integer"}
+        }
+      }
+    },
+    "get_course": {
+      "display_name": "Get Course",
+      "description": "Retrieve a course by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "course_id": {
+            "type": "string",
+            "description": "The course ID"
+          }
+        },
+        "required": ["course_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "title": {"type": "string"}
+        }
+      }
+    },
+    "list_blog_posts": {
+      "display_name": "List Blog Posts",
+      "description": "List all blog posts.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title_contains": {
+            "type": "string",
+            "description": "Filter posts by title"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number"
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Items per page"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "posts": {"type": "array"},
+          "total": {"type": "integer"}
+        }
+      }
+    },
+    "get_blog_post": {
+      "display_name": "Get Blog Post",
+      "description": "Retrieve a blog post by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "post_id": {
+            "type": "string",
+            "description": "The blog post ID"
+          }
+        },
+        "required": ["post_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "title": {"type": "string"}
+        }
+      }
+    }
+  }
+}
