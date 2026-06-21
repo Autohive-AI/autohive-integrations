@@ -271,6 +271,7 @@ class TestThemeLifecycle:
             "create_theme",
             {
                 "name": f"Integration Test Theme {os.getpid()}",
+                "font": "Arial",
                 "colors": {"question": "#3D3D3D", "answer": "#4FB0AE", "button": "#4FB0AE", "background": "#FFFFFF"},
             },
             live_context,
@@ -288,21 +289,28 @@ class TestWebhookLifecycle:
     """create → get → delete a webhook on an existing form."""
 
     async def test_full_lifecycle(self, live_context):
-        form_id = await _first_form_id(live_context)
-        tag = f"integration_test_{os.getpid()}"
-
-        create_result = await typeform.execute_action(
-            "create_webhook",
-            {"form_id": form_id, "tag": tag, "url": "https://example.com/webhook", "enabled": False},
+        form_result = await typeform.execute_action(
+            "create_form",
+            {"title": f"Webhook Integration Test {os.getpid()}"},
             live_context,
         )
-        assert create_result.result.data["result"] is True
+        form_id = form_result.result.data["form"]["id"]
+        tag = f"integration_test_{os.getpid()}"
 
         try:
+            create_result = await typeform.execute_action(
+                "create_webhook",
+                {"form_id": form_id, "tag": tag, "url": "https://example.com/webhook", "enabled": False},
+                live_context,
+            )
+            assert create_result.result.data["result"] is True
+
             get_result = await typeform.execute_action("get_webhook", {"form_id": form_id, "tag": tag}, live_context)
             assert get_result.result.data["webhook"]["tag"] == tag
-        finally:
-            delete_result = await typeform.execute_action(
+
+            delete_webhook = await typeform.execute_action(
                 "delete_webhook", {"form_id": form_id, "tag": tag}, live_context
             )
-            assert delete_result.result.data["deleted"] is True
+            assert delete_webhook.result.data["deleted"] is True
+        finally:
+            await typeform.execute_action("delete_form", {"form_id": form_id}, live_context)
