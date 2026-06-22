@@ -1,0 +1,1178 @@
+{
+  "name": "Missive",
+  "version": "1.0.0",
+  "description": "Missive integration for managing conversations, messages, drafts, contacts, and analytics in your team inbox.",
+  "display_name": "Missive",
+  "supports_connected_account": false,
+  "entry_point": "missive.py",
+  "auth": {
+    "type": "custom",
+    "title": "Missive API Token",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_token": {
+          "type": "string",
+          "format": "password",
+          "label": "API Token",
+          "help_text": "Generate your token in Missive -> Preferences -> API. Requires the Productive plan."
+        }
+      }
+    }
+  },
+  "actions": {
+    "list_conversations": {
+      "display_name": "List Conversations",
+      "description": "List or find conversations. A mailbox filter is always required (inbox, all, assigned, closed, snoozed, flagged, trashed, junked, drafts, shared_label, team_inbox, team_closed, team_all). Optionally narrow by a contact's email, domain, or contact organization. This is not full-text search (no search by subject/body).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "mailbox": {
+            "type": "string",
+            "description": "Mailbox filter",
+            "enum": [
+              "inbox",
+              "all",
+              "assigned",
+              "closed",
+              "snoozed",
+              "flagged",
+              "trashed",
+              "junked",
+              "drafts",
+              "shared_label",
+              "team_inbox",
+              "team_closed",
+              "team_all"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of conversations to return (max 50)",
+            "default": 25,
+            "minimum": 2
+          },
+          "until": {
+            "type": "number",
+            "description": "Pagination cursor - pass last_activity_at of the last conversation to get the next page"
+          },
+          "team_id": {
+            "type": "string",
+            "description": "Team UUID — required when mailbox is team_inbox, team_closed, or team_all"
+          },
+          "shared_label_id": {
+            "type": "string",
+            "description": "Shared label UUID — required when mailbox is shared_label"
+          },
+          "organization_id": {
+            "type": "string",
+            "description": "Limit results to conversations shared with this organization"
+          },
+          "email": {
+            "type": "string",
+            "description": "Filter by a contact's email address (e.g. jane@acme.com). Mutually exclusive with domain and contact_organization_id."
+          },
+          "domain": {
+            "type": "string",
+            "description": "Filter by a contact's email domain (e.g. acme.com, not @acme.com). Mutually exclusive with email and contact_organization_id."
+          },
+          "contact_organization_id": {
+            "type": "string",
+            "description": "Filter by a contact organization/group UUID. Mutually exclusive with email and domain."
+          }
+        },
+        "required": [
+          "mailbox"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "conversations": {
+            "type": "array",
+            "description": "List of conversations"
+          }
+        },
+        "required": [
+          "conversations"
+        ]
+      }
+    },
+    "get_conversation": {
+      "display_name": "Get Conversation",
+      "description": "Retrieve a specific conversation by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "The conversation ID"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "conversation": {
+            "type": "object",
+            "description": "Conversation details"
+          }
+        },
+        "required": [
+          "conversation"
+        ]
+      }
+    },
+    "update_conversation": {
+      "display_name": "Update Conversation",
+      "description": "Update conversation state (close, assign, label, snooze). Requires the token owner to be a member of the conversation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "Conversation ID to update"
+          },
+          "subject": {
+            "type": "string",
+            "description": "New subject"
+          },
+          "color": {
+            "type": "string",
+            "description": "Conversation color as a CSS hex code (e.g. #ff0000) or null to clear"
+          },
+          "assignee_id": {
+            "type": "string",
+            "description": "User ID to assign the conversation to"
+          },
+          "team_id": {
+            "type": "string",
+            "description": "Team ID to assign the conversation to"
+          },
+          "shared_label_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Shared label IDs to apply"
+          },
+          "organization_id": {
+            "type": "string",
+            "description": "Organization ID. Required by Missive when assignee_id or shared_label_ids is set."
+          },
+          "closed": {
+            "type": "boolean",
+            "description": "Set true to close, false to reopen"
+          },
+          "snoozed_until": {
+            "type": "number",
+            "description": "Unix timestamp to snooze until"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "The updated conversation ID"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      }
+    },
+    "merge_conversations": {
+      "display_name": "Merge Conversations",
+      "description": "Merge a source conversation into a target conversation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "Source conversation ID to merge"
+          },
+          "target_conversation_id": {
+            "type": "string",
+            "description": "Target conversation ID to merge into"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "target_conversation_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "The surviving (source) conversation ID"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      }
+    },
+    "list_conversation_messages": {
+      "display_name": "List Conversation Messages",
+      "description": "List all messages in a specific conversation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "The conversation ID"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of messages to return (max 10)",
+            "default": 10
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "description": "List of messages"
+          }
+        },
+        "required": [
+          "messages"
+        ]
+      }
+    },
+    "list_conversation_comments": {
+      "display_name": "List Conversation Comments",
+      "description": "List internal comments in a specific conversation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "The conversation ID"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "comments": {
+            "type": "array",
+            "description": "List of comments"
+          }
+        },
+        "required": [
+          "comments"
+        ]
+      }
+    },
+    "list_conversation_posts": {
+      "display_name": "List Conversation Posts",
+      "description": "List system posts in a specific conversation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "The conversation ID"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "posts": {
+            "type": "array",
+            "description": "List of posts"
+          }
+        },
+        "required": [
+          "posts"
+        ]
+      }
+    },
+    "list_conversation_drafts": {
+      "display_name": "List Conversation Drafts",
+      "description": "List draft messages in a specific conversation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "The conversation ID"
+          }
+        },
+        "required": [
+          "conversation_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "drafts": {
+            "type": "array",
+            "description": "List of drafts"
+          }
+        },
+        "required": [
+          "drafts"
+        ]
+      }
+    },
+    "list_messages": {
+      "display_name": "Find Messages by Email Message-ID",
+      "description": "Look up message(s) by their email Message-ID header (the email_message_id value, e.g. <abc@domain.com>). This is an exact-match lookup, not a search or a list of all messages.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Number of messages to return",
+            "default": 25,
+            "minimum": 2
+          },
+          "email_message_id": {
+            "type": "string",
+            "description": "Filter messages by email Message-ID header"
+          }
+        },
+        "required": [
+          "email_message_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "description": "List of messages"
+          }
+        },
+        "required": [
+          "messages"
+        ]
+      }
+    },
+    "get_message": {
+      "display_name": "Get Message",
+      "description": "Retrieve a specific message by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "description": "The message ID"
+          }
+        },
+        "required": [
+          "message_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "object",
+            "description": "Message details"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      }
+    },
+    "create_message": {
+      "display_name": "Create Message",
+      "description": "Inject an incoming message into a custom channel conversation. The account field must be the custom channel account token, not a standard email account.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "string",
+            "description": "Custom channel account token (from the custom channel configuration, not an email account ID)"
+          },
+          "from_field": {
+            "type": "object",
+            "description": "Sender identity for the message",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              }
+            }
+          },
+          "to_fields": {
+            "type": "array",
+            "description": "Recipient identities",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "username": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "body": {
+            "type": "string",
+            "description": "Message body text"
+          },
+          "subject": {
+            "type": "string",
+            "description": "Message subject"
+          },
+          "conversation_id": {
+            "type": "string",
+            "description": "Append to existing conversation (optional)"
+          },
+          "external_id": {
+            "type": "string",
+            "description": "External ID for deduplication"
+          }
+        },
+        "required": [
+          "account",
+          "from_field",
+          "to_fields",
+          "body"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "object",
+            "description": "Created message"
+          }
+        },
+        "required": []
+      }
+    },
+    "create_draft": {
+      "display_name": "Create Draft",
+      "description": "Create an email, SMS, WhatsApp, or custom channel draft. Set send to true to send immediately. Supports scheduling via send_at.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_field": {
+            "type": "object",
+            "description": "Sender identity for the draft (name and address)",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "address": {
+                "type": "string"
+              }
+            }
+          },
+          "subject": {
+            "type": "string",
+            "description": "Email subject"
+          },
+          "body": {
+            "type": "string",
+            "description": "Message body (HTML supported for email)"
+          },
+          "to": {
+            "type": "array",
+            "description": "Recipients",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "cc": {
+            "type": "array",
+            "description": "CC recipients",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "bcc": {
+            "type": "array",
+            "description": "BCC recipients",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "address": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "conversation_id": {
+            "type": "string",
+            "description": "Conversation ID to reply in"
+          },
+          "send": {
+            "type": "boolean",
+            "description": "Send immediately if true",
+            "default": false
+          },
+          "send_at": {
+            "type": "number",
+            "description": "Unix timestamp to schedule send"
+          },
+          "auto_followup": {
+            "type": "boolean",
+            "description": "Enable auto follow-up if no reply"
+          },
+          "team_id": {
+            "type": "string",
+            "description": "Assign to a team"
+          },
+          "assignee_id": {
+            "type": "string",
+            "description": "Assign to a user"
+          },
+          "organization_id": {
+            "type": "string",
+            "description": "Organization ID. Required by Missive when assignee_id is set."
+          },
+          "account": {
+            "type": "string",
+            "description": "Email account ID to send from (required for new email drafts)"
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "draft": {
+            "type": "object",
+            "description": "Created draft details"
+          }
+        },
+        "required": []
+      }
+    },
+    "delete_draft": {
+      "display_name": "Delete Draft",
+      "description": "Delete a draft from a conversation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "draft_id": {
+            "type": "string",
+            "description": "The draft ID to delete"
+          }
+        },
+        "required": [
+          "draft_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "draft_id": {
+            "type": "string",
+            "description": "The deleted draft ID"
+          }
+        },
+        "required": [
+          "draft_id"
+        ]
+      }
+    },
+    "create_post": {
+      "display_name": "Create Post",
+      "description": "Inject a post into a conversation to update its state or notify assignees.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "conversation_id": {
+            "type": "string",
+            "description": "Conversation ID to post into (omit to create a new conversation)"
+          },
+          "close": {
+            "type": "boolean",
+            "description": "Close the conversation after posting"
+          },
+          "reopen": {
+            "type": "boolean",
+            "description": "Reopen a closed conversation"
+          },
+          "assignee_id": {
+            "type": "string",
+            "description": "Assign conversation to this user"
+          },
+          "team_id": {
+            "type": "string",
+            "description": "Assign conversation to this team"
+          },
+          "shared_label_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Apply these shared label IDs"
+          },
+          "organization_id": {
+            "type": "string",
+            "description": "Organization ID. Required by Missive when assignee_id or shared_label_ids is set."
+          },
+          "notification": {
+            "type": "object",
+            "description": "Push notification shown to conversation members (required by Missive)",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "Notification title"
+              },
+              "body": {
+                "type": "string",
+                "description": "Notification body text"
+              }
+            }
+          },
+          "text": {
+            "type": "string",
+            "description": "Post content (plain text)"
+          },
+          "username": {
+            "type": "string",
+            "description": "Name to display as the post author"
+          }
+        },
+        "required": [
+          "conversation_id",
+          "text",
+          "notification"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "post": {
+            "type": "object",
+            "description": "Created post (contains id and conversation)"
+          },
+          "conversation_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ID of the conversation the post was added to"
+          }
+        },
+        "required": []
+      }
+    },
+    "list_contacts": {
+      "display_name": "List Contacts",
+      "description": "List contacts within a contact book with optional search filtering. Returns up to 200 results per page.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_book_id": {
+            "type": "string",
+            "description": "The contact book to list contacts from (required by Missive API)"
+          },
+          "search": {
+            "type": "string",
+            "description": "Search query to filter contacts"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of contacts to return (max 200)",
+            "default": 50
+          }
+        },
+        "required": [
+          "contact_book_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "description": "List of contacts"
+          }
+        },
+        "required": [
+          "contacts"
+        ]
+      }
+    },
+    "get_contact": {
+      "display_name": "Get Contact",
+      "description": "Retrieve a specific contact by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID"
+          }
+        },
+        "required": [
+          "contact_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contact": {
+            "type": "object",
+            "description": "Contact details"
+          }
+        },
+        "required": [
+          "contact"
+        ]
+      }
+    },
+    "create_contact": {
+      "display_name": "Create Contact",
+      "description": "Create one or more contacts with names, emails, phone numbers, and other details.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "description": "List of contacts to create",
+            "items": {
+              "type": "object",
+              "properties": {
+                "first_name": {
+                  "type": "string"
+                },
+                "last_name": {
+                  "type": "string"
+                },
+                "job_title": {
+                  "type": "string"
+                },
+                "notes": {
+                  "type": "string"
+                },
+                "infos": {
+                  "type": "array",
+                  "description": "Contact info items (email, phone, etc.)",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "description": "Info type, e.g. email, phone_number, url"
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Info label, e.g. home, work, mobile"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "contact_book_id": {
+            "type": "string",
+            "description": "ID of the contact book to add contacts to"
+          }
+        },
+        "required": [
+          "contacts",
+          "contact_book_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "description": "Created contacts"
+          }
+        },
+        "required": []
+      }
+    },
+    "update_contact": {
+      "display_name": "Update Contact",
+      "description": "Update a contact by ID. Requires write access to the contact book — the API token must belong to an Operator or Admin of the organization that owns the contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {
+            "type": "string",
+            "description": "The contact ID to update"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "job_title": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "infos": {
+            "type": "array",
+            "description": "Full replacement array of contact info items",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "description": "Info type, e.g. email, phone_number, url"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Info label, e.g. home, work, mobile"
+                },
+                "value": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "contact_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contact": {
+            "type": "object",
+            "description": "Updated contact"
+          }
+        },
+        "required": []
+      }
+    },
+    "list_contact_books": {
+      "display_name": "List Contact Books",
+      "description": "List all contact books accessible to the authenticated user.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Number of contact books to return (max 200)",
+            "default": 50
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contact_books": {
+            "type": "array",
+            "description": "List of contact books"
+          }
+        },
+        "required": [
+          "contact_books"
+        ]
+      }
+    },
+    "list_contact_groups": {
+      "display_name": "List Contact Groups",
+      "description": "List groups or organizations within a contact book.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_book_id": {
+            "type": "string",
+            "description": "The contact book ID"
+          },
+          "kind": {
+            "type": "string",
+            "description": "Filter by kind: group or organization",
+            "enum": [
+              "group",
+              "organization"
+            ]
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of groups to return (max 200)",
+            "default": 50
+          }
+        },
+        "required": [
+          "contact_book_id",
+          "kind"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contact_groups": {
+            "type": "array",
+            "description": "List of contact groups"
+          }
+        },
+        "required": [
+          "contact_groups"
+        ]
+      }
+    },
+    "create_analytics_report": {
+      "display_name": "Create Analytics Report",
+      "description": "Generate an analytics report asynchronously. Reports complete within 2-30 seconds. Use get_analytics_report to retrieve results. Requires Business or Productive plan.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "number",
+            "description": "Report start time as Unix timestamp"
+          },
+          "end": {
+            "type": "number",
+            "description": "Report end time as Unix timestamp"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Timezone for the report (e.g. America/New_York)"
+          },
+          "team_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by team IDs (Business plan required)"
+          },
+          "user_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by user IDs (Business plan required)"
+          },
+          "shared_label_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by shared label IDs (Business plan required)"
+          },
+          "organization_id": {
+            "type": "string",
+            "description": "ID of the organization to generate the report for"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "organization_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "report_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ID of the created analytics report"
+          }
+        },
+        "required": []
+      }
+    },
+    "get_analytics_report": {
+      "display_name": "Get Analytics Report",
+      "description": "Retrieve a completed analytics report by ID. Reports expire 60 seconds after creation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "report_id": {
+            "type": "string",
+            "description": "The analytics report ID"
+          }
+        },
+        "required": [
+          "report_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "report": {
+            "type": "object",
+            "description": "Analytics report data"
+          }
+        },
+        "required": []
+      }
+    },
+    "list_organizations": {
+      "display_name": "List Organizations",
+      "description": "List organizations the authenticated user belongs to. Use this to discover the organization_id required for assignment, shared labels, and analytics.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Number of organizations to return (max 200)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used to paginate"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "organizations": {
+            "type": "array",
+            "description": "Organizations (each with id and name)"
+          }
+        },
+        "required": []
+      }
+    },
+    "list_users": {
+      "display_name": "List Users",
+      "description": "List users in the authenticated user's organizations. Use this to resolve a person's name to the user ID needed for assignment (assignee_id).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Limit results to a specific organization"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of users to return (max 200)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used to paginate"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "description": "Users (each with id, name, email)"
+          }
+        },
+        "required": []
+      }
+    },
+    "list_teams": {
+      "display_name": "List Teams",
+      "description": "List teams in the authenticated user's organizations. Use this to discover the team_id needed for team mailboxes and for assigning/moving conversations to a team.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Limit results to a specific organization"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of teams to return (max 200)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used to paginate"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "teams": {
+            "type": "array",
+            "description": "Teams (each with id, name, organization)"
+          }
+        },
+        "required": []
+      }
+    },
+    "list_shared_labels": {
+      "display_name": "List Shared Labels",
+      "description": "List shared labels in the authenticated user's organizations. Use this to discover the shared label IDs needed to apply labels via update_conversation or create_post, or to filter by shared_label.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Limit results to a specific organization"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of shared labels to return (max 200)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used to paginate"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "shared_labels": {
+            "type": "array",
+            "description": "Shared labels (each with id, name, organization)"
+          }
+        },
+        "required": []
+      }
+    }
+  }
+}
