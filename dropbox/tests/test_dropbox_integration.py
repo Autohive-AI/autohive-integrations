@@ -151,6 +151,33 @@ class TestListFolder:
         assert result.result.message
 
 
+# ---- Read-Only Tests: get_metadata ----
+
+
+class TestGetMetadata:
+    async def test_nonexistent_path_returns_action_error(self, live_context):
+        result = await dropbox.execute_action(
+            "get_metadata",
+            {"path": f"/__autohive_does_not_exist_{uuid.uuid4().hex[:8]}"},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "not_found" in result.result.message.lower() or "path" in result.result.message.lower()
+
+
+class TestGetTemporaryLink:
+    async def test_nonexistent_path_returns_action_error(self, live_context):
+        result = await dropbox.execute_action(
+            "get_temporary_link",
+            {"path": f"/__autohive_missing_{uuid.uuid4().hex[:8]}.txt"},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "not_found" in result.result.message.lower() or "path" in result.result.message.lower()
+
+
 # ---- Destructive Tests (Write Operations) ----
 # These create, update, or delete real data inside DROPBOX_TEST_FOLDER.
 # Only run with: pytest -m "integration and destructive"

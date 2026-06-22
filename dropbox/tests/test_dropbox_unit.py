@@ -136,6 +136,45 @@ class TestListFolder:
         assert result.type == ResultType.ACTION_ERROR
         assert "HTTP 500" in result.result.message
 
+    @pytest.mark.asyncio
+    async def test_has_more_true_passed_through(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"entries": [SAMPLE_FILE_ENTRY], "cursor": "next-page", "has_more": True},
+        )
+
+        result = await dropbox.execute_action("list_folder", {"path": ""}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["has_more"] is True
+        assert result.result.data["cursor"] == "next-page"
+
+    @pytest.mark.asyncio
+    async def test_optional_flags_forwarded_in_payload(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"entries": [], "cursor": "c1", "has_more": False}
+        )
+
+        await dropbox.execute_action(
+            "list_folder",
+            {
+                "path": "/docs",
+                "recursive": True,
+                "include_deleted": True,
+                "include_has_explicit_shared_members": True,
+                "include_mounted_folders": False,
+            },
+            mock_context,
+        )
+
+        payload = mock_context.fetch.call_args.kwargs["json"]
+        assert payload["path"] == "/docs"
+        assert payload["recursive"] is True
+        assert payload["include_deleted"] is True
+        assert payload["include_has_explicit_shared_members"] is True
+        assert payload["include_mounted_folders"] is False
+
 
 # ---- get_metadata ----
 
@@ -175,6 +214,20 @@ class TestGetMetadata:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "path/not_found" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_include_has_explicit_shared_members_forwarded(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
+
+        result = await dropbox.execute_action(
+            "get_metadata",
+            {"path": "/folder", "include_has_explicit_shared_members": True},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        payload = mock_context.fetch.call_args.kwargs["json"]
+        assert payload["include_has_explicit_shared_members"] is True
 
 
 # ---- get_temporary_link ----
@@ -279,6 +332,16 @@ class TestUploadFile:
         api_arg = json.loads(mock_context.fetch.call_args.kwargs["headers"]["Dropbox-API-Arg"])
         assert api_arg["path"] == "/a.txt"
         assert api_arg["mode"] == "add"
+
+    @pytest.mark.asyncio
+    async def test_default_mute_is_false_in_api_arg(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
+
+        result = await dropbox.execute_action("upload_file", {"file": _file_input("a.txt")}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        api_arg = json.loads(mock_context.fetch.call_args.kwargs["headers"]["Dropbox-API-Arg"])
+        assert api_arg["mute"] is False
 
     @pytest.mark.asyncio
     async def test_trailing_slash_on_folder_is_normalized(self, mock_context):
@@ -507,6 +570,17 @@ class TestMove:
         assert result.type == ResultType.ACTION_ERROR
         assert "to/conflict" in result.result.message
 
+    @pytest.mark.asyncio
+    async def test_default_flags_in_payload(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"metadata": {}})
+
+        result = await dropbox.execute_action("move", {"from_path": "/a.txt", "to_path": "/b.txt"}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        payload = mock_context.fetch.call_args.kwargs["json"]
+        assert payload["autorename"] is False
+        assert payload["allow_ownership_transfer"] is False
+
 
 # ---- copy ----
 
@@ -547,3 +621,23 @@ class TestCopy:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "path/not_found" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_default_autorename_in_payload(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"metadata": {}})
+
+        result = await dropbox.execute_action("copy", {"from_path": "/a.txt", "to_path": "/b.txt"}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        payload = mock_context.fetch.call_args.kwargs["json"]
+        assert payload["autorename"] is False
+
+    @pytest.mark.asyncio
+    async def test_allow_ownership_transfer_absent_from_copy_payload(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"metadata": {}})
+
+        result = await dropbox.execute_action("copy", {"from_path": "/a.txt", "to_path": "/b.txt"}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        payload = mock_context.fetch.call_args.kwargs["json"]
+        assert "allow_ownership_transfer" not in payload
