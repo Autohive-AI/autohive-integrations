@@ -3,10 +3,14 @@ import os
 import base64
 import unittest
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "dependencies"))
 
 from code_analysis import ExecutePythonCodeAction
+
+pytestmark = pytest.mark.unit
 
 
 class MockLogger:
