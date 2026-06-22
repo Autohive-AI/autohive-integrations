@@ -69,7 +69,6 @@ class TestConversations:
         result = await missive.execute_action("list_conversations", {"mailbox": "inbox"}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["conversations"], list)
         print(f"[OK] list_conversations inbox: {len(data['conversations'])} conversations")
 
@@ -77,7 +76,6 @@ class TestConversations:
         result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 5}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["conversations"], list)
         print(f"[OK] list_conversations all: {len(data['conversations'])} conversations")
 
@@ -87,7 +85,6 @@ class TestConversations:
         )
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["conversations"], list)
         print(f"[OK] list_conversations by email: {len(data['conversations'])} conversations")
 
@@ -97,10 +94,9 @@ class TestConversations:
             {"mailbox": "all", "email": TEST_EMAIL, "domain": "example.com"},
             live_context,
         )
-        assert result.type == ResultType.ACTION
-        data = result.result.data
-        assert data["result"] is False
-        assert "error" in data
+        assert result.type == ResultType.ACTION_ERROR
+        message = result.result.message.lower()
+        assert "only one" in message or "mutually" in message
         print("[OK] list_conversations rejects mutually exclusive filters")
 
     async def test_get_conversation(self, live_context):
@@ -113,7 +109,6 @@ class TestConversations:
         result = await missive.execute_action("get_conversation", {"conversation_id": conv_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert data["conversation"]["id"] == conv_id
         print(f"[OK] get_conversation: {conv_id}")
 
@@ -127,7 +122,6 @@ class TestConversations:
         result = await missive.execute_action("list_conversation_messages", {"conversation_id": conv_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["messages"], list)
         print(f"[OK] list_conversation_messages: {len(data['messages'])} messages")
 
@@ -141,7 +135,6 @@ class TestConversations:
         result = await missive.execute_action("list_conversation_comments", {"conversation_id": conv_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["comments"], list)
         print(f"[OK] list_conversation_comments: {len(data['comments'])} comments")
 
@@ -155,7 +148,6 @@ class TestConversations:
         result = await missive.execute_action("list_conversation_posts", {"conversation_id": conv_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["posts"], list)
         print(f"[OK] list_conversation_posts: {len(data['posts'])} posts")
 
@@ -169,7 +161,6 @@ class TestConversations:
         result = await missive.execute_action("list_conversation_drafts", {"conversation_id": conv_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["drafts"], list)
         print(f"[OK] list_conversation_drafts: {len(data['drafts'])} drafts")
 
@@ -185,8 +176,7 @@ class TestConversations:
             "update_conversation", {"conversation_id": conv_id, "closed": False}, live_context
         )
         assert result.type == ResultType.ACTION
-        data = result.result.data
-        assert data["result"] is True, f"update_conversation failed: {data.get('error')}"
+        assert result.result.data["conversation_id"] == conv_id
         print(f"[OK] update_conversation: {conv_id}")
 
 
@@ -207,23 +197,20 @@ class TestMessages:
         )
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert data["messages"] == []
         print("[OK] list_messages contract: unknown Message-ID -> empty list")
 
     async def test_get_message_not_found(self, live_context):
         # Verifies the GET /messages/:id endpoint path and error handling:
         # a non-existent ID returns HTTP 404, which the action surfaces as
-        # result=False with an error message.
+        # an ActionError.
         result = await missive.execute_action(
             "get_message",
             {"message_id": "00000000-0000-0000-0000-000000000000"},
             live_context,
         )
-        assert result.type == ResultType.ACTION
-        data = result.result.data
-        assert data["result"] is False
-        assert "404" in data["error"]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "404" in result.result.message
         print("[OK] get_message not-found: 404 handled gracefully")
 
     async def test_list_messages(self, live_context):
@@ -244,7 +231,6 @@ class TestMessages:
         result = await missive.execute_action("list_messages", {"email_message_id": email_message_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["messages"], list)
         print(f"[OK] list_messages: {len(data['messages'])} messages")
 
@@ -272,7 +258,6 @@ class TestMessages:
         result = await missive.execute_action("get_message", {"message_id": msg_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert data["message"]["id"] == msg_id
         print(f"[OK] get_message: {msg_id}")
 
@@ -296,14 +281,12 @@ class TestDrafts:
         )
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         draft = data["draft"]
         print(f"[OK] create_draft: {draft}")
 
         if isinstance(draft, dict) and draft.get("id"):
             delete_result = await missive.execute_action("delete_draft", {"draft_id": draft["id"]}, live_context)
             assert delete_result.type == ResultType.ACTION
-            assert delete_result.result.data["result"] is True
             print(f"[OK] delete_draft: {draft['id']}")
 
 
@@ -334,7 +317,6 @@ class TestPosts:
             )
             assert result.type == ResultType.ACTION
             data = result.result.data
-            assert data["result"] is True
             post = data.get("post") or {}
             post_id = post.get("id") if isinstance(post, dict) else None
             print(f"[OK] create_post in {conv_id}: post={post_id}")
@@ -366,7 +348,6 @@ class TestContacts:
         result = await missive.execute_action("list_contacts", {"contact_book_id": book_id}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["contacts"], list)
         print(f"[OK] list_contacts in {book_id}: {len(data['contacts'])} contacts")
 
@@ -374,7 +355,6 @@ class TestContacts:
         result = await missive.execute_action("list_contact_books", {}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["contact_books"], list)
         print(f"[OK] list_contact_books: {len(data['contact_books'])} books")
 
@@ -390,7 +370,6 @@ class TestContacts:
         )
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["contact_groups"], list)
         print(f"[OK] list_contact_groups in {book_id}: {len(data['contact_groups'])} groups")
 
@@ -429,8 +408,7 @@ class TestContacts:
                 live_context,
             )
             assert update_result.type == ResultType.ACTION
-            udata = update_result.result.data
-            assert udata["result"] is True, f"update_contact failed: {udata.get('error')}"
+            assert update_result.result.data["contact"]["id"] == contact_id
             print(f"[OK] update_contact: {contact_id}")
         finally:
             await live_context.fetch(
@@ -464,7 +442,6 @@ class TestAnalytics:
         )
         assert create_result.type == ResultType.ACTION
         data = create_result.result.data
-        assert data["result"] is True
         report_id = data["report_id"]
         assert report_id is not None
         print(f"[OK] create_analytics_report: {report_id}")
@@ -472,7 +449,6 @@ class TestAnalytics:
         get_result = await missive.execute_action("get_analytics_report", {"report_id": report_id}, live_context)
         assert get_result.type == ResultType.ACTION
         report_data = get_result.result.data
-        assert report_data["result"] is True
         print(f"[OK] get_analytics_report: {report_data['report']}")
 
 
@@ -486,7 +462,6 @@ class TestDiscovery:
         result = await missive.execute_action("list_organizations", {"limit": 5}, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["organizations"], list)
         print(f"[OK] list_organizations: {len(data['organizations'])} organizations")
 
@@ -497,7 +472,6 @@ class TestDiscovery:
         result = await missive.execute_action("list_users", inputs, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["users"], list)
         print(f"[OK] list_users: {len(data['users'])} users")
 
@@ -508,7 +482,6 @@ class TestDiscovery:
         result = await missive.execute_action("list_teams", inputs, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["teams"], list)
         print(f"[OK] list_teams: {len(data['teams'])} teams")
 
@@ -519,6 +492,5 @@ class TestDiscovery:
         result = await missive.execute_action("list_shared_labels", inputs, live_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["result"] is True
         assert isinstance(data["shared_labels"], list)
         print(f"[OK] list_shared_labels: {len(data['shared_labels'])} shared labels")

@@ -91,14 +91,10 @@
           "conversations": {
             "type": "array",
             "description": "List of conversations"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "conversations",
-          "result"
+          "conversations"
         ]
       }
     },
@@ -123,14 +119,10 @@
           "conversation": {
             "type": "object",
             "description": "Conversation details"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "conversation",
-          "result"
+          "conversation"
         ]
       }
     },
@@ -187,12 +179,13 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": {
-            "type": "boolean"
+          "conversation_id": {
+            "type": "string",
+            "description": "The updated conversation ID"
           }
         },
         "required": [
-          "result"
+          "conversation_id"
         ]
       }
     },
@@ -219,12 +212,13 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": {
-            "type": "boolean"
+          "conversation_id": {
+            "type": "string",
+            "description": "The surviving (source) conversation ID"
           }
         },
         "required": [
-          "result"
+          "conversation_id"
         ]
       }
     },
@@ -254,14 +248,10 @@
           "messages": {
             "type": "array",
             "description": "List of messages"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "messages",
-          "result"
+          "messages"
         ]
       }
     },
@@ -286,14 +276,10 @@
           "comments": {
             "type": "array",
             "description": "List of comments"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "comments",
-          "result"
+          "comments"
         ]
       }
     },
@@ -318,14 +304,10 @@
           "posts": {
             "type": "array",
             "description": "List of posts"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "posts",
-          "result"
+          "posts"
         ]
       }
     },
@@ -350,14 +332,10 @@
           "drafts": {
             "type": "array",
             "description": "List of drafts"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "drafts",
-          "result"
+          "drafts"
         ]
       }
     },
@@ -388,14 +366,10 @@
           "messages": {
             "type": "array",
             "description": "List of messages"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "messages",
-          "result"
+          "messages"
         ]
       }
     },
@@ -420,14 +394,10 @@
           "message": {
             "type": "object",
             "description": "Message details"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "message",
-          "result"
+          "message"
         ]
       }
     },
@@ -498,14 +468,9 @@
           "message": {
             "type": "object",
             "description": "Created message"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     },
     "create_draft": {
@@ -623,14 +588,9 @@
           "draft": {
             "type": "object",
             "description": "Created draft details"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     },
     "delete_draft": {
@@ -651,12 +611,13 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": {
-            "type": "boolean"
+          "draft_id": {
+            "type": "string",
+            "description": "The deleted draft ID"
           }
         },
         "required": [
-          "result"
+          "draft_id"
         ]
       }
     },
@@ -739,14 +700,9 @@
               "null"
             ],
             "description": "ID of the conversation the post was added to"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     },
     "list_contacts": {
@@ -779,14 +735,10 @@
           "contacts": {
             "type": "array",
             "description": "List of contacts"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "contacts",
-          "result"
+          "contacts"
         ]
       }
     },
@@ -811,14 +763,10 @@
           "contact": {
             "type": "object",
             "description": "Contact details"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "contact",
-          "result"
+          "contact"
         ]
       }
     },
@@ -885,14 +833,9 @@
           "contacts": {
             "type": "array",
             "description": "Created contacts"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     },
     "update_contact": {
@@ -948,14 +891,9 @@
           "contact": {
             "type": "object",
             "description": "Updated contact"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     },
     "list_contact_books": {
@@ -977,14 +915,10 @@
           "contact_books": {
             "type": "array",
             "description": "List of contact books"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "contact_books",
-          "result"
+          "contact_books"
         ]
       }
     },
@@ -1023,14 +957,10 @@
           "contact_groups": {
             "type": "array",
             "description": "List of contact groups"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
         "required": [
-          "contact_groups",
-          "result"
+          "contact_groups"
         ]
       }
     },
@@ -1093,14 +1023,9 @@
               "null"
             ],
             "description": "ID of the created analytics report"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     },
     "get_analytics_report": {
@@ -1124,14 +1049,9 @@
           "report": {
             "type": "object",
             "description": "Analytics report data"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     },
     "list_organizations": {
@@ -1156,14 +1076,9 @@
           "organizations": {
             "type": "array",
             "description": "Organizations (each with id and name)"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     },
     "list_users": {
@@ -1192,14 +1107,9 @@
           "users": {
             "type": "array",
             "description": "Users (each with id, name, email)"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     },
     "list_teams": {
@@ -1228,14 +1138,9 @@
           "teams": {
             "type": "array",
             "description": "Teams (each with id, name, organization)"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     },
     "list_shared_labels": {
@@ -1264,14 +1169,9 @@
           "shared_labels": {
             "type": "array",
             "description": "Shared labels (each with id, name, organization)"
-          },
-          "result": {
-            "type": "boolean"
           }
         },
-        "required": [
-          "result"
-        ]
+        "required": []
       }
     }
   }

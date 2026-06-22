@@ -17,8 +17,8 @@ Missive is a collaborative team inbox app that unifies email, SMS, WhatsApp, and
 |---|---|---|---|
 | `list_conversations` | List/find conversations by mailbox, optionally narrowed by contact email/domain/org | `mailbox`, `email`, `domain`, `limit` | `conversations[]` |
 | `get_conversation` | Get a specific conversation | `conversation_id` | `conversation` |
-| `update_conversation` | Update conversation state | `conversation_id`, `closed`, `assignee_id` | `result` |
-| `merge_conversations` | Merge two conversations | `conversation_id`, `target_conversation_id` | `result` |
+| `update_conversation` | Update conversation state (close/reopen, assign, label, snooze) | `conversation_id`, `closed`, `assignee_id` | `conversation_id` |
+| `merge_conversations` | Merge two conversations | `conversation_id`, `target_conversation_id` | `conversation_id` |
 | `list_conversation_messages` | List messages in a conversation | `conversation_id` | `messages[]` |
 | `list_conversation_comments` | List comments in a conversation | `conversation_id` | `comments[]` |
 | `list_conversation_posts` | List posts in a conversation | `conversation_id` | `posts[]` |
@@ -27,7 +27,7 @@ Missive is a collaborative team inbox app that unifies email, SMS, WhatsApp, and
 | `get_message` | Get a specific message | `message_id` | `message` |
 | `create_message` | Create an incoming custom channel message | `account`, `from_field`, `to_fields`, `body` | `message` |
 | `create_draft` | Create or send a draft | `body`, `to`, `from_field`, `send` | `draft` |
-| `delete_draft` | Delete a draft | `draft_id` | `result` |
+| `delete_draft` | Delete a draft | `draft_id` | `draft_id` |
 | `create_post` | Inject a post and manage conversation state | `conversation_id`, `text`, `notification`, `close` | `post`, `conversation_id` |
 | `list_contacts` | List contacts with optional search | `search`, `contact_book_id` | `contacts[]` |
 | `get_contact` | Get a specific contact | `contact_id` | `contact` |

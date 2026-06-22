@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionContext, Integration
+from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, Integration
 
 missive = Integration.load()
 
@@ -44,22 +44,12 @@ class ListConversationsAction(ActionHandler):
             if mailbox in _TEAM_MAILBOXES:
                 team_id = inputs.get("team_id")
                 if not team_id:
-                    return ActionResult(
-                        data={"conversations": [], "result": False, "error": "team_id is required for team mailboxes"},
-                        cost_usd=0.0,
-                    )
+                    return ActionError(message="team_id is required for team mailboxes")
                 params: Dict[str, Any] = {mailbox: team_id}
             elif mailbox == "shared_label":
                 shared_label_id = inputs.get("shared_label_id")
                 if not shared_label_id:
-                    return ActionResult(
-                        data={
-                            "conversations": [],
-                            "result": False,
-                            "error": "shared_label_id is required for shared_label mailbox",
-                        },
-                        cost_usd=0.0,
-                    )
+                    return ActionError(message="shared_label_id is required for shared_label mailbox")
                 params = {mailbox: shared_label_id}
             else:
                 params = {mailbox: "true"}
@@ -68,14 +58,7 @@ class ListConversationsAction(ActionHandler):
                 sum(1 for f in (inputs.get("email"), inputs.get("domain"), inputs.get("contact_organization_id")) if f)
                 > 1
             ):
-                return ActionResult(
-                    data={
-                        "conversations": [],
-                        "result": False,
-                        "error": "Only one of email, domain, or contact_organization_id may be provided",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Only one of email, domain, or contact_organization_id may be provided")
             if inputs.get("organization_id"):
                 params["organization"] = inputs["organization_id"]
             if inputs.get("email"):
@@ -97,9 +80,9 @@ class ListConversationsAction(ActionHandler):
             )
             _check_response(response)
             conversations = response.data.get("conversations", [])
-            return ActionResult(data={"conversations": conversations, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"conversations": conversations}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"conversations": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("get_conversation")
@@ -114,9 +97,9 @@ class GetConversationAction(ActionHandler):
             )
             _check_response(response)
             conversation = _first(response.data, "conversations")
-            return ActionResult(data={"conversation": conversation, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"conversation": conversation}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"conversation": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("update_conversation")
@@ -127,12 +110,8 @@ class UpdateConversationAction(ActionHandler):
             if (inputs.get("assignee_id") is not None or inputs.get("shared_label_ids") is not None) and not inputs.get(
                 "organization_id"
             ):
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "organization_id is required when assignee_id or shared_label_ids is provided",
-                    },
-                    cost_usd=0.0,
+                return ActionError(
+                    message="organization_id is required when assignee_id or shared_label_ids is provided"
                 )
             body: Dict[str, Any] = {"id": conversation_id}
             if inputs.get("subject") is not None:
@@ -161,9 +140,9 @@ class UpdateConversationAction(ActionHandler):
                 json={"conversations": [body]},
             )
             _check_response(response)
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={"conversation_id": conversation_id}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("merge_conversations")
@@ -178,9 +157,9 @@ class MergeConversationsAction(ActionHandler):
                 json={"target": inputs["target_conversation_id"]},
             )
             _check_response(response)
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={"conversation_id": conversation_id}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("list_conversation_messages")
@@ -200,9 +179,9 @@ class ListConversationMessagesAction(ActionHandler):
             )
             _check_response(response)
             messages = response.data.get("messages", [])
-            return ActionResult(data={"messages": messages, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"messages": messages}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"messages": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("list_conversation_comments")
@@ -217,9 +196,9 @@ class ListConversationCommentsAction(ActionHandler):
             )
             _check_response(response)
             comments = response.data.get("comments", [])
-            return ActionResult(data={"comments": comments, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"comments": comments}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"comments": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("list_conversation_posts")
@@ -234,9 +213,9 @@ class ListConversationPostsAction(ActionHandler):
             )
             _check_response(response)
             posts = response.data.get("posts", [])
-            return ActionResult(data={"posts": posts, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"posts": posts}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"posts": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("list_conversation_drafts")
@@ -251,9 +230,9 @@ class ListConversationDraftsAction(ActionHandler):
             )
             _check_response(response)
             drafts = response.data.get("drafts", [])
-            return ActionResult(data={"drafts": drafts, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"drafts": drafts}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"drafts": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("list_messages")
@@ -272,9 +251,9 @@ class ListMessagesAction(ActionHandler):
             )
             _check_response(response)
             messages = response.data.get("messages", [])
-            return ActionResult(data={"messages": messages, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"messages": messages}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"messages": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("get_message")
@@ -289,9 +268,9 @@ class GetMessageAction(ActionHandler):
             )
             _check_response(response)
             message = _first(response.data, "messages")
-            return ActionResult(data={"message": message, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"message": message}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"message": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("create_message")
@@ -319,9 +298,9 @@ class CreateMessageAction(ActionHandler):
             )
             _check_response(response)
             message = response.data.get("message", response.data.get("messages", {}))
-            return ActionResult(data={"message": message, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"message": message}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"message": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("create_draft")
@@ -329,14 +308,7 @@ class CreateDraftAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             if inputs.get("assignee_id") is not None and not inputs.get("organization_id"):
-                return ActionResult(
-                    data={
-                        "draft": {},
-                        "result": False,
-                        "error": "organization_id is required when assignee_id is provided",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="organization_id is required when assignee_id is provided")
             body: Dict[str, Any] = {"body": inputs["body"]}
             if inputs.get("from_field") is not None:
                 body["from_field"] = inputs["from_field"]
@@ -373,9 +345,9 @@ class CreateDraftAction(ActionHandler):
             )
             _check_response(response)
             draft = response.data.get("draft", response.data.get("drafts", {}))
-            return ActionResult(data={"draft": draft, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"draft": draft}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"draft": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("delete_draft")
@@ -389,9 +361,9 @@ class DeleteDraftAction(ActionHandler):
                 headers=_get_headers(context),
             )
             _check_response(response)
-            return ActionResult(data={"result": True}, cost_usd=0.0)
+            return ActionResult(data={"draft_id": draft_id}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("create_post")
@@ -399,14 +371,8 @@ class CreatePostAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             if (inputs.get("assignee_id") or inputs.get("shared_label_ids")) and not inputs.get("organization_id"):
-                return ActionResult(
-                    data={
-                        "post": {},
-                        "conversation_id": None,
-                        "result": False,
-                        "error": "organization_id is required when assignee_id or shared_label_ids is provided",
-                    },
-                    cost_usd=0.0,
+                return ActionError(
+                    message="organization_id is required when assignee_id or shared_label_ids is provided"
                 )
             body: Dict[str, Any] = {
                 "conversation": inputs["conversation_id"],
@@ -437,25 +403,18 @@ class CreatePostAction(ActionHandler):
             _check_response(response)
             post = response.data.get("posts", {})
             conversation_id = post.get("conversation") if isinstance(post, dict) else None
-            return ActionResult(
-                data={"post": post, "conversation_id": conversation_id, "result": True},
-                cost_usd=0.0,
-            )
+            return ActionResult(data={"post": post, "conversation_id": conversation_id}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"post": {}, "conversation_id": None, "result": False, "error": str(e)}, cost_usd=0.0
-            )
+            return ActionError(message=str(e))
 
 
 @missive.action("list_contacts")
 class ListContactsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {}
+            params: Dict[str, Any] = {"contact_book": inputs["contact_book_id"]}
             if inputs.get("search"):
                 params["search"] = inputs["search"]
-            if inputs.get("contact_book_id"):
-                params["contact_book"] = inputs["contact_book_id"]
             if inputs.get("limit"):
                 params["limit"] = inputs["limit"]
 
@@ -467,9 +426,9 @@ class ListContactsAction(ActionHandler):
             )
             _check_response(response)
             contacts = response.data.get("contacts", [])
-            return ActionResult(data={"contacts": contacts, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"contacts": contacts}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"contacts": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("get_contact")
@@ -484,9 +443,9 @@ class GetContactAction(ActionHandler):
             )
             _check_response(response)
             contact = _first(response.data, "contacts")
-            return ActionResult(data={"contact": contact, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"contact": contact}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"contact": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("create_contact")
@@ -504,9 +463,9 @@ class CreateContactAction(ActionHandler):
             )
             _check_response(response)
             contacts = response.data.get("contacts", [])
-            return ActionResult(data={"contacts": contacts, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"contacts": contacts}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"contacts": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("update_contact")
@@ -534,9 +493,9 @@ class UpdateContactAction(ActionHandler):
             )
             _check_response(response)
             contact = _first(response.data, "contacts")
-            return ActionResult(data={"contact": contact, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"contact": contact}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"contact": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("list_contact_books")
@@ -555,9 +514,9 @@ class ListContactBooksAction(ActionHandler):
             )
             _check_response(response)
             contact_books = response.data.get("contact_books", [])
-            return ActionResult(data={"contact_books": contact_books, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"contact_books": contact_books}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"contact_books": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("list_contact_groups")
@@ -579,9 +538,9 @@ class ListContactGroupsAction(ActionHandler):
             )
             _check_response(response)
             contact_groups = response.data.get("contact_groups", [])
-            return ActionResult(data={"contact_groups": contact_groups, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"contact_groups": contact_groups}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"contact_groups": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("create_analytics_report")
@@ -611,12 +570,10 @@ class CreateAnalyticsReportAction(ActionHandler):
             _check_response(response)
             report_id = response.data.get("reports", {}).get("id") or response.data.get("id")
             if not report_id:
-                return ActionResult(
-                    data={"report_id": None, "result": False, "error": "report_id not found in response"}, cost_usd=0.0
-                )
-            return ActionResult(data={"report_id": report_id, "result": True}, cost_usd=0.0)
+                return ActionError(message="report_id not found in response")
+            return ActionResult(data={"report_id": report_id}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"report_id": None, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("get_analytics_report")
@@ -631,9 +588,9 @@ class GetAnalyticsReportAction(ActionHandler):
             )
             _check_response(response)
             report = response.data.get("reports", response.data)
-            return ActionResult(data={"report": report, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"report": report}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"report": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 def _pagination_params(inputs: Dict[str, Any]) -> Dict[str, Any]:
@@ -657,9 +614,9 @@ class ListOrganizationsAction(ActionHandler):
             )
             _check_response(response)
             organizations = response.data.get("organizations", [])
-            return ActionResult(data={"organizations": organizations, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"organizations": organizations}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"organizations": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("list_users")
@@ -677,9 +634,9 @@ class ListUsersAction(ActionHandler):
             )
             _check_response(response)
             users = response.data.get("users", [])
-            return ActionResult(data={"users": users, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"users": users}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"users": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("list_teams")
@@ -697,9 +654,9 @@ class ListTeamsAction(ActionHandler):
             )
             _check_response(response)
             teams = response.data.get("teams", [])
-            return ActionResult(data={"teams": teams, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"teams": teams}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"teams": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @missive.action("list_shared_labels")
@@ -717,6 +674,6 @@ class ListSharedLabelsAction(ActionHandler):
             )
             _check_response(response)
             shared_labels = response.data.get("shared_labels", [])
-            return ActionResult(data={"shared_labels": shared_labels, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"shared_labels": shared_labels}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"shared_labels": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
