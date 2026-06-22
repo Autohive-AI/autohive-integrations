@@ -1,6 +1,6 @@
 {
     "name": "Code analysis",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "An integration that executes arbitrary Python code for data analysis and file processing, with support for input files and automatic output file detection.",
     "entry_point": "code_analysis.py",
     "actions": {
