@@ -81,6 +81,28 @@ class TestConversations:
         assert isinstance(data["conversations"], list)
         print(f"[OK] list_conversations all: {len(data['conversations'])} conversations")
 
+    async def test_list_conversations_by_email(self, live_context):
+        result = await missive.execute_action(
+            "list_conversations", {"mailbox": "all", "email": TEST_EMAIL, "limit": 5}, live_context
+        )
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["result"] is True
+        assert isinstance(data["conversations"], list)
+        print(f"[OK] list_conversations by email: {len(data['conversations'])} conversations")
+
+    async def test_list_conversations_mutually_exclusive_filters(self, live_context):
+        result = await missive.execute_action(
+            "list_conversations",
+            {"mailbox": "all", "email": TEST_EMAIL, "domain": "example.com"},
+            live_context,
+        )
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["result"] is False
+        assert "error" in data
+        print("[OK] list_conversations rejects mutually exclusive filters")
+
     async def test_get_conversation(self, live_context):
         list_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 2}, live_context)
         conversations = list_result.result.data["conversations"]
@@ -174,6 +196,36 @@ class TestConversations:
 
 
 class TestMessages:
+    async def test_list_messages_contract(self, live_context):
+        # Verifies the GET /messages endpoint, the required email_message_id
+        # param, and response parsing without needing real email data: an
+        # unknown Message-ID returns HTTP 200 with an empty messages list.
+        result = await missive.execute_action(
+            "list_messages",
+            {"email_message_id": "<nonexistent-autohive-contract-test@example.com>"},
+            live_context,
+        )
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["result"] is True
+        assert data["messages"] == []
+        print("[OK] list_messages contract: unknown Message-ID -> empty list")
+
+    async def test_get_message_not_found(self, live_context):
+        # Verifies the GET /messages/:id endpoint path and error handling:
+        # a non-existent ID returns HTTP 404, which the action surfaces as
+        # result=False with an error message.
+        result = await missive.execute_action(
+            "get_message",
+            {"message_id": "00000000-0000-0000-0000-000000000000"},
+            live_context,
+        )
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["result"] is False
+        assert "404" in data["error"]
+        print("[OK] get_message not-found: 404 handled gracefully")
+
     async def test_list_messages(self, live_context):
         conv_result = await missive.execute_action("list_conversations", {"mailbox": "all", "limit": 10}, live_context)
         email_message_id = None
@@ -236,8 +288,8 @@ class TestDrafts:
         result = await missive.execute_action(
             "create_draft",
             {
-                "channel_id": "email",
                 "body": "Integration test draft - safe to delete",
+                "from_field": {"name": "Autohive", "address": TEST_EMAIL},
                 "to": [{"name": "Shubhank", "address": TEST_EMAIL}],
             },
             live_context,
@@ -273,7 +325,11 @@ class TestPosts:
         try:
             result = await missive.execute_action(
                 "create_post",
-                {"text": "Integration test post - autohive", "conversation_id": conv_id},
+                {
+                    "text": "Integration test post - autohive",
+                    "conversation_id": conv_id,
+                    "notification": {"title": "Autohive test", "body": "Integration test post"},
+                },
                 live_context,
             )
             assert result.type == ResultType.ACTION
@@ -329,7 +385,9 @@ class TestContacts:
             pytest.skip("No contact books available")
 
         book_id = books[0]["id"]
-        result = await missive.execute_action("list_contact_groups", {"contact_book_id": book_id}, live_context)
+        result = await missive.execute_action(
+            "list_contact_groups", {"contact_book_id": book_id, "kind": "group"}, live_context
+        )
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["result"] is True
@@ -349,7 +407,7 @@ class TestContacts:
             "create_contact",
             {
                 "contact_book_id": book_id,
-                "contacts": [{"first_name": "AutohiveTest", "last_name": f"Integration{ts}", "kind": "person"}],
+                "contacts": [{"first_name": "AutohiveTest", "last_name": f"Integration{ts}"}],
             },
             live_context,
         )
@@ -416,3 +474,51 @@ class TestAnalytics:
         report_data = get_result.result.data
         assert report_data["result"] is True
         print(f"[OK] get_analytics_report: {report_data['report']}")
+
+
+# ─────────────────────────────────────────────
+# Discovery (organizations / users / teams / shared labels)
+# ─────────────────────────────────────────────
+
+
+class TestDiscovery:
+    async def test_list_organizations(self, live_context):
+        result = await missive.execute_action("list_organizations", {"limit": 5}, live_context)
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["result"] is True
+        assert isinstance(data["organizations"], list)
+        print(f"[OK] list_organizations: {len(data['organizations'])} organizations")
+
+    async def test_list_users(self, live_context):
+        inputs = {"limit": 5}
+        if ORG_ID:
+            inputs["organization_id"] = ORG_ID
+        result = await missive.execute_action("list_users", inputs, live_context)
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["result"] is True
+        assert isinstance(data["users"], list)
+        print(f"[OK] list_users: {len(data['users'])} users")
+
+    async def test_list_teams(self, live_context):
+        inputs = {"limit": 5}
+        if ORG_ID:
+            inputs["organization_id"] = ORG_ID
+        result = await missive.execute_action("list_teams", inputs, live_context)
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["result"] is True
+        assert isinstance(data["teams"], list)
+        print(f"[OK] list_teams: {len(data['teams'])} teams")
+
+    async def test_list_shared_labels(self, live_context):
+        inputs = {"limit": 5}
+        if ORG_ID:
+            inputs["organization_id"] = ORG_ID
+        result = await missive.execute_action("list_shared_labels", inputs, live_context)
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["result"] is True
+        assert isinstance(data["shared_labels"], list)
+        print(f"[OK] list_shared_labels: {len(data['shared_labels'])} shared labels")

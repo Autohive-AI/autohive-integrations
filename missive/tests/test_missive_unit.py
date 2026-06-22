@@ -131,7 +131,6 @@ async def test_create_message():
     result = await missive.execute_action(
         "create_message",
         {
-            "channel_id": "ch1",
             "account": "acct1",
             "from_field": {"name": "Bot", "username": "bot"},
             "to_fields": [{"name": "User", "username": "user"}],
@@ -158,12 +157,16 @@ async def test_delete_draft():
 
 
 async def test_create_post():
-    ctx = make_ctx({"posts": {"id": "post1"}, "conversations": {"id": "c1"}})
-    result = await missive.execute_action("create_post", {"text": "Hello team", "conversation_id": "c1"}, ctx)
+    ctx = make_ctx({"posts": {"id": "post1", "conversation": "c1"}})
+    result = await missive.execute_action(
+        "create_post",
+        {"text": "Hello team", "conversation_id": "c1", "notification": {"title": "t", "body": "b"}},
+        ctx,
+    )
     data = result.result.data
     assert data["result"] is True
-    assert "post" in data
-    assert "conversation" in data
+    assert data["post"]["id"] == "post1"
+    assert data["conversation_id"] == "c1"
 
 
 # =============================================================================
@@ -191,7 +194,7 @@ async def test_create_contact():
     ctx = make_ctx({"contacts": [{"id": "ct1"}]})
     result = await missive.execute_action(
         "create_contact",
-        {"contact_book_id": "cb1", "contacts": [{"first_name": "Alice", "last_name": "Smith", "kind": "person"}]},
+        {"contact_book_id": "cb1", "contacts": [{"first_name": "Alice", "last_name": "Smith"}]},
         ctx,
     )
     data = result.result.data
@@ -216,10 +219,12 @@ async def test_list_contact_books():
 
 async def test_list_contact_groups():
     ctx = make_ctx({"contact_groups": [{"id": "cg1"}]})
-    result = await missive.execute_action("list_contact_groups", {"contact_book_id": "cb1"}, ctx)
+    result = await missive.execute_action("list_contact_groups", {"contact_book_id": "cb1", "kind": "group"}, ctx)
     data = result.result.data
     assert data["result"] is True
     assert isinstance(data["contact_groups"], list)
+    _, kwargs = ctx.fetch.call_args
+    assert kwargs["params"]["kind"] == "group"
 
 
 # =============================================================================
@@ -263,6 +268,7 @@ async def test_create_draft_request_shape():
             "conversation_id": "conv1",
             "team_id": "team1",
             "assignee_id": "user1",
+            "organization_id": "org1",
             "account": "acc1",
             "to": [{"name": "Alice", "address": "alice@example.com"}],
         },
@@ -275,6 +281,7 @@ async def test_create_draft_request_shape():
     assert payload["conversation"] == "conv1"
     assert payload["team"] == "team1"
     assert payload["add_assignees"] == ["user1"]
+    assert payload["organization"] == "org1"
     assert payload["account"] == "acc1"
     assert payload["to_fields"] == [{"name": "Alice", "address": "alice@example.com"}]
     assert "channel_id" not in payload
@@ -285,18 +292,78 @@ async def test_create_draft_request_shape():
 
 
 @pytest.mark.asyncio
+async def test_create_message_request_shape():
+    ctx = make_ctx({"messages": {"id": "m1"}})
+    await missive.execute_action(
+        "create_message",
+        {
+            "account": "acct1",
+            "from_field": {"id": "12345", "username": "@bot", "name": "Bot"},
+            "to_fields": [{"id": "54321", "username": "@user", "name": "User"}],
+            "body": "Hello",
+            "conversation_id": "conv1",
+        },
+        ctx,
+    )
+    _, kwargs = ctx.fetch.call_args
+    payload = kwargs["json"]["messages"]
+    assert payload["account"] == "acct1"
+    assert payload["from_field"] == {"id": "12345", "username": "@bot", "name": "Bot"}
+    assert payload["to_fields"] == [{"id": "54321", "username": "@user", "name": "User"}]
+    assert payload["body"] == "Hello"
+    assert payload["conversation"] == "conv1"
+    assert "channel_id" not in payload
+    assert "conversation_id" not in payload
+
+
+@pytest.mark.asyncio
 async def test_create_post_request_shape():
-    ctx = make_ctx({"posts": {"id": "p1"}, "conversations": {"id": "c1"}})
+    ctx = make_ctx({"posts": {"id": "p1", "conversation": "c1"}})
     await missive.execute_action(
         "create_post",
-        {"text": "Hello team", "conversation_id": "c1", "close": True},
+        {
+            "text": "Hello team",
+            "conversation_id": "c1",
+            "notification": {"title": "t", "body": "b"},
+            "close": True,
+            "assignee_id": "user1",
+            "team_id": "team1",
+            "shared_label_ids": ["label1", "label2"],
+            "organization_id": "org1",
+        },
         ctx,
     )
     _, kwargs = ctx.fetch.call_args
     payload = kwargs["json"]["posts"]
     assert payload["conversation"] == "c1"
     assert payload["text"] == "Hello team"
+    assert payload["notification"] == {"title": "t", "body": "b"}
     assert payload["close"] is True
+    assert payload["add_assignees"] == ["user1"]
+    assert payload["team"] == "team1"
+    assert payload["add_shared_labels"] == ["label1", "label2"]
+    assert payload["organization"] == "org1"
+    assert "assignee_id" not in payload
+    assert "team_id" not in payload
+    assert "shared_label_ids" not in payload
+
+
+@pytest.mark.asyncio
+async def test_create_post_requires_org_for_assignment():
+    ctx = make_ctx({"posts": {"id": "p1"}})
+    result = await missive.execute_action(
+        "create_post",
+        {
+            "text": "Hi",
+            "conversation_id": "c1",
+            "notification": {"title": "t", "body": "b"},
+            "assignee_id": "u1",
+        },
+        ctx,
+    )
+    assert result.result.data["result"] is False
+    assert "organization_id" in result.result.data["error"]
+    ctx.fetch.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -304,7 +371,7 @@ async def test_update_conversation_request_shape():
     ctx = make_ctx({})
     await missive.execute_action(
         "update_conversation",
-        {"conversation_id": "c1", "closed": True, "assignee_id": "u1"},
+        {"conversation_id": "c1", "closed": True, "assignee_id": "u1", "organization_id": "org1"},
         ctx,
     )
     _, kwargs = ctx.fetch.call_args
@@ -313,7 +380,59 @@ async def test_update_conversation_request_shape():
     body = conversations[0]
     assert body["id"] == "c1"
     assert body["close"] is True
+    assert "reopen" not in body
     assert body["add_assignees"] == ["u1"]
+    assert body["organization"] == "org1"
+
+
+@pytest.mark.asyncio
+async def test_update_conversation_closed_false_reopens():
+    ctx = make_ctx({})
+    await missive.execute_action("update_conversation", {"conversation_id": "c1", "closed": False}, ctx)
+    body = ctx.fetch.call_args.kwargs["json"]["conversations"][0]
+    assert body["reopen"] is True
+    assert "close" not in body
+
+
+@pytest.mark.asyncio
+async def test_update_conversation_requires_org_for_assignment():
+    ctx = make_ctx({})
+    result = await missive.execute_action(
+        "update_conversation",
+        {"conversation_id": "c1", "assignee_id": "u1"},
+        ctx,
+    )
+    assert result.result.data["result"] is False
+    assert "organization_id" in result.result.data["error"]
+    ctx.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_analytics_report_request_shape():
+    ctx = make_ctx({"reports": {"id": "ar1"}})
+    await missive.execute_action(
+        "create_analytics_report",
+        {
+            "start": 1,
+            "end": 2,
+            "organization_id": "org1",
+            "timezone": "America/New_York",
+            "team_ids": ["t1"],
+            "user_ids": ["u1"],
+            "shared_label_ids": ["l1"],
+        },
+        ctx,
+    )
+    payload = ctx.fetch.call_args.kwargs["json"]["reports"]
+    assert payload["organization"] == "org1"
+    assert payload["time_zone"] == "America/New_York"
+    assert payload["teams"] == ["t1"]
+    assert payload["users"] == ["u1"]
+    assert payload["shared_labels"] == ["l1"]
+    assert "timezone" not in payload
+    assert "team_ids" not in payload
+    assert "user_ids" not in payload
+    assert "shared_label_ids" not in payload
 
 
 @pytest.mark.asyncio
@@ -323,7 +442,7 @@ async def test_create_contact_request_shape():
         "create_contact",
         {
             "contact_book_id": "cb1",
-            "contacts": [{"first_name": "Alice", "last_name": "Smith", "kind": "person"}],
+            "contacts": [{"first_name": "Alice", "last_name": "Smith"}],
         },
         ctx,
     )
@@ -365,7 +484,7 @@ async def test_create_contact_non2xx_returns_error():
     ctx.auth = {"api_token": "test_token"}  # nosec B105
     result = await missive.execute_action(
         "create_contact",
-        {"contact_book_id": "cb1", "contacts": [{"first_name": "Alice", "kind": "person"}]},
+        {"contact_book_id": "cb1", "contacts": [{"first_name": "Alice"}]},
         ctx,
     )
     assert result.result.data["result"] is False
@@ -380,3 +499,93 @@ async def test_update_conversation_non2xx_returns_error():
     result = await missive.execute_action("update_conversation", {"conversation_id": "bad"}, ctx)
     assert result.result.data["result"] is False
     assert "Not found" in result.result.data["error"]
+
+
+@pytest.mark.asyncio
+async def test_merge_conversations_non2xx_returns_error():
+    ctx = MagicMock(name="ExecutionContext")
+    ctx.fetch = AsyncMock(return_value=err(404, "Not found"))
+    ctx.auth = {"api_token": "test_token"}  # nosec B105
+    result = await missive.execute_action(
+        "merge_conversations",
+        {"conversation_id": "c1", "target_conversation_id": "c2"},
+        ctx,
+    )
+    assert result.result.data["result"] is False
+    assert "Not found" in result.result.data["error"]
+
+
+@pytest.mark.asyncio
+async def test_delete_draft_non2xx_returns_error():
+    ctx = MagicMock(name="ExecutionContext")
+    ctx.fetch = AsyncMock(return_value=err(404, "Not found"))
+    ctx.auth = {"api_token": "test_token"}  # nosec B105
+    result = await missive.execute_action("delete_draft", {"draft_id": "bad"}, ctx)
+    assert result.result.data["result"] is False
+    assert "Not found" in result.result.data["error"]
+
+
+# =============================================================================
+# DIRECTORY / ID DISCOVERY
+# =============================================================================
+
+
+async def test_list_organizations():
+    ctx = make_ctx({"organizations": [{"id": "o1", "name": "Acme"}]})
+    result = await missive.execute_action("list_organizations", {}, ctx)
+    data = result.result.data
+    assert data["result"] is True
+    assert data["organizations"][0]["id"] == "o1"
+
+
+async def test_list_users():
+    ctx = make_ctx({"users": [{"id": "u1", "name": "Sarah", "email": "sarah@acme.com"}]})
+    result = await missive.execute_action("list_users", {"organization_id": "o1"}, ctx)
+    data = result.result.data
+    assert data["result"] is True
+    assert data["users"][0]["id"] == "u1"
+    assert ctx.fetch.call_args.kwargs["params"]["organization"] == "o1"
+
+
+async def test_list_teams():
+    ctx = make_ctx({"teams": [{"id": "t1", "name": "Support"}]})
+    result = await missive.execute_action("list_teams", {}, ctx)
+    data = result.result.data
+    assert data["result"] is True
+    assert data["teams"][0]["id"] == "t1"
+
+
+async def test_list_shared_labels():
+    ctx = make_ctx({"shared_labels": [{"id": "l1", "name": "Escalated"}]})
+    result = await missive.execute_action("list_shared_labels", {"organization_id": "o1"}, ctx)
+    data = result.result.data
+    assert data["result"] is True
+    assert data["shared_labels"][0]["id"] == "l1"
+    assert ctx.fetch.call_args.kwargs["params"]["organization"] == "o1"
+
+
+@pytest.mark.asyncio
+async def test_list_conversations_email_filter_request_shape():
+    ctx = make_ctx({"conversations": []})
+    await missive.execute_action(
+        "list_conversations",
+        {"mailbox": "all", "email": "jane@acme.com", "organization_id": "o1"},
+        ctx,
+    )
+    params = ctx.fetch.call_args.kwargs["params"]
+    assert params["all"] == "true"
+    assert params["email"] == "jane@acme.com"
+    assert params["organization"] == "o1"
+
+
+@pytest.mark.asyncio
+async def test_list_conversations_contact_filters_mutually_exclusive():
+    ctx = make_ctx({"conversations": []})
+    result = await missive.execute_action(
+        "list_conversations",
+        {"mailbox": "all", "email": "jane@acme.com", "domain": "acme.com"},
+        ctx,
+    )
+    assert result.result.data["result"] is False
+    assert "mutually" in result.result.data["error"].lower() or "only one" in result.result.data["error"].lower()
+    ctx.fetch.assert_not_called()

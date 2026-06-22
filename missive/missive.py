@@ -63,6 +63,27 @@ class ListConversationsAction(ActionHandler):
                 params = {mailbox: shared_label_id}
             else:
                 params = {mailbox: "true"}
+
+            if (
+                sum(1 for f in (inputs.get("email"), inputs.get("domain"), inputs.get("contact_organization_id")) if f)
+                > 1
+            ):
+                return ActionResult(
+                    data={
+                        "conversations": [],
+                        "result": False,
+                        "error": "Only one of email, domain, or contact_organization_id may be provided",
+                    },
+                    cost_usd=0.0,
+                )
+            if inputs.get("organization_id"):
+                params["organization"] = inputs["organization_id"]
+            if inputs.get("email"):
+                params["email"] = inputs["email"]
+            if inputs.get("domain"):
+                params["domain"] = inputs["domain"]
+            if inputs.get("contact_organization_id"):
+                params["contact_organization"] = inputs["contact_organization_id"]
             if inputs.get("limit"):
                 params["limit"] = inputs["limit"]
             if inputs.get("until"):
@@ -103,6 +124,16 @@ class UpdateConversationAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             conversation_id = inputs["conversation_id"]
+            if (inputs.get("assignee_id") is not None or inputs.get("shared_label_ids") is not None) and not inputs.get(
+                "organization_id"
+            ):
+                return ActionResult(
+                    data={
+                        "result": False,
+                        "error": "organization_id is required when assignee_id or shared_label_ids is provided",
+                    },
+                    cost_usd=0.0,
+                )
             body: Dict[str, Any] = {"id": conversation_id}
             if inputs.get("subject") is not None:
                 body["subject"] = inputs["subject"]
@@ -114,8 +145,12 @@ class UpdateConversationAction(ActionHandler):
                 body["team"] = inputs["team_id"]
             if inputs.get("shared_label_ids") is not None:
                 body["add_shared_labels"] = inputs["shared_label_ids"]
-            if inputs.get("closed") is not None:
-                body["close"] = inputs["closed"]
+            if inputs.get("organization_id") is not None:
+                body["organization"] = inputs["organization_id"]
+            if inputs.get("closed") is True:
+                body["close"] = True
+            elif inputs.get("closed") is False:
+                body["reopen"] = True
             if inputs.get("snoozed_until") is not None:
                 body["snoozed_until"] = inputs["snoozed_until"]
 
@@ -264,16 +299,15 @@ class CreateMessageAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             body: Dict[str, Any] = {
-                "channel_id": inputs["channel_id"],
-                "body": inputs["body"],
                 "account": inputs["account"],
                 "from_field": inputs["from_field"],
                 "to_fields": inputs["to_fields"],
+                "body": inputs["body"],
             }
             if inputs.get("subject"):
                 body["subject"] = inputs["subject"]
             if inputs.get("conversation_id"):
-                body["conversation_id"] = inputs["conversation_id"]
+                body["conversation"] = inputs["conversation_id"]
             if inputs.get("external_id"):
                 body["external_id"] = inputs["external_id"]
 
@@ -294,6 +328,15 @@ class CreateMessageAction(ActionHandler):
 class CreateDraftAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
+            if inputs.get("assignee_id") is not None and not inputs.get("organization_id"):
+                return ActionResult(
+                    data={
+                        "draft": {},
+                        "result": False,
+                        "error": "organization_id is required when assignee_id is provided",
+                    },
+                    cost_usd=0.0,
+                )
             body: Dict[str, Any] = {"body": inputs["body"]}
             if inputs.get("from_field") is not None:
                 body["from_field"] = inputs["from_field"]
@@ -313,6 +356,8 @@ class CreateDraftAction(ActionHandler):
                 body["team"] = inputs["team_id"]
             if inputs.get("assignee_id") is not None:
                 body["add_assignees"] = [inputs["assignee_id"]]
+            if inputs.get("organization_id") is not None:
+                body["organization"] = inputs["organization_id"]
             if inputs.get("to"):
                 body["to_fields"] = inputs["to"]
             if inputs.get("cc"):
@@ -353,9 +398,20 @@ class DeleteDraftAction(ActionHandler):
 class CreatePostAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
+            if (inputs.get("assignee_id") or inputs.get("shared_label_ids")) and not inputs.get("organization_id"):
+                return ActionResult(
+                    data={
+                        "post": {},
+                        "conversation_id": None,
+                        "result": False,
+                        "error": "organization_id is required when assignee_id or shared_label_ids is provided",
+                    },
+                    cost_usd=0.0,
+                )
             body: Dict[str, Any] = {
                 "conversation": inputs["conversation_id"],
                 "text": inputs["text"],
+                "notification": inputs["notification"],
             }
             if inputs.get("username"):
                 body["username"] = inputs["username"]
@@ -364,13 +420,13 @@ class CreatePostAction(ActionHandler):
             if inputs.get("reopen") is not None:
                 body["reopen"] = inputs["reopen"]
             if inputs.get("assignee_id"):
-                body["assignee_id"] = inputs["assignee_id"]
+                body["add_assignees"] = [inputs["assignee_id"]]
             if inputs.get("team_id"):
-                body["team_id"] = inputs["team_id"]
+                body["team"] = inputs["team_id"]
             if inputs.get("shared_label_ids"):
-                body["shared_label_ids"] = inputs["shared_label_ids"]
-            if inputs.get("notification") is not None:
-                body["notification"] = inputs["notification"]
+                body["add_shared_labels"] = inputs["shared_label_ids"]
+            if inputs.get("organization_id"):
+                body["organization"] = inputs["organization_id"]
 
             response = await context.fetch(
                 f"{BASE_URL}/posts",
@@ -379,17 +435,16 @@ class CreatePostAction(ActionHandler):
                 json={"posts": body},
             )
             _check_response(response)
-            data = response.data
+            post = response.data.get("posts", {})
+            conversation_id = post.get("conversation") if isinstance(post, dict) else None
             return ActionResult(
-                data={
-                    "post": data.get("posts", {}),
-                    "conversation": data.get("conversations", {}),
-                    "result": True,
-                },
+                data={"post": post, "conversation_id": conversation_id, "result": True},
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionResult(data={"post": {}, "conversation": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionResult(
+                data={"post": {}, "conversation_id": None, "result": False, "error": str(e)}, cost_usd=0.0
+            )
 
 
 @missive.action("list_contacts")
@@ -509,9 +564,10 @@ class ListContactBooksAction(ActionHandler):
 class ListContactGroupsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            params: Dict[str, Any] = {"contact_book": inputs["contact_book_id"]}
-            if inputs.get("kind"):
-                params["kind"] = inputs["kind"]
+            params: Dict[str, Any] = {
+                "contact_book": inputs["contact_book_id"],
+                "kind": inputs["kind"],
+            }
             if inputs.get("limit"):
                 params["limit"] = inputs["limit"]
 
@@ -538,13 +594,13 @@ class CreateAnalyticsReportAction(ActionHandler):
                 "organization": inputs["organization_id"],
             }
             if inputs.get("timezone") is not None:
-                body["timezone"] = inputs["timezone"]
+                body["time_zone"] = inputs["timezone"]
             if inputs.get("team_ids") is not None:
-                body["team_ids"] = inputs["team_ids"]
+                body["teams"] = inputs["team_ids"]
             if inputs.get("user_ids") is not None:
-                body["user_ids"] = inputs["user_ids"]
+                body["users"] = inputs["user_ids"]
             if inputs.get("shared_label_ids") is not None:
-                body["shared_label_ids"] = inputs["shared_label_ids"]
+                body["shared_labels"] = inputs["shared_label_ids"]
 
             response = await context.fetch(
                 f"{BASE_URL}/analytics/reports",
@@ -578,3 +634,89 @@ class GetAnalyticsReportAction(ActionHandler):
             return ActionResult(data={"report": report, "result": True}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"report": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+
+
+def _pagination_params(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    params: Dict[str, Any] = {}
+    if inputs.get("limit"):
+        params["limit"] = inputs["limit"]
+    if inputs.get("offset"):
+        params["offset"] = inputs["offset"]
+    return params
+
+
+@missive.action("list_organizations")
+class ListOrganizationsAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            response = await context.fetch(
+                f"{BASE_URL}/organizations",
+                method="GET",
+                headers=_get_headers(context),
+                params=_pagination_params(inputs),
+            )
+            _check_response(response)
+            organizations = response.data.get("organizations", [])
+            return ActionResult(data={"organizations": organizations, "result": True}, cost_usd=0.0)
+        except Exception as e:
+            return ActionResult(data={"organizations": [], "result": False, "error": str(e)}, cost_usd=0.0)
+
+
+@missive.action("list_users")
+class ListUsersAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            params = _pagination_params(inputs)
+            if inputs.get("organization_id"):
+                params["organization"] = inputs["organization_id"]
+            response = await context.fetch(
+                f"{BASE_URL}/users",
+                method="GET",
+                headers=_get_headers(context),
+                params=params,
+            )
+            _check_response(response)
+            users = response.data.get("users", [])
+            return ActionResult(data={"users": users, "result": True}, cost_usd=0.0)
+        except Exception as e:
+            return ActionResult(data={"users": [], "result": False, "error": str(e)}, cost_usd=0.0)
+
+
+@missive.action("list_teams")
+class ListTeamsAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            params = _pagination_params(inputs)
+            if inputs.get("organization_id"):
+                params["organization"] = inputs["organization_id"]
+            response = await context.fetch(
+                f"{BASE_URL}/teams",
+                method="GET",
+                headers=_get_headers(context),
+                params=params,
+            )
+            _check_response(response)
+            teams = response.data.get("teams", [])
+            return ActionResult(data={"teams": teams, "result": True}, cost_usd=0.0)
+        except Exception as e:
+            return ActionResult(data={"teams": [], "result": False, "error": str(e)}, cost_usd=0.0)
+
+
+@missive.action("list_shared_labels")
+class ListSharedLabelsAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            params = _pagination_params(inputs)
+            if inputs.get("organization_id"):
+                params["organization"] = inputs["organization_id"]
+            response = await context.fetch(
+                f"{BASE_URL}/shared_labels",
+                method="GET",
+                headers=_get_headers(context),
+                params=params,
+            )
+            _check_response(response)
+            shared_labels = response.data.get("shared_labels", [])
+            return ActionResult(data={"shared_labels": shared_labels, "result": True}, cost_usd=0.0)
+        except Exception as e:
+            return ActionResult(data={"shared_labels": [], "result": False, "error": str(e)}, cost_usd=0.0)

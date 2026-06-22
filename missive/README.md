@@ -15,7 +15,7 @@ Missive is a collaborative team inbox app that unifies email, SMS, WhatsApp, and
 
 | Action | Description | Key Inputs | Key Outputs |
 |---|---|---|---|
-| `list_conversations` | List conversations by mailbox | `mailbox`, `limit`, `until` | `conversations[]` |
+| `list_conversations` | List/find conversations by mailbox, optionally narrowed by contact email/domain/org | `mailbox`, `email`, `domain`, `limit` | `conversations[]` |
 | `get_conversation` | Get a specific conversation | `conversation_id` | `conversation` |
 | `update_conversation` | Update conversation state | `conversation_id`, `closed`, `assignee_id` | `result` |
 | `merge_conversations` | Merge two conversations | `conversation_id`, `target_conversation_id` | `result` |
@@ -23,12 +23,12 @@ Missive is a collaborative team inbox app that unifies email, SMS, WhatsApp, and
 | `list_conversation_comments` | List comments in a conversation | `conversation_id` | `comments[]` |
 | `list_conversation_posts` | List posts in a conversation | `conversation_id` | `posts[]` |
 | `list_conversation_drafts` | List drafts in a conversation | `conversation_id` | `drafts[]` |
-| `list_messages` | List messages globally | `limit` | `messages[]` |
+| `list_messages` | Look up message(s) by email Message-ID (exact match, not a search) | `email_message_id` | `messages[]` |
 | `get_message` | Get a specific message | `message_id` | `message` |
-| `create_message` | Create an incoming custom channel message | `channel_id`, `body` | `message` |
-| `create_draft` | Create or send a draft | `channel_id`, `body`, `to`, `send` | `draft` |
+| `create_message` | Create an incoming custom channel message | `account`, `from_field`, `to_fields`, `body` | `message` |
+| `create_draft` | Create or send a draft | `body`, `to`, `from_field`, `send` | `draft` |
 | `delete_draft` | Delete a draft | `draft_id` | `result` |
-| `create_post` | Inject a post and manage conversation state | `text`, `conversation_id`, `close` | `post`, `conversation` |
+| `create_post` | Inject a post and manage conversation state | `conversation_id`, `text`, `notification`, `close` | `post`, `conversation_id` |
 | `list_contacts` | List contacts with optional search | `search`, `contact_book_id` | `contacts[]` |
 | `get_contact` | Get a specific contact | `contact_id` | `contact` |
 | `create_contact` | Create one or more contacts | `contacts[]` | `contacts[]` |
@@ -37,6 +37,10 @@ Missive is a collaborative team inbox app that unifies email, SMS, WhatsApp, and
 | `list_contact_groups` | List groups in a contact book | `contact_book_id`, `kind` | `contact_groups[]` |
 | `create_analytics_report` | Generate an analytics report (async) | `start`, `end`, `organization_id` | `report_id` |
 | `get_analytics_report` | Retrieve a completed analytics report | `report_id` | `report` |
+| `list_organizations` | Discover organization IDs the token can access | `limit`, `offset` | `organizations[]` |
+| `list_users` | Discover user IDs (for assignment) in an organization | `organization_id` | `users[]` |
+| `list_teams` | Discover team IDs in an organization | `organization_id` | `teams[]` |
+| `list_shared_labels` | Discover shared label IDs in an organization | `organization_id` | `shared_labels[]` |
 
 ## API Info
 

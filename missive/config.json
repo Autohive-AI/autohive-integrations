@@ -15,7 +15,7 @@
           "type": "string",
           "format": "password",
           "label": "API Token",
-          "help_text": "Generate your token in Missive \u00e2\u2020\u2019 Preferences \u00e2\u2020\u2019 API. Requires the Productive plan."
+          "help_text": "Generate your token in Missive -> Preferences -> API. Requires the Productive plan."
         }
       }
     }
@@ -23,7 +23,7 @@
   "actions": {
     "list_conversations": {
       "display_name": "List Conversations",
-      "description": "List conversations filtered by mailbox type. Supports inbox, all, assigned, closed, snoozed, flagged, trashed, junked, drafts, shared_label, team_inbox, team_closed, and team_all.",
+      "description": "List or find conversations. A mailbox filter is always required (inbox, all, assigned, closed, snoozed, flagged, trashed, junked, drafts, shared_label, team_inbox, team_closed, team_all). Optionally narrow by a contact's email, domain, or contact organization. This is not full-text search (no search by subject/body).",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -54,15 +54,31 @@
           },
           "until": {
             "type": "number",
-            "description": "Pagination cursor \u00e2\u20ac\u201d pass last_activity_at of the last conversation to get the next page"
+            "description": "Pagination cursor - pass last_activity_at of the last conversation to get the next page"
           },
           "team_id": {
             "type": "string",
-            "description": "Team UUID \u2014 required when mailbox is team_inbox, team_closed, or team_all"
+            "description": "Team UUID — required when mailbox is team_inbox, team_closed, or team_all"
           },
           "shared_label_id": {
             "type": "string",
-            "description": "Shared label UUID \u2014 required when mailbox is shared_label"
+            "description": "Shared label UUID — required when mailbox is shared_label"
+          },
+          "organization_id": {
+            "type": "string",
+            "description": "Limit results to conversations shared with this organization"
+          },
+          "email": {
+            "type": "string",
+            "description": "Filter by a contact's email address (e.g. jane@acme.com). Mutually exclusive with domain and contact_organization_id."
+          },
+          "domain": {
+            "type": "string",
+            "description": "Filter by a contact's email domain (e.g. acme.com, not @acme.com). Mutually exclusive with email and contact_organization_id."
+          },
+          "contact_organization_id": {
+            "type": "string",
+            "description": "Filter by a contact organization/group UUID. Mutually exclusive with email and domain."
           }
         },
         "required": [
@@ -126,7 +142,7 @@
         "properties": {
           "conversation_id": {
             "type": "string",
-            "description": "Conversation ID or comma-separated IDs for bulk update"
+            "description": "Conversation ID to update"
           },
           "subject": {
             "type": "string",
@@ -150,6 +166,10 @@
               "type": "string"
             },
             "description": "Shared label IDs to apply"
+          },
+          "organization_id": {
+            "type": "string",
+            "description": "Organization ID. Required by Missive when assignee_id or shared_label_ids is set."
           },
           "closed": {
             "type": "boolean",
@@ -342,8 +362,8 @@
       }
     },
     "list_messages": {
-      "display_name": "List Messages",
-      "description": "List messages across all conversations.",
+      "display_name": "Find Messages by Email Message-ID",
+      "description": "Look up message(s) by their email Message-ID header (the email_message_id value, e.g. <abc@domain.com>). This is an exact-match lookup, not a search or a list of all messages.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -417,10 +437,6 @@
       "input_schema": {
         "type": "object",
         "properties": {
-          "channel_id": {
-            "type": "string",
-            "description": "Custom channel ID to receive the message"
-          },
           "account": {
             "type": "string",
             "description": "Custom channel account token (from the custom channel configuration, not an email account ID)"
@@ -470,7 +486,6 @@
           }
         },
         "required": [
-          "channel_id",
           "account",
           "from_field",
           "to_fields",
@@ -589,6 +604,10 @@
             "type": "string",
             "description": "Assign to a user"
           },
+          "organization_id": {
+            "type": "string",
+            "description": "Organization ID. Required by Missive when assignee_id is set."
+          },
           "account": {
             "type": "string",
             "description": "Email account ID to send from (required for new email drafts)"
@@ -674,9 +693,13 @@
             },
             "description": "Apply these shared label IDs"
           },
+          "organization_id": {
+            "type": "string",
+            "description": "Organization ID. Required by Missive when assignee_id or shared_label_ids is set."
+          },
           "notification": {
             "type": "object",
-            "description": "Push notification shown to conversation members",
+            "description": "Push notification shown to conversation members (required by Missive)",
             "properties": {
               "title": {
                 "type": "string",
@@ -699,7 +722,8 @@
         },
         "required": [
           "conversation_id",
-          "text"
+          "text",
+          "notification"
         ]
       },
       "output_schema": {
@@ -707,11 +731,14 @@
         "properties": {
           "post": {
             "type": "object",
-            "description": "Created post details"
+            "description": "Created post (contains id and conversation)"
           },
-          "conversation": {
-            "type": "object",
-            "description": "Updated conversation details"
+          "conversation_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ID of the conversation the post was added to"
           },
           "result": {
             "type": "boolean"
@@ -825,25 +852,21 @@
                   "items": {
                     "type": "object",
                     "properties": {
-                      "type": {
+                      "kind": {
                         "type": "string",
-                        "description": "e.g. email, phone"
+                        "description": "Info type, e.g. email, phone_number, url"
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Info label, e.g. home, work, mobile"
                       },
                       "value": {
                         "type": "string"
                       }
                     }
                   }
-                },
-                "kind": {
-                  "type": "string",
-                  "description": "Contact type, e.g. person or company",
-                  "default": "person"
                 }
-              },
-              "required": [
-                "kind"
-              ]
+              }
             }
           },
           "contact_book_id": {
@@ -874,7 +897,7 @@
     },
     "update_contact": {
       "display_name": "Update Contact",
-      "description": "Update a contact by ID. Requires write access to the contact book \u2014 the API token must belong to an Operator or Admin of the organization that owns the contact.",
+      "description": "Update a contact by ID. Requires write access to the contact book — the API token must belong to an Operator or Admin of the organization that owns the contact.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -900,8 +923,13 @@
             "items": {
               "type": "object",
               "properties": {
-                "type": {
-                  "type": "string"
+                "kind": {
+                  "type": "string",
+                  "description": "Info type, e.g. email, phone_number, url"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Info label, e.g. home, work, mobile"
                 },
                 "value": {
                   "type": "string"
@@ -985,7 +1013,8 @@
           }
         },
         "required": [
-          "contact_book_id"
+          "contact_book_id",
+          "kind"
         ]
       },
       "output_schema": {
@@ -1007,7 +1036,7 @@
     },
     "create_analytics_report": {
       "display_name": "Create Analytics Report",
-      "description": "Generate an analytics report asynchronously. Reports complete within 2\u00e2\u20ac\u201c30 seconds. Use get_analytics_report to retrieve results. Requires Business or Productive plan.",
+      "description": "Generate an analytics report asynchronously. Reports complete within 2-30 seconds. Use get_analytics_report to retrieve results. Requires Business or Productive plan.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1095,6 +1124,146 @@
           "report": {
             "type": "object",
             "description": "Analytics report data"
+          },
+          "result": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "list_organizations": {
+      "display_name": "List Organizations",
+      "description": "List organizations the authenticated user belongs to. Use this to discover the organization_id required for assignment, shared labels, and analytics.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Number of organizations to return (max 200)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used to paginate"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "organizations": {
+            "type": "array",
+            "description": "Organizations (each with id and name)"
+          },
+          "result": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "list_users": {
+      "display_name": "List Users",
+      "description": "List users in the authenticated user's organizations. Use this to resolve a person's name to the user ID needed for assignment (assignee_id).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Limit results to a specific organization"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of users to return (max 200)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used to paginate"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "description": "Users (each with id, name, email)"
+          },
+          "result": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "list_teams": {
+      "display_name": "List Teams",
+      "description": "List teams in the authenticated user's organizations. Use this to discover the team_id needed for team mailboxes and for assigning/moving conversations to a team.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Limit results to a specific organization"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of teams to return (max 200)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used to paginate"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "teams": {
+            "type": "array",
+            "description": "Teams (each with id, name, organization)"
+          },
+          "result": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "list_shared_labels": {
+      "display_name": "List Shared Labels",
+      "description": "List shared labels in the authenticated user's organizations. Use this to discover the shared label IDs needed to apply labels via update_conversation or create_post, or to filter by shared_label.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "description": "Limit results to a specific organization"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Number of shared labels to return (max 200)"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used to paginate"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "shared_labels": {
+            "type": "array",
+            "description": "Shared labels (each with id, name, organization)"
           },
           "result": {
             "type": "boolean"
