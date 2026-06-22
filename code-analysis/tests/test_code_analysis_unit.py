@@ -110,6 +110,15 @@ print(len(lines))
 
         inputs = {}
 
+        with self.assertRaises(KeyError):
+            await action.execute(inputs, context)
+
+    async def test_empty_python_code(self):
+        action = ExecutePythonCodeAction()
+        context = MockContext()
+
+        inputs = {"python_code": ""}
+
         with self.assertRaises(ValueError):
             await action.execute(inputs, context)
 
