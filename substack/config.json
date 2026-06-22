@@ -1,7 +1,7 @@
 {
     "name": "Substack",
     "display_name": "Substack",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Search Substack publications, read posts and comments. No authentication required.",
     "entry_point": "substack.py",
     "actions": {
@@ -246,12 +246,12 @@
                         "items": {
                             "type": "object",
                             "properties": {
-                                "id": {"type": "integer"},
-                                "body": {"type": "string"},
-                                "date": {"type": "string"},
-                                "author_name": {"type": "string"},
-                                "author_id": {"type": "integer"},
-                                "like_count": {"type": "integer"},
+                                "id": {"type": ["integer", "null"]},
+                                "body": {"type": ["string", "null"]},
+                                "date": {"type": ["string", "null"]},
+                                "author_name": {"type": ["string", "null"]},
+                                "author_id": {"type": ["integer", "null"]},
+                                "like_count": {"type": ["integer", "null"]},
                                 "children": {"type": "array"}
                             }
                         }
