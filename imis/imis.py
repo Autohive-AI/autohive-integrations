@@ -1,8 +1,12 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Any, Dict, Optional
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, quote, urlparse
 
 imis = Integration.load()
+
+
+def _encode_id(value: Any) -> str:
+    return quote(str(value), safe="")
 
 
 def _validate_site_url(site_url: str) -> str:
@@ -102,7 +106,7 @@ class ListContactsAction(ActionHandler):
 class GetContactAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            party_id = inputs["party_id"]
+            party_id = _encode_id(inputs["party_id"])
             data = await api_request(context, "GET", f"Party/{party_id}")
             return ActionResult(data={"contact": data}, cost_usd=0.0)
         except Exception as e:
@@ -113,7 +117,7 @@ class GetContactAction(ActionHandler):
 class UpdateContactAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            party_id = inputs["party_id"]
+            party_id = _encode_id(inputs["party_id"])
 
             # First fetch existing contact to use as base
             existing = await api_request(context, "GET", f"Party/{party_id}")
@@ -179,7 +183,7 @@ class ListEventsAction(ActionHandler):
 class GetEventAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            event_id = inputs["event_id"]
+            event_id = _encode_id(inputs["event_id"])
             data = await api_request(context, "GET", f"Event/{event_id}")
             return ActionResult(data={"event": data}, cost_usd=0.0)
         except Exception as e:
@@ -215,7 +219,7 @@ class CreateEventAction(ActionHandler):
 class UpdateEventAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            event_id = inputs["event_id"]
+            event_id = _encode_id(inputs["event_id"])
 
             # Fetch existing event as base
             existing = await api_request(context, "GET", f"Event/{event_id}")
@@ -345,7 +349,7 @@ class ListGroupsAction(ActionHandler):
 class GetGroupAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            data = await api_request(context, "GET", f"Group/{inputs['group_id']}")
+            data = await api_request(context, "GET", f"Group/{_encode_id(inputs['group_id'])}")
             return ActionResult(data={"group": data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -369,7 +373,7 @@ class RemoveGroupMemberAction(ActionHandler):
             await api_request(
                 context,
                 "DELETE",
-                f"GroupMember/{inputs['group_id']}/{inputs['party_id']}",
+                f"GroupMember/{_encode_id(inputs['group_id'])}/{_encode_id(inputs['party_id'])}",
             )
             return ActionResult(data={"deleted": True}, cost_usd=0.0)
         except Exception as e:
@@ -383,7 +387,7 @@ class RemoveGroupMemberAction(ActionHandler):
 class DeleteRegistrationAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            await api_request(context, "DELETE", f"EventRegistration/{inputs['registration_id']}")
+            await api_request(context, "DELETE", f"EventRegistration/{_encode_id(inputs['registration_id'])}")
             return ActionResult(data={"deleted": True}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -469,7 +473,7 @@ class ListMediaAssetsAction(ActionHandler):
 class GetMediaAssetAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            data = await api_request(context, "GET", f"MediaAsset/{inputs['asset_id']}")
+            data = await api_request(context, "GET", f"MediaAsset/{_encode_id(inputs['asset_id'])}")
             return ActionResult(data={"asset": data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
