@@ -42,14 +42,14 @@ skip_if_no_creds = pytest.mark.skipif(
 
 @pytest.fixture
 def live_context(make_context):
-    async def real_fetch(url, *, method="GET", params=None, headers=None, json=None, body=None, **kwargs):
+    async def real_fetch(url, *, method="GET", params=None, headers=None, json=None, data=None, body=None, **kwargs):
         async with aiohttp.ClientSession() as session:
             async with session.request(
                 method,
                 url,
                 params=params,
                 json=json,
-                data=body,
+                data=data or body,
                 headers=dict(headers or {}),
             ) as resp:
                 try:
