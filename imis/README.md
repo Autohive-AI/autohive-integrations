@@ -17,6 +17,7 @@ The integration exchanges your credentials for a Bearer token automatically on e
 
 | Action | Description | Key Inputs | Key Outputs |
 |--------|-------------|------------|-------------|
+| `list_contacts` | Search and list contacts | `name`, `email`, `member_type`, `status`, `limit` | `contacts`, `count` |
 | `get_contact` | Get a contact by Party ID | `party_id` | `contact` |
 | `create_contact` | Create a new contact | `last_name`, `first_name`, `email` | `contact` |
 | `update_contact` | Update contact details | `party_id`, `email`, `phone`, `address` | `contact` |
