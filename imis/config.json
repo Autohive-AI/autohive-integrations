@@ -34,7 +34,6 @@
           "default": "iMIS"
         }
       },
-      "required": ["site_url", "username", "password"]
     }
   },
   "actions": {
