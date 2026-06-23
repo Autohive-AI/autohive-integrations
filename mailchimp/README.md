@@ -54,7 +54,7 @@ Mailchimp API has the following rate limits:
 Retrieve all mailing lists from Mailchimp account.
 
 **Input Parameters:**
-- `count` (integer, optional): Number of lists to return (default: 10, max: 1000)
+- `count` (integer, optional): Number of lists to return (default: 10)
 - `offset` (integer, optional): Number of lists to skip for pagination
 
 **Output:**
@@ -202,7 +202,7 @@ Get all members from a mailing list.
 
 **Input Parameters:**
 - `list_id` (string, required): Mailchimp list ID
-- `count` (integer, optional): Number of members to return (default: 10, max: 1000)
+- `count` (integer, optional): Number of members to return (default: 10)
 - `offset` (integer, optional): Number of members to skip for pagination
 - `status` (string, optional): Filter by status - `subscribed`, `unsubscribed`, `cleaned`, or `pending`
 
@@ -221,13 +221,50 @@ Get all members from a mailing list.
 }
 ```
 
+#### `find_list`
+Search for a mailing list by name (case-insensitive, partial match).
+
+**Input Parameters:**
+- `name` (string, required): Name or partial name to search for
+
+**Output:**
+```json
+{
+  "result": true,
+  "list": {
+    "id": "abc123",
+    "name": "Newsletter Subscribers",
+    "stats": { ... }
+  }
+}
+```
+
 ### Campaign Management
+
+#### `find_campaign`
+Search for a campaign by title or subject line (case-insensitive, partial match).
+
+**Input Parameters:**
+- `query` (string, required): Title or subject line to search for
+
+**Output:**
+```json
+{
+  "result": true,
+  "campaign": {
+    "id": "campaign123",
+    "type": "regular",
+    "status": "sent",
+    "settings": { "title": "Summer Sale", "subject_line": "Big deals inside" }
+  }
+}
+```
 
 #### `get_campaigns`
 Retrieve all campaigns from Mailchimp account.
 
 **Input Parameters:**
-- `count` (integer, optional): Number of campaigns to return (default: 10, max: 1000)
+- `count` (integer, optional): Number of campaigns to return (default: 10)
 - `offset` (integer, optional): Number of campaigns to skip for pagination
 - `status` (string, optional): Filter by status - `save`, `paused`, `schedule`, `sending`, or `sent`
 
@@ -291,40 +328,14 @@ Get details of a specific campaign.
 
 ## Error Handling
 
-All actions return a consistent error format:
+Errors are surfaced as `ActionError` by the Autohive platform — they do not appear in the action output schema. Common failure scenarios:
 
-```json
-{
-  "result": false,
-  "error": "Error message describing what went wrong"
-}
-```
-
-### Common Error Scenarios
-
-1. **Rate Limit Exceeded**
-   ```json
-   {
-     "result": false,
-     "error": "Rate limit exceeded. Retry after 60 seconds."
-   }
-   ```
-
-2. **Missing Required Field**
-   ```json
-   {
-     "result": false,
-     "error": "list_id is required"
-   }
-   ```
-
-3. **API Error**
-   ```json
-   {
-     "result": false,
-     "error": "Mailchimp API error: Invalid list ID"
-   }
-   ```
+| Scenario | Message example |
+|---|---|
+| Rate limit exceeded | `Rate limit exceeded. Retry after 60 seconds.` |
+| Missing required field | `list_id is required` |
+| API / network error | The underlying exception message |
+| List or campaign not found | `No list found matching '<name>'` |
 
 ## Implementation Details
 
@@ -424,6 +435,13 @@ For issues or questions:
 This integration is part of the Autohive integrations repository.
 
 ## Changelog
+
+### Version 2.0.0
+- Upgraded to `autohive-integrations-sdk~=2.0.0`
+- All error paths now use `ActionError` (SDK v2 pattern)
+- `context.fetch()` results access `.data` for response body (SDK v2 breaking change)
+- Added unit tests (78 tests) and integration tests with `live_context` fixture
+- Added `find_list` and `find_campaign` search actions
 
 ### Version 1.0.0 (Initial Release)
 - OAuth2 authentication with dynamic data center support
