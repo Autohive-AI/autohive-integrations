@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 import aiohttp
 import pytest
+from datetime import date, timedelta
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
 from grammarly.grammarly import grammarly
 
@@ -110,9 +111,11 @@ async def test_get_writing_score_results(live_context):
 
 @pytest.mark.asyncio
 async def test_get_user_analytics(live_context):
+    date_to = date.today() - timedelta(days=2)
+    date_from = date_to - timedelta(days=30)
     result = await grammarly.execute_action(
         "get_user_analytics",
-        {"date_from": "2025-12-01", "date_to": "2025-12-31"},
+        {"date_from": date_from.strftime("%Y-%m-%d"), "date_to": date_to.strftime("%Y-%m-%d")},
         live_context,
     )
     assert result.type == ResultType.ACTION, result.result.message
