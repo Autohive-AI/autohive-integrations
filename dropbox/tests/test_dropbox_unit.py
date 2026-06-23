@@ -156,7 +156,7 @@ class TestListFolder:
             status=200, headers={}, data={"entries": [], "cursor": "c1", "has_more": False}
         )
 
-        await dropbox.execute_action(
+        result = await dropbox.execute_action(
             "list_folder",
             {
                 "path": "/docs",
@@ -168,6 +168,7 @@ class TestListFolder:
             mock_context,
         )
 
+        assert result.type == ResultType.ACTION
         payload = mock_context.fetch.call_args.kwargs["json"]
         assert payload["path"] == "/docs"
         assert payload["recursive"] is True
