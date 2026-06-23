@@ -269,10 +269,6 @@ class GetUsers(ActionHandler):
                         is_guest
                         enabled
                         created_at
-                        teams {
-                            id
-                            name
-                        }
                     }
                 }
             """
