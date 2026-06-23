@@ -81,7 +81,7 @@ class ListContactsAction(ActionHandler):
 
             data = await api_request(context, "GET", "Party", params=params)
             items = data.get("Items", []) if isinstance(data, dict) else []
-            count = data.get("Count", len(items)) if isinstance(data, dict) else len(items)
+            count = data.get("TotalCount", data.get("Count", len(items))) if isinstance(data, dict) else len(items)
             return ActionResult(data={"contacts": items, "count": count}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -158,7 +158,7 @@ class ListEventsAction(ActionHandler):
 
             data = await api_request(context, "GET", "Event", params=params)
             items = data.get("Items", []) if isinstance(data, dict) else []
-            count = data.get("Count", len(items)) if isinstance(data, dict) else len(items)
+            count = data.get("TotalCount", data.get("Count", len(items))) if isinstance(data, dict) else len(items)
             return ActionResult(data={"events": items, "count": count}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -248,7 +248,7 @@ class ListRegistrationsAction(ActionHandler):
 
             data = await api_request(context, "GET", "EventRegistration", params=params)
             items = data.get("Items", []) if isinstance(data, dict) else []
-            count = data.get("Count", len(items)) if isinstance(data, dict) else len(items)
+            count = data.get("TotalCount", data.get("Count", len(items))) if isinstance(data, dict) else len(items)
             return ActionResult(data={"registrations": items, "count": count}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -324,7 +324,7 @@ class ListGroupsAction(ActionHandler):
             }
             data = await api_request(context, "GET", "Group", params=params)
             items = data.get("Items", []) if isinstance(data, dict) else []
-            count = data.get("Count", len(items)) if isinstance(data, dict) else len(items)
+            count = data.get("TotalCount", data.get("Count", len(items))) if isinstance(data, dict) else len(items)
             return ActionResult(data={"groups": items, "count": count}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -391,7 +391,7 @@ class ListTagsAction(ActionHandler):
             }
             data = await api_request(context, "GET", "Tag", params=params)
             items = data.get("Items", []) if isinstance(data, dict) else []
-            count = data.get("Count", len(items)) if isinstance(data, dict) else len(items)
+            count = data.get("TotalCount", data.get("Count", len(items))) if isinstance(data, dict) else len(items)
             return ActionResult(data={"tags": items, "count": count}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -426,7 +426,7 @@ class RunQueryAction(ActionHandler):
 
             data = await api_request(context, "GET", "Query", params=params)
             items = data.get("Items", []) if isinstance(data, dict) else []
-            count = data.get("Count", len(items)) if isinstance(data, dict) else len(items)
+            count = data.get("TotalCount", data.get("Count", len(items))) if isinstance(data, dict) else len(items)
             return ActionResult(data={"results": items, "count": count}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -448,7 +448,7 @@ class ListMediaAssetsAction(ActionHandler):
 
             data = await api_request(context, "GET", "MediaAsset", params=params)
             items = data.get("Items", []) if isinstance(data, dict) else []
-            count = data.get("Count", len(items)) if isinstance(data, dict) else len(items)
+            count = data.get("TotalCount", data.get("Count", len(items))) if isinstance(data, dict) else len(items)
             return ActionResult(data={"assets": items, "count": count}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
