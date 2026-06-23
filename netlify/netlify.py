@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any
 import hashlib
 
@@ -23,12 +23,12 @@ class ListSitesAction(ActionHandler):
         try:
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites", method="GET")
 
-            sites = response if isinstance(response, list) else []
+            sites = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"sites": sites, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"sites": sites}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"sites": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @netlify.action("create_site")
@@ -46,10 +46,10 @@ class CreateSiteAction(ActionHandler):
 
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites", method="POST", json=payload)
 
-            return ActionResult(data={"site": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"site": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"site": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @netlify.action("get_site")
@@ -62,10 +62,10 @@ class GetSiteAction(ActionHandler):
 
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}", method="GET")
 
-            return ActionResult(data={"site": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"site": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"site": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @netlify.action("update_site")
@@ -84,10 +84,10 @@ class UpdateSiteAction(ActionHandler):
 
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}", method="PATCH", json=payload)
 
-            return ActionResult(data={"site": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"site": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"site": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @netlify.action("delete_site")
@@ -100,10 +100,10 @@ class DeleteSiteAction(ActionHandler):
 
             await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}", method="DELETE")
 
-            return ActionResult(data={"deleted": True, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deleted": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"deleted": False, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Deploy Handlers ----
@@ -119,12 +119,12 @@ class ListDeploysAction(ActionHandler):
 
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/sites/{site_id}/deploys", method="GET")
 
-            deploys = response if isinstance(response, list) else []
+            deploys = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"deploys": deploys, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deploys": deploys}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"deploys": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @netlify.action("create_deploy")
@@ -146,13 +146,16 @@ class CreateDeployAction(ActionHandler):
                 hash_to_content[sha1] = content
 
             # Create deploy with file digests
-            deploy = await context.fetch(
+            deploy_response = await context.fetch(
                 f"{NETLIFY_API_BASE_URL}/sites/{site_id}/deploys", method="POST", json={"files": files_dict}
             )
+            deploy = deploy_response.data
 
             # Upload required files
             required_hashes = deploy.get("required", [])
             deploy_id = deploy.get("id")
+            if not deploy_id:
+                raise ValueError("Netlify did not return a deploy ID — cannot upload files or retrieve deploy status")
 
             for sha1_hash in required_hashes:
                 if sha1_hash in hash_to_content:
@@ -166,16 +169,17 @@ class CreateDeployAction(ActionHandler):
                     )
 
             # Get final deploy info
-            final_deploy = await context.fetch(f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}", method="GET")
+            final_response = await context.fetch(f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}", method="GET")
+            final_deploy = final_response.data
 
             deploy_url = (
                 final_deploy.get("deploy_ssl_url") or final_deploy.get("ssl_url") or final_deploy.get("url", "")
             )
 
-            return ActionResult(data={"deploy": final_deploy, "deploy_url": deploy_url, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deploy": final_deploy, "deploy_url": deploy_url}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"deploy": {}, "deploy_url": "", "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @netlify.action("get_deploy")
@@ -188,7 +192,7 @@ class GetDeployAction(ActionHandler):
 
             response = await context.fetch(f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}", method="GET")
 
-            return ActionResult(data={"deploy": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"deploy": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"deploy": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
