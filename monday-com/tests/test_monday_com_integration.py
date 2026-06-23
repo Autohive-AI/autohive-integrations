@@ -5,7 +5,7 @@ These tests call the real Monday.com GraphQL API and require a valid access
 token set in the MONDAY_ACCESS_TOKEN environment variable (via .env or export).
 
 Run read-only tests (safe):
-    pytest monday-com/tests/test_monday_com_integration.py -m integration
+    pytest monday-com/tests/test_monday_com_integration.py -m "integration and not destructive"
 
 Run destructive tests (create/update real items on a test board):
     pytest monday-com/tests/test_monday_com_integration.py -m "integration and destructive"
