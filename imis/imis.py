@@ -259,13 +259,17 @@ class CreateRegistrationAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             body: Dict[str, Any] = {
+                "$type": "Asi.Soa.Commerce.DataContracts.EventRegistrationData, Asi.Contracts",
                 "EventId": inputs["event_id"],
-                "PartyId": inputs["party_id"],
+                "ContactId": inputs["party_id"],
+                "OperationName": "RegisterEvent",
             }
             if inputs.get("additional_fields"):
-                body.update(inputs["additional_fields"])
+                body.update(
+                    {k: v for k, v in inputs["additional_fields"].items() if k not in ("Id", "$type", "OperationName")}
+                )
 
-            data = await api_request(context, "POST", "EventRegistration", json_data=body)
+            data = await api_request(context, "POST", "EventRegistration/_execute", json_data=body)
             return ActionResult(data={"registration": data}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
