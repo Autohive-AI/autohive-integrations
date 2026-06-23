@@ -82,13 +82,13 @@ class GetPublicationPostsAction(ActionHandler):
         if inputs.get("search"):
             params["search"] = inputs["search"]
 
-        posts_raw = await context.fetch(
+        response = await context.fetch(
             f"{base_url}/api/v1/archive",
             method="GET",
             params=params,
             headers=headers,
         )
-        posts = [_format_post(p) for p in (posts_raw or [])]
+        posts = [_format_post(p) for p in (response.data or [])]
         return ActionResult(data={"posts": posts, "count": len(posts)}, cost_usd=0.0)
 
 
@@ -99,11 +99,12 @@ class GetPostAction(ActionHandler):
         slug = inputs["slug"]
         headers = _build_headers()
 
-        post = await context.fetch(
+        response = await context.fetch(
             f"{base_url}/api/v1/posts/{slug}",
             method="GET",
             headers=headers,
         )
+        post = response.data
         result = _drop_none(
             {
                 "id": post.get("id"),
@@ -144,7 +145,8 @@ class SearchPublicationsAction(ActionHandler):
             params=params,
             headers=headers,
         )
-        pubs_raw = response.get("publications", []) if isinstance(response, dict) else response
+        body = response.data
+        pubs_raw = body.get("publications", []) if isinstance(body, dict) else body
         pubs = [
             _drop_none(
                 {
@@ -159,7 +161,7 @@ class SearchPublicationsAction(ActionHandler):
             )
             for p in pubs_raw
         ]
-        more = response.get("more", False) if isinstance(response, dict) else False
+        more = body.get("more", False) if isinstance(body, dict) else False
         return ActionResult(data={"publications": pubs, "more": more}, cost_usd=0.0)
 
 
@@ -178,13 +180,13 @@ class SearchPostsAction(ActionHandler):
             "limit": min(inputs.get("limit", 10), 50),
         }
 
-        posts_raw = await context.fetch(
+        response = await context.fetch(
             f"{base_url}/api/v1/archive",
             method="GET",
             params=params,
             headers=headers,
         )
-        posts = [_format_post(p) for p in (posts_raw or [])]
+        posts = [_format_post(p) for p in (response.data or [])]
         return ActionResult(data={"posts": posts, "count": len(posts)}, cost_usd=0.0)
 
 
@@ -207,5 +209,6 @@ class GetPostCommentsAction(ActionHandler):
             params=params,
             headers=headers,
         )
-        comments = response.get("comments", []) if isinstance(response, dict) else []
+        body = response.data
+        comments = body.get("comments", []) if isinstance(body, dict) else []
         return ActionResult(data={"comments": comments, "count": len(comments)}, cost_usd=0.0)
