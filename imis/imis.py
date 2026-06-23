@@ -147,7 +147,7 @@ class UpdateContactAction(ActionHandler):
                 if addr.get("country"):
                     existing["PrimaryAddress"]["Country"] = addr["country"]
             if inputs.get("additional_fields"):
-                existing.update(inputs["additional_fields"])
+                existing.update({k: v for k, v in inputs["additional_fields"].items() if k not in ("Id", "$type")})
 
             data = await api_request(context, "PUT", f"Party/{party_id}", json_data=existing)
             return ActionResult(data={"contact": data}, cost_usd=0.0)
@@ -207,7 +207,7 @@ class CreateEventAction(ActionHandler):
             if inputs.get("capacity"):
                 body["Capacity"] = inputs["capacity"]
             if inputs.get("additional_fields"):
-                body.update(inputs["additional_fields"])
+                body.update({k: v for k, v in inputs["additional_fields"].items() if k not in ("Id", "$type")})
 
             data = await api_request(context, "POST", "Event", json_data=body)
             return ActionResult(data={"event": data}, cost_usd=0.0)
@@ -237,7 +237,7 @@ class UpdateEventAction(ActionHandler):
             if inputs.get("capacity"):
                 existing["Capacity"] = inputs["capacity"]
             if inputs.get("additional_fields"):
-                existing.update(inputs["additional_fields"])
+                existing.update({k: v for k, v in inputs["additional_fields"].items() if k not in ("Id", "$type")})
 
             data = await api_request(context, "PUT", f"Event/{event_id}", json_data=existing)
             return ActionResult(data={"event": data}, cost_usd=0.0)
@@ -318,7 +318,7 @@ class CreateContactAction(ActionHandler):
                     "Country": addr.get("country", ""),
                 }
             if inputs.get("additional_fields"):
-                body.update(inputs["additional_fields"])
+                body.update({k: v for k, v in inputs["additional_fields"].items() if k not in ("Id", "$type")})
 
             data = await api_request(context, "POST", "Party", json_data=body)
             return ActionResult(data={"contact": data}, cost_usd=0.0)
