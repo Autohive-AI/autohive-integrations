@@ -1,4 +1,5 @@
 from urllib.parse import urlencode
+from yarl import URL
 from autohive_integrations_sdk import (
     Integration,
     ExecutionContext,
@@ -66,7 +67,7 @@ async def api_request(
 
 async def upload_file(context: ExecutionContext, upload_url: str, file_content: str) -> bool:
     await context.fetch(
-        upload_url,
+        URL(upload_url, encoded=True),
         method="PUT",
         data=file_content,
         content_type="text/plain",
