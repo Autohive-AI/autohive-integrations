@@ -283,8 +283,11 @@ class CreateContactAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             body: Dict[str, Any] = {
-                "FirstName": inputs.get("first_name", ""),
-                "LastName": inputs["last_name"],
+                "$type": "Asi.Soa.Membership.DataContracts.PersonData, Asi.Contracts",
+                "PersonName": {
+                    "FirstName": inputs.get("first_name", ""),
+                    "LastName": inputs["last_name"],
+                },
                 "PrimaryEmail": inputs.get("email", ""),
             }
             if inputs.get("phone"):
