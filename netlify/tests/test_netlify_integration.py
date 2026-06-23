@@ -5,7 +5,7 @@ These tests call the real Netlify API and require a valid personal access token
 set in the NETLIFY_ACCESS_TOKEN environment variable.
 
 Run all read-only tests:
-    pytest netlify/tests/test_netlify_integration.py -m integration
+    pytest netlify/tests/test_netlify_integration.py -m "integration and not destructive"
 
 Run destructive tests (sites / deploys created on the real account):
     pytest netlify/tests/test_netlify_integration.py -m "integration and destructive"

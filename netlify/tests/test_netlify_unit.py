@@ -359,7 +359,7 @@ async def test_create_deploy_uploads_required_files():
     upload_url = upload_call.args[0] if upload_call.args else upload_call.kwargs.get("url", "")
     assert upload_call.kwargs.get("method") == "PUT"
     assert "deploy-2" in upload_url
-    assert sha1 in upload_url
+    assert "/index.html" in upload_url
     assert upload_call.kwargs.get("headers", {}).get("Content-Type") == "application/octet-stream"
 
 

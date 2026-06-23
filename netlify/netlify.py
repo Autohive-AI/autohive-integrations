@@ -139,11 +139,14 @@ class CreateDeployAction(ActionHandler):
             # Prepare files dictionary with SHA1 hashes
             files_dict = {}
             hash_to_content = {}
+            hash_to_path = {}
 
             for path, content in files.items():
                 sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()  # nosec B324
                 files_dict[path] = sha1
-                hash_to_content[sha1] = content
+                if sha1 not in hash_to_content:
+                    hash_to_content[sha1] = content
+                    hash_to_path[sha1] = path
 
             # Create deploy with file digests
             deploy_response = await context.fetch(
@@ -160,9 +163,10 @@ class CreateDeployAction(ActionHandler):
             for sha1_hash in required_hashes:
                 if sha1_hash in hash_to_content:
                     file_content = hash_to_content[sha1_hash]
+                    file_path = hash_to_path[sha1_hash]
 
                     await context.fetch(
-                        f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}/files/{sha1_hash}",
+                        f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}/files{file_path}",
                         method="PUT",
                         headers={"Content-Type": "application/octet-stream"},
                         data=file_content.encode(),
