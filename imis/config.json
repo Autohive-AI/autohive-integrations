@@ -12,8 +12,9 @@
       "properties": {
         "site_url": {
           "type": "string",
+          "format": "uri",
           "label": "Site URL",
-          "help_text": "Your iMIS site URL (e.g. https://yourorg.imis.com)"
+          "help_text": "Your iMIS site URL -- must use HTTPS (e.g. https://yourorg.imis.com)"
         },
         "username": {
           "type": "string",

@@ -1,13 +1,24 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Any, Dict, Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 imis = Integration.load()
 
 
+def _validate_site_url(site_url: str) -> str:
+    parsed = urlparse(site_url)
+    if parsed.scheme != "https":
+        raise ValueError("site_url must use HTTPS")
+    if not parsed.hostname:
+        raise ValueError("site_url must include a valid hostname")
+    if parsed.username or parsed.password:
+        raise ValueError("site_url must not include credentials")
+    return site_url.rstrip("/")
+
+
 async def get_access_token(context: ExecutionContext) -> str:
     creds = context.auth.get("credentials", context.auth)
-    site_url = creds.get("site_url", "").rstrip("/")
+    site_url = _validate_site_url(creds.get("site_url", ""))
     username = creds.get("username", "")
     password = creds.get("password", "")
     client_id = creds.get("client_id", "iMIS")
@@ -42,7 +53,7 @@ async def api_request(
     params: Optional[Dict[str, Any]] = None,
 ) -> Any:
     creds = context.auth.get("credentials", context.auth)
-    site_url = creds.get("site_url", "").rstrip("/")
+    site_url = _validate_site_url(creds.get("site_url", ""))
     access_token = await get_access_token(context)
     headers = {
         "Authorization": f"Bearer {access_token}",
