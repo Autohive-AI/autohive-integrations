@@ -1,42 +1,22 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any
 
 monday_com = Integration.load()
 
 
 def build_headers(context: ExecutionContext):
-    """Build headers for Monday.com API requests.
-
-    Args:
-        context: ExecutionContext containing authentication information
-
-    Returns:
-        Dictionary of headers for API requests
-    """
     access_token = context.auth["credentials"]["access_token"]
-
     return {"Authorization": access_token, "Content-Type": "application/json", "API-Version": "2024-10"}
 
 
 async def execute_graphql_query(query: str, variables: Dict[str, Any], context: ExecutionContext):
-    """Execute a GraphQL query against Monday.com API.
-
-    Args:
-        query: GraphQL query string
-        variables: Variables for the query
-        context: ExecutionContext containing authentication information
-
-    Returns:
-        Response data from the API
-    """
     url = "https://api.monday.com/v2"
     headers = build_headers(context)
-
     payload = {"query": query, "variables": variables}
-
-    response = await context.fetch(url, method="POST", json=payload, headers=headers)
-
-    return response
+    fetch_response = await context.fetch(url, method="POST", json=payload, headers=headers)
+    if fetch_response.data is None:
+        raise ValueError("Empty response body from Monday.com API")
+    return fetch_response.data
 
 
 @monday_com.action("get_boards")
@@ -75,16 +55,14 @@ class GetBoards(ActionHandler):
             result = await execute_graphql_query(query, variables, context)
 
             if "errors" in result:
-                return ActionResult(
-                    data={"boards": [], "board_count": 0, "result": False, "error": str(result["errors"])}, cost_usd=0.0
-                )
+                return ActionError(message=str(result["errors"]))
 
             boards = result.get("data", {}).get("boards", [])
 
-            return ActionResult(data={"boards": boards, "board_count": len(boards), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"boards": boards, "board_count": len(boards)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"boards": [], "board_count": 0, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @monday_com.action("get_items")
@@ -132,9 +110,7 @@ class GetItems(ActionHandler):
             result = await execute_graphql_query(query, variables, context)
 
             if "errors" in result:
-                return ActionResult(
-                    data={"items": [], "item_count": 0, "result": False, "error": str(result["errors"])}, cost_usd=0.0
-                )
+                return ActionError(message=str(result["errors"]))
 
             boards = result.get("data", {}).get("boards", [])
             items = []
@@ -144,12 +120,10 @@ class GetItems(ActionHandler):
                 items = items_page.get("items", [])
                 cursor = items_page.get("cursor")
 
-            return ActionResult(
-                data={"items": items, "item_count": len(items), "cursor": cursor, "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"items": items, "item_count": len(items), "cursor": cursor}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"items": [], "item_count": 0, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @monday_com.action("create_item")
@@ -188,14 +162,14 @@ class CreateItem(ActionHandler):
             result = await execute_graphql_query(query, variables, context)
 
             if "errors" in result:
-                return ActionResult(data={"item": None, "result": False, "error": str(result["errors"])}, cost_usd=0.0)
+                return ActionError(message=str(result["errors"]))
 
             item = result.get("data", {}).get("create_item")
 
-            return ActionResult(data={"item": item, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"item": item}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"item": None, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @monday_com.action("update_item")
@@ -231,14 +205,14 @@ class UpdateItem(ActionHandler):
             result = await execute_graphql_query(query, variables, context)
 
             if "errors" in result:
-                return ActionResult(data={"item": None, "result": False, "error": str(result["errors"])}, cost_usd=0.0)
+                return ActionError(message=str(result["errors"]))
 
             item = result.get("data", {}).get("change_multiple_column_values")
 
-            return ActionResult(data={"item": item, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"item": item}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"item": None, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @monday_com.action("create_update")
@@ -268,16 +242,14 @@ class CreateUpdate(ActionHandler):
             result = await execute_graphql_query(query, variables, context)
 
             if "errors" in result:
-                return ActionResult(
-                    data={"update": None, "result": False, "error": str(result["errors"])}, cost_usd=0.0
-                )
+                return ActionError(message=str(result["errors"]))
 
             update = result.get("data", {}).get("create_update")
 
-            return ActionResult(data={"update": update, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"update": update}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"update": None, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @monday_com.action("get_users")
@@ -310,13 +282,11 @@ class GetUsers(ActionHandler):
             result = await execute_graphql_query(query, variables, context)
 
             if "errors" in result:
-                return ActionResult(
-                    data={"users": [], "user_count": 0, "result": False, "error": str(result["errors"])}, cost_usd=0.0
-                )
+                return ActionError(message=str(result["errors"]))
 
             users = result.get("data", {}).get("users", [])
 
-            return ActionResult(data={"users": users, "user_count": len(users), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"users": users, "user_count": len(users)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"users": [], "user_count": 0, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
