@@ -33,7 +33,7 @@
           "help_text": "OAuth client ID (default: 'iMIS' for most installations)",
           "default": "iMIS"
         }
-      },
+      }
     }
   },
   "actions": {
