@@ -151,3 +151,78 @@ async def test_list_media_assets_live(live_context):
     result = await imis.execute_action("list_media_assets", {"limit": 5}, live_context)
     assert result.type == ResultType.ACTION, result.result.message
     assert isinstance(result.result.data["assets"], list)
+
+
+# ---- Destructive tests (write flows with cleanup) ----
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+@pytest.mark.destructive
+async def test_create_and_update_contact_live(live_context):
+    import time
+
+    ts = int(time.time())
+    create_result = await imis.execute_action(
+        "create_contact",
+        {"last_name": f"AutohiveTest{ts}", "first_name": "Integration", "email": f"autohive.test.{ts}@example.com"},
+        live_context,
+    )
+    assert create_result.type == ResultType.ACTION, create_result.result.message
+    contact = create_result.result.data["contact"]
+    party_id = str(contact.get("Id", ""))
+    assert party_id, "create_contact did not return an Id"
+
+    update_result = await imis.execute_action(
+        "update_contact",
+        {"party_id": party_id, "first_name": "IntegrationUpdated"},
+        live_context,
+    )
+    assert update_result.type == ResultType.ACTION, update_result.result.message
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+@pytest.mark.destructive
+async def test_create_registration_and_delete_live(live_context):
+    if not IMIS_TEST_PARTY_ID or not IMIS_TEST_EVENT_ID:
+        pytest.skip("IMIS_TEST_PARTY_ID and IMIS_TEST_EVENT_ID required for registration lifecycle test")
+
+    create_result = await imis.execute_action(
+        "create_registration",
+        {"event_id": IMIS_TEST_EVENT_ID, "party_id": IMIS_TEST_PARTY_ID},
+        live_context,
+    )
+    assert create_result.type == ResultType.ACTION, create_result.result.message
+    registration = create_result.result.data["registration"]
+    reg_id = str(registration.get("Id", ""))
+    assert reg_id, "create_registration did not return an Id"
+
+    delete_result = await imis.execute_action("delete_registration", {"registration_id": reg_id}, live_context)
+    assert delete_result.type == ResultType.ACTION, delete_result.result.message
+    assert delete_result.result.data["deleted"] is True
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+@pytest.mark.destructive
+async def test_add_and_remove_group_member_live(live_context):
+    if not IMIS_TEST_PARTY_ID:
+        pytest.skip("IMIS_TEST_PARTY_ID required for group membership test")
+
+    groups_result = await imis.execute_action("list_groups", {"limit": 1}, live_context)
+    groups = groups_result.result.data.get("groups", [])
+    if not groups:
+        pytest.skip("No groups available in iMIS instance")
+    group_id = str(groups[0].get("Id", ""))
+
+    add_result = await imis.execute_action(
+        "add_group_member", {"group_id": group_id, "party_id": IMIS_TEST_PARTY_ID}, live_context
+    )
+    assert add_result.type == ResultType.ACTION, add_result.result.message
+
+    remove_result = await imis.execute_action(
+        "remove_group_member", {"group_id": group_id, "party_id": IMIS_TEST_PARTY_ID}, live_context
+    )
+    assert remove_result.type == ResultType.ACTION, remove_result.result.message
+    assert remove_result.result.data["deleted"] is True
