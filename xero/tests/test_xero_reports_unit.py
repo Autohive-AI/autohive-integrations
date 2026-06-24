@@ -60,6 +60,7 @@ class TestGetAgedPayables:
             )
 
         assert "Reports" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_calls_correct_endpoint(self, mock_context):
@@ -135,6 +136,7 @@ class TestGetAgedReceivables:
             )
 
         assert "Reports" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_calls_correct_endpoint(self, mock_context):
@@ -176,6 +178,7 @@ class TestGetBalanceSheet:
             result = await xero.execute_action("get_balance_sheet", {"tenant_id": "t-001"}, mock_context)
 
         assert "Reports" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_calls_balance_sheet_endpoint(self, mock_context):
@@ -219,6 +222,7 @@ class TestGetProfitAndLoss:
             result = await xero.execute_action("get_profit_and_loss", {"tenant_id": "t-001"}, mock_context)
 
         assert "Reports" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_calls_profit_loss_endpoint(self, mock_context):
@@ -271,6 +275,7 @@ class TestGetTrialBalance:
             result = await xero.execute_action("get_trial_balance", {"tenant_id": "t-001"}, mock_context)
 
         assert "Reports" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_payments_only_param(self, mock_context):
@@ -310,6 +315,7 @@ class TestGetAccounts:
             result = await xero.execute_action("get_accounts", {"tenant_id": "t-001"}, mock_context)
 
         assert "Accounts" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_where_and_order_params(self, mock_context):
@@ -348,6 +354,7 @@ class TestGetPayments:
             result = await xero.execute_action("get_payments", {"tenant_id": "t-001"}, mock_context)
 
         assert "Payments" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_pagination_params(self, mock_context):
