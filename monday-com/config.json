@@ -1,7 +1,7 @@
 {
     "name": "Monday.com",
     "display_name": "Monday.com",
-    "version": "0.1.0",
+    "version": "2.0.0",
     "description": "Manage boards, items, and workflows on Monday.com with powerful team collaboration features.",
     "entry_point": "monday_com.py",
     "auth": {
@@ -52,20 +52,11 @@
                     "board_count": {
                         "type": "integer",
                         "description": "Number of boards returned"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "boards",
-                    "board_count",
-                    "result"
+                    "board_count"
                 ]
             }
         },
@@ -111,20 +102,11 @@
                     "cursor": {
                         "type": ["string", "null"],
                         "description": "Cursor for next page (use in next request for pagination)"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "items",
-                    "item_count",
-                    "result"
+                    "item_count"
                 ]
             }
         },
@@ -163,19 +145,9 @@
                     "item": {
                         "type": ["object", "null"],
                         "description": "The created item object"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
 
@@ -210,19 +182,9 @@
                     "item": {
                         "type": ["object", "null"],
                         "description": "The updated item object"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
 
@@ -252,19 +214,9 @@
                     "update": {
                         "type": ["object", "null"],
                         "description": "The created update object"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
 
@@ -300,20 +252,11 @@
                     "user_count": {
                         "type": "integer",
                         "description": "Number of users returned"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "users",
-                    "user_count",
-                    "result"
+                    "user_count"
                 ]
             }
         }
