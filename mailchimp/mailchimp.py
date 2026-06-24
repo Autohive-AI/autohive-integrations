@@ -153,9 +153,7 @@ class GetListsAction(ActionHandler):
 @mailchimp.action("find_list")
 class FindListAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        name = inputs.get("name")
-        if not name:
-            return ActionError(message="name is required")
+        name = inputs["name"]
 
         try:
             dc = get_data_center(context)
@@ -187,9 +185,7 @@ class FindListAction(ActionHandler):
 @mailchimp.action("get_list")
 class GetListAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        list_id = inputs.get("list_id")
-        if not list_id:
-            return ActionError(message="list_id is required")
+        list_id = inputs["list_id"]
 
         try:
             dc = get_data_center(context)
@@ -209,19 +205,10 @@ class GetListAction(ActionHandler):
 @mailchimp.action("create_list")
 class CreateListAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        name = inputs.get("name")
-        permission_reminder = inputs.get("permission_reminder")
-        contact = inputs.get("contact")
-        campaign_defaults = inputs.get("campaign_defaults")
-
-        if not name:
-            return ActionError(message="name is required")
-        if not permission_reminder:
-            return ActionError(message="permission_reminder is required")
-        if not contact:
-            return ActionError(message="contact is required")
-        if not campaign_defaults:
-            return ActionError(message="campaign_defaults is required")
+        name = inputs["name"]
+        permission_reminder = inputs["permission_reminder"]
+        contact = inputs["contact"]
+        campaign_defaults = inputs["campaign_defaults"]
 
         try:
             dc = get_data_center(context)
@@ -255,16 +242,9 @@ class CreateListAction(ActionHandler):
 @mailchimp.action("add_member")
 class AddMemberAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        list_id = inputs.get("list_id")
-        email_address = inputs.get("email_address")
-        status = inputs.get("status")
-
-        if not list_id:
-            return ActionError(message="list_id is required")
-        if not email_address:
-            return ActionError(message="email_address is required")
-        if not status:
-            return ActionError(message="status is required")
+        list_id = inputs["list_id"]
+        email_address = inputs["email_address"]
+        status = inputs["status"]
 
         try:
             dc = get_data_center(context)
@@ -301,9 +281,7 @@ class AddMemberAction(ActionHandler):
 @mailchimp.action("update_member")
 class UpdateMemberAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        list_id = inputs.get("list_id")
-        if not list_id:
-            return ActionError(message="list_id is required")
+        list_id = inputs["list_id"]
 
         subscriber_hash = inputs.get("subscriber_hash")
         email_address = inputs.get("email_address")
@@ -353,9 +331,7 @@ class UpdateMemberAction(ActionHandler):
 @mailchimp.action("get_member")
 class GetMemberAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        list_id = inputs.get("list_id")
-        if not list_id:
-            return ActionError(message="list_id is required")
+        list_id = inputs["list_id"]
 
         subscriber_hash = inputs.get("subscriber_hash")
         email_address = inputs.get("email_address")
@@ -395,9 +371,7 @@ class GetMemberAction(ActionHandler):
 @mailchimp.action("get_list_members")
 class GetListMembersAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        list_id = inputs.get("list_id")
-        if not list_id:
-            return ActionError(message="list_id is required")
+        list_id = inputs["list_id"]
 
         try:
             dc = get_data_center(context)
@@ -432,9 +406,7 @@ class GetListMembersAction(ActionHandler):
 @mailchimp.action("find_campaign")
 class FindCampaignAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        query = inputs.get("query")
-        if not query:
-            return ActionError(message="query is required")
+        query = inputs["query"]
 
         try:
             dc = get_data_center(context)
@@ -502,22 +474,11 @@ class GetCampaignsAction(ActionHandler):
 @mailchimp.action("create_campaign")
 class CreateCampaignAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        campaign_type = inputs.get("type")
-        list_id = inputs.get("list_id")
-        subject_line = inputs.get("subject_line")
-        from_name = inputs.get("from_name")
-        reply_to = inputs.get("reply_to")
-
-        if not campaign_type:
-            return ActionError(message="type is required")
-        if not list_id:
-            return ActionError(message="list_id is required")
-        if not subject_line:
-            return ActionError(message="subject_line is required")
-        if not from_name:
-            return ActionError(message="from_name is required")
-        if not reply_to:
-            return ActionError(message="reply_to is required")
+        campaign_type = inputs["type"]
+        list_id = inputs["list_id"]
+        subject_line = inputs["subject_line"]
+        from_name = inputs["from_name"]
+        reply_to = inputs["reply_to"]
 
         try:
             dc = get_data_center(context)
@@ -560,9 +521,7 @@ class CreateCampaignAction(ActionHandler):
 @mailchimp.action("get_campaign")
 class GetCampaignAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        campaign_id = inputs.get("campaign_id")
-        if not campaign_id:
-            return ActionError(message="campaign_id is required")
+        campaign_id = inputs["campaign_id"]
 
         try:
             dc = get_data_center(context)
