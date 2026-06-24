@@ -4,6 +4,7 @@
     "description": "Xero accounting integration for invoice and bill management, purchase orders, reporting, file attachments, and PDF invoice retrieval",
     "entry_point": "xero.py",
     "supports_connected_account": true,
+    "supports_billing": true,
     "auth": {
         "type": "platform",
         "provider": "Xero",
