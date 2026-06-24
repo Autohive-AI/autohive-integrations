@@ -15,24 +15,14 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
 import os
-import sys
-import importlib.util
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, _parent)
+import aiohttp
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse, RateLimitError
+from autohive_integrations_sdk.integration import ResultType
 
-_spec = importlib.util.spec_from_file_location("mailchimp_mod", os.path.join(_parent, "mailchimp.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)  # type: ignore[union-attr]
-
-import aiohttp  # noqa: E402
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse, RateLimitError  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-mailchimp = _mod.mailchimp
-MailchimpConnectedAccountHandler = _mod.MailchimpConnectedAccountHandler
+from mailchimp.mailchimp import mailchimp, MailchimpConnectedAccountHandler
 
 pytestmark = pytest.mark.integration
 

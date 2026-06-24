@@ -2,29 +2,20 @@
 Unit tests for the Mailchimp integration using mocked fetch.
 """
 
-import os
-import sys
-import importlib.util
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+from autohive_integrations_sdk import FetchResponse, RateLimitError
+from autohive_integrations_sdk.integration import ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.insert(0, _parent)
-
-_spec = importlib.util.spec_from_file_location("mailchimp_mod", os.path.join(_parent, "mailchimp.py"))
-_mod = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_mod)  # type: ignore[union-attr]
-
-import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
-from autohive_integrations_sdk import FetchResponse, RateLimitError  # noqa: E402
-from autohive_integrations_sdk.integration import ResultType  # noqa: E402
-
-mailchimp = _mod.mailchimp
-MailchimpRateLimiter = _mod.MailchimpRateLimiter
-MailchimpRateLimitException = _mod.MailchimpRateLimitException
-get_mailchimp_base_url = _mod.get_mailchimp_base_url
-get_data_center = _mod.get_data_center
-get_subscriber_hash = _mod.get_subscriber_hash
-MailchimpConnectedAccountHandler = _mod.MailchimpConnectedAccountHandler
+from mailchimp.mailchimp import (
+    mailchimp,
+    MailchimpRateLimiter,
+    MailchimpRateLimitException,
+    get_mailchimp_base_url,
+    get_data_center,
+    get_subscriber_hash,
+    MailchimpConnectedAccountHandler,
+)
 
 pytestmark = pytest.mark.unit
 

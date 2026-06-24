@@ -1,10 +1,17 @@
-import os
-import sys
+"""Test configuration for the Mailchimp integration.
+
+Shared fixtures (``mock_context``, etc.) come from the repository-root
+``conftest.py``. Tests import the integration via the package path
+(``from mailchimp.mailchimp import ...``), which resolves from the repo root
+that pytest puts on ``sys.path``.
+
+Do NOT insert the integration directory onto ``sys.path`` here: that makes
+``mailchimp.py`` importable as a top-level module and shadows the ``mailchimp``
+package, breaking the package-style imports during collection.
+"""
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 @pytest.fixture
