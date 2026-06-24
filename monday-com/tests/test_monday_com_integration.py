@@ -28,9 +28,8 @@ pytestmark = pytest.mark.integration
 
 ACCESS_TOKEN = os.environ.get("MONDAY_ACCESS_TOKEN", "")
 
-# Optional: provide a known board/item so tests don't need to chain list→get.
+# Optional: provide a known board ID so tests don't need to chain list→get.
 TEST_BOARD_ID = os.environ.get("MONDAY_TEST_BOARD_ID", "")
-TEST_ITEM_ID = os.environ.get("MONDAY_TEST_ITEM_ID", "")
 
 skip_if_no_token = pytest.mark.skipif(
     not ACCESS_TOKEN,
@@ -65,6 +64,17 @@ def live_context():
     return ctx
 
 
+async def context_fetch_graphql(live_context, query, variables=None):
+    """Execute a raw GraphQL mutation/query via the live context (best-effort; ignores errors)."""
+    url = "https://api.monday.com/v2"
+    headers = {
+        "Authorization": ACCESS_TOKEN,
+        "Content-Type": "application/json",
+        "API-Version": "2024-10",
+    }
+    await live_context.fetch(url, method="POST", json={"query": query, "variables": variables or {}}, headers=headers)
+
+
 async def _first_board_id(live_context):
     """Return a board id from the account, or skip if none exist."""
     if TEST_BOARD_ID:
@@ -78,21 +88,6 @@ async def _first_board_id(live_context):
     if not boards:
         pytest.skip("No boards on this account to test with")
     return boards[0]["id"]
-
-
-async def _first_item_id(live_context, board_id):
-    """Return an item id from a board, or skip if none exist."""
-    if TEST_ITEM_ID:
-        return TEST_ITEM_ID
-    from autohive_integrations_sdk import ResultType
-
-    result = await integration.execute_action("get_items", {"board_id": board_id, "limit": 1}, live_context)
-    if result.type != ResultType.ACTION:
-        pytest.skip(f"get_items failed: {result.result.message}")
-    items = result.result.data.get("items", [])
-    if not items:
-        pytest.skip("No items on this board to test with")
-    return items[0]["id"]
 
 
 # =============================================================================
@@ -246,7 +241,7 @@ async def test_get_users_item_has_expected_fields(live_context):
 @skip_if_no_token
 @pytest.mark.asyncio
 async def test_create_item_lifecycle(live_context):
-    """create_item → update_item → create_update lifecycle on a test board."""
+    """create_item → update_item → create_update → delete_item lifecycle on a test board."""
     from autohive_integrations_sdk import ResultType
 
     board_id = TEST_BOARD_ID
@@ -265,20 +260,25 @@ async def test_create_item_lifecycle(live_context):
     item_id = item["id"]
     assert item_id
 
-    # Update
-    update_result = await integration.execute_action(
-        "update_item",
-        {"board_id": board_id, "item_id": item_id, "column_values": "{}"},
-        live_context,
-    )
-    assert update_result.type == ResultType.ACTION, update_result.result.message
-    assert update_result.result.data.get("item") is not None
+    try:
+        # Update
+        update_result = await integration.execute_action(
+            "update_item",
+            {"board_id": board_id, "item_id": item_id, "column_values": "{}"},
+            live_context,
+        )
+        assert update_result.type == ResultType.ACTION, update_result.result.message
+        assert update_result.result.data.get("item") is not None
 
-    # Comment
-    comment_result = await integration.execute_action(
-        "create_update",
-        {"item_id": item_id, "body": "Autohive integration test comment — automated"},
-        live_context,
-    )
-    assert comment_result.type == ResultType.ACTION, comment_result.result.message
-    assert comment_result.result.data.get("update") is not None
+        # Comment
+        comment_result = await integration.execute_action(
+            "create_update",
+            {"item_id": item_id, "body": "Autohive integration test comment — automated"},
+            live_context,
+        )
+        assert comment_result.type == ResultType.ACTION, comment_result.result.message
+        assert comment_result.result.data.get("update") is not None
+    finally:
+        # Clean up: delete the test item so the board stays tidy.
+        delete_query = "mutation DeleteItem($item_id: ID!) { delete_item(item_id: $item_id) { id } }"
+        await context_fetch_graphql(live_context, delete_query, {"item_id": item_id})
