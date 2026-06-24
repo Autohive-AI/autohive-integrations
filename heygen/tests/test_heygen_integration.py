@@ -19,7 +19,7 @@ import sys
 import aiohttp
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, _parent)
@@ -45,6 +45,11 @@ def live_context():
                     resp_data = await resp.json(content_type=None)
                 except Exception:
                     resp_data = await resp.text()
+                if resp.status == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 60))
+                    raise RateLimitError(retry_after, resp.status, "Rate limit exceeded", str(resp_data))
+                if not resp.ok:
+                    raise HTTPError(resp.status, str(resp_data), resp_data)
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=resp_data)
 
     ctx = MagicMock(name="ExecutionContext")
@@ -206,12 +211,10 @@ class TestGetAvatarDetails:
 
 class TestCheckGenerationStatus:
     async def test_invalid_id_returns_api_error(self, live_context):
-        # A non-existent generation ID should return an API-level error, not crash
         result = await heygen_integration.execute_action(
             "check_generation_status", {"generation_id": "nonexistent_id_test"}, live_context
         )
-        # The action should complete (not throw) — API error is in response body
-        assert result is not None
+        assert result.type == ResultType.ACTION_ERROR
 
 
 # =============================================================================
@@ -221,11 +224,10 @@ class TestCheckGenerationStatus:
 
 class TestGetVideoStatus:
     async def test_invalid_id_returns_api_error(self, live_context):
-        # A non-existent video ID should return API-level error, not crash
         result = await heygen_integration.execute_action(
             "get_video_status", {"video_id": "nonexistent_video_id_test"}, live_context
         )
-        assert result is not None
+        assert result.type == ResultType.ACTION_ERROR
 
 
 # =============================================================================
