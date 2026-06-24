@@ -9,7 +9,7 @@ import pytest
 from unittest.mock import MagicMock, AsyncMock
 from autohive_integrations_sdk import FetchResponse, ResultType
 
-_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_parent = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.insert(0, _parent)
 
 import heygen.heygen as heygen_mod  # noqa: E402

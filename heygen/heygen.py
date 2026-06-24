@@ -35,11 +35,11 @@ class GeneratePhotoAvatarHandler(ActionHandler):
             "appearance": inputs["appearance"],
         }
 
-        if "callback_url" in inputs and inputs["callback_url"]:
-            request_body["callback_url"] = inputs["callback_url"]
+        if inputs.get("callback_url"):
+            request_body["callback_url"] = inputs.get("callback_url")
 
-        if "callback_id" in inputs and inputs["callback_id"]:
-            request_body["callback_id"] = inputs["callback_id"]
+        if inputs.get("callback_id"):
+            request_body["callback_id"] = inputs.get("callback_id")
 
         headers = get_auth_headers(context)
 
@@ -79,8 +79,8 @@ class CreateAvatarGroupHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> Dict[str, Any]:
         request_body = {"name": inputs["name"], "image_key": inputs["image_key"]}
 
-        if "generation_id" in inputs and inputs["generation_id"]:
-            request_body["generation_id"] = inputs["generation_id"]
+        if inputs.get("generation_id"):
+            request_body["generation_id"] = inputs.get("generation_id")
 
         headers = get_auth_headers(context)
 
@@ -103,8 +103,8 @@ class AddLooksToGroupHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> Dict[str, Any]:
         request_body = {"group_id": inputs["group_id"], "image_keys": inputs["image_keys"], "name": inputs["name"]}
 
-        if "generation_id" in inputs and inputs["generation_id"]:
-            request_body["generation_id"] = inputs["generation_id"]
+        if inputs.get("generation_id"):
+            request_body["generation_id"] = inputs.get("generation_id")
 
         headers = get_auth_headers(context)
 
@@ -189,11 +189,11 @@ class AddMotionToAvatarHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> Dict[str, Any]:
         request_body = {"id": inputs["id"]}
 
-        if "prompt" in inputs and inputs["prompt"]:
-            request_body["prompt"] = inputs["prompt"]
+        if inputs.get("prompt"):
+            request_body["prompt"] = inputs.get("prompt")
 
-        if "motion_type" in inputs and inputs["motion_type"]:
-            request_body["motion_type"] = inputs["motion_type"]
+        if inputs.get("motion_type"):
+            request_body["motion_type"] = inputs.get("motion_type")
 
         headers = get_auth_headers(context)
 
@@ -234,14 +234,14 @@ class ListAvatarGroupsHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> Dict[str, Any]:
         params = {}
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "limit" in inputs and inputs["limit"]:
-            params["limit"] = inputs["limit"]
+        if inputs.get("limit"):
+            params["limit"] = inputs.get("limit")
 
-        if "include_public" in inputs and inputs["include_public"] is not None:
-            params["include_public"] = inputs["include_public"]
+        if inputs.get("include_public") is not None:
+            params["include_public"] = inputs.get("include_public")
 
         headers = get_auth_headers(context)
 
@@ -327,8 +327,8 @@ class ListVoiceLocalesHandler(ActionHandler):
         headers = get_auth_headers(context)
         params = {}
 
-        if "voice_id" in inputs and inputs["voice_id"]:
-            params["voice_id"] = inputs["voice_id"]
+        if inputs.get("voice_id"):
+            params["voice_id"] = inputs.get("voice_id")
 
         try:
             response = await context.fetch(
@@ -346,11 +346,11 @@ class ListAvatarsHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> Dict[str, Any]:
         params = {}
 
-        if "page" in inputs and inputs["page"]:
-            params["page"] = inputs["page"]
+        if inputs.get("page"):
+            params["page"] = inputs.get("page")
 
-        if "limit" in inputs and inputs["limit"]:
-            params["limit"] = inputs["limit"]
+        if inputs.get("limit"):
+            params["limit"] = inputs.get("limit")
 
         headers = get_auth_headers(context)
 
@@ -404,23 +404,23 @@ class CreateAvatarVideoHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> Dict[str, Any]:
         request_body = {"video_inputs": inputs["video_inputs"]}
 
-        if "title" in inputs and inputs["title"]:
-            request_body["title"] = inputs["title"]
+        if inputs.get("title"):
+            request_body["title"] = inputs.get("title")
 
-        if "caption" in inputs and inputs["caption"] is not None:
-            request_body["caption"] = inputs["caption"]
+        if inputs.get("caption") is not None:
+            request_body["caption"] = inputs.get("caption")
 
-        if "dimension" in inputs and inputs["dimension"]:
-            request_body["dimension"] = inputs["dimension"]
+        if inputs.get("dimension"):
+            request_body["dimension"] = inputs.get("dimension")
 
-        if "folder_id" in inputs and inputs["folder_id"]:
-            request_body["folder_id"] = inputs["folder_id"]
+        if inputs.get("folder_id"):
+            request_body["folder_id"] = inputs.get("folder_id")
 
-        if "callback_id" in inputs and inputs["callback_id"]:
-            request_body["callback_id"] = inputs["callback_id"]
+        if inputs.get("callback_id"):
+            request_body["callback_id"] = inputs.get("callback_id")
 
-        if "callback_url" in inputs and inputs["callback_url"]:
-            request_body["callback_url"] = inputs["callback_url"]
+        if inputs.get("callback_url"):
+            request_body["callback_url"] = inputs.get("callback_url")
 
         headers = get_auth_headers(context)
 
@@ -440,29 +440,29 @@ class CreatePhotoAvatarVideoHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> Dict[str, Any]:
         request_body = {"image_key": inputs["image_key"], "video_title": inputs["video_title"]}
 
-        if "script" in inputs and inputs["script"]:
-            request_body["script"] = inputs["script"]
+        if inputs.get("script"):
+            request_body["script"] = inputs.get("script")
 
-        if "voice_id" in inputs and inputs["voice_id"]:
-            request_body["voice_id"] = inputs["voice_id"]
+        if inputs.get("voice_id"):
+            request_body["voice_id"] = inputs.get("voice_id")
 
-        if "audio_url" in inputs and inputs["audio_url"]:
-            request_body["audio_url"] = inputs["audio_url"]
+        if inputs.get("audio_url"):
+            request_body["audio_url"] = inputs.get("audio_url")
 
-        if "audio_asset_id" in inputs and inputs["audio_asset_id"]:
-            request_body["audio_asset_id"] = inputs["audio_asset_id"]
+        if inputs.get("audio_asset_id"):
+            request_body["audio_asset_id"] = inputs.get("audio_asset_id")
 
-        if "video_orientation" in inputs and inputs["video_orientation"]:
-            request_body["video_orientation"] = inputs["video_orientation"]
+        if inputs.get("video_orientation"):
+            request_body["video_orientation"] = inputs.get("video_orientation")
 
-        if "fit" in inputs and inputs["fit"]:
-            request_body["fit"] = inputs["fit"]
+        if inputs.get("fit"):
+            request_body["fit"] = inputs.get("fit")
 
-        if "custom_motion_prompt" in inputs and inputs["custom_motion_prompt"]:
-            request_body["custom_motion_prompt"] = inputs["custom_motion_prompt"]
+        if inputs.get("custom_motion_prompt"):
+            request_body["custom_motion_prompt"] = inputs.get("custom_motion_prompt")
 
-        if "enhance_custom_motion_prompt" in inputs and inputs["enhance_custom_motion_prompt"] is not None:
-            request_body["enhance_custom_motion_prompt"] = inputs["enhance_custom_motion_prompt"]
+        if inputs.get("enhance_custom_motion_prompt") is not None:
+            request_body["enhance_custom_motion_prompt"] = inputs.get("enhance_custom_motion_prompt")
 
         headers = get_auth_headers(context)
 
