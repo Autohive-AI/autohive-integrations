@@ -18,7 +18,7 @@ USER_OUTPUT_SUBDIR = "user_generated_files"
 @code_analysis.action("execute_python_code")
 class ExecutePythonCodeAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
-        python_code: str = inputs.get("python_code")
+        python_code: str = inputs["python_code"]
         if not python_code:
             raise ValueError("python_code is a required input.")
 

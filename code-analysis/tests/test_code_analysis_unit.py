@@ -3,10 +3,14 @@ import os
 import base64
 import unittest
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "dependencies"))
 
 from code_analysis import ExecutePythonCodeAction
+
+pytestmark = pytest.mark.unit
 
 
 class MockLogger:
@@ -105,6 +109,15 @@ print(len(lines))
         context = MockContext()
 
         inputs = {}
+
+        with self.assertRaises(KeyError):
+            await action.execute(inputs, context)
+
+    async def test_empty_python_code(self):
+        action = ExecutePythonCodeAction()
+        context = MockContext()
+
+        inputs = {"python_code": ""}
 
         with self.assertRaises(ValueError):
             await action.execute(inputs, context)

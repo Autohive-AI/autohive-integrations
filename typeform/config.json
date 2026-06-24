@@ -1,7 +1,7 @@
 {
   "name": "Typeform",
   "display_name": "Typeform",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Integration with Typeform for managing forms, responses, workspaces, themes, images, and webhooks. Rate limit handling: If an action returns error_type='rate_limit', wait retry_after_seconds and call the action again with _retry_attempt incremented. Maximum 3 retries recommended.",
   "entry_point": "typeform.py",
   "auth": {
