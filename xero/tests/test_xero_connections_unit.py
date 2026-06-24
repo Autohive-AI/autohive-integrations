@@ -51,6 +51,7 @@ class TestGetAvailableConnections:
 
         assert result.result.data["companies"][0]["tenant_id"] == "tenant-001"
         assert result.result.data["companies"][0]["company_name"] == "Acme Corp"
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_returns_all_companies(self, mock_context):
@@ -129,6 +130,7 @@ class TestFindContactByName:
 
         assert result.result.data["contacts"][0]["contact_id"] == "c-001"
         assert result.result.data["contacts"][0]["name"] == "Acme Corp"
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_calls_correct_url_with_filter(self, mock_context):

@@ -64,6 +64,7 @@ class TestGetPurchaseOrders:
 
         assert "PurchaseOrders" in result.result.data
         assert len(result.result.data["PurchaseOrders"]) == 1
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_calls_correct_endpoint(self, mock_context):
@@ -152,6 +153,7 @@ class TestCreatePurchaseOrder:
             )
 
         assert "PurchaseOrders" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_posts_to_purchase_orders_endpoint(self, mock_context):
@@ -267,6 +269,7 @@ class TestUpdatePurchaseOrder:
             )
 
         assert "PurchaseOrders" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_posts_to_correct_url(self, mock_context):
@@ -315,6 +318,7 @@ class TestDeletePurchaseOrder:
             )
 
         assert result.result.data["PurchaseOrders"][0]["Status"] == "DELETED"
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_payload_sets_status_deleted(self, mock_context):
@@ -362,6 +366,7 @@ class TestGetPurchaseOrderHistory:
             )
 
         assert "HistoryRecords" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_calls_history_endpoint(self, mock_context):
@@ -414,6 +419,7 @@ class TestAddNoteToPurchaseOrder:
             )
 
         assert "HistoryRecords" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_calls_history_endpoint_with_put(self, mock_context):

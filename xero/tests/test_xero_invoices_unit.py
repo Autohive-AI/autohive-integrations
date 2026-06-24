@@ -65,6 +65,7 @@ class TestGetInvoices:
 
         assert "Invoices" in result.result.data
         assert len(result.result.data["Invoices"]) == 1
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_calls_invoices_endpoint(self, mock_context):
@@ -145,6 +146,7 @@ class TestGetBankTransactions:
             result = await xero.execute_action("get_bank_transactions", {"tenant_id": "t-001"}, mock_context)
 
         assert "BankTransactions" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_where_and_page_params(self, mock_context):
@@ -197,6 +199,7 @@ class TestCreateSalesInvoice:
             )
 
         assert "Invoices" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_posts_to_invoices_endpoint(self, mock_context):
@@ -352,6 +355,7 @@ class TestCreatePurchaseBill:
             )
 
         assert "Invoices" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_payload_has_accpay_type(self, mock_context):
@@ -411,6 +415,7 @@ class TestUpdateSalesInvoice:
             )
 
         assert "Invoices" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_posts_to_correct_url(self, mock_context):
@@ -463,6 +468,7 @@ class TestUpdatePurchaseBill:
             )
 
         assert "Invoices" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
@@ -509,6 +515,7 @@ class TestGetInvoicePdf:
         assert "file" in result.result.data
         assert result.result.data["file"]["name"] == "invoice_inv-001.pdf"
         assert result.result.data["file"]["content"] == base64.b64encode(pdf_bytes).decode("utf-8")
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_http_error_returns_action_error(self, mock_context):
