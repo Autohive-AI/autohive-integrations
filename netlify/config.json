@@ -1,7 +1,7 @@
 {
   "name": "Netlify",
   "display_name": "Netlify",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Integration with Netlify for managing sites, deployments, and hosting",
   "entry_point": "netlify.py",
   "auth": {
@@ -24,10 +24,6 @@
           "sites": {
             "type": "array",
             "description": "List of sites"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -55,10 +51,6 @@
           "site": {
             "type": "object",
             "description": "Created site details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -82,10 +74,6 @@
           "site": {
             "type": "object",
             "description": "Site details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -106,9 +94,9 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "result": {
+          "deleted": {
             "type": "boolean",
-            "description": "Operation success status"
+            "description": "Whether the site was successfully deleted"
           }
         }
       }
@@ -132,10 +120,6 @@
           "deploys": {
             "type": "array",
             "description": "List of deploys"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -167,10 +151,6 @@
           "deploy_url": {
             "type": "string",
             "description": "URL of the deployed site"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -194,10 +174,6 @@
           "deploy": {
             "type": "object",
             "description": "Deploy details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -229,10 +205,6 @@
           "site": {
             "type": "object",
             "description": "Updated site details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
