@@ -4,6 +4,7 @@ from autohive_integrations_sdk import (
     ActionHandler,
     ActionResult,
     ActionError,
+    RateLimitError,
     ConnectedAccountHandler,
     ConnectedAccountInfo,
 )
@@ -38,17 +39,6 @@ class MailchimpRateLimiter:
         self.default_retry_delay = default_retry_delay
         self.max_retries = max_retries
 
-    def _extract_retry_delay(self, response) -> int:
-        """Extract retry delay from FetchResponse headers"""
-        if hasattr(response, "headers"):
-            retry_after = response.headers.get("Retry-After")
-            if retry_after:
-                try:
-                    return int(retry_after)
-                except ValueError:
-                    pass
-        return self.default_retry_delay
-
     async def make_request(self, context: ExecutionContext, url: str, **kwargs) -> Dict[str, Any]:
         """Make request to Mailchimp API with automatic retry on rate limit errors"""
         last_error = None
@@ -56,23 +46,21 @@ class MailchimpRateLimiter:
         for attempt in range(self.max_retries + 1):
             try:
                 response = await context.fetch(url, **kwargs)
-
-                if response.status == 429:
-                    if attempt >= self.max_retries:
-                        delay = self._extract_retry_delay(response)
-                        raise MailchimpRateLimitException(delay)
-                    delay = self._extract_retry_delay(response)
-                    await asyncio.sleep(delay)
-                    continue
-
                 return response.data
 
             except MailchimpRateLimitException:
                 raise
+            except RateLimitError as e:
+                # SDK raises RateLimitError for HTTP 429; e.retry_after comes from the Retry-After header
+                if attempt >= self.max_retries:
+                    raise MailchimpRateLimitException(e.retry_after)
+                await asyncio.sleep(e.retry_after)
+                continue
             except Exception as e:
                 last_error = e
                 error_str = str(e).lower()
 
+                # Fallback for non-SDK rate-limit signals (e.g. network-level errors)
                 if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
                     if attempt >= self.max_retries:
                         raise MailchimpRateLimitException(self.default_retry_delay)

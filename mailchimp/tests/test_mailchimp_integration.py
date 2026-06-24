@@ -28,7 +28,7 @@ _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
 import aiohttp  # noqa: E402
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
+from autohive_integrations_sdk import FetchResponse, RateLimitError  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
 mailchimp = _mod.mailchimp
@@ -67,6 +67,9 @@ def live_context(env_credentials):
         merged_headers["Authorization"] = f"Bearer {access_token}"
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
+                if resp.status == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 60))
+                    raise RateLimitError(retry_after, resp.status, "Rate limit exceeded")
                 data = await resp.json(content_type=None)
                 return FetchResponse(
                     status=resp.status,

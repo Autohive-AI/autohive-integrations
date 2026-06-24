@@ -15,7 +15,7 @@ _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
 
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
-from autohive_integrations_sdk import FetchResponse  # noqa: E402
+from autohive_integrations_sdk import FetchResponse, RateLimitError  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
 mailchimp = _mod.mailchimp
@@ -91,31 +91,37 @@ class TestMailchimpRateLimiter:
 
     @pytest.mark.asyncio
     @patch("asyncio.sleep", new_callable=AsyncMock)
-    async def test_retries_on_429_status(self, mock_sleep, mock_context):
-        limiter = MailchimpRateLimiter(default_retry_delay=1, max_retries=1)
+    async def test_retries_on_rate_limit_error(self, mock_sleep, mock_context):
+        # SDK raises RateLimitError for HTTP 429; make_request should retry using e.retry_after
+        limiter = MailchimpRateLimiter(max_retries=1)
         mock_context.fetch.side_effect = [
-            FetchResponse(status=429, headers={}, data={}),
+            RateLimitError(retry_after=5, status=429, message="Rate limit exceeded"),
             ok({"lists": []}),
         ]
         result = await limiter.make_request(mock_context, "https://example.com/lists")
         assert result == {"lists": []}
-        mock_sleep.assert_called_once_with(1)
+        mock_sleep.assert_called_once_with(5)
 
     @pytest.mark.asyncio
     @patch("asyncio.sleep", new_callable=AsyncMock)
-    async def test_raises_after_max_retries_on_429(self, mock_sleep, mock_context):
-        limiter = MailchimpRateLimiter(default_retry_delay=1, max_retries=1)
-        mock_context.fetch.return_value = FetchResponse(status=429, headers={}, data={})
-        with pytest.raises(MailchimpRateLimitException):
-            await limiter.make_request(mock_context, "https://example.com/lists")
-
-    @pytest.mark.asyncio
-    async def test_uses_retry_after_header(self, mock_context):
-        limiter = MailchimpRateLimiter(default_retry_delay=60, max_retries=0)
-        mock_context.fetch.return_value = FetchResponse(status=429, headers={"Retry-After": "30"}, data={})
+    async def test_raises_after_max_retries_on_rate_limit_error(self, mock_sleep, mock_context):
+        limiter = MailchimpRateLimiter(max_retries=1)
+        mock_context.fetch.side_effect = RateLimitError(retry_after=30, status=429, message="Rate limit exceeded")
         with pytest.raises(MailchimpRateLimitException) as exc_info:
             await limiter.make_request(mock_context, "https://example.com/lists")
         assert exc_info.value.retry_after == 30
+
+    @pytest.mark.asyncio
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_uses_retry_after_from_sdk_error(self, mock_sleep, mock_context):
+        # e.retry_after (from Retry-After header) is used as the sleep delay, not default_retry_delay
+        limiter = MailchimpRateLimiter(default_retry_delay=60, max_retries=1)
+        mock_context.fetch.side_effect = [
+            RateLimitError(retry_after=120, status=429, message="Rate limit exceeded"),
+            ok({}),
+        ]
+        await limiter.make_request(mock_context, "https://example.com/")
+        mock_sleep.assert_called_once_with(120)
 
     @pytest.mark.asyncio
     async def test_non_rate_limit_exception_reraises(self, mock_context):
@@ -127,20 +133,11 @@ class TestMailchimpRateLimiter:
     @pytest.mark.asyncio
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_string_based_429_fallback(self, mock_sleep, mock_context):
+        # Fallback for non-SDK rate-limit signals in exception messages
         limiter = MailchimpRateLimiter(default_retry_delay=1, max_retries=0)
         mock_context.fetch.side_effect = Exception("HTTP 429: Too Many Requests")
         with pytest.raises(MailchimpRateLimitException):
             await limiter.make_request(mock_context, "https://example.com/lists")
-
-    def test_extract_retry_delay_uses_default_when_header_missing(self):
-        limiter = MailchimpRateLimiter(default_retry_delay=45)
-        response = FetchResponse(status=429, headers={}, data={})
-        assert limiter._extract_retry_delay(response) == 45
-
-    def test_extract_retry_delay_uses_default_when_header_invalid(self):
-        limiter = MailchimpRateLimiter(default_retry_delay=45)
-        response = FetchResponse(status=429, headers={"Retry-After": "not-a-number"}, data={})
-        assert limiter._extract_retry_delay(response) == 45
 
 
 # =============================================================================
@@ -262,7 +259,7 @@ class TestGetLists:
     @pytest.mark.asyncio
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_rate_limit_returns_action_error(self, mock_sleep, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=429, headers={"Retry-After": "5"}, data={})
+        mock_context.fetch.side_effect = RateLimitError(retry_after=5, status=429, message="Rate limit exceeded")
         result = await mailchimp.execute_action("get_lists", {}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "Rate limit" in result.result.message
