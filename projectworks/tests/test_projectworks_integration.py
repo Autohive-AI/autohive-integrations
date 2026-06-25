@@ -189,6 +189,13 @@ class TestListLeaves:
         assert isinstance(data["leaves"], list)
 
 
+class TestListLeaveTypes:
+    async def test_returns_leave_types(self, live_context):
+        result = await projectworks.execute_action("list_leave_types", {}, live_context)
+        data = ok_data(result)
+        assert isinstance(data["leave_types"], list)
+
+
 # ---- Invoices ----
 
 

@@ -1,11 +1,52 @@
 import base64
 from typing import Any, Dict, List
 
+import aiohttp
 from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, Integration
 
 projectworks = Integration.load()
 
 BASE_URL = "https://api.projectworksapp.com/api/v1"
+
+# Time-cap for direct file downloads so a stalled download fails cleanly.
+_FILE_DOWNLOAD_TIMEOUT = aiohttp.ClientTimeout(total=25)
+
+
+async def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
+    """Resolve raw bytes from an Autohive file object.
+
+    The platform attaches files as an object carrying either base64 ``content``
+    or a pre-signed ``url``. We return the raw bytes so the caller can re-encode
+    them in whatever form the target API expects.
+    """
+    content_b64 = file_obj.get("content")
+    if content_b64:
+        try:
+            return base64.b64decode(content_b64)
+        except Exception:
+            raise ValueError("file 'content' is not valid base64-encoded data")
+
+    url = file_obj.get("url")
+    if url:
+        async with aiohttp.ClientSession(timeout=_FILE_DOWNLOAD_TIMEOUT) as session:
+            async with session.get(url) as resp:
+                if resp.status != 200:
+                    raise ValueError(f"Failed to download file from url: HTTP {resp.status}")
+                return await resp.read()
+
+    raise ValueError("file object missing 'content' (base64) or 'url' — attach a receipt file to the expense claim")
+
+
+async def _apply_expense_file(inputs: Dict[str, Any], body: Dict[str, Any]) -> None:
+    """If a ``file`` object is supplied, download/decode it and set the
+    ProjectWorks inline attachment fields (``fileName`` + base64 ``fileContent``)."""
+    file_obj = inputs.get("file")
+    if not file_obj:
+        return
+    file_bytes = await _resolve_file_bytes(file_obj)
+    body["fileContent"] = base64.b64encode(file_bytes).decode("utf-8")
+    if not body.get("fileName"):
+        body["fileName"] = file_obj.get("name") or "receipt"
 
 
 def _get_headers(context: ExecutionContext) -> Dict[str, str]:
@@ -41,6 +82,20 @@ def _as_list(data: Any) -> List[Any]:
             if isinstance(data.get(key), list):
                 return data[key]
     return []
+
+
+def _as_object(data: Any) -> Dict[str, Any]:
+    """Normalise a single-record response to an object.
+
+    Some ProjectWorks single-record endpoints return a one-element array
+    (or, on an empty result, a null/empty body) rather than a bare object.
+    """
+    if isinstance(data, list):
+        first = data[0] if data else None
+        return first if isinstance(first, dict) else {}
+    if isinstance(data, dict):
+        return data
+    return {}
 
 
 # Maps an input field name -> ProjectWorks query parameter name.
@@ -422,6 +477,25 @@ class GetLeaveAction(ActionHandler):
             return ActionError(message=str(e))
 
 
+@projectworks.action("list_leave_types")
+class ListLeaveTypesAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            return await _list(
+                context,
+                "Leaves/Types",
+                inputs,
+                {
+                    "type_id": "TypeID",
+                    "name": "Name",
+                    "is_active": "IsActive",
+                },
+                "leave_types",
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
 # =============================================================================
 # INVOICES
 # =============================================================================
@@ -503,7 +577,15 @@ class GetExpenseClaimAction(ActionHandler):
             params = {}
             if inputs.get("include_custom_fields") is not None:
                 params["includeCustomFields"] = inputs["include_custom_fields"]
-            return await _get(context, f"ExpenseClaims/{inputs['expense_claim_id']}", "expense_claim", params)
+            response = await context.fetch(
+                f"{BASE_URL}/ExpenseClaims/{inputs['expense_claim_id']}",
+                method="GET",
+                headers=_get_headers(context),
+                params=params,
+            )
+            _check_response(response)
+            # The endpoint may return a single-element array rather than a bare object.
+            return ActionResult(data={"expense_claim": _as_object(response.data)}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -862,11 +944,27 @@ class DeleteLeaveAction(ActionHandler):
 # =============================================================================
 
 
+async def _write_expense_claim(
+    context: ExecutionContext, method: str, path: str, inputs: Dict[str, Any]
+) -> ActionResult:
+    """Build the expense-claim body, attach the receipt file if supplied, and send it."""
+    body = _build_params(inputs, _EXPENSE_CLAIM_FIELDS)
+    await _apply_expense_file(inputs, body)
+    response = await context.fetch(
+        f"{BASE_URL}/{path}",
+        method=method,
+        headers=_get_headers(context),
+        json=body,
+    )
+    _check_response(response)
+    return ActionResult(data={"expense_claim": response.data}, cost_usd=0.0)
+
+
 @projectworks.action("create_expense_claim")
 class CreateExpenseClaimAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "POST", "ExpenseClaims", inputs, _EXPENSE_CLAIM_FIELDS, "expense_claim")
+            return await _write_expense_claim(context, "POST", "ExpenseClaims", inputs)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -875,14 +973,7 @@ class CreateExpenseClaimAction(ActionHandler):
 class UpdateExpenseClaimAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(
-                context,
-                "PUT",
-                f"ExpenseClaims/{inputs['expense_claim_id']}",
-                inputs,
-                _EXPENSE_CLAIM_FIELDS,
-                "expense_claim",
-            )
+            return await _write_expense_claim(context, "PUT", f"ExpenseClaims/{inputs['expense_claim_id']}", inputs)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -1041,14 +1132,17 @@ class UpdateTaskPlaceholderAction(ActionHandler):
 class UpdateUserRolesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(
-                context,
-                "PUT",
-                f"Users/{inputs['user_id']}/Roles",
-                inputs,
-                {"user_role_ids": "userRoleIDs"},
-                "roles",
+            user_id = inputs["user_id"]
+            role_ids = inputs["user_role_ids"]
+            response = await context.fetch(
+                f"{BASE_URL}/Users/{user_id}/Roles",
+                method="PUT",
+                headers=_get_headers(context),
+                json={"userRoleIDs": role_ids},
             )
+            _check_response(response)
+            # The endpoint returns an empty 200 body, so echo the applied state.
+            return ActionResult(data={"user_id": user_id, "user_role_ids": role_ids, "updated": True}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -1057,14 +1151,17 @@ class UpdateUserRolesAction(ActionHandler):
 class UpdateUserLeaveBalancesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(
-                context,
-                "PUT",
-                f"Users/{inputs['user_id']}/LeaveBalances",
-                inputs,
-                {"balances": "balances"},
-                "leave_balances",
+            user_id = inputs["user_id"]
+            balances = inputs["balances"]
+            response = await context.fetch(
+                f"{BASE_URL}/Users/{user_id}/LeaveBalances",
+                method="PUT",
+                headers=_get_headers(context),
+                json={"balances": balances},
             )
+            _check_response(response)
+            # The endpoint returns an empty 200 body, so echo the applied state.
+            return ActionResult(data={"user_id": user_id, "balances": balances, "updated": True}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 

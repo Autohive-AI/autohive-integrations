@@ -34,6 +34,7 @@ ProjectWorks uses HTTP Basic authentication with an API account (the Consumer Ke
 | `list_timesheets` | List timesheet entries | `user_id`, `task_id`, `date` | `timesheets[]` |
 | `list_leaves` | List leave requests | `user_id`, `type_id`, `status_id` | `leaves[]` |
 | `get_leave` | Get a single leave request | `leave_id` | `leave` |
+| `list_leave_types` | List configured leave types (for `create_leave`'s `typeID`) | `name`, `is_active` | `leave_types[]` |
 | `list_invoices` | List invoices | `client_id`, `project_id`, `status_id` | `invoices[]` |
 | `get_invoice` | Get a single invoice | `invoice_id` | `invoice` |
 | `list_expense_claims` | List expense claims | `user_id`, `project_id`, `is_billable` | `expense_claims[]` |
@@ -54,7 +55,7 @@ All `list_*` actions accept `page` (default 1) and `page_size` (default 100) for
 | `create_task` / `update_task` / `delete_task` | Manage tasks | create: `module_id`, `task_name` |
 | `create_user` / `update_user` / `delete_user` | Manage users | create: `email`, `first_name`, `last_name` |
 | `create_leave` / `update_leave` / `delete_leave` | Manage leave | create: `user_id`, `status_id`, `days` |
-| `create_expense_claim` / `update_expense_claim` / `delete_expense_claim` | Manage expense claims | create: `user_id`, `project_id`, `module_id`, `expense_claim_type_id`, `is_reimbursable`, `is_processed`, `date`, `amount`, `currency_id`, `tax_type_id` |
+| `create_expense_claim` / `update_expense_claim` / `delete_expense_claim` | Manage expense claims | create: `user_id`, `project_id`, `module_id`, `expense_claim_type_id`, `is_reimbursable`, `is_processed`, `date`, `amount`, `currency_id`, `tax_type_id` (most accounts also require a receipt — see the `file` input) |
 | `create_timesheet` / `update_timesheet` / `delete_timesheet` | Manage time entries | create: `user_id`, `task_id`, `date`, `minutes` |
 
 #### Sub-resource updates
@@ -69,11 +70,15 @@ All `list_*` actions accept `page` (default 1) and `page_size` (default 100) for
 | `update_user_postings` | Create an employment posting for a user | `user_id`, `start_date`, `is_billable`, `recoverable`, `rate`, `office_id`, `location_id`, `team_id`, `position_id`, `agreement_type_id`, `currency_id` |
 | `set_custom_fields` | Create/update custom-field data on any entity | `entity_type` (`client`/`project`/`module`/`task`/`user`), `entity_id`, `fields` |
 
-> Reference IDs (office, currency, project/task type, status, etc.) come from the corresponding `list_*` actions or your ProjectWorks configuration. Array inputs use the API's field names:
-> - `create_leave` → `days`: `[{ "date": ISO8601, "typeID": int, "hours": number }]`
-> - `update_user_leave_balances` → `balances`: `[{ "leaveTypeID": int, "balance": number, "unit": "Hours"|"Days" }]`
+`update_user_roles` and `update_user_leave_balances` return an empty body from the API on success; the integration echoes the applied state plus `updated: true`.
+
+> Reference IDs (office, currency, project/task type, status, leave type, role, etc.) come from the corresponding `list_*` actions or your ProjectWorks configuration, and must already exist in your account. Array inputs use the API's field names:
+> - `create_leave` → `days`: `[{ "date": ISO8601, "typeID": int, "hours": number }]` — `typeID` is a **leave type ID** that must exist in your config (see Admin → Leave Types).
+> - `update_user_leave_balances` → `balances`: `[{ "leaveTypeID": int, "balance": number, "unit": "Hours"|"Days" }]` — requires the user to have an active **posting** first (use `update_user_postings`).
+> - `update_task_placeholder` → `role_id` must be a **configured role ID**; an unrecognised role ID makes the API return HTTP 500.
 > - `update_user_postings` → `capacity_days`: `[{ "dayOfWeekID": int, "hours": number }]`
 > - `set_custom_fields` → `fields`: `[{ "fieldID": int, "value": str, "multiSelectValues": [str] }]`
+> - `create_expense_claim` / `update_expense_claim` → attach a receipt with `file`: `{ "name": "receipt.pdf", "content": "<base64>" }` **or** `{ "name": "receipt.pdf", "url": "https://…" }`. When a `url` is given the integration downloads it and base64-encodes the bytes itself, so the caller never has to produce base64. Most ProjectWorks accounts reject an expense claim with no file (`HTTP 400: Must include at least one file`).
 
 ## API Info
 
@@ -104,3 +109,7 @@ pytest projectworks/tests/test_projectworks_integration.py -m "integration and d
 | `401 Unauthorized` | Invalid Consumer Key/Secret, or using your web login | Use an API account's Consumer Key/Secret from Admin → API Accounts |
 | `403 Forbidden` | API account lacks permission for the resource | Check the API account's role/permissions in ProjectWorks |
 | Empty result list | Filters too narrow, or beyond the last page | Loosen filters; page until a partial (< `page_size`) page is returned |
+| `create_leave` rejects the request | The `typeID` in `days` is not a leave type configured in your account | Use a real leave type ID (Admin → Leave Types) |
+| `update_task_placeholder` returns HTTP 500 | The `role_id` is not a configured role in your account | Use a valid role ID from your ProjectWorks role configuration |
+| `update_user_leave_balances` fails | The user has no posting yet | Create a posting with `update_user_postings` before setting balances |
+| `create_expense_claim` → `HTTP 400: Must include at least one file` | Your account requires a receipt on expense claims | Pass a `file` object (`content` base64 or a `url`) with the claim |

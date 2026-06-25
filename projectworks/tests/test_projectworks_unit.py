@@ -6,6 +6,8 @@ import pytest
 from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
 
+import aiohttp
+
 from projectworks.projectworks import projectworks, _as_list, _build_params, _get_headers, BASE_URL
 
 pytestmark = pytest.mark.unit
@@ -406,6 +408,24 @@ class TestGetLeave:
         assert mock_context.fetch.call_args.args[0] == f"{BASE_URL}/Leaves/21"
 
 
+class TestListLeaveTypes:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = ok([{"typeID": 5, "name": "Annual"}])
+        result = await projectworks.execute_action("list_leave_types", {"is_active": True}, mock_context)
+        assert result.result.data["leave_types"][0]["typeID"] == 5
+        assert mock_context.fetch.call_args.args[0] == f"{BASE_URL}/Leaves/Types"
+        assert mock_context.fetch.call_args.kwargs["params"]["IsActive"] is True
+
+    @pytest.mark.asyncio
+    async def test_filters_mapped(self, mock_context):
+        mock_context.fetch.return_value = ok([])
+        await projectworks.execute_action("list_leave_types", {"type_id": 5, "name": "Annual"}, mock_context)
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["TypeID"] == 5
+        assert params["Name"] == "Annual"
+
+
 # =============================================================================
 # INVOICES
 # =============================================================================
@@ -496,6 +516,19 @@ class TestGetExpenseClaim:
         mock_context.fetch.return_value = ok({"id": 44})
         await projectworks.execute_action("get_expense_claim", {"expense_claim_id": 44}, mock_context)
         assert mock_context.fetch.call_args.kwargs["params"] == {}
+
+    @pytest.mark.asyncio
+    async def test_single_element_array_is_unwrapped(self, mock_context):
+        # The endpoint can return a one-element array rather than a bare object.
+        mock_context.fetch.return_value = ok([{"id": 44}])
+        result = await projectworks.execute_action("get_expense_claim", {"expense_claim_id": 44}, mock_context)
+        assert result.result.data["expense_claim"] == {"id": 44}
+
+    @pytest.mark.asyncio
+    async def test_empty_body_yields_empty_object(self, mock_context):
+        mock_context.fetch.return_value = ok(None)
+        result = await projectworks.execute_action("get_expense_claim", {"expense_claim_id": 44}, mock_context)
+        assert result.result.data["expense_claim"] == {}
 
 
 # =============================================================================
@@ -837,6 +870,71 @@ class TestCreateExpenseClaim:
         assert body["isReimbursable"] is True
         assert body["isProcessed"] is False
 
+    @pytest.mark.asyncio
+    async def test_file_object_with_base64_content(self, mock_context):
+        mock_context.fetch.return_value = ok({"id": 11})
+        raw = b"%PDF-1.4 receipt"
+        content_b64 = base64.b64encode(raw).decode()
+        await projectworks.execute_action(
+            "create_expense_claim",
+            _expense_inputs(file={"name": "receipt.pdf", "content": content_b64}),
+            mock_context,
+        )
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["fileName"] == "receipt.pdf"
+        # Round-trips through bytes, so the body still carries valid base64 of the file.
+        assert base64.b64decode(body["fileContent"]) == raw
+
+    @pytest.mark.asyncio
+    async def test_file_object_with_url_is_downloaded(self, mock_context, monkeypatch):
+        mock_context.fetch.return_value = ok({"id": 11})
+        raw = b"%PDF-1.4 downloaded"
+
+        class _FakeResp:
+            status = 200
+
+            async def read(self):
+                return raw
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+        class _FakeSession:
+            def __init__(self, *a, **k):
+                pass
+
+            def get(self, url):
+                assert url == "https://files.example.com/receipt.pdf"
+                return _FakeResp()
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+        monkeypatch.setattr(aiohttp, "ClientSession", _FakeSession)
+        await projectworks.execute_action(
+            "create_expense_claim",
+            _expense_inputs(file={"name": "receipt.pdf", "url": "https://files.example.com/receipt.pdf"}),
+            mock_context,
+        )
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert base64.b64decode(body["fileContent"]) == raw
+
+    @pytest.mark.asyncio
+    async def test_invalid_base64_content_errors(self, mock_context):
+        mock_context.fetch.return_value = ok({"id": 11})
+        result = await projectworks.execute_action(
+            "create_expense_claim",
+            _expense_inputs(file={"name": "x.pdf", "content": "not!base64!"}),
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+
 
 class TestUpdateExpenseClaim:
     @pytest.mark.asyncio
@@ -971,6 +1069,16 @@ class TestUpdateUserRoles:
         assert call.kwargs["method"] == "PUT"
         assert call.kwargs["json"] == {"userRoleIDs": [1, 2, 3]}
 
+    @pytest.mark.asyncio
+    async def test_empty_body_echoes_applied_state(self, mock_context):
+        # The endpoint returns an empty 200 body (often null) — output must
+        # still satisfy the schema rather than passing through None.
+        mock_context.fetch.return_value = ok(None)
+        result = await projectworks.execute_action(
+            "update_user_roles", {"user_id": 50, "user_role_ids": [1, 2, 3]}, mock_context
+        )
+        assert result.result.data == {"user_id": 50, "user_role_ids": [1, 2, 3], "updated": True}
+
 
 class TestUpdateUserLeaveBalances:
     @pytest.mark.asyncio
@@ -984,6 +1092,15 @@ class TestUpdateUserLeaveBalances:
         assert call.args[0] == f"{BASE_URL}/Users/50/LeaveBalances"
         assert call.kwargs["method"] == "PUT"
         assert call.kwargs["json"] == {"balances": balances}
+
+    @pytest.mark.asyncio
+    async def test_empty_body_echoes_applied_state(self, mock_context):
+        mock_context.fetch.return_value = ok(None)
+        balances = [{"leaveTypeID": 1, "balance": 40, "unit": "Hours"}]
+        result = await projectworks.execute_action(
+            "update_user_leave_balances", {"user_id": 50, "balances": balances}, mock_context
+        )
+        assert result.result.data == {"user_id": 50, "balances": balances, "updated": True}
 
 
 class TestUpdateUserPostings:

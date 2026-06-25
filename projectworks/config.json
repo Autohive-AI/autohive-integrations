@@ -723,6 +723,50 @@
         ]
       }
     },
+    "list_leave_types": {
+      "display_name": "List Leave Types",
+      "description": "List the leave types configured in the account. Use the returned typeID values when creating or updating leave.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "type_id": {
+            "type": "integer",
+            "description": "Filter by a specific leave type ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Filter by leave type name"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Filter by active status"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "leave_types": {
+            "type": "array",
+            "description": "List of leave types (each with typeID, name, code, isActive, isPaid)"
+          }
+        },
+        "required": [
+          "leave_types"
+        ]
+      }
+    },
     "list_invoices": {
       "display_name": "List Invoices",
       "description": "List invoices. Optionally filter by invoice ID/number, client, project, billing contact, status, date range, or modified-since date.",
@@ -2137,6 +2181,28 @@
           "quantity": {
             "type": "number",
             "description": "Quantity"
+          },
+          "file": {
+            "type": "object",
+            "description": "Receipt/invoice file to attach. ProjectWorks usually requires at least one file when creating an expense claim. Supply either base64 'content' or a 'url' the integration will download.",
+            "properties": {
+              "content": {
+                "type": "string",
+                "description": "Base64-encoded file content"
+              },
+              "url": {
+                "type": "string",
+                "description": "URL the integration downloads and encodes (use instead of 'content')"
+              },
+              "name": {
+                "type": "string",
+                "description": "File name including extension, e.g. 'receipt.pdf'"
+              },
+              "contentType": {
+                "type": "string",
+                "description": "MIME type of the file, e.g. 'application/pdf'"
+              }
+            }
           }
         },
         "required": [
@@ -2238,6 +2304,28 @@
           "quantity": {
             "type": "number",
             "description": "Quantity"
+          },
+          "file": {
+            "type": "object",
+            "description": "Receipt/invoice file to attach. Supply either base64 'content' or a 'url' the integration will download.",
+            "properties": {
+              "content": {
+                "type": "string",
+                "description": "Base64-encoded file content"
+              },
+              "url": {
+                "type": "string",
+                "description": "URL the integration downloads and encodes (use instead of 'content')"
+              },
+              "name": {
+                "type": "string",
+                "description": "File name including extension, e.g. 'receipt.pdf'"
+              },
+              "contentType": {
+                "type": "string",
+                "description": "MIME type of the file, e.g. 'application/pdf'"
+              }
+            }
           }
         },
         "required": [
@@ -2621,13 +2709,26 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "roles": {
-            "type": "object",
-            "description": "The updated user roles"
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "user_role_ids": {
+            "type": "array",
+            "description": "The full set of role IDs now assigned to the user",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "updated": {
+            "type": "boolean",
+            "description": "True when the update succeeded"
           }
         },
         "required": [
-          "roles"
+          "user_id",
+          "user_role_ids",
+          "updated"
         ]
       }
     },
@@ -2676,13 +2777,40 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "leave_balances": {
-            "type": "object",
-            "description": "The updated leave balances"
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "balances": {
+            "type": "array",
+            "description": "The leave balances now set on the user",
+            "items": {
+              "type": "object",
+              "properties": {
+                "leaveTypeID": {
+                  "type": "integer",
+                  "description": "Leave type ID"
+                },
+                "balance": {
+                  "type": "number",
+                  "description": "Balance amount"
+                },
+                "unit": {
+                  "type": "string",
+                  "description": "Unit, e.g. 'Hours' or 'Days'"
+                }
+              }
+            }
+          },
+          "updated": {
+            "type": "boolean",
+            "description": "True when the update succeeded"
           }
         },
         "required": [
-          "leave_balances"
+          "user_id",
+          "balances",
+          "updated"
         ]
       }
     },
