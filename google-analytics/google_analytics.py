@@ -1,4 +1,4 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import ActionError, ActionResult, Integration, ExecutionContext, ActionHandler
 from typing import Dict, Any, List
 from google.analytics.data_v1beta import BetaAnalyticsDataClient
 from google.analytics.data_v1beta.types import (
@@ -25,7 +25,7 @@ def build_credentials(context: ExecutionContext):
     Returns:
         Google credentials object
     """
-    access_token = context.auth["credentials"]["access_token"]
+    access_token = context.auth.get("credentials", {}).get("access_token", "")
 
     creds = Credentials(token=access_token, token_uri="https://oauth2.googleapis.com/token")  # nosec B106
 
@@ -112,10 +112,10 @@ class RunReport(ActionHandler):
             # Format response
             rows = format_report_response(response)
 
-            return ActionResult(data={"rows": rows, "row_count": len(rows), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"rows": rows, "row_count": len(rows)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"rows": [], "row_count": 0, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_analytics.action("run_realtime_report")
@@ -148,10 +148,10 @@ class RunRealtimeReport(ActionHandler):
             # Format response (reuse the same format function)
             rows = format_report_response(response)
 
-            return ActionResult(data={"rows": rows, "row_count": len(rows), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"rows": rows, "row_count": len(rows)}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"rows": [], "row_count": 0, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_analytics.action("get_metadata")
@@ -182,10 +182,10 @@ class GetMetadata(ActionHandler):
                     {"api_name": metric.api_name, "ui_name": metric.ui_name, "description": metric.description}
                 )
 
-            return ActionResult(data={"dimensions": dimensions, "metrics": metrics, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"dimensions": dimensions, "metrics": metrics}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"dimensions": [], "metrics": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @google_analytics.action("batch_run_reports")
@@ -236,7 +236,7 @@ class BatchRunReports(ActionHandler):
                 rows = format_report_response(report_response)
                 reports.append({"rows": rows, "row_count": len(rows)})
 
-            return ActionResult(data={"reports": reports, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"reports": reports}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"reports": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
