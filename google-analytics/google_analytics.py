@@ -89,9 +89,7 @@ class RunReport(ActionHandler):
             ]
 
             # Build dimensions (optional)
-            dimensions = []
-            if "dimensions" in inputs and inputs["dimensions"]:
-                dimensions = [Dimension(name=d["name"]) for d in inputs["dimensions"]]
+            dimensions = [Dimension(name=d["name"]) for d in inputs.get("dimensions") or []]
 
             # Build metrics
             metrics = [Metric(name=m["name"]) for m in inputs["metrics"]]
@@ -127,9 +125,7 @@ class RunRealtimeReport(ActionHandler):
             property_id = inputs["property_id"]
 
             # Build dimensions (optional)
-            dimensions = []
-            if "dimensions" in inputs and inputs["dimensions"]:
-                dimensions = [Dimension(name=d["name"]) for d in inputs["dimensions"]]
+            dimensions = [Dimension(name=d["name"]) for d in inputs.get("dimensions") or []]
 
             # Build metrics
             metrics = [Metric(name=m["name"]) for m in inputs["metrics"]]
@@ -205,9 +201,7 @@ class BatchRunReports(ActionHandler):
                 ]
 
                 # Build dimensions (optional)
-                dimensions = []
-                if "dimensions" in req and req["dimensions"]:
-                    dimensions = [Dimension(name=d["name"]) for d in req["dimensions"]]
+                dimensions = [Dimension(name=d["name"]) for d in req.get("dimensions") or []]
 
                 # Build metrics
                 metrics = [Metric(name=m["name"]) for m in req["metrics"]]
