@@ -23,10 +23,7 @@
           "help_text": "Shown only once when the API account is created. Used as the Basic auth password."
         }
       },
-      "required": [
-        "consumer_key",
-        "consumer_secret"
-      ]
+      "required": []
     }
   },
   "actions": {
