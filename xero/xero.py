@@ -266,7 +266,7 @@ class GetAvailableConnectionsAction(ActionHandler):
                 if tenant_name and tenant_id:
                     companies.append({"tenant_id": tenant_id, "company_name": tenant_name})
 
-            return ActionResult(data={"companies": companies})
+            return ActionResult(data={"companies": companies}, cost_usd=0.0015)
 
         except Exception as e:
             return ActionError(message=f"Failed to get connections: {str(e)}")
@@ -303,7 +303,7 @@ class FindContactByNameAction(ActionHandler):
             )
 
             if not body or not body.get("Contacts"):
-                return ActionResult(data={"contacts": []})
+                return ActionResult(data={"contacts": []}, cost_usd=0.0015)
 
             # Extract comprehensive contact information
             contacts = []
@@ -338,7 +338,7 @@ class FindContactByNameAction(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"contacts": contacts})
+            return ActionResult(data={"contacts": contacts}, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -390,7 +390,7 @@ class GetAgedPayablesAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -442,7 +442,7 @@ class GetAgedReceivablesAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -494,7 +494,7 @@ class GetBalanceSheetAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -558,7 +558,7 @@ class GetProfitAndLossAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -610,7 +610,7 @@ class GetTrialBalanceAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -663,7 +663,7 @@ class GetAccountsAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -723,7 +723,7 @@ class GetPaymentsAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -815,7 +815,7 @@ class GetInvoicesAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -894,7 +894,8 @@ class GetInvoicePdfAction(ActionHandler):
                                 "content": content_base64,
                                 "contentType": content_type,
                             },
-                        }
+                        },
+                        cost_usd=0.0015,
                     )
 
         except asyncio.CancelledError:
@@ -958,7 +959,7 @@ class GetBankTransactionsAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -1051,7 +1052,7 @@ class CreateSalesInvoiceAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -1141,7 +1142,7 @@ class CreatePurchaseBillAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -1236,7 +1237,7 @@ class UpdateSalesInvoiceAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -1328,7 +1329,7 @@ class UpdatePurchaseBillAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -1421,7 +1422,7 @@ class AttachFileToInvoiceAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except asyncio.CancelledError:
             # CancelledError is a BaseException — without this catch it would
@@ -1514,7 +1515,7 @@ class AttachFileToBillAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except asyncio.CancelledError:
             # CancelledError is a BaseException — without this catch it would
@@ -1582,7 +1583,7 @@ class GetAttachmentsAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -1674,7 +1675,8 @@ class GetAttachmentContentAction(ActionHandler):
                         "content": content_base64,
                         "contentType": content_type,
                     },
-                }
+                },
+                cost_usd=0.0015,
             )
 
         except asyncio.CancelledError:
@@ -1754,7 +1756,7 @@ class GetPurchaseOrdersAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -1851,7 +1853,7 @@ class CreatePurchaseOrderAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -1951,7 +1953,7 @@ class UpdatePurchaseOrderAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -2008,7 +2010,7 @@ class DeletePurchaseOrderAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -2058,7 +2060,7 @@ class GetPurchaseOrderHistoryAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(
@@ -2119,7 +2121,7 @@ class AddNoteToPurchaseOrderAction(ActionHandler):
             if not response:
                 raise ValueError("Empty response from Xero API")
 
-            return ActionResult(data=response)
+            return ActionResult(data=response, cost_usd=0.0015)
 
         except XeroRateLimitExceededException as e:
             return ActionError(

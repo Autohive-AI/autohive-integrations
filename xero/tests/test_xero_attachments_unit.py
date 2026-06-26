@@ -71,6 +71,7 @@ class TestAttachFileToInvoice:
             )
 
         assert "Attachments" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_posts_with_decoded_bytes(self, mock_context):
@@ -186,6 +187,7 @@ class TestAttachFileToBill:
             )
 
         assert "Attachments" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_uses_bill_id_in_url(self, mock_context):
@@ -247,6 +249,7 @@ class TestGetAttachments:
             )
 
         assert "Attachments" in result.result.data
+        assert result.result.cost_usd == 0.0015
 
     @pytest.mark.asyncio
     async def test_calls_correct_endpoint(self, mock_context):
