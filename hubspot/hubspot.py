@@ -906,7 +906,7 @@ class CreateContactActionHandler(ActionHandler):
         :return: Dictionary with a "contact" key mapping to the created contact data.
         """
 
-        url = "https://api.hubapi.com/contacts/v1/contact"
+        url = "https://api.hubapi.com/crm/v3/objects/contacts"
 
         # Merge properties and additional_properties
         properties = inputs.get("properties", {}).copy()

@@ -399,7 +399,7 @@ class TestCreateContact:
         assert data["contact"]["id"] == "501"
         mock_context.fetch.assert_called_once()
         call_kwargs = mock_context.fetch.call_args
-        assert call_kwargs.args[0] == "https://api.hubapi.com/contacts/v1/contact"
+        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/v3/objects/contacts"
         assert call_kwargs.kwargs["method"] == "POST"
 
     @pytest.mark.asyncio
@@ -430,7 +430,7 @@ class TestCreateContact:
         )
 
         call_kwargs = mock_context.fetch.call_args
-        assert call_kwargs.args[0] == "https://api.hubapi.com/contacts/v1/contact"
+        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/v3/objects/contacts"
         assert call_kwargs.kwargs["method"] == "POST"
 
     @pytest.mark.asyncio
