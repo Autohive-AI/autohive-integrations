@@ -906,9 +906,6 @@ class CreateContactActionHandler(ActionHandler):
         :return: Dictionary with a "contact" key mapping to the created contact data.
         """
 
-        # Use v3 API endpoint. The legacy v1 endpoint expects properties as a
-        # list of {"property": ..., "value": ...} objects, whereas v3 accepts
-        # the {"properties": {...}} dict format we build below.
         url = "https://api.hubapi.com/crm/v3/objects/contacts"
 
         # Merge properties and additional_properties
