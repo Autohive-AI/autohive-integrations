@@ -1,6 +1,6 @@
 # ProjectWorks
 
-[ProjectWorks](https://www.projectworks.com) is a professional services automation (PSA) platform covering projects, resourcing, timesheets, leave, invoicing, and expenses. This integration provides read access to the core ProjectWorks entities.
+[ProjectWorks](https://www.projectworks.com) is a professional services automation (PSA) platform covering projects, resourcing, timesheets, leave, invoicing, and expenses. This integration provides full read and write access to the core ProjectWorks entities — listing and fetching records, creating/updating/deleting them, and managing sub-resources such as task assignments, user roles, leave balances, postings, and custom fields.
 
 ## Auth Setup
 
