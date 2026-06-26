@@ -21,6 +21,7 @@ ProjectWorks uses HTTP Basic authentication with an API account (the Consumer Ke
 |---|---|---|---|
 | `list_users` | List users/employees | `email`, `name`, `modified_since_date` | `users[]` |
 | `get_user` | Get a single user | `user_id` | `user` |
+| `list_roles` | List configured roles (for `update_user_roles` and `update_task_placeholder`) | `role_code` | `roles[]` |
 | `list_clients` | List clients/companies | `office_id`, `name`, `modified_since_date` | `clients[]` |
 | `get_client` | Get a single client | `client_id` | `client` |
 | `list_projects` | List projects | `client_id`, `user_id`, `project_number` | `projects[]` |
@@ -64,7 +65,7 @@ All `list_*` actions accept `page` (default 1) and `page_size` (default 100) for
 |---|---|---|
 | `update_project_user` | Set a user's rate card / rate on a project | `project_id`, `user_id` |
 | `update_task_user` | Create/replace a user's task assignment (hours, rate) | `task_id`, `user_id` |
-| `update_task_placeholder` | Create/replace a placeholder (unassigned role) on a task | `task_id` |
+| `update_task_placeholder` | Create/replace a placeholder (unassigned role) on a task | `task_id`, `role_id` (from `list_roles`) |
 | `update_user_roles` | Replace a user's set of role IDs | `user_id`, `user_role_ids` |
 | `update_user_leave_balances` | Replace a user's leave balances | `user_id`, `balances` |
 | `update_user_postings` | Create an employment posting for a user | `user_id`, `start_date`, `is_billable`, `recoverable`, `rate`, `office_id`, `location_id`, `team_id`, `position_id`, `agreement_type_id`, `currency_id` |
@@ -75,7 +76,7 @@ All `list_*` actions accept `page` (default 1) and `page_size` (default 100) for
 > Reference IDs (office, currency, project/task type, status, leave type, role, etc.) come from the corresponding `list_*` actions or your ProjectWorks configuration, and must already exist in your account. Array inputs use the API's field names:
 > - `create_leave` → `days`: `[{ "date": ISO8601, "typeID": int, "hours": number }]` — `typeID` is a **leave type ID** that must exist in your config (see Admin → Leave Types).
 > - `update_user_leave_balances` → `balances`: `[{ "leaveTypeID": int, "balance": number, "unit": "Hours"|"Days" }]` — requires the user to have an active **posting** first (use `update_user_postings`).
-> - `update_task_placeholder` → `role_id` must be a **configured role ID**; an unrecognised role ID makes the API return HTTP 500.
+> - `update_task_placeholder` → `role_id` is **required** and must be a configured role ID (look it up with `list_roles`); an unrecognised role ID makes the API return HTTP 500.
 > - `update_user_postings` → `capacity_days`: `[{ "dayOfWeekID": int, "hours": number }]`
 > - `set_custom_fields` → `fields`: `[{ "fieldID": int, "value": str, "multiSelectValues": [str] }]`
 > - `create_expense_claim` / `update_expense_claim` → attach a receipt with `file`: `{ "name": "receipt.pdf", "content": "<base64>" }` **or** `{ "name": "receipt.pdf", "url": "https://…" }`. When a `url` is given the integration downloads it and base64-encodes the bytes itself, so the caller never has to produce base64. Most ProjectWorks accounts reject an expense claim with no file (`HTTP 400: Must include at least one file`).
@@ -110,6 +111,6 @@ pytest projectworks/tests/test_projectworks_integration.py -m "integration and d
 | `403 Forbidden` | API account lacks permission for the resource | Check the API account's role/permissions in ProjectWorks |
 | Empty result list | Filters too narrow, or beyond the last page | Loosen filters; page until a partial (< `page_size`) page is returned |
 | `create_leave` rejects the request | The `typeID` in `days` is not a leave type configured in your account | Use a real leave type ID (Admin → Leave Types) |
-| `update_task_placeholder` returns HTTP 500 | The `role_id` is not a configured role in your account | Use a valid role ID from your ProjectWorks role configuration |
+| `update_task_placeholder` returns HTTP 500 | The `role_id` is not a configured role in your account | Use a valid role ID from `list_roles` |
 | `update_user_leave_balances` fails | The user has no posting yet | Create a posting with `update_user_postings` before setting balances |
 | `create_expense_claim` → `HTTP 400: Must include at least one file` | Your account requires a receipt on expense claims | Pass a `file` object (`content` base64 or a `url`) with the claim |

@@ -159,6 +159,21 @@ class TestGetUser:
         assert result.type == ResultType.ACTION_ERROR
 
 
+class TestListRoles:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = ok([{"userRoleID": 3, "code": "DEV", "description": "Developer"}])
+        result = await projectworks.execute_action("list_roles", {}, mock_context)
+        assert result.result.data["roles"][0]["userRoleID"] == 3
+        assert mock_context.fetch.call_args.args[0] == f"{BASE_URL}/Users/Roles"
+
+    @pytest.mark.asyncio
+    async def test_role_code_filter(self, mock_context):
+        mock_context.fetch.return_value = ok([])
+        await projectworks.execute_action("list_roles", {"role_code": "DEV"}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["params"]["roleCode"] == "DEV"
+
+
 # =============================================================================
 # CLIENTS
 # =============================================================================

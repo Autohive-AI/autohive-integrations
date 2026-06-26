@@ -111,6 +111,42 @@
         ]
       }
     },
+    "list_roles": {
+      "display_name": "List Roles",
+      "description": "List the roles configured in the account. Use the returned userRoleID values for update_user_roles and the role_id of update_task_placeholder.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "role_code": {
+            "type": "string",
+            "description": "Filter by a specific role code"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "description": "List of roles (each with userRoleID, code, description)"
+          }
+        },
+        "required": [
+          "roles"
+        ]
+      }
+    },
     "list_clients": {
       "display_name": "List Clients",
       "description": "List clients/companies. Optionally filter by office, client ID, name, external reference, or modified-since date.",
@@ -2643,7 +2679,7 @@
           },
           "role_id": {
             "type": "integer",
-            "description": "Role ID for the placeholder"
+            "description": "Role ID for the placeholder (required; get valid IDs from list_roles)"
           },
           "hours": {
             "type": "number",
@@ -2667,7 +2703,8 @@
           }
         },
         "required": [
-          "task_id"
+          "task_id",
+          "role_id"
         ]
       },
       "output_schema": {

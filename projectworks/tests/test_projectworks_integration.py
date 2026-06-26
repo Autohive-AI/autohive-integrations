@@ -91,6 +91,13 @@ class TestGetUser:
         assert isinstance(data["user"], dict)
 
 
+class TestListRoles:
+    async def test_returns_roles(self, live_context):
+        result = await projectworks.execute_action("list_roles", {}, live_context)
+        data = ok_data(result)
+        assert isinstance(data["roles"], list)
+
+
 # ---- Clients ----
 
 

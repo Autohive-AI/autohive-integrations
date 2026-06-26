@@ -221,6 +221,23 @@ class GetUserAction(ActionHandler):
             return ActionError(message=str(e))
 
 
+@projectworks.action("list_roles")
+class ListRolesAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            return await _list(
+                context,
+                "Users/Roles",
+                inputs,
+                {
+                    "role_code": "roleCode",
+                },
+                "roles",
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
 # =============================================================================
 # CLIENTS / COMPANIES
 # =============================================================================
