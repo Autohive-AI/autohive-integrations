@@ -1,7 +1,7 @@
 {
     "name": "Microsoft Planner",
     "display_name": "Microsoft Planner",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Microsoft Planner integration for managing plans, tasks, and buckets in Microsoft 365",
     "entry_point": "microsoft_planner.py",
     "auth": {
@@ -39,10 +39,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["groups", "result"]
@@ -83,10 +79,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["result"]
@@ -120,10 +112,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["users", "result"]
@@ -159,10 +147,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["result"]
@@ -191,10 +175,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["tasks", "result"]
@@ -223,10 +203,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["plans", "result"]
@@ -255,10 +231,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["plans", "result"]
@@ -287,10 +259,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["plan", "result"]
@@ -327,10 +295,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["plan", "result"]
@@ -363,10 +327,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["plan", "result"]
@@ -391,10 +351,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["result"]
@@ -423,10 +379,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["plan_details", "result"]
@@ -463,10 +415,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["plan_details", "result"]
@@ -495,10 +443,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["buckets", "result"]
@@ -527,10 +471,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["bucket", "result"]
@@ -567,10 +507,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["bucket", "result"]
@@ -603,10 +539,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["bucket", "result"]
@@ -631,10 +563,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["result"]
@@ -663,10 +591,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["tasks", "result"]
@@ -695,10 +619,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["tasks", "result"]
@@ -727,10 +647,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["task", "result"]
@@ -793,10 +709,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["task", "result"]
@@ -871,10 +783,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["task", "result"]
@@ -899,10 +807,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["result"]
@@ -931,10 +835,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["task_details", "result"]
@@ -979,10 +879,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["task_details", "result"]
@@ -1029,10 +925,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["result"]
@@ -1077,10 +969,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["result"]
@@ -1113,10 +1001,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["result"]
@@ -1145,10 +1029,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["board_format", "result"]
@@ -1185,10 +1065,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["board_format", "result"]
@@ -1217,10 +1093,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["board_format", "result"]
@@ -1253,10 +1125,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["board_format", "result"]
@@ -1285,10 +1153,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["board_format", "result"]
@@ -1321,10 +1185,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": ["board_format", "result"]
