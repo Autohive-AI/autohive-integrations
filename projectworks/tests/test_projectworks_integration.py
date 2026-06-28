@@ -84,7 +84,7 @@ class TestGetUser:
             listed = ok_data(await projectworks.execute_action("list_users", {"page_size": 1}, live_context))
             if not listed["users"]:
                 pytest.skip("No users in account to test with")
-            user_id = listed["users"][0].get("userID") or listed["users"][0].get("id")
+            user_id = listed["users"][0].get("UserID")
 
         result = await projectworks.execute_action("get_user", {"user_id": user_id}, live_context)
         data = ok_data(result)
@@ -115,7 +115,7 @@ class TestGetClient:
             listed = ok_data(await projectworks.execute_action("list_clients", {"page_size": 1}, live_context))
             if not listed["clients"]:
                 pytest.skip("No clients in account to test with")
-            client_id = listed["clients"][0].get("clientID") or listed["clients"][0].get("id")
+            client_id = listed["clients"][0].get("ClientID")
 
         result = await projectworks.execute_action("get_client", {"client_id": client_id}, live_context)
         data = ok_data(result)
@@ -139,7 +139,7 @@ class TestGetProject:
             listed = ok_data(await projectworks.execute_action("list_projects", {"page_size": 1}, live_context))
             if not listed["projects"]:
                 pytest.skip("No projects in account to test with")
-            project_id = listed["projects"][0].get("projectID") or listed["projects"][0].get("id")
+            project_id = listed["projects"][0].get("ProjectID")
 
         result = await projectworks.execute_action("get_project", {"project_id": project_id}, live_context)
         data = ok_data(result)
@@ -248,14 +248,15 @@ class TestTimesheetLifecycle:
 
     async def test_full_lifecycle(self, live_context):
         users = ok_data(await projectworks.execute_action("list_users", {"page_size": 1}, live_context))["users"]
-        tasks = ok_data(
-            await projectworks.execute_action("list_tasks", {"page_size": 1, "is_on_timesheet": True}, live_context)
-        )["tasks"]
-        if not users or not tasks:
-            pytest.skip("Need at least one user and one timesheet task to run the lifecycle")
+        # list_tasks has no server-side IsOnTimesheet filter, so page through and
+        # pick a timesheet-eligible task client-side.
+        tasks = ok_data(await projectworks.execute_action("list_tasks", {"page_size": 100}, live_context))["tasks"]
+        timesheet_tasks = [t for t in tasks if t.get("IsOnTimesheet")]
+        if not users or not timesheet_tasks:
+            pytest.skip("Need at least one user and one timesheet-eligible task to run the lifecycle")
 
-        user_id = users[0].get("userID") or users[0].get("id")
-        task_id = tasks[0].get("taskID") or tasks[0].get("id")
+        user_id = users[0].get("UserID")
+        task_id = timesheet_tasks[0].get("TaskID")
 
         # Create
         created = ok_data(
@@ -272,7 +273,7 @@ class TestTimesheetLifecycle:
             )
         )
         entry = created["timesheet"]
-        entry_id = entry.get("id") if isinstance(entry, dict) else None
+        entry_id = (entry.get("ID") or entry.get("id")) if isinstance(entry, dict) else None
         assert entry_id is not None
 
         # Update
