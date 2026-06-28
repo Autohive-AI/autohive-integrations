@@ -8,7 +8,7 @@ from autohive_integrations_sdk.integration import ResultType
 
 import aiohttp
 
-from projectworks.projectworks import projectworks, _as_list, _build_params, _get_headers, BASE_URL
+from projectworks.projectworks import projectworks, _as_list, _clean, _get_headers, BASE_URL
 
 pytestmark = pytest.mark.unit
 
@@ -66,20 +66,16 @@ class TestAsList:
         assert _as_list(None) == []
 
 
-class TestBuildParams:
-    def test_maps_and_skips_none(self):
-        inputs = {"user_id": 5, "email": None, "name": "Jane"}
-        mapping = {"user_id": "UserID", "email": "Email", "name": "Name"}
-        assert _build_params(inputs, mapping) == {"UserID": 5, "Name": "Jane"}
+class TestClean:
+    def test_drops_none(self):
+        assert _clean({"UserID": 5, "Email": None, "Name": "Jane"}) == {"UserID": 5, "Name": "Jane"}
 
     def test_keeps_falsey_non_none(self):
-        # 0 and False are valid filter values and must not be dropped.
-        inputs = {"is_billable": False, "page": 0}
-        mapping = {"is_billable": "IsBillable", "page": "page"}
-        assert _build_params(inputs, mapping) == {"IsBillable": False, "page": 0}
+        # 0 and False are valid values and must not be dropped.
+        assert _clean({"IsBillable": False, "page": 0}) == {"IsBillable": False, "page": 0}
 
-    def test_ignores_unmapped_inputs(self):
-        assert _build_params({"x": 1}, {"y": "Y"}) == {}
+    def test_empty(self):
+        assert _clean({"x": None}) == {}
 
 
 # =============================================================================

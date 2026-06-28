@@ -37,18 +37,6 @@ async def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
     raise ValueError("file object missing 'content' (base64) or 'url' — attach a receipt file to the expense claim")
 
 
-async def _apply_expense_file(inputs: Dict[str, Any], body: Dict[str, Any]) -> None:
-    """If a ``file`` object is supplied, download/decode it and set the
-    ProjectWorks inline attachment fields (``fileName`` + base64 ``fileContent``)."""
-    file_obj = inputs.get("file")
-    if not file_obj:
-        return
-    file_bytes = await _resolve_file_bytes(file_obj)
-    body["fileContent"] = base64.b64encode(file_bytes).decode("utf-8")
-    if not body.get("fileName"):
-        body["fileName"] = file_obj.get("name") or "receipt"
-
-
 def _get_headers(context: ExecutionContext) -> Dict[str, str]:
     creds = context.auth.get("credentials", context.auth)
     consumer_key = creds.get("consumer_key", "")
@@ -98,32 +86,20 @@ def _as_object(data: Any) -> Dict[str, Any]:
     return {}
 
 
-# Maps an input field name -> ProjectWorks query parameter name.
-def _build_params(inputs: Dict[str, Any], mapping: Dict[str, str]) -> Dict[str, Any]:
-    params: Dict[str, Any] = {}
-    for input_key, param_key in mapping.items():
-        value = inputs.get(input_key)
-        if value is not None:
-            params[param_key] = value
-    return params
+def _clean(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop keys whose value is None so unset inputs are not sent to the API.
+
+    Falsy-but-meaningful values (``False``, ``0``, ``""``) are preserved.
+    """
+    return {k: v for k, v in d.items() if v is not None}
 
 
-_PAGINATION = {"page": "page", "page_size": "pageSize"}
-
-
-async def _list(
-    context: ExecutionContext,
-    path: str,
-    inputs: Dict[str, Any],
-    mapping: Dict[str, str],
-    result_key: str,
-) -> ActionResult:
-    params = _build_params(inputs, {**mapping, **_PAGINATION})
+async def _list(context: ExecutionContext, path: str, result_key: str, params: Dict[str, Any]) -> ActionResult:
     response = await context.fetch(
         f"{BASE_URL}/{path}",
         method="GET",
         headers=_get_headers(context),
-        params=params,
+        params=_clean(params),
     )
     _check_response(response)
     return ActionResult(data={result_key: _as_list(response.data)}, cost_usd=0.0)
@@ -146,23 +122,14 @@ async def _get(
 
 
 async def _write(
-    context: ExecutionContext,
-    method: str,
-    path: str,
-    inputs: Dict[str, Any],
-    mapping: Dict[str, str],
-    result_key: str,
-    extra_body: Dict[str, Any] | None = None,
+    context: ExecutionContext, method: str, path: str, result_key: str, body: Dict[str, Any]
 ) -> ActionResult:
-    """POST/PUT/PATCH a mapped body and return the API's response object."""
-    body = _build_params(inputs, mapping)
-    if extra_body:
-        body.update(extra_body)
+    """POST/PUT/PATCH a body (None values dropped) and return the API's response object."""
     response = await context.fetch(
         f"{BASE_URL}/{path}",
         method=method,
         headers=_get_headers(context),
-        json=body,
+        json=_clean(body),
     )
     _check_response(response)
     return ActionResult(data={result_key: response.data}, cost_usd=0.0)
@@ -197,16 +164,17 @@ class ListUsersAction(ActionHandler):
             return await _list(
                 context,
                 "Users",
-                inputs,
-                {
-                    "user_id": "UserID",
-                    "email": "Email",
-                    "name": "Name",
-                    "external_reference": "ExternalReference",
-                    "modified_since_date": "ModifiedSinceDate",
-                    "include_custom_fields": "IncludeCustomFields",
-                },
                 "users",
+                {
+                    "UserID": inputs.get("user_id"),
+                    "Email": inputs.get("email"),
+                    "Name": inputs.get("name"),
+                    "ExternalReference": inputs.get("external_reference"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "IncludeCustomFields": inputs.get("include_custom_fields"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -228,11 +196,12 @@ class ListRolesAction(ActionHandler):
             return await _list(
                 context,
                 "Users/Roles",
-                inputs,
-                {
-                    "role_code": "roleCode",
-                },
                 "roles",
+                {
+                    "roleCode": inputs.get("role_code"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -250,16 +219,17 @@ class ListClientsAction(ActionHandler):
             return await _list(
                 context,
                 "Clients",
-                inputs,
-                {
-                    "office_id": "OfficeID",
-                    "client_id": "ClientID",
-                    "name": "Name",
-                    "external_reference": "ExternalReference",
-                    "modified_since_date": "ModifiedSinceDate",
-                    "include_custom_fields": "IncludeCustomFields",
-                },
                 "clients",
+                {
+                    "OfficeID": inputs.get("office_id"),
+                    "ClientID": inputs.get("client_id"),
+                    "Name": inputs.get("name"),
+                    "ExternalReference": inputs.get("external_reference"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "IncludeCustomFields": inputs.get("include_custom_fields"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -286,18 +256,19 @@ class ListProjectsAction(ActionHandler):
             return await _list(
                 context,
                 "Projects",
-                inputs,
-                {
-                    "client_id": "ClientID",
-                    "project_id": "ProjectID",
-                    "user_id": "UserID",
-                    "project_number": "ProjectNumber",
-                    "name": "Name",
-                    "external_reference": "ExternalReference",
-                    "modified_since_date": "ModifiedSinceDate",
-                    "include_custom_fields": "IncludeCustomFields",
-                },
                 "projects",
+                {
+                    "ClientID": inputs.get("client_id"),
+                    "ProjectID": inputs.get("project_id"),
+                    "UserID": inputs.get("user_id"),
+                    "ProjectNumber": inputs.get("project_number"),
+                    "Name": inputs.get("name"),
+                    "ExternalReference": inputs.get("external_reference"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "IncludeCustomFields": inputs.get("include_custom_fields"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -324,16 +295,17 @@ class ListModulesAction(ActionHandler):
             return await _list(
                 context,
                 "Modules",
-                inputs,
-                {
-                    "project_id": "ProjectID",
-                    "module_id": "ModuleID",
-                    "name": "Name",
-                    "external_reference": "ExternalReference",
-                    "modified_since_date": "ModifiedSinceDate",
-                    "include_custom_fields": "IncludeCustomFields",
-                },
                 "modules",
+                {
+                    "ProjectID": inputs.get("project_id"),
+                    "ModuleID": inputs.get("module_id"),
+                    "Name": inputs.get("name"),
+                    "ExternalReference": inputs.get("external_reference"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "IncludeCustomFields": inputs.get("include_custom_fields"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -360,18 +332,19 @@ class ListTasksAction(ActionHandler):
             return await _list(
                 context,
                 "Tasks",
-                inputs,
-                {
-                    "project_id": "ProjectID",
-                    "module_id": "ModuleID",
-                    "task_id": "TaskID",
-                    "user_id": "UserID",
-                    "name": "Name",
-                    "external_reference": "ExternalReference",
-                    "modified_since_date": "ModifiedSinceDate",
-                    "include_custom_fields": "IncludeCustomFields",
-                },
                 "tasks",
+                {
+                    "ProjectID": inputs.get("project_id"),
+                    "ModuleID": inputs.get("module_id"),
+                    "TaskID": inputs.get("task_id"),
+                    "UserID": inputs.get("user_id"),
+                    "Name": inputs.get("name"),
+                    "ExternalReference": inputs.get("external_reference"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "IncludeCustomFields": inputs.get("include_custom_fields"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -398,20 +371,21 @@ class ListResourcesAction(ActionHandler):
             return await _list(
                 context,
                 "Resources",
-                inputs,
-                {
-                    "after_resource_id": "AfterResourceID",
-                    "project_id": "ProjectID",
-                    "module_id": "ModuleID",
-                    "resource_type_id": "ResourceTypeID",
-                    "user_id": "UserID",
-                    "start_date": "StartDate",
-                    "end_date": "EndDate",
-                    "mode_id": "ModeID",
-                    "level_id": "LevelID",
-                    "modified_since_date": "ModifiedSinceDate",
-                },
                 "resources",
+                {
+                    "AfterResourceID": inputs.get("after_resource_id"),
+                    "ProjectID": inputs.get("project_id"),
+                    "ModuleID": inputs.get("module_id"),
+                    "ResourceTypeID": inputs.get("resource_type_id"),
+                    "UserID": inputs.get("user_id"),
+                    "StartDate": inputs.get("start_date"),
+                    "EndDate": inputs.get("end_date"),
+                    "ModeID": inputs.get("mode_id"),
+                    "LevelID": inputs.get("level_id"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -438,19 +412,20 @@ class ListTimesheetsAction(ActionHandler):
             return await _list(
                 context,
                 "Timesheets",
-                inputs,
-                {
-                    "timesheet_id": "ID",
-                    "user_id": "UserID",
-                    "task_id": "TaskID",
-                    "date": "Date",
-                    "comment": "Comment",
-                    "user_external_reference": "UserExternalReference",
-                    "task_external_reference": "TaskExternalReference",
-                    "modified_since_date": "ModifiedSinceDate",
-                    "include_custom_fields": "IncludeCustomFields",
-                },
                 "timesheets",
+                {
+                    "ID": inputs.get("timesheet_id"),
+                    "UserID": inputs.get("user_id"),
+                    "TaskID": inputs.get("task_id"),
+                    "Date": inputs.get("date"),
+                    "Comment": inputs.get("comment"),
+                    "UserExternalReference": inputs.get("user_external_reference"),
+                    "TaskExternalReference": inputs.get("task_external_reference"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "IncludeCustomFields": inputs.get("include_custom_fields"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -468,18 +443,19 @@ class ListLeavesAction(ActionHandler):
             return await _list(
                 context,
                 "Leaves",
-                inputs,
-                {
-                    "leave_id": "LeaveID",
-                    "user_id": "UserID",
-                    "type_id": "TypeID",
-                    "status_id": "StatusID",
-                    "start_date": "StartDate",
-                    "end_date": "EndDate",
-                    "external_reference": "ExternalReference",
-                    "modified_since_date": "ModifiedSinceDate",
-                },
                 "leaves",
+                {
+                    "LeaveID": inputs.get("leave_id"),
+                    "UserID": inputs.get("user_id"),
+                    "TypeID": inputs.get("type_id"),
+                    "StatusID": inputs.get("status_id"),
+                    "StartDate": inputs.get("start_date"),
+                    "EndDate": inputs.get("end_date"),
+                    "ExternalReference": inputs.get("external_reference"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -501,13 +477,14 @@ class ListLeaveTypesAction(ActionHandler):
             return await _list(
                 context,
                 "Leaves/Types",
-                inputs,
-                {
-                    "type_id": "TypeID",
-                    "name": "Name",
-                    "is_active": "IsActive",
-                },
                 "leave_types",
+                {
+                    "TypeID": inputs.get("type_id"),
+                    "Name": inputs.get("name"),
+                    "IsActive": inputs.get("is_active"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -525,19 +502,20 @@ class ListInvoicesAction(ActionHandler):
             return await _list(
                 context,
                 "Invoices",
-                inputs,
-                {
-                    "invoice_id": "InvoiceID",
-                    "invoice_number": "InvoiceNumber",
-                    "client_id": "ClientID",
-                    "project_id": "ProjectID",
-                    "billing_contact_id": "BillingContactID",
-                    "status_id": "StatusID",
-                    "start_date": "StartDate",
-                    "end_date": "EndDate",
-                    "modified_since_date": "ModifiedSinceDate",
-                },
                 "invoices",
+                {
+                    "InvoiceID": inputs.get("invoice_id"),
+                    "InvoiceNumber": inputs.get("invoice_number"),
+                    "ClientID": inputs.get("client_id"),
+                    "ProjectID": inputs.get("project_id"),
+                    "BillingContactID": inputs.get("billing_contact_id"),
+                    "StatusID": inputs.get("status_id"),
+                    "StartDate": inputs.get("start_date"),
+                    "EndDate": inputs.get("end_date"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -564,24 +542,25 @@ class ListExpenseClaimsAction(ActionHandler):
             return await _list(
                 context,
                 "ExpenseClaims",
-                inputs,
-                {
-                    "after_expense_claim_id": "AfterExpenseClaimID",
-                    "user_id": "UserID",
-                    "client_id": "ClientID",
-                    "project_id": "ProjectID",
-                    "module_id": "ModuleID",
-                    "expense_claim_type_id": "ExpenseClaimTypeID",
-                    "expense_claim_status_id": "ExpenseClaimStatusID",
-                    "is_reimbursable": "IsReimbursable",
-                    "is_billable": "IsBillable",
-                    "start_date": "StartDate",
-                    "end_date": "EndDate",
-                    "invoice_id": "InvoiceID",
-                    "modified_since_date": "ModifiedSinceDate",
-                    "include_custom_fields": "IncludeCustomFields",
-                },
                 "expense_claims",
+                {
+                    "AfterExpenseClaimID": inputs.get("after_expense_claim_id"),
+                    "UserID": inputs.get("user_id"),
+                    "ClientID": inputs.get("client_id"),
+                    "ProjectID": inputs.get("project_id"),
+                    "ModuleID": inputs.get("module_id"),
+                    "ExpenseClaimTypeID": inputs.get("expense_claim_type_id"),
+                    "ExpenseClaimStatusID": inputs.get("expense_claim_status_id"),
+                    "IsReimbursable": inputs.get("is_reimbursable"),
+                    "IsBillable": inputs.get("is_billable"),
+                    "StartDate": inputs.get("start_date"),
+                    "EndDate": inputs.get("end_date"),
+                    "InvoiceID": inputs.get("invoice_id"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "IncludeCustomFields": inputs.get("include_custom_fields"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -619,147 +598,18 @@ class ListOfficesAction(ActionHandler):
             return await _list(
                 context,
                 "Offices",
-                inputs,
-                {
-                    "office_id": "OfficeID",
-                    "name": "Name",
-                    "external_reference": "ExternalReference",
-                    "modified_since_date": "ModifiedSinceDate",
-                },
                 "offices",
+                {
+                    "OfficeID": inputs.get("office_id"),
+                    "Name": inputs.get("name"),
+                    "ExternalReference": inputs.get("external_reference"),
+                    "ModifiedSinceDate": inputs.get("modified_since_date"),
+                    "page": inputs.get("page"),
+                    "pageSize": inputs.get("page_size"),
+                },
             )
         except Exception as e:
             return ActionError(message=str(e))
-
-
-# =============================================================================
-# WRITE ACTIONS — field mappings (snake_case input -> ProjectWorks camelCase)
-# =============================================================================
-
-_CLIENT_FIELDS = {
-    "client_name": "clientName",
-    "account_manager_id": "accountManagerID",
-    "office_id": "officeID",
-    "currency_id": "currencyID",
-    "client_type_id": "clientTypeID",
-    "default_rate_card_id": "defaultRateCardID",
-    "default_tax_type_id": "defaultTaxTypeID",
-    "finance_email": "financeEmail",
-    "finance_phone": "financePhone",
-    "finance_notes": "financeNotes",
-    "is_active": "isActive",
-    "company_tax_number": "companyTaxNumber",
-    "address": "address",
-    "external_reference": "externalReference",
-}
-
-_PROJECT_FIELDS = {
-    "project_name": "projectName",
-    "office_id": "officeID",
-    "client_id": "clientID",
-    "project_type_id": "projectTypeID",
-    "project_status_id": "projectStatusID",
-    "currency_id": "currencyID",
-    "project_manager_id": "projectManagerID",
-    "account_manager_id": "accountManagerID",
-    "task_self_service_mode_id": "taskSelfServiceModeID",
-    "project_budget_type_id": "projectBudgetTypeID",
-    "project_number": "projectNumber",
-    "default_rate_card_id": "defaultRateCardID",
-    "start_date": "startDate",
-    "end_date": "endDate",
-    "is_active": "isActive",
-    "external_reference": "externalReference",
-}
-
-_MODULE_FIELDS = {
-    "project_id": "projectID",
-    "module_name": "moduleName",
-    "budget": "budget",
-    "is_services": "isServices",
-    "gl_code_id": "glCodeID",
-    "is_active": "isActive",
-    "fee_type_id": "feeTypeID",
-    "external_reference": "externalReference",
-}
-
-_TASK_FIELDS = {
-    "module_id": "moduleID",
-    "task_name": "taskName",
-    "task_type_id": "taskTypeID",
-    "start_date": "startDate",
-    "end_date": "endDate",
-    "is_on_timesheet": "isOnTimesheet",
-    "is_billable": "isBillable",
-    "status_id": "statusID",
-    "percent_complete": "percentComplete",
-    "fee_type_id": "feeTypeID",
-    "fee": "fee",
-    "default_rate": "defaultRate",
-    "use_default_rate": "useDefaultRate",
-    "external_reference": "externalReference",
-}
-
-_USER_FIELDS = {
-    "email": "email",
-    "alternate_email": "alternateEmail",
-    "first_name": "firstName",
-    "last_name": "lastName",
-    "birth_date": "birthDate",
-    "gender": "gender",
-    "employee_start_date": "employeeStartDate",
-    "employee_end_date": "employeeEndDate",
-    "is_active": "isActive",
-    "external_reference": "externalReference",
-}
-
-_LEAVE_FIELDS = {
-    "user_id": "userID",
-    "status_id": "statusID",
-    "days": "days",
-    "request_comment": "requestComment",
-    "response_comment": "responseComment",
-    "is_review_required": "isReviewRequired",
-    "external_reference": "externalReference",
-}
-
-_EXPENSE_CLAIM_FIELDS = {
-    "user_id": "userID",
-    "project_id": "projectID",
-    "module_id": "moduleID",
-    "expense_claim_type_id": "expenseClaimTypeID",
-    "expense_claim_status_id": "expenseClaimStatusID",
-    "expense_claim_number": "expenseClaimNumber",
-    "is_reimbursable": "isReimbursable",
-    "is_processed": "isProcessed",
-    "date": "date",
-    "amount": "amount",
-    "currency_id": "currencyID",
-    "tax_type_id": "taxTypeID",
-    "is_billable": "isBillable",
-    "notes": "notes",
-    "invoice_description": "invoiceDescription",
-    "quantity": "quantity",
-}
-
-_TIMESHEET_CREATE_FIELDS = {
-    "user_id": "userID",
-    "task_id": "taskID",
-    "date": "date",
-    "minutes": "minutes",
-    "comment": "comment",
-    "is_reviewed": "isReviewed",
-}
-
-_TIMESHEET_UPDATE_FIELDS = {
-    "timesheet_id": "id",
-    "user_id": "userID",
-    "task_id": "taskID",
-    "date": "date",
-    "minutes": "minutes",
-    "comment": "comment",
-    "is_reviewed": "isReviewed",
-}
 
 
 # =============================================================================
@@ -771,7 +621,23 @@ _TIMESHEET_UPDATE_FIELDS = {
 class CreateClientAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "POST", "Clients", inputs, _CLIENT_FIELDS, "client")
+            body = {
+                "clientName": inputs["client_name"],
+                "accountManagerID": inputs["account_manager_id"],
+                "officeID": inputs["office_id"],
+                "currencyID": inputs.get("currency_id"),
+                "clientTypeID": inputs.get("client_type_id"),
+                "defaultRateCardID": inputs.get("default_rate_card_id"),
+                "defaultTaxTypeID": inputs.get("default_tax_type_id"),
+                "financeEmail": inputs.get("finance_email"),
+                "financePhone": inputs.get("finance_phone"),
+                "financeNotes": inputs.get("finance_notes"),
+                "isActive": inputs.get("is_active"),
+                "companyTaxNumber": inputs.get("company_tax_number"),
+                "address": inputs.get("address"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "POST", "Clients", "client", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -780,7 +646,23 @@ class CreateClientAction(ActionHandler):
 class UpdateClientAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "PATCH", f"Clients/{inputs['client_id']}", inputs, _CLIENT_FIELDS, "client")
+            body = {
+                "clientName": inputs.get("client_name"),
+                "accountManagerID": inputs.get("account_manager_id"),
+                "officeID": inputs.get("office_id"),
+                "currencyID": inputs.get("currency_id"),
+                "clientTypeID": inputs.get("client_type_id"),
+                "defaultRateCardID": inputs.get("default_rate_card_id"),
+                "defaultTaxTypeID": inputs.get("default_tax_type_id"),
+                "financeEmail": inputs.get("finance_email"),
+                "financePhone": inputs.get("finance_phone"),
+                "financeNotes": inputs.get("finance_notes"),
+                "isActive": inputs.get("is_active"),
+                "companyTaxNumber": inputs.get("company_tax_number"),
+                "address": inputs.get("address"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "PATCH", f"Clients/{inputs['client_id']}", "client", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -803,7 +685,25 @@ class DeleteClientAction(ActionHandler):
 class CreateProjectAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "POST", "Projects", inputs, _PROJECT_FIELDS, "project")
+            body = {
+                "projectName": inputs["project_name"],
+                "officeID": inputs["office_id"],
+                "clientID": inputs["client_id"],
+                "projectTypeID": inputs["project_type_id"],
+                "projectStatusID": inputs["project_status_id"],
+                "currencyID": inputs["currency_id"],
+                "projectManagerID": inputs["project_manager_id"],
+                "accountManagerID": inputs["account_manager_id"],
+                "taskSelfServiceModeID": inputs["task_self_service_mode_id"],
+                "projectBudgetTypeID": inputs.get("project_budget_type_id"),
+                "projectNumber": inputs.get("project_number"),
+                "defaultRateCardID": inputs.get("default_rate_card_id"),
+                "startDate": inputs.get("start_date"),
+                "endDate": inputs.get("end_date"),
+                "isActive": inputs.get("is_active"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "POST", "Projects", "project", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -812,9 +712,25 @@ class CreateProjectAction(ActionHandler):
 class UpdateProjectAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(
-                context, "PATCH", f"Projects/{inputs['project_id']}", inputs, _PROJECT_FIELDS, "project"
-            )
+            body = {
+                "projectName": inputs.get("project_name"),
+                "officeID": inputs.get("office_id"),
+                "clientID": inputs.get("client_id"),
+                "projectTypeID": inputs.get("project_type_id"),
+                "projectStatusID": inputs.get("project_status_id"),
+                "currencyID": inputs.get("currency_id"),
+                "projectManagerID": inputs.get("project_manager_id"),
+                "accountManagerID": inputs.get("account_manager_id"),
+                "taskSelfServiceModeID": inputs.get("task_self_service_mode_id"),
+                "projectBudgetTypeID": inputs.get("project_budget_type_id"),
+                "projectNumber": inputs.get("project_number"),
+                "defaultRateCardID": inputs.get("default_rate_card_id"),
+                "startDate": inputs.get("start_date"),
+                "endDate": inputs.get("end_date"),
+                "isActive": inputs.get("is_active"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "PATCH", f"Projects/{inputs['project_id']}", "project", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -837,7 +753,17 @@ class DeleteProjectAction(ActionHandler):
 class CreateModuleAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "POST", "Modules", inputs, _MODULE_FIELDS, "module")
+            body = {
+                "projectID": inputs["project_id"],
+                "moduleName": inputs["module_name"],
+                "budget": inputs.get("budget"),
+                "isServices": inputs.get("is_services"),
+                "glCodeID": inputs.get("gl_code_id"),
+                "isActive": inputs.get("is_active"),
+                "feeTypeID": inputs.get("fee_type_id"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "POST", "Modules", "module", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -846,7 +772,17 @@ class CreateModuleAction(ActionHandler):
 class UpdateModuleAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "PATCH", f"Modules/{inputs['module_id']}", inputs, _MODULE_FIELDS, "module")
+            body = {
+                "projectID": inputs.get("project_id"),
+                "moduleName": inputs.get("module_name"),
+                "budget": inputs.get("budget"),
+                "isServices": inputs.get("is_services"),
+                "glCodeID": inputs.get("gl_code_id"),
+                "isActive": inputs.get("is_active"),
+                "feeTypeID": inputs.get("fee_type_id"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "PATCH", f"Modules/{inputs['module_id']}", "module", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -869,7 +805,23 @@ class DeleteModuleAction(ActionHandler):
 class CreateTaskAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "POST", "Tasks", inputs, _TASK_FIELDS, "task")
+            body = {
+                "moduleID": inputs["module_id"],
+                "taskName": inputs["task_name"],
+                "taskTypeID": inputs.get("task_type_id"),
+                "startDate": inputs.get("start_date"),
+                "endDate": inputs.get("end_date"),
+                "isOnTimesheet": inputs.get("is_on_timesheet"),
+                "isBillable": inputs.get("is_billable"),
+                "statusID": inputs.get("status_id"),
+                "percentComplete": inputs.get("percent_complete"),
+                "feeTypeID": inputs.get("fee_type_id"),
+                "fee": inputs.get("fee"),
+                "defaultRate": inputs.get("default_rate"),
+                "useDefaultRate": inputs.get("use_default_rate"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "POST", "Tasks", "task", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -878,7 +830,23 @@ class CreateTaskAction(ActionHandler):
 class UpdateTaskAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "PATCH", f"Tasks/{inputs['task_id']}", inputs, _TASK_FIELDS, "task")
+            body = {
+                "moduleID": inputs.get("module_id"),
+                "taskName": inputs.get("task_name"),
+                "taskTypeID": inputs.get("task_type_id"),
+                "startDate": inputs.get("start_date"),
+                "endDate": inputs.get("end_date"),
+                "isOnTimesheet": inputs.get("is_on_timesheet"),
+                "isBillable": inputs.get("is_billable"),
+                "statusID": inputs.get("status_id"),
+                "percentComplete": inputs.get("percent_complete"),
+                "feeTypeID": inputs.get("fee_type_id"),
+                "fee": inputs.get("fee"),
+                "defaultRate": inputs.get("default_rate"),
+                "useDefaultRate": inputs.get("use_default_rate"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "PATCH", f"Tasks/{inputs['task_id']}", "task", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -901,7 +869,19 @@ class DeleteTaskAction(ActionHandler):
 class CreateUserAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "POST", "Users", inputs, _USER_FIELDS, "user")
+            body = {
+                "email": inputs["email"],
+                "firstName": inputs["first_name"],
+                "lastName": inputs["last_name"],
+                "alternateEmail": inputs.get("alternate_email"),
+                "birthDate": inputs.get("birth_date"),
+                "gender": inputs.get("gender"),
+                "employeeStartDate": inputs.get("employee_start_date"),
+                "employeeEndDate": inputs.get("employee_end_date"),
+                "isActive": inputs.get("is_active"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "POST", "Users", "user", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -910,7 +890,19 @@ class CreateUserAction(ActionHandler):
 class UpdateUserAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "PATCH", f"Users/{inputs['user_id']}", inputs, _USER_FIELDS, "user")
+            body = {
+                "email": inputs.get("email"),
+                "alternateEmail": inputs.get("alternate_email"),
+                "firstName": inputs.get("first_name"),
+                "lastName": inputs.get("last_name"),
+                "birthDate": inputs.get("birth_date"),
+                "gender": inputs.get("gender"),
+                "employeeStartDate": inputs.get("employee_start_date"),
+                "employeeEndDate": inputs.get("employee_end_date"),
+                "isActive": inputs.get("is_active"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "PATCH", f"Users/{inputs['user_id']}", "user", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -933,7 +925,16 @@ class DeleteUserAction(ActionHandler):
 class CreateLeaveAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "POST", "Leaves", inputs, _LEAVE_FIELDS, "leave")
+            body = {
+                "userID": inputs["user_id"],
+                "statusID": inputs["status_id"],
+                "days": inputs["days"],
+                "requestComment": inputs.get("request_comment"),
+                "responseComment": inputs.get("response_comment"),
+                "isReviewRequired": inputs.get("is_review_required"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "POST", "Leaves", "leave", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -942,7 +943,16 @@ class CreateLeaveAction(ActionHandler):
 class UpdateLeaveAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "PUT", f"Leaves/{inputs['leave_id']}", inputs, _LEAVE_FIELDS, "leave")
+            body = {
+                "userID": inputs["user_id"],
+                "statusID": inputs["status_id"],
+                "days": inputs["days"],
+                "requestComment": inputs.get("request_comment"),
+                "responseComment": inputs.get("response_comment"),
+                "isReviewRequired": inputs.get("is_review_required"),
+                "externalReference": inputs.get("external_reference"),
+            }
+            return await _write(context, "PUT", f"Leaves/{inputs['leave_id']}", "leave", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -961,27 +971,40 @@ class DeleteLeaveAction(ActionHandler):
 # =============================================================================
 
 
-async def _write_expense_claim(
-    context: ExecutionContext, method: str, path: str, inputs: Dict[str, Any]
+async def _send_expense_claim(
+    context: ExecutionContext, method: str, path: str, body: Dict[str, Any], file_obj: Dict[str, Any] | None
 ) -> ActionResult:
-    """Build the expense-claim body, attach the receipt file if supplied, and send it."""
-    body = _build_params(inputs, _EXPENSE_CLAIM_FIELDS)
-    await _apply_expense_file(inputs, body)
-    response = await context.fetch(
-        f"{BASE_URL}/{path}",
-        method=method,
-        headers=_get_headers(context),
-        json=body,
-    )
-    _check_response(response)
-    return ActionResult(data={"expense_claim": response.data}, cost_usd=0.0)
+    """Attach the receipt file (if supplied) inline as base64, then send the claim."""
+    if file_obj:
+        file_bytes = await _resolve_file_bytes(file_obj)
+        body["fileContent"] = base64.b64encode(file_bytes).decode("utf-8")
+        body["fileName"] = file_obj.get("name") or "receipt"
+    return await _write(context, method, path, "expense_claim", body)
 
 
 @projectworks.action("create_expense_claim")
 class CreateExpenseClaimAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write_expense_claim(context, "POST", "ExpenseClaims", inputs)
+            body = {
+                "userID": inputs["user_id"],
+                "projectID": inputs["project_id"],
+                "moduleID": inputs["module_id"],
+                "expenseClaimTypeID": inputs["expense_claim_type_id"],
+                "isReimbursable": inputs["is_reimbursable"],
+                "isProcessed": inputs["is_processed"],
+                "date": inputs["date"],
+                "amount": inputs["amount"],
+                "currencyID": inputs["currency_id"],
+                "taxTypeID": inputs["tax_type_id"],
+                "expenseClaimStatusID": inputs.get("expense_claim_status_id"),
+                "expenseClaimNumber": inputs.get("expense_claim_number"),
+                "isBillable": inputs.get("is_billable"),
+                "notes": inputs.get("notes"),
+                "invoiceDescription": inputs.get("invoice_description"),
+                "quantity": inputs.get("quantity"),
+            }
+            return await _send_expense_claim(context, "POST", "ExpenseClaims", body, inputs.get("file"))
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -990,7 +1013,26 @@ class CreateExpenseClaimAction(ActionHandler):
 class UpdateExpenseClaimAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write_expense_claim(context, "PUT", f"ExpenseClaims/{inputs['expense_claim_id']}", inputs)
+            body = {
+                "userID": inputs["user_id"],
+                "projectID": inputs["project_id"],
+                "moduleID": inputs["module_id"],
+                "expenseClaimTypeID": inputs["expense_claim_type_id"],
+                "isReimbursable": inputs["is_reimbursable"],
+                "isProcessed": inputs["is_processed"],
+                "date": inputs["date"],
+                "amount": inputs["amount"],
+                "currencyID": inputs["currency_id"],
+                "taxTypeID": inputs["tax_type_id"],
+                "expenseClaimStatusID": inputs.get("expense_claim_status_id"),
+                "expenseClaimNumber": inputs.get("expense_claim_number"),
+                "isBillable": inputs.get("is_billable"),
+                "notes": inputs.get("notes"),
+                "invoiceDescription": inputs.get("invoice_description"),
+                "quantity": inputs.get("quantity"),
+            }
+            path = f"ExpenseClaims/{inputs['expense_claim_id']}"
+            return await _send_expense_claim(context, "PUT", path, body, inputs.get("file"))
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -1018,7 +1060,15 @@ class DeleteExpenseClaimAction(ActionHandler):
 class CreateTimesheetAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "POST", "Timesheets", inputs, _TIMESHEET_CREATE_FIELDS, "timesheet")
+            body = {
+                "userID": inputs["user_id"],
+                "taskID": inputs["task_id"],
+                "date": inputs["date"],
+                "minutes": inputs["minutes"],
+                "comment": inputs.get("comment"),
+                "isReviewed": inputs.get("is_reviewed"),
+            }
+            return await _write(context, "POST", "Timesheets", "timesheet", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -1027,7 +1077,16 @@ class CreateTimesheetAction(ActionHandler):
 class UpdateTimesheetAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(context, "PUT", "Timesheets", inputs, _TIMESHEET_UPDATE_FIELDS, "timesheet")
+            body = {
+                "id": inputs["timesheet_id"],
+                "minutes": inputs["minutes"],
+                "userID": inputs.get("user_id"),
+                "taskID": inputs.get("task_id"),
+                "date": inputs.get("date"),
+                "comment": inputs.get("comment"),
+                "isReviewed": inputs.get("is_reviewed"),
+            }
+            return await _write(context, "PUT", "Timesheets", "timesheet", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -1047,51 +1106,6 @@ class DeleteTimesheetAction(ActionHandler):
 # WRITE — SUB-RESOURCES (project/task assignments, roles, balances, postings)
 # =============================================================================
 
-_PROJECT_USER_FIELDS = {
-    "user_id": "userID",
-    "rate_card_id": "rateCardID",
-    "rate": "rate",
-    "cost_rate_card_id": "costRateCardID",
-}
-
-_TASK_USER_FIELDS = {
-    "user_id": "userID",
-    "hours": "hours",
-    "rate_card_id": "rateCardID",
-    "rate": "rate",
-    "cost_rate_card_id": "costRateCardID",
-    "is_active": "isActive",
-    "is_pinned": "isPinned",
-}
-
-_TASK_PLACEHOLDER_FIELDS = {
-    "placeholder_id": "placeholderID",
-    "role_id": "roleID",
-    "hours": "hours",
-    "rate_card_id": "rateCardID",
-    "rate": "rate",
-    "is_active": "isActive",
-    "is_pinned": "isPinned",
-}
-
-_USER_POSTING_FIELDS = {
-    "start_date": "startDate",
-    "end_date": "endDate",
-    "is_billable": "isBillable",
-    "recoverable": "recoverable",
-    "rate": "rate",
-    "office_id": "officeID",
-    "location_id": "locationID",
-    "team_id": "teamID",
-    "position_id": "positionID",
-    "rank_id": "rankID",
-    "agreement_type_id": "agreementTypeID",
-    "holiday_calendar_id": "holidayCalendarID",
-    "manager_id": "managerID",
-    "currency_id": "currencyID",
-    "capacity_days": "capacityDays",
-}
-
 # entity_type input -> URL path segment for the custom-fields endpoints.
 _FIELDS_ENTITY_PATHS = {
     "client": "Clients",
@@ -1106,14 +1120,13 @@ _FIELDS_ENTITY_PATHS = {
 class UpdateProjectUserAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(
-                context,
-                "PUT",
-                f"Projects/{inputs['project_id']}/Users",
-                inputs,
-                _PROJECT_USER_FIELDS,
-                "project_user",
-            )
+            body = {
+                "userID": inputs["user_id"],
+                "rateCardID": inputs.get("rate_card_id"),
+                "rate": inputs.get("rate"),
+                "costRateCardID": inputs.get("cost_rate_card_id"),
+            }
+            return await _write(context, "PUT", f"Projects/{inputs['project_id']}/Users", "project_user", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -1122,9 +1135,16 @@ class UpdateProjectUserAction(ActionHandler):
 class UpdateTaskUserAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(
-                context, "PUT", f"Tasks/{inputs['task_id']}/Users", inputs, _TASK_USER_FIELDS, "task_user"
-            )
+            body = {
+                "userID": inputs["user_id"],
+                "hours": inputs.get("hours"),
+                "rateCardID": inputs.get("rate_card_id"),
+                "rate": inputs.get("rate"),
+                "costRateCardID": inputs.get("cost_rate_card_id"),
+                "isActive": inputs.get("is_active"),
+                "isPinned": inputs.get("is_pinned"),
+            }
+            return await _write(context, "PUT", f"Tasks/{inputs['task_id']}/Users", "task_user", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -1133,14 +1153,16 @@ class UpdateTaskUserAction(ActionHandler):
 class UpdateTaskPlaceholderAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(
-                context,
-                "PUT",
-                f"Tasks/{inputs['task_id']}/Placeholders",
-                inputs,
-                _TASK_PLACEHOLDER_FIELDS,
-                "placeholder",
-            )
+            body = {
+                "roleID": inputs["role_id"],
+                "placeholderID": inputs.get("placeholder_id"),
+                "hours": inputs.get("hours"),
+                "rateCardID": inputs.get("rate_card_id"),
+                "rate": inputs.get("rate"),
+                "isActive": inputs.get("is_active"),
+                "isPinned": inputs.get("is_pinned"),
+            }
+            return await _write(context, "PUT", f"Tasks/{inputs['task_id']}/Placeholders", "placeholder", body)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -1187,14 +1209,24 @@ class UpdateUserLeaveBalancesAction(ActionHandler):
 class UpdateUserPostingsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            return await _write(
-                context,
-                "PUT",
-                f"Users/{inputs['user_id']}/Postings",
-                inputs,
-                _USER_POSTING_FIELDS,
-                "posting",
-            )
+            body = {
+                "startDate": inputs["start_date"],
+                "isBillable": inputs["is_billable"],
+                "recoverable": inputs["recoverable"],
+                "rate": inputs["rate"],
+                "officeID": inputs["office_id"],
+                "locationID": inputs["location_id"],
+                "teamID": inputs["team_id"],
+                "positionID": inputs["position_id"],
+                "agreementTypeID": inputs["agreement_type_id"],
+                "currencyID": inputs["currency_id"],
+                "endDate": inputs.get("end_date"),
+                "rankID": inputs.get("rank_id"),
+                "holidayCalendarID": inputs.get("holiday_calendar_id"),
+                "managerID": inputs.get("manager_id"),
+                "capacityDays": inputs.get("capacity_days"),
+            }
+            return await _write(context, "PUT", f"Users/{inputs['user_id']}/Postings", "posting", body)
         except Exception as e:
             return ActionError(message=str(e))
 
