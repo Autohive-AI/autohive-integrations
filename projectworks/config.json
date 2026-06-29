@@ -1,0 +1,3030 @@
+{
+  "name": "ProjectWorks",
+  "version": "1.0.0",
+  "description": "ProjectWorks integration for reading users, clients, projects, modules, tasks, resourcing, timesheets, leave, invoices, and expense claims from your professional services automation account.",
+  "display_name": "ProjectWorks",
+  "supports_connected_account": false,
+  "entry_point": "projectworks.py",
+  "auth": {
+    "type": "custom",
+    "title": "ProjectWorks API Account",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "consumer_key": {
+          "type": "string",
+          "label": "Consumer Key",
+          "help_text": "From ProjectWorks -> Admin -> API Accounts -> create an account -> Details. Used as the Basic auth username."
+        },
+        "consumer_secret": {
+          "type": "string",
+          "format": "password",
+          "label": "Consumer Secret",
+          "help_text": "Shown only once when the API account is created. Used as the Basic auth password."
+        }
+      },
+      "required": []
+    }
+  },
+  "actions": {
+    "list_users": {
+      "display_name": "List Users",
+      "description": "List users/employees. Optionally filter by user ID, email, name, external reference, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "Filter by a specific user ID"
+          },
+          "email": {
+            "type": "string",
+            "description": "Filter by email address"
+          },
+          "name": {
+            "type": "string",
+            "description": "Filter by name"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "Filter by external reference"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return users modified on or after this ISO 8601 date-time (e.g. 2026-01-01T00:00:00Z)"
+          },
+          "include_custom_fields": {
+            "type": "boolean",
+            "description": "Include custom field values in the response"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "description": "List of users"
+          }
+        },
+        "required": [
+          "users"
+        ]
+      }
+    },
+    "get_user": {
+      "display_name": "Get User",
+      "description": "Retrieve a single user/employee by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "description": "The user record"
+          }
+        },
+        "required": [
+          "user"
+        ]
+      }
+    },
+    "list_roles": {
+      "display_name": "List Roles",
+      "description": "List the roles configured in the account. Use the returned userRoleID values for update_user_roles and the role_id of update_task_placeholder.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "role_code": {
+            "type": "string",
+            "description": "Filter by a specific role code"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "description": "List of roles (each with userRoleID, code, description)"
+          }
+        },
+        "required": [
+          "roles"
+        ]
+      }
+    },
+    "list_clients": {
+      "display_name": "List Clients",
+      "description": "List clients/companies. Optionally filter by office, client ID, name, external reference, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "office_id": {
+            "type": "integer",
+            "description": "Filter by office ID"
+          },
+          "client_id": {
+            "type": "integer",
+            "description": "Filter by a specific client ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Filter by client name"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "Filter by external reference"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return clients modified on or after this ISO 8601 date-time"
+          },
+          "include_custom_fields": {
+            "type": "boolean",
+            "description": "Include custom field values in the response"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "clients": {
+            "type": "array",
+            "description": "List of clients"
+          }
+        },
+        "required": [
+          "clients"
+        ]
+      }
+    },
+    "get_client": {
+      "display_name": "Get Client",
+      "description": "Retrieve a single client/company by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "integer",
+            "description": "The client ID"
+          }
+        },
+        "required": [
+          "client_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "client": {
+            "type": "object",
+            "description": "The client record"
+          }
+        },
+        "required": [
+          "client"
+        ]
+      }
+    },
+    "list_projects": {
+      "display_name": "List Projects",
+      "description": "List projects. Optionally filter by client, project ID, user, project number, name, external reference, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "integer",
+            "description": "Filter by client ID"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "Filter by a specific project ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "Filter by an assigned user ID"
+          },
+          "project_number": {
+            "type": "string",
+            "description": "Filter by project number"
+          },
+          "name": {
+            "type": "string",
+            "description": "Filter by project name"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "Filter by external reference"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return projects modified on or after this ISO 8601 date-time"
+          },
+          "include_custom_fields": {
+            "type": "boolean",
+            "description": "Include custom field values in the response"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "projects": {
+            "type": "array",
+            "description": "List of projects"
+          }
+        },
+        "required": [
+          "projects"
+        ]
+      }
+    },
+    "get_project": {
+      "display_name": "Get Project",
+      "description": "Retrieve a single project by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "description": "The project ID"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "object",
+            "description": "The project record"
+          }
+        },
+        "required": [
+          "project"
+        ]
+      }
+    },
+    "list_modules": {
+      "display_name": "List Modules",
+      "description": "List modules (sub-divisions of a project). Optionally filter by project, module ID, name, external reference, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "description": "Filter by project ID"
+          },
+          "module_id": {
+            "type": "integer",
+            "description": "Filter by a specific module ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Filter by module name"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "Filter by external reference"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return modules modified on or after this ISO 8601 date-time"
+          },
+          "include_custom_fields": {
+            "type": "boolean",
+            "description": "Include custom field values in the response"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "modules": {
+            "type": "array",
+            "description": "List of modules"
+          }
+        },
+        "required": [
+          "modules"
+        ]
+      }
+    },
+    "get_module": {
+      "display_name": "Get Module",
+      "description": "Retrieve a single module by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "module_id": {
+            "type": "integer",
+            "description": "The module ID"
+          }
+        },
+        "required": [
+          "module_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "module": {
+            "type": "object",
+            "description": "The module record"
+          }
+        },
+        "required": [
+          "module"
+        ]
+      }
+    },
+    "list_tasks": {
+      "display_name": "List Tasks",
+      "description": "List tasks. Optionally filter by project, module, task ID, user, name, external reference, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "description": "Filter by project ID"
+          },
+          "module_id": {
+            "type": "integer",
+            "description": "Filter by module ID"
+          },
+          "task_id": {
+            "type": "integer",
+            "description": "Filter by a specific task ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "Filter by an assigned user ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Filter by task name"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "Filter by external reference"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return tasks modified on or after this ISO 8601 date-time"
+          },
+          "include_custom_fields": {
+            "type": "boolean",
+            "description": "Include custom field values in the response"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "description": "List of tasks"
+          }
+        },
+        "required": [
+          "tasks"
+        ]
+      }
+    },
+    "get_task": {
+      "display_name": "Get Task",
+      "description": "Retrieve a single task by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "integer",
+            "description": "The task ID"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "object",
+            "description": "The task record"
+          }
+        },
+        "required": [
+          "task"
+        ]
+      }
+    },
+    "list_resources": {
+      "display_name": "List Resources",
+      "description": "List resourcing bookings. Optionally filter by project, module, resource type, user, date range, mode, level, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "after_resource_id": {
+            "type": "integer",
+            "description": "Return resources with an ID greater than this value (cursor-style incremental pull)"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "Filter by project ID"
+          },
+          "module_id": {
+            "type": "integer",
+            "description": "Filter by module ID"
+          },
+          "resource_type_id": {
+            "type": "integer",
+            "description": "Filter by resource type ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "Filter by user ID"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Filter bookings on or after this ISO 8601 date"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Filter bookings on or before this ISO 8601 date"
+          },
+          "mode_id": {
+            "type": "integer",
+            "description": "Filter by booking mode ID"
+          },
+          "level_id": {
+            "type": "integer",
+            "description": "Filter by booking level ID"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return resources modified on or after this ISO 8601 date-time"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "resources": {
+            "type": "array",
+            "description": "List of resourcing bookings"
+          }
+        },
+        "required": [
+          "resources"
+        ]
+      }
+    },
+    "get_resource": {
+      "display_name": "Get Resource",
+      "description": "Retrieve a single resourcing booking by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "resource_id": {
+            "type": "integer",
+            "description": "The resource (booking) ID"
+          }
+        },
+        "required": [
+          "resource_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "resource": {
+            "type": "object",
+            "description": "The resource record"
+          }
+        },
+        "required": [
+          "resource"
+        ]
+      }
+    },
+    "list_timesheets": {
+      "display_name": "List Timesheets",
+      "description": "List timesheet (time entry) records. Optionally filter by ID, user, task, date, comment, external references, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "timesheet_id": {
+            "type": "integer",
+            "description": "Filter by a specific timesheet entry ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "Filter by user ID"
+          },
+          "task_id": {
+            "type": "integer",
+            "description": "Filter by task ID"
+          },
+          "date": {
+            "type": "string",
+            "description": "Filter by a specific ISO 8601 date"
+          },
+          "comment": {
+            "type": "string",
+            "description": "Filter by comment text"
+          },
+          "user_external_reference": {
+            "type": "string",
+            "description": "Filter by the user's external reference"
+          },
+          "task_external_reference": {
+            "type": "string",
+            "description": "Filter by the task's external reference"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return timesheets modified on or after this ISO 8601 date-time"
+          },
+          "include_custom_fields": {
+            "type": "boolean",
+            "description": "Include custom field values in the response"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "timesheets": {
+            "type": "array",
+            "description": "List of timesheet entries"
+          }
+        },
+        "required": [
+          "timesheets"
+        ]
+      }
+    },
+    "list_leaves": {
+      "display_name": "List Leave",
+      "description": "List leave requests. Optionally filter by leave ID, user, type, status, date range, external reference, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "leave_id": {
+            "type": "integer",
+            "description": "Filter by a specific leave ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "Filter by user ID"
+          },
+          "type_id": {
+            "type": "integer",
+            "description": "Filter by leave type ID"
+          },
+          "status_id": {
+            "type": "integer",
+            "description": "Filter by leave status ID"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Filter leave on or after this ISO 8601 date"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Filter leave on or before this ISO 8601 date"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "Filter by external reference"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return leave modified on or after this ISO 8601 date-time"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "leaves": {
+            "type": "array",
+            "description": "List of leave requests"
+          }
+        },
+        "required": [
+          "leaves"
+        ]
+      }
+    },
+    "get_leave": {
+      "display_name": "Get Leave",
+      "description": "Retrieve a single leave request by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "leave_id": {
+            "type": "integer",
+            "description": "The leave ID"
+          }
+        },
+        "required": [
+          "leave_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "leave": {
+            "type": "object",
+            "description": "The leave record"
+          }
+        },
+        "required": [
+          "leave"
+        ]
+      }
+    },
+    "list_leave_types": {
+      "display_name": "List Leave Types",
+      "description": "List the leave types configured in the account. Use the returned typeID values when creating or updating leave.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "type_id": {
+            "type": "integer",
+            "description": "Filter by a specific leave type ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Filter by leave type name"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Filter by active status"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "leave_types": {
+            "type": "array",
+            "description": "List of leave types (each with typeID, name, code, isActive, isPaid)"
+          }
+        },
+        "required": [
+          "leave_types"
+        ]
+      }
+    },
+    "list_invoices": {
+      "display_name": "List Invoices",
+      "description": "List invoices. Optionally filter by invoice ID/number, client, project, billing contact, status, date range, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "invoice_id": {
+            "type": "integer",
+            "description": "Filter by a specific invoice ID"
+          },
+          "invoice_number": {
+            "type": "string",
+            "description": "Filter by invoice number"
+          },
+          "client_id": {
+            "type": "integer",
+            "description": "Filter by client ID"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "Filter by project ID"
+          },
+          "billing_contact_id": {
+            "type": "integer",
+            "description": "Filter by billing contact ID"
+          },
+          "status_id": {
+            "type": "integer",
+            "description": "Filter by invoice status ID"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Filter invoices on or after this ISO 8601 date"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Filter invoices on or before this ISO 8601 date"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return invoices modified on or after this ISO 8601 date-time"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "invoices": {
+            "type": "array",
+            "description": "List of invoices"
+          }
+        },
+        "required": [
+          "invoices"
+        ]
+      }
+    },
+    "get_invoice": {
+      "display_name": "Get Invoice",
+      "description": "Retrieve a single invoice by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "invoice_id": {
+            "type": "integer",
+            "description": "The invoice ID"
+          }
+        },
+        "required": [
+          "invoice_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "invoice": {
+            "type": "object",
+            "description": "The invoice record"
+          }
+        },
+        "required": [
+          "invoice"
+        ]
+      }
+    },
+    "list_expense_claims": {
+      "display_name": "List Expense Claims",
+      "description": "List expense claims. Optionally filter by user, client, project, module, type, status, billable/reimbursable flags, date range, invoice, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "after_expense_claim_id": {
+            "type": "integer",
+            "description": "Return expense claims with an ID greater than this value (cursor-style incremental pull)"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "Filter by user ID"
+          },
+          "client_id": {
+            "type": "integer",
+            "description": "Filter by client ID"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "Filter by project ID"
+          },
+          "module_id": {
+            "type": "integer",
+            "description": "Filter by module ID"
+          },
+          "expense_claim_type_id": {
+            "type": "integer",
+            "description": "Filter by expense claim type ID"
+          },
+          "expense_claim_status_id": {
+            "type": "integer",
+            "description": "Filter by expense claim status ID"
+          },
+          "is_reimbursable": {
+            "type": "boolean",
+            "description": "Filter by reimbursable flag"
+          },
+          "is_billable": {
+            "type": "boolean",
+            "description": "Filter by billable flag"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Filter claims on or after this ISO 8601 date"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Filter claims on or before this ISO 8601 date"
+          },
+          "invoice_id": {
+            "type": "integer",
+            "description": "Filter by associated invoice ID"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return expense claims modified on or after this ISO 8601 date-time"
+          },
+          "include_custom_fields": {
+            "type": "boolean",
+            "description": "Include custom field values in the response"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "expense_claims": {
+            "type": "array",
+            "description": "List of expense claims"
+          }
+        },
+        "required": [
+          "expense_claims"
+        ]
+      }
+    },
+    "get_expense_claim": {
+      "display_name": "Get Expense Claim",
+      "description": "Retrieve a single expense claim by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expense_claim_id": {
+            "type": "integer",
+            "description": "The expense claim ID"
+          },
+          "include_custom_fields": {
+            "type": "boolean",
+            "description": "Include custom field values in the response"
+          }
+        },
+        "required": [
+          "expense_claim_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "expense_claim": {
+            "type": "object",
+            "description": "The expense claim record"
+          }
+        },
+        "required": [
+          "expense_claim"
+        ]
+      }
+    },
+    "list_offices": {
+      "display_name": "List Offices",
+      "description": "List offices. Optionally filter by office ID, name, external reference, or modified-since date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "office_id": {
+            "type": "integer",
+            "description": "Filter by a specific office ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "Filter by office name"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "Filter by external reference"
+          },
+          "modified_since_date": {
+            "type": "string",
+            "description": "Only return offices modified on or after this ISO 8601 date-time"
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page number (default 1)",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Results per page (default 100)",
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "offices": {
+            "type": "array",
+            "description": "List of offices"
+          }
+        },
+        "required": [
+          "offices"
+        ]
+      }
+    },
+    "create_client": {
+      "display_name": "Create Client",
+      "description": "Create a new client/company.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "client_name": {
+            "type": "string",
+            "description": "Client/company name"
+          },
+          "account_manager_id": {
+            "type": "integer",
+            "description": "Account manager user ID"
+          },
+          "office_id": {
+            "type": "integer",
+            "description": "Office ID"
+          },
+          "currency_id": {
+            "type": "integer",
+            "description": "Currency ID"
+          },
+          "client_type_id": {
+            "type": "integer",
+            "description": "Client type ID"
+          },
+          "default_rate_card_id": {
+            "type": "integer",
+            "description": "Default rate card ID"
+          },
+          "default_tax_type_id": {
+            "type": "integer",
+            "description": "Default tax type ID"
+          },
+          "finance_email": {
+            "type": "string",
+            "description": "Finance contact email"
+          },
+          "finance_phone": {
+            "type": "string",
+            "description": "Finance contact phone"
+          },
+          "finance_notes": {
+            "type": "string",
+            "description": "Finance notes"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the record is active"
+          },
+          "company_tax_number": {
+            "type": "string",
+            "description": "Company tax/registration number"
+          },
+          "address": {
+            "type": "object",
+            "description": "Address object (street, city, etc.)"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "client_name",
+          "account_manager_id",
+          "office_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "client": {
+            "type": "object",
+            "description": "The created client"
+          }
+        },
+        "required": [
+          "client"
+        ]
+      }
+    },
+    "update_client": {
+      "display_name": "Update Client",
+      "description": "Update an existing client. Only the provided fields are changed (partial update).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "integer",
+            "description": "The client ID"
+          },
+          "client_name": {
+            "type": "string",
+            "description": "Client/company name"
+          },
+          "account_manager_id": {
+            "type": "integer",
+            "description": "Account manager user ID"
+          },
+          "office_id": {
+            "type": "integer",
+            "description": "Office ID"
+          },
+          "currency_id": {
+            "type": "integer",
+            "description": "Currency ID"
+          },
+          "client_type_id": {
+            "type": "integer",
+            "description": "Client type ID"
+          },
+          "default_rate_card_id": {
+            "type": "integer",
+            "description": "Default rate card ID"
+          },
+          "default_tax_type_id": {
+            "type": "integer",
+            "description": "Default tax type ID"
+          },
+          "finance_email": {
+            "type": "string",
+            "description": "Finance contact email"
+          },
+          "finance_phone": {
+            "type": "string",
+            "description": "Finance contact phone"
+          },
+          "finance_notes": {
+            "type": "string",
+            "description": "Finance notes"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the record is active"
+          },
+          "company_tax_number": {
+            "type": "string",
+            "description": "Company tax/registration number"
+          },
+          "address": {
+            "type": "object",
+            "description": "Address object (street, city, etc.)"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "client_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "client": {
+            "type": "object",
+            "description": "The updated client"
+          }
+        },
+        "required": [
+          "client"
+        ]
+      }
+    },
+    "delete_client": {
+      "display_name": "Delete Client",
+      "description": "Delete a client by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "integer",
+            "description": "The client ID"
+          }
+        },
+        "required": [
+          "client_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "client_id": {
+            "type": "integer",
+            "description": "ID of the deleted record"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "True when deletion succeeded"
+          }
+        },
+        "required": [
+          "client_id",
+          "deleted"
+        ]
+      }
+    },
+    "create_project": {
+      "display_name": "Create Project",
+      "description": "Create a new project.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_name": {
+            "type": "string",
+            "description": "Project name"
+          },
+          "office_id": {
+            "type": "integer",
+            "description": "Office ID"
+          },
+          "client_id": {
+            "type": "integer",
+            "description": "The client ID"
+          },
+          "project_type_id": {
+            "type": "integer",
+            "description": "Project type ID"
+          },
+          "project_status_id": {
+            "type": "integer",
+            "description": "Project status ID"
+          },
+          "currency_id": {
+            "type": "integer",
+            "description": "Currency ID"
+          },
+          "project_manager_id": {
+            "type": "integer",
+            "description": "Project manager user ID"
+          },
+          "account_manager_id": {
+            "type": "integer",
+            "description": "Account manager user ID"
+          },
+          "task_self_service_mode_id": {
+            "type": "integer",
+            "description": "Task self-service mode ID"
+          },
+          "project_budget_type_id": {
+            "type": "integer",
+            "description": "Project budget type ID"
+          },
+          "project_number": {
+            "type": "string",
+            "description": "Project number"
+          },
+          "default_rate_card_id": {
+            "type": "integer",
+            "description": "Default rate card ID"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Start date (ISO 8601)"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "End date (ISO 8601)"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the record is active"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "project_name",
+          "office_id",
+          "client_id",
+          "project_type_id",
+          "project_status_id",
+          "currency_id",
+          "project_manager_id",
+          "account_manager_id",
+          "task_self_service_mode_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "object",
+            "description": "The created project"
+          }
+        },
+        "required": [
+          "project"
+        ]
+      }
+    },
+    "update_project": {
+      "display_name": "Update Project",
+      "description": "Update an existing project. Only the provided fields are changed (partial update).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "description": "The project ID"
+          },
+          "project_name": {
+            "type": "string",
+            "description": "Project name"
+          },
+          "office_id": {
+            "type": "integer",
+            "description": "Office ID"
+          },
+          "client_id": {
+            "type": "integer",
+            "description": "The client ID"
+          },
+          "project_type_id": {
+            "type": "integer",
+            "description": "Project type ID"
+          },
+          "project_status_id": {
+            "type": "integer",
+            "description": "Project status ID"
+          },
+          "currency_id": {
+            "type": "integer",
+            "description": "Currency ID"
+          },
+          "project_manager_id": {
+            "type": "integer",
+            "description": "Project manager user ID"
+          },
+          "account_manager_id": {
+            "type": "integer",
+            "description": "Account manager user ID"
+          },
+          "task_self_service_mode_id": {
+            "type": "integer",
+            "description": "Task self-service mode ID"
+          },
+          "project_budget_type_id": {
+            "type": "integer",
+            "description": "Project budget type ID"
+          },
+          "project_number": {
+            "type": "string",
+            "description": "Project number"
+          },
+          "default_rate_card_id": {
+            "type": "integer",
+            "description": "Default rate card ID"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Start date (ISO 8601)"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "End date (ISO 8601)"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the record is active"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "object",
+            "description": "The updated project"
+          }
+        },
+        "required": [
+          "project"
+        ]
+      }
+    },
+    "delete_project": {
+      "display_name": "Delete Project",
+      "description": "Delete a project by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "description": "The project ID"
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "description": "ID of the deleted record"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "True when deletion succeeded"
+          }
+        },
+        "required": [
+          "project_id",
+          "deleted"
+        ]
+      }
+    },
+    "create_module": {
+      "display_name": "Create Module",
+      "description": "Create a new module within a project.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "description": "The project ID"
+          },
+          "module_name": {
+            "type": "string",
+            "description": "Module name"
+          },
+          "budget": {
+            "type": "number",
+            "description": "Module budget amount"
+          },
+          "is_services": {
+            "type": "boolean",
+            "description": "Whether the module is a services module"
+          },
+          "gl_code_id": {
+            "type": "integer",
+            "description": "GL code ID"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the record is active"
+          },
+          "fee_type_id": {
+            "type": "integer",
+            "description": "Fee type ID"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "project_id",
+          "module_name"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "module": {
+            "type": "object",
+            "description": "The created module"
+          }
+        },
+        "required": [
+          "module"
+        ]
+      }
+    },
+    "update_module": {
+      "display_name": "Update Module",
+      "description": "Update an existing module. Only the provided fields are changed (partial update).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "module_id": {
+            "type": "integer",
+            "description": "The module ID"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project ID"
+          },
+          "module_name": {
+            "type": "string",
+            "description": "Module name"
+          },
+          "budget": {
+            "type": "number",
+            "description": "Module budget amount"
+          },
+          "is_services": {
+            "type": "boolean",
+            "description": "Whether the module is a services module"
+          },
+          "gl_code_id": {
+            "type": "integer",
+            "description": "GL code ID"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the record is active"
+          },
+          "fee_type_id": {
+            "type": "integer",
+            "description": "Fee type ID"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "module_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "module": {
+            "type": "object",
+            "description": "The updated module"
+          }
+        },
+        "required": [
+          "module"
+        ]
+      }
+    },
+    "delete_module": {
+      "display_name": "Delete Module",
+      "description": "Delete a module by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "module_id": {
+            "type": "integer",
+            "description": "The module ID"
+          }
+        },
+        "required": [
+          "module_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "module_id": {
+            "type": "integer",
+            "description": "ID of the deleted record"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "True when deletion succeeded"
+          }
+        },
+        "required": [
+          "module_id",
+          "deleted"
+        ]
+      }
+    },
+    "create_task": {
+      "display_name": "Create Task",
+      "description": "Create a new task within a module.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "module_id": {
+            "type": "integer",
+            "description": "The module ID"
+          },
+          "task_name": {
+            "type": "string",
+            "description": "Task name"
+          },
+          "task_type_id": {
+            "type": "integer",
+            "description": "Task type ID"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Start date (ISO 8601)"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "End date (ISO 8601)"
+          },
+          "is_on_timesheet": {
+            "type": "boolean",
+            "description": "Whether the task appears on timesheets"
+          },
+          "is_billable": {
+            "type": "boolean",
+            "description": "Whether the task/claim is billable"
+          },
+          "status_id": {
+            "type": "integer",
+            "description": "Status ID"
+          },
+          "percent_complete": {
+            "type": "number",
+            "description": "Percent complete (0-100)"
+          },
+          "fee_type_id": {
+            "type": "integer",
+            "description": "Fee type ID"
+          },
+          "fee": {
+            "type": "number",
+            "description": "Fixed fee amount"
+          },
+          "default_rate": {
+            "type": "number",
+            "description": "Default hourly rate"
+          },
+          "use_default_rate": {
+            "type": "boolean",
+            "description": "Whether to use the default rate"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "module_id",
+          "task_name"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "object",
+            "description": "The created task"
+          }
+        },
+        "required": [
+          "task"
+        ]
+      }
+    },
+    "update_task": {
+      "display_name": "Update Task",
+      "description": "Update an existing task. Only the provided fields are changed (partial update).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "integer",
+            "description": "The task ID"
+          },
+          "module_id": {
+            "type": "integer",
+            "description": "The module ID"
+          },
+          "task_name": {
+            "type": "string",
+            "description": "Task name"
+          },
+          "task_type_id": {
+            "type": "integer",
+            "description": "Task type ID"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Start date (ISO 8601)"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "End date (ISO 8601)"
+          },
+          "is_on_timesheet": {
+            "type": "boolean",
+            "description": "Whether the task appears on timesheets"
+          },
+          "is_billable": {
+            "type": "boolean",
+            "description": "Whether the task/claim is billable"
+          },
+          "status_id": {
+            "type": "integer",
+            "description": "Status ID"
+          },
+          "percent_complete": {
+            "type": "number",
+            "description": "Percent complete (0-100)"
+          },
+          "fee_type_id": {
+            "type": "integer",
+            "description": "Fee type ID"
+          },
+          "fee": {
+            "type": "number",
+            "description": "Fixed fee amount"
+          },
+          "default_rate": {
+            "type": "number",
+            "description": "Default hourly rate"
+          },
+          "use_default_rate": {
+            "type": "boolean",
+            "description": "Whether to use the default rate"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "object",
+            "description": "The updated task"
+          }
+        },
+        "required": [
+          "task"
+        ]
+      }
+    },
+    "delete_task": {
+      "display_name": "Delete Task",
+      "description": "Delete a task by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "integer",
+            "description": "The task ID"
+          }
+        },
+        "required": [
+          "task_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "integer",
+            "description": "ID of the deleted record"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "True when deletion succeeded"
+          }
+        },
+        "required": [
+          "task_id",
+          "deleted"
+        ]
+      }
+    },
+    "create_user": {
+      "display_name": "Create User",
+      "description": "Create a new user/employee.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address"
+          },
+          "alternate_email": {
+            "type": "string",
+            "description": "Alternate email address"
+          },
+          "first_name": {
+            "type": "string",
+            "description": "First name"
+          },
+          "last_name": {
+            "type": "string",
+            "description": "Last name"
+          },
+          "birth_date": {
+            "type": "string",
+            "description": "Birth date (ISO 8601)"
+          },
+          "gender": {
+            "type": "string",
+            "description": "Gender"
+          },
+          "employee_start_date": {
+            "type": "string",
+            "description": "Employment start date (ISO 8601)"
+          },
+          "employee_end_date": {
+            "type": "string",
+            "description": "Employment end date (ISO 8601)"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the record is active"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "email",
+          "first_name",
+          "last_name"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "description": "The created user"
+          }
+        },
+        "required": [
+          "user"
+        ]
+      }
+    },
+    "update_user": {
+      "display_name": "Update User",
+      "description": "Update an existing user. Only the provided fields are changed (partial update).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "email": {
+            "type": "string",
+            "description": "Email address"
+          },
+          "alternate_email": {
+            "type": "string",
+            "description": "Alternate email address"
+          },
+          "first_name": {
+            "type": "string",
+            "description": "First name"
+          },
+          "last_name": {
+            "type": "string",
+            "description": "Last name"
+          },
+          "birth_date": {
+            "type": "string",
+            "description": "Birth date (ISO 8601)"
+          },
+          "gender": {
+            "type": "string",
+            "description": "Gender"
+          },
+          "employee_start_date": {
+            "type": "string",
+            "description": "Employment start date (ISO 8601)"
+          },
+          "employee_end_date": {
+            "type": "string",
+            "description": "Employment end date (ISO 8601)"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the record is active"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "object",
+            "description": "The updated user"
+          }
+        },
+        "required": [
+          "user"
+        ]
+      }
+    },
+    "delete_user": {
+      "display_name": "Delete User",
+      "description": "Delete a user by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "ID of the deleted record"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "True when deletion succeeded"
+          }
+        },
+        "required": [
+          "user_id",
+          "deleted"
+        ]
+      }
+    },
+    "create_leave": {
+      "display_name": "Create Leave",
+      "description": "Create a leave request.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "status_id": {
+            "type": "integer",
+            "description": "Status ID"
+          },
+          "days": {
+            "type": "array",
+            "description": "Leave days, each an object with date (ISO 8601), typeID (integer), and hours (number)"
+          },
+          "request_comment": {
+            "type": "string",
+            "description": "Requester comment"
+          },
+          "response_comment": {
+            "type": "string",
+            "description": "Reviewer/response comment"
+          },
+          "is_review_required": {
+            "type": "boolean",
+            "description": "Whether the leave requires review"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "user_id",
+          "status_id",
+          "days"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "leave": {
+            "type": "object",
+            "description": "The created leave request"
+          }
+        },
+        "required": [
+          "leave"
+        ]
+      }
+    },
+    "update_leave": {
+      "display_name": "Update Leave",
+      "description": "Replace an existing leave request. All required fields must be supplied (full replacement).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "leave_id": {
+            "type": "integer",
+            "description": "The leave ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "status_id": {
+            "type": "integer",
+            "description": "Status ID"
+          },
+          "days": {
+            "type": "array",
+            "description": "Leave days, each an object with date (ISO 8601), typeID (integer), and hours (number)"
+          },
+          "request_comment": {
+            "type": "string",
+            "description": "Requester comment"
+          },
+          "response_comment": {
+            "type": "string",
+            "description": "Reviewer/response comment"
+          },
+          "is_review_required": {
+            "type": "boolean",
+            "description": "Whether the leave requires review"
+          },
+          "external_reference": {
+            "type": "string",
+            "description": "External reference / sync ID"
+          }
+        },
+        "required": [
+          "leave_id",
+          "user_id",
+          "status_id",
+          "days"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "leave": {
+            "type": "object",
+            "description": "The updated leave request"
+          }
+        },
+        "required": [
+          "leave"
+        ]
+      }
+    },
+    "delete_leave": {
+      "display_name": "Delete Leave",
+      "description": "Delete a leave request by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "leave_id": {
+            "type": "integer",
+            "description": "The leave ID"
+          }
+        },
+        "required": [
+          "leave_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "leave_id": {
+            "type": "integer",
+            "description": "ID of the deleted record"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "True when deletion succeeded"
+          }
+        },
+        "required": [
+          "leave_id",
+          "deleted"
+        ]
+      }
+    },
+    "create_expense_claim": {
+      "display_name": "Create Expense Claim",
+      "description": "Create an expense claim.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project ID"
+          },
+          "module_id": {
+            "type": "integer",
+            "description": "The module ID"
+          },
+          "expense_claim_type_id": {
+            "type": "integer",
+            "description": "Expense claim type ID"
+          },
+          "expense_claim_status_id": {
+            "type": "integer",
+            "description": "Expense claim status ID"
+          },
+          "expense_claim_number": {
+            "type": "string",
+            "description": "Expense claim number"
+          },
+          "is_reimbursable": {
+            "type": "boolean",
+            "description": "Whether the claim is reimbursable"
+          },
+          "is_processed": {
+            "type": "boolean",
+            "description": "Whether the claim has been processed"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date (ISO 8601)"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Amount"
+          },
+          "currency_id": {
+            "type": "integer",
+            "description": "Currency ID"
+          },
+          "tax_type_id": {
+            "type": "integer",
+            "description": "Tax type ID"
+          },
+          "is_billable": {
+            "type": "boolean",
+            "description": "Whether the task/claim is billable"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Notes"
+          },
+          "invoice_description": {
+            "type": "string",
+            "description": "Invoice description"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Quantity"
+          },
+          "file": {
+            "type": "object",
+            "description": "Receipt/invoice file to attach. ProjectWorks usually requires at least one file when creating an expense claim. Supply the file as base64 'content'.",
+            "properties": {
+              "content": {
+                "type": "string",
+                "description": "Base64-encoded file content"
+              },
+              "name": {
+                "type": "string",
+                "description": "File name including extension, e.g. 'receipt.pdf'"
+              },
+              "contentType": {
+                "type": "string",
+                "description": "MIME type of the file, e.g. 'application/pdf'"
+              }
+            }
+          }
+        },
+        "required": [
+          "user_id",
+          "project_id",
+          "module_id",
+          "expense_claim_type_id",
+          "is_reimbursable",
+          "is_processed",
+          "date",
+          "amount",
+          "currency_id",
+          "tax_type_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "expense_claim": {
+            "type": "object",
+            "description": "The created expense claim"
+          }
+        },
+        "required": [
+          "expense_claim"
+        ]
+      }
+    },
+    "update_expense_claim": {
+      "display_name": "Update Expense Claim",
+      "description": "Replace an existing expense claim. All required fields must be supplied (full replacement).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expense_claim_id": {
+            "type": "integer",
+            "description": "The expense claim ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "project_id": {
+            "type": "integer",
+            "description": "The project ID"
+          },
+          "module_id": {
+            "type": "integer",
+            "description": "The module ID"
+          },
+          "expense_claim_type_id": {
+            "type": "integer",
+            "description": "Expense claim type ID"
+          },
+          "expense_claim_status_id": {
+            "type": "integer",
+            "description": "Expense claim status ID"
+          },
+          "expense_claim_number": {
+            "type": "string",
+            "description": "Expense claim number"
+          },
+          "is_reimbursable": {
+            "type": "boolean",
+            "description": "Whether the claim is reimbursable"
+          },
+          "is_processed": {
+            "type": "boolean",
+            "description": "Whether the claim has been processed"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date (ISO 8601)"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Amount"
+          },
+          "currency_id": {
+            "type": "integer",
+            "description": "Currency ID"
+          },
+          "tax_type_id": {
+            "type": "integer",
+            "description": "Tax type ID"
+          },
+          "is_billable": {
+            "type": "boolean",
+            "description": "Whether the task/claim is billable"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Notes"
+          },
+          "invoice_description": {
+            "type": "string",
+            "description": "Invoice description"
+          },
+          "quantity": {
+            "type": "number",
+            "description": "Quantity"
+          },
+          "file": {
+            "type": "object",
+            "description": "Receipt/invoice file to attach. Supply the file as base64 'content'.",
+            "properties": {
+              "content": {
+                "type": "string",
+                "description": "Base64-encoded file content"
+              },
+              "name": {
+                "type": "string",
+                "description": "File name including extension, e.g. 'receipt.pdf'"
+              },
+              "contentType": {
+                "type": "string",
+                "description": "MIME type of the file, e.g. 'application/pdf'"
+              }
+            }
+          }
+        },
+        "required": [
+          "expense_claim_id",
+          "user_id",
+          "project_id",
+          "module_id",
+          "expense_claim_type_id",
+          "is_reimbursable",
+          "is_processed",
+          "date",
+          "amount",
+          "currency_id",
+          "tax_type_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "expense_claim": {
+            "type": "object",
+            "description": "The updated expense claim"
+          }
+        },
+        "required": [
+          "expense_claim"
+        ]
+      }
+    },
+    "delete_expense_claim": {
+      "display_name": "Delete Expense Claim",
+      "description": "Delete an expense claim by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "expense_claim_id": {
+            "type": "integer",
+            "description": "The expense claim ID"
+          }
+        },
+        "required": [
+          "expense_claim_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "expense_claim_id": {
+            "type": "integer",
+            "description": "ID of the deleted record"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "True when deletion succeeded"
+          }
+        },
+        "required": [
+          "expense_claim_id",
+          "deleted"
+        ]
+      }
+    },
+    "create_timesheet": {
+      "display_name": "Create Timesheet Entry",
+      "description": "Create a timesheet (time) entry.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "task_id": {
+            "type": "integer",
+            "description": "The task ID"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date (ISO 8601)"
+          },
+          "minutes": {
+            "type": "integer",
+            "description": "Duration in minutes"
+          },
+          "comment": {
+            "type": "string",
+            "description": "Comment"
+          },
+          "is_reviewed": {
+            "type": "boolean",
+            "description": "Whether the entry has been reviewed"
+          }
+        },
+        "required": [
+          "user_id",
+          "task_id",
+          "date",
+          "minutes"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "timesheet": {
+            "type": "object",
+            "description": "The created timesheet entry"
+          }
+        },
+        "required": [
+          "timesheet"
+        ]
+      }
+    },
+    "update_timesheet": {
+      "display_name": "Update Timesheet Entry",
+      "description": "Replace an existing timesheet entry by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "timesheet_id": {
+            "type": "integer",
+            "description": "The timesheet entry ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "task_id": {
+            "type": "integer",
+            "description": "The task ID"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date (ISO 8601)"
+          },
+          "minutes": {
+            "type": "integer",
+            "description": "Duration in minutes"
+          },
+          "comment": {
+            "type": "string",
+            "description": "Comment"
+          },
+          "is_reviewed": {
+            "type": "boolean",
+            "description": "Whether the entry has been reviewed"
+          }
+        },
+        "required": [
+          "timesheet_id",
+          "minutes"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "timesheet": {
+            "type": "object",
+            "description": "The updated timesheet entry"
+          }
+        },
+        "required": [
+          "timesheet"
+        ]
+      }
+    },
+    "delete_timesheet": {
+      "display_name": "Delete Timesheet Entry",
+      "description": "Delete a timesheet entry by ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "timesheet_id": {
+            "type": "integer",
+            "description": "The timesheet entry ID"
+          }
+        },
+        "required": [
+          "timesheet_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "timesheet_id": {
+            "type": "integer",
+            "description": "ID of the deleted record"
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "True when deletion succeeded"
+          }
+        },
+        "required": [
+          "timesheet_id",
+          "deleted"
+        ]
+      }
+    },
+    "update_project_user": {
+      "display_name": "Update Project User Rate",
+      "description": "Set or update a user's rate card / rate on a project.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "integer",
+            "description": "The project ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "rate_card_id": {
+            "type": "integer",
+            "description": "Revenue rate card ID"
+          },
+          "rate": {
+            "type": "number",
+            "description": "Override hourly rate"
+          },
+          "cost_rate_card_id": {
+            "type": "integer",
+            "description": "Cost rate card ID"
+          }
+        },
+        "required": [
+          "project_id",
+          "user_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "project_user": {
+            "type": "object",
+            "description": "The updated project-user assignment"
+          }
+        },
+        "required": [
+          "project_user"
+        ]
+      }
+    },
+    "update_task_user": {
+      "display_name": "Update Task User",
+      "description": "Create or replace a user's assignment on a task (hours, rate, active/pinned).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "integer",
+            "description": "The task ID"
+          },
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "hours": {
+            "type": "number",
+            "description": "Allocated hours"
+          },
+          "rate_card_id": {
+            "type": "integer",
+            "description": "Revenue rate card ID"
+          },
+          "rate": {
+            "type": "number",
+            "description": "Override hourly rate"
+          },
+          "cost_rate_card_id": {
+            "type": "integer",
+            "description": "Cost rate card ID"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the assignment is active"
+          },
+          "is_pinned": {
+            "type": "boolean",
+            "description": "Whether the assignment is pinned"
+          }
+        },
+        "required": [
+          "task_id",
+          "user_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task_user": {
+            "type": "object",
+            "description": "The updated task-user assignment"
+          }
+        },
+        "required": [
+          "task_user"
+        ]
+      }
+    },
+    "update_task_placeholder": {
+      "display_name": "Update Task Placeholder",
+      "description": "Create or replace a placeholder (unassigned role) allocation on a task.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "integer",
+            "description": "The task ID"
+          },
+          "placeholder_id": {
+            "type": "integer",
+            "description": "Placeholder ID (omit to create a new one)"
+          },
+          "role_id": {
+            "type": "integer",
+            "description": "Role ID for the placeholder (required; get valid IDs from list_roles)"
+          },
+          "hours": {
+            "type": "number",
+            "description": "Allocated hours"
+          },
+          "rate_card_id": {
+            "type": "integer",
+            "description": "Revenue rate card ID"
+          },
+          "rate": {
+            "type": "number",
+            "description": "Override hourly rate"
+          },
+          "is_active": {
+            "type": "boolean",
+            "description": "Whether the placeholder is active"
+          },
+          "is_pinned": {
+            "type": "boolean",
+            "description": "Whether the placeholder is pinned"
+          }
+        },
+        "required": [
+          "task_id",
+          "role_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "placeholder": {
+            "type": "object",
+            "description": "The updated placeholder allocation"
+          }
+        },
+        "required": [
+          "placeholder"
+        ]
+      }
+    },
+    "update_user_roles": {
+      "display_name": "Update User Roles",
+      "description": "Replace the set of role IDs assigned to a user.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "user_role_ids": {
+            "type": "array",
+            "description": "Full set of role IDs the user should have",
+            "items": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "user_id",
+          "user_role_ids"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "user_role_ids": {
+            "type": "array",
+            "description": "The full set of role IDs now assigned to the user",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "updated": {
+            "type": "boolean",
+            "description": "True when the update succeeded"
+          }
+        },
+        "required": [
+          "user_id",
+          "user_role_ids",
+          "updated"
+        ]
+      }
+    },
+    "update_user_leave_balances": {
+      "display_name": "Update User Leave Balances",
+      "description": "Replace a user's leave balances. Each balance is an object with leaveTypeID, balance, and unit.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "balances": {
+            "type": "array",
+            "description": "Leave balances to set",
+            "items": {
+              "type": "object",
+              "properties": {
+                "leaveTypeID": {
+                  "type": "integer",
+                  "description": "Leave type ID"
+                },
+                "balance": {
+                  "type": "number",
+                  "description": "Balance amount"
+                },
+                "unit": {
+                  "type": "string",
+                  "description": "Unit, e.g. 'Hours' or 'Days'"
+                }
+              },
+              "required": [
+                "leaveTypeID",
+                "balance",
+                "unit"
+              ]
+            }
+          }
+        },
+        "required": [
+          "user_id",
+          "balances"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "balances": {
+            "type": "array",
+            "description": "The leave balances now set on the user",
+            "items": {
+              "type": "object",
+              "properties": {
+                "leaveTypeID": {
+                  "type": "integer",
+                  "description": "Leave type ID"
+                },
+                "balance": {
+                  "type": "number",
+                  "description": "Balance amount"
+                },
+                "unit": {
+                  "type": "string",
+                  "description": "Unit, e.g. 'Hours' or 'Days'"
+                }
+              }
+            }
+          },
+          "updated": {
+            "type": "boolean",
+            "description": "True when the update succeeded"
+          }
+        },
+        "required": [
+          "user_id",
+          "balances",
+          "updated"
+        ]
+      }
+    },
+    "update_user_postings": {
+      "display_name": "Update User Posting",
+      "description": "Create a user posting (employment posting: office, team, position, rate, capacity).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "integer",
+            "description": "The user ID"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Posting start date (ISO 8601)"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Posting end date (ISO 8601)"
+          },
+          "is_billable": {
+            "type": "boolean",
+            "description": "Whether the posting is billable"
+          },
+          "recoverable": {
+            "type": "integer",
+            "description": "Recoverable code/ID"
+          },
+          "rate": {
+            "type": "number",
+            "description": "Cost rate"
+          },
+          "office_id": {
+            "type": "integer",
+            "description": "Office ID"
+          },
+          "location_id": {
+            "type": "integer",
+            "description": "Location ID"
+          },
+          "team_id": {
+            "type": "integer",
+            "description": "Team ID"
+          },
+          "position_id": {
+            "type": "integer",
+            "description": "Position ID"
+          },
+          "rank_id": {
+            "type": "integer",
+            "description": "Rank ID"
+          },
+          "agreement_type_id": {
+            "type": "integer",
+            "description": "Agreement type ID"
+          },
+          "holiday_calendar_id": {
+            "type": "integer",
+            "description": "Holiday calendar ID"
+          },
+          "manager_id": {
+            "type": "integer",
+            "description": "Manager user ID"
+          },
+          "currency_id": {
+            "type": "integer",
+            "description": "Currency ID"
+          },
+          "capacity_days": {
+            "type": "array",
+            "description": "Per-day capacity, each {dayOfWeekID, hours}",
+            "items": {
+              "type": "object",
+              "properties": {
+                "dayOfWeekID": {
+                  "type": "integer",
+                  "description": "Day of week ID (1-7)"
+                },
+                "hours": {
+                  "type": "number",
+                  "description": "Capacity hours for that day"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "user_id",
+          "start_date",
+          "is_billable",
+          "recoverable",
+          "rate",
+          "office_id",
+          "location_id",
+          "team_id",
+          "position_id",
+          "agreement_type_id",
+          "currency_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "posting": {
+            "type": "object",
+            "description": "The created posting"
+          }
+        },
+        "required": [
+          "posting"
+        ]
+      }
+    },
+    "set_custom_fields": {
+      "display_name": "Set Custom Fields",
+      "description": "Create or update custom field data on a client, project, module, task, or user.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "description": "Which entity the fields belong to",
+            "enum": [
+              "client",
+              "project",
+              "module",
+              "task",
+              "user"
+            ]
+          },
+          "entity_id": {
+            "type": "integer",
+            "description": "ID of the entity"
+          },
+          "fields": {
+            "type": "array",
+            "description": "Custom field values to set",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fieldID": {
+                  "type": "integer",
+                  "description": "Custom field ID (from list_custom_fields / your config)"
+                },
+                "value": {
+                  "type": "string",
+                  "description": "Field value (for single-value fields)"
+                },
+                "multiSelectValues": {
+                  "type": "array",
+                  "description": "Values for multi-select fields",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "fieldID"
+              ]
+            }
+          }
+        },
+        "required": [
+          "entity_type",
+          "entity_id",
+          "fields"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "entity_id": {
+            "type": "integer",
+            "description": "ID of the updated entity"
+          },
+          "updated": {
+            "type": "boolean",
+            "description": "True when the update succeeded"
+          }
+        },
+        "required": [
+          "entity_id"
+        ]
+      }
+    }
+  }
+}
