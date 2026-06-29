@@ -1,7 +1,7 @@
 {
     "name": "Google Search Console",
     "display_name": "Google Search Console",
-    "version": "0.1.0",
+    "version": "2.0.0",
     "description": "Access Google Search Console data including search analytics, URL inspection, sitemaps, and site verification.",
     "entry_point": "google_search_console.py",
     "auth": {
@@ -96,20 +96,11 @@
                     "row_count": {
                         "type": "integer",
                         "description": "Number of rows returned"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "rows",
-                    "row_count",
-                    "result"
+                    "row_count"
                 ]
             }
         },
@@ -142,20 +133,11 @@
                     "site_count": {
                         "type": "integer",
                         "description": "Number of sites"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "sites",
-                    "site_count",
-                    "result"
+                    "site_count"
                 ]
             }
         },
@@ -186,19 +168,10 @@
                     "inspection_result": {
                         "type": "object",
                         "description": "URL inspection data"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "inspection_result",
-                    "result"
+                    "inspection_result"
                 ]
             }
         },
@@ -245,20 +218,11 @@
                     "sitemap_count": {
                         "type": "integer",
                         "description": "Number of sitemaps"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "sitemaps",
-                    "sitemap_count",
-                    "result"
+                    "sitemap_count"
                 ]
             }
         },
@@ -289,19 +253,10 @@
                     "sitemap": {
                         "type": "object",
                         "description": "Sitemap details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "sitemap",
-                    "result"
+                    "sitemap"
                 ]
             }
         }
