@@ -6,8 +6,6 @@ import pytest
 from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
 
-import aiohttp
-
 from projectworks.projectworks import projectworks, _as_list, _clean, _get_headers, BASE_URL
 
 pytestmark = pytest.mark.unit
@@ -897,44 +895,15 @@ class TestCreateExpenseClaim:
         assert base64.b64decode(body["fileContent"]) == raw
 
     @pytest.mark.asyncio
-    async def test_file_object_with_url_is_downloaded(self, mock_context, monkeypatch):
+    async def test_file_object_without_content_errors(self, mock_context):
+        # A 'url' is intentionally not downloaded (SSRF risk); only base64 'content' is accepted.
         mock_context.fetch.return_value = ok({"id": 11})
-        raw = b"%PDF-1.4 downloaded"
-
-        class _FakeResp:
-            status = 200
-
-            async def read(self):
-                return raw
-
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *a):
-                return False
-
-        class _FakeSession:
-            def __init__(self, *a, **k):
-                pass
-
-            def get(self, url):
-                assert url == "https://files.example.com/receipt.pdf"
-                return _FakeResp()
-
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *a):
-                return False
-
-        monkeypatch.setattr(aiohttp, "ClientSession", _FakeSession)
-        await projectworks.execute_action(
+        result = await projectworks.execute_action(
             "create_expense_claim",
             _expense_inputs(file={"name": "receipt.pdf", "url": "https://files.example.com/receipt.pdf"}),
             mock_context,
         )
-        body = mock_context.fetch.call_args.kwargs["json"]
-        assert base64.b64decode(body["fileContent"]) == raw
+        assert result.type == ResultType.ACTION_ERROR
 
     @pytest.mark.asyncio
     async def test_invalid_base64_content_errors(self, mock_context):

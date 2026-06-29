@@ -1,40 +1,28 @@
 import base64
 from typing import Any, Dict, List
 
-import aiohttp
 from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, Integration
 
 projectworks = Integration.load()
 
 BASE_URL = "https://api.projectworksapp.com/api/v1"
 
-# Time-cap for direct file downloads so a stalled download fails cleanly.
-_FILE_DOWNLOAD_TIMEOUT = aiohttp.ClientTimeout(total=25)
 
+def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
+    """Resolve raw bytes from a standard Autohive file object.
 
-async def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
-    """Resolve raw bytes from an Autohive file object.
-
-    The platform attaches files as an object carrying either base64 ``content``
-    or a pre-signed ``url``. We return the raw bytes so the caller can re-encode
-    them in whatever form the target API expects.
+    Files are attached as an object carrying base64 ``content``. We deliberately
+    do not fetch arbitrary caller-supplied URLs here: downloading from the
+    integration runtime would expose an SSRF vector and let unbounded responses
+    be buffered and base64-expanded in memory.
     """
     content_b64 = file_obj.get("content")
-    if content_b64:
-        try:
-            return base64.b64decode(content_b64)
-        except Exception:
-            raise ValueError("file 'content' is not valid base64-encoded data")
-
-    url = file_obj.get("url")
-    if url:
-        async with aiohttp.ClientSession(timeout=_FILE_DOWNLOAD_TIMEOUT) as session:
-            async with session.get(url) as resp:
-                if resp.status != 200:
-                    raise ValueError(f"Failed to download file from url: HTTP {resp.status}")
-                return await resp.read()
-
-    raise ValueError("file object missing 'content' (base64) or 'url' — attach a receipt file to the expense claim")
+    if not content_b64:
+        raise ValueError("file object missing 'content' (base64) — attach a receipt file to the expense claim")
+    try:
+        return base64.b64decode(content_b64)
+    except Exception:
+        raise ValueError("file 'content' is not valid base64-encoded data")
 
 
 def _get_headers(context: ExecutionContext) -> Dict[str, str]:
@@ -976,7 +964,7 @@ async def _send_expense_claim(
 ) -> ActionResult:
     """Attach the receipt file (if supplied) inline as base64, then send the claim."""
     if file_obj:
-        file_bytes = await _resolve_file_bytes(file_obj)
+        file_bytes = _resolve_file_bytes(file_obj)
         body["fileContent"] = base64.b64encode(file_bytes).decode("utf-8")
         body["fileName"] = file_obj.get("name") or "receipt"
     return await _write(context, method, path, "expense_claim", body)

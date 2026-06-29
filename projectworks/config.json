@@ -2220,15 +2220,11 @@
           },
           "file": {
             "type": "object",
-            "description": "Receipt/invoice file to attach. ProjectWorks usually requires at least one file when creating an expense claim. Supply either base64 'content' or a 'url' the integration will download.",
+            "description": "Receipt/invoice file to attach. ProjectWorks usually requires at least one file when creating an expense claim. Supply the file as base64 'content'.",
             "properties": {
               "content": {
                 "type": "string",
                 "description": "Base64-encoded file content"
-              },
-              "url": {
-                "type": "string",
-                "description": "URL the integration downloads and encodes (use instead of 'content')"
               },
               "name": {
                 "type": "string",
@@ -2343,15 +2339,11 @@
           },
           "file": {
             "type": "object",
-            "description": "Receipt/invoice file to attach. Supply either base64 'content' or a 'url' the integration will download.",
+            "description": "Receipt/invoice file to attach. Supply the file as base64 'content'.",
             "properties": {
               "content": {
                 "type": "string",
                 "description": "Base64-encoded file content"
-              },
-              "url": {
-                "type": "string",
-                "description": "URL the integration downloads and encodes (use instead of 'content')"
               },
               "name": {
                 "type": "string",

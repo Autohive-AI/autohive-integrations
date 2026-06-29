@@ -79,7 +79,7 @@ All `list_*` actions accept `page` (default 1) and `page_size` (default 100) for
 > - `update_task_placeholder` → `role_id` is **required** and must be a configured role ID (look it up with `list_roles`); an unrecognised role ID makes the API return HTTP 500.
 > - `update_user_postings` → `capacity_days`: `[{ "dayOfWeekID": int, "hours": number }]`
 > - `set_custom_fields` → `fields`: `[{ "fieldID": int, "value": str, "multiSelectValues": [str] }]`
-> - `create_expense_claim` / `update_expense_claim` → attach a receipt with `file`: `{ "name": "receipt.pdf", "content": "<base64>" }` **or** `{ "name": "receipt.pdf", "url": "https://…" }`. When a `url` is given the integration downloads it and base64-encodes the bytes itself, so the caller never has to produce base64. Most ProjectWorks accounts reject an expense claim with no file (`HTTP 400: Must include at least one file`).
+> - `create_expense_claim` / `update_expense_claim` → attach a receipt with `file`: `{ "name": "receipt.pdf", "content": "<base64>" }`. The file must be supplied as base64 `content` (the standard Autohive file object). Most ProjectWorks accounts reject an expense claim with no file (`HTTP 400: Must include at least one file`).
 
 ## API Info
 
@@ -113,4 +113,4 @@ pytest projectworks/tests/test_projectworks_integration.py -m "integration and d
 | `create_leave` rejects the request | The `typeID` in `days` is not a leave type configured in your account | Use a real leave type ID (Admin → Leave Types) |
 | `update_task_placeholder` returns HTTP 500 | The `role_id` is not a configured role in your account | Use a valid role ID from `list_roles` |
 | `update_user_leave_balances` fails | The user has no posting yet | Create a posting with `update_user_postings` before setting balances |
-| `create_expense_claim` → `HTTP 400: Must include at least one file` | Your account requires a receipt on expense claims | Pass a `file` object (`content` base64 or a `url`) with the claim |
+| `create_expense_claim` → `HTTP 400: Must include at least one file` | Your account requires a receipt on expense claims | Pass a `file` object with base64 `content` with the claim |
