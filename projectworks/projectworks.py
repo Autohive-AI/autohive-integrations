@@ -29,6 +29,11 @@ def _get_headers(context: ExecutionContext) -> Dict[str, str]:
     creds = context.auth.get("credentials", context.auth)
     consumer_key = creds.get("consumer_key", "")
     consumer_secret = creds.get("consumer_secret", "")
+    # Guard at runtime rather than via auth.fields.required: the config stays
+    # compatible with whatever shape the platform passes, while a missing/blank
+    # credential fails with a clear message instead of an unauthenticated request.
+    if not consumer_key or not consumer_secret:
+        raise ValueError("ProjectWorks Consumer Key and Consumer Secret are required")
     token = base64.b64encode(f"{consumer_key}:{consumer_secret}".encode()).decode()
     return {
         "Authorization": f"Basic {token}",
