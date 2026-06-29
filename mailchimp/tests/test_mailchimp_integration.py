@@ -15,11 +15,12 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
 import os
+import uuid
 
 import aiohttp
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import FetchResponse, RateLimitError
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from mailchimp.mailchimp import mailchimp, MailchimpConnectedAccountHandler
@@ -57,10 +58,12 @@ def live_context(env_credentials):
         merged_headers["Authorization"] = f"Bearer {access_token}"
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
+                data = await resp.json(content_type=None)
                 if resp.status == 429:
                     retry_after = int(resp.headers.get("Retry-After", 60))
-                    raise RateLimitError(retry_after, resp.status, "Rate limit exceeded")
-                data = await resp.json(content_type=None)
+                    raise RateLimitError(retry_after, resp.status, "Rate limit exceeded", data)
+                if resp.status < 200 or resp.status >= 300:
+                    raise HTTPError(resp.status, str(data), data)
                 return FetchResponse(
                     status=resp.status,
                     headers=dict(resp.headers),
@@ -357,40 +360,44 @@ class TestMemberLifecycle:
     async def test_add_and_update_member(self, live_context):
         require_test_list_id()
 
-        test_email = f"autohive-test-{os.getpid()}@example.com"
+        test_email = f"autohive-test-{uuid.uuid4().hex}@example.com"
+        member_created = False
 
-        # Add member
-        add_result = await mailchimp.execute_action(
-            "add_member",
-            {
-                "list_id": TEST_LIST_ID,
-                "email_address": test_email,
-                "status": "subscribed",
-                "merge_fields": {"FNAME": "Integration", "LNAME": "Test"},
-            },
-            live_context,
-        )
-        assert add_result.result.data["result"] is True
-        assert add_result.result.data["member"]["email_address"] == test_email
+        try:
+            # Add member
+            add_result = await mailchimp.execute_action(
+                "add_member",
+                {
+                    "list_id": TEST_LIST_ID,
+                    "email_address": test_email,
+                    "status": "subscribed",
+                    "merge_fields": {"FNAME": "Integration", "LNAME": "Test"},
+                },
+                live_context,
+            )
+            assert add_result.result.data["result"] is True
+            member_created = True
+            assert add_result.result.data["member"]["email_address"] == test_email
 
-        # Update member — change merge fields
-        update_result = await mailchimp.execute_action(
-            "update_member",
-            {
-                "list_id": TEST_LIST_ID,
-                "email_address": test_email,
-                "merge_fields": {"FNAME": "Updated", "LNAME": "Test"},
-            },
-            live_context,
-        )
-        assert update_result.result.data["result"] is True
-
-        # Unsubscribe to clean up (Mailchimp has no delete member endpoint)
-        await mailchimp.execute_action(
-            "update_member",
-            {"list_id": TEST_LIST_ID, "email_address": test_email, "status": "unsubscribed"},
-            live_context,
-        )
+            # Update member — change merge fields
+            update_result = await mailchimp.execute_action(
+                "update_member",
+                {
+                    "list_id": TEST_LIST_ID,
+                    "email_address": test_email,
+                    "merge_fields": {"FNAME": "Updated", "LNAME": "Test"},
+                },
+                live_context,
+            )
+            assert update_result.result.data["result"] is True
+        finally:
+            if member_created:
+                # Unsubscribe to clean up (Mailchimp has no delete member endpoint)
+                await mailchimp.execute_action(
+                    "update_member",
+                    {"list_id": TEST_LIST_ID, "email_address": test_email, "status": "unsubscribed"},
+                    live_context,
+                )
 
 
 @pytest.mark.destructive

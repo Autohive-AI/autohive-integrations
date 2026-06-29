@@ -383,18 +383,41 @@ Where `{dc}` is the data center obtained from the metadata endpoint (e.g., `us19
 
 ### Testing Locally
 
-1. Ensure you have the SDK installed:
+1. Install test dependencies:
    ```bash
-   pip install autohive-integrations-sdk
+   pip install -r requirements-test.txt
    ```
 
-2. Load the integration:
+2. Run the unit tests:
+   ```bash
+   pytest mailchimp/tests/test_mailchimp_unit.py -m unit
+   ```
+
+3. To run live integration tests, copy `.env.example` to `.env` and set:
+   ```bash
+   MAILCHIMP_ACCESS_TOKEN=
+   MAILCHIMP_DC=
+   MAILCHIMP_TEST_LIST_ID=       # optional, required for member/list targeted tests
+   MAILCHIMP_TEST_CAMPAIGN_ID=   # optional, required for get_campaign targeted tests
+   ```
+
+4. Run read-only live tests first. These are safe to run repeatedly:
+   ```bash
+   pytest mailchimp/tests/test_mailchimp_integration.py -m "integration and not destructive"
+   ```
+
+5. Run destructive live tests only when you are ready to create or update real Mailchimp data:
+   ```bash
+   pytest mailchimp/tests/test_mailchimp_integration.py -m "integration and destructive"
+   ```
+
+6. Load the integration manually:
    ```python
    from autohive_integrations_sdk import Integration
    integration = Integration.load("./mailchimp/config.json")
    ```
 
-3. Execute an action:
+7. Execute an action:
    ```python
    result = await integration.execute_action(
        "get_lists",
@@ -440,7 +463,7 @@ This integration is part of the Autohive integrations repository.
 - Upgraded to `autohive-integrations-sdk~=2.0.0`
 - All error paths now use `ActionError` (SDK v2 pattern)
 - `context.fetch()` results access `.data` for response body (SDK v2 breaking change)
-- Added unit tests (78 tests) and integration tests with `live_context` fixture
+- Added unit tests (76 tests) and integration tests with `live_context` fixture
 - Added `find_list` and `find_campaign` search actions
 
 ### Version 1.0.0 (Initial Release)
