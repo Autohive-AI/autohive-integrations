@@ -16,8 +16,11 @@ Optional pre-existing resource IDs (tests chain list -> get when unset):
 Run (read-only — safe default):
     pytest projectworks/tests/test_projectworks_integration.py -m "integration and not destructive"
 
-Run destructive write tests (creates/updates/deletes a real timesheet entry):
+Run destructive write tests (each self-cleans: create -> update -> delete):
     pytest projectworks/tests/test_projectworks_integration.py -m "integration and destructive"
+
+Destructive coverage: timesheet lifecycle, client lifecycle (POST/PATCH/DELETE),
+and a nested module + task lifecycle under an existing project.
 
 Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
@@ -156,6 +159,16 @@ class TestListModules:
         assert isinstance(data["modules"], list)
 
 
+class TestGetModule:
+    async def test_get_module_chained(self, live_context):
+        listed = ok_data(await projectworks.execute_action("list_modules", {"page_size": 1}, live_context))
+        if not listed["modules"]:
+            pytest.skip("No modules in account to test with")
+        module_id = listed["modules"][0].get("ModuleID")
+        data = ok_data(await projectworks.execute_action("get_module", {"module_id": module_id}, live_context))
+        assert isinstance(data["module"], dict)
+
+
 # ---- Tasks ----
 
 
@@ -166,6 +179,16 @@ class TestListTasks:
         assert isinstance(data["tasks"], list)
 
 
+class TestGetTask:
+    async def test_get_task_chained(self, live_context):
+        listed = ok_data(await projectworks.execute_action("list_tasks", {"page_size": 1}, live_context))
+        if not listed["tasks"]:
+            pytest.skip("No tasks in account to test with")
+        task_id = listed["tasks"][0].get("TaskID")
+        data = ok_data(await projectworks.execute_action("get_task", {"task_id": task_id}, live_context))
+        assert isinstance(data["task"], dict)
+
+
 # ---- Resources ----
 
 
@@ -174,6 +197,18 @@ class TestListResources:
         result = await projectworks.execute_action("list_resources", {"page_size": 5}, live_context)
         data = ok_data(result)
         assert isinstance(data["resources"], list)
+
+
+class TestGetResource:
+    async def test_get_resource_chained(self, live_context):
+        listed = ok_data(await projectworks.execute_action("list_resources", {"page_size": 100}, live_context))
+        # Capacity/penciled bookings have a null ResourceID and are not individually fetchable.
+        with_id = [r for r in listed["resources"] if r.get("ResourceID") is not None]
+        if not with_id:
+            pytest.skip("No individually-addressable resourcing bookings (non-null ResourceID) to test with")
+        resource_id = with_id[0]["ResourceID"]
+        data = ok_data(await projectworks.execute_action("get_resource", {"resource_id": resource_id}, live_context))
+        assert isinstance(data["resource"], dict)
 
 
 # ---- Timesheets ----
@@ -196,6 +231,16 @@ class TestListLeaves:
         assert isinstance(data["leaves"], list)
 
 
+class TestGetLeave:
+    async def test_get_leave_chained(self, live_context):
+        listed = ok_data(await projectworks.execute_action("list_leaves", {"page_size": 1}, live_context))
+        if not listed["leaves"]:
+            pytest.skip("No leave requests in account to test with")
+        leave_id = listed["leaves"][0].get("LeaveID")
+        data = ok_data(await projectworks.execute_action("get_leave", {"leave_id": leave_id}, live_context))
+        assert isinstance(data["leave"], dict)
+
+
 class TestListLeaveTypes:
     async def test_returns_leave_types(self, live_context):
         result = await projectworks.execute_action("list_leave_types", {}, live_context)
@@ -213,6 +258,16 @@ class TestListInvoices:
         assert isinstance(data["invoices"], list)
 
 
+class TestGetInvoice:
+    async def test_get_invoice_chained(self, live_context):
+        listed = ok_data(await projectworks.execute_action("list_invoices", {"page_size": 1}, live_context))
+        if not listed["invoices"]:
+            pytest.skip("No invoices in account to test with")
+        invoice_id = listed["invoices"][0].get("InvoiceID")
+        data = ok_data(await projectworks.execute_action("get_invoice", {"invoice_id": invoice_id}, live_context))
+        assert isinstance(data["invoice"], dict)
+
+
 # ---- Expense Claims ----
 
 
@@ -221,6 +276,18 @@ class TestListExpenseClaims:
         result = await projectworks.execute_action("list_expense_claims", {"page_size": 5}, live_context)
         data = ok_data(result)
         assert isinstance(data["expense_claims"], list)
+
+
+class TestGetExpenseClaim:
+    async def test_get_expense_claim_chained(self, live_context):
+        listed = ok_data(await projectworks.execute_action("list_expense_claims", {"page_size": 1}, live_context))
+        if not listed["expense_claims"]:
+            pytest.skip("No expense claims in account to test with")
+        expense_claim_id = listed["expense_claims"][0].get("ExpenseClaimID")
+        data = ok_data(
+            await projectworks.execute_action("get_expense_claim", {"expense_claim_id": expense_claim_id}, live_context)
+        )
+        assert isinstance(data["expense_claim"], dict)
 
 
 # ---- Offices ----
@@ -247,16 +314,17 @@ class TestTimesheetLifecycle:
     """
 
     async def test_full_lifecycle(self, live_context):
-        users = ok_data(await projectworks.execute_action("list_users", {"page_size": 1}, live_context))["users"]
-        # list_tasks has no server-side IsOnTimesheet filter, so page through and
-        # pick a timesheet-eligible task client-side.
-        tasks = ok_data(await projectworks.execute_action("list_tasks", {"page_size": 100}, live_context))["tasks"]
-        timesheet_tasks = [t for t in tasks if t.get("IsOnTimesheet")]
-        if not users or not timesheet_tasks:
-            pytest.skip("Need at least one user and one timesheet-eligible task to run the lifecycle")
+        # ProjectWorks only accepts time from a user assigned to the task's timecode.
+        # A task's Users array does not reliably reflect that assignment, so derive a
+        # known-valid (user, task) pair from an existing timesheet entry instead.
+        existing = ok_data(await projectworks.execute_action("list_timesheets", {"page_size": 1}, live_context))[
+            "timesheets"
+        ]
+        if not existing:
+            pytest.skip("No existing timesheet entry to derive a valid user/task assignment from")
 
-        user_id = users[0].get("UserID")
-        task_id = timesheet_tasks[0].get("TaskID")
+        user_id = existing[0]["UserID"]
+        task_id = existing[0]["TaskID"]
 
         # Create
         created = ok_data(
@@ -290,3 +358,129 @@ class TestTimesheetLifecycle:
         )
         assert deleted["deleted"] is True
         assert deleted["timesheet_id"] == entry_id
+
+
+@pytest.mark.destructive
+class TestClientLifecycle:
+    """End-to-end entity write pattern: create (POST) -> update (PATCH) -> delete.
+
+    Discovers a real account manager + office by chaining list actions, then
+    creates a clearly-named throwaway client and removes it again, so the test
+    is self-contained and leaves no residue on success.
+    """
+
+    async def test_full_lifecycle(self, live_context):
+        users = ok_data(await projectworks.execute_action("list_users", {"page_size": 1}, live_context))["users"]
+        offices = ok_data(await projectworks.execute_action("list_offices", {"page_size": 1}, live_context))["offices"]
+        if not users or not offices:
+            pytest.skip("Need at least one user and one office to run the client lifecycle")
+
+        account_manager_id = users[0].get("UserID")
+        office_id = offices[0].get("OfficeID")
+
+        # Create
+        created = ok_data(
+            await projectworks.execute_action(
+                "create_client",
+                {
+                    "client_name": f"ZZ Autohive Test Client {os.getpid()}",
+                    "account_manager_id": account_manager_id,
+                    "office_id": office_id,
+                },
+                live_context,
+            )
+        )["client"]
+        client_id = created.get("ClientID")
+        assert client_id is not None
+
+        # Update (partial PATCH)
+        new_name = f"ZZ Autohive Test Client {os.getpid()} (updated)"
+        updated = ok_data(
+            await projectworks.execute_action(
+                "update_client", {"client_id": client_id, "client_name": new_name}, live_context
+            )
+        )["client"]
+        assert updated.get("ClientName") == new_name
+
+        # Delete (cleanup)
+        deleted = ok_data(await projectworks.execute_action("delete_client", {"client_id": client_id}, live_context))
+        assert deleted["deleted"] is True
+        assert deleted["client_id"] == client_id
+
+
+@pytest.mark.destructive
+class TestModuleTaskLifecycle:
+    """End-to-end nested write pattern under a real project: create a services
+    module, create a task within it, update the task, then tear both down.
+
+    Modules/tasks are created with a clear 'ZZ Autohive Test' prefix and removed
+    in reverse order, so the test cleans up after itself on success.
+    """
+
+    async def test_full_lifecycle(self, live_context):
+        projects = ok_data(await projectworks.execute_action("list_projects", {"page_size": 1}, live_context))[
+            "projects"
+        ]
+        if not projects:
+            pytest.skip("Need at least one project to run the module/task lifecycle")
+        project_id = projects[0].get("ProjectID")
+
+        # A task requires a taskTypeID; there is no list_task_types action, so
+        # discover a valid type from an existing task.
+        existing = ok_data(await projectworks.execute_action("list_tasks", {"page_size": 50}, live_context))["tasks"]
+        task_type_ids = [t.get("TaskTypeID") for t in existing if t.get("TaskTypeID") is not None]
+        if not task_type_ids:
+            pytest.skip("No existing task with a TaskTypeID to derive a valid task type from")
+        task_type_id = task_type_ids[0]
+
+        # Create a services module (tasks/timecodes can only be added to services modules).
+        module = ok_data(
+            await projectworks.execute_action(
+                "create_module",
+                {
+                    "project_id": project_id,
+                    "module_name": f"ZZ Autohive Test Module {os.getpid()}",
+                    "is_services": True,
+                },
+                live_context,
+            )
+        )["module"]
+        module_id = module.get("ModuleID")
+        assert module_id is not None
+
+        task_id = None
+        try:
+            # Create a task within the module
+            task = ok_data(
+                await projectworks.execute_action(
+                    "create_task",
+                    {
+                        "module_id": module_id,
+                        "task_name": f"ZZ Autohive Test Task {os.getpid()}",
+                        "task_type_id": task_type_id,
+                    },
+                    live_context,
+                )
+            )["task"]
+            task_id = task.get("TaskID")
+            assert task_id is not None
+
+            # Update (partial PATCH)
+            new_name = f"ZZ Autohive Test Task {os.getpid()} (updated)"
+            updated = ok_data(
+                await projectworks.execute_action(
+                    "update_task", {"task_id": task_id, "task_name": new_name}, live_context
+                )
+            )["task"]
+            assert updated.get("TaskName") == new_name
+        finally:
+            # Tear down in reverse order so the project is left clean even on failure.
+            if task_id is not None:
+                deleted_task = ok_data(
+                    await projectworks.execute_action("delete_task", {"task_id": task_id}, live_context)
+                )
+                assert deleted_task["deleted"] is True
+            deleted_module = ok_data(
+                await projectworks.execute_action("delete_module", {"module_id": module_id}, live_context)
+            )
+            assert deleted_module["deleted"] is True

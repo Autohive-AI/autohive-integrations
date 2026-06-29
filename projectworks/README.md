@@ -99,9 +99,17 @@ pytest projectworks/
 # Integration tests — read-only (safe default; set PROJECTWORKS_CONSUMER_KEY/SECRET first)
 pytest projectworks/tests/test_projectworks_integration.py -m "integration and not destructive"
 
-# Destructive tests — creates/updates/deletes a real timesheet entry on the connected account
+# Destructive tests — create -> update -> delete real records on the connected account
+# (each test cleans up after itself). Covers the timesheet, client, and
+# module + task lifecycles.
 pytest projectworks/tests/test_projectworks_integration.py -m "integration and destructive"
 ```
+
+The integration suite covers every `list_*` action, chained `get_*` reads for the
+addressable entities (user, client, project, module, task, resource, leave,
+invoice, expense claim — these skip cleanly when the account has no such records),
+and self-cleaning destructive lifecycles exercising the create/update/delete write
+path (`POST`/`PATCH`/`PUT`/`DELETE`) for timesheets, clients, and modules + tasks.
 
 ## Troubleshooting
 
