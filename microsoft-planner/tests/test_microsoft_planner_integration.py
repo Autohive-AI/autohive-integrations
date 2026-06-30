@@ -412,18 +412,21 @@ class TestBucketLifecycle:
         bucket_id = create_result.result.data["bucket"]["id"]
         assert bucket_id is not None
 
-        # Step 2: Update
-        update_result = await microsoft_planner.execute_action(
-            "update_bucket",
-            {"bucket_id": bucket_id, "name": "Updated Integration Test Bucket"},
-            live_context,
-        )
-        assert update_result.type == ResultType.ACTION
-
-        # Step 3: Delete (cleanup)
-        delete_result = await microsoft_planner.execute_action("delete_bucket", {"bucket_id": bucket_id}, live_context)
-        assert delete_result.type == ResultType.ACTION
-        assert delete_result.result.data["result"] is True
+        try:
+            # Step 2: Update
+            update_result = await microsoft_planner.execute_action(
+                "update_bucket",
+                {"bucket_id": bucket_id, "name": "Updated Integration Test Bucket"},
+                live_context,
+            )
+            assert update_result.type == ResultType.ACTION
+        finally:
+            # Step 3: Delete (cleanup)
+            delete_result = await microsoft_planner.execute_action(
+                "delete_bucket", {"bucket_id": bucket_id}, live_context
+            )
+            assert delete_result.type == ResultType.ACTION
+            assert delete_result.result.data["result"] is True
 
 
 @pytest.mark.destructive
@@ -449,31 +452,34 @@ class TestTaskLifecycle:
         task_id = create_result.result.data["task"]["id"]
         assert task_id is not None
 
-        # Step 2: Update task
-        update_result = await microsoft_planner.execute_action(
-            "update_task",
-            {"task_id": task_id, "percent_complete": 50},
-            live_context,
-        )
-        assert update_result.type == ResultType.ACTION
+        try:
+            # Step 2: Update task
+            update_result = await microsoft_planner.execute_action(
+                "update_task",
+                {"task_id": task_id, "percent_complete": 50},
+                live_context,
+            )
+            assert update_result.type == ResultType.ACTION
 
-        # Step 3: Get task details
-        details_result = await microsoft_planner.execute_action("get_task_details", {"task_id": task_id}, live_context)
-        assert details_result.type == ResultType.ACTION
-        assert "task_details" in details_result.result.data
+            # Step 3: Get task details
+            details_result = await microsoft_planner.execute_action(
+                "get_task_details", {"task_id": task_id}, live_context
+            )
+            assert details_result.type == ResultType.ACTION
+            assert "task_details" in details_result.result.data
 
-        # Step 4: Update task details (description)
-        update_details_result = await microsoft_planner.execute_action(
-            "update_task_details",
-            {"task_id": task_id, "description": f"Integration test description {os.getpid()}"},
-            live_context,
-        )
-        assert update_details_result.type == ResultType.ACTION
-
-        # Step 5: Delete (cleanup)
-        delete_result = await microsoft_planner.execute_action("delete_task", {"task_id": task_id}, live_context)
-        assert delete_result.type == ResultType.ACTION
-        assert delete_result.result.data["result"] is True
+            # Step 4: Update task details (description)
+            update_details_result = await microsoft_planner.execute_action(
+                "update_task_details",
+                {"task_id": task_id, "description": f"Integration test description {os.getpid()}"},
+                live_context,
+            )
+            assert update_details_result.type == ResultType.ACTION
+        finally:
+            # Step 5: Delete (cleanup)
+            delete_result = await microsoft_planner.execute_action("delete_task", {"task_id": task_id}, live_context)
+            assert delete_result.type == ResultType.ACTION
+            assert delete_result.result.data["result"] is True
 
 
 @pytest.mark.destructive
@@ -498,35 +504,36 @@ class TestChecklistLifecycle:
         assert create_result.type == ResultType.ACTION
         task_id = create_result.result.data["task"]["id"]
 
-        # Step 2: Add checklist item
-        add_result = await microsoft_planner.execute_action(
-            "add_checklist_item",
-            {"task_id": task_id, "title": "Test checklist step"},
-            live_context,
-        )
-        assert add_result.type == ResultType.ACTION
-        item_id = add_result.result.data["item_id"]
-        assert item_id is not None
+        try:
+            # Step 2: Add checklist item
+            add_result = await microsoft_planner.execute_action(
+                "add_checklist_item",
+                {"task_id": task_id, "title": "Test checklist step"},
+                live_context,
+            )
+            assert add_result.type == ResultType.ACTION
+            item_id = add_result.result.data["item_id"]
+            assert item_id is not None
 
-        # Step 3: Update checklist item
-        update_result = await microsoft_planner.execute_action(
-            "update_checklist_item",
-            {"task_id": task_id, "item_id": item_id, "is_checked": True},
-            live_context,
-        )
-        assert update_result.type == ResultType.ACTION
+            # Step 3: Update checklist item
+            update_result = await microsoft_planner.execute_action(
+                "update_checklist_item",
+                {"task_id": task_id, "item_id": item_id, "is_checked": True},
+                live_context,
+            )
+            assert update_result.type == ResultType.ACTION
 
-        # Step 4: Remove checklist item
-        remove_result = await microsoft_planner.execute_action(
-            "remove_checklist_item",
-            {"task_id": task_id, "item_id": item_id},
-            live_context,
-        )
-        assert remove_result.type == ResultType.ACTION
-
-        # Step 5: Cleanup - delete task
-        delete_result = await microsoft_planner.execute_action("delete_task", {"task_id": task_id}, live_context)
-        assert delete_result.type == ResultType.ACTION
+            # Step 4: Remove checklist item
+            remove_result = await microsoft_planner.execute_action(
+                "remove_checklist_item",
+                {"task_id": task_id, "item_id": item_id},
+                live_context,
+            )
+            assert remove_result.type == ResultType.ACTION
+        finally:
+            # Step 5: Cleanup - delete task
+            delete_result = await microsoft_planner.execute_action("delete_task", {"task_id": task_id}, live_context)
+            assert delete_result.type == ResultType.ACTION
 
 
 @pytest.mark.destructive
@@ -547,26 +554,27 @@ class TestPlanLifecycle:
         plan_id = create_result.result.data["plan"]["id"]
         assert plan_id is not None
 
-        # Step 2: Update plan title
-        update_result = await microsoft_planner.execute_action(
-            "update_plan",
-            {"plan_id": plan_id, "title": "Updated Integration Test Plan"},
-            live_context,
-        )
-        assert update_result.type == ResultType.ACTION
+        try:
+            # Step 2: Update plan title
+            update_result = await microsoft_planner.execute_action(
+                "update_plan",
+                {"plan_id": plan_id, "title": "Updated Integration Test Plan"},
+                live_context,
+            )
+            assert update_result.type == ResultType.ACTION
 
-        # Step 3: Update plan details (category descriptions)
-        update_details_result = await microsoft_planner.execute_action(
-            "update_plan_details",
-            {"plan_id": plan_id, "category_descriptions": {"category1": "Integration Test"}},
-            live_context,
-        )
-        assert update_details_result.type == ResultType.ACTION
-
-        # Step 4: Delete (cleanup)
-        delete_result = await microsoft_planner.execute_action("delete_plan", {"plan_id": plan_id}, live_context)
-        assert delete_result.type == ResultType.ACTION
-        assert delete_result.result.data["result"] is True
+            # Step 3: Update plan details (category descriptions)
+            update_details_result = await microsoft_planner.execute_action(
+                "update_plan_details",
+                {"plan_id": plan_id, "category_descriptions": {"category1": "Integration Test"}},
+                live_context,
+            )
+            assert update_details_result.type == ResultType.ACTION
+        finally:
+            # Step 4: Delete (cleanup)
+            delete_result = await microsoft_planner.execute_action("delete_plan", {"plan_id": plan_id}, live_context)
+            assert delete_result.type == ResultType.ACTION
+            assert delete_result.result.data["result"] is True
 
 
 @pytest.mark.destructive
