@@ -1,10 +1,13 @@
+import uuid
+from typing import Dict, Any, Optional
+
 from autohive_integrations_sdk import (
     Integration,
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
-from typing import Dict, Any, Optional
 
 # Create the integration using the config.json
 microsoft_planner = Integration.load()
@@ -20,21 +23,10 @@ GRAPH_API_BASE_URL = "https://graph.microsoft.com/v1.0"
 
 
 async def get_etag(context: ExecutionContext, resource_url: str) -> Optional[str]:
-    """
-    Fetch the current ETag for a resource.
-    ETags are required for UPDATE and DELETE operations in Microsoft Planner API.
-
-    Args:
-        context: ExecutionContext for making API calls
-        resource_url: The URL of the resource to get the ETag for
-
-    Returns:
-        The ETag value or None if not found
-    """
+    """Fetch the current ETag for a resource. ETags are required for UPDATE and DELETE operations."""
     try:
         response = await context.fetch(resource_url, method="GET")
-        # ETag is returned in the response with @odata.etag key
-        return response.get("@odata.etag")
+        return response.data.get("@odata.etag")
     except Exception:
         return None
 
@@ -63,11 +55,11 @@ class ListGroupsAction(ActionHandler):
                 params=params,
             )
 
-            groups = response.get("value", [])
+            groups = response.data.get("value", [])
             return ActionResult(data={"groups": groups, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"groups": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- User Handlers ----
@@ -86,7 +78,7 @@ class GetUserByEmailAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/users", method="GET", params=params)
 
-            users = response.get("value", [])
+            users = response.data.get("value", [])
 
             if users:
                 user = users[0]
@@ -101,17 +93,10 @@ class GetUserByEmailAction(ActionHandler):
                     cost_usd=0.0,
                 )
             else:
-                return ActionResult(
-                    data={
-                        "user": {},
-                        "result": False,
-                        "error": f"User with email '{email}' not found",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message=f"User with email '{email}' not found")
 
         except Exception as e:
-            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("search_users")
@@ -139,7 +124,7 @@ class SearchUsersAction(ActionHandler):
                 headers=headers,
             )
 
-            users = response.get("value", [])
+            users = response.data.get("value", [])
 
             # Format users for easier consumption
             formatted_users = [
@@ -155,7 +140,7 @@ class SearchUsersAction(ActionHandler):
             return ActionResult(data={"users": formatted_users, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"users": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("get_current_user")
@@ -168,17 +153,17 @@ class GetCurrentUserAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "user": response,
-                    "user_id": response.get("id"),
-                    "display_name": response.get("displayName"),
-                    "email": response.get("mail") or response.get("userPrincipalName"),
+                    "user": response.data,
+                    "user_id": response.data.get("id"),
+                    "display_name": response.data.get("displayName"),
+                    "email": response.data.get("mail") or response.data.get("userPrincipalName"),
                     "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("list_user_tasks")
@@ -188,14 +173,15 @@ class ListUserTasksAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             user_id = inputs.get("user_id", "me")  # Default to 'me' for current user
+            base = f"{GRAPH_API_BASE_URL}/me" if user_id == "me" else f"{GRAPH_API_BASE_URL}/users/{user_id}"
 
-            response = await context.fetch(f"{GRAPH_API_BASE_URL}/users/{user_id}/planner/tasks", method="GET")
+            response = await context.fetch(f"{base}/planner/tasks", method="GET")
 
-            tasks = response.get("value", [])
+            tasks = response.data.get("value", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("list_user_plans")
@@ -205,14 +191,15 @@ class ListUserPlansAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             user_id = inputs.get("user_id", "me")  # Default to 'me' for current user
+            base = f"{GRAPH_API_BASE_URL}/me" if user_id == "me" else f"{GRAPH_API_BASE_URL}/users/{user_id}"
 
-            response = await context.fetch(f"{GRAPH_API_BASE_URL}/users/{user_id}/planner/plans", method="GET")
+            response = await context.fetch(f"{base}/planner/plans", method="GET")
 
-            plans = response.get("value", [])
+            plans = response.data.get("value", [])
             return ActionResult(data={"plans": plans, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"plans": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Plan Handlers ----
@@ -228,11 +215,11 @@ class ListPlansAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/groups/{group_id}/planner/plans", method="GET")
 
-            plans = response.get("value", [])
+            plans = response.data.get("value", [])
             return ActionResult(data={"plans": plans, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"plans": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("get_plan")
@@ -245,10 +232,10 @@ class GetPlanAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}", method="GET")
 
-            return ActionResult(data={"plan": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"plan": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("create_plan")
@@ -270,21 +257,14 @@ class CreatePlanAction(ActionHandler):
                 if group_id:
                     body["container"] = {"containerId": group_id, "type": "group"}
                 else:
-                    return ActionResult(
-                        data={
-                            "plan": {},
-                            "result": False,
-                            "error": "Either 'container' or 'group_id' is required",
-                        },
-                        cost_usd=0.0,
-                    )
+                    return ActionError(message="Either 'container' or 'group_id' is required")
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans", method="POST", json=body)
 
-            return ActionResult(data={"plan": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"plan": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("update_plan")
@@ -299,14 +279,7 @@ class UpdatePlanAction(ActionHandler):
             etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}")
 
             if not etag:
-                return ActionResult(
-                    data={
-                        "plan": {},
-                        "result": False,
-                        "error": "Failed to retrieve plan ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve plan ETag")
 
             # Build request body
             body = {"title": inputs["title"]}
@@ -322,12 +295,12 @@ class UpdatePlanAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"plan": response if response else {}, "result": True},
+                data={"plan": response.data if response.data is not None else {}, "result": True},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"plan": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("delete_plan")
@@ -342,10 +315,7 @@ class DeletePlanAction(ActionHandler):
             etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}")
 
             if not etag:
-                return ActionResult(
-                    data={"result": False, "error": "Failed to retrieve plan ETag"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve plan ETag")
 
             # Delete requires If-Match header with ETag
             headers = {"If-Match": etag}
@@ -359,7 +329,7 @@ class DeletePlanAction(ActionHandler):
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Plan Details Handlers ----
@@ -375,13 +345,10 @@ class GetPlanDetailsAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/details", method="GET")
 
-            return ActionResult(data={"plan_details": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"plan_details": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"plan_details": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("update_plan_details")
@@ -396,14 +363,7 @@ class UpdatePlanDetailsAction(ActionHandler):
             etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/details")
 
             if not etag:
-                return ActionResult(
-                    data={
-                        "plan_details": {},
-                        "result": False,
-                        "error": "Failed to retrieve plan details ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve plan details ETag")
 
             # Build request body with only provided fields
             body = {}
@@ -428,15 +388,12 @@ class UpdatePlanDetailsAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"plan_details": response if response else {}, "result": True},
+                data={"plan_details": response.data if response.data is not None else {}, "result": True},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"plan_details": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 # ---- Bucket Handlers ----
@@ -455,11 +412,11 @@ class ListBucketsAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets", method="GET", params=params)
 
-            buckets = response.get("value", [])
+            buckets = response.data.get("value", [])
             return ActionResult(data={"buckets": buckets, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"buckets": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("get_bucket")
@@ -472,10 +429,10 @@ class GetBucketAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}", method="GET")
 
-            return ActionResult(data={"bucket": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"bucket": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("create_bucket")
@@ -493,10 +450,10 @@ class CreateBucketAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets", method="POST", json=body)
 
-            return ActionResult(data={"bucket": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"bucket": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("update_bucket")
@@ -511,14 +468,7 @@ class UpdateBucketAction(ActionHandler):
             etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}")
 
             if not etag:
-                return ActionResult(
-                    data={
-                        "bucket": {},
-                        "result": False,
-                        "error": "Failed to retrieve bucket ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve bucket ETag")
 
             # Build request body
             body = {"name": inputs["name"]}
@@ -534,12 +484,12 @@ class UpdateBucketAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"bucket": response if response else {}, "result": True},
+                data={"bucket": response.data if response.data is not None else {}, "result": True},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"bucket": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("delete_bucket")
@@ -554,10 +504,7 @@ class DeleteBucketAction(ActionHandler):
             etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}")
 
             if not etag:
-                return ActionResult(
-                    data={"result": False, "error": "Failed to retrieve bucket ETag"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve bucket ETag")
 
             # Delete requires If-Match header with ETag
             headers = {"If-Match": etag}
@@ -571,7 +518,7 @@ class DeleteBucketAction(ActionHandler):
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("list_bucket_tasks")
@@ -584,11 +531,11 @@ class ListBucketTasksAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/buckets/{bucket_id}/tasks", method="GET")
 
-            tasks = response.get("value", [])
+            tasks = response.data.get("value", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Task Handlers ----
@@ -604,11 +551,11 @@ class ListTasksAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/plans/{plan_id}/tasks", method="GET")
 
-            tasks = response.get("value", [])
+            tasks = response.data.get("value", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tasks": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("get_task")
@@ -621,10 +568,10 @@ class GetTaskAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}", method="GET")
 
-            return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("create_task")
@@ -677,10 +624,10 @@ class CreateTaskAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks", method="POST", json=body)
 
-            return ActionResult(data={"task": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("update_task")
@@ -695,14 +642,7 @@ class UpdateTaskAction(ActionHandler):
             etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}")
 
             if not etag:
-                return ActionResult(
-                    data={
-                        "task": {},
-                        "result": False,
-                        "error": "Failed to retrieve task ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve task ETag")
 
             # Build request body with only provided fields
             body = {}
@@ -754,14 +694,7 @@ class UpdateTaskAction(ActionHandler):
 
             # Check if body is empty (no fields to update)
             if not body:
-                return ActionResult(
-                    data={
-                        "task": {},
-                        "result": False,
-                        "error": "No fields provided to update. Please specify at least one field to modify.",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="No fields provided to update. Please specify at least one field to modify.")
 
             # Update requires If-Match header with ETag
             headers = {"If-Match": etag}
@@ -773,14 +706,13 @@ class UpdateTaskAction(ActionHandler):
                 json=body,
             )
 
-            # Ensure we always return an object for task, even if response is None
             return ActionResult(
-                data={"task": response if response else {}, "result": True},
+                data={"task": response.data if response.data is not None else {}, "result": True},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"task": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("delete_task")
@@ -795,10 +727,7 @@ class DeleteTaskAction(ActionHandler):
             etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}")
 
             if not etag:
-                return ActionResult(
-                    data={"result": False, "error": "Failed to retrieve task ETag"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve task ETag")
 
             # Delete requires If-Match header with ETag
             headers = {"If-Match": etag}
@@ -812,7 +741,7 @@ class DeleteTaskAction(ActionHandler):
             return ActionResult(data={"result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Task Details Handlers ----
@@ -828,13 +757,10 @@ class GetTaskDetailsAction(ActionHandler):
 
             response = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
 
-            return ActionResult(data={"task_details": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"task_details": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"task_details": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("update_task_details")
@@ -849,14 +775,7 @@ class UpdateTaskDetailsAction(ActionHandler):
             etag = await get_etag(context, f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details")
 
             if not etag:
-                return ActionResult(
-                    data={
-                        "task_details": {},
-                        "result": False,
-                        "error": "Failed to retrieve task details ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve task details ETag")
 
             # Build request body with only provided fields
             body = {}
@@ -867,13 +786,9 @@ class UpdateTaskDetailsAction(ActionHandler):
                 body["previewType"] = inputs["preview_type"]
             if "checklist" in inputs:
                 # Checklist is an object mapping item IDs to checklist item objects
-                # Example: {"item-id": {"@odata.type": "microsoft.graph.plannerChecklistItem",
-                #           "title": "Item title", "isChecked": false}}
                 body["checklist"] = inputs["checklist"]
             if "references" in inputs:
                 # References is an object mapping reference keys to reference objects
-                # Example: {"https://example.com": {"@odata.type": "microsoft.graph.plannerExternalReference",
-                #           "alias": "Example"}}
                 body["references"] = inputs["references"]
 
             # Update requires If-Match header with ETag
@@ -887,15 +802,12 @@ class UpdateTaskDetailsAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"task_details": response if response else {}, "result": True},
+                data={"task_details": response.data if response.data is not None else {}, "result": True},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"task_details": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("add_checklist_item")
@@ -910,21 +822,17 @@ class AddChecklistItemAction(ActionHandler):
             order_hint = inputs.get("order_hint", " !")
 
             # Get current task details to retrieve existing checklist
-            current_details = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
+            details_response = await context.fetch(
+                f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET"
+            )
 
             # Get current ETag (required for updates)
-            etag = current_details.get("@odata.etag")
+            etag = details_response.data.get("@odata.etag")
             if not etag:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "Failed to retrieve task details ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve task details ETag")
 
             # Get existing checklist or initialize empty dict
-            existing_checklist = current_details.get("checklist", {})
+            existing_checklist = details_response.data.get("checklist", {})
 
             # Clean existing checklist items by removing read-only fields
             # Don't include orderHint for existing items since we're not reordering them
@@ -936,9 +844,6 @@ class AddChecklistItemAction(ActionHandler):
                         "title": item.get("title", ""),
                         "isChecked": item.get("isChecked", False),
                     }
-
-            # Generate a unique item ID using timestamp
-            import uuid
 
             item_id = str(uuid.uuid4())
 
@@ -961,7 +866,7 @@ class AddChecklistItemAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "task_details": response if response else {},
+                    "task_details": response.data if response.data is not None else {},
                     "item_id": item_id,
                     "result": True,
                 },
@@ -969,7 +874,7 @@ class AddChecklistItemAction(ActionHandler):
             )
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("update_checklist_item")
@@ -982,30 +887,20 @@ class UpdateChecklistItemAction(ActionHandler):
             item_id = inputs["item_id"]
 
             # Get current task details
-            current_details = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
+            details_response = await context.fetch(
+                f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET"
+            )
 
             # Get current ETag (required for updates)
-            etag = current_details.get("@odata.etag")
+            etag = details_response.data.get("@odata.etag")
             if not etag:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "Failed to retrieve task details ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve task details ETag")
 
             # Get existing checklist
-            existing_checklist = current_details.get("checklist", {})
+            existing_checklist = details_response.data.get("checklist", {})
 
             if item_id not in existing_checklist:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": f"Checklist item '{item_id}' not found",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message=f"Checklist item '{item_id}' not found")
 
             # Clean existing checklist items by removing read-only fields
             # Don't include orderHint unless explicitly updating it
@@ -1036,12 +931,12 @@ class UpdateChecklistItemAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"task_details": response if response else {}, "result": True},
+                data={"task_details": response.data if response.data is not None else {}, "result": True},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("remove_checklist_item")
@@ -1054,30 +949,20 @@ class RemoveChecklistItemAction(ActionHandler):
             item_id = inputs["item_id"]
 
             # Get current task details
-            current_details = await context.fetch(f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET")
+            details_response = await context.fetch(
+                f"{GRAPH_API_BASE_URL}/planner/tasks/{task_id}/details", method="GET"
+            )
 
             # Get current ETag (required for updates)
-            etag = current_details.get("@odata.etag")
+            etag = details_response.data.get("@odata.etag")
             if not etag:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "Failed to retrieve task details ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve task details ETag")
 
             # Get existing checklist
-            existing_checklist = current_details.get("checklist", {})
+            existing_checklist = details_response.data.get("checklist", {})
 
             if item_id not in existing_checklist:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": f"Checklist item '{item_id}' not found",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message=f"Checklist item '{item_id}' not found")
 
             # Clean existing checklist items by removing read-only fields
             # Don't include orderHint for items we're not reordering
@@ -1103,12 +988,12 @@ class RemoveChecklistItemAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"task_details": response if response else {}, "result": True},
+                data={"task_details": response.data if response.data is not None else {}, "result": True},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Task Board Format Handlers ----
@@ -1127,13 +1012,10 @@ class GetTaskAssignedToBoardFormatAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"board_format": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board_format": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"board_format": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("update_task_assigned_to_board_format")
@@ -1151,14 +1033,7 @@ class UpdateTaskAssignedToBoardFormatAction(ActionHandler):
             )
 
             if not etag:
-                return ActionResult(
-                    data={
-                        "board_format": {},
-                        "result": False,
-                        "error": "Failed to retrieve board format ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve board format ETag")
 
             # Build request body
             body = {}
@@ -1181,15 +1056,12 @@ class UpdateTaskAssignedToBoardFormatAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"board_format": response if response else {}, "result": True},
+                data={"board_format": response.data if response.data is not None else {}, "result": True},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"board_format": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("get_task_bucket_board_format")
@@ -1205,13 +1077,10 @@ class GetTaskBucketBoardFormatAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"board_format": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board_format": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"board_format": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("update_task_bucket_board_format")
@@ -1229,14 +1098,7 @@ class UpdateTaskBucketBoardFormatAction(ActionHandler):
             )
 
             if not etag:
-                return ActionResult(
-                    data={
-                        "board_format": {},
-                        "result": False,
-                        "error": "Failed to retrieve board format ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve board format ETag")
 
             # Build request body
             body = {}
@@ -1255,15 +1117,12 @@ class UpdateTaskBucketBoardFormatAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"board_format": response if response else {}, "result": True},
+                data={"board_format": response.data if response.data is not None else {}, "result": True},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"board_format": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("get_task_progress_board_format")
@@ -1279,13 +1138,10 @@ class GetTaskProgressBoardFormatAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"board_format": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"board_format": response.data, "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"board_format": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @microsoft_planner.action("update_task_progress_board_format")
@@ -1303,14 +1159,7 @@ class UpdateTaskProgressBoardFormatAction(ActionHandler):
             )
 
             if not etag:
-                return ActionResult(
-                    data={
-                        "board_format": {},
-                        "result": False,
-                        "error": "Failed to retrieve board format ETag",
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Failed to retrieve board format ETag")
 
             # Build request body
             body = {}
@@ -1329,12 +1178,9 @@ class UpdateTaskProgressBoardFormatAction(ActionHandler):
             )
 
             return ActionResult(
-                data={"board_format": response if response else {}, "result": True},
+                data={"board_format": response.data if response.data is not None else {}, "result": True},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={"board_format": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
