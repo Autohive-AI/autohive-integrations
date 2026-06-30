@@ -1244,7 +1244,7 @@ class CreateTimeOffHandler(ActionHandler):
             ActionResult containing created time off details
         """
         request_body = {
-            "people_id": inputs["people_id"],
+            "people_ids": [inputs["people_id"]],
             "timeoff_type_id": inputs["timeoff_type_id"],
             "start_date": inputs["start_date"],
             "end_date": inputs["end_date"],
@@ -1522,7 +1522,8 @@ class CreateLoggedTimeHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response.data, cost_usd=0.0)
+            data = response.data[0] if isinstance(response.data, list) else response.data
+            return ActionResult(data=data, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=f"Failed to create logged time: {str(e)}")
@@ -1586,7 +1587,8 @@ class UpdateLoggedTimeHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response.data, cost_usd=0.0)
+            data = response.data[0] if isinstance(response.data, list) else response.data
+            return ActionResult(data=data, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=f"Failed to update logged time {logged_time_id}: {str(e)}")
