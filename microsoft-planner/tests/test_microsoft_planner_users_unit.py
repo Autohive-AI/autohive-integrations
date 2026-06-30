@@ -270,7 +270,8 @@ class TestListUserTasks:
         await microsoft_planner.execute_action("list_user_tasks", {}, mock_context)
 
         call_args = mock_context.fetch.call_args
-        assert "/users/me/planner/tasks" in call_args.args[0]
+        assert "/me/planner/tasks" in call_args.args[0]
+        assert "/users/me" not in call_args.args[0]
 
     @pytest.mark.asyncio
     async def test_uses_provided_user_id(self, mock_context):
@@ -311,7 +312,8 @@ class TestListUserPlans:
         await microsoft_planner.execute_action("list_user_plans", {}, mock_context)
 
         call_args = mock_context.fetch.call_args
-        assert "/users/me/planner/plans" in call_args.args[0]
+        assert "/me/planner/plans" in call_args.args[0]
+        assert "/users/me" not in call_args.args[0]
 
     @pytest.mark.asyncio
     async def test_uses_provided_user_id(self, mock_context):

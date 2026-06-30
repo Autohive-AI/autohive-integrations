@@ -173,8 +173,9 @@ class ListUserTasksAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             user_id = inputs.get("user_id", "me")  # Default to 'me' for current user
+            base = f"{GRAPH_API_BASE_URL}/me" if user_id == "me" else f"{GRAPH_API_BASE_URL}/users/{user_id}"
 
-            response = await context.fetch(f"{GRAPH_API_BASE_URL}/users/{user_id}/planner/tasks", method="GET")
+            response = await context.fetch(f"{base}/planner/tasks", method="GET")
 
             tasks = response.data.get("value", [])
             return ActionResult(data={"tasks": tasks, "result": True}, cost_usd=0.0)
@@ -190,8 +191,9 @@ class ListUserPlansAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             user_id = inputs.get("user_id", "me")  # Default to 'me' for current user
+            base = f"{GRAPH_API_BASE_URL}/me" if user_id == "me" else f"{GRAPH_API_BASE_URL}/users/{user_id}"
 
-            response = await context.fetch(f"{GRAPH_API_BASE_URL}/users/{user_id}/planner/plans", method="GET")
+            response = await context.fetch(f"{base}/planner/plans", method="GET")
 
             plans = response.data.get("value", [])
             return ActionResult(data={"plans": plans, "result": True}, cost_usd=0.0)
