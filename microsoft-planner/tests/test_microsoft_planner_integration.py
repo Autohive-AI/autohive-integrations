@@ -24,7 +24,7 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from microsoft_planner import microsoft_planner
@@ -77,12 +77,18 @@ def live_context(env_credentials):
         merged_headers["Authorization"] = f"Bearer {token}"
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
-                data = await resp.json(content_type=None)
-                return FetchResponse(
-                    status=resp.status,
-                    headers=dict(resp.headers),
-                    data=data,
-                )
+                if resp.status == 204 or resp.content_length == 0:
+                    return FetchResponse(status=resp.status, headers=dict(resp.headers), data=None)
+                try:
+                    data = await resp.json(content_type=None)
+                except Exception:
+                    data = await resp.text()
+                if resp.status == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 60))
+                    raise RateLimitError(retry_after, resp.status, "Rate limit exceeded", str(data))
+                if not resp.ok:
+                    raise HTTPError(resp.status, str(data), data)
+                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
