@@ -1,0 +1,292 @@
+{
+  "name": "linz",
+  "version": "1.0.0",
+  "display_name": "Land Information New Zealand",
+  "description": "Read New Zealand property, title, ownership and parcel data from the LINZ Data Service (LDS) WFS API. Includes finding owners who hold more than one property title. Note: LINZ data does not classify properties as commercial vs residential — that lives in council/QV rating data.",
+  "supports_connected_account": false,
+  "entry_point": "linz.py",
+  "auth": {
+    "type": "custom",
+    "title": "LINZ Data Service API Key",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API Key",
+          "help_text": "Create a key at https://data.linz.govt.nz/my/api/. To read ownership data (layer-50805) the key must have accepted the LINZ Licence for Personal Data on your LINZ account."
+        }
+      },
+      "required": [
+        "api_key"
+      ]
+    }
+  },
+  "actions": {
+    "find_multi_property_owners": {
+      "display_name": "Find Multi-Property Owners",
+      "description": "Find owners who appear on more than one property title. Scans the NZ Property Titles Including Owners layer within a scoping filter (owner name and/or land district), splits the concatenated owners field, and aggregates distinct titles per owner. A scoping filter is required — the layer is national and cannot be scanned in full. Note: LINZ cannot label a property commercial vs residential; estate_description is returned so you can infer property type.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owner_name": {
+            "type": "string",
+            "description": "Owner name or fragment to scope and group by (e.g. a surname or company name). Case-insensitive substring match against the title owners field."
+          },
+          "land_district": {
+            "type": "string",
+            "description": "Land district to scope the scan to (e.g. 'North Auckland', 'Canterbury', 'Otago'). Exact match."
+          },
+          "min_properties": {
+            "type": "integer",
+            "description": "Minimum number of distinct titles an owner must hold to be returned. Defaults to 2.",
+            "default": 2,
+            "minimum": 1
+          },
+          "max_titles_scanned": {
+            "type": "integer",
+            "description": "Maximum number of title records to scan (safety cap, max 10000). Defaults to 2000. If the result is truncated, narrow the filter or increase this.",
+            "default": 2000,
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "status": {
+            "type": "string",
+            "description": "Optional title status filter. CQL is case-sensitive; use the LDS value 'LIVE'."
+          },
+          "cql_filter": {
+            "type": "string",
+            "description": "Optional raw CQL filter ANDed with the other filters, for advanced scoping."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "owners": {
+            "type": "array",
+            "description": "Owners holding at least min_properties distinct titles, sorted by property_count descending.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "owner_name": { "type": "string" },
+                "property_count": { "type": "integer" },
+                "titles": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "title_no": { "type": ["string", "null"] },
+                      "land_district": { "type": ["string", "null"] },
+                      "estate_description": { "type": ["string", "null"] },
+                      "type": { "type": ["string", "null"] },
+                      "status": { "type": ["string", "null"] },
+                      "number_owners": { "type": ["number", "null"] }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "owner_count": { "type": "integer" },
+          "titles_scanned": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "min_properties": { "type": "integer" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "search_property_titles": {
+      "display_name": "Search Property Titles",
+      "description": "Search NZ property titles (including owners) by owner name, title number, land district or status. Returns title records with the owners field, estate description and registration details.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "owner_name": {
+            "type": "string",
+            "description": "Owner name or fragment (case-insensitive substring match against the owners field)."
+          },
+          "title_no": {
+            "type": "string",
+            "description": "Exact title number, e.g. 'NA123A/456' or 'WN45D/789'."
+          },
+          "land_district": {
+            "type": "string",
+            "description": "Land district, e.g. 'North Auckland', 'Canterbury'. Exact match."
+          },
+          "status": {
+            "type": "string",
+            "description": "Title status. CQL is case-sensitive; use the LDS value 'LIVE'."
+          },
+          "cql_filter": {
+            "type": "string",
+            "description": "Optional raw CQL filter ANDed with the other filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of titles to return. Defaults to 100.",
+            "default": 100
+          },
+          "start_index": {
+            "type": "integer",
+            "description": "Zero-based offset for pagination."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "titles": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "count": { "type": "integer" },
+          "total_matched": { "type": ["integer", "null"] },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "get_title_owners": {
+      "display_name": "Get Title Owners",
+      "description": "Get the owners and details of a single property title by its title number.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title_no": {
+            "type": "string",
+            "description": "The title number to look up, e.g. 'NA123A/456'."
+          }
+        },
+        "required": [
+          "title_no"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "title_no": { "type": ["string", "null"] },
+          "owners": { "type": "array", "items": { "type": "string" } },
+          "number_owners": { "type": ["number", "null"] },
+          "estate_description": { "type": ["string", "null"] },
+          "land_district": { "type": ["string", "null"] },
+          "status": { "type": ["string", "null"] },
+          "type": { "type": ["string", "null"] },
+          "guarantee_status": { "type": ["string", "null"] },
+          "issue_date": { "type": ["string", "null"] },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "search_parcels": {
+      "display_name": "Search Parcels",
+      "description": "Search NZ primary parcels by appellation (legal description), associated title number, parcel intent or land district. Returns parcel descriptors useful for property context.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "appellation": {
+            "type": "string",
+            "description": "Legal description fragment, e.g. 'Lot 1 DP 12345' (case-insensitive substring match)."
+          },
+          "title_no": {
+            "type": "string",
+            "description": "Title number to find associated parcels for (substring match against the parcel's titles field)."
+          },
+          "parcel_intent": {
+            "type": "string",
+            "description": "Parcel intent (tenure type), e.g. 'Fee Simple Title', 'Road', 'Hydro'. Exact, case-sensitive match. Note: this is tenure, not land use — it does not indicate commercial vs residential."
+          },
+          "land_district": {
+            "type": "string",
+            "description": "Land district, exact match."
+          },
+          "cql_filter": {
+            "type": "string",
+            "description": "Optional raw CQL filter ANDed with the other filters."
+          },
+          "include_geometry": {
+            "type": "boolean",
+            "description": "Include the parcel geometry (large) in results. Defaults to false.",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of parcels to return. Defaults to 100.",
+            "default": 100
+          },
+          "start_index": {
+            "type": "integer",
+            "description": "Zero-based offset for pagination."
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "parcels": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "count": { "type": "integer" },
+          "total_matched": { "type": ["integer", "null"] }
+        }
+      }
+    },
+    "query_layer": {
+      "display_name": "Query LDS Layer",
+      "description": "Run a raw WFS GetFeature query against any LINZ Data Service layer or table. Escape hatch for data not covered by the typed actions (e.g. street addresses, geodetic marks, owner-centric ownership tables). Supply a layer id and an optional CQL filter.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "LDS layer or table id, e.g. '50805', 'layer-50805' or 'table-50806'."
+          },
+          "cql_filter": {
+            "type": "string",
+            "description": "CQL filter expression, e.g. \"land_district = 'Otago'\". Filters and values are case-sensitive (use ILIKE for case-insensitive text matching)."
+          },
+          "sort_by": {
+            "type": "string",
+            "description": "Field to sort by, optionally with '+D' for descending, e.g. 'issue_date+D'."
+          },
+          "srs_name": {
+            "type": "string",
+            "description": "Spatial reference for returned geometry, e.g. 'EPSG:4326' or 'EPSG:2193'."
+          },
+          "include_geometry": {
+            "type": "boolean",
+            "description": "Include feature geometry in results. Defaults to false.",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of records to return. Defaults to 100.",
+            "default": 100
+          },
+          "start_index": {
+            "type": "integer",
+            "description": "Zero-based offset for pagination."
+          }
+        },
+        "required": [
+          "layer"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "count": { "type": "integer" },
+          "total_matched": { "type": ["integer", "null"] }
+        }
+      }
+    }
+  }
+}
