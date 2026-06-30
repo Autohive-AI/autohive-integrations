@@ -438,7 +438,7 @@ Run integration tests against the live API:
 cp .env.example .env
 # Set HEYGEN_ACCESS_TOKEN in .env
 
-pytest heygen/tests/test_heygen_integration.py -m integration -v
+pytest heygen/tests/test_heygen_integration.py -m "integration and not destructive" -v
 ```
 
 Run destructive tests (costs HeyGen credits — also set `HEYGEN_TEST_IMAGE_KEY`):

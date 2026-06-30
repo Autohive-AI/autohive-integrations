@@ -5,7 +5,7 @@ These tests call the real HeyGen API and require a valid OAuth access token
 set in the HEYGEN_ACCESS_TOKEN environment variable.
 
 Run all read-only tests:
-    pytest heygen/tests/test_heygen_integration.py -m integration
+    pytest heygen/tests/test_heygen_integration.py -m "integration and not destructive"
 
 Run destructive tests (generate/create — costs HeyGen credits):
     pytest heygen/tests/test_heygen_integration.py -m "integration and destructive"
