@@ -291,6 +291,14 @@
                                             }
                                         }
                                     }
+                                },
+                                "limit": {
+                                    "type": "integer",
+                                    "description": "Maximum number of rows to return for this individual report request (default 10000)"
+                                },
+                                "offset": {
+                                    "type": "integer",
+                                    "description": "The row count of the start row for this individual report request (0-indexed)"
                                 }
                             },
                             "required": ["date_ranges", "metrics"]
