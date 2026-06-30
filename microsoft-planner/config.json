@@ -11,6 +11,7 @@
             "Tasks.ReadWrite",
             "Group.ReadWrite.All",
             "User.Read",
+            "User.ReadBasic.All",
             "offline_access"
         ]
     },

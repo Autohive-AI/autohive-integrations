@@ -23,7 +23,8 @@ This integration uses **OAuth 2.0 Platform Authentication** through Microsoft's 
 **Required Scopes:**
 - `Tasks.ReadWrite` - Read and write access to Planner tasks
 - `Group.ReadWrite.All` - Access to Microsoft 365 groups
-- `User.Read` - Read user profile information
+- `User.Read` - Read the signed-in user's profile
+- `User.ReadBasic.All` - Read basic profiles (name, email, ID) of other users to resolve them for task assignments
 - `offline_access` - Maintain access via refresh tokens
 
 **Setup Steps:**
