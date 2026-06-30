@@ -1,7 +1,7 @@
 {
     "name": "Microsoft Planner",
     "display_name": "Microsoft Planner",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Microsoft Planner integration for managing plans, tasks, and buckets in Microsoft 365",
     "entry_point": "microsoft_planner.py",
     "auth": {
