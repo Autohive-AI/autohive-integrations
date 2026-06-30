@@ -1,7 +1,7 @@
 """
-End-to-end integration tests for the ProjectWorks integration.
+End-to-end integration tests for the Projectworks integration.
 
-These tests call the real ProjectWorks API and require valid API-account
+These tests call the real Projectworks API and require valid API-account
 credentials set in the environment (via .env or export):
 
     PROJECTWORKS_CONSUMER_KEY
@@ -314,7 +314,7 @@ class TestTimesheetLifecycle:
     """
 
     async def test_full_lifecycle(self, live_context):
-        # ProjectWorks only accepts time from a user assigned to the task's timecode.
+        # Projectworks only accepts time from a user assigned to the task's timecode.
         # A task's Users array does not reliably reflect that assignment, so derive a
         # known-valid (user, task) pair from an existing timesheet entry instead.
         existing = ok_data(await projectworks.execute_action("list_timesheets", {"page_size": 1}, live_context))[

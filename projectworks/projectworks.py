@@ -33,7 +33,7 @@ def _get_headers(context: ExecutionContext) -> Dict[str, str]:
     # compatible with whatever shape the platform passes, while a missing/blank
     # credential fails with a clear message instead of an unauthenticated request.
     if not consumer_key or not consumer_secret:
-        raise ValueError("ProjectWorks Consumer Key and Consumer Secret are required")
+        raise ValueError("Projectworks Consumer Key and Consumer Secret are required")
     token = base64.b64encode(f"{consumer_key}:{consumer_secret}".encode()).decode()
     return {
         "Authorization": f"Basic {token}",
@@ -50,11 +50,11 @@ def _check_response(response: Any) -> None:
             msg = data.get("message") or data.get("error") or data.get("title") or str(data)
         else:
             msg = str(data)
-        raise RuntimeError(f"ProjectWorks error {response.status}: {msg}")
+        raise RuntimeError(f"Projectworks error {response.status}: {msg}")
 
 
 def _as_list(data: Any) -> List[Any]:
-    """ProjectWorks list endpoints return a bare JSON array."""
+    """Projectworks list endpoints return a bare JSON array."""
     if isinstance(data, list):
         return data
     if isinstance(data, dict):
@@ -68,7 +68,7 @@ def _as_list(data: Any) -> List[Any]:
 def _as_object(data: Any) -> Dict[str, Any]:
     """Normalise a single-record response to an object.
 
-    Some ProjectWorks single-record endpoints return a one-element array
+    Some Projectworks single-record endpoints return a one-element array
     (or, on an empty result, a null/empty body) rather than a bare object.
     """
     if isinstance(data, list):

@@ -1,4 +1,4 @@
-"""Unit tests for the ProjectWorks integration using a mocked fetch."""
+"""Unit tests for the Projectworks integration using a mocked fetch."""
 
 import base64
 

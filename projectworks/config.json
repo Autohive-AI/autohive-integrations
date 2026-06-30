@@ -1,20 +1,20 @@
 {
-  "name": "ProjectWorks",
-  "version": "1.0.0",
-  "description": "ProjectWorks integration for reading users, clients, projects, modules, tasks, resourcing, timesheets, leave, invoices, and expense claims from your professional services automation account.",
-  "display_name": "ProjectWorks",
+  "name": "Projectworks",
+  "version": "1.0.1",
+  "description": "Projectworks integration for reading users, clients, projects, modules, tasks, resourcing, timesheets, leave, invoices, and expense claims from your professional services automation account.",
+  "display_name": "Projectworks",
   "supports_connected_account": false,
   "entry_point": "projectworks.py",
   "auth": {
     "type": "custom",
-    "title": "ProjectWorks API Account",
+    "title": "Projectworks API Account",
     "fields": {
       "type": "object",
       "properties": {
         "consumer_key": {
           "type": "string",
           "label": "Consumer Key",
-          "help_text": "From ProjectWorks -> Admin -> API Accounts -> create an account -> Details. Used as the Basic auth username."
+          "help_text": "From Projectworks -> Admin -> API Accounts -> create an account -> Details. Used as the Basic auth username."
         },
         "consumer_secret": {
           "type": "string",
@@ -2220,7 +2220,7 @@
           },
           "file": {
             "type": "object",
-            "description": "Receipt/invoice file to attach. ProjectWorks usually requires at least one file when creating an expense claim. Supply the file as base64 'content'.",
+            "description": "Receipt/invoice file to attach. Projectworks usually requires at least one file when creating an expense claim. Supply the file as base64 'content'.",
             "properties": {
               "content": {
                 "type": "string",

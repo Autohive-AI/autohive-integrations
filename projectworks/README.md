@@ -1,12 +1,12 @@
-# ProjectWorks
+# Projectworks
 
-[ProjectWorks](https://www.projectworks.com) is a professional services automation (PSA) platform covering projects, resourcing, timesheets, leave, invoicing, and expenses. This integration provides full read and write access to the core ProjectWorks entities — listing and fetching records, creating/updating/deleting them, and managing sub-resources such as task assignments, user roles, leave balances, postings, and custom fields.
+[Projectworks](https://www.projectworks.com) is a professional services automation (PSA) platform covering projects, resourcing, timesheets, leave, invoicing, and expenses. This integration provides full read and write access to the core Projectworks entities — listing and fetching records, creating/updating/deleting them, and managing sub-resources such as task assignments, user roles, leave balances, postings, and custom fields.
 
 ## Auth Setup
 
-ProjectWorks uses HTTP Basic authentication with an API account (the Consumer Key/Secret pair — **not** your normal login).
+Projectworks uses HTTP Basic authentication with an API account (the Consumer Key/Secret pair — **not** your normal login).
 
-1. Log in to ProjectWorks and go to **Profile icon → Admin → API Accounts**
+1. Log in to Projectworks and go to **Profile icon → Admin → API Accounts**
 2. Click **+** to create a new API account, then **Add** to generate it
 3. Open **Three Dots → Details** and copy the **Consumer Key** and **Consumer Secret**
 4. Paste them into the **Consumer Key** and **Consumer Secret** fields when connecting
@@ -73,13 +73,13 @@ All `list_*` actions accept `page` (default 1) and `page_size` (default 100) for
 
 `update_user_roles` and `update_user_leave_balances` return an empty body from the API on success; the integration echoes the applied state plus `updated: true`.
 
-> Reference IDs (office, currency, project/task type, status, leave type, role, etc.) come from the corresponding `list_*` actions or your ProjectWorks configuration, and must already exist in your account. Array inputs use the API's field names:
+> Reference IDs (office, currency, project/task type, status, leave type, role, etc.) come from the corresponding `list_*` actions or your Projectworks configuration, and must already exist in your account. Array inputs use the API's field names:
 > - `create_leave` → `days`: `[{ "date": ISO8601, "typeID": int, "hours": number }]` — `typeID` is a **leave type ID** that must exist in your config (see Admin → Leave Types).
 > - `update_user_leave_balances` → `balances`: `[{ "leaveTypeID": int, "balance": number, "unit": "Hours"|"Days" }]` — requires the user to have an active **posting** first (use `update_user_postings`).
 > - `update_task_placeholder` → `role_id` is **required** and must be a configured role ID (look it up with `list_roles`); an unrecognised role ID makes the API return HTTP 500.
 > - `update_user_postings` → `capacity_days`: `[{ "dayOfWeekID": int, "hours": number }]`
 > - `set_custom_fields` → `fields`: `[{ "fieldID": int, "value": str, "multiSelectValues": [str] }]`
-> - `create_expense_claim` / `update_expense_claim` → attach a receipt with `file`: `{ "name": "receipt.pdf", "content": "<base64>" }`. The file must be supplied as base64 `content` (the standard Autohive file object). Most ProjectWorks accounts reject an expense claim with no file (`HTTP 400: Must include at least one file`).
+> - `create_expense_claim` / `update_expense_claim` → attach a receipt with `file`: `{ "name": "receipt.pdf", "content": "<base64>" }`. The file must be supplied as base64 `content` (the standard Autohive file object). Most Projectworks accounts reject an expense claim with no file (`HTTP 400: Must include at least one file`).
 
 ## API Info
 
@@ -116,7 +116,7 @@ path (`POST`/`PATCH`/`PUT`/`DELETE`) for timesheets, clients, and modules + task
 | Error | Cause | Fix |
 |---|---|---|
 | `401 Unauthorized` | Invalid Consumer Key/Secret, or using your web login | Use an API account's Consumer Key/Secret from Admin → API Accounts |
-| `403 Forbidden` | API account lacks permission for the resource | Check the API account's role/permissions in ProjectWorks |
+| `403 Forbidden` | API account lacks permission for the resource | Check the API account's role/permissions in Projectworks |
 | Empty result list | Filters too narrow, or beyond the last page | Loosen filters; page until a partial (< `page_size`) page is returned |
 | `create_leave` rejects the request | The `typeID` in `days` is not a leave type configured in your account | Use a real leave type ID (Admin → Leave Types) |
 | `update_task_placeholder` returns HTTP 500 | The `role_id` is not a configured role in your account | Use a valid role ID from `list_roles` |
