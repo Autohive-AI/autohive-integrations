@@ -107,7 +107,7 @@ class TestGetCurrentUser:
     async def test_returns_current_user(self, live_context):
         result = await microsoft_planner.execute_action("get_current_user", {}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "user_id" in data
         assert data["user_id"] is not None
@@ -129,7 +129,7 @@ class TestListGroups:
     async def test_returns_groups_list(self, live_context):
         result = await microsoft_planner.execute_action("list_groups", {"limit": 5}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "groups" in data
         assert isinstance(data["groups"], list)
@@ -138,7 +138,7 @@ class TestListGroups:
     async def test_limit_respected(self, live_context):
         result = await microsoft_planner.execute_action("list_groups", {"limit": 2}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         assert len(result.result.data["groups"]) <= 2
 
 
@@ -147,7 +147,7 @@ class TestListUserPlans:
     async def test_returns_plans_for_current_user(self, live_context):
         result = await microsoft_planner.execute_action("list_user_plans", {}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "plans" in data
         assert isinstance(data["plans"], list)
@@ -158,7 +158,7 @@ class TestListUserTasks:
     async def test_returns_tasks_for_current_user(self, live_context):
         result = await microsoft_planner.execute_action("list_user_tasks", {}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "tasks" in data
         assert isinstance(data["tasks"], list)
@@ -171,7 +171,7 @@ class TestListPlans:
 
         result = await microsoft_planner.execute_action("list_plans", {"group_id": TEST_GROUP_ID}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         assert "plans" in result.result.data
         assert isinstance(result.result.data["plans"], list)
 
@@ -183,7 +183,7 @@ class TestGetPlan:
 
         result = await microsoft_planner.execute_action("get_plan", {"plan_id": TEST_PLAN_ID}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "plan" in data
         assert data["plan"]["id"] == TEST_PLAN_ID
@@ -206,7 +206,7 @@ class TestGetPlanDetails:
 
         result = await microsoft_planner.execute_action("get_plan_details", {"plan_id": TEST_PLAN_ID}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "plan_details" in data
         assert data["plan_details"] is not None
@@ -219,7 +219,7 @@ class TestListBuckets:
 
         result = await microsoft_planner.execute_action("list_buckets", {"plan_id": TEST_PLAN_ID}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "buckets" in data
         assert isinstance(data["buckets"], list)
@@ -232,7 +232,7 @@ class TestGetBucket:
 
         result = await microsoft_planner.execute_action("get_bucket", {"bucket_id": TEST_BUCKET_ID}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "bucket" in data
         assert data["bucket"]["id"] == TEST_BUCKET_ID
@@ -245,7 +245,7 @@ class TestListTasks:
 
         result = await microsoft_planner.execute_action("list_tasks", {"plan_id": TEST_PLAN_ID}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "tasks" in data
         assert isinstance(data["tasks"], list)
@@ -258,7 +258,7 @@ class TestGetTask:
 
         result = await microsoft_planner.execute_action("get_task", {"task_id": TEST_TASK_ID}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "task" in data
         assert data["task"]["id"] == TEST_TASK_ID
@@ -283,7 +283,7 @@ class TestGetTaskDetails:
 
         result = await microsoft_planner.execute_action("get_task_details", {"task_id": TEST_TASK_ID}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "task_details" in data
         assert data["task_details"] is not None
@@ -298,7 +298,7 @@ class TestGetTaskBoardFormats:
             "get_task_assigned_to_board_format", {"task_id": TEST_TASK_ID}, live_context
         )
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         assert "board_format" in result.result.data
 
     @pytest.mark.asyncio
@@ -309,7 +309,7 @@ class TestGetTaskBoardFormats:
             "get_task_bucket_board_format", {"task_id": TEST_TASK_ID}, live_context
         )
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         assert "board_format" in result.result.data
 
     @pytest.mark.asyncio
@@ -320,7 +320,7 @@ class TestGetTaskBoardFormats:
             "get_task_progress_board_format", {"task_id": TEST_TASK_ID}, live_context
         )
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         assert "board_format" in result.result.data
 
 
@@ -333,7 +333,7 @@ class TestListBucketTasks:
             "list_bucket_tasks", {"bucket_id": TEST_BUCKET_ID}, live_context
         )
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "tasks" in data
         assert isinstance(data["tasks"], list)
@@ -346,7 +346,7 @@ class TestGetUserByEmail:
 
         result = await microsoft_planner.execute_action("get_user_by_email", {"email": TEST_USER_EMAIL}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "user_id" in data
         assert data["user_id"] is not None
@@ -358,7 +358,7 @@ class TestGetUserByEmail:
 
         result = await microsoft_planner.execute_action("get_user_by_email", {"email": TEST_USER_EMAIL}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         assert result.result.data["email"].lower() == TEST_USER_EMAIL.lower()
 
 
@@ -370,7 +370,7 @@ class TestSearchUsers:
         query = TEST_USER_EMAIL.split("@")[0]
         result = await microsoft_planner.execute_action("search_users", {"query": query, "limit": 5}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         data = result.result.data
         assert "users" in data
         assert isinstance(data["users"], list)
@@ -382,7 +382,7 @@ class TestSearchUsers:
         query = TEST_USER_EMAIL.split("@")[0]
         result = await microsoft_planner.execute_action("search_users", {"query": query, "limit": 3}, live_context)
 
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         if result.result.data["users"]:
             user = result.result.data["users"][0]
             assert "user_id" in user
@@ -408,7 +408,7 @@ class TestBucketLifecycle:
             {"name": f"Integration Test Bucket {os.getpid()}", "plan_id": TEST_PLAN_ID},
             live_context,
         )
-        assert create_result.type == ResultType.SUCCESS
+        assert create_result.type == ResultType.ACTION
         bucket_id = create_result.result.data["bucket"]["id"]
         assert bucket_id is not None
 
@@ -418,11 +418,11 @@ class TestBucketLifecycle:
             {"bucket_id": bucket_id, "name": "Updated Integration Test Bucket"},
             live_context,
         )
-        assert update_result.type == ResultType.SUCCESS
+        assert update_result.type == ResultType.ACTION
 
         # Step 3: Delete (cleanup)
         delete_result = await microsoft_planner.execute_action("delete_bucket", {"bucket_id": bucket_id}, live_context)
-        assert delete_result.type == ResultType.SUCCESS
+        assert delete_result.type == ResultType.ACTION
         assert delete_result.result.data["result"] is True
 
 
@@ -445,7 +445,7 @@ class TestTaskLifecycle:
             },
             live_context,
         )
-        assert create_result.type == ResultType.SUCCESS
+        assert create_result.type == ResultType.ACTION
         task_id = create_result.result.data["task"]["id"]
         assert task_id is not None
 
@@ -455,11 +455,11 @@ class TestTaskLifecycle:
             {"task_id": task_id, "percent_complete": 50},
             live_context,
         )
-        assert update_result.type == ResultType.SUCCESS
+        assert update_result.type == ResultType.ACTION
 
         # Step 3: Get task details
         details_result = await microsoft_planner.execute_action("get_task_details", {"task_id": task_id}, live_context)
-        assert details_result.type == ResultType.SUCCESS
+        assert details_result.type == ResultType.ACTION
         assert "task_details" in details_result.result.data
 
         # Step 4: Update task details (description)
@@ -468,11 +468,11 @@ class TestTaskLifecycle:
             {"task_id": task_id, "description": f"Integration test description {os.getpid()}"},
             live_context,
         )
-        assert update_details_result.type == ResultType.SUCCESS
+        assert update_details_result.type == ResultType.ACTION
 
         # Step 5: Delete (cleanup)
         delete_result = await microsoft_planner.execute_action("delete_task", {"task_id": task_id}, live_context)
-        assert delete_result.type == ResultType.SUCCESS
+        assert delete_result.type == ResultType.ACTION
         assert delete_result.result.data["result"] is True
 
 
@@ -495,7 +495,7 @@ class TestChecklistLifecycle:
             },
             live_context,
         )
-        assert create_result.type == ResultType.SUCCESS
+        assert create_result.type == ResultType.ACTION
         task_id = create_result.result.data["task"]["id"]
 
         # Step 2: Add checklist item
@@ -504,7 +504,7 @@ class TestChecklistLifecycle:
             {"task_id": task_id, "title": "Test checklist step"},
             live_context,
         )
-        assert add_result.type == ResultType.SUCCESS
+        assert add_result.type == ResultType.ACTION
         item_id = add_result.result.data["item_id"]
         assert item_id is not None
 
@@ -514,7 +514,7 @@ class TestChecklistLifecycle:
             {"task_id": task_id, "item_id": item_id, "is_checked": True},
             live_context,
         )
-        assert update_result.type == ResultType.SUCCESS
+        assert update_result.type == ResultType.ACTION
 
         # Step 4: Remove checklist item
         remove_result = await microsoft_planner.execute_action(
@@ -522,11 +522,11 @@ class TestChecklistLifecycle:
             {"task_id": task_id, "item_id": item_id},
             live_context,
         )
-        assert remove_result.type == ResultType.SUCCESS
+        assert remove_result.type == ResultType.ACTION
 
         # Step 5: Cleanup - delete task
         delete_result = await microsoft_planner.execute_action("delete_task", {"task_id": task_id}, live_context)
-        assert delete_result.type == ResultType.SUCCESS
+        assert delete_result.type == ResultType.ACTION
 
 
 @pytest.mark.destructive
@@ -543,7 +543,7 @@ class TestPlanLifecycle:
             {"title": f"Integration Test Plan {os.getpid()}", "group_id": TEST_GROUP_ID},
             live_context,
         )
-        assert create_result.type == ResultType.SUCCESS
+        assert create_result.type == ResultType.ACTION
         plan_id = create_result.result.data["plan"]["id"]
         assert plan_id is not None
 
@@ -553,7 +553,7 @@ class TestPlanLifecycle:
             {"plan_id": plan_id, "title": "Updated Integration Test Plan"},
             live_context,
         )
-        assert update_result.type == ResultType.SUCCESS
+        assert update_result.type == ResultType.ACTION
 
         # Step 3: Update plan details (category descriptions)
         update_details_result = await microsoft_planner.execute_action(
@@ -561,11 +561,11 @@ class TestPlanLifecycle:
             {"plan_id": plan_id, "category_descriptions": {"category1": "Integration Test"}},
             live_context,
         )
-        assert update_details_result.type == ResultType.SUCCESS
+        assert update_details_result.type == ResultType.ACTION
 
         # Step 4: Delete (cleanup)
         delete_result = await microsoft_planner.execute_action("delete_plan", {"plan_id": plan_id}, live_context)
-        assert delete_result.type == ResultType.SUCCESS
+        assert delete_result.type == ResultType.ACTION
         assert delete_result.result.data["result"] is True
 
 
@@ -580,7 +580,7 @@ class TestBoardFormatLifecycle:
         get_result = await microsoft_planner.execute_action(
             "get_task_assigned_to_board_format", {"task_id": TEST_TASK_ID}, live_context
         )
-        assert get_result.type == ResultType.SUCCESS
+        assert get_result.type == ResultType.ACTION
         current_hint = get_result.result.data["board_format"].get("unassignedOrderHint", "8585!")
 
         result = await microsoft_planner.execute_action(
@@ -588,7 +588,7 @@ class TestBoardFormatLifecycle:
             {"task_id": TEST_TASK_ID, "unassigned_order_hint": current_hint},
             live_context,
         )
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         assert result.result.data["result"] is True
 
     @pytest.mark.asyncio
@@ -598,7 +598,7 @@ class TestBoardFormatLifecycle:
         get_result = await microsoft_planner.execute_action(
             "get_task_bucket_board_format", {"task_id": TEST_TASK_ID}, live_context
         )
-        assert get_result.type == ResultType.SUCCESS
+        assert get_result.type == ResultType.ACTION
         current_hint = get_result.result.data["board_format"].get("orderHint", "8585!")
 
         result = await microsoft_planner.execute_action(
@@ -606,7 +606,7 @@ class TestBoardFormatLifecycle:
             {"task_id": TEST_TASK_ID, "order_hint": current_hint},
             live_context,
         )
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         assert result.result.data["result"] is True
 
     @pytest.mark.asyncio
@@ -616,7 +616,7 @@ class TestBoardFormatLifecycle:
         get_result = await microsoft_planner.execute_action(
             "get_task_progress_board_format", {"task_id": TEST_TASK_ID}, live_context
         )
-        assert get_result.type == ResultType.SUCCESS
+        assert get_result.type == ResultType.ACTION
         current_hint = get_result.result.data["board_format"].get("orderHint", "8585!")
 
         result = await microsoft_planner.execute_action(
@@ -624,5 +624,5 @@ class TestBoardFormatLifecycle:
             {"task_id": TEST_TASK_ID, "order_hint": current_hint},
             live_context,
         )
-        assert result.type == ResultType.SUCCESS
+        assert result.type == ResultType.ACTION
         assert result.result.data["result"] is True
