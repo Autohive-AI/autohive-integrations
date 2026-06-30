@@ -20,7 +20,6 @@ class TestMicrosoftPlannerIntegration(unittest.TestCase):
                     "displayName": "John Doe",
                     "mail": "john.doe@example.com",
                     "userPrincipalName": "john.doe@example.com",
-                    "jobTitle": "Software Engineer",
                 }
             ]
         }
@@ -62,13 +61,13 @@ class TestMicrosoftPlannerIntegration(unittest.TestCase):
                     "id": "user-id-1",
                     "displayName": "John Doe",
                     "mail": "john.doe@example.com",
-                    "jobTitle": "Software Engineer",
+                    "userPrincipalName": "john.doe@example.com",
                 },
                 {
                     "id": "user-id-2",
                     "displayName": "Jane Doe",
                     "mail": "jane.doe@example.com",
-                    "jobTitle": "Product Manager",
+                    "userPrincipalName": "jane.doe@example.com",
                 },
             ]
         }

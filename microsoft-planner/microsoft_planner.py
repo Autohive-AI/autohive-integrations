@@ -147,7 +147,6 @@ class SearchUsersAction(ActionHandler):
                     "user_id": user.get("id"),
                     "display_name": user.get("displayName"),
                     "email": user.get("mail") or user.get("userPrincipalName"),
-                    "job_title": user.get("jobTitle"),
                 }
                 for user in users
             ]
