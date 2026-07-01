@@ -170,16 +170,38 @@ Attach audio enhancements to a motion avatar.
 
 ---
 
-### Avatar Discovery (2 actions)
+### Avatar Discovery (4 actions)
 
 #### `get_avatar_details`
-Retrieve comprehensive information about a specific avatar.
+Retrieve comprehensive information about a specific video avatar (public/studio avatar).
 
 **Inputs:**
-- `id` (required): Avatar/look ID
+- `avatar_id` (required): Unique identifier of the avatar from `list_avatars`
 
 **Outputs:**
-- Complete avatar details including metadata, status, motion settings, sound effects, voice settings
+- `avatar_id`, `avatar_name`, `gender`, `preview_image_url`, `preview_video_url`, `default_voice_id`
+
+---
+
+#### `get_photo_avatar_details`
+Retrieve comprehensive information about a specific photo avatar or talking photo.
+
+**Inputs:**
+- `id` (required): Avatar/look ID from `create_avatar_group` or `add_looks_to_group`
+
+**Outputs:**
+- Full photo avatar details including `id`, `name`, `status`, `is_motion`, `group_id`, `upscale_availability`, `default_voice_id`, `moderation_msg`
+
+---
+
+#### `list_avatars_in_group`
+List all avatars and looks within a specific avatar group.
+
+**Inputs:**
+- `group_id` (required): Avatar group ID from `list_avatar_groups` or `create_avatar_group`
+
+**Outputs:**
+- `group_id`, `group_name`, `avatars`: array of avatar/look objects with `id`, `name`, `image_url`, `status`, `is_motion`, `created_at`
 
 ---
 
@@ -220,7 +242,7 @@ Create a video using an avatar with text-to-speech or audio input. Supports mult
 **Important Notes:**
 - For backgrounds: Use hex colors (#RRGGBB format) or provide either `url` OR `asset_id`
 - For audio voices: Provide either `audio_url` OR `audio_asset_id`
-- See USAGE_EXAMPLE.md for detailed video_inputs structure
+- See [HeyGen API docs](https://docs.heygen.com) for detailed `video_inputs` structure
 
 ---
 
@@ -403,12 +425,27 @@ You can also **combine both approaches**:
 
 ## Testing
 
-To test the integration:
+Run unit tests (no credentials required):
 
-1. Navigate to the integration directory: `cd heygen`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Update `access_token` in `tests/test_heygen.py` with your OAuth token
-4. Run tests: `python tests/test_heygen.py`
+```bash
+pytest heygen/ -v
+```
+
+Run integration tests against the live API:
+
+```bash
+# Copy and fill in credentials
+cp .env.example .env
+# Set HEYGEN_ACCESS_TOKEN in .env
+
+pytest heygen/tests/test_heygen_integration.py -m "integration and not destructive" -v
+```
+
+Run destructive tests (costs HeyGen credits — also set `HEYGEN_TEST_IMAGE_KEY`):
+
+```bash
+pytest heygen/tests/test_heygen_integration.py -m "integration and destructive" -v
+```
 
 ## Usage Examples
 
@@ -530,6 +567,12 @@ final = heygen.get_video_status({"video_id": video["data"]["video_id"]})
    - Ensure motion/sound effects are added if needed
 
 ## Version History
+
+- **3.0.0** - SDK 2.0.0 upgrade
+  - Upgraded to `autohive-integrations-sdk~=2.0.0`
+  - All fetch results now use `response.data` (FetchResponse breaking change)
+  - Exception handlers converted to `ActionError`
+  - Added full unit and integration test suites
 
 - **1.2.0** - OAuth 2.0 Authentication (HeyGen Partnership)
   - Implemented OAuth 2.0 authentication with PKCE flow
