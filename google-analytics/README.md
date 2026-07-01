@@ -54,7 +54,6 @@ Generate a customized report of Google Analytics event data.
 **Output:**
 - `rows` (array): Array of data rows with dimension and metric values
 - `row_count` (integer): Number of rows returned
-- `result` (boolean): Success status
 
 ### run_realtime_report
 Get real-time Google Analytics data for the last 30 minutes.
@@ -70,7 +69,6 @@ Get real-time Google Analytics data for the last 30 minutes.
 **Output:**
 - `rows` (array): Array of real-time data rows
 - `row_count` (integer): Number of rows returned
-- `result` (boolean): Success status
 
 ### get_metadata
 Retrieve available dimensions and metrics for a Google Analytics property.
@@ -81,16 +79,13 @@ Retrieve available dimensions and metrics for a Google Analytics property.
 **Output:**
 - `dimensions` (array): Array of available dimensions with API names, UI names, and descriptions
 - `metrics` (array): Array of available metrics with API names, UI names, and descriptions
-- `dimension_count` (integer): Total number of dimensions
-- `metric_count` (integer): Total number of metrics
-- `result` (boolean): Success status
 
 ### batch_run_reports
 Run multiple reports in a single API call for efficiency.
 
 **Inputs:**
 - `property_id` (string, required): GA4 Property ID
-- `report_requests` (array, required): Array of report request objects, each containing:
+- `requests` (array, required): Array of report request objects, each containing:
   - `date_ranges` (array, required): Array of date range objects
   - `dimensions` (array, optional): Array of dimension objects
   - `metrics` (array, required): Array of metric objects
@@ -101,8 +96,6 @@ Run multiple reports in a single API call for efficiency.
 - `reports` (array): Array of report results, each containing:
   - `rows` (array): Data rows for the report
   - `row_count` (integer): Number of rows in the report
-- `report_count` (integer): Total number of reports returned
-- `result` (boolean): Success status
 
 ## Common Dimensions
 
@@ -157,13 +150,21 @@ Google Analytics Data API has the following quotas:
 
 ## Testing
 
-To test the integration:
+**Unit tests** (no credentials required):
 
-1. Obtain a Google OAuth2 access token with Analytics Data API access
-2. Find your GA4 Property ID from Google Analytics Admin
-3. Update the credentials in `tests/test_google_analytics.py`
-4. Replace `PROPERTY_ID` and `access_token` with your values
-5. Run the tests: `python tests/test_google_analytics.py`
+```bash
+pytest google-analytics/tests/test_google_analytics_unit.py -v
+```
+
+**Integration tests** (require real credentials — read-only, safe to run):
+
+```bash
+# Set credentials in .env or export them:
+# GOOGLE_ANALYTICS_ACCESS_TOKEN=<oauth2 token with analytics.readonly scope>
+# GOOGLE_ANALYTICS_TEST_PROPERTY_ID=<your GA4 property ID>
+
+pytest google-analytics/tests/test_google_analytics_integration.py -m "integration and not destructive"
+```
 
 ## Example Usage
 
@@ -191,7 +192,7 @@ inputs = {
 ```python
 inputs = {
     "property_id": "123456789",
-    "report_requests": [
+    "requests": [
         {
             "date_ranges": [{"start_date": "7daysAgo", "end_date": "today"}],
             "dimensions": [{"name": "country"}],
@@ -215,4 +216,4 @@ inputs = {
 
 ## Version
 
-1.0.0
+2.0.0

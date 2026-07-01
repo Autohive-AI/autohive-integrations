@@ -1,7 +1,7 @@
 {
     "name": "Google Analytics",
     "display_name": "Google Analytics",
-    "version": "0.1.0",
+    "version": "2.0.0",
     "description": "Access and analyze Google Analytics 4 data with reports, metrics, and real-time insights.",
     "entry_point": "google_analytics.py",
     "auth": {
@@ -98,20 +98,11 @@
                     "row_count": {
                         "type": "integer",
                         "description": "Number of rows returned"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "rows",
-                    "row_count",
-                    "result"
+                    "row_count"
                 ]
             }
         },
@@ -178,20 +169,11 @@
                     "row_count": {
                         "type": "integer",
                         "description": "Number of rows returned"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "rows",
-                    "row_count",
-                    "result"
+                    "row_count"
                 ]
             }
         },
@@ -249,20 +231,11 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
                     "dimensions",
-                    "metrics",
-                    "result"
+                    "metrics"
                 ]
             }
         },
@@ -318,6 +291,14 @@
                                             }
                                         }
                                     }
+                                },
+                                "limit": {
+                                    "type": "integer",
+                                    "description": "Maximum number of rows to return for this individual report request (default 10000)"
+                                },
+                                "offset": {
+                                    "type": "integer",
+                                    "description": "The row count of the start row for this individual report request (0-indexed)"
                                 }
                             },
                             "required": ["date_ranges", "metrics"]
@@ -346,19 +327,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation succeeded"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
                 "required": [
-                    "reports",
-                    "result"
+                    "reports"
                 ]
             }
         }
