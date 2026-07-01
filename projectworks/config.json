@@ -1166,7 +1166,9 @@
         "properties": {
           "query": {
             "type": "string",
-            "description": "Case-insensitive substring matched against the user's name or email"
+            "description": "Case-insensitive substring matched against the user's name or email",
+            "minLength": 1,
+            "pattern": "\\S"
           },
           "limit": {
             "type": "integer",
@@ -1216,7 +1218,9 @@
         "properties": {
           "query": {
             "type": "string",
-            "description": "Case-insensitive substring matched against the client's name"
+            "description": "Case-insensitive substring matched against the client's name",
+            "minLength": 1,
+            "pattern": "\\S"
           },
           "limit": {
             "type": "integer",
@@ -1266,7 +1270,9 @@
         "properties": {
           "query": {
             "type": "string",
-            "description": "Case-insensitive substring matched against the project's name or project number"
+            "description": "Case-insensitive substring matched against the project's name or project number",
+            "minLength": 1,
+            "pattern": "\\S"
           },
           "limit": {
             "type": "integer",

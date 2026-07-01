@@ -222,6 +222,9 @@ async def _search(
     enumeration use the matching ``list_*`` action with explicit filters and
     pagination.
     """
+    query = query.strip()
+    if not query:
+        raise ValueError("query must not be blank")
     params = {
         "page": page,
         "pageSize": page_size or DEFAULT_SEARCH_SCAN,

@@ -13,6 +13,7 @@ from projectworks.projectworks import (
     _get_headers,
     _matches_query,
     _project,
+    _search,
     BASE_URL,
     DEFAULT_PAGE_SIZE,
     DEFAULT_SEARCH_SCAN,
@@ -1297,6 +1298,25 @@ class TestSearchUsers:
         mock_context.fetch.return_value = ok([])
         result = await projectworks.execute_action("search_users", {}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_query_is_a_validation_error(self, mock_context):
+        # The schema's minLength/pattern reject a whitespace-only query before
+        # the handler runs, so it never falls through to matching every record.
+        mock_context.fetch.return_value = ok([{"UserID": 1, "Name": "Jane"}])
+        result = await projectworks.execute_action("search_users", {"query": "   "}, mock_context)
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+
+class TestSearchBlankQueryGuard:
+    @pytest.mark.asyncio
+    async def test_search_rejects_blank_query_at_runtime(self, mock_context):
+        # Defensive runtime guard in `_search` itself, in case a caller
+        # bypasses schema validation (e.g. direct SDK use).
+        with pytest.raises(ValueError, match="query must not be blank"):
+            await _search(mock_context, "Users", "users", "   ", ["Name"])
         mock_context.fetch.assert_not_called()
 
 
