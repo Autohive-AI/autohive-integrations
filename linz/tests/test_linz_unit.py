@@ -58,11 +58,13 @@ class TestGetApiKey:
 
     @pytest.mark.asyncio
     async def test_missing_key_blocked_before_fetch(self, mock_context):
-        # The SDK validates the required api_key auth field before the handler
-        # runs, so a missing key never reaches the network.
+        # auth.fields has no "required" list (the SDK validates context.auth
+        # directly, but the runtime auth shape is nested under "credentials",
+        # so a top-level "required" there would reject every real request).
+        # The handler's own _get_api_key check blocks the network call instead.
         mock_context.auth = {}
         result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
-        assert result.type == ResultType.VALIDATION_ERROR
+        assert result.type == ResultType.ACTION_ERROR
         mock_context.fetch.assert_not_called()
 
 
