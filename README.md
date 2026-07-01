@@ -5,6 +5,7 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 ## Getting Started
 
 - 📖 **[Building Your First Integration](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/building_your_first_integration.md)** — tutorial, API reference, and patterns (SDK repo)
+- 🧭 **[Integration Engineering Charter](integration-engineering-charter.md)** — principles for API understanding, safe permissions, testing, documentation, and review readiness
 - ✅ **[Validation & CI](https://github.com/autohive-ai/autohive-integrations-tooling)** — tooling that checks every PR (tooling repo)
 - 🤝 **[Contributing](CONTRIBUTING.md)** — PR process, local setup, and CI details for this repo
 
