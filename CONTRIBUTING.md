@@ -291,9 +291,11 @@ See the SDK's [Integration Structure Reference](https://github.com/autohive-ai/i
 
 1. **Create a branch** following conventional naming (`feat/my-integration`)
 2. **Add your integration** following the structure in the SDK docs
-3. **Run validation locally** before pushing
-4. **Update the main README.md** — add your integration to the list
-5. **Use a conventional commit PR title**
-6. **One integration per PR** — keep PRs focused
+3. **Read and follow the [Integration Engineering Charter](integration-engineering-charter.md)**
+4. **Run validation locally** before pushing
+5. **Update the main README.md** — add your integration to the list
+6. **Complete the [pull request template](.github/PULL_REQUEST_TEMPLATE.md)**
+7. **Use a conventional commit PR title**
+8. **One integration per PR** — keep PRs focused
 
 All CI checks must pass before merge.
