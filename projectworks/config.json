@@ -1,6 +1,6 @@
 {
   "name": "Projectworks",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Projectworks integration for reading users, clients, projects, modules, tasks, resourcing, timesheets, leave, invoices, and expense claims from your professional services automation account.",
   "display_name": "Projectworks",
   "supports_connected_account": false,
@@ -64,8 +64,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -128,8 +135,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -184,8 +198,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -276,8 +297,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -360,8 +388,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -452,8 +487,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -552,8 +594,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -648,8 +697,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -712,8 +768,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -784,8 +847,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -852,8 +922,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -968,8 +1045,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -1048,8 +1132,15 @@
           },
           "page_size": {
             "type": "integer",
-            "description": "Results per page (default 100)",
+            "description": "Results per page (default 50)",
             "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
           }
         },
         "required": []
@@ -1064,6 +1155,156 @@
         },
         "required": [
           "offices"
+        ]
+      }
+    },
+    "search_users": {
+      "display_name": "Search Users",
+      "description": "Free-text search for users by name or email. Scans one page (default 200 records) and returns up to `limit` lean matches. A convenience layer over list_users for \"find the user called ...\" flows; for exhaustive enumeration use list_users with explicit filters and pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Case-insensitive substring matched against the user's name or email"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of matches to return (default 10)",
+            "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page to scan (default 1). Increase to scan further into large data sets.",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of records to scan in one page (default 200)",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "description": "Matching users"
+          }
+        },
+        "required": [
+          "users"
+        ]
+      }
+    },
+    "search_clients": {
+      "display_name": "Search Clients",
+      "description": "Free-text search for clients by name. Scans one page (default 200 records) and returns up to `limit` lean matches. A convenience layer over list_clients for \"find the client called ...\" flows; for exhaustive enumeration use list_clients with explicit filters and pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Case-insensitive substring matched against the client's name"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of matches to return (default 10)",
+            "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page to scan (default 1). Increase to scan further into large data sets.",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of records to scan in one page (default 200)",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "clients": {
+            "type": "array",
+            "description": "Matching clients"
+          }
+        },
+        "required": [
+          "clients"
+        ]
+      }
+    },
+    "search_projects": {
+      "display_name": "Search Projects",
+      "description": "Free-text search for projects by name or project number. Scans one page (default 200 records) and returns up to `limit` lean matches. A convenience layer over list_projects for \"find the project called ...\" flows; for exhaustive enumeration use list_projects with explicit filters and pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Case-insensitive substring matched against the project's name or project number"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of matches to return (default 10)",
+            "minimum": 1
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional list of response field names (PascalCase, e.g. [\"UserID\", \"FirstName\", \"Email\"]) to return for each record. When omitted, full records are returned. Use this to keep large result sets small for an LLM context window, then call the matching get_* action for the full record."
+          },
+          "page": {
+            "type": "integer",
+            "description": "Page to scan (default 1). Increase to scan further into large data sets.",
+            "minimum": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "description": "Number of records to scan in one page (default 200)",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "query"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "projects": {
+            "type": "array",
+            "description": "Matching projects"
+          }
+        },
+        "required": [
+          "projects"
         ]
       }
     },

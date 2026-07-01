@@ -7,6 +7,16 @@ projectworks = Integration.load()
 
 BASE_URL = "https://api.projectworksapp.com/api/v1"
 
+# Cap an unparameterised list call so it cannot dump hundreds of full records
+# into a consuming LLM's context window. Callers can still page explicitly.
+DEFAULT_PAGE_SIZE = 50
+
+# search_* actions scan a single page client-side; this is how many records that
+# page holds (larger than DEFAULT_PAGE_SIZE so a free-text scan has more to match
+# against) and how many matches are returned by default.
+DEFAULT_SEARCH_SCAN = 200
+DEFAULT_SEARCH_LIMIT = 10
+
 
 def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
     """Resolve raw bytes from a standard Autohive file object.
@@ -87,7 +97,31 @@ def _clean(d: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in d.items() if v is not None}
 
 
-async def _list(context: ExecutionContext, path: str, result_key: str, params: Dict[str, Any]) -> ActionResult:
+def _project(records: List[Any], fields: Any) -> List[Any]:
+    """Trim each record down to the requested field names.
+
+    ``fields`` is an optional list of API response keys (PascalCase, e.g.
+    ``["UserID", "FirstName", "Email"]``). When omitted, records pass through
+    unchanged. This lets a caller keep list payloads small for a consuming LLM's
+    context window and fall back to the matching ``get_*`` action for the full
+    record once a row of interest is identified. Unknown keys are simply absent.
+    """
+    if not fields:
+        return records
+    wanted = set(fields)
+    return [{k: v for k, v in r.items() if k in wanted} if isinstance(r, dict) else r for r in records]
+
+
+async def _list(
+    context: ExecutionContext,
+    path: str,
+    result_key: str,
+    params: Dict[str, Any],
+    fields: Any = None,
+) -> ActionResult:
+    # Apply a conservative default page size so a filter-less call stays small.
+    if params.get("pageSize") is None:
+        params["pageSize"] = DEFAULT_PAGE_SIZE
     response = await context.fetch(
         f"{BASE_URL}/{path}",
         method="GET",
@@ -95,7 +129,7 @@ async def _list(context: ExecutionContext, path: str, result_key: str, params: D
         params=_clean(params),
     )
     _check_response(response)
-    return ActionResult(data={result_key: _as_list(response.data)}, cost_usd=0.0)
+    return ActionResult(data={result_key: _project(_as_list(response.data), fields)}, cost_usd=0.0)
 
 
 async def _get(
@@ -145,6 +179,69 @@ async def _delete(
     return ActionResult(data={deleted_key: deleted_value, "deleted": True}, cost_usd=0.0)
 
 
+def _matches_query(
+    record: Dict[str, Any],
+    query: str,
+    search_fields: List[str],
+    composed_fields: List[List[str]] | None = None,
+) -> bool:
+    q = query.casefold()
+    for field in search_fields:
+        value = record.get(field)
+        if isinstance(value, str) and q in value.casefold():
+            return True
+    # composed_fields lets a multi-word query (e.g. "Jane Doe") match against
+    # several fields joined together (e.g. FirstName + LastName), which no single
+    # field would satisfy on its own.
+    for group in composed_fields or []:
+        joined = " ".join(v for v in (record.get(f) for f in group) if isinstance(v, str))
+        if joined and q in joined.casefold():
+            return True
+    return False
+
+
+async def _search(
+    context: ExecutionContext,
+    path: str,
+    result_key: str,
+    query: str,
+    search_fields: List[str],
+    limit: Any = None,
+    page: Any = None,
+    page_size: Any = None,
+    fields: Any = None,
+    composed_fields: List[List[str]] | None = None,
+) -> ActionResult:
+    """Free-text convenience search over a list endpoint.
+
+    Projectworks exposes only structured (exact) list filters, so this scans one
+    page of records and matches ``query`` case-insensitively as a substring
+    against ``search_fields`` (and any ``composed_fields`` groups joined with a
+    space), returning at most ``limit`` lean results. It is a convenience layer
+    over ``list_*`` for "find the X called ..." flows — for exhaustive
+    enumeration use the matching ``list_*`` action with explicit filters and
+    pagination.
+    """
+    params = {
+        "page": page,
+        "pageSize": page_size or DEFAULT_SEARCH_SCAN,
+    }
+    response = await context.fetch(
+        f"{BASE_URL}/{path}",
+        method="GET",
+        headers=_get_headers(context),
+        params=_clean(params),
+    )
+    _check_response(response)
+    cap = limit or DEFAULT_SEARCH_LIMIT
+    matched = [
+        r
+        for r in _as_list(response.data)
+        if isinstance(r, dict) and _matches_query(r, query, search_fields, composed_fields)
+    ]
+    return ActionResult(data={result_key: _project(matched[:cap], fields)}, cost_usd=0.0)
+
+
 # =============================================================================
 # USERS / EMPLOYEES
 # =============================================================================
@@ -168,6 +265,7 @@ class ListUsersAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -195,6 +293,7 @@ class ListRolesAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -223,6 +322,7 @@ class ListClientsAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -262,6 +362,7 @@ class ListProjectsAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -299,6 +400,7 @@ class ListModulesAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -338,6 +440,7 @@ class ListTasksAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -379,6 +482,7 @@ class ListResourcesAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -419,6 +523,7 @@ class ListTimesheetsAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -449,6 +554,7 @@ class ListLeavesAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -478,6 +584,7 @@ class ListLeaveTypesAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -509,6 +616,7 @@ class ListInvoicesAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -554,6 +662,7 @@ class ListExpenseClaimsAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))
@@ -600,6 +709,70 @@ class ListOfficesAction(ActionHandler):
                     "page": inputs.get("page"),
                     "pageSize": inputs.get("page_size"),
                 },
+                fields=inputs.get("fields"),
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+# =============================================================================
+# SEARCH (free-text convenience over list endpoints)
+# =============================================================================
+
+
+@projectworks.action("search_users")
+class SearchUsersAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            return await _search(
+                context,
+                "Users",
+                "users",
+                inputs["query"],
+                ["FirstName", "LastName", "Name", "Email"],
+                limit=inputs.get("limit"),
+                page=inputs.get("page"),
+                page_size=inputs.get("page_size"),
+                fields=inputs.get("fields"),
+                composed_fields=[["FirstName", "LastName"]],
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@projectworks.action("search_clients")
+class SearchClientsAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            return await _search(
+                context,
+                "Clients",
+                "clients",
+                inputs["query"],
+                ["Name", "ClientName"],
+                limit=inputs.get("limit"),
+                page=inputs.get("page"),
+                page_size=inputs.get("page_size"),
+                fields=inputs.get("fields"),
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@projectworks.action("search_projects")
+class SearchProjectsAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            return await _search(
+                context,
+                "Projects",
+                "projects",
+                inputs["query"],
+                ["Name", "ProjectName", "ProjectNumber"],
+                limit=inputs.get("limit"),
+                page=inputs.get("page"),
+                page_size=inputs.get("page_size"),
+                fields=inputs.get("fields"),
             )
         except Exception as e:
             return ActionError(message=str(e))

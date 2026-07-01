@@ -42,7 +42,19 @@ Projectworks uses HTTP Basic authentication with an API account (the Consumer Ke
 | `get_expense_claim` | Get a single expense claim | `expense_claim_id` | `expense_claim` |
 | `list_offices` | List offices | `name` | `offices[]` |
 
-All `list_*` actions accept `page` (default 1) and `page_size` (default 100) for pagination. Many also accept `modified_since_date` (ISO 8601) for incremental syncing.
+All `list_*` actions accept `page` (default 1) and `page_size` (default 50) for pagination. Many also accept `modified_since_date` (ISO 8601) for incremental syncing.
+
+All `list_*` actions also accept an optional `fields` array of response field names (PascalCase, e.g. `["UserID", "FirstName", "Email"]`). When supplied, each returned record is trimmed to just those fields — useful for keeping large result sets small in a consuming LLM's context window. Omit it to get full records, or call the matching `get_*` action once a record of interest is found.
+
+### Search
+
+Projectworks' API exposes only structured (exact-match) list filters, so these actions provide free-text, case-insensitive substring lookup as a convenience layer over the list endpoints. Each scans one page (`page_size`, default 200) and returns up to `limit` (default 10) lean matches; they also accept the same `fields` projection. For exhaustive enumeration, use the matching `list_*` action with explicit filters and pagination.
+
+| Action | Description | Key Inputs | Matched On | Key Outputs |
+|---|---|---|---|---|
+| `search_users` | Find users by name or email | `query`, `limit`, `fields` | `FirstName`, `LastName`, `Name`, `Email` (a multi-word query like `Jane Doe` also matches `FirstName` + `LastName` together) | `users[]` |
+| `search_clients` | Find clients by name | `query`, `limit`, `fields` | `Name` | `clients[]` |
+| `search_projects` | Find projects by name or number | `query`, `limit`, `fields` | `Name`, `ProjectNumber` | `projects[]` |
 
 ### Write
 

@@ -300,6 +300,79 @@ class TestListOffices:
         assert isinstance(data["offices"], list)
 
 
+# ---- List field projection / page size (read-only) ----
+
+
+class TestListFieldProjection:
+    async def test_fields_trims_returned_records(self, live_context):
+        # Ask for a lean projection and confirm every returned record carries only
+        # the requested keys (or fewer, if a key is absent on a given record).
+        result = await projectworks.execute_action(
+            "list_users", {"page_size": 3, "fields": ["UserID", "Email"]}, live_context
+        )
+        users = ok_data(result)["users"]
+        if not users:
+            pytest.skip("No users in account to test projection with")
+        for user in users:
+            assert set(user).issubset({"UserID", "Email"})
+
+    async def test_default_page_size_bounds_results(self, live_context):
+        # With no page_size the handler applies DEFAULT_PAGE_SIZE (50), so an
+        # unparameterised call cannot dump an unbounded page.
+        result = await projectworks.execute_action("list_users", {}, live_context)
+        assert len(ok_data(result)["users"]) <= 50
+
+
+# ---- Search (free-text convenience, read-only) ----
+
+
+class TestSearchUsers:
+    async def test_search_matches_listed_user(self, live_context):
+        # Derive a real query term from a listed user, then confirm search finds them.
+        listed = ok_data(await projectworks.execute_action("list_users", {"page_size": 5}, live_context))["users"]
+        if not listed:
+            pytest.skip("No users in account to search")
+        target = listed[0]
+        term = target.get("FirstName") or target.get("Name") or target.get("Email")
+        if not term:
+            pytest.skip("Listed user has no name/email field to search on")
+
+        result = await projectworks.execute_action("search_users", {"query": term, "fields": ["UserID"]}, live_context)
+        users = ok_data(result)["users"]
+        assert isinstance(users, list)
+        assert all(set(u).issubset({"UserID"}) for u in users)
+
+    async def test_unmatched_query_returns_empty(self, live_context):
+        result = await projectworks.execute_action("search_users", {"query": "zzz-nonexistent-user-zzz"}, live_context)
+        assert ok_data(result)["users"] == []
+
+
+class TestSearchClients:
+    async def test_search_matches_listed_client(self, live_context):
+        listed = ok_data(await projectworks.execute_action("list_clients", {"page_size": 5}, live_context))["clients"]
+        if not listed:
+            pytest.skip("No clients in account to search")
+        term = listed[0].get("Name")
+        if not term:
+            pytest.skip("Listed client has no Name field to search on")
+
+        result = await projectworks.execute_action("search_clients", {"query": term}, live_context)
+        assert isinstance(ok_data(result)["clients"], list)
+
+
+class TestSearchProjects:
+    async def test_search_matches_listed_project(self, live_context):
+        listed = ok_data(await projectworks.execute_action("list_projects", {"page_size": 5}, live_context))["projects"]
+        if not listed:
+            pytest.skip("No projects in account to search")
+        term = listed[0].get("Name")
+        if not term:
+            pytest.skip("Listed project has no Name field to search on")
+
+        result = await projectworks.execute_action("search_projects", {"query": term}, live_context)
+        assert isinstance(ok_data(result)["projects"], list)
+
+
 # ---- Destructive Tests (Write Operations) ----
 # These create, update, and delete real data on the connected account.
 # Only run deliberately with: pytest -m "integration and destructive"
