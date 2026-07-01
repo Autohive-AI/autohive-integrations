@@ -336,11 +336,13 @@ class TestSearchUsers:
         term = target.get("FirstName") or target.get("Name") or target.get("Email")
         if not term:
             pytest.skip("Listed user has no name/email field to search on")
+        target_id = target.get("UserID")
 
         result = await projectworks.execute_action("search_users", {"query": term, "fields": ["UserID"]}, live_context)
         users = ok_data(result)["users"]
         assert isinstance(users, list)
         assert all(set(u).issubset({"UserID"}) for u in users)
+        assert any(u.get("UserID") == target_id for u in users)
 
     async def test_unmatched_query_returns_empty(self, live_context):
         result = await projectworks.execute_action("search_users", {"query": "zzz-nonexistent-user-zzz"}, live_context)
@@ -355,9 +357,12 @@ class TestSearchClients:
         term = listed[0].get("Name")
         if not term:
             pytest.skip("Listed client has no Name field to search on")
+        target_id = listed[0].get("ClientID")
 
         result = await projectworks.execute_action("search_clients", {"query": term}, live_context)
-        assert isinstance(ok_data(result)["clients"], list)
+        clients = ok_data(result)["clients"]
+        assert isinstance(clients, list)
+        assert any(c.get("ClientID") == target_id for c in clients)
 
 
 class TestSearchProjects:
@@ -368,9 +373,12 @@ class TestSearchProjects:
         term = listed[0].get("Name")
         if not term:
             pytest.skip("Listed project has no Name field to search on")
+        target_id = listed[0].get("ProjectID")
 
         result = await projectworks.execute_action("search_projects", {"query": term}, live_context)
-        assert isinstance(ok_data(result)["projects"], list)
+        projects = ok_data(result)["projects"]
+        assert isinstance(projects, list)
+        assert any(p.get("ProjectID") == target_id for p in projects)
 
 
 # ---- Destructive Tests (Write Operations) ----
