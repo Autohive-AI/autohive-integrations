@@ -10,8 +10,13 @@ from typing import Dict, Any
 supabase = Integration.load()
 
 
+def _credentials(context: ExecutionContext) -> Dict[str, Any]:
+    auth = context.auth or {}
+    return auth.get("credentials", auth)
+
+
 def get_headers(context: ExecutionContext) -> Dict[str, str]:
-    service_role_secret = context.auth.get("service_role_secret", "")
+    service_role_secret = _credentials(context).get("service_role_secret", "")
     return {
         "apikey": service_role_secret,
         "Authorization": f"Bearer {service_role_secret}",
@@ -21,7 +26,7 @@ def get_headers(context: ExecutionContext) -> Dict[str, str]:
 
 
 def get_base_url(context: ExecutionContext) -> str:
-    return context.auth.get("host", "").rstrip("/")
+    return _credentials(context).get("host", "").rstrip("/")
 
 
 # ---- Database (PostgREST) Handlers ----

@@ -104,6 +104,24 @@ class TestGetBaseUrl:
         assert url == "https://testcompany.freshdesk.com/api/v2"
 
 
+class TestWrappedAuthEnvelope:
+    @pytest.mark.asyncio
+    async def test_list_companies_succeeds_with_wrapped_credentials(self, mock_context):
+        mock_context.auth = {
+            "auth_type": "Custom",
+            "credentials": {"api_key": "test_api_key", "domain": "testcompany"},
+        }
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[SAMPLE_COMPANY])
+
+        result = await freshdesk.execute_action("list_companies", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["companies"] == [SAMPLE_COMPANY]
+
+        call_args = mock_context.fetch.call_args
+        assert "testcompany.freshdesk.com/api/v2/companies" in call_args.args[0]
+
+
 # ---- Company Tests ----
 
 

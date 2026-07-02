@@ -1,10 +1,15 @@
 # rss-reader.py
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 import feedparser
 
 # Create the integration using the config.json
 rss_reader = Integration.load()
+
+
+def _credentials(context: ExecutionContext) -> Dict[str, Any]:
+    auth = context.auth or {}
+    return auth.get("credentials", auth)
 
 
 def build_http_basic_auth_url(url: str, user_name: str, password: str) -> str:
@@ -38,9 +43,10 @@ class GetFeedAction(ActionHandler):
         feed_url = inputs["feed_url"]
         limit = inputs.get("limit", 10)
 
-        user_name = context.auth.get("user_name")
-        password = context.auth.get("password")
-        api_token = context.auth.get("api_token")
+        creds = _credentials(context)
+        user_name = creds.get("user_name")
+        password = creds.get("password")
+        api_token = creds.get("api_token")
 
         # Determine authentication method based on available credentials
         # Variables nned to hold None if keys are missing by using .get() before this block
@@ -76,4 +82,6 @@ class GetFeedAction(ActionHandler):
                 }
             )
 
-        return {"feed_title": feed.feed.get("title", ""), "feed_link": feed.feed.get("link", ""), "entries": entries}
+        return ActionResult(
+            data={"feed_title": feed.feed.get("title", ""), "feed_link": feed.feed.get("link", ""), "entries": entries}
+        )
