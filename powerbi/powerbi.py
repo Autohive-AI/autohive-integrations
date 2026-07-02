@@ -832,16 +832,25 @@ def _build_report_parts(dataset_id: str, display_name: str, pages: list) -> list
         }
     )
 
-    # definition/version.json: required by the Fabric report import workload - omitting it
-    # fails import with "Cannot find file 'version.json'". No $schema reference here: an
-    # earlier attempt at "https://.../definition/version/1.0.0/schema.json" made the import
-    # workload reject the whole package as "edited in a newer version of Power BI" because
-    # that schema version couldn't be resolved server-side. This file is just a bare version
-    # marker matching the "2.0.0" format version used by the other definition/*.json parts.
+    # definition/version.json: required by the Fabric report import workload. This file has
+    # been through two failed attempts already:
+    #   1. No file at all -> "Cannot find file 'version.json'"
+    #   2. $schema pointing at ".../definition/version/1.0.0/schema.json" -> "Can't resolve
+    #      schema '1.0.0'" (that schema version doesn't exist server-side)
+    #   3. No $schema property at all -> "Can't find '$schema' property in 'version.json'"
+    #      ($schema is mandatory, just not at version 1.0.0)
+    # Every other schema-versioned part in this package that Fabric accepts without
+    # complaint uses version "2.0.0" (.platform, definition.pbir, page.json, visual.json) -
+    # only report.json differs (3.1.0). Trying "2.0.0" here as the next best guess.
     parts.append(
         {
             "path": "definition/version.json",
-            "payload": _to_base64({"version": "2.0.0"}),
+            "payload": _to_base64(
+                {
+                    "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/version/2.0.0/schema.json",
+                    "version": "2.0.0",
+                }
+            ),
             "payloadType": "InlineBase64",
         }
     )
