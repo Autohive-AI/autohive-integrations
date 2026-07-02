@@ -44,6 +44,7 @@ async def test_get_feed_reads_wrapped_credentials(make_context):
             "credentials": {"user_name": "test_user", "password": "test_password"},
         }
     )
+    # Pinned SDK 1.x fetch() returns the body directly, not a FetchResponse.
     ctx.fetch.return_value = SAMPLE_FEED
     result = await rss_reader.execute_action(
         "get_feed", {"feed_url": "https://example.com/feed", "limit": 10}, ctx

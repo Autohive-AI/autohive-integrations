@@ -62,7 +62,8 @@ class GetFeedAction(ActionHandler):
             # No authentication provided or required
             response = await context.fetch(feed_url)
 
-        # Parse feed
+        # Parse feed; on the pinned SDK 1.x fetch() returns the response body
+        # directly (2.x+ wraps it in FetchResponse.data).
         feed = feedparser.parse(response)
 
         # Check for parsing errors
