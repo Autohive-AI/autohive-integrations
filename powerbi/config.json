@@ -1,7 +1,7 @@
 {
     "name": "Power BI",
-    "version": "1.0.0",
-    "description": "Power BI integration for managing workspaces, datasets, reports, and dashboards",
+    "version": "2.2.0",
+    "description": "Power BI integration for managing workspaces, datasets, reports, and dashboards, including report creation via the Microsoft Fabric REST API",
     "entry_point": "powerbi.py",
     "auth": {
         "type": "platform",
@@ -13,7 +13,8 @@
             "Dashboard.Read.All",
             "Workspace.ReadWrite.All",
             "Content.Create",
-            "Tenant.ReadWrite.All"
+            "Tenant.ReadWrite.All",
+            "Item.ReadWrite.All"
         ]
     },
     "actions": {
@@ -60,14 +61,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "workspaces",
-                    "result"
+                    "workspaces"
                 ]
             }
         },
@@ -92,14 +89,10 @@
                     "workspace": {
                         "type": "object",
                         "description": "Workspace details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "workspace",
-                    "result"
+                    "workspace"
                 ]
             }
         },
@@ -131,7 +124,7 @@
                                     "type": "string"
                                 },
                                 "configuredBy": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "isRefreshable": {
                                     "type": "boolean"
@@ -147,14 +140,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "datasets",
-                    "result"
+                    "datasets"
                 ]
             }
         },
@@ -183,14 +172,10 @@
                     "dataset": {
                         "type": "object",
                         "description": "Dataset details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dataset",
-                    "result"
+                    "dataset"
                 ]
             }
         },
@@ -286,18 +271,15 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     },
                     "request_id": {
-                        "type": "string"
+                        "type": ["string", "null"]
                     }
                 },
                 "required": [
-                    "result"
+                    "message"
                 ]
             }
         },
@@ -335,30 +317,26 @@
                             "type": "object",
                             "properties": {
                                 "refreshType": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "startTime": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "endTime": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "status": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "requestId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "refreshes",
-                    "result"
+                    "refreshes"
                 ]
             }
         },
@@ -390,24 +368,20 @@
                                     "type": "string"
                                 },
                                 "webUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "embedUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "datasetId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "reports",
-                    "result"
+                    "reports"
                 ]
             }
         },
@@ -436,14 +410,10 @@
                     "report": {
                         "type": "object",
                         "description": "Report details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "report",
-                    "result"
+                    "report"
                 ]
             }
         },
@@ -476,19 +446,19 @@
                             "type": "object",
                             "properties": {
                                 "datasourceType": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "datasourceId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "gatewayId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "name": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "connectionString": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "connectionDetails": {
                                     "type": "object",
@@ -496,14 +466,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "datasources",
-                    "result"
+                    "datasources"
                 ]
             }
         },
@@ -553,14 +519,8 @@
                     },
                     "embedUrl": {
                         "type": "string"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
-                },
-                "required": [
-                    "result"
-                ]
+                }
             }
         },
         "refresh_report": {
@@ -594,9 +554,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     },
@@ -605,13 +562,13 @@
                     }
                 },
                 "required": [
-                    "result"
+                    "message"
                 ]
             }
         },
         "export_report": {
             "display_name": "Export Report to File",
-            "description": "Export a Power BI report to PDF, PPTX, or PNG",
+            "description": "Export a Power BI report to PDF, PPTX, or PNG. Requires the workspace to be on Power BI Premium or Fabric dedicated capacity - on shared capacity this fails with a 403 InvalidRequest error.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -644,15 +601,12 @@
                     "export_id": {
                         "type": "string"
                     },
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     }
                 },
                 "required": [
-                    "result"
+                    "message"
                 ]
             }
         },
@@ -688,14 +642,10 @@
                     },
                     "percentComplete": {
                         "type": "integer"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "status",
-                    "result"
+                    "status"
                 ]
             }
         },
@@ -724,24 +674,20 @@
                                     "type": "string"
                                 },
                                 "displayName": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "isReadOnly": {
                                     "type": "boolean"
                                 },
                                 "embedUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dashboards",
-                    "result"
+                    "dashboards"
                 ]
             }
         },
@@ -770,14 +716,10 @@
                     "dashboard": {
                         "type": "object",
                         "description": "Dashboard details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dashboard",
-                    "result"
+                    "dashboard"
                 ]
             }
         },
@@ -813,27 +755,23 @@
                                     "type": "string"
                                 },
                                 "title": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "embedUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "datasetId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "reportId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "tiles",
-                    "result"
+                    "tiles"
                 ]
             }
         },
@@ -876,14 +814,245 @@
                     "results": {
                         "type": "array",
                         "description": "Query results"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "results",
-                    "result"
+                    "results"
+                ]
+            }
+        },
+        "get_dataset_schema": {
+            "display_name": "Get Dataset Schema",
+            "description": "Discover a dataset's table and column names, so create_report's pages/visuals can reference real columns instead of guessing. Tries DAX metadata functions (INFO.TABLES()/INFO.COLUMNS()) first, which only work on newer semantic model formats; if that fails and a workspace_id is given, falls back to the Admin Metadata Scanning API, which works on any dataset format but needs tenant admin API access. If both fail, use clone_report to build on an existing report's dataset bindings instead.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset ID"
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "The workspace ID (optional, defaults to My workspace)"
+                    }
+                },
+                "required": [
+                    "dataset_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tables": {
+                        "type": "array",
+                        "description": "Discovered tables, each with a name and its column names",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": ["string", "null"],
+                                    "description": "Internal table ID, when available (null when discovered via the admin metadata scan fallback)"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Table name to use in create_report visuals"
+                                },
+                                "columns": {
+                                    "type": "array",
+                                    "description": "Column/measure names in this table",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "columns_available": {
+                        "type": "boolean",
+                        "description": "False if table names were discovered but column-level metadata was not available"
+                    }
+                },
+                "required": [
+                    "tables",
+                    "columns_available"
+                ]
+            }
+        },
+        "get_report_definition": {
+            "display_name": "Get Report Definition",
+            "description": "Diagnostic action: fetch the raw PBIR file parts (.platform, definition.pbir, report.json, version.json, pages, visuals) of an existing report via the Fabric getDefinition API. Useful for inspecting the exact format Fabric expects when create_report's generated package is rejected.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "report_id": {
+                        "type": "string",
+                        "description": "The report ID to fetch the definition of"
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "The Fabric workspace ID the report lives in"
+                    }
+                },
+                "required": [
+                    "report_id",
+                    "workspace_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "parts": {
+                        "type": "array",
+                        "description": "Decoded file parts, each with a path and its raw text content",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "path": {
+                                    "type": "string",
+                                    "description": "File path within the report package, e.g. definition/version.json"
+                                },
+                                "content": {
+                                    "type": ["string", "null"],
+                                    "description": "Decoded UTF-8 content, or null if it couldn't be decoded as text"
+                                }
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "parts"
+                ]
+            }
+        },
+        "create_report": {
+            "display_name": "Create Report",
+            "description": "Create a new Power BI report in a Fabric workspace bound to an existing dataset. Specify pages and visuals with the columns or measures to display - the report is built and published automatically. Table/column names must match the dataset exactly - use get_dataset_schema first to discover them, or clone_report as a fallback if schema discovery isn't supported for that dataset.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "display_name": {
+                        "type": "string",
+                        "description": "Name for the new report"
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "The Fabric workspace ID where the report will be created"
+                    },
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset (semantic model) ID to bind the report to"
+                    },
+                    "pages": {
+                        "type": "array",
+                        "description": "Pages to include in the report",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Display name of the page"
+                                },
+                                "visuals": {
+                                    "type": "array",
+                                    "description": "Visuals to place on this page",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "description": "Visual type: table, bar, line, card, pie, column, scatter, area, donut, matrix",
+                                                "enum": [
+                                                    "table",
+                                                    "bar",
+                                                    "line",
+                                                    "card",
+                                                    "pie",
+                                                    "column",
+                                                    "scatter",
+                                                    "area",
+                                                    "donut",
+                                                    "matrix"
+                                                ]
+                                            },
+                                            "title": {
+                                                "type": "string",
+                                                "description": "Visual title displayed above the chart"
+                                            },
+                                            "table": {
+                                                "type": "string",
+                                                "description": "Source table name in the dataset"
+                                            },
+                                            "columns": {
+                                                "type": "array",
+                                                "description": "Column or measure names to include. For charts: first item is the category axis, remaining items are Y-axis measures.",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "x": {
+                                                "type": "number",
+                                                "description": "X position in pixels (optional, auto-laid out if omitted)"
+                                            },
+                                            "y": {
+                                                "type": "number",
+                                                "description": "Y position in pixels (optional, auto-laid out if omitted)"
+                                            },
+                                            "width": {
+                                                "type": "number",
+                                                "description": "Width in pixels (default 600)"
+                                            },
+                                            "height": {
+                                                "type": "number",
+                                                "description": "Height in pixels (default 350)"
+                                            }
+                                        },
+                                        "required": [
+                                            "type",
+                                            "table",
+                                            "columns"
+                                        ]
+                                    }
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "visuals"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "display_name",
+                    "workspace_id",
+                    "dataset_id",
+                    "pages"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "ID of the created report"
+                    },
+                    "display_name": {
+                        "type": "string",
+                        "description": "Name of the created report"
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "Workspace ID where the report was created"
+                    },
+                    "web_url": {
+                        "type": "string",
+                        "description": "URL to open the report in Power BI"
+                    }
+                },
+                "required": [
+                    "id",
+                    "display_name",
+                    "workspace_id",
+                    "web_url"
                 ]
             }
         }
