@@ -14,6 +14,10 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 [active-campaign](active-campaign): ActiveCampaign is an email marketing and CRM platform used by marketing teams to send and manage EDM campaigns. The integration provides 7 actions covering email campaign performance metrics, contact management, contact activity history, and list segmentation. Campaign actions return derived open rate, click rate, and bounce rate calculated from raw send data, making it easy to track and compare performance across sends. Supports custom API key authentication. Ideal for EDM performance analysis, contact engagement tracking, audience segmentation, and marketing reporting workflows.
 
+### Agno Data Agent
+
+[agno-agent](agno-agent): AI data agent that answers natural language questions about your data via an [Agno AgentOS](https://docs.agno.com/agent-os/api) agent, providing insights not just query results. Sends a query to a configured AgentOS agent — which discovers the database schema, writes and executes SQL, and interprets the results — and parses the streamed SSE response, with automatic retry on transient gateway errors. Includes 1 action. Supports custom authentication (base URL, optional bearer token, agent ID), so it works with any Agno AgentOS deployment.
+
 ### Notion
 
 [notion](notion): Enhanced integration with Notion API featuring comprehensive workspace management capabilities. Supports searching pages and databases, querying database entries with advanced filtering, creating and managing pages, updating page properties, retrieving and modifying block content, and managing database schemas. Includes robust error handling and pagination support for large datasets.
