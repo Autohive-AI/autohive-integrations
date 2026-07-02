@@ -568,7 +568,7 @@
         },
         "export_report": {
             "display_name": "Export Report to File",
-            "description": "Export a Power BI report to PDF, PPTX, or PNG",
+            "description": "Export a Power BI report to PDF, PPTX, or PNG. Requires the workspace to be on Power BI Premium or Fabric dedicated capacity - on shared capacity this fails with a 403 InvalidRequest error.",
             "input_schema": {
                 "type": "object",
                 "properties": {

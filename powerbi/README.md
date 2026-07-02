@@ -213,6 +213,8 @@ Clone a Power BI report to the same or a different workspace.
 
 Export a Power BI report to PDF, PPTX, or PNG. Returns an export ID — poll `get_export_status` to monitor progress.
 
+**Requires Power BI Premium or Fabric dedicated capacity.** On shared capacity this fails with `403 InvalidRequest: "Report requested for export is not on dedicated capacity"` — this isn't a bug, it's a workspace licensing requirement. Check the workspace's `isOnDedicatedCapacity` field (from `get_workspace`) before calling this action.
+
 | Input | Type | Required | Description |
 |-------|------|----------|-------------|
 | `report_id` | string | Yes | The report ID to export |
