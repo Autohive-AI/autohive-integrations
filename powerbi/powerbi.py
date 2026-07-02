@@ -1019,7 +1019,8 @@ class CreateReportAction(ActionHandler):
             else:
                 data = response.data or {}
 
-            if not data.get("id"):
+            report_id = data.get("id")
+            if not report_id:
                 return ActionError(
                     message=(
                         "Report creation request completed but returned no report ID - the operation may "
@@ -1027,12 +1028,18 @@ class CreateReportAction(ActionHandler):
                     )
                 )
 
+            # The Fabric create/result payload doesn't reliably include displayName/
+            # workspaceId/webUrl the way the standard Power BI REST API does (confirmed
+            # live: webUrl came back missing even though the report was created
+            # successfully). Derive these from known inputs instead of trusting the
+            # response to echo them back.
             return ActionResult(
                 data={
-                    "id": data.get("id"),
-                    "display_name": data.get("displayName"),
-                    "workspace_id": data.get("workspaceId"),
-                    "web_url": data.get("webUrl"),
+                    "id": report_id,
+                    "display_name": data.get("displayName") or display_name,
+                    "workspace_id": data.get("workspaceId") or workspace_id,
+                    "web_url": data.get("webUrl")
+                    or f"https://app.powerbi.com/groups/{workspace_id}/reports/{report_id}",
                 },
                 cost_usd=0.0,
             )

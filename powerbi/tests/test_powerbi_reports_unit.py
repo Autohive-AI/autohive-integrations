@@ -388,6 +388,26 @@ class TestCreateReport:
         assert result.result.data["web_url"] == "https://app.fabric.microsoft.com/rpt-new"
 
     @pytest.mark.asyncio
+    async def test_missing_webUrl_displayName_workspaceId_falls_back_to_inputs(self, mock_context):
+        # Regression test: live testing showed the Fabric create/result payload only
+        # reliably includes "id" - webUrl/displayName/workspaceId can come back missing
+        # even though the report was created successfully, which previously failed
+        # output schema validation (required string, got None).
+        mock_context.fetch.return_value = FetchResponse(status=201, headers={}, data={"id": "rpt-new"})
+
+        result = await powerbi.execute_action(
+            "create_report",
+            {"display_name": "New Report", "workspace_id": "ws-1", "dataset_id": "ds-1", "pages": SAMPLE_PAGES},
+            mock_context,
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["id"] == "rpt-new"
+        assert result.result.data["display_name"] == "New Report"
+        assert result.result.data["workspace_id"] == "ws-1"
+        assert result.result.data["web_url"] == "https://app.powerbi.com/groups/ws-1/reports/rpt-new"
+
+    @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=201, headers={}, data={})
 
