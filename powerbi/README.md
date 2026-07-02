@@ -15,11 +15,13 @@ This integration uses Power BI OAuth2 authentication through the Autohive platfo
 **Authentication Method:** Platform OAuth2 (Power BI)
 
 Required Power BI API permissions:
+- `offline_access` — Required for refresh tokens (keeps the connection authorized long-term)
 - `Dataset.ReadWrite.All` — Read and write all datasets
 - `Report.ReadWrite.All` — Read and write all reports
 - `Dashboard.Read.All` — Read all dashboards
 - `Workspace.ReadWrite.All` — Read and write all workspaces
 - `Content.Create` — Create Power BI content
+- `Tenant.ReadWrite.All` — Tenant-level read/write access
 - `Item.ReadWrite.All` — Required for Fabric API report creation
 
 ## Actions
@@ -337,8 +339,10 @@ Install dependencies and run unit tests:
 ```bash
 cd powerbi
 pip install -r requirements.txt -t dependencies
-python -m pytest tests/test_powerbi_unit.py -v
+python -m pytest tests/test_powerbi_*_unit.py -v
 ```
+
+Unit tests are split by domain: `test_powerbi_workspaces_unit.py`, `test_powerbi_datasets_unit.py`, `test_powerbi_reports_unit.py`, `test_powerbi_dashboards_unit.py`, and `test_powerbi_queries_unit.py`.
 
 Run integration tests against the live API (requires credentials in `.env`):
 
@@ -346,7 +350,7 @@ Run integration tests against the live API (requires credentials in `.env`):
 # Read-only tests only
 pytest powerbi/tests/test_powerbi_integration.py -m "integration and not destructive"
 
-# Include destructive tests (triggers real refreshes)
+# Include destructive tests (triggers real refreshes and creates a real report)
 pytest powerbi/tests/test_powerbi_integration.py -m "integration and destructive"
 ```
 

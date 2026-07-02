@@ -2,7 +2,7 @@ import base64
 import json
 import uuid
 
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionError
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -43,7 +43,7 @@ class ListWorkspacesAction(ActionHandler):
                     }
                 )
 
-            return {"workspaces": workspaces}
+            return ActionResult(data={"workspaces": workspaces}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -57,7 +57,7 @@ class GetWorkspaceAction(ActionHandler):
 
             response = await context.fetch(f"{POWERBI_API_BASE}/groups/{workspace_id}")
 
-            return {"workspace": response.data}
+            return ActionResult(data={"workspace": response.data}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -90,7 +90,7 @@ class ListDatasetsAction(ActionHandler):
                     }
                 )
 
-            return {"datasets": datasets}
+            return ActionResult(data={"datasets": datasets}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -110,7 +110,7 @@ class GetDatasetAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {"dataset": response.data}
+            return ActionResult(data={"dataset": response.data}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -166,9 +166,15 @@ class RefreshDatasetAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=refresh_request)
 
-            request_id = response.headers.get("x-ms-request-id")
+            # Extract request ID from response headers if available
+            request_id = None
+            if response.headers and "x-ms-request-id" in response.headers:
+                request_id = response.headers["x-ms-request-id"]
 
-            return {"message": "Dataset refresh initiated successfully", "request_id": request_id}
+            return ActionResult(
+                data={"message": "Dataset refresh initiated successfully", "request_id": request_id},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -203,7 +209,7 @@ class GetRefreshHistoryAction(ActionHandler):
                     }
                 )
 
-            return {"refreshes": refreshes}
+            return ActionResult(data={"refreshes": refreshes}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -234,7 +240,7 @@ class ListReportsAction(ActionHandler):
                     }
                 )
 
-            return {"reports": reports}
+            return ActionResult(data={"reports": reports}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -254,7 +260,7 @@ class GetReportAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {"report": response.data}
+            return ActionResult(data={"report": response.data}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -290,7 +296,7 @@ class GetReportDatasourcesAction(ActionHandler):
 
                 datasources.append(ds_data)
 
-            return {"datasources": datasources}
+            return ActionResult(data={"datasources": datasources}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -311,7 +317,8 @@ class RefreshReportAction(ActionHandler):
                 report_url = f"{POWERBI_API_BASE}/reports/{report_id}"
 
             report_response = await context.fetch(report_url)
-            dataset_id = report_response.data.get("datasetId")
+            report_data = report_response.data
+            dataset_id = report_data.get("datasetId")
 
             if not dataset_id:
                 return ActionError(message="Report does not have an associated dataset")
@@ -326,10 +333,13 @@ class RefreshReportAction(ActionHandler):
 
             await context.fetch(refresh_url, method="POST", json=refresh_request)
 
-            return {
-                "message": f"Dataset refresh initiated successfully for report '{report_response.data.get('name')}'",
-                "dataset_id": dataset_id,
-            }
+            return ActionResult(
+                data={
+                    "message": f"Dataset refresh initiated successfully for report '{report_data.get('name')}'",
+                    "dataset_id": dataset_id,
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -360,12 +370,15 @@ class CloneReportAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=clone_request)
 
-            return {
-                "id": response.data.get("id"),
-                "name": response.data.get("name"),
-                "webUrl": response.data.get("webUrl"),
-                "embedUrl": response.data.get("embedUrl"),
-            }
+            return ActionResult(
+                data={
+                    "id": response.data.get("id"),
+                    "name": response.data.get("name"),
+                    "webUrl": response.data.get("webUrl"),
+                    "embedUrl": response.data.get("embedUrl"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -388,7 +401,10 @@ class ExportReportAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=export_request)
 
-            return {"export_id": response.data.get("id"), "message": "Export initiated successfully"}
+            return ActionResult(
+                data={"export_id": response.data.get("id"), "message": "Export initiated successfully"},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -409,10 +425,13 @@ class GetExportStatusAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {
-                "status": response.data.get("status"),
-                "percentComplete": response.data.get("percentComplete", 0),
-            }
+            return ActionResult(
+                data={
+                    "status": response.data.get("status"),
+                    "percentComplete": response.data.get("percentComplete", 0),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -442,7 +461,7 @@ class ListDashboardsAction(ActionHandler):
                     }
                 )
 
-            return {"dashboards": dashboards}
+            return ActionResult(data={"dashboards": dashboards}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -462,7 +481,7 @@ class GetDashboardAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {"dashboard": response.data}
+            return ActionResult(data={"dashboard": response.data}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -494,7 +513,7 @@ class GetDashboardTilesAction(ActionHandler):
                     }
                 )
 
-            return {"tiles": tiles}
+            return ActionResult(data={"tiles": tiles}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -517,7 +536,7 @@ class ExecuteQueriesAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=query_request)
 
-            return {"results": response.data.get("results", [])}
+            return ActionResult(data={"results": response.data.get("results", [])}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -582,7 +601,7 @@ def _build_visual_json(visual_id: str, spec: dict, x: float, y: float, width: fl
             }
 
     else:
-        # Charts: first column → Category axis, remaining → Y axis (measures)
+        # Charts: first column, category axis; remaining columns, Y axis (measures)
         if columns:
             cat = columns[0]
             query_state["Category"] = {
@@ -622,7 +641,7 @@ def _build_visual_json(visual_id: str, spec: dict, x: float, y: float, width: fl
 def _build_report_parts(dataset_id: str, display_name: str, pages: list) -> list:
     parts = []
 
-    # .platform — Fabric item metadata (required by the API)
+    # .platform: Fabric item metadata required by the API
     parts.append(
         {
             "path": ".platform",
@@ -637,7 +656,7 @@ def _build_report_parts(dataset_id: str, display_name: str, pages: list) -> list
         }
     )
 
-    # definition.pbir — v2.0.0 schema: just connectionString with semanticmodelid
+    # definition.pbir: v2.0.0 schema, just connectionString with semanticmodelid
     parts.append(
         {
             "path": "definition.pbir",
@@ -656,7 +675,7 @@ def _build_report_parts(dataset_id: str, display_name: str, pages: list) -> list
         }
     )
 
-    # definition/report.json — report-level settings and theme
+    # definition/report.json: report-level settings and theme
     parts.append(
         {
             "path": "definition/report.json",
@@ -763,14 +782,17 @@ class CreateReportAction(ActionHandler):
             )
 
             # Fabric API may return the created item directly (201) or an operation ID (202).
-            # context.fetch resolves both — if 202, the SDK follows the Location header and
-            # returns the final resource once the async operation completes.
-            return {
-                "id": response.data.get("id"),
-                "display_name": response.data.get("displayName"),
-                "workspace_id": response.data.get("workspaceId"),
-                "web_url": response.data.get("webUrl"),
-            }
+            # context.fetch resolves both cases - if 202, the SDK follows the Location header
+            # and returns the final resource once the async operation completes.
+            return ActionResult(
+                data={
+                    "id": response.data.get("id"),
+                    "display_name": response.data.get("displayName"),
+                    "workspace_id": response.data.get("workspaceId"),
+                    "web_url": response.data.get("webUrl"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionError(message=str(e))

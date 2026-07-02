@@ -1,7 +1,7 @@
 {
     "name": "Power BI",
-    "version": "2.0.0",
-    "description": "Power BI integration for managing workspaces, datasets, reports, and dashboards",
+    "version": "2.1.0",
+    "description": "Power BI integration for managing workspaces, datasets, reports, and dashboards, including report creation via the Microsoft Fabric REST API",
     "entry_point": "powerbi.py",
     "auth": {
         "type": "platform",
@@ -124,7 +124,7 @@
                                     "type": "string"
                                 },
                                 "configuredBy": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "isRefreshable": {
                                     "type": "boolean"
@@ -275,10 +275,12 @@
                         "type": "string"
                     },
                     "request_id": {
-                        "type": "string"
+                        "type": ["string", "null"]
                     }
                 },
-                "required": []
+                "required": [
+                    "message"
+                ]
             }
         },
         "get_refresh_history": {
@@ -315,19 +317,19 @@
                             "type": "object",
                             "properties": {
                                 "refreshType": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "startTime": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "endTime": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "status": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "requestId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
@@ -366,13 +368,13 @@
                                     "type": "string"
                                 },
                                 "webUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "embedUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "datasetId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
@@ -444,19 +446,19 @@
                             "type": "object",
                             "properties": {
                                 "datasourceType": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "datasourceId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "gatewayId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "name": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "connectionString": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "connectionDetails": {
                                     "type": "object",
@@ -518,8 +520,7 @@
                     "embedUrl": {
                         "type": "string"
                     }
-                },
-                "required": []
+                }
             }
         },
         "refresh_report": {
@@ -560,7 +561,9 @@
                         "type": "string"
                     }
                 },
-                "required": []
+                "required": [
+                    "message"
+                ]
             }
         },
         "export_report": {
@@ -602,7 +605,9 @@
                         "type": "string"
                     }
                 },
-                "required": []
+                "required": [
+                    "message"
+                ]
             }
         },
         "get_export_status": {
@@ -669,13 +674,13 @@
                                     "type": "string"
                                 },
                                 "displayName": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "isReadOnly": {
                                     "type": "boolean"
                                 },
                                 "embedUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
@@ -750,16 +755,16 @@
                                     "type": "string"
                                 },
                                 "title": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "embedUrl": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "datasetId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 },
                                 "reportId": {
-                                    "type": "string"
+                                    "type": ["string", "null"]
                                 }
                             }
                         }
@@ -768,84 +773,6 @@
                 "required": [
                     "tiles"
                 ]
-            }
-        },
-        "create_report": {
-            "display_name": "Create Report",
-            "description": "Create a new Power BI report in a Fabric workspace bound to an existing dataset. Specify pages and visuals with the columns or measures to display — the report is built and published automatically.",
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "display_name": {
-                        "type": "string",
-                        "description": "Name for the new report"
-                    },
-                    "workspace_id": {
-                        "type": "string",
-                        "description": "The Fabric workspace ID where the report will be created"
-                    },
-                    "dataset_id": {
-                        "type": "string",
-                        "description": "The dataset (semantic model) ID to bind the report to"
-                    },
-                    "pages": {
-                        "type": "array",
-                        "description": "Pages to include in the report",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {
-                                    "type": "string",
-                                    "description": "Display name of the page"
-                                },
-                                "visuals": {
-                                    "type": "array",
-                                    "description": "Visuals to place on this page",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "type": {
-                                                "type": "string",
-                                                "description": "Visual type: table, bar, line, card, pie, column, scatter, area, donut, matrix",
-                                                "enum": ["table", "bar", "line", "card", "pie", "column", "scatter", "area", "donut", "matrix"]
-                                            },
-                                            "title": {
-                                                "type": "string",
-                                                "description": "Visual title displayed above the chart"
-                                            },
-                                            "table": {
-                                                "type": "string",
-                                                "description": "Source table name in the dataset"
-                                            },
-                                            "columns": {
-                                                "type": "array",
-                                                "description": "Column or measure names to include. For charts: first item is the category axis, remaining items are Y-axis measures.",
-                                                "items": {"type": "string"}
-                                            },
-                                            "x": {"type": "number", "description": "X position in pixels (optional, auto-laid out if omitted)"},
-                                            "y": {"type": "number", "description": "Y position in pixels (optional, auto-laid out if omitted)"},
-                                            "width": {"type": "number", "description": "Width in pixels (default 600)"},
-                                            "height": {"type": "number", "description": "Height in pixels (default 350)"}
-                                        },
-                                        "required": ["type", "table", "columns"]
-                                    }
-                                }
-                            },
-                            "required": ["name", "visuals"]
-                        }
-                    }
-                },
-                "required": ["display_name", "workspace_id", "dataset_id", "pages"]
-            },
-            "output_schema": {
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string", "description": "ID of the created report"},
-                    "display_name": {"type": "string", "description": "Name of the created report"},
-                    "workspace_id": {"type": "string", "description": "Workspace ID where the report was created"},
-                    "web_url": {"type": "string", "description": "URL to open the report in Power BI"}
-                },
-                "required": []
             }
         },
         "execute_queries": {
@@ -891,6 +818,138 @@
                 },
                 "required": [
                     "results"
+                ]
+            }
+        },
+        "create_report": {
+            "display_name": "Create Report",
+            "description": "Create a new Power BI report in a Fabric workspace bound to an existing dataset. Specify pages and visuals with the columns or measures to display - the report is built and published automatically.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "display_name": {
+                        "type": "string",
+                        "description": "Name for the new report"
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "The Fabric workspace ID where the report will be created"
+                    },
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset (semantic model) ID to bind the report to"
+                    },
+                    "pages": {
+                        "type": "array",
+                        "description": "Pages to include in the report",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Display name of the page"
+                                },
+                                "visuals": {
+                                    "type": "array",
+                                    "description": "Visuals to place on this page",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "type": {
+                                                "type": "string",
+                                                "description": "Visual type: table, bar, line, card, pie, column, scatter, area, donut, matrix",
+                                                "enum": [
+                                                    "table",
+                                                    "bar",
+                                                    "line",
+                                                    "card",
+                                                    "pie",
+                                                    "column",
+                                                    "scatter",
+                                                    "area",
+                                                    "donut",
+                                                    "matrix"
+                                                ]
+                                            },
+                                            "title": {
+                                                "type": "string",
+                                                "description": "Visual title displayed above the chart"
+                                            },
+                                            "table": {
+                                                "type": "string",
+                                                "description": "Source table name in the dataset"
+                                            },
+                                            "columns": {
+                                                "type": "array",
+                                                "description": "Column or measure names to include. For charts: first item is the category axis, remaining items are Y-axis measures.",
+                                                "items": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "x": {
+                                                "type": "number",
+                                                "description": "X position in pixels (optional, auto-laid out if omitted)"
+                                            },
+                                            "y": {
+                                                "type": "number",
+                                                "description": "Y position in pixels (optional, auto-laid out if omitted)"
+                                            },
+                                            "width": {
+                                                "type": "number",
+                                                "description": "Width in pixels (default 600)"
+                                            },
+                                            "height": {
+                                                "type": "number",
+                                                "description": "Height in pixels (default 350)"
+                                            }
+                                        },
+                                        "required": [
+                                            "type",
+                                            "table",
+                                            "columns"
+                                        ]
+                                    }
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "visuals"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "display_name",
+                    "workspace_id",
+                    "dataset_id",
+                    "pages"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "ID of the created report"
+                    },
+                    "display_name": {
+                        "type": "string",
+                        "description": "Name of the created report"
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "Workspace ID where the report was created"
+                    },
+                    "web_url": {
+                        "type": "string",
+                        "description": "URL to open the report in Power BI"
+                    }
+                },
+                "required": [
+                    "id",
+                    "display_name",
+                    "workspace_id",
+                    "web_url"
                 ]
             }
         }
