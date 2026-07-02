@@ -920,6 +920,65 @@ def _build_report_parts(dataset_id: str, display_name: str, pages: list) -> list
     return parts
 
 
+@powerbi.action("get_report_definition")
+class GetReportDefinitionAction(ActionHandler):
+    """
+    Fetch the raw PBIR file parts (.platform, definition.pbir, report.json, version.json,
+    pages, visuals) of an existing report via the Fabric getDefinition API. Diagnostic tool
+    for reverse-engineering the exact format Fabric expects when create_report's generated
+    package gets rejected - rather than guessing at undocumented schema versions, pull the
+    ground truth from a report Fabric already accepted.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            report_id = inputs["report_id"]
+            workspace_id = inputs["workspace_id"]
+
+            url = f"{FABRIC_API_BASE}/workspaces/{workspace_id}/reports/{report_id}/getDefinition"
+            response = await context.fetch(url, method="POST")
+
+            if response.status == 202:
+                operation_url = response.headers.get("Location") or response.headers.get("location")
+                if not operation_url:
+                    return ActionError(message="Fabric API returned 202 Accepted with no Location header to poll.")
+
+                for _ in range(15):
+                    op_response = await context.fetch(operation_url)
+                    op_data = op_response.data or {}
+                    status = op_data.get("status")
+                    if status == "Succeeded":
+                        break
+                    if status in ("Failed", "Cancelled"):
+                        error = op_data.get("error", {})
+                        return ActionError(
+                            message=f"Get report definition {status.lower()}: {error.get('message', 'unknown error')}"
+                        )
+                    await asyncio.sleep(2)
+                else:
+                    return ActionError(message="Get report definition did not complete in time.")
+
+                result_response = await context.fetch(f"{operation_url}/result")
+                data = result_response.data or {}
+            else:
+                data = response.data or {}
+
+            raw_parts = data.get("definition", {}).get("parts", [])
+            decoded_parts = []
+            for part in raw_parts:
+                payload = part.get("payload", "")
+                try:
+                    content = base64.b64decode(payload).decode("utf-8")
+                except Exception:
+                    content = None
+                decoded_parts.append({"path": part.get("path"), "content": content})
+
+            return ActionResult(data={"parts": decoded_parts}, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
 @powerbi.action("create_report")
 class CreateReportAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):

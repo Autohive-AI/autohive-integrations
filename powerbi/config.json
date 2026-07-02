@@ -878,6 +878,52 @@
                 ]
             }
         },
+        "get_report_definition": {
+            "display_name": "Get Report Definition",
+            "description": "Diagnostic action: fetch the raw PBIR file parts (.platform, definition.pbir, report.json, version.json, pages, visuals) of an existing report via the Fabric getDefinition API. Useful for inspecting the exact format Fabric expects when create_report's generated package is rejected.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "report_id": {
+                        "type": "string",
+                        "description": "The report ID to fetch the definition of"
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "The Fabric workspace ID the report lives in"
+                    }
+                },
+                "required": [
+                    "report_id",
+                    "workspace_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "parts": {
+                        "type": "array",
+                        "description": "Decoded file parts, each with a path and its raw text content",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "path": {
+                                    "type": "string",
+                                    "description": "File path within the report package, e.g. definition/version.json"
+                                },
+                                "content": {
+                                    "type": ["string", "null"],
+                                    "description": "Decoded UTF-8 content, or null if it couldn't be decoded as text"
+                                }
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "parts"
+                ]
+            }
+        },
         "create_report": {
             "display_name": "Create Report",
             "description": "Create a new Power BI report in a Fabric workspace bound to an existing dataset. Specify pages and visuals with the columns or measures to display - the report is built and published automatically. Table/column names must match the dataset exactly - use get_dataset_schema first to discover them, or clone_report as a fallback if schema discovery isn't supported for that dataset.",

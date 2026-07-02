@@ -566,3 +566,85 @@ class TestCreateReport:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "no report ID" in result.result.message
+
+
+class TestGetReportDefinition:
+    @pytest.mark.asyncio
+    async def test_happy_path_decodes_parts(self, mock_context):
+        import base64
+
+        payload = base64.b64encode(b'{"version": "2.0.0"}').decode("utf-8")
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"definition": {"parts": [{"path": "definition/version.json", "payload": payload}]}},
+        )
+
+        result = await powerbi.execute_action(
+            "get_report_definition", {"report_id": "rpt-1", "workspace_id": "ws-1"}, mock_context
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["parts"] == [{"path": "definition/version.json", "content": '{"version": "2.0.0"}'}]
+
+    @pytest.mark.asyncio
+    async def test_request_url_and_method(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"definition": {"parts": []}})
+
+        await powerbi.execute_action(
+            "get_report_definition", {"report_id": "rpt-1", "workspace_id": "ws-1"}, mock_context
+        )
+
+        assert mock_context.fetch.call_args.args[0] == f"{FABRIC_API_BASE}/workspaces/ws-1/reports/rpt-1/getDefinition"
+        assert mock_context.fetch.call_args.kwargs["method"] == "POST"
+
+    @pytest.mark.asyncio
+    async def test_202_polls_and_fetches_result(self, mock_context):
+        import base64
+
+        payload = base64.b64encode(b'{"version": "2.0.0"}').decode("utf-8")
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=202, headers={"Location": "https://api.fabric.microsoft.com/v1/operations/op-1"}, data={}
+            ),
+            FetchResponse(status=200, headers={}, data={"status": "Succeeded"}),
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"definition": {"parts": [{"path": "definition/version.json", "payload": payload}]}},
+            ),
+        ]
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            result = await powerbi.execute_action(
+                "get_report_definition", {"report_id": "rpt-1", "workspace_id": "ws-1"}, mock_context
+            )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["parts"][0]["path"] == "definition/version.json"
+
+    @pytest.mark.asyncio
+    async def test_undecodable_payload_returns_null_content(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"definition": {"parts": [{"path": "icon.png", "payload": "not-valid-base64-utf8-\xff"}]}},
+        )
+
+        result = await powerbi.execute_action(
+            "get_report_definition", {"report_id": "rpt-1", "workspace_id": "ws-1"}, mock_context
+        )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["parts"][0]["content"] is None
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Forbidden")
+
+        result = await powerbi.execute_action(
+            "get_report_definition", {"report_id": "rpt-1", "workspace_id": "ws-1"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Forbidden" in result.result.message
