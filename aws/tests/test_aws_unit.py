@@ -210,7 +210,7 @@ async def test_list_inspector_findings_last_hours_with_next_token_rejected(mock_
     with patch("helpers.boto3.client", return_value=mock_client):
         result = await aws.execute_action(
             "list_inspector_findings",
-            {"last_hours": 24, "next_token": "page-2"},
+            {"last_hours": 24, "next_token": "page-2"},  # nosec B105
             mock_context,
         )
     assert result.type == ResultType.ACTION_ERROR
