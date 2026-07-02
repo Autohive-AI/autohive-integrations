@@ -542,6 +542,83 @@ class ExecuteQueriesAction(ActionHandler):
             return ActionError(message=str(e))
 
 
+def _find_by_unbracketed_name(row: dict, *candidates: str):
+    """DAX EVALUATE results key each column as e.g. "[Name]" - match ignoring brackets."""
+    for key, value in row.items():
+        if key.strip("[]") in candidates:
+            return value
+    return None
+
+
+@powerbi.action("get_dataset_schema")
+class GetDatasetSchemaAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            dataset_id = inputs["dataset_id"]
+            workspace_id = inputs.get("workspace_id")
+
+            if workspace_id:
+                url = f"{POWERBI_API_BASE}/groups/{workspace_id}/datasets/{dataset_id}/executeQueries"
+            else:
+                url = f"{POWERBI_API_BASE}/datasets/{dataset_id}/executeQueries"
+
+            async def run_dax_query(dax: str) -> list:
+                request = {"queries": [{"query": dax}], "serializerSettings": {"includeNulls": True}}
+                response = await context.fetch(url, method="POST", json=request)
+                results = response.data.get("results", [])
+                if not results:
+                    return []
+                tables = results[0].get("tables", [])
+                return tables[0].get("rows", []) if tables else []
+
+            # INFO.TABLES()/INFO.COLUMNS() are DAX metadata functions that only work on
+            # newer semantic model formats. Older Import-mode datasets and models without
+            # this support fail here - that's a Power BI platform limitation, not something
+            # this action can work around. clone_report is the recommended fallback.
+            try:
+                table_rows = await run_dax_query("EVALUATE INFO.TABLES()")
+            except Exception as e:
+                return ActionError(
+                    message=(
+                        "This dataset does not support DAX schema introspection "
+                        f"(INFO.TABLES() failed: {e}). This is a Power BI model-tier limitation, not "
+                        "something this action can work around. Use clone_report to build on an existing "
+                        "report's dataset bindings instead, or check the exact table/column names in "
+                        "Power BI Desktop."
+                    )
+                )
+
+            tables = []
+            for row in table_rows:
+                table_id = _find_by_unbracketed_name(row, "ID")
+                table_name = _find_by_unbracketed_name(row, "Name")
+                if table_name is None:
+                    continue
+                tables.append({"id": table_id, "name": table_name, "columns": []})
+
+            try:
+                column_rows = await run_dax_query("EVALUATE INFO.COLUMNS()")
+            except Exception:
+                # Tables discovered but column metadata unavailable - still useful on its own.
+                return ActionResult(data={"tables": tables, "columns_available": False}, cost_usd=0.0)
+
+            columns_by_table_id = {}
+            for row in column_rows:
+                table_id = _find_by_unbracketed_name(row, "TableID")
+                column_name = _find_by_unbracketed_name(row, "ExplicitName", "InferredName", "Name")
+                if table_id is None or column_name is None:
+                    continue
+                columns_by_table_id.setdefault(table_id, []).append(column_name)
+
+            for table in tables:
+                table["columns"] = columns_by_table_id.get(table["id"], [])
+
+            return ActionResult(data={"tables": tables, "columns_available": True}, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
 # ---- Helpers for create_report ----
 
 

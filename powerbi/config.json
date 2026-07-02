@@ -1,6 +1,6 @@
 {
     "name": "Power BI",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Power BI integration for managing workspaces, datasets, reports, and dashboards, including report creation via the Microsoft Fabric REST API",
     "entry_point": "powerbi.py",
     "auth": {
@@ -821,9 +821,66 @@
                 ]
             }
         },
+        "get_dataset_schema": {
+            "display_name": "Get Dataset Schema",
+            "description": "Discover a dataset's table and column names via DAX metadata functions (INFO.TABLES()/INFO.COLUMNS()), so create_report's pages/visuals can reference real columns instead of guessing. Only works on newer semantic model formats that support DAX schema introspection - older Import-mode datasets will return a clear error. If it fails, use clone_report to build on an existing report's dataset bindings instead.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dataset_id": {
+                        "type": "string",
+                        "description": "The dataset ID"
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "The workspace ID (optional, defaults to My workspace)"
+                    }
+                },
+                "required": [
+                    "dataset_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tables": {
+                        "type": "array",
+                        "description": "Discovered tables, each with a name and its column names",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Internal table ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Table name to use in create_report visuals"
+                                },
+                                "columns": {
+                                    "type": "array",
+                                    "description": "Column/measure names in this table",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "columns_available": {
+                        "type": "boolean",
+                        "description": "False if table names were discovered but column-level metadata was not available"
+                    }
+                },
+                "required": [
+                    "tables",
+                    "columns_available"
+                ]
+            }
+        },
         "create_report": {
             "display_name": "Create Report",
-            "description": "Create a new Power BI report in a Fabric workspace bound to an existing dataset. Specify pages and visuals with the columns or measures to display - the report is built and published automatically.",
+            "description": "Create a new Power BI report in a Fabric workspace bound to an existing dataset. Specify pages and visuals with the columns or measures to display - the report is built and published automatically. Table/column names must match the dataset exactly - use get_dataset_schema first to discover them, or clone_report as a fallback if schema discovery isn't supported for that dataset.",
             "input_schema": {
                 "type": "object",
                 "properties": {

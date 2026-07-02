@@ -303,6 +303,24 @@ Execute DAX queries against a dataset.
 
 ---
 
+### `get_dataset_schema`
+
+Discover a dataset's table and column names via DAX metadata functions (`INFO.TABLES()`/`INFO.COLUMNS()`), so `create_report`'s pages/visuals can reference real columns instead of guessing.
+
+**This only works on newer semantic model formats that support DAX schema introspection.** Older Import-mode datasets (and any dataset requiring an on-premises gateway) will return a clear error instead of hanging or guessing. If it fails, use `clone_report` to build on an existing report's dataset bindings instead — that always works regardless of the dataset's schema-introspection support.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `dataset_id` | string | Yes | The dataset ID |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `tables` | array | Discovered tables, each `{id, name, columns: [...]}` |
+| `columns_available` | boolean | `false` if table names were found but column-level metadata wasn't (still useful — you have table names) |
+
+---
+
 ### `create_report`
 
 Create a new Power BI report in a Fabric workspace bound to an existing dataset. Pages and visuals are specified declaratively — the report is built and published automatically via the Microsoft Fabric REST API.
@@ -361,4 +379,5 @@ See `.env.example` for the environment variables required for integration tests.
 - All workspace-scoped actions accept an optional `workspace_id`; omitting it targets "My workspace"
 - Dataset refresh and report export are asynchronous — use `get_refresh_history` / `get_export_status` to poll progress
 - `create_report` uses the Microsoft Fabric REST API (`api.fabric.microsoft.com/v1`) rather than the standard Power BI REST API
+- **Before calling `create_report`**, try `get_dataset_schema` first to discover real table/column names. If it errors (dataset doesn't support DAX schema introspection, or requires an on-premises gateway), fall back to `clone_report` on an existing report that already uses the target dataset — that always works and avoids guessing column names
 - DAX queries require the dataset to have query execution enabled and appropriate permissions

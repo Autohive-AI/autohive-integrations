@@ -125,3 +125,88 @@ class TestExecuteQueries:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Query failed" in result.result.message
+
+
+def _dax_response(rows):
+    return FetchResponse(status=200, headers={}, data={"results": [{"tables": [{"rows": rows}]}]})
+
+
+class TestGetDatasetSchema:
+    @pytest.mark.asyncio
+    async def test_happy_path_joins_tables_and_columns(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _dax_response([{"[ID]": "t1", "[Name]": "Sales"}]),
+            _dax_response(
+                [
+                    {"[TableID]": "t1", "[ExplicitName]": "Amount"},
+                    {"[TableID]": "t1", "[ExplicitName]": "Region"},
+                ]
+            ),
+        ]
+
+        result = await powerbi.execute_action("get_dataset_schema", {"dataset_id": "ds-1"}, mock_context)
+
+        assert result.type != ResultType.ACTION_ERROR
+        data = result.result.data
+        assert data["columns_available"] is True
+        assert data["tables"] == [{"id": "t1", "name": "Sales", "columns": ["Amount", "Region"]}]
+
+    @pytest.mark.asyncio
+    async def test_info_tables_failure_returns_clear_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Failed to execute the DAX query.")
+
+        result = await powerbi.execute_action("get_dataset_schema", {"dataset_id": "ds-1"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "does not support DAX schema introspection" in result.result.message
+        assert "clone_report" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_info_columns_failure_still_returns_tables(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _dax_response([{"[ID]": "t1", "[Name]": "Sales"}]),
+            Exception("Failed to execute the DAX query."),
+        ]
+
+        result = await powerbi.execute_action("get_dataset_schema", {"dataset_id": "ds-1"}, mock_context)
+
+        assert result.type != ResultType.ACTION_ERROR
+        data = result.result.data
+        assert data["columns_available"] is False
+        assert data["tables"] == [{"id": "t1", "name": "Sales", "columns": []}]
+
+    @pytest.mark.asyncio
+    async def test_no_tables_returns_empty_list(self, mock_context):
+        mock_context.fetch.side_effect = [_dax_response([]), _dax_response([])]
+
+        result = await powerbi.execute_action("get_dataset_schema", {"dataset_id": "ds-1"}, mock_context)
+
+        assert result.result.data["tables"] == []
+
+    @pytest.mark.asyncio
+    async def test_url_with_workspace(self, mock_context):
+        mock_context.fetch.side_effect = [_dax_response([]), _dax_response([])]
+
+        await powerbi.execute_action("get_dataset_schema", {"dataset_id": "ds-1", "workspace_id": "ws-1"}, mock_context)
+
+        first_call_url = mock_context.fetch.call_args_list[0].args[0]
+        assert first_call_url == f"{POWERBI_API_BASE}/groups/ws-1/datasets/ds-1/executeQueries"
+
+    @pytest.mark.asyncio
+    async def test_url_without_workspace(self, mock_context):
+        mock_context.fetch.side_effect = [_dax_response([]), _dax_response([])]
+
+        await powerbi.execute_action("get_dataset_schema", {"dataset_id": "ds-1"}, mock_context)
+
+        first_call_url = mock_context.fetch.call_args_list[0].args[0]
+        assert first_call_url == f"{POWERBI_API_BASE}/datasets/ds-1/executeQueries"
+
+    @pytest.mark.asyncio
+    async def test_first_query_is_info_tables(self, mock_context):
+        mock_context.fetch.side_effect = [_dax_response([]), _dax_response([])]
+
+        await powerbi.execute_action("get_dataset_schema", {"dataset_id": "ds-1"}, mock_context)
+
+        first_payload = mock_context.fetch.call_args_list[0].kwargs["json"]
+        assert first_payload["queries"] == [{"query": "EVALUATE INFO.TABLES()"}]
