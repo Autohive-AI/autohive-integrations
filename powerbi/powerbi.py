@@ -918,15 +918,50 @@ class CreateReportAction(ActionHandler):
                 },
             )
 
-            # Fabric API may return the created item directly (201) or an operation ID (202).
-            # context.fetch resolves both cases - if 202, the SDK follows the Location header
-            # and returns the final resource once the async operation completes.
+            # Fabric API returns the created item directly on 201, or 202 Accepted with a
+            # Location header pointing at a long-running operation to poll. Don't assume
+            # context.fetch resolves 202s for us - poll it ourselves and fetch the result.
+            if response.status == 202:
+                operation_url = response.headers.get("Location") or response.headers.get("location")
+                if not operation_url:
+                    return ActionError(
+                        message="Fabric API returned 202 Accepted with no Location header to poll for the created report."
+                    )
+
+                for _ in range(15):
+                    op_response = await context.fetch(operation_url)
+                    op_data = op_response.data or {}
+                    status = op_data.get("status")
+                    if status == "Succeeded":
+                        break
+                    if status in ("Failed", "Cancelled"):
+                        error = op_data.get("error", {})
+                        return ActionError(
+                            message=f"Fabric report creation {status.lower()}: {error.get('message', 'unknown error')}"
+                        )
+                    await asyncio.sleep(2)
+                else:
+                    return ActionError(message="Fabric report creation did not complete in time.")
+
+                result_response = await context.fetch(f"{operation_url}/result")
+                data = result_response.data or {}
+            else:
+                data = response.data or {}
+
+            if not data.get("id"):
+                return ActionError(
+                    message=(
+                        "Report creation request completed but returned no report ID - the operation may "
+                        "not have finished successfully."
+                    )
+                )
+
             return ActionResult(
                 data={
-                    "id": response.data.get("id"),
-                    "display_name": response.data.get("displayName"),
-                    "workspace_id": response.data.get("workspaceId"),
-                    "web_url": response.data.get("webUrl"),
+                    "id": data.get("id"),
+                    "display_name": data.get("displayName"),
+                    "workspace_id": data.get("workspaceId"),
+                    "web_url": data.get("webUrl"),
                 },
                 cost_usd=0.0,
             )

@@ -8,7 +8,7 @@ sys.path.insert(0, _parent)
 sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
-from unittest.mock import AsyncMock, MagicMock  # noqa: E402
+from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
 from autohive_integrations_sdk.integration import ResultType  # noqa: E402
 
@@ -464,3 +464,104 @@ class TestCreateReport:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Forbidden" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_202_response_with_none_data_does_not_crash(self, mock_context):
+        # Regression test: a 202 Accepted with no body used to crash with
+        # AttributeError: 'NoneType' object has no attribute 'get'.
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=202, headers={"Location": "https://api.fabric.microsoft.com/v1/operations/op-1"}, data=None
+            ),
+            FetchResponse(status=200, headers={}, data={"status": "Succeeded"}),
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"id": "rpt-new", "displayName": "New Report", "workspaceId": "ws-1", "webUrl": "https://x"},
+            ),
+        ]
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            result = await powerbi.execute_action(
+                "create_report",
+                {"display_name": "New Report", "workspace_id": "ws-1", "dataset_id": "ds-1", "pages": SAMPLE_PAGES},
+                mock_context,
+            )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["id"] == "rpt-new"
+
+    @pytest.mark.asyncio
+    async def test_202_polls_operation_and_fetches_result(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=202, headers={"Location": "https://api.fabric.microsoft.com/v1/operations/op-1"}, data={}
+            ),
+            FetchResponse(status=200, headers={}, data={"status": "Running"}),
+            FetchResponse(status=200, headers={}, data={"status": "Succeeded"}),
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"id": "rpt-new", "displayName": "New Report", "workspaceId": "ws-1", "webUrl": "https://x"},
+            ),
+        ]
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            result = await powerbi.execute_action(
+                "create_report",
+                {"display_name": "New Report", "workspace_id": "ws-1", "dataset_id": "ds-1", "pages": SAMPLE_PAGES},
+                mock_context,
+            )
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["id"] == "rpt-new"
+        assert (
+            mock_context.fetch.call_args_list[-1].args[0]
+            == "https://api.fabric.microsoft.com/v1/operations/op-1/result"
+        )
+
+    @pytest.mark.asyncio
+    async def test_202_operation_failed_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=202, headers={"Location": "https://api.fabric.microsoft.com/v1/operations/op-1"}, data={}
+            ),
+            FetchResponse(
+                status=200, headers={}, data={"status": "Failed", "error": {"message": "Invalid definition"}}
+            ),
+        ]
+
+        result = await powerbi.execute_action(
+            "create_report",
+            {"display_name": "New Report", "workspace_id": "ws-1", "dataset_id": "ds-1", "pages": SAMPLE_PAGES},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Invalid definition" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_202_without_location_header_returns_action_error(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=202, headers={}, data=None)
+
+        result = await powerbi.execute_action(
+            "create_report",
+            {"display_name": "New Report", "workspace_id": "ws-1", "dataset_id": "ds-1", "pages": SAMPLE_PAGES},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Location header" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_201_with_none_data_does_not_crash(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=201, headers={}, data=None)
+
+        result = await powerbi.execute_action(
+            "create_report",
+            {"display_name": "New Report", "workspace_id": "ws-1", "dataset_id": "ds-1", "pages": SAMPLE_PAGES},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "no report ID" in result.result.message
