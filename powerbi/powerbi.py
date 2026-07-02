@@ -832,6 +832,22 @@ def _build_report_parts(dataset_id: str, display_name: str, pages: list) -> list
         }
     )
 
+    # definition/version.json: required by the Fabric report import workload - omitting it
+    # fails import with "Cannot find file 'version.json'" even though every other required
+    # part is present.
+    parts.append(
+        {
+            "path": "definition/version.json",
+            "payload": _to_base64(
+                {
+                    "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/version/1.0.0/schema.json",
+                    "version": "4.0",
+                }
+            ),
+            "payloadType": "InlineBase64",
+        }
+    )
+
     page_ids = []
     page_parts = []
 

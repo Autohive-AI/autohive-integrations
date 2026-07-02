@@ -415,6 +415,7 @@ class TestCreateReport:
         assert ".platform" in paths
         assert "definition.pbir" in paths
         assert "definition/report.json" in paths
+        assert "definition/version.json" in paths
         assert "definition/pages/pages.json" in paths
 
     @pytest.mark.asyncio
