@@ -146,6 +146,116 @@ async def test_archive_findings(mock_context):
 
 
 # ---------------------------------------------------------------------------
+# Inspector
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_inspector_findings(mock_context):
+    mock_client = MagicMock()
+    mock_client.list_findings.return_value = {
+        "findings": [{"findingArn": "arn:aws:inspector2:us-east-1:1:finding/abc", "severity": "CRITICAL"}],
+        "nextToken": None,
+    }
+    with patch("helpers.boto3.client", return_value=mock_client):
+        result = await aws.execute_action("list_inspector_findings", {}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data["findings"][0]["severity"] == "CRITICAL"
+
+
+@pytest.mark.asyncio
+async def test_list_inspector_findings_defaults_to_active_status(mock_context):
+    mock_client = MagicMock()
+    mock_client.list_findings.return_value = {"findings": [], "nextToken": None}
+    with patch("helpers.boto3.client", return_value=mock_client):
+        await aws.execute_action("list_inspector_findings", {}, mock_context)
+    filter_criteria = mock_client.list_findings.call_args.kwargs["filterCriteria"]
+    assert filter_criteria["findingStatus"] == [{"comparison": "EQUALS", "value": "ACTIVE"}]
+
+
+@pytest.mark.asyncio
+async def test_list_inspector_findings_status_all_omits_filter(mock_context):
+    mock_client = MagicMock()
+    mock_client.list_findings.return_value = {"findings": [], "nextToken": None}
+    with patch("helpers.boto3.client", return_value=mock_client):
+        await aws.execute_action("list_inspector_findings", {"status": "ALL"}, mock_context)
+    assert "filterCriteria" not in mock_client.list_findings.call_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_list_inspector_findings_default_sort_is_severity_desc(mock_context):
+    mock_client = MagicMock()
+    mock_client.list_findings.return_value = {"findings": [], "nextToken": None}
+    with patch("helpers.boto3.client", return_value=mock_client):
+        await aws.execute_action("list_inspector_findings", {}, mock_context)
+    assert mock_client.list_findings.call_args.kwargs["sortCriteria"] == {"field": "SEVERITY", "sortOrder": "DESC"}
+
+
+@pytest.mark.asyncio
+async def test_list_inspector_findings_last_hours_builds_time_range(mock_context):
+    mock_client = MagicMock()
+    mock_client.list_findings.return_value = {"findings": [], "nextToken": None}
+    with patch("helpers.boto3.client", return_value=mock_client):
+        await aws.execute_action("list_inspector_findings", {"last_hours": 24}, mock_context)
+    filter_criteria = mock_client.list_findings.call_args.kwargs["filterCriteria"]
+    time_range = filter_criteria["firstObservedAt"][0]
+    assert (time_range["endInclusive"] - time_range["startInclusive"]).total_seconds() == pytest.approx(
+        24 * 3600, abs=2
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_inspector_findings_error(mock_context):
+    mock_client = MagicMock()
+    mock_client.list_findings.side_effect = Exception("Throttled")
+    with patch("helpers.boto3.client", return_value=mock_client):
+        result = await aws.execute_action("list_inspector_findings", {}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Throttled" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_get_inspector_finding_details(mock_context):
+    mock_client = MagicMock()
+    mock_client.batch_get_finding_details.return_value = {
+        "findingDetails": [{"findingArn": "arn:aws:inspector2:us-east-1:1:finding/abc", "riskScore": 9}],
+        "errors": [],
+    }
+    with patch("helpers.boto3.client", return_value=mock_client):
+        result = await aws.execute_action(
+            "get_inspector_finding_details",
+            {"finding_arns": ["arn:aws:inspector2:us-east-1:1:finding/abc"]},
+            mock_context,
+        )
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data["findings"][0]["riskScore"] == 9
+
+
+@pytest.mark.asyncio
+async def test_get_inspector_finding_details_batches_in_groups_of_10(mock_context):
+    mock_client = MagicMock()
+    mock_client.batch_get_finding_details.side_effect = [
+        {"findingDetails": [{"findingArn": f"arn{i}"} for i in range(10)], "errors": []},
+        {"findingDetails": [{"findingArn": f"arn{i}"} for i in range(10, 15)], "errors": []},
+    ]
+    arns = [f"arn{i}" for i in range(15)]
+    with patch("helpers.boto3.client", return_value=mock_client):
+        result = await aws.execute_action("get_inspector_finding_details", {"finding_arns": arns}, mock_context)
+    assert mock_client.batch_get_finding_details.call_count == 2
+    assert len(result.result.data["findings"]) == 15
+
+
+@pytest.mark.asyncio
+async def test_get_inspector_finding_details_error(mock_context):
+    mock_client = MagicMock()
+    mock_client.batch_get_finding_details.side_effect = Exception("AccessDeniedException")
+    with patch("helpers.boto3.client", return_value=mock_client):
+        result = await aws.execute_action("get_inspector_finding_details", {"finding_arns": ["arn0"]}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "AccessDeniedException" in result.result.message
+
+
+# ---------------------------------------------------------------------------
 # CloudWatch
 # ---------------------------------------------------------------------------
 

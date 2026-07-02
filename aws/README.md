@@ -1,14 +1,15 @@
 # AWS Integration for Autohive
 
-AWS security and monitoring integration covering Security Hub, GuardDuty, CloudWatch, and CloudTrail.
+AWS security and monitoring integration covering Security Hub, GuardDuty, Inspector, CloudWatch, and CloudTrail.
 
 ## Description
 
-This integration provides access to core AWS security and monitoring services for investigating security findings, monitoring infrastructure metrics and logs, and auditing API activity. It uses boto3 directly with custom authentication (AWS access keys) and implements 20 actions across 5 service areas.
+This integration provides access to core AWS security and monitoring services for investigating security findings, monitoring infrastructure metrics and logs, and auditing API activity. It uses boto3 directly with custom authentication (AWS access keys) and implements 22 actions across 6 service areas.
 
 **Services covered:**
 - **AWS Security Hub** -- Centralized security findings and compliance insights
 - **Amazon GuardDuty** -- Threat detection and finding management
+- **Amazon Inspector** -- Direct vulnerability findings, without Security Hub's forwarding lag
 - **Amazon CloudWatch Metrics & Alarms** -- Infrastructure metrics, alarms, and alarm history
 - **Amazon CloudWatch Logs** -- Log group discovery and log event search
 - **AWS CloudTrail** -- API activity auditing and trail configuration
@@ -19,8 +20,8 @@ This integration uses **custom authentication** with AWS IAM credentials.
 
 ### Prerequisites
 
-1. An AWS account with the services you plan to use enabled (Security Hub, GuardDuty, etc.)
-2. An IAM user with programmatic access (access key ID and secret access key)
+1. An AWS account with the services you plan to use enabled (Security Hub, GuardDuty, Inspector, etc.)
+2. An IAM user with programmatic access (access key ID and secret access key), or temporary STS credentials (access key ID, secret access key, and session token)
 
 ### Creating IAM Credentials
 
@@ -36,13 +37,16 @@ This integration uses **custom authentication** with AWS IAM credentials.
 2. Enter your **AWS Access Key ID**
 3. Enter your **AWS Secret Access Key**
 4. Enter your **AWS Region** (e.g. `us-east-1`, `eu-west-1`, `ap-southeast-2`)
-5. Save and start using the integration actions
+5. If using temporary (STS) credentials — an access key ID starting with `ASIA` — also enter the **AWS Session Token**. Leave it blank for long-term IAM user credentials.
+6. Save and start using the integration actions
 
 ### Required IAM Permissions
 
-For read-only access to all services, attach the **SecurityAudit** AWS managed policy to the IAM user. This covers all read actions across Security Hub, GuardDuty, CloudWatch, CloudTrail, and CloudWatch Logs.
+For read-only access to all services, attach the **SecurityAudit** AWS managed policy to the IAM user. This covers all read actions across Security Hub, GuardDuty, Inspector, CloudWatch, CloudTrail, and CloudWatch Logs.
 
-For the three write actions in this integration, add a custom inline policy with these additional permissions:
+> **Note:** in testing, some SecurityAudit-equivalent roles (e.g. those layered with additional org-level SCPs or scoped IAM Identity Center permission sets) did **not** include `inspector2:BatchGetFindingDetails`, causing `get_inspector_finding_details` to fail with `AccessDeniedException` even though `list_inspector_findings` worked fine. If you hit this, add `inspector2:BatchGetFindingDetails` explicitly.
+
+For the four write/extra-permission actions in this integration, add a custom inline policy with these additional permissions:
 
 ```json
 {
@@ -53,7 +57,8 @@ For the three write actions in this integration, add a custom inline policy with
             "Action": [
                 "securityhub:BatchUpdateFindings",
                 "guardduty:ArchiveFindings",
-                "cloudwatch:SetAlarmState"
+                "cloudwatch:SetAlarmState",
+                "inspector2:BatchGetFindingDetails"
             ],
             "Resource": "*"
         }
@@ -65,20 +70,17 @@ For the three write actions in this integration, add a custom inline policy with
 
 | Policy / Permission | Covers |
 |---|---|
-| `SecurityAudit` (managed policy) | All read actions across all 5 services |
+| `SecurityAudit` (managed policy) | All read actions across all 6 services (usually including `inspector2:BatchGetFindingDetails` — see note above) |
 | `securityhub:BatchUpdateFindings` | `update_finding_workflow` action |
 | `guardduty:ArchiveFindings` | `archive_findings` action |
 | `cloudwatch:SetAlarmState` | `set_alarm_state` action |
+| `inspector2:BatchGetFindingDetails` | `get_inspector_finding_details` action (only needed if not already granted by your read-only policy) |
 
 ## Action Results
 
-All actions return a standardized response structure:
-- `result` (boolean): Indicates whether the action succeeded (true) or failed (false)
-- `error` (string, optional): Contains error message if the action failed
-- `error_code` (string, optional): AWS error code if the action failed
-- Additional action-specific data fields
+Each action returns action-specific data fields in `result.result.data` on success. If an action fails, it returns an `ActionError` — `result.type == ResultType.ACTION_ERROR` and the error message is available at `result.result.message`.
 
-## Actions (20 Total)
+## Actions (22 Total)
 
 ### Security Hub (4 actions)
 
@@ -93,7 +95,6 @@ List and filter security findings from AWS Security Hub.
 **Outputs:**
 - `findings`: List of Security Hub findings
 - `next_token`: Pagination token for the next page of results
-- `result`: Success status
 
 ---
 
@@ -105,7 +106,6 @@ Get detailed information about a specific Security Hub finding by its ARN.
 
 **Outputs:**
 - `finding`: The Security Hub finding details (or null if not found)
-- `result`: Success status
 
 ---
 
@@ -120,7 +120,6 @@ Update the workflow status of one or more Security Hub findings.
 **Outputs:**
 - `processed_findings`: List of findings that were successfully updated
 - `unprocessed_findings`: List of findings that could not be updated
-- `result`: Success status
 
 ---
 
@@ -135,7 +134,6 @@ Get security insight results from AWS Security Hub.
 **Outputs:**
 - `insights`: List of Security Hub insights with name, filters, group_by_attribute, and results
 - `next_token`: Pagination token for the next page of results
-- `result`: Success status
 
 ---
 
@@ -151,7 +149,6 @@ List all GuardDuty detector IDs in the current AWS account and region.
 **Outputs:**
 - `detector_ids`: List of GuardDuty detector IDs
 - `next_token`: Pagination token for the next page of results
-- `result`: Success status
 
 ---
 
@@ -168,7 +165,6 @@ List and filter GuardDuty findings for a specific detector.
 **Outputs:**
 - `finding_ids`: List of GuardDuty finding IDs
 - `next_token`: Pagination token for the next page of results
-- `result`: Success status
 
 ---
 
@@ -181,7 +177,6 @@ Get detailed information about one or more GuardDuty findings.
 
 **Outputs:**
 - `findings`: List of detailed GuardDuty findings
-- `result`: Success status
 
 ---
 
@@ -194,7 +189,37 @@ Archive one or more GuardDuty findings by their IDs.
 
 **Outputs:**
 - `success`: Whether the findings were successfully archived
-- `result`: Success status
+
+---
+
+### Amazon Inspector (2 actions)
+
+#### `list_inspector_findings`
+List and filter vulnerability findings directly from Amazon Inspector. Unlike `get_findings` (Security Hub), this queries Inspector's own findings database, so it isn't subject to Security Hub's forwarding lag. Results are sorted by severity (highest first) and limited to `ACTIVE` findings by default, matching the Inspector console's default view (CLOSED/SUPPRESSED findings are excluded unless requested).
+
+**Inputs:**
+- `filter_criteria` (optional): Amazon Inspector2 `filterCriteria` (e.g. resourceType, severity, findingType filters)
+- `status` (optional): Filter by finding status. One of `ACTIVE`, `SUPPRESSED`, `CLOSED`, `ALL`. Defaults to `ACTIVE`. Use `ALL` to include closed/suppressed findings too. Ignored if `filter_criteria` already sets `findingStatus`.
+- `last_hours` (optional): Shortcut filter — only return findings first observed (newly discovered) within the last N hours
+- `sort_criteria` (optional): Criteria for sorting results — `field` (e.g. `SEVERITY`, `FIRST_OBSERVED_AT`, `LAST_OBSERVED_AT`) and `sortOrder` (`ASC`/`DESC`). Defaults to `SEVERITY` `DESC`.
+- `max_results` (optional): Maximum number of findings to return per page (default: 50, max: 100)
+- `next_token` (optional): Pagination token from a previous request
+
+**Outputs:**
+- `findings`: List of Amazon Inspector findings
+- `next_token`: Pagination token for the next page of results
+
+---
+
+#### `get_inspector_finding_details`
+Get detailed information about one or more Amazon Inspector findings by ARN. The underlying AWS API accepts at most 10 ARNs per call, so this action automatically batches larger lists and merges the results.
+
+**Inputs:**
+- `finding_arns` (required): List of Inspector finding ARNs to retrieve details for (any length; batched internally in groups of 10)
+
+**Outputs:**
+- `findings`: List of detailed Amazon Inspector findings
+- `errors`: List of finding ARNs that could not be retrieved, with error details
 
 ---
 
@@ -212,7 +237,6 @@ List available CloudWatch metrics, optionally filtered by namespace, name, or di
 **Outputs:**
 - `metrics`: List of CloudWatch metrics with namespace, name, and dimensions
 - `next_token`: Pagination token for the next page of results
-- `result`: Success status
 
 ---
 
@@ -226,7 +250,6 @@ Retrieve CloudWatch metric statistics for one or more metrics over a specified t
 
 **Outputs:**
 - `metric_data_results`: List of metric data results with timestamps and values
-- `result`: Success status
 
 ---
 
@@ -244,7 +267,6 @@ List and filter CloudWatch alarms by name, prefix, or state.
 - `metric_alarms`: List of metric alarms
 - `composite_alarms`: List of composite alarms
 - `next_token`: Pagination token for the next page of results
-- `result`: Success status
 
 ---
 
@@ -263,7 +285,6 @@ Retrieve the history of state changes and actions for CloudWatch alarms.
 **Outputs:**
 - `alarm_history_items`: List of alarm history items with timestamp, type, and summary
 - `next_token`: Pagination token for the next page of results
-- `result`: Success status
 
 ---
 
@@ -277,7 +298,6 @@ Temporarily set the state of a CloudWatch alarm for testing or maintenance purpo
 
 **Outputs:**
 - `success`: Whether the alarm state was successfully set
-- `result`: Success status
 
 ---
 
@@ -294,7 +314,6 @@ List CloudWatch Logs log groups, optionally filtered by name prefix.
 **Outputs:**
 - `log_groups`: List of log groups with name, ARN, creation time, and stored bytes
 - `next_token`: Pagination token for the next page of results
-- `result`: Success status
 
 ---
 
@@ -314,7 +333,6 @@ Search and filter log events across one or more log streams within a log group.
 - `events`: List of matching log events with timestamp, message, and log stream name
 - `searched_log_streams`: List of log streams that were searched
 - `next_token`: Pagination token for the next page of results
-- `result`: Success status
 
 ---
 
@@ -334,7 +352,6 @@ Get log events from a specific log stream in a log group.
 - `events`: List of log events with timestamp and message
 - `next_forward_token`: Token for fetching the next set of events going forward in time
 - `next_backward_token`: Token for fetching the next set of events going backward in time
-- `result`: Success status
 
 ---
 
@@ -353,7 +370,6 @@ Search CloudTrail management events by attributes such as event name, user, or r
 **Outputs:**
 - `events`: List of CloudTrail events with event name, time, user, and resources
 - `next_token`: Pagination token for the next page of results
-- `result`: Success status
 
 ---
 
@@ -366,7 +382,6 @@ List configured CloudTrail trails in the account.
 
 **Outputs:**
 - `trails`: List of CloudTrail trail configurations
-- `result`: Success status
 
 ---
 
@@ -378,7 +393,6 @@ Get the current logging status and latest delivery information for a CloudTrail 
 
 **Outputs:**
 - `trail_status`: Trail status including logging state, latest delivery time, and any delivery errors
-- `result`: Success status
 
 ---
 
@@ -392,7 +406,6 @@ Get the event recording configuration for a CloudTrail trail, including manageme
 - `trail_arn`: The ARN of the trail
 - `event_selectors`: List of event selectors configured on the trail
 - `advanced_event_selectors`: List of advanced event selectors configured on the trail
-- `result`: Success status
 
 ---
 
@@ -411,9 +424,10 @@ Get the event recording configuration for a CloudTrail trail, including manageme
 ## Important Notes
 
 - **Region-Scoped**: Each integration instance connects to a single AWS region. To monitor multiple regions, add separate integration instances.
-- **Service Enablement**: Security Hub and GuardDuty must be enabled in your AWS account before their actions will work. CloudWatch and CloudTrail are enabled by default.
+- **Service Enablement**: Security Hub, GuardDuty, and Inspector must be enabled in your AWS account before their actions will work. CloudWatch and CloudTrail are enabled by default.
+- **Security Hub vs. Inspector**: Security Hub's `get_findings` returns a forwarded copy of Inspector findings, which can lag behind (or dedupe differently than) what Inspector's own console shows. Use `list_inspector_findings` for the authoritative, real-time view of vulnerability findings.
 - **GuardDuty Workflow**: Use `list_detectors` first to get your detector ID, then pass it to `list_guardduty_findings`, `get_guardduty_finding_details`, and `archive_findings`.
-- **Write Actions**: Only three actions perform writes: `update_finding_workflow` (Security Hub), `archive_findings` (GuardDuty), and `set_alarm_state` (CloudWatch). All other actions are read-only.
+- **Write Actions**: Only three actions perform writes: `update_finding_workflow` (Security Hub), `archive_findings` (GuardDuty), and `set_alarm_state` (CloudWatch). All other actions, including both Inspector actions, are read-only.
 - **Pagination**: All list actions support pagination via `next_token`. When `next_token` is returned in a response, pass it to the next request to get the next page of results.
 - **Time Formats**: All time-based inputs accept ISO 8601 format (e.g. `2024-01-15T00:00:00Z`).
 
@@ -441,6 +455,8 @@ Get the event recording configuration for a CloudTrail trail, including manageme
 
 ## Version History
 
+- **2.0.0** - Migrated to `autohive-integrations-sdk` 2.0.0; added Amazon Inspector actions
+  - Inspector: list_inspector_findings, get_inspector_finding_details (2 actions)
 - **1.0.0** - Initial release with 20 actions
   - Security Hub: get_findings, get_finding_details, update_finding_workflow, get_insights (4 actions)
   - GuardDuty: list_detectors, list_guardduty_findings, get_guardduty_finding_details, archive_findings (4 actions)
@@ -452,6 +468,7 @@ Get the event recording configuration for a CloudTrail trail, including manageme
 
 - [AWS Security Hub API Reference](https://docs.aws.amazon.com/securityhub/1.0/APIReference/)
 - [Amazon GuardDuty API Reference](https://docs.aws.amazon.com/guardduty/latest/APIReference/)
+- [Amazon Inspector2 API Reference](https://docs.aws.amazon.com/inspector/v2/APIReference/)
 - [Amazon CloudWatch API Reference](https://docs.aws.amazon.com/AmazonCloudWatch/latest/APIReference/)
 - [Amazon CloudWatch Logs API Reference](https://docs.aws.amazon.com/AmazonCloudWatchLogs/latest/APIReference/)
 - [AWS CloudTrail API Reference](https://docs.aws.amazon.com/awscloudtrail/latest/APIReference/)
