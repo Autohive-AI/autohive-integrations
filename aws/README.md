@@ -455,8 +455,9 @@ Get the event recording configuration for a CloudTrail trail, including manageme
 
 ## Version History
 
-- **2.0.0** - Migrated to `autohive-integrations-sdk` 2.0.0; added Amazon Inspector actions
+- **2.1.0** - Added Amazon Inspector actions
   - Inspector: list_inspector_findings, get_inspector_finding_details (2 actions)
+- **2.0.0** - Migrated to `autohive-integrations-sdk` 2.0.0
 - **1.0.0** - Initial release with 20 actions
   - Security Hub: get_findings, get_finding_details, update_finding_workflow, get_insights (4 actions)
   - GuardDuty: list_detectors, list_guardduty_findings, get_guardduty_finding_details, archive_findings (4 actions)
