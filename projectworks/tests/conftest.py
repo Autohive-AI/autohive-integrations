@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 @pytest.fixture
 def mock_context():
-    """Mock ExecutionContext pre-loaded with ProjectWorks custom-auth credentials."""
+    """Mock ExecutionContext pre-loaded with Projectworks custom-auth credentials."""
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {
