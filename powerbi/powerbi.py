@@ -767,7 +767,7 @@ class CreateReportAction(ActionHandler):
             display_name = inputs["display_name"]
             workspace_id = inputs["workspace_id"]
             dataset_id = inputs["dataset_id"]
-            pages = inputs.get("pages", [])
+            pages = inputs["pages"]
 
             parts = _build_report_parts(dataset_id, display_name, pages)
 
