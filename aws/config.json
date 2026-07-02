@@ -371,7 +371,7 @@
                     },
                     "last_hours": {
                         "type": "integer",
-                        "description": "Shortcut filter: only return findings first observed (newly discovered) within the last N hours",
+                        "description": "Shortcut filter: only return findings first observed (newly discovered) within the last N hours. Cannot be combined with next_token — use filter_criteria.firstObservedAt with an explicit range instead when paginating past the first page.",
                         "minimum": 1
                     },
                     "sort_criteria": {

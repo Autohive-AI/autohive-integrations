@@ -23,6 +23,13 @@ class ListInspectorFindingsAction(ActionHandler):
     A `last_hours` shortcut filters to findings first observed within that
     window, and results default to sorting by severity (highest first).
 
+    `last_hours` is resolved to an absolute [now - last_hours, now] range on
+    every call. Since this action is stateless, combining it with next_token
+    would recompute a shifted window on each page and desync the filter from
+    the token AWS is paginating against, so that combination is rejected —
+    pass an explicit filter_criteria.firstObservedAt range instead when
+    paginating past the first page.
+
     Unlike a bare ListFindings call, this defaults to ACTIVE findings only
     (matching the Inspector console's "By Lambda function" / summary views),
     since CLOSED and SUPPRESSED findings otherwise dominate the result set.
@@ -31,6 +38,14 @@ class ListInspectorFindingsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
+            if inputs.get("last_hours") and inputs.get("next_token"):
+                raise ValueError(
+                    "last_hours cannot be combined with next_token: each call recomputes the time "
+                    "window from 'now', which would desync it from the paginated request. Use "
+                    "filter_criteria.firstObservedAt with an explicit, fixed range instead when "
+                    "paginating past the first page."
+                )
+
             client = create_boto3_client(context, "inspector2")
             kwargs = {"maxResults": inputs.get("max_results", 50)}
 

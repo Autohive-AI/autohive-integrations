@@ -200,7 +200,7 @@ List and filter vulnerability findings directly from Amazon Inspector. Unlike `g
 **Inputs:**
 - `filter_criteria` (optional): Amazon Inspector2 `filterCriteria` (e.g. resourceType, severity, findingType filters)
 - `status` (optional): Filter by finding status. One of `ACTIVE`, `SUPPRESSED`, `CLOSED`, `ALL`. Defaults to `ACTIVE`. Use `ALL` to include closed/suppressed findings too. Ignored if `filter_criteria` already sets `findingStatus`.
-- `last_hours` (optional): Shortcut filter — only return findings first observed (newly discovered) within the last N hours
+- `last_hours` (optional): Shortcut filter — only return findings first observed (newly discovered) within the last N hours. Cannot be combined with `next_token`, since each call would recompute the window from "now" and desync it from the paginated request — pass an explicit `filter_criteria.firstObservedAt` range instead when paginating past the first page.
 - `sort_criteria` (optional): Criteria for sorting results — `field` (e.g. `SEVERITY`, `FIRST_OBSERVED_AT`, `LAST_OBSERVED_AT`) and `sortOrder` (`ASC`/`DESC`). Defaults to `SEVERITY` `DESC`.
 - `max_results` (optional): Maximum number of findings to return per page (default: 50, max: 100)
 - `next_token` (optional): Pagination token from a previous request

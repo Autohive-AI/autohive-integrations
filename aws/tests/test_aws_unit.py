@@ -205,6 +205,20 @@ async def test_list_inspector_findings_last_hours_builds_time_range(mock_context
 
 
 @pytest.mark.asyncio
+async def test_list_inspector_findings_last_hours_with_next_token_rejected(mock_context):
+    mock_client = MagicMock()
+    with patch("helpers.boto3.client", return_value=mock_client):
+        result = await aws.execute_action(
+            "list_inspector_findings",
+            {"last_hours": 24, "next_token": "page-2"},
+            mock_context,
+        )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "last_hours" in result.result.message
+    mock_client.list_findings.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_list_inspector_findings_error(mock_context):
     mock_client = MagicMock()
     mock_client.list_findings.side_effect = Exception("Throttled")
