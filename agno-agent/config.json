@@ -1,0 +1,61 @@
+{
+    "name": "agno-agent",
+    "version": "3.0.0",
+    "display_name": "Agno Data Agent",
+    "description": "AI data agent that answers natural language questions about your data via an Agno AgentOS agent, providing insights not just query results.",
+    "entry_point": "agno_agent.py",
+    "supports_connected_account": true,
+    "auth": {
+        "type": "custom",
+        "title": "Agno AgentOS Credentials",
+        "identifier": "agno_agent_auth",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_url": {
+                    "type": "string",
+                    "label": "AgentOS API Base URL",
+                    "help_text": "Base URL of your Agno AgentOS API, including any mount prefix (e.g. https://agno.example.com/api)"
+                },
+                "api_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Token",
+                    "help_text": "Bearer token, if your AgentOS deployment requires authentication"
+                },
+                "agent_id": {
+                    "type": "string",
+                    "label": "Agent ID",
+                    "help_text": "ID of the AgentOS agent to query (e.g. 'my-agent')"
+                }
+            }
+        }
+    },
+    "actions": {
+        "ask_agent": {
+            "display_name": "Ask Agent",
+            "description": "Ask a natural language question about your data and get insights back from the agent.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "label": "Query",
+                        "help_text": "Natural language question about the database (e.g. 'How many active users do we have?')"
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "response": {
+                        "type": "string",
+                        "description": "The agent's answer with insights"
+                    }
+                },
+                "required": ["response"]
+            }
+        }
+    }
+}
