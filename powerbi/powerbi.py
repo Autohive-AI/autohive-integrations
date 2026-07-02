@@ -704,78 +704,109 @@ _VISUAL_TYPE_MAP = {
 }
 
 
-def _build_visual_json(visual_id: str, spec: dict, x: float, y: float, width: float, height: float) -> dict:
+def _build_select_and_projection(alias: str, table: str, col: str, as_measure: bool):
+    """One (Select entry, queryRef) pair for a single field, classic Layout schema."""
+    query_ref = f"{table}.{col}"
+    if as_measure:
+        select = {"Measure": {"Expression": {"SourceRef": {"Source": alias}}, "Property": col}, "Name": query_ref}
+    else:
+        select = {"Column": {"Expression": {"SourceRef": {"Source": alias}}, "Property": col}, "Name": query_ref}
+    return select, query_ref
+
+
+def _build_visual_container(spec: dict, x: float, y: float, width: float, height: float) -> dict:
+    """Build one entry of sections[].visualContainers in the classic (PBIRLegacy) Layout
+    schema confirmed via get_report_definition against a real, working report in this
+    tenant: config/filters are JSON-stringified (not inline objects), there is no
+    $schema/definition/pages split - everything lives inside one report.json."""
     pbi_type = _VISUAL_TYPE_MAP.get(spec.get("type", "table").lower(), spec.get("type", "tableEx"))
     table = spec.get("table", "")
     columns = spec.get("columns", [])
     title = spec.get("title", "")
+    alias = "t"
 
-    # PBIR uses query.queryState with per-bucket projections (not prototypeQuery)
-    query_state = {}
+    selects = []
+    projections = {}
 
     if pbi_type in ("tableEx", "pivotTable"):
-        query_state["Values"] = {
-            "projections": [
-                {
-                    "field": {"Column": {"Expression": {"SourceRef": {"Entity": table}}, "Property": col}},
-                    "queryRef": f"{table}.{col}",
-                    "active": True,
-                }
-                for col in columns
-            ]
-        }
+        values = []
+        for col in columns:
+            select, query_ref = _build_select_and_projection(alias, table, col, as_measure=False)
+            selects.append(select)
+            values.append({"queryRef": query_ref})
+        if values:
+            projections["Values"] = values
 
     elif pbi_type == "card":
         if columns:
-            col = columns[0]
-            query_state["Values"] = {
-                "projections": [
-                    {
-                        "field": {"Measure": {"Expression": {"SourceRef": {"Entity": table}}, "Property": col}},
-                        "queryRef": f"{table}.{col}",
-                    }
-                ]
-            }
+            select, query_ref = _build_select_and_projection(alias, table, columns[0], as_measure=False)
+            selects.append(select)
+            projections["Values"] = [{"queryRef": query_ref}]
 
     else:
-        # Charts: first column, category axis; remaining columns, Y axis (measures)
+        # Charts: first column is the category axis, remaining columns are Y-axis values.
         if columns:
-            cat = columns[0]
-            query_state["Category"] = {
-                "projections": [
-                    {
-                        "field": {"Column": {"Expression": {"SourceRef": {"Entity": table}}, "Property": cat}},
-                        "queryRef": f"{table}.{cat}",
-                        "active": True,
-                    }
-                ]
-            }
-            y_projections = [
-                {
-                    "field": {"Measure": {"Expression": {"SourceRef": {"Entity": table}}, "Property": col}},
-                    "queryRef": f"{table}.{col}",
-                }
-                for col in columns[1:]
-            ]
-            if y_projections:
-                query_state["Y"] = {"projections": y_projections}
+            select, query_ref = _build_select_and_projection(alias, table, columns[0], as_measure=False)
+            selects.append(select)
+            projections["Category"] = [{"queryRef": query_ref, "active": True}]
 
-    visual_obj: dict = {
+            y_values = []
+            for col in columns[1:]:
+                select, query_ref = _build_select_and_projection(alias, table, col, as_measure=False)
+                selects.append(select)
+                y_values.append({"queryRef": query_ref})
+            if y_values:
+                projections["Y"] = y_values
+
+    single_visual = {
         "visualType": pbi_type,
-        "query": {"queryState": query_state},
+        "projections": projections,
+        "prototypeQuery": {
+            "Version": 2,
+            "From": [{"Name": alias, "Entity": table, "Type": 0}],
+            "Select": selects,
+        },
     }
     if title:
-        visual_obj["display"] = {"title": {"text": title}}
+        single_visual["vcObjects"] = {
+            "title": [
+                {
+                    "properties": {
+                        "show": {"expr": {"Literal": {"Value": "true"}}},
+                        "text": {"expr": {"Literal": {"Value": f"'{title}'"}}},
+                        "alignment": {"expr": {"Literal": {"Value": "'center'"}}},
+                    }
+                }
+            ]
+        }
+
+    visual_id = uuid.uuid4().hex[:20]
+    config = {
+        "name": visual_id,
+        "layouts": [
+            {"id": 0, "position": {"x": x, "y": y, "z": 1000, "width": width, "height": height, "tabOrder": 1000}}
+        ],
+        "singleVisual": single_visual,
+    }
 
     return {
-        "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.0.0/schema.json",
-        "name": visual_id,
-        "position": {"x": x, "y": y, "z": 1000, "width": width, "height": height, "tabOrder": 1000},
-        "visual": visual_obj,
+        "x": x,
+        "y": y,
+        "z": 1000.0,
+        "width": width,
+        "height": height,
+        "filters": "[]",
+        "config": json.dumps(config, separators=(",", ":")),
     }
 
 
 def _build_report_parts(dataset_id: str, display_name: str, pages: list) -> list:
+    """Build the report package parts. Structure confirmed via get_report_definition
+    against a real, already-working report in this tenant: only 3 files exist
+    (.platform, definition.pbir, report.json) - the newer decomposed PBIR layout
+    (separate version.json/pages/*.json/visuals/*.json) is NOT what this tenant's
+    Report Workload expects, despite matching Microsoft's public PBIR docs for other
+    tenants. This is the classic/legacy monolithic Layout schema instead."""
     parts = []
 
     # .platform: Fabric item metadata required by the API
@@ -812,110 +843,68 @@ def _build_report_parts(dataset_id: str, display_name: str, pages: list) -> list
         }
     )
 
-    # definition/report.json: report-level settings and theme
-    parts.append(
-        {
-            "path": "definition/report.json",
-            "payload": _to_base64(
-                {
-                    "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/3.1.0/schema.json",
-                    "themeCollection": {
-                        "baseTheme": {
-                            "name": "CY24SU10",
-                            "reportVersionAtImport": {"visual": "2.5.0", "report": "3.1.0", "page": "2.3.0"},
-                            "type": "SharedResources",
-                        }
-                    },
-                }
-            ),
-            "payloadType": "InlineBase64",
-        }
-    )
+    # report.json: everything else lives in this single file - report-level config,
+    # sections (pages), and visualContainers (visuals) - all nested JSON is
+    # double-serialized to strings, not inline objects, matching the real report.
+    sections = []
+    for page_index, page_spec in enumerate(pages):
+        grid_cols = 2
+        visual_width = 600.0
+        visual_height = 350.0
+        padding = 20.0
 
-    # definition/version.json: required by the Fabric report import workload. This file has
-    # been through two failed attempts already:
-    #   1. No file at all -> "Cannot find file 'version.json'"
-    #   2. $schema pointing at ".../definition/version/1.0.0/schema.json" -> "Can't resolve
-    #      schema '1.0.0'" (that schema version doesn't exist server-side)
-    #   3. No $schema property at all -> "Can't find '$schema' property in 'version.json'"
-    #      ($schema is mandatory, just not at version 1.0.0)
-    # Every other schema-versioned part in this package that Fabric accepts without
-    # complaint uses version "2.0.0" (.platform, definition.pbir, page.json, visual.json) -
-    # only report.json differs (3.1.0). Trying "2.0.0" here as the next best guess.
-    parts.append(
-        {
-            "path": "definition/version.json",
-            "payload": _to_base64(
-                {
-                    "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/version/2.0.0/schema.json",
-                    "version": "2.0.0",
-                }
-            ),
-            "payloadType": "InlineBase64",
-        }
-    )
-
-    page_ids = []
-    page_parts = []
-
-    grid_cols = 2
-    visual_width = 600.0
-    visual_height = 350.0
-    padding = 20.0
-
-    for page_spec in pages:
-        page_id = uuid.uuid4().hex[:20]
-        page_ids.append(page_id)
-
-        visual_parts = []
+        visual_containers = []
         for i, visual_spec in enumerate(page_spec.get("visuals", [])):
-            visual_id = uuid.uuid4().hex[:20]
             col = i % grid_cols
             row = i // grid_cols
             x = float(visual_spec.get("x", col * (visual_width + padding) + padding))
             y = float(visual_spec.get("y", row * (visual_height + padding) + padding))
             width = float(visual_spec.get("width", visual_width))
             height = float(visual_spec.get("height", visual_height))
+            visual_containers.append(_build_visual_container(visual_spec, x, y, width, height))
 
-            visual_parts.append(
-                {
-                    "path": f"definition/pages/{page_id}/visuals/{visual_id}/visual.json",
-                    "payload": _to_base64(_build_visual_json(visual_id, visual_spec, x, y, width, height)),
-                    "payloadType": "InlineBase64",
-                }
-            )
-
-        page_parts.append(
+        sections.append(
             {
-                "path": f"definition/pages/{page_id}/page.json",
-                "payload": _to_base64(
-                    {
-                        "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.0.0/schema.json",
-                        "name": page_id,
-                        "displayName": page_spec.get("name", "Page 1"),
-                        "displayOption": "FitToPage",
-                        "height": 720,
-                        "width": 1280,
-                    }
-                ),
-                "payloadType": "InlineBase64",
+                "name": f"ReportSection{page_index}",
+                "displayName": page_spec.get("name", "Page 1"),
+                "displayOption": 1,
+                "height": 720.0,
+                "width": 1280.0,
+                "filters": "[]",
+                "config": "{}",
+                "visualContainers": visual_containers,
             }
         )
-        page_parts.extend(visual_parts)
+
+    report_config = {
+        "version": "5.37",
+        "themeCollection": {},
+        "activeSectionIndex": 0,
+        "settings": {
+            "useNewFilterPaneExperience": True,
+            "allowChangeFilterTypes": True,
+            "useEnhancedTooltips": True,
+        },
+    }
+
+    report_json = {
+        "config": json.dumps(report_config, separators=(",", ":")),
+        "filters": "[]",
+        "layoutOptimization": 0,
+        "pods": [
+            {"boundSection": sections[0]["name"] if sections else "ReportSection0", "config": "{}", "name": "Pod"}
+        ],
+        "resourcePackages": [],
+        "sections": sections,
+    }
 
     parts.append(
         {
-            "path": "definition/pages/pages.json",
-            "payload": _to_base64(
-                {
-                    "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/pagesMetadata/1.0.0/schema.json",
-                    "pageOrder": page_ids,
-                }
-            ),
+            "path": "report.json",
+            "payload": _to_base64(report_json),
             "payloadType": "InlineBase64",
         }
     )
-    parts.extend(page_parts)
 
     return parts
 

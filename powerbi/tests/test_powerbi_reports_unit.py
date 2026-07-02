@@ -1,3 +1,5 @@
+import base64
+import json
 import os
 import sys
 import importlib.util
@@ -412,14 +414,13 @@ class TestCreateReport:
         assert payload["displayName"] == "New Report"
         parts = payload["definition"]["parts"]
         paths = [p["path"] for p in parts]
-        assert ".platform" in paths
-        assert "definition.pbir" in paths
-        assert "definition/report.json" in paths
-        assert "definition/version.json" in paths
-        assert "definition/pages/pages.json" in paths
+        # Confirmed via get_report_definition against a real, working report in this
+        # tenant: only these 3 files exist. The newer decomposed PBIR layout
+        # (version.json, pages/*.json, visuals/*.json) is not what this tenant expects.
+        assert paths == [".platform", "definition.pbir", "report.json"]
 
     @pytest.mark.asyncio
-    async def test_one_page_json_and_one_visual_json_per_page(self, mock_context):
+    async def test_report_json_has_one_section_per_page_and_stringified_config(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=201, headers={}, data={})
 
         two_page_spec = [
@@ -433,13 +434,27 @@ class TestCreateReport:
         )
 
         parts = mock_context.fetch.call_args.kwargs["json"]["definition"]["parts"]
-        page_json_paths = [p["path"] for p in parts if p["path"].endswith("/page.json")]
-        visual_json_paths = [p["path"] for p in parts if p["path"].endswith("/visual.json")]
-        assert len(page_json_paths) == 2
-        assert len(visual_json_paths) == 2
+        report_part = next(p for p in parts if p["path"] == "report.json")
+        report_json = json.loads(base64.b64decode(report_part["payload"]).decode("utf-8"))
+
+        assert len(report_json["sections"]) == 2
+        assert report_json["sections"][0]["displayName"] == "Page 1"
+        assert report_json["sections"][1]["displayName"] == "Page 2"
+        assert len(report_json["sections"][1]["visualContainers"]) == 1
+
+        # config/filters must be JSON-stringified, not inline objects, matching the
+        # real report's shape - this is what broke the earlier decomposed-PBIR attempt.
+        assert isinstance(report_json["config"], str)
+        assert isinstance(report_json["filters"], str)
+        assert isinstance(report_json["sections"][0]["config"], str)
+        visual = report_json["sections"][1]["visualContainers"][0]
+        assert isinstance(visual["config"], str)
+        assert isinstance(visual["filters"], str)
+        visual_config = json.loads(visual["config"])
+        assert visual_config["singleVisual"]["visualType"] == "barChart"
 
     @pytest.mark.asyncio
-    async def test_no_pages_returns_success_with_empty_pages(self, mock_context):
+    async def test_no_pages_returns_success_with_empty_sections(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=201, headers={}, data={"id": "rpt-empty"})
 
         result = await powerbi.execute_action(
@@ -450,8 +465,9 @@ class TestCreateReport:
 
         assert result.type != ResultType.ACTION_ERROR
         parts = mock_context.fetch.call_args.kwargs["json"]["definition"]["parts"]
-        pages_json = next(p for p in parts if p["path"] == "definition/pages/pages.json")
-        assert pages_json is not None
+        report_part = next(p for p in parts if p["path"] == "report.json")
+        report_json = json.loads(base64.b64decode(report_part["payload"]).decode("utf-8"))
+        assert report_json["sections"] == []
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
@@ -571,8 +587,6 @@ class TestCreateReport:
 class TestGetReportDefinition:
     @pytest.mark.asyncio
     async def test_happy_path_decodes_parts(self, mock_context):
-        import base64
-
         payload = base64.b64encode(b'{"version": "2.0.0"}').decode("utf-8")
         mock_context.fetch.return_value = FetchResponse(
             status=200,
@@ -600,8 +614,6 @@ class TestGetReportDefinition:
 
     @pytest.mark.asyncio
     async def test_202_polls_and_fetches_result(self, mock_context):
-        import base64
-
         payload = base64.b64encode(b'{"version": "2.0.0"}').decode("utf-8")
         mock_context.fetch.side_effect = [
             FetchResponse(
