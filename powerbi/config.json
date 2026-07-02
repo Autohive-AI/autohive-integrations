@@ -823,7 +823,7 @@
         },
         "get_dataset_schema": {
             "display_name": "Get Dataset Schema",
-            "description": "Discover a dataset's table and column names via DAX metadata functions (INFO.TABLES()/INFO.COLUMNS()), so create_report's pages/visuals can reference real columns instead of guessing. Only works on newer semantic model formats that support DAX schema introspection - older Import-mode datasets will return a clear error. If it fails, use clone_report to build on an existing report's dataset bindings instead.",
+            "description": "Discover a dataset's table and column names, so create_report's pages/visuals can reference real columns instead of guessing. Tries DAX metadata functions (INFO.TABLES()/INFO.COLUMNS()) first, which only work on newer semantic model formats; if that fails and a workspace_id is given, falls back to the Admin Metadata Scanning API, which works on any dataset format but needs tenant admin API access. If both fail, use clone_report to build on an existing report's dataset bindings instead.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -850,8 +850,8 @@
                             "type": "object",
                             "properties": {
                                 "id": {
-                                    "type": "string",
-                                    "description": "Internal table ID"
+                                    "type": ["string", "null"],
+                                    "description": "Internal table ID, when available (null when discovered via the admin metadata scan fallback)"
                                 },
                                 "name": {
                                     "type": "string",

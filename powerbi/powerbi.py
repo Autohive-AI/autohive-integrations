@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import json
 import uuid
@@ -550,6 +551,93 @@ def _find_by_unbracketed_name(row: dict, *candidates: str):
     return None
 
 
+async def _discover_schema_via_dax(context: ExecutionContext, workspace_id: str, dataset_id: str) -> dict:
+    """Try INFO.TABLES()/INFO.COLUMNS() - only works on newer semantic model formats."""
+    if workspace_id:
+        url = f"{POWERBI_API_BASE}/groups/{workspace_id}/datasets/{dataset_id}/executeQueries"
+    else:
+        url = f"{POWERBI_API_BASE}/datasets/{dataset_id}/executeQueries"
+
+    async def run_dax_query(dax: str) -> list:
+        request = {"queries": [{"query": dax}], "serializerSettings": {"includeNulls": True}}
+        response = await context.fetch(url, method="POST", json=request)
+        results = response.data.get("results", [])
+        if not results:
+            return []
+        tables = results[0].get("tables", [])
+        return tables[0].get("rows", []) if tables else []
+
+    table_rows = await run_dax_query("EVALUATE INFO.TABLES()")
+
+    tables = []
+    for row in table_rows:
+        table_id = _find_by_unbracketed_name(row, "ID")
+        table_name = _find_by_unbracketed_name(row, "Name")
+        if table_name is None:
+            continue
+        tables.append({"id": table_id, "name": table_name, "columns": []})
+
+    try:
+        column_rows = await run_dax_query("EVALUATE INFO.COLUMNS()")
+    except Exception:
+        # Tables discovered but column metadata unavailable - still useful on its own.
+        return {"tables": tables, "columns_available": False}
+
+    columns_by_table_id = {}
+    for row in column_rows:
+        table_id = _find_by_unbracketed_name(row, "TableID")
+        column_name = _find_by_unbracketed_name(row, "ExplicitName", "InferredName", "Name")
+        if table_id is None or column_name is None:
+            continue
+        columns_by_table_id.setdefault(table_id, []).append(column_name)
+
+    for table in tables:
+        table["columns"] = columns_by_table_id.get(table["id"], [])
+
+    return {"tables": tables, "columns_available": True}
+
+
+async def _discover_schema_via_scanner(context: ExecutionContext, workspace_id: str, dataset_id: str) -> dict:
+    """Fall back to the Admin Metadata Scanning API, which works regardless of semantic
+    model format/DAX introspection support. Requires Tenant.Read.All/Tenant.ReadWrite.All
+    (already in this integration's scopes) and, in most tenants, admin-level access."""
+    scan_request = await context.fetch(
+        f"{POWERBI_API_BASE}/admin/workspaces/getInfo",
+        method="POST",
+        params={"datasetSchema": "true", "datasetExpressions": "true", "lineage": "true"},
+        json={"workspaces": [workspace_id]},
+    )
+    scan_id = scan_request.data.get("id")
+    if not scan_id:
+        raise RuntimeError("Admin metadata scan did not return a scan ID")
+
+    status_url = f"{POWERBI_API_BASE}/admin/workspaces/scanStatus/{scan_id}"
+    for _ in range(10):
+        status_response = await context.fetch(status_url)
+        status = status_response.data.get("status")
+        if status == "Succeeded":
+            break
+        if status in ("Failed", "NotFound"):
+            raise RuntimeError(f"Admin metadata scan {status.lower()}")
+        await asyncio.sleep(2)
+    else:
+        raise RuntimeError("Admin metadata scan did not complete in time")
+
+    result = await context.fetch(f"{POWERBI_API_BASE}/admin/workspaces/scanResult/{scan_id}")
+    for workspace in result.data.get("workspaces", []):
+        for dataset in workspace.get("datasets", []):
+            if dataset.get("id") != dataset_id:
+                continue
+            tables = []
+            for table in dataset.get("tables", []):
+                columns = [c.get("name") for c in table.get("columns", []) if c.get("name")]
+                columns += [m.get("name") for m in table.get("measures", []) if m.get("name")]
+                tables.append({"id": None, "name": table.get("name"), "columns": columns})
+            return {"tables": tables, "columns_available": True}
+
+    raise RuntimeError("Dataset not found in admin metadata scan result")
+
+
 @powerbi.action("get_dataset_schema")
 class GetDatasetSchemaAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -557,63 +645,35 @@ class GetDatasetSchemaAction(ActionHandler):
             dataset_id = inputs["dataset_id"]
             workspace_id = inputs.get("workspace_id")
 
-            if workspace_id:
-                url = f"{POWERBI_API_BASE}/groups/{workspace_id}/datasets/{dataset_id}/executeQueries"
-            else:
-                url = f"{POWERBI_API_BASE}/datasets/{dataset_id}/executeQueries"
-
-            async def run_dax_query(dax: str) -> list:
-                request = {"queries": [{"query": dax}], "serializerSettings": {"includeNulls": True}}
-                response = await context.fetch(url, method="POST", json=request)
-                results = response.data.get("results", [])
-                if not results:
-                    return []
-                tables = results[0].get("tables", [])
-                return tables[0].get("rows", []) if tables else []
-
-            # INFO.TABLES()/INFO.COLUMNS() are DAX metadata functions that only work on
-            # newer semantic model formats. Older Import-mode datasets and models without
-            # this support fail here - that's a Power BI platform limitation, not something
-            # this action can work around. clone_report is the recommended fallback.
             try:
-                table_rows = await run_dax_query("EVALUATE INFO.TABLES()")
-            except Exception as e:
-                return ActionError(
-                    message=(
-                        "This dataset does not support DAX schema introspection "
-                        f"(INFO.TABLES() failed: {e}). This is a Power BI model-tier limitation, not "
-                        "something this action can work around. Use clone_report to build on an existing "
-                        "report's dataset bindings instead, or check the exact table/column names in "
-                        "Power BI Desktop."
+                schema = await _discover_schema_via_dax(context, workspace_id, dataset_id)
+                return ActionResult(data=schema, cost_usd=0.0)
+            except Exception as dax_error:
+                if not workspace_id:
+                    return ActionError(
+                        message=(
+                            "This dataset does not support DAX schema introspection "
+                            f"(INFO.TABLES() failed: {dax_error}), and the admin metadata scan fallback "
+                            "requires a workspace_id (it doesn't work for My workspace). Pass workspace_id, "
+                            "or use clone_report to build on an existing report's dataset bindings instead."
+                        )
                     )
-                )
 
-            tables = []
-            for row in table_rows:
-                table_id = _find_by_unbracketed_name(row, "ID")
-                table_name = _find_by_unbracketed_name(row, "Name")
-                if table_name is None:
-                    continue
-                tables.append({"id": table_id, "name": table_name, "columns": []})
-
-            try:
-                column_rows = await run_dax_query("EVALUATE INFO.COLUMNS()")
-            except Exception:
-                # Tables discovered but column metadata unavailable - still useful on its own.
-                return ActionResult(data={"tables": tables, "columns_available": False}, cost_usd=0.0)
-
-            columns_by_table_id = {}
-            for row in column_rows:
-                table_id = _find_by_unbracketed_name(row, "TableID")
-                column_name = _find_by_unbracketed_name(row, "ExplicitName", "InferredName", "Name")
-                if table_id is None or column_name is None:
-                    continue
-                columns_by_table_id.setdefault(table_id, []).append(column_name)
-
-            for table in tables:
-                table["columns"] = columns_by_table_id.get(table["id"], [])
-
-            return ActionResult(data={"tables": tables, "columns_available": True}, cost_usd=0.0)
+                try:
+                    schema = await _discover_schema_via_scanner(context, workspace_id, dataset_id)
+                    return ActionResult(data=schema, cost_usd=0.0)
+                except Exception as scanner_error:
+                    return ActionError(
+                        message=(
+                            "This dataset does not support DAX schema introspection "
+                            f"(INFO.TABLES() failed: {dax_error}), and the admin metadata scan fallback also "
+                            f"failed ({scanner_error}). The scanner fallback needs Tenant.Read.All/"
+                            "Tenant.ReadWrite.All (already requested) plus tenant admin API access, which "
+                            "this account may not have. Use clone_report to build on an existing report's "
+                            "dataset bindings instead, or check the exact table/column names in Power BI "
+                            "Desktop."
+                        )
+                    )
 
         except Exception as e:
             return ActionError(message=str(e))
