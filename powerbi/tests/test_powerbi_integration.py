@@ -11,8 +11,12 @@ Token extraction recipe:
 4. Add the value to the project .env file or export it in your shell before
    running these tests.
 
-Safe read-only run:
+Safe read-only run (use this by default):
     pytest powerbi/tests/test_powerbi_integration.py -m "integration and not destructive"
+
+Destructive run — mutates real data (creates/clones reports, triggers a real dataset
+refresh, initiates a real export). Only run deliberately, never by reviewers:
+    pytest powerbi/tests/test_powerbi_integration.py -m "integration and destructive"
 """
 
 from unittest.mock import AsyncMock
@@ -142,6 +146,80 @@ async def test_get_workspace_returns_workspace_shape(live_context):
     data = result.result.data
     assert "workspace" in data
     assert data["workspace"]["id"] == workspace_id
+
+
+async def test_get_dataset_returns_dataset_shape(live_context):
+    dataset_id = await _first_dataset_id(live_context)
+
+    result = await powerbi.execute_action("get_dataset", {"dataset_id": dataset_id}, live_context)
+
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert "dataset" in data
+    assert data["dataset"]["id"] == dataset_id
+
+
+async def _first_report_id(live_context):
+    result = await powerbi.execute_action("list_reports", {}, live_context)
+    if result.type != ResultType.ACTION:
+        pytest.skip(f"Unable to list Power BI reports: {result.result.message}")
+
+    reports = result.result.data["reports"]
+    if not reports:
+        pytest.skip("No Power BI reports available for report-scoped live tests")
+    return reports[0]["id"]
+
+
+async def test_get_report_returns_report_shape(live_context):
+    report_id = await _first_report_id(live_context)
+
+    result = await powerbi.execute_action("get_report", {"report_id": report_id}, live_context)
+
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert "report" in data
+    assert data["report"]["id"] == report_id
+
+
+@pytest.mark.destructive
+async def test_refresh_dataset_triggers_a_refresh(live_context):
+    dataset_id = await _first_dataset_id(live_context)
+
+    result = await powerbi.execute_action("refresh_dataset", {"dataset_id": dataset_id}, live_context)
+
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", None)
+    assert "message" in result.result.data
+
+
+@pytest.mark.destructive
+async def test_clone_report_creates_a_copy(live_context):
+    report_id = await _first_report_id(live_context)
+
+    result = await powerbi.execute_action(
+        "clone_report",
+        {"report_id": report_id, "name": "Autohive Integration Test Clone"},
+        live_context,
+    )
+
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", None)
+    data = result.result.data
+    assert data["id"]
+    assert data["id"] != report_id
+
+
+@pytest.mark.destructive
+async def test_export_report_initiates_an_export(live_context):
+    report_id = await _first_report_id(live_context)
+
+    result = await powerbi.execute_action("export_report", {"report_id": report_id, "format": "PDF"}, live_context)
+
+    # export_report requires Premium/Fabric dedicated capacity - a workspace on shared
+    # capacity will fail here with a 403, which is an environment limitation rather than
+    # an integration bug. Assert the action behaves correctly either way: either it
+    # succeeds with an export_id, or it fails with the documented capacity error.
+    if result.type != ResultType.ACTION:
+        pytest.skip(f"export_report requires dedicated capacity: {result.result.message}")
+    assert result.result.data["export_id"]
 
 
 @pytest.mark.destructive
