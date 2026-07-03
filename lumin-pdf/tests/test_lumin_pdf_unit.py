@@ -28,7 +28,7 @@ API_KEY = "test_api_key"  # nosec B105
 
 class TestGetCurrentUser:
     async def test_returns_user(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "u1", "email": "test@example.com"})
 
         result = await lumin_pdf.execute_action("get_current_user", {}, ctx)
@@ -38,7 +38,7 @@ class TestGetCurrentUser:
         ctx.fetch.assert_called_once_with(f"{BASE_URL}/user/info", method="GET", headers={"X-API-KEY": API_KEY})
 
     async def test_error_returns_action_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Unauthorized")
 
         result = await lumin_pdf.execute_action("get_current_user", {}, ctx)
@@ -49,7 +49,7 @@ class TestGetCurrentUser:
 
 class TestGetWorkspace:
     async def test_returns_workspace(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "ws1", "name": "My Workspace"})
 
         result = await lumin_pdf.execute_action("get_workspace", {}, ctx)
@@ -59,7 +59,7 @@ class TestGetWorkspace:
         ctx.fetch.assert_called_once_with(f"{BASE_URL}/workspaces/info", method="GET", headers={"X-API-KEY": API_KEY})
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Not found")
 
         result = await lumin_pdf.execute_action("get_workspace", {}, ctx)
@@ -70,7 +70,7 @@ class TestGetWorkspace:
 class TestListWorkspaceMembers:
     async def test_returns_members_list(self, make_context):
         members = [{"id": "m1"}, {"id": "m2"}]
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=members)
 
         result = await lumin_pdf.execute_action("list_workspace_members", {"page": 1, "limit": 10}, ctx)
@@ -81,7 +81,7 @@ class TestListWorkspaceMembers:
 
     async def test_returns_members_from_data_key(self, make_context):
         members = [{"id": "m1"}]
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"data": members, "total": 1})
 
         result = await lumin_pdf.execute_action("list_workspace_members", {}, ctx)
@@ -89,7 +89,7 @@ class TestListWorkspaceMembers:
         assert result.result.data["members"] == members
 
     async def test_defaults_page_and_limit_when_not_provided(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_workspace_members", {}, ctx)
@@ -99,7 +99,7 @@ class TestListWorkspaceMembers:
         assert params["limit"] == 10
 
     async def test_page_only_defaults_limit_to_10(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_workspace_members", {"page": 3}, ctx)
@@ -107,7 +107,7 @@ class TestListWorkspaceMembers:
         assert ctx.fetch.call_args.kwargs["params"] == {"page": 3, "limit": 10}
 
     async def test_limit_only_defaults_page_to_1(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_workspace_members", {"limit": 10}, ctx)
@@ -121,7 +121,7 @@ class TestListWorkspaceMembers:
 class TestListTemplates:
     async def test_returns_templates_list(self, make_context):
         templates = [{"id": "t1", "name": "NDA"}]
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=templates)
 
         result = await lumin_pdf.execute_action("list_templates", {"limit": 5}, ctx)
@@ -131,7 +131,7 @@ class TestListTemplates:
 
     async def test_returns_templates_from_data_key(self, make_context):
         templates = [{"id": "t1"}]
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"templates": templates})
 
         result = await lumin_pdf.execute_action("list_templates", {}, ctx)
@@ -139,7 +139,7 @@ class TestListTemplates:
         assert result.result.data["templates"] == templates
 
     async def test_defaults_page_and_limit_when_not_provided(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_templates", {}, ctx)
@@ -149,7 +149,7 @@ class TestListTemplates:
         assert params["limit"] == 10
 
     async def test_page_only_defaults_limit_to_10(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_templates", {"page": 3}, ctx)
@@ -157,7 +157,7 @@ class TestListTemplates:
         assert ctx.fetch.call_args.kwargs["params"] == {"page": 3, "limit": 10}
 
     async def test_limit_only_defaults_page_to_1(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         await lumin_pdf.execute_action("list_templates", {"limit": 25}, ctx)
@@ -165,7 +165,7 @@ class TestListTemplates:
         assert ctx.fetch.call_args.kwargs["params"] == {"page": 1, "limit": 25}
 
     async def test_limit_clamped_to_nearest_valid_value(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
         # 5 → nearest valid is 10, 20 → nearest valid is 25, 40 → nearest valid is 50
@@ -174,7 +174,7 @@ class TestListTemplates:
             assert ctx.fetch.call_args.kwargs["params"]["limit"] == expected
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Server error")
 
         result = await lumin_pdf.execute_action("list_templates", {}, ctx)
@@ -196,7 +196,7 @@ class TestListTemplates:
     ],
 )
 async def test_list_actions_send_pagination_params(make_context, action_name, expected_path, inputs, expected_params):
-    ctx = make_context(auth={"api_key": API_KEY})
+    ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
     ctx.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
 
     await lumin_pdf.execute_action(action_name, inputs, ctx)
@@ -209,7 +209,7 @@ async def test_list_actions_send_pagination_params(make_context, action_name, ex
 
 class TestGetTemplate:
     async def test_returns_template(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "t1", "name": "NDA"})
 
         result = await lumin_pdf.execute_action("get_template", {"template_id": "t1"}, ctx)
@@ -221,7 +221,7 @@ class TestGetTemplate:
         )
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Not found")
 
         result = await lumin_pdf.execute_action("get_template", {"template_id": "bad"}, ctx)
@@ -234,7 +234,7 @@ class TestGetTemplate:
 
 class TestSendSignatureRequest:
     async def test_send_with_file_url(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr1", "status": "pending"})
         inputs = {
             "title": "Test Doc",
@@ -253,7 +253,7 @@ class TestSendSignatureRequest:
         assert "expires_at" in body
 
     async def test_send_normalizes_email_field(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr2"})
         inputs = {
             "title": "Test",
@@ -267,7 +267,7 @@ class TestSendSignatureRequest:
         assert body["signers"][0]["email_address"] == "bob@example.com"
 
     async def test_send_with_file_urls(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr3"})
         inputs = {
             "title": "Multi",
@@ -282,7 +282,7 @@ class TestSendSignatureRequest:
         assert "file_url" not in body
 
     async def test_missing_email_returns_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         inputs = {
             "title": "Test",
             "file_url": "https://example.com/doc.pdf",
@@ -296,7 +296,7 @@ class TestSendSignatureRequest:
         ctx.fetch.assert_not_called()
 
     async def test_missing_name_returns_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         inputs = {
             "title": "Test",
             "file_url": "https://example.com/doc.pdf",
@@ -309,7 +309,7 @@ class TestSendSignatureRequest:
         ctx.fetch.assert_not_called()
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Bad request")
 
         result = await lumin_pdf.execute_action(
@@ -323,7 +323,7 @@ class TestSendSignatureRequest:
 
 class TestGetSignatureRequest:
     async def test_returns_signature_request(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr1", "status": "pending"})
 
         result = await lumin_pdf.execute_action("get_signature_request", {"signature_request_id": "sr1"}, ctx)
@@ -337,7 +337,7 @@ class TestGetSignatureRequest:
         )
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Not found")
 
         result = await lumin_pdf.execute_action("get_signature_request", {"signature_request_id": "bad"}, ctx)
@@ -347,7 +347,7 @@ class TestGetSignatureRequest:
 
 class TestCancelSignatureRequest:
     async def test_cancels_request(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={})
 
         result = await lumin_pdf.execute_action("cancel_signature_request", {"signature_request_id": "sr1"}, ctx)
@@ -362,7 +362,7 @@ class TestCancelSignatureRequest:
         )
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Already canceled")
 
         result = await lumin_pdf.execute_action("cancel_signature_request", {"signature_request_id": "sr1"}, ctx)
@@ -372,7 +372,7 @@ class TestCancelSignatureRequest:
 
 class TestGenerateSigningLink:
     async def test_returns_view_url(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(
             status=200, headers={}, data={"view_url": "https://sign.luminpdf.com/abc"}
         )
@@ -384,7 +384,7 @@ class TestGenerateSigningLink:
         assert result.result.data["signing_link"] == "https://sign.luminpdf.com/abc"
 
     async def test_falls_back_to_url_key(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"url": "https://sign.luminpdf.com/xyz"})
         inputs = {"signature_request_id": "sr1", "signer_email": "bob@example.com"}
 
@@ -393,7 +393,7 @@ class TestGenerateSigningLink:
         assert result.result.data["signing_link"] == "https://sign.luminpdf.com/xyz"
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Forbidden")
 
         result = await lumin_pdf.execute_action(
@@ -407,7 +407,7 @@ class TestGenerateSigningLink:
 
 class TestSendReminder:
     async def test_sends_reminder_with_emails(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={})
         inputs = {"signature_request_id": "sr1", "emails": ["alice@example.com"]}
 
@@ -421,7 +421,7 @@ class TestSendReminder:
     async def test_sends_without_emails_fetches_signers(self, make_context):
         from unittest.mock import AsyncMock
 
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         # First call: fetch SR to get signers. Second call: send reminder.
         ctx.fetch = AsyncMock(
             side_effect=[
@@ -443,7 +443,7 @@ class TestSendReminder:
     async def test_no_pending_signers_raises_error(self, make_context):
         from unittest.mock import AsyncMock
 
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch = AsyncMock(
             side_effect=[
                 FetchResponse(
@@ -460,7 +460,7 @@ class TestSendReminder:
         assert "No pending signers" in result.result.message
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Timeout")
 
         result = await lumin_pdf.execute_action("send_reminder", {"signature_request_id": "sr1"}, ctx)
@@ -473,7 +473,7 @@ class TestSendReminder:
 
 class TestSendFromTemplate:
     async def test_send_with_required_fields(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr1", "status": "pending"})
         inputs = {
             "template_id": "tpl1",
@@ -491,7 +491,7 @@ class TestSendFromTemplate:
         assert "expires_at" in body
 
     async def test_send_with_optional_fields(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr2"})
         inputs = {
             "template_id": "tpl1",
@@ -510,7 +510,7 @@ class TestSendFromTemplate:
         assert body["fields"] == {"date": "2026-01-01"}
 
     async def test_normalizes_email_to_email_address(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr5"})
         inputs = {
             "template_id": "tpl1",
@@ -526,7 +526,7 @@ class TestSendFromTemplate:
         assert body["signers"][0]["signer_role"] == "Employee"
 
     async def test_role_alias_mapped_to_signer_role(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr6"})
         inputs = {
             "template_id": "tpl1",
@@ -541,7 +541,7 @@ class TestSendFromTemplate:
         assert "role" not in body["signers"][0]
 
     async def test_preserves_verification_payload(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr7"})
         verification = {"type": "SMS", "phone": "+15550001234"}
         inputs = {
@@ -563,7 +563,7 @@ class TestSendFromTemplate:
         assert body["signers"][0]["verification"] == verification
 
     async def test_missing_email_returns_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         inputs = {
             "template_id": "tpl1",
             "title": "Contract",
@@ -577,7 +577,7 @@ class TestSendFromTemplate:
         ctx.fetch.assert_not_called()
 
     async def test_missing_name_returns_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         inputs = {
             "template_id": "tpl1",
             "title": "Contract",
@@ -590,7 +590,7 @@ class TestSendFromTemplate:
         ctx.fetch.assert_not_called()
 
     async def test_due_date_naive_treated_as_utc(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr3"})
         inputs = {
             "template_id": "tpl1",
@@ -606,7 +606,7 @@ class TestSendFromTemplate:
         assert body["expires_at"] == 1798675200000
 
     async def test_due_date_offset_aware_converted_correctly(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr4"})
         inputs = {
             "template_id": "tpl1",
@@ -622,7 +622,7 @@ class TestSendFromTemplate:
         assert body["expires_at"] == 1798646400000
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Bad template")
 
         result = await lumin_pdf.execute_action(
@@ -636,7 +636,7 @@ class TestSendFromTemplate:
 
 class TestUpdateSignatureRequest:
     async def test_updates_expiry(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "sr1", "expires_at": 9999999999000})
         inputs = {"signature_request_id": "sr1", "due_date": "2026-12-31T00:00:00"}
 
@@ -650,7 +650,7 @@ class TestUpdateSignatureRequest:
         assert isinstance(call.kwargs["json"]["expires_at"], int)
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Not found")
 
         result = await lumin_pdf.execute_action(
@@ -664,7 +664,7 @@ class TestUpdateSignatureRequest:
 
 class TestDownloadSignedDocument:
     async def test_returns_file_url(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(
             status=200, headers={}, data={"signed_url": "https://cdn.lumin.com/signed.pdf"}
         )
@@ -677,7 +677,7 @@ class TestDownloadSignedDocument:
         assert ctx.fetch.call_args.kwargs["headers"].get("Accept") == "application/json"
 
     async def test_custom_type(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(
             status=200, headers={}, data={"signed_url": "https://cdn.lumin.com/coc.pdf"}
         )
@@ -691,7 +691,7 @@ class TestDownloadSignedDocument:
         assert ctx.fetch.call_args.kwargs["params"] == {"type": "coc"}
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Not signed yet")
 
         result = await lumin_pdf.execute_action("download_signed_document", {"signature_request_id": "sr1"}, ctx)
@@ -701,7 +701,7 @@ class TestDownloadSignedDocument:
 
 class TestUploadDocument:
     async def test_upload_from_url(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "doc1", "name": "My Doc"})
         inputs = {"document_name": "My Doc", "file_url": "https://example.com/doc.pdf"}
 
@@ -715,7 +715,7 @@ class TestUploadDocument:
         assert body["location"] == {"type": "personal"}
 
     async def test_upload_from_template(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "doc2"})
         inputs = {"document_name": "From Template", "template_id": "tpl1", "location": "workspace"}
 
@@ -727,7 +727,7 @@ class TestUploadDocument:
         assert body["location"] == {"type": "workspace"}
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("File too large")
 
         result = await lumin_pdf.execute_action("upload_document", {"document_name": "Big File"}, ctx)
@@ -737,7 +737,7 @@ class TestUploadDocument:
 
 class TestGenerateDocumentFromTemplate:
     async def test_generates_document(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "doc1", "name": "Generated"})
         inputs = {
             "template_id": "tpl1",
@@ -756,7 +756,7 @@ class TestGenerateDocumentFromTemplate:
         assert ctx.fetch.call_args.kwargs["headers"].get("Accept") == "application/json"
 
     async def test_without_optional_fields(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "doc2"})
         inputs = {"template_id": "tpl1", "document_name": "Plain Doc"}
 
@@ -768,7 +768,7 @@ class TestGenerateDocumentFromTemplate:
         assert "variables" not in body
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Template not found")
 
         result = await lumin_pdf.execute_action(
@@ -782,7 +782,7 @@ class TestGenerateDocumentFromTemplate:
 
 class TestCreateAgreement:
     async def test_creates_agreement(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "agr1", "name": "NDA"})
         inputs = {"agreement_name": "NDA", "template_id": "tpl1"}
 
@@ -792,7 +792,7 @@ class TestCreateAgreement:
         assert result.result.data["agreement"]["id"] == "agr1"
 
     async def test_unwraps_nested_agreement_response(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         # API returns {"agreement": {"id": "agr1", ...}} — should be unwrapped
         ctx.fetch.return_value = FetchResponse(
             status=200, headers={}, data={"agreement": {"id": "agr1", "name": "NDA"}}
@@ -809,7 +809,7 @@ class TestCreateAgreement:
         assert body["agreement_data"]["template_id"] == "tpl1"
 
     async def test_with_optional_data(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "agr2"})
         inputs = {
             "agreement_name": "MSA",
@@ -825,7 +825,7 @@ class TestCreateAgreement:
         assert body["agreement_data"]["fields"] == {"date": "2026-01-01"}
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Forbidden")
 
         result = await lumin_pdf.execute_action(
@@ -837,7 +837,7 @@ class TestCreateAgreement:
 
 class TestDownloadAgreement:
     async def test_returns_file_url(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.return_value = FetchResponse(
             status=200, headers={}, data={"signed_url": "https://cdn.lumin.com/agreement.pdf"}
         )
@@ -850,7 +850,7 @@ class TestDownloadAgreement:
         assert ctx.fetch.call_args.kwargs["headers"].get("Accept") == "application/json"
 
     async def test_error(self, make_context):
-        ctx = make_context(auth={"api_key": API_KEY})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": API_KEY}})
         ctx.fetch.side_effect = Exception("Not found")
 
         result = await lumin_pdf.execute_action("download_agreement", {"agreement_id": "bad"}, ctx)

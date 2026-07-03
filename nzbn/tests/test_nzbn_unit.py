@@ -33,7 +33,7 @@ TEST_NZBN = "9429041525746"
 def mock_context():
     """Create a mock ExecutionContext."""
     context = MagicMock()
-    context.auth = {"credentials": {}}
+    context.auth = {"auth_type": "Custom", "credentials": {}}
     context.fetch = AsyncMock()
     return context
 

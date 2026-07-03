@@ -220,7 +220,7 @@ class TestGetTranscript:
         empty string so the upstream 401 is caught cleanly and converted to
         ``ActionError`` like any other auth failure.
         """
-        ctx = make_context(auth={})  # No credentials at all.
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {}})  # No credential fields at all.
 
         with patch("supadata_transcribe.Supadata") as MockSupadata:
             MockSupadata.return_value.transcript.side_effect = SupadataError(

@@ -55,19 +55,19 @@ pytestmark = [
 
 @pytest.fixture
 def live_context():
-    auth = {
+    credentials = {
         "aws_access_key_id": AWS_ACCESS_KEY_ID,
         "aws_secret_access_key": AWS_SECRET_ACCESS_KEY,
         "aws_region": AWS_REGION,
     }
     if AWS_SESSION_TOKEN:
-        auth["aws_session_token"] = AWS_SESSION_TOKEN
+        credentials["aws_session_token"] = AWS_SESSION_TOKEN
 
     class _Ctx:
         pass
 
     ctx = _Ctx()
-    ctx.auth = auth
+    ctx.auth = {"auth_type": "Custom", "credentials": credentials}
     return ctx
 
 

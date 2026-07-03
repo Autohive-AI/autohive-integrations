@@ -60,7 +60,10 @@ def live_context(env_credentials):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
     # Custom auth — the action handler builds the Basic auth header from this.
-    ctx.auth = {"consumer_key": consumer_key, "consumer_secret": consumer_secret}
+    ctx.auth = {
+        "auth_type": "Custom",
+        "credentials": {"consumer_key": consumer_key, "consumer_secret": consumer_secret},
+    }
     return ctx
 
 
