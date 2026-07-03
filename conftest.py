@@ -4,8 +4,6 @@ Root conftest.py — shared fixtures for all integration test suites.
 Provides:
 - mock_context: A pre-configured MagicMock ExecutionContext with AsyncMock fetch
 - make_context: Factory for building mock contexts with custom auth shapes
-- make_custom_auth_context: Factory for mock contexts with the wrapped Custom
-  auth envelope (auth_type + credentials) that production actually sends
 - env_credentials: Helper to load credentials from env/.env files
 
 Also patches Integration.load() so it resolves config.json from the calling
@@ -113,27 +111,6 @@ def make_context():
         ctx.fetch = AsyncMock(name="fetch")
         ctx.auth = auth or {}
         return ctx
-
-    return _factory
-
-
-@pytest.fixture
-def make_custom_auth_context(make_context):
-    """Factory fixture — build a mock context with the wrapped Custom auth envelope.
-
-    This builds the platform-shaped auth envelope that production sends to
-    integrations; custom-auth integration tests should use this instead of
-    passing flat auth dicts.
-
-    Example::
-
-        def test_foo(make_custom_auth_context):
-            ctx = make_custom_auth_context({"api_key": "k"})
-            ctx.fetch.return_value = {...}
-    """
-
-    def _factory(credentials: Dict[str, str]) -> MagicMock:
-        return make_context(auth={"auth_type": "Custom", "credentials": credentials})
 
     return _factory
 
