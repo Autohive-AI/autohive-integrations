@@ -42,9 +42,9 @@ This integration uses **custom authentication** with AWS IAM credentials.
 
 ### Required IAM Permissions
 
-For read-only access to all services, attach the **SecurityAudit** AWS managed policy to the IAM user. This covers all read actions across Security Hub, GuardDuty, Inspector, CloudWatch, CloudTrail, and CloudWatch Logs.
+For read-only access to most of this integration, attach the **SecurityAudit** AWS managed policy to the IAM user. This covers all read actions across Security Hub, GuardDuty, CloudWatch, CloudTrail, and CloudWatch Logs, plus `list_inspector_findings` (`inspector2:ListFindings`).
 
-> **Note:** in testing, some SecurityAudit-equivalent roles (e.g. those layered with additional org-level SCPs or scoped IAM Identity Center permission sets) did **not** include `inspector2:BatchGetFindingDetails`, causing `get_inspector_finding_details` to fail with `AccessDeniedException` even though `list_inspector_findings` worked fine. If you hit this, add `inspector2:BatchGetFindingDetails` explicitly.
+> **Note:** `SecurityAudit` does **not** include `inspector2:BatchGetFindingDetails`, so `get_inspector_finding_details` will fail with `AccessDeniedException` under `SecurityAudit` alone — confirmed in testing. Either attach the AWS managed policy **`AmazonInspector2ReadOnlyAccess`** instead/in addition, or add `inspector2:BatchGetFindingDetails` explicitly via the custom inline policy below.
 
 For the four write/extra-permission actions in this integration, add a custom inline policy with these additional permissions:
 
@@ -70,11 +70,12 @@ For the four write/extra-permission actions in this integration, add a custom in
 
 | Policy / Permission | Covers |
 |---|---|
-| `SecurityAudit` (managed policy) | All read actions across all 6 services (usually including `inspector2:BatchGetFindingDetails` — see note above) |
+| `SecurityAudit` (managed policy) | All read actions across Security Hub, GuardDuty, CloudWatch, CloudTrail, and CloudWatch Logs, plus `list_inspector_findings`. Does **not** cover `get_inspector_finding_details`. |
+| `AmazonInspector2ReadOnlyAccess` (managed policy) | `get_inspector_finding_details` action (includes `inspector2:BatchGetFindingDetails`) |
 | `securityhub:BatchUpdateFindings` | `update_finding_workflow` action |
 | `guardduty:ArchiveFindings` | `archive_findings` action |
 | `cloudwatch:SetAlarmState` | `set_alarm_state` action |
-| `inspector2:BatchGetFindingDetails` | `get_inspector_finding_details` action (only needed if not already granted by your read-only policy) |
+| `inspector2:BatchGetFindingDetails` | `get_inspector_finding_details` action (alternative to `AmazonInspector2ReadOnlyAccess` via the custom inline policy above) |
 
 ## Action Results
 

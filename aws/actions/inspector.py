@@ -90,8 +90,11 @@ class GetInspectorFindingDetailsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            client = create_boto3_client(context, "inspector2")
             finding_arns = inputs["finding_arns"]
+            if not finding_arns:
+                raise ValueError("finding_arns must contain at least one ARN")
+
+            client = create_boto3_client(context, "inspector2")
 
             findings = []
             errors = []

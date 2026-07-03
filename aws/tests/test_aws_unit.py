@@ -269,6 +269,30 @@ async def test_get_inspector_finding_details_error(mock_context):
     assert "AccessDeniedException" in result.result.message
 
 
+@pytest.mark.asyncio
+async def test_get_inspector_finding_details_empty_list_rejected_by_schema(mock_context):
+    # config.json's minItems: 1 rejects finding_arns: [] before the action even runs,
+    # instead of silently returning a successful empty result.
+    mock_client = MagicMock()
+    with patch("helpers.boto3.client", return_value=mock_client):
+        result = await aws.execute_action("get_inspector_finding_details", {"finding_arns": []}, mock_context)
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_client.batch_get_finding_details.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_inspector_finding_details_empty_list_rejected_by_code_guard(mock_context):
+    # Belt-and-suspenders: the action itself also rejects an empty list, in case it's
+    # ever invoked directly (bypassing config.json schema validation).
+    from actions.inspector import GetInspectorFindingDetailsAction
+
+    mock_client = MagicMock()
+    with patch("helpers.boto3.client", return_value=mock_client):
+        result = await GetInspectorFindingDetailsAction().execute({"finding_arns": []}, mock_context)
+    assert result.message == "finding_arns must contain at least one ARN"
+    mock_client.batch_get_finding_details.assert_not_called()
+
+
 # ---------------------------------------------------------------------------
 # CloudWatch
 # ---------------------------------------------------------------------------
