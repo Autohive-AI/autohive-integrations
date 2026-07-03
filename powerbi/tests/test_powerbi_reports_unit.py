@@ -19,6 +19,7 @@ _mod = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_mod)
 
 powerbi = _mod.powerbi
+CreateReportAction = _mod.CreateReportAction
 
 pytestmark = pytest.mark.unit
 
@@ -488,6 +489,58 @@ class TestCreateReport:
         report_part = next(p for p in parts if p["path"] == "report.json")
         report_json = json.loads(base64.b64decode(report_part["payload"]).decode("utf-8"))
         assert report_json["sections"] == []
+
+    @pytest.mark.asyncio
+    async def test_empty_columns_on_a_visual_rejected_by_schema(self, mock_context):
+        pages_with_empty_columns = [
+            {
+                "name": "Overview",
+                "visuals": [{"type": "card", "table": "Sales", "columns": [], "title": "Broken"}],
+            }
+        ]
+        result = await powerbi.execute_action(
+            "create_report",
+            {
+                "display_name": "New Report",
+                "workspace_id": "ws-1",
+                "dataset_id": "ds-1",
+                "pages": pages_with_empty_columns,
+            },
+            mock_context,
+        )
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_columns_on_a_visual_rejected_by_code_guard(self, mock_context):
+        # Belt-and-suspenders: the action itself also rejects empty columns, in case
+        # it's ever invoked directly (bypassing config.json schema validation). Live
+        # testing showed an empty columns list silently produces a blank visual with no
+        # data bound to it - the report imports "successfully" but has nothing on it.
+        pages_with_empty_columns = [
+            {
+                "name": "Overview",
+                "visuals": [{"type": "card", "table": "Sales", "columns": [], "title": "Broken"}],
+            }
+        ]
+        result = await CreateReportAction().execute(
+            {
+                "display_name": "New Report",
+                "workspace_id": "ws-1",
+                "dataset_id": "ds-1",
+                "pages": pages_with_empty_columns,
+            },
+            mock_context,
+        )
+
+        expected_message = (
+            "Visual on page 'Overview' has no columns - an empty columns list silently "
+            "produces a blank visual with no data bound to it. Use get_dataset_schema to "
+            "discover real column names first."
+        )
+        assert result.message == expected_message
+        mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):

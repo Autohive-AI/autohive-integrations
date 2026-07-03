@@ -984,10 +984,11 @@
                                             },
                                             "columns": {
                                                 "type": "array",
-                                                "description": "Column or measure names to include. For charts: first item is the category axis, remaining items are Y-axis measures.",
+                                                "description": "Column or measure names to include. For charts: first item is the category axis, remaining items are Y-axis measures. Must be non-empty - an empty list silently produces a blank visual with no data bound to it.",
                                                 "items": {
                                                     "type": "string"
-                                                }
+                                                },
+                                                "minItems": 1
                                             },
                                             "x": {
                                                 "type": "number",

@@ -977,6 +977,15 @@ class CreateReportAction(ActionHandler):
             dataset_id = inputs["dataset_id"]
             pages = inputs["pages"]
 
+            for page in pages:
+                for visual in page.get("visuals", []):
+                    if not visual.get("columns"):
+                        raise ValueError(
+                            f"Visual on page '{page.get('name', '?')}' has no columns - an empty "
+                            "columns list silently produces a blank visual with no data bound to it. "
+                            "Use get_dataset_schema to discover real column names first."
+                        )
+
             parts = _build_report_parts(dataset_id, display_name, pages)
 
             url = f"{FABRIC_API_BASE}/workspaces/{workspace_id}/reports"
