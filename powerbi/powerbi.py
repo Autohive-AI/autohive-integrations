@@ -996,7 +996,8 @@ class CreateReportAction(ActionHandler):
                 operation_url = response.headers.get("Location") or response.headers.get("location")
                 if not operation_url:
                     return ActionError(
-                        message="Fabric API returned 202 Accepted with no Location header to poll for the created report."
+                        message="Fabric API returned 202 Accepted with no Location header to poll "
+                        "for the created report."
                     )
 
                 for _ in range(15):
