@@ -28,9 +28,16 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_context():
+    """Mock execution context with the wrapped Custom auth envelope.
+
+    MagicMock attributes don't share state, so setting ``ctx.auth`` alone does
+    not make the real ``credentials`` property available; set it explicitly to
+    the unwrapped credentials dict.
+    """
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"api_key": "test_api_key", "domain": "testcompany"}  # nosec B105
+    credentials = {"api_key": "test_api_key", "domain": "testcompany"}  # nosec B105
+    ctx.auth = {"auth_type": "Custom", "credentials": credentials}
     return ctx
 
 

@@ -39,9 +39,12 @@ def live_context(make_context):
 
     ctx = make_context(
         auth={
-            "api_url": GHOST_API_URL,
-            "content_api_key": GHOST_CONTENT_API_KEY,
-            "admin_api_key": GHOST_ADMIN_API_KEY,
+            "auth_type": "Custom",
+            "credentials": {
+                "api_url": GHOST_API_URL,
+                "content_api_key": GHOST_CONTENT_API_KEY,
+                "admin_api_key": GHOST_ADMIN_API_KEY,
+            },
         }
     )
     ctx.fetch.side_effect = real_fetch

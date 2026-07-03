@@ -1,5 +1,5 @@
 # rss-reader.py
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
 import feedparser
 
@@ -38,9 +38,10 @@ class GetFeedAction(ActionHandler):
         feed_url = inputs["feed_url"]
         limit = inputs.get("limit", 10)
 
-        user_name = context.auth.get("user_name")
-        password = context.auth.get("password")
-        api_token = context.auth.get("api_token")
+        creds = context.auth["credentials"]
+        user_name = creds.get("user_name")
+        password = creds.get("password")
+        api_token = creds.get("api_token")
 
         # Determine authentication method based on available credentials
         # Variables nned to hold None if keys are missing by using .get() before this block
@@ -56,7 +57,8 @@ class GetFeedAction(ActionHandler):
             # No authentication provided or required
             response = await context.fetch(feed_url)
 
-        # Parse feed
+        # Parse feed; on the pinned SDK 1.x fetch() returns the response body
+        # directly (2.x+ wraps it in FetchResponse.data).
         feed = feedparser.parse(response)
 
         # Check for parsing errors
@@ -76,4 +78,6 @@ class GetFeedAction(ActionHandler):
                 }
             )
 
-        return {"feed_title": feed.feed.get("title", ""), "feed_link": feed.feed.get("link", ""), "entries": entries}
+        return ActionResult(
+            data={"feed_title": feed.feed.get("title", ""), "feed_link": feed.feed.get("link", ""), "entries": entries}
+        )

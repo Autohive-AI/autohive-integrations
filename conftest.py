@@ -97,7 +97,9 @@ def make_context():
     Example::
 
         def test_foo(make_context):
-            ctx = make_context(auth={"credentials": {"api_key": "k"}})
+            ctx = make_context(
+                auth={"auth_type": "Custom", "credentials": {"api_key": "k"}}
+            )
             ctx.fetch.return_value = {...}
     """
 
