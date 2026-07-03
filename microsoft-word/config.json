@@ -1,7 +1,7 @@
 {
   "name": "Microsoft Word",
   "display_name": "Microsoft Word",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "entry_point": "microsoft_word.py",
   "description": "Read, create, and manipulate Word documents (.docx) stored in OneDrive for Business, SharePoint, or Group drives via Microsoft Graph API.",
   "auth": {
@@ -46,21 +46,34 @@
             "items": {
               "type": "object",
               "properties": {
-                "id": { "type": "string" },
-                "name": { "type": "string" },
-                "webUrl": { "type": "string" },
-                "lastModifiedDateTime": { "type": "string" },
-                "size": { "type": "integer" },
-                "createdBy": { "type": "object" }
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "webUrl": {
+                  "type": "string"
+                },
+                "lastModifiedDateTime": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "createdBy": {
+                  "type": "object"
+                }
               }
             },
             "description": "List of Word document objects."
           },
-          "next_page_token": { "type": "string", "description": "Token for next page if more results exist." },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "next_page_token": {
+            "type": "string",
+            "description": "Token for next page if more results exist."
+          }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "word_get_document": {
@@ -74,16 +87,19 @@
             "description": "The drive item ID of the document."
           }
         },
-        "required": ["document_id"]
+        "required": [
+          "document_id"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "document": { "type": "object", "description": "Document properties object." },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "document": {
+            "type": "object",
+            "description": "Document properties object."
+          }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "word_get_content": {
@@ -98,7 +114,11 @@
           },
           "format": {
             "type": "string",
-            "enum": ["text", "html", "markdown"],
+            "enum": [
+              "text",
+              "html",
+              "markdown"
+            ],
             "description": "Output format: 'text' (default), 'html', or 'markdown'."
           },
           "include_metadata": {
@@ -106,20 +126,35 @@
             "description": "Include document properties (default: false)."
           }
         },
-        "required": ["document_id"]
+        "required": [
+          "document_id"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "content": { "type": "string", "description": "Document text content in requested format." },
-          "word_count": { "type": "integer", "description": "Total word count." },
-          "character_count": { "type": "integer", "description": "Total character count." },
-          "paragraph_count": { "type": "integer", "description": "Number of paragraphs." },
-          "metadata": { "type": "object", "description": "Document properties if requested." },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "content": {
+            "type": "string",
+            "description": "Document text content in requested format."
+          },
+          "word_count": {
+            "type": "integer",
+            "description": "Total word count."
+          },
+          "character_count": {
+            "type": "integer",
+            "description": "Total character count."
+          },
+          "paragraph_count": {
+            "type": "integer",
+            "description": "Number of paragraphs."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Document properties if requested."
+          }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "word_create_document": {
@@ -145,18 +180,27 @@
             "description": "ID of template document to copy from."
           }
         },
-        "required": ["name"]
+        "required": [
+          "name"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "document_id": { "type": "string", "description": "The drive item ID of the created document." },
-          "name": { "type": "string", "description": "Final document name." },
-          "webUrl": { "type": "string", "description": "URL to view in browser." },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "document_id": {
+            "type": "string",
+            "description": "The drive item ID of the created document."
+          },
+          "name": {
+            "type": "string",
+            "description": "Final document name."
+          },
+          "webUrl": {
+            "type": "string",
+            "description": "URL to view in browser."
+          }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "word_update_content": {
@@ -178,18 +222,28 @@
             "description": "Try to preserve existing formatting (default: false)."
           }
         },
-        "required": ["document_id", "content"]
+        "required": [
+          "document_id",
+          "content"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "updated": { "type": "boolean", "description": "Whether content was updated." },
-          "document_id": { "type": "string", "description": "The document ID." },
-          "word_count": { "type": "integer", "description": "New word count." },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "updated": {
+            "type": "boolean",
+            "description": "Whether content was updated."
+          },
+          "document_id": {
+            "type": "string",
+            "description": "The document ID."
+          },
+          "word_count": {
+            "type": "integer",
+            "description": "New word count."
+          }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "word_insert_text": {
@@ -208,7 +262,12 @@
           },
           "location": {
             "type": "string",
-            "enum": ["start", "end", "after_paragraph", "before_paragraph"],
+            "enum": [
+              "start",
+              "end",
+              "after_paragraph",
+              "before_paragraph"
+            ],
             "description": "Where to insert: 'start', 'end', 'after_paragraph', 'before_paragraph'."
           },
           "paragraph_index": {
@@ -216,17 +275,25 @@
             "description": "Paragraph index (required for after_paragraph/before_paragraph)."
           }
         },
-        "required": ["document_id", "text", "location"]
+        "required": [
+          "document_id",
+          "text",
+          "location"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "inserted": { "type": "boolean", "description": "Whether text was inserted." },
-          "document_id": { "type": "string", "description": "The document ID." },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "inserted": {
+            "type": "boolean",
+            "description": "Whether text was inserted."
+          },
+          "document_id": {
+            "type": "string",
+            "description": "The document ID."
+          }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "word_get_paragraphs": {
@@ -252,7 +319,9 @@
             "description": "Include paragraph formatting info (default: false)."
           }
         },
-        "required": ["document_id"]
+        "required": [
+          "document_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -262,19 +331,28 @@
             "items": {
               "type": "object",
               "properties": {
-                "index": { "type": "integer" },
-                "text": { "type": "string" },
-                "style": { "type": "string" },
-                "formatting": { "type": "object" }
+                "index": {
+                  "type": "integer"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "style": {
+                  "type": "string"
+                },
+                "formatting": {
+                  "type": "object"
+                }
               }
             },
             "description": "List of paragraph objects."
           },
-          "total_count": { "type": "integer", "description": "Total number of paragraphs." },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "total_count": {
+            "type": "integer",
+            "description": "Total number of paragraphs."
+          }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "word_search_replace": {
@@ -308,18 +386,29 @@
             "description": "Replace all occurrences (default: true)."
           }
         },
-        "required": ["document_id", "search_text", "replace_text"]
+        "required": [
+          "document_id",
+          "search_text",
+          "replace_text"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "replaced": { "type": "boolean", "description": "Whether any replacements were made." },
-          "replacement_count": { "type": "integer", "description": "Number of replacements made." },
-          "document_id": { "type": "string", "description": "The document ID." },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "replaced": {
+            "type": "boolean",
+            "description": "Whether any replacements were made."
+          },
+          "replacement_count": {
+            "type": "integer",
+            "description": "Number of replacements made."
+          },
+          "document_id": {
+            "type": "string",
+            "description": "The document ID."
+          }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "word_export_pdf": {
@@ -345,22 +434,43 @@
             "description": "Folder path if saving to drive."
           }
         },
-        "required": ["document_id"]
+        "required": [
+          "document_id"
+        ]
       },
       "output_schema": {
         "type": "object",
         "properties": {
-          "pdf_content": { "type": "string", "description": "Base64-encoded PDF content (when save_to_drive is false)." },
-          "pdf_size": { "type": "integer", "description": "PDF file size in bytes." },
-          "content_type": { "type": "string", "description": "MIME type (application/pdf)." },
-          "encoding": { "type": "string", "description": "Content encoding (base64)." },
-          "pdf_url": { "type": "string", "description": "URL to access PDF (when save_to_drive is true)." },
-          "pdf_id": { "type": "string", "description": "Drive item ID if saved to drive." },
-          "size": { "type": "integer", "description": "PDF file size in bytes (when saved to drive)." },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "pdf_content": {
+            "type": "string",
+            "description": "Base64-encoded PDF content (when save_to_drive is false)."
+          },
+          "pdf_size": {
+            "type": "integer",
+            "description": "PDF file size in bytes."
+          },
+          "content_type": {
+            "type": "string",
+            "description": "MIME type (application/pdf)."
+          },
+          "encoding": {
+            "type": "string",
+            "description": "Content encoding (base64)."
+          },
+          "pdf_url": {
+            "type": "string",
+            "description": "URL to access PDF (when save_to_drive is true)."
+          },
+          "pdf_id": {
+            "type": "string",
+            "description": "Drive item ID if saved to drive."
+          },
+          "size": {
+            "type": "integer",
+            "description": "PDF file size in bytes (when saved to drive)."
+          }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "word_get_tables": {
@@ -376,13 +486,11 @@
           "table_index": {
             "type": "integer",
             "description": "Specific table index to retrieve (default: all tables)."
-          },
-          "include_formatting": {
-            "type": "boolean",
-            "description": "Include cell formatting (default: false)."
           }
         },
-        "required": ["document_id"]
+        "required": [
+          "document_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -392,20 +500,31 @@
             "items": {
               "type": "object",
               "properties": {
-                "index": { "type": "integer" },
-                "rows": { "type": "integer" },
-                "columns": { "type": "integer" },
-                "data": { "type": "array" },
-                "hasHeaderRow": { "type": "boolean" }
+                "index": {
+                  "type": "integer"
+                },
+                "rows": {
+                  "type": "integer"
+                },
+                "columns": {
+                  "type": "integer"
+                },
+                "data": {
+                  "type": "array"
+                },
+                "hasHeaderRow": {
+                  "type": "boolean"
+                }
               }
             },
             "description": "List of table objects."
           },
-          "table_count": { "type": "integer", "description": "Total number of tables in document." },
-          "result": { "type": "boolean" },
-          "error": { "type": "string" }
+          "table_count": {
+            "type": "integer",
+            "description": "Total number of tables in document."
+          }
         },
-        "required": ["result"]
+        "required": []
       }
     }
   }
