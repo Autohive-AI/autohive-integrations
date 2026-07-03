@@ -58,19 +58,24 @@ class ListProjectsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            for key in [
-                "owned",
-                "membership",
-                "starred",
-                "search",
-                "visibility",
-                "order_by",
-                "sort",
-                "per_page",
-                "page",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("owned") is not None:
+                params["owned"] = inputs.get("owned")
+            if inputs.get("membership") is not None:
+                params["membership"] = inputs.get("membership")
+            if inputs.get("starred") is not None:
+                params["starred"] = inputs.get("starred")
+            if inputs.get("search") is not None:
+                params["search"] = inputs.get("search")
+            if inputs.get("visibility") is not None:
+                params["visibility"] = inputs.get("visibility")
+            if inputs.get("order_by") is not None:
+                params["order_by"] = inputs.get("order_by")
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs.get("sort")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects",
@@ -120,25 +125,36 @@ class ListIssuesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            for key in [
-                "state",
-                "labels",
-                "milestone",
-                "scope",
-                "assignee_id",
-                "author_id",
-                "search",
-                "created_after",
-                "created_before",
-                "updated_after",
-                "updated_before",
-                "order_by",
-                "sort",
-                "per_page",
-                "page",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("state") is not None:
+                params["state"] = inputs.get("state")
+            if inputs.get("labels") is not None:
+                params["labels"] = inputs.get("labels")
+            if inputs.get("milestone") is not None:
+                params["milestone"] = inputs.get("milestone")
+            if inputs.get("scope") is not None:
+                params["scope"] = inputs.get("scope")
+            if inputs.get("assignee_id") is not None:
+                params["assignee_id"] = inputs.get("assignee_id")
+            if inputs.get("author_id") is not None:
+                params["author_id"] = inputs.get("author_id")
+            if inputs.get("search") is not None:
+                params["search"] = inputs.get("search")
+            if inputs.get("created_after") is not None:
+                params["created_after"] = inputs.get("created_after")
+            if inputs.get("created_before") is not None:
+                params["created_before"] = inputs.get("created_before")
+            if inputs.get("updated_after") is not None:
+                params["updated_after"] = inputs.get("updated_after")
+            if inputs.get("updated_before") is not None:
+                params["updated_before"] = inputs.get("updated_before")
+            if inputs.get("order_by") is not None:
+                params["order_by"] = inputs.get("order_by")
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs.get("sort")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             if inputs.get("project_id"):
                 project_id = encode_project_id(inputs["project_id"])
@@ -186,28 +202,42 @@ class ListMergeRequestsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            for key in [
-                "state",
-                "labels",
-                "milestone",
-                "scope",
-                "author_id",
-                "assignee_id",
-                "reviewer_id",
-                "source_branch",
-                "target_branch",
-                "search",
-                "created_after",
-                "created_before",
-                "updated_after",
-                "updated_before",
-                "order_by",
-                "sort",
-                "per_page",
-                "page",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("state") is not None:
+                params["state"] = inputs.get("state")
+            if inputs.get("labels") is not None:
+                params["labels"] = inputs.get("labels")
+            if inputs.get("milestone") is not None:
+                params["milestone"] = inputs.get("milestone")
+            if inputs.get("scope") is not None:
+                params["scope"] = inputs.get("scope")
+            if inputs.get("author_id") is not None:
+                params["author_id"] = inputs.get("author_id")
+            if inputs.get("assignee_id") is not None:
+                params["assignee_id"] = inputs.get("assignee_id")
+            if inputs.get("reviewer_id") is not None:
+                params["reviewer_id"] = inputs.get("reviewer_id")
+            if inputs.get("source_branch") is not None:
+                params["source_branch"] = inputs.get("source_branch")
+            if inputs.get("target_branch") is not None:
+                params["target_branch"] = inputs.get("target_branch")
+            if inputs.get("search") is not None:
+                params["search"] = inputs.get("search")
+            if inputs.get("created_after") is not None:
+                params["created_after"] = inputs.get("created_after")
+            if inputs.get("created_before") is not None:
+                params["created_before"] = inputs.get("created_before")
+            if inputs.get("updated_after") is not None:
+                params["updated_after"] = inputs.get("updated_after")
+            if inputs.get("updated_before") is not None:
+                params["updated_before"] = inputs.get("updated_before")
+            if inputs.get("order_by") is not None:
+                params["order_by"] = inputs.get("order_by")
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs.get("sort")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             if inputs.get("project_id"):
                 project_id = encode_project_id(inputs["project_id"])
@@ -284,9 +314,10 @@ class ListMergeRequestCommitsAction(ActionHandler):
             mr_iid = inputs["merge_request_iid"]
 
             params = {}
-            for key in ["per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/merge_requests/{mr_iid}/commits",
@@ -314,9 +345,14 @@ class ListBranchesAction(ActionHandler):
             project_id = encode_project_id(inputs["project_id"])
 
             params = {}
-            for key in ["search", "regex", "per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("search") is not None:
+                params["search"] = inputs.get("search")
+            if inputs.get("regex") is not None:
+                params["regex"] = inputs.get("regex")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/branches",
@@ -364,20 +400,26 @@ class ListCommitsAction(ActionHandler):
             project_id = encode_project_id(inputs["project_id"])
 
             params = {}
-            for key in [
-                "ref_name",
-                "since",
-                "until",
-                "path",
-                "author",
-                "all",
-                "with_stats",
-                "first_parent",
-                "per_page",
-                "page",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("ref_name") is not None:
+                params["ref_name"] = inputs.get("ref_name")
+            if inputs.get("since") is not None:
+                params["since"] = inputs.get("since")
+            if inputs.get("until") is not None:
+                params["until"] = inputs.get("until")
+            if inputs.get("path") is not None:
+                params["path"] = inputs.get("path")
+            if inputs.get("author") is not None:
+                params["author"] = inputs.get("author")
+            if inputs.get("all") is not None:
+                params["all"] = inputs.get("all")
+            if inputs.get("with_stats") is not None:
+                params["with_stats"] = inputs.get("with_stats")
+            if inputs.get("first_parent") is not None:
+                params["first_parent"] = inputs.get("first_parent")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/commits",
@@ -428,9 +470,10 @@ class GetCommitDiffAction(ActionHandler):
             sha = quote(inputs["sha"], safe="")
 
             params = {}
-            for key in ["per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/commits/{sha}/diff",
@@ -458,21 +501,28 @@ class ListPipelinesAction(ActionHandler):
             project_id = encode_project_id(inputs["project_id"])
 
             params = {}
-            for key in [
-                "status",
-                "ref",
-                "sha",
-                "source",
-                "username",
-                "updated_after",
-                "updated_before",
-                "order_by",
-                "sort",
-                "per_page",
-                "page",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("status") is not None:
+                params["status"] = inputs.get("status")
+            if inputs.get("ref") is not None:
+                params["ref"] = inputs.get("ref")
+            if inputs.get("sha") is not None:
+                params["sha"] = inputs.get("sha")
+            if inputs.get("source") is not None:
+                params["source"] = inputs.get("source")
+            if inputs.get("username") is not None:
+                params["username"] = inputs.get("username")
+            if inputs.get("updated_after") is not None:
+                params["updated_after"] = inputs.get("updated_after")
+            if inputs.get("updated_before") is not None:
+                params["updated_before"] = inputs.get("updated_before")
+            if inputs.get("order_by") is not None:
+                params["order_by"] = inputs.get("order_by")
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs.get("sort")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/pipelines",
@@ -518,9 +568,14 @@ class ListPipelineJobsAction(ActionHandler):
             pipeline_id = inputs["pipeline_id"]
 
             params = {}
-            for key in ["scope", "include_retried", "per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("scope") is not None:
+                params["scope"] = inputs.get("scope")
+            if inputs.get("include_retried") is not None:
+                params["include_retried"] = inputs.get("include_retried")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/pipelines/{pipeline_id}/jobs",
@@ -548,9 +603,16 @@ class ListRepositoryTreeAction(ActionHandler):
             project_id = encode_project_id(inputs["project_id"])
 
             params = {}
-            for key in ["path", "ref", "recursive", "per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("path") is not None:
+                params["path"] = inputs.get("path")
+            if inputs.get("ref") is not None:
+                params["ref"] = inputs.get("ref")
+            if inputs.get("recursive") is not None:
+                params["recursive"] = inputs.get("recursive")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/tree",
@@ -655,9 +717,14 @@ class ListContainerRegistryRepositoriesAction(ActionHandler):
             project_id = encode_project_id(inputs["project_id"])
 
             params = {}
-            for key in ["tags", "tags_count", "per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("tags") is not None:
+                params["tags"] = inputs.get("tags")
+            if inputs.get("tags_count") is not None:
+                params["tags_count"] = inputs.get("tags_count")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/registry/repositories",
@@ -683,9 +750,10 @@ class GetContainerRegistryRepositoryAction(ActionHandler):
             repository_id = inputs["repository_id"]
 
             params = {}
-            for key in ["tags", "tags_count"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("tags") is not None:
+                params["tags"] = inputs.get("tags")
+            if inputs.get("tags_count") is not None:
+                params["tags_count"] = inputs.get("tags_count")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/registry/repositories/{repository_id}",
@@ -709,9 +777,10 @@ class ListContainerRegistryTagsAction(ActionHandler):
             repository_id = inputs["repository_id"]
 
             params = {}
-            for key in ["per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/registry/repositories/{repository_id}/tags",
