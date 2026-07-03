@@ -188,24 +188,26 @@ async def test_get_dataset_returns_dataset_shape(live_context):
     assert data["dataset"]["id"] == dataset_id
 
 
-async def _first_report_id(live_context):
-    # Same "My workspace" fallback as _first_dataset_id.
-    result = await powerbi.execute_action("list_reports", {}, live_context)
-    if result.type != ResultType.ACTION:
-        pytest.skip(f"Unable to list Power BI reports: {result.result.message}")
-
-    reports = result.result.data["reports"]
-    if reports:
-        return reports[0]["id"]
-
+async def _first_report_with_workspace_id(live_context):
+    # Unlike _first_report_id, this always resolves through a workspace-scoped list -
+    # never "My workspace" - because Fabric-API actions (get_report_definition) require
+    # the exact workspace_id a report lives in, and "My workspace" isn't a listed group
+    # with a real workspace_id to pair a report against.
     workspaces_result = await powerbi.execute_action("list_workspaces", {"top": 25}, live_context)
-    if workspaces_result.type == ResultType.ACTION:
-        for workspace in workspaces_result.result.data["workspaces"]:
-            ws_result = await powerbi.execute_action("list_reports", {"workspace_id": workspace["id"]}, live_context)
-            if ws_result.type == ResultType.ACTION and ws_result.result.data["reports"]:
-                return ws_result.result.data["reports"][0]["id"]
+    if workspaces_result.type != ResultType.ACTION:
+        pytest.skip(f"Unable to list Power BI workspaces: {workspaces_result.result.message}")
 
-    pytest.skip("No Power BI reports available in My workspace or any accessible workspace")
+    for workspace in workspaces_result.result.data["workspaces"]:
+        ws_result = await powerbi.execute_action("list_reports", {"workspace_id": workspace["id"]}, live_context)
+        if ws_result.type == ResultType.ACTION and ws_result.result.data["reports"]:
+            return ws_result.result.data["reports"][0]["id"], workspace["id"]
+
+    pytest.skip("No reports found in any accessible workspace (My workspace doesn't count for Fabric-scoped tests)")
+
+
+async def _first_report_id(live_context):
+    report_id, _ = await _first_report_with_workspace_id(live_context)
+    return report_id
 
 
 async def test_get_report_returns_report_shape(live_context):
@@ -294,3 +296,146 @@ async def test_create_report_creates_a_report(live_context):
     data = result.result.data
     assert data["id"]
     assert data["workspace_id"] == workspace_id
+
+
+async def _first_dashboard_id(live_context):
+    result = await powerbi.execute_action("list_dashboards", {}, live_context)
+    if result.type != ResultType.ACTION:
+        pytest.skip(f"Unable to list Power BI dashboards: {result.result.message}")
+
+    dashboards = result.result.data["dashboards"]
+    if dashboards:
+        return dashboards[0]["id"]
+
+    workspaces_result = await powerbi.execute_action("list_workspaces", {"top": 25}, live_context)
+    if workspaces_result.type == ResultType.ACTION:
+        for workspace in workspaces_result.result.data["workspaces"]:
+            ws_result = await powerbi.execute_action("list_dashboards", {"workspace_id": workspace["id"]}, live_context)
+            if ws_result.type == ResultType.ACTION and ws_result.result.data["dashboards"]:
+                return ws_result.result.data["dashboards"][0]["id"]
+
+    pytest.skip("No Power BI dashboards available in My workspace or any accessible workspace")
+
+
+async def test_get_refresh_history_returns_history(live_context):
+    dataset_id = await _first_dataset_id(live_context)
+
+    result = await powerbi.execute_action("get_refresh_history", {"dataset_id": dataset_id}, live_context)
+
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", None)
+    data = result.result.data
+    assert "refreshes" in data
+    assert isinstance(data["refreshes"], list)
+
+
+async def test_get_report_datasources_returns_shape_or_documented_rdl_error(live_context):
+    report_id = await _first_report_id(live_context)
+
+    result = await powerbi.execute_action("get_report_datasources", {"report_id": report_id}, live_context)
+
+    # This API only supports RDL/paginated reports (documented in the action's
+    # description) - a standard Power BI report correctly returns this specific error
+    # rather than succeeding with malformed data.
+    if result.type == ResultType.ACTION_ERROR:
+        assert "RDL" in result.result.message or "paginated" in result.result.message
+        return
+    assert result.type == ResultType.ACTION
+    assert "datasources" in result.result.data
+
+
+@pytest.mark.destructive
+async def test_refresh_report_triggers_the_dataset_refresh(live_context):
+    report_id = await _first_report_id(live_context)
+
+    result = await powerbi.execute_action("refresh_report", {"report_id": report_id}, live_context)
+
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", None)
+    data = result.result.data
+    assert "message" in data
+    assert "dataset_id" in data
+
+
+@pytest.mark.destructive
+async def test_get_export_status_reflects_a_real_export(live_context):
+    report_id = await _first_report_id(live_context)
+
+    export_result = await powerbi.execute_action(
+        "export_report", {"report_id": report_id, "format": "PDF"}, live_context
+    )
+    if export_result.type == ResultType.ACTION_ERROR:
+        pytest.skip(f"export_report requires dedicated capacity: {export_result.result.message}")
+    export_id = export_result.result.data["export_id"]
+
+    result = await powerbi.execute_action(
+        "get_export_status", {"report_id": report_id, "export_id": export_id}, live_context
+    )
+
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", None)
+    assert "status" in result.result.data
+
+
+async def test_get_export_status_invalid_id_returns_action_error(live_context):
+    report_id = await _first_report_id(live_context)
+
+    result = await powerbi.execute_action(
+        "get_export_status",
+        {"report_id": report_id, "export_id": "00000000-0000-0000-0000-000000000000"},
+        live_context,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+
+
+async def test_get_dashboard_returns_dashboard_shape(live_context):
+    dashboard_id = await _first_dashboard_id(live_context)
+
+    result = await powerbi.execute_action("get_dashboard", {"dashboard_id": dashboard_id}, live_context)
+
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", None)
+    data = result.result.data
+    assert "dashboard" in data
+    assert data["dashboard"]["id"] == dashboard_id
+
+
+async def test_get_dashboard_tiles_returns_tiles(live_context):
+    dashboard_id = await _first_dashboard_id(live_context)
+
+    result = await powerbi.execute_action("get_dashboard_tiles", {"dashboard_id": dashboard_id}, live_context)
+
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", None)
+    data = result.result.data
+    assert "tiles" in data
+    assert isinstance(data["tiles"], list)
+
+
+async def test_get_dataset_schema_returns_schema_or_documented_limitation(live_context):
+    dataset_id = await _first_dataset_id(live_context)
+
+    result = await powerbi.execute_action("get_dataset_schema", {"dataset_id": dataset_id}, live_context)
+
+    # Confirmed real-world behavior: legacy Import-mode datasets don't support DAX
+    # schema introspection (INFO.TABLES()), which is a Power BI platform limitation the
+    # action documents and reports clearly rather than crashing or guessing.
+    if result.type == ResultType.ACTION_ERROR:
+        assert "does not support DAX schema introspection" in result.result.message
+        return
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert "tables" in data
+    assert "columns_available" in data
+
+
+async def test_get_report_definition_returns_real_parts(live_context):
+    report_id, workspace_id = await _first_report_with_workspace_id(live_context)
+
+    result = await powerbi.execute_action(
+        "get_report_definition", {"report_id": report_id, "workspace_id": workspace_id}, live_context
+    )
+
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", None)
+    data = result.result.data
+    assert "parts" in data
+    assert isinstance(data["parts"], list)
+    assert len(data["parts"]) > 0
+    paths = [p["path"] for p in data["parts"]]
+    assert ".platform" in paths

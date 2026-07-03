@@ -181,7 +181,7 @@
         },
         "refresh_dataset": {
             "display_name": "Refresh Dataset",
-            "description": "Trigger a refresh for a Power BI dataset with support for enhanced refresh options",
+            "description": "Trigger a refresh for a Power BI dataset with support for enhanced refresh options. Asynchronous - this only starts the refresh and returns immediately; poll get_refresh_history to see when it completes.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -285,7 +285,7 @@
         },
         "get_refresh_history": {
             "display_name": "Get Dataset Refresh History",
-            "description": "Get the refresh history for a dataset",
+            "description": "Get the refresh history for a dataset, including status (Completed/Failed/Unknown) and start/end times for past refreshes. Works regardless of dataset format, unlike get_dataset_schema.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -419,7 +419,7 @@
         },
         "get_report_datasources": {
             "display_name": "Get Report Datasources",
-            "description": "Get a list of data sources for the specified paginated report (RDL)",
+            "description": "Get a list of data sources for the specified paginated report (RDL). Only works for RDL/paginated reports - confirmed live that calling this on a standard Power BI report returns a 400 InvalidRequest error rather than data, by API design.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -612,7 +612,7 @@
         },
         "get_export_status": {
             "display_name": "Get Export Status",
-            "description": "Get the status of a report export operation",
+            "description": "Get the status of a report export operation started by export_report. An unknown/invalid export_id returns an error rather than a status - always use the export_id returned by export_report.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -880,7 +880,7 @@
         },
         "get_report_definition": {
             "display_name": "Get Report Definition",
-            "description": "Diagnostic action: fetch the raw PBIR file parts (.platform, definition.pbir, report.json, version.json, pages, visuals) of an existing report via the Fabric getDefinition API. Useful for inspecting the exact format Fabric expects when create_report's generated package is rejected.",
+            "description": "Diagnostic action: fetch the raw report definition file parts of an existing report via the Fabric getDefinition API - useful for inspecting the exact package format a tenant's Report Workload expects when create_report's generated package is rejected. The exact parts returned vary by report format: confirmed live that some tenants use only 3 files (.platform, definition.pbir, report.json with everything inlined), while Microsoft's public PBIR docs describe a more decomposed layout (separate version.json/pages/*.json/visuals/*.json) used elsewhere. Don't assume either shape - inspect the actual paths returned.",
             "input_schema": {
                 "type": "object",
                 "properties": {
