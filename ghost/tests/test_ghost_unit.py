@@ -224,7 +224,7 @@ async def test_get_posts_with_wrapped_auth_envelope(mock_context):
         "credentials": {
             "api_url": "https://demo.ghost.io",
             "content_api_key": "test_content_key",
-            "admin_api_key": "testid00000000000000000a:aabbccddeeff00112233445566778899aabbccddeeff00112233445566778899",
+            "admin_api_key": "testid00000000000000000a:aabbccddeeff00112233445566778899",
         },
     }
     mock_context.fetch = AsyncMock(return_value=_fetch_result({"posts": [{"id": "1", "title": "Hello"}], "meta": {}}))
