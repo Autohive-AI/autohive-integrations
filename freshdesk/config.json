@@ -1,7 +1,7 @@
 {
     "name": "Freshdesk",
     "display_name": "Freshdesk",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Freshdesk integration for managing tickets, contacts, companies, and customer support operations",
     "entry_point": "freshdesk.py",
     "auth": {
