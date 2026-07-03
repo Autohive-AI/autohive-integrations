@@ -7,11 +7,6 @@ import feedparser
 rss_reader = Integration.load()
 
 
-def _credentials(context: ExecutionContext) -> Dict[str, Any]:
-    auth = context.auth or {}
-    return auth.get("credentials", auth)
-
-
 def build_http_basic_auth_url(url: str, user_name: str, password: str) -> str:
     """
     Build a URL with HTTP basic authentication.
@@ -43,7 +38,7 @@ class GetFeedAction(ActionHandler):
         feed_url = inputs["feed_url"]
         limit = inputs.get("limit", 10)
 
-        creds = _credentials(context)
+        creds = context.auth["credentials"]
         user_name = creds.get("user_name")
         password = creds.get("password")
         api_token = creds.get("api_token")

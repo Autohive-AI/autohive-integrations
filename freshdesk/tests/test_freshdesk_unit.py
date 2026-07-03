@@ -28,9 +28,16 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def mock_context():
+    """Mock execution context with the wrapped Custom auth envelope.
+
+    MagicMock attributes don't share state, so setting ``ctx.auth`` alone does
+    not make the real ``credentials`` property available; set it explicitly to
+    the unwrapped credentials dict.
+    """
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"api_key": "test_api_key", "domain": "testcompany"}  # nosec B105
+    credentials = {"api_key": "test_api_key", "domain": "testcompany"}  # nosec B105
+    ctx.auth = {"auth_type": "Custom", "credentials": credentials}
     return ctx
 
 
@@ -102,24 +109,6 @@ class TestGetBaseUrl:
     def test_freshdesk_subdomain_format(self, mock_context):
         url = get_base_url(mock_context)
         assert url == "https://testcompany.freshdesk.com/api/v2"
-
-
-class TestWrappedAuthEnvelope:
-    @pytest.mark.asyncio
-    async def test_list_companies_succeeds_with_wrapped_credentials(self, mock_context):
-        mock_context.auth = {
-            "auth_type": "Custom",
-            "credentials": {"api_key": "test_api_key", "domain": "testcompany"},
-        }
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[SAMPLE_COMPANY])
-
-        result = await freshdesk.execute_action("list_companies", {}, mock_context)
-
-        assert result.type == ResultType.ACTION
-        assert result.result.data["companies"] == [SAMPLE_COMPANY]
-
-        call_args = mock_context.fetch.call_args
-        assert "testcompany.freshdesk.com/api/v2/companies" in call_args.args[0]
 
 
 # ---- Company Tests ----

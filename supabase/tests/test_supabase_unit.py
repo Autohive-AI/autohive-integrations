@@ -202,22 +202,3 @@ async def test_delete_user(mock_context):
     result = await supabase.execute_action("delete_user", {"user_id": "user-uuid"}, mock_context)
     assert result.type == ResultType.ACTION
     assert result.result.data["deleted"] is True
-
-
-# ---- Wrapped Auth Envelope ----
-
-
-@pytest.mark.asyncio
-async def test_select_records_wrapped_auth(mock_context):
-    mock_context.auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "host": "https://test.supabase.co",
-            "service_role_secret": "test-service-role-secret",  # nosec B105
-        },
-    }
-    mock_context.fetch = AsyncMock(return_value=MagicMock(data=[{"id": 1, "name": "Alice"}]))
-    result = await supabase.execute_action("select_records", {"table": "users"}, mock_context)
-    assert result.type == ResultType.ACTION
-    assert result.result.data["records"] == [{"id": 1, "name": "Alice"}]
-    assert result.result.data["count"] == 1

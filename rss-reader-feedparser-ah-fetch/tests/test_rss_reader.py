@@ -10,13 +10,17 @@ async def test_get_feed():
 
     # Uncomment this to use HTTP Basic Authentication
     auth = {
-        "user_name": "test_user",
-        "password": "test_password",  # nosec B105
+        "auth_type": "Custom",
+        "credentials": {
+            "user_name": "test_user",
+            "password": "test_password",  # nosec B105
+        },
     }
 
     # Uncomment this to use API token authentication
     # auth = {
-    #    "api_token": "test_api_token"
+    #    "auth_type": "Custom",
+    #    "credentials": {"api_token": "test_api_token"},
     # }
 
     # Define test configuration

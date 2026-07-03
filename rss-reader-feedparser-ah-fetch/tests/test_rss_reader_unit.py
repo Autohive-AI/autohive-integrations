@@ -33,11 +33,9 @@ SAMPLE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
-async def test_get_feed_reads_wrapped_credentials(make_context):
-    """Production sends the wrapped Custom auth envelope; the handler must
-    read basic-auth credentials from context.auth["credentials"], not from
-    the top-level auth dict.
-    """
+async def test_get_feed(make_context):
+    """get_feed with HTTP basic auth: parses the feed and bakes the
+    credentials into the fetched URL."""
     ctx = make_context(
         auth={
             "auth_type": "Custom",

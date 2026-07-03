@@ -204,32 +204,16 @@ async def test_send_newsletter(mock_context):
 
 
 @pytest.mark.asyncio
-async def test_missing_content_api_key(mock_context):
-    mock_context.auth = {"api_url": "https://demo.ghost.io", "admin_api_key": "id:aabbcc"}
+async def test_missing_content_api_key(make_custom_auth_context):
+    credentials = {"api_url": "https://demo.ghost.io", "admin_api_key": "id:aabbcc"}
+    mock_context = make_custom_auth_context(credentials)
     result = await ghost.execute_action("get_posts", {}, mock_context)
     assert result.type == ResultType.ACTION_ERROR
 
 
 @pytest.mark.asyncio
-async def test_missing_api_url(mock_context):
-    mock_context.auth = {"content_api_key": "key", "admin_api_key": "id:aabbcc"}
+async def test_missing_api_url(make_custom_auth_context):
+    credentials = {"content_api_key": "key", "admin_api_key": "id:aabbcc"}
+    mock_context = make_custom_auth_context(credentials)
     result = await ghost.execute_action("get_posts", {}, mock_context)
     assert result.type == ResultType.ACTION_ERROR
-
-
-@pytest.mark.asyncio
-async def test_get_posts_with_wrapped_auth_envelope(mock_context):
-    mock_context.auth = {
-        "auth_type": "Custom",
-        "credentials": {
-            "api_url": "https://demo.ghost.io",
-            "content_api_key": "test_content_key",
-            "admin_api_key": "testid00000000000000000a:aabbccddeeff00112233445566778899",
-        },
-    }
-    mock_context.fetch = AsyncMock(return_value=_fetch_result({"posts": [{"id": "1", "title": "Hello"}], "meta": {}}))
-    result = await ghost.execute_action("get_posts", {}, mock_context)
-    assert result.type == ResultType.ACTION
-    assert len(result.result.data["posts"]) == 1
-    params = mock_context.fetch.call_args[1]["params"]
-    assert params["key"] == "test_content_key"
