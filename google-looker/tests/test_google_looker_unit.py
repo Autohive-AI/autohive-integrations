@@ -33,11 +33,12 @@ def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {
+        "auth_type": "Custom",
         "credentials": {
             "base_url": "https://test-looker.looker.com",
             "client_id": "test_client_id",
             "client_secret": "test_client_secret",  # nosec B105
-        }
+        },
     }
     return ctx
 
@@ -112,12 +113,12 @@ class TestListDashboards:
 
     @pytest.mark.asyncio
     async def test_missing_credentials_returns_action_error(self, mock_context):
-        mock_context.auth = {}
+        mock_context.auth = {"auth_type": "Custom", "credentials": {}}
 
         result = await google_looker.execute_action("list_dashboards", {}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "authentication credentials" in result.result.message.lower()
+        assert "missing required configuration" in result.result.message.lower()
 
 
 # ---- Get Dashboard ----

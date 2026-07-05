@@ -28,5 +28,5 @@ def mock_context() -> MagicMock:
     """Mock ExecutionContext pre-loaded with a Supadata API key."""
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"credentials": {"api_key": "test_api_key"}}  # nosec B105
+    ctx.auth = {"auth_type": "Custom", "credentials": {"api_key": "test_api_key"}}  # nosec B105
     return ctx

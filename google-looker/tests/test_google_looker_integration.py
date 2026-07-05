@@ -68,11 +68,12 @@ def live_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
     ctx.auth = {
+        "auth_type": "Custom",
         "credentials": {
             "base_url": LOOKER_BASE_URL,
             "client_id": LOOKER_CLIENT_ID,
             "client_secret": LOOKER_CLIENT_SECRET,
-        }
+        },
     }
     return ctx
 

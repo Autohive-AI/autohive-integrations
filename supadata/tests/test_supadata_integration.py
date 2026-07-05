@@ -26,7 +26,7 @@ def live_context(env_credentials, make_context):
     api_key = env_credentials("SUPADATA_API_KEY")
     if not api_key:
         pytest.skip("SUPADATA_API_KEY not set — skipping live integration tests")
-    return make_context(auth={"credentials": {"api_key": api_key}})
+    return make_context(auth={"auth_type": "Custom", "credentials": {"api_key": api_key}})
 
 
 @pytest.mark.asyncio

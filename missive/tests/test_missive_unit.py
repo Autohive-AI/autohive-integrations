@@ -29,14 +29,14 @@ def err(status=401, message="Unauthorized"):
 def make_ctx(response_data):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(return_value=ok(response_data))
-    ctx.auth = {"api_token": "test_token"}  # nosec B105
+    ctx.auth = {"auth_type": "Custom", "credentials": {"api_token": "test_token"}}  # nosec B105
     return ctx
 
 
 def make_err_ctx(status, message):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(return_value=err(status, message))
-    ctx.auth = {"api_token": "test_token"}  # nosec B105
+    ctx.auth = {"auth_type": "Custom", "credentials": {"api_token": "test_token"}}  # nosec B105
     return ctx
 
 

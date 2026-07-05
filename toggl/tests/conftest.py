@@ -22,7 +22,7 @@ def toggl_context():
     api_token = _get_env("TOGGL_API_TOKEN")
     if not api_token:
         pytest.skip("TOGGL_API_TOKEN not set — skipping integration tests")
-    return ExecutionContext(auth={"credentials": {"api_token": api_token}})
+    return ExecutionContext(auth={"auth_type": "Custom", "credentials": {"api_token": api_token}})
 
 
 @pytest.fixture

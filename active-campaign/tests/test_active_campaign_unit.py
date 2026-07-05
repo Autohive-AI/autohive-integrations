@@ -44,7 +44,12 @@ def err(status, data=None):
 
 
 async def test_list_campaigns_returns_list(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"campaigns": [CAMPAIGN], "meta": {"total": "1"}})
     result = await active_campaign.execute_action("list_campaigns", {}, ctx)
     assert result.type == ResultType.ACTION
@@ -55,7 +60,12 @@ async def test_list_campaigns_returns_list(make_context):
 
 
 async def test_list_campaigns_derives_rates(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"campaigns": [CAMPAIGN], "meta": {"total": "1"}})
     result = await active_campaign.execute_action("list_campaigns", {}, ctx)
     c = result.result.data["campaigns"][0]
@@ -67,7 +77,12 @@ async def test_list_campaigns_derives_rates(make_context):
 
 async def test_list_campaigns_zero_sends_no_division_error(make_context):
     campaign = {**CAMPAIGN, "send_amt": "0", "uniqueopens": "0", "uniquelinkclicks": "0"}
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"campaigns": [campaign], "meta": {"total": "1"}})
     result = await active_campaign.execute_action("list_campaigns", {}, ctx)
     c = result.result.data["campaigns"][0]
@@ -77,7 +92,12 @@ async def test_list_campaigns_zero_sends_no_division_error(make_context):
 
 
 async def test_list_campaigns_uses_correct_url(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"campaigns": [], "meta": {"total": "0"}})
     await active_campaign.execute_action("list_campaigns", {}, ctx)
     url = ctx.fetch.call_args.args[0]
@@ -86,7 +106,12 @@ async def test_list_campaigns_uses_correct_url(make_context):
 
 async def test_list_campaigns_params_baked_into_url_not_passed_as_kwarg(make_context):
     """Params must be baked into the URL so the SDK retry loop cannot duplicate them."""
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"campaigns": [], "meta": {"total": "0"}})
     await active_campaign.execute_action("list_campaigns", {"limit": 2, "offset": 10}, ctx)
     call = ctx.fetch.call_args
@@ -98,7 +123,12 @@ async def test_list_campaigns_params_baked_into_url_not_passed_as_kwarg(make_con
 
 async def test_list_contacts_params_baked_into_url_not_passed_as_kwarg(make_context):
     """Params must be baked into the URL so the SDK retry loop cannot duplicate them."""
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"contacts": [], "meta": {"total": "0"}})
     await active_campaign.execute_action("list_contacts", {"email": "test@example.com", "limit": 5}, ctx)
     call = ctx.fetch.call_args
@@ -110,7 +140,12 @@ async def test_list_contacts_params_baked_into_url_not_passed_as_kwarg(make_cont
 
 async def test_list_contact_activities_params_baked_into_url_not_passed_as_kwarg(make_context):
     """Params must be baked into the URL so the SDK retry loop cannot duplicate them."""
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"activities": [], "meta": {"total": "0"}})
     await active_campaign.execute_action("list_contact_activities", {"contact_id": 42}, ctx)
     call = ctx.fetch.call_args
@@ -121,7 +156,12 @@ async def test_list_contact_activities_params_baked_into_url_not_passed_as_kwarg
 
 async def test_list_lists_params_baked_into_url_not_passed_as_kwarg(make_context):
     """Params must be baked into the URL so the SDK retry loop cannot duplicate them."""
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"lists": [], "meta": {"total": "0"}})
     await active_campaign.execute_action("list_lists", {"limit": 5, "offset": 10}, ctx)
     call = ctx.fetch.call_args
@@ -135,7 +175,12 @@ async def test_list_lists_params_baked_into_url_not_passed_as_kwarg(make_context
 
 
 async def test_get_campaign_returns_campaign(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"campaign": CAMPAIGN})
     result = await active_campaign.execute_action("get_campaign", {"campaign_id": 1}, ctx)
     data = result.result.data
@@ -144,7 +189,12 @@ async def test_get_campaign_returns_campaign(make_context):
 
 
 async def test_get_campaign_derives_rates(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"campaign": CAMPAIGN})
     result = await active_campaign.execute_action("get_campaign", {"campaign_id": 1}, ctx)
     c = result.result.data["campaign"]
@@ -153,7 +203,12 @@ async def test_get_campaign_derives_rates(make_context):
 
 
 async def test_get_campaign_uses_correct_url(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"campaign": CAMPAIGN})
     await active_campaign.execute_action("get_campaign", {"campaign_id": 99}, ctx)
     url = ctx.fetch.call_args.args[0]
@@ -164,7 +219,12 @@ async def test_get_campaign_uses_correct_url(make_context):
 
 
 async def test_get_campaign_links_returns_links(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"links": [{"id": "1", "link": "https://example.com", "uniqueclicks": "5"}]})
     result = await active_campaign.execute_action("get_campaign_links", {"campaign_id": 1}, ctx)
     data = result.result.data
@@ -173,7 +233,12 @@ async def test_get_campaign_links_returns_links(make_context):
 
 
 async def test_get_campaign_links_uses_correct_url(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"links": []})
     await active_campaign.execute_action("get_campaign_links", {"campaign_id": 5}, ctx)
     url = ctx.fetch.call_args.args[0]
@@ -184,7 +249,12 @@ async def test_get_campaign_links_uses_correct_url(make_context):
 
 
 async def test_list_contacts_returns_list(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok(
         {"contacts": [{"id": "1", "email": "test@example.com", "firstName": "Jane"}], "meta": {"total": "1"}}
     )
@@ -196,7 +266,12 @@ async def test_list_contacts_returns_list(make_context):
 
 
 async def test_list_contacts_passes_email_filter(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"contacts": [], "meta": {"total": "0"}})
     await active_campaign.execute_action("list_contacts", {"email": "jane@example.com"}, ctx)
     url = ctx.fetch.call_args.args[0]
@@ -207,7 +282,12 @@ async def test_list_contacts_passes_email_filter(make_context):
 
 
 async def test_get_contact_returns_contact(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"contact": {"id": "5", "email": "bob@example.com"}})
     result = await active_campaign.execute_action("get_contact", {"contact_id": 5}, ctx)
     data = result.result.data
@@ -217,7 +297,12 @@ async def test_get_contact_returns_contact(make_context):
 
 
 async def test_get_contact_uses_correct_url(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"contact": {"id": "5"}})
     await active_campaign.execute_action("get_contact", {"contact_id": 5}, ctx)
     url = ctx.fetch.call_args.args[0]
@@ -228,7 +313,12 @@ async def test_get_contact_uses_correct_url(make_context):
 
 
 async def test_list_contact_activities_returns_activities(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok(
         {"activities": [{"tstamp": "2025-01-01", "reference_action": "open"}], "meta": {"total": "1"}}
     )
@@ -240,7 +330,12 @@ async def test_list_contact_activities_returns_activities(make_context):
 
 
 async def test_list_contact_activities_passes_contact_id(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"activities": [], "meta": {"total": "0"}})
     await active_campaign.execute_action("list_contact_activities", {"contact_id": 42}, ctx)
     url = ctx.fetch.call_args.args[0]
@@ -251,7 +346,12 @@ async def test_list_contact_activities_passes_contact_id(make_context):
 
 
 async def test_list_lists_returns_lists(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"lists": [{"id": "1", "name": "Newsletter"}], "meta": {"total": "1"}})
     result = await active_campaign.execute_action("list_lists", {}, ctx)
     data = result.result.data
@@ -264,7 +364,12 @@ async def test_list_lists_returns_lists(make_context):
 
 
 async def test_error_response_returns_action_error(make_context):
-    ctx = make_context(auth={"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "testkey", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = err(401, {"message": "Unauthorized"})
     result = await active_campaign.execute_action("list_campaigns", {}, ctx)
     assert result.type == ResultType.ACTION_ERROR
@@ -272,7 +377,12 @@ async def test_error_response_returns_action_error(make_context):
 
 
 async def test_auth_header_is_set(make_context):
-    ctx = make_context(auth={"api_key": "my-secret-key", "api_url": "https://testaccount.api-us1.com"})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"api_key": "my-secret-key", "api_url": "https://testaccount.api-us1.com"},
+        }
+    )
     ctx.fetch.return_value = ok({"campaigns": [], "meta": {"total": "0"}})
     await active_campaign.execute_action("list_campaigns", {}, ctx)
     headers = ctx.fetch.call_args.kwargs["headers"]
