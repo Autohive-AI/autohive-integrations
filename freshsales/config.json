@@ -1,0 +1,56 @@
+{
+    "name": "Freshsales",
+    "display_name": "Freshsales",
+    "version": "1.0.0",
+    "description": "Freshsales CRM integration for managing contacts, accounts, deals, tasks, appointments, and notes",
+    "entry_point": "freshsales.py",
+    "auth": {
+        "type": "custom",
+        "title": "Freshsales API Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Key",
+                    "help_text": "Your Freshsales API key. Find it in Personal Settings > API Settings."
+                },
+                "bundle_alias": {
+                    "type": "string",
+                    "label": "Bundle Alias",
+                    "help_text": "Your Freshworks bundle alias — the 'yourcompany' in yourcompany.myfreshworks.com"
+                }
+            }
+        }
+    },
+    "actions": {
+        "list_views": {
+            "display_name": "List Views",
+            "description": "List the available list views (filters) for contacts, accounts, or deals. Freshsales lists records through views; pass a view id from here to list_contacts/list_accounts/list_deals to use a specific view.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "enum": ["contacts", "accounts", "deals"],
+                        "description": "Which resource to fetch views for"
+                    }
+                },
+                "required": ["entity"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "views": {
+                        "type": "array",
+                        "items": {"type": "object"},
+                        "description": "Available views, each with id and name"
+                    },
+                    "total": {"type": "integer", "description": "Number of views"}
+                },
+                "required": ["views"]
+            }
+        }
+    }
+}
