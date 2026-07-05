@@ -175,6 +175,126 @@
                 },
                 "required": ["contacts"]
             }
+        },
+        "create_account": {
+            "display_name": "Create Account",
+            "description": "Create a new sales account (organization). Name is required.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Account name"},
+                    "website": {"type": "string", "description": "Website URL"},
+                    "phone": {"type": "string", "description": "Phone number"},
+                    "address": {"type": "string", "description": "Street address"},
+                    "city": {"type": "string", "description": "City"},
+                    "state": {"type": "string", "description": "State"},
+                    "zipcode": {"type": "string", "description": "Zip code"},
+                    "country": {"type": "string", "description": "Country"},
+                    "industry_type_id": {"type": "integer", "description": "ID of the industry type"},
+                    "business_type_id": {"type": "integer", "description": "ID of the business type"},
+                    "number_of_employees": {"type": "integer", "description": "Employee count"},
+                    "annual_revenue": {"type": "number", "description": "Annual revenue"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the account"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "parent_sales_account_id": {"type": "integer", "description": "ID of the parent account"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"account": {"type": "object", "description": "The created account record"}},
+                "required": ["account"]
+            }
+        },
+        "get_account": {
+            "display_name": "Get Account",
+            "description": "Retrieve a sales account by ID, optionally embedding related records.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {"type": "integer", "description": "Account ID"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner,contacts,deals)"}
+                },
+                "required": ["account_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"account": {"type": "object", "description": "The account record"}},
+                "required": ["account"]
+            }
+        },
+        "update_account": {
+            "display_name": "Update Account",
+            "description": "Update fields on an existing sales account. Only provided fields are changed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {"type": "integer", "description": "Account ID"},
+                    "name": {"type": "string", "description": "Account name"},
+                    "website": {"type": "string", "description": "Website URL"},
+                    "phone": {"type": "string", "description": "Phone number"},
+                    "address": {"type": "string", "description": "Street address"},
+                    "city": {"type": "string", "description": "City"},
+                    "state": {"type": "string", "description": "State"},
+                    "zipcode": {"type": "string", "description": "Zip code"},
+                    "country": {"type": "string", "description": "Country"},
+                    "industry_type_id": {"type": "integer", "description": "ID of the industry type"},
+                    "business_type_id": {"type": "integer", "description": "ID of the business type"},
+                    "number_of_employees": {"type": "integer", "description": "Employee count"},
+                    "annual_revenue": {"type": "number", "description": "Annual revenue"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the account"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "parent_sales_account_id": {"type": "integer", "description": "ID of the parent account"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": ["account_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"account": {"type": "object", "description": "The updated account record"}},
+                "required": ["account"]
+            }
+        },
+        "delete_account": {
+            "display_name": "Delete Account",
+            "description": "Delete a sales account by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"account_id": {"type": "integer", "description": "Account ID"}},
+                "required": ["account_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "account_id": {"type": "integer", "description": "ID of the deleted account"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_accounts": {
+            "display_name": "List Accounts",
+            "description": "List sales accounts from a view. Omit view_id to use the 'All Accounts' view automatically (use list_views to discover other views). Returns 25 records per page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "view_id": {"type": "integer", "description": "View (filter) ID to list from; omit for the default 'All Accounts' view"},
+                    "page": {"type": "integer", "minimum": 1, "description": "Page number (default 1)"},
+                    "sort": {"type": "string", "description": "Field to sort by (e.g. created_at, updated_at, last_contacted)"},
+                    "sort_type": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner)"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "accounts": {"type": "array", "items": {"type": "object"}, "description": "Accounts in the view page"},
+                    "meta": {"type": "object", "description": "Pagination metadata (total, total_pages)"}
+                },
+                "required": ["accounts"]
+            }
         }
     }
 }

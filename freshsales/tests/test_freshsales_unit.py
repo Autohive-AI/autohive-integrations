@@ -292,3 +292,131 @@ class TestListContacts:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "No list views available" in result.result.message
+
+
+# ---- Account Tests ----
+
+SAMPLE_ACCOUNT = {"id": 2001, "name": "Widgetz.io", "website": "https://widgetz.io"}
+
+
+class TestCreateAccount:
+    @pytest.mark.asyncio
+    async def test_happy_path_wrapped_body_and_path(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"sales_account": SAMPLE_ACCOUNT})
+
+        result = await freshsales.execute_action("create_account", {"name": "Widgetz.io"}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/sales_accounts")
+        assert call_args.kwargs["method"] == "POST"
+        assert call_args.kwargs["json"] == {"sales_account": {"name": "Widgetz.io"}}
+        assert result.result.data["account"] == SAMPLE_ACCOUNT
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("create failed")
+
+        result = await freshsales.execute_action("create_account", {"name": "X"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestGetAccount:
+    @pytest.mark.asyncio
+    async def test_happy_path_and_include(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"sales_account": SAMPLE_ACCOUNT})
+
+        result = await freshsales.execute_action("get_account", {"account_id": 2001, "include": "owner"}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/sales_accounts/2001")
+        assert call_args.kwargs["method"] == "GET"
+        assert call_args.kwargs["params"] == {"include": "owner"}
+        assert result.result.data["account"] == SAMPLE_ACCOUNT
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("get failed")
+
+        result = await freshsales.execute_action("get_account", {"account_id": 2001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestUpdateAccount:
+    @pytest.mark.asyncio
+    async def test_happy_path_put_wrapped_body(self, mock_context):
+        updated = {**SAMPLE_ACCOUNT, "city": "Auckland"}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"sales_account": updated})
+
+        input_data = {"account_id": 2001, "city": "Auckland"}
+        result = await freshsales.execute_action("update_account", input_data, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/sales_accounts/2001")
+        assert call_args.kwargs["method"] == "PUT"
+        assert call_args.kwargs["json"] == {"sales_account": {"city": "Auckland"}}
+        assert result.result.data["account"]["city"] == "Auckland"
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("update failed")
+
+        result = await freshsales.execute_action("update_account", {"account_id": 2001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestDeleteAccount:
+    @pytest.mark.asyncio
+    async def test_happy_path_delete(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"success": True})
+
+        result = await freshsales.execute_action("delete_account", {"account_id": 2001}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/sales_accounts/2001")
+        assert call_args.kwargs["method"] == "DELETE"
+        assert result.result.data["success"] is True
+        assert result.result.data["account_id"] == 2001
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("delete failed")
+
+        result = await freshsales.execute_action("delete_account", {"account_id": 2001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestListAccounts:
+    @pytest.mark.asyncio
+    async def test_explicit_view_id(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"sales_accounts": [SAMPLE_ACCOUNT], "meta": {"total": 1}}
+        )
+
+        result = await freshsales.execute_action("list_accounts", {"view_id": 8}, mock_context)
+
+        assert "/sales_accounts/view/8" in mock_context.fetch.call_args.args[0]
+        assert result.result.data["accounts"] == [SAMPLE_ACCOUNT]
+
+    @pytest.mark.asyncio
+    async def test_auto_resolves_view(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data={"filters": [{"id": 6, "name": "All Accounts"}]}),
+            FetchResponse(status=200, headers={}, data={"sales_accounts": [], "meta": {}}),
+        ]
+
+        await freshsales.execute_action("list_accounts", {}, mock_context)
+
+        assert mock_context.fetch.call_args_list[0].args[0].endswith("/sales_accounts/filters")
+        assert "/sales_accounts/view/6" in mock_context.fetch.call_args_list[1].args[0]
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("list failed")
+
+        result = await freshsales.execute_action("list_accounts", {"view_id": 8}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR

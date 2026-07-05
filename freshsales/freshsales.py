@@ -190,3 +190,119 @@ class ListContactsAction(ActionHandler):
             )
         except Exception as e:
             return ActionError(message=str(e))
+
+
+ACCOUNT_FIELDS = (
+    "name",
+    "website",
+    "phone",
+    "address",
+    "city",
+    "state",
+    "zipcode",
+    "country",
+    "industry_type_id",
+    "business_type_id",
+    "number_of_employees",
+    "annual_revenue",
+    "owner_id",
+    "territory_id",
+    "parent_sales_account_id",
+    "custom_field",
+)
+
+
+@freshsales.action("create_account")
+class CreateAccountAction(ActionHandler):
+    """Create a new sales account (organization)."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            body = build_body(inputs, ACCOUNT_FIELDS)
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/sales_accounts", method="POST", headers=headers, json={"sales_account": body}
+            )
+            return ActionResult(data={"account": response.data.get("sales_account", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("get_account")
+class GetAccountAction(ActionHandler):
+    """Retrieve a sales account by ID, optionally embedding related records."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            params = {}
+            if inputs.get("include"):
+                params["include"] = inputs["include"]
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/sales_accounts/{inputs['account_id']}", method="GET", headers=headers, params=params
+            )
+            return ActionResult(data={"account": response.data.get("sales_account", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("update_account")
+class UpdateAccountAction(ActionHandler):
+    """Update fields on an existing sales account."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            body = build_body(inputs, ACCOUNT_FIELDS)
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/sales_accounts/{inputs['account_id']}",
+                method="PUT",
+                headers=headers,
+                json={"sales_account": body},
+            )
+            return ActionResult(data={"account": response.data.get("sales_account", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("delete_account")
+class DeleteAccountAction(ActionHandler):
+    """Delete a sales account by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/sales_accounts/{inputs['account_id']}", method="DELETE", headers=headers
+            )
+            data = response.data if isinstance(response.data, dict) else {}
+            return ActionResult(data={"success": bool(data.get("success", True)), "account_id": inputs["account_id"]})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("list_accounts")
+class ListAccountsAction(ActionHandler):
+    """List sales accounts from a view, auto-resolving the 'All Accounts' view when none is given."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            view_id = inputs.get("view_id") or await resolve_view_id(context, "sales_accounts")
+            params = {"page": inputs.get("page", 1)}
+            for param in ("sort", "sort_type", "include"):
+                if inputs.get(param):
+                    params[param] = inputs[param]
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/sales_accounts/view/{view_id}", method="GET", headers=headers, params=params
+            )
+            return ActionResult(
+                data={"accounts": response.data.get("sales_accounts", []), "meta": response.data.get("meta", {})}
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
