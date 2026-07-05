@@ -1,13 +1,29 @@
 {
     "name": "Pipedrive",
     "display_name": "Pipedrive",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Pipedrive CRM integration for managing deals, contacts, organizations, activities, and sales pipelines",
     "entry_point": "pipedrive.py",
     "auth": {
         "type": "platform",
         "provider": "Pipedrive",
-        "scopes": ["base", "settings:read", "deals:read", "mail:read", "activities:read", "contacts:read", "products:read", "users:read", "recents:read", "search:read", "leads:read", "calls:write", "goals:read", "projects:read", "webhooks:read"]
+        "scopes": [
+            "base",
+            "settings:read",
+            "deals:read",
+            "mail:read",
+            "activities:read",
+            "contacts:read",
+            "products:read",
+            "users:read",
+            "recents:read",
+            "search:read",
+            "leads:read",
+            "calls:write",
+            "goals:read",
+            "projects:read",
+            "webhooks:read"
+        ]
     },
     "actions": {
         "create_deal": {
@@ -47,7 +63,12 @@
                     "status": {
                         "type": "string",
                         "description": "Deal status (open, won, lost, deleted)",
-                        "enum": ["open", "won", "lost", "deleted"]
+                        "enum": [
+                            "open",
+                            "won",
+                            "lost",
+                            "deleted"
+                        ]
                     },
                     "expected_close_date": {
                         "type": "string",
@@ -58,7 +79,9 @@
                         "description": "ID of the user who will be the owner of the deal"
                     }
                 },
-                "required": ["title"]
+                "required": [
+                    "title"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -66,17 +89,11 @@
                     "deal": {
                         "type": "object",
                         "description": "Created deal details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["deal", "result"]
+                "required": [
+                    "deal"
+                ]
             }
         },
         "get_deal": {
@@ -90,7 +107,9 @@
                         "description": "The ID of the deal to retrieve"
                     }
                 },
-                "required": ["deal_id"]
+                "required": [
+                    "deal_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -98,17 +117,11 @@
                     "deal": {
                         "type": "object",
                         "description": "Deal details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["deal", "result"]
+                "required": [
+                    "deal"
+                ]
             }
         },
         "update_deal": {
@@ -148,7 +161,12 @@
                     "status": {
                         "type": "string",
                         "description": "Updated deal status",
-                        "enum": ["open", "won", "lost", "deleted"]
+                        "enum": [
+                            "open",
+                            "won",
+                            "lost",
+                            "deleted"
+                        ]
                     },
                     "expected_close_date": {
                         "type": "string",
@@ -159,7 +177,9 @@
                         "description": "Updated owner user ID"
                     }
                 },
-                "required": ["deal_id"]
+                "required": [
+                    "deal_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -167,17 +187,11 @@
                     "deal": {
                         "type": "object",
                         "description": "Updated deal details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["deal", "result"]
+                "required": [
+                    "deal"
+                ]
             }
         },
         "list_deals": {
@@ -197,7 +211,13 @@
                     "status": {
                         "type": "string",
                         "description": "Filter by deal status",
-                        "enum": ["open", "won", "lost", "deleted", "all_not_deleted"]
+                        "enum": [
+                            "open",
+                            "won",
+                            "lost",
+                            "deleted",
+                            "all_not_deleted"
+                        ]
                     },
                     "filter_id": {
                         "type": "integer",
@@ -227,17 +247,11 @@
                     "deals": {
                         "type": "array",
                         "description": "List of deals"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["deals", "result"]
+                "required": [
+                    "deals"
+                ]
             }
         },
         "delete_deal": {
@@ -251,21 +265,14 @@
                         "description": "The ID of the deal to delete"
                     }
                 },
-                "required": ["deal_id"]
+                "required": [
+                    "deal_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["result"]
+                "properties": {},
+                "required": []
             }
         },
         "create_person": {
@@ -297,10 +304,15 @@
                     "visible_to": {
                         "type": "string",
                         "description": "Visibility setting (1 = owner & followers, 3 = entire company)",
-                        "enum": ["1", "3"]
+                        "enum": [
+                            "1",
+                            "3"
+                        ]
                     }
                 },
-                "required": ["name"]
+                "required": [
+                    "name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -308,17 +320,11 @@
                     "person": {
                         "type": "object",
                         "description": "Created person details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["person", "result"]
+                "required": [
+                    "person"
+                ]
             }
         },
         "get_person": {
@@ -332,7 +338,9 @@
                         "description": "The ID of the person to retrieve"
                     }
                 },
-                "required": ["person_id"]
+                "required": [
+                    "person_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -340,17 +348,11 @@
                     "person": {
                         "type": "object",
                         "description": "Person details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["person", "result"]
+                "required": [
+                    "person"
+                ]
             }
         },
         "update_person": {
@@ -384,7 +386,9 @@
                         "description": "Updated owner user ID"
                     }
                 },
-                "required": ["person_id"]
+                "required": [
+                    "person_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -392,17 +396,11 @@
                     "person": {
                         "type": "object",
                         "description": "Updated person details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["person", "result"]
+                "required": [
+                    "person"
+                ]
             }
         },
         "list_persons": {
@@ -443,17 +441,11 @@
                     "persons": {
                         "type": "array",
                         "description": "List of persons"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["persons", "result"]
+                "required": [
+                    "persons"
+                ]
             }
         },
         "delete_person": {
@@ -467,21 +459,14 @@
                         "description": "The ID of the person to delete"
                     }
                 },
-                "required": ["person_id"]
+                "required": [
+                    "person_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["result"]
+                "properties": {},
+                "required": []
             }
         },
         "create_organization": {
@@ -501,14 +486,19 @@
                     "visible_to": {
                         "type": "string",
                         "description": "Visibility setting (1 = owner & followers, 3 = entire company)",
-                        "enum": ["1", "3"]
+                        "enum": [
+                            "1",
+                            "3"
+                        ]
                     },
                     "address": {
                         "type": "string",
                         "description": "Organization address"
                     }
                 },
-                "required": ["name"]
+                "required": [
+                    "name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -516,17 +506,11 @@
                     "organization": {
                         "type": "object",
                         "description": "Created organization details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["organization", "result"]
+                "required": [
+                    "organization"
+                ]
             }
         },
         "get_organization": {
@@ -540,7 +524,9 @@
                         "description": "The ID of the organization to retrieve"
                     }
                 },
-                "required": ["org_id"]
+                "required": [
+                    "org_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -548,17 +534,11 @@
                     "organization": {
                         "type": "object",
                         "description": "Organization details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["organization", "result"]
+                "required": [
+                    "organization"
+                ]
             }
         },
         "update_organization": {
@@ -584,7 +564,9 @@
                         "description": "Updated address"
                     }
                 },
-                "required": ["org_id"]
+                "required": [
+                    "org_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -592,17 +574,11 @@
                     "organization": {
                         "type": "object",
                         "description": "Updated organization details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["organization", "result"]
+                "required": [
+                    "organization"
+                ]
             }
         },
         "list_organizations": {
@@ -643,17 +619,11 @@
                     "organizations": {
                         "type": "array",
                         "description": "List of organizations"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["organizations", "result"]
+                "required": [
+                    "organizations"
+                ]
             }
         },
         "delete_organization": {
@@ -667,21 +637,14 @@
                         "description": "The ID of the organization to delete"
                     }
                 },
-                "required": ["org_id"]
+                "required": [
+                    "org_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["result"]
+                "properties": {},
+                "required": []
             }
         },
         "create_activity": {
@@ -733,10 +696,16 @@
                     "done": {
                         "type": "integer",
                         "description": "Whether the activity is done (0 = not done, 1 = done)",
-                        "enum": [0, 1]
+                        "enum": [
+                            0,
+                            1
+                        ]
                     }
                 },
-                "required": ["subject", "type"]
+                "required": [
+                    "subject",
+                    "type"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -744,17 +713,11 @@
                     "activity": {
                         "type": "object",
                         "description": "Created activity details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["activity", "result"]
+                "required": [
+                    "activity"
+                ]
             }
         },
         "get_activity": {
@@ -768,7 +731,9 @@
                         "description": "The ID of the activity to retrieve"
                     }
                 },
-                "required": ["activity_id"]
+                "required": [
+                    "activity_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -776,17 +741,11 @@
                     "activity": {
                         "type": "object",
                         "description": "Activity details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["activity", "result"]
+                "required": [
+                    "activity"
+                ]
             }
         },
         "update_activity": {
@@ -822,14 +781,19 @@
                     "done": {
                         "type": "integer",
                         "description": "Mark as done (0 or 1)",
-                        "enum": [0, 1]
+                        "enum": [
+                            0,
+                            1
+                        ]
                     },
                     "note": {
                         "type": "string",
                         "description": "Updated note"
                     }
                 },
-                "required": ["activity_id"]
+                "required": [
+                    "activity_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -837,17 +801,11 @@
                     "activity": {
                         "type": "object",
                         "description": "Updated activity details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["activity", "result"]
+                "required": [
+                    "activity"
+                ]
             }
         },
         "list_activities": {
@@ -900,17 +858,11 @@
                     "activities": {
                         "type": "array",
                         "description": "List of activities"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["activities", "result"]
+                "required": [
+                    "activities"
+                ]
             }
         },
         "delete_activity": {
@@ -924,21 +876,14 @@
                         "description": "The ID of the activity to delete"
                     }
                 },
-                "required": ["activity_id"]
+                "required": [
+                    "activity_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
-                "properties": {
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
-                    }
-                },
-                "required": ["result"]
+                "properties": {},
+                "required": []
             }
         },
         "create_note": {
@@ -964,7 +909,9 @@
                         "description": "ID of the organization to attach note to"
                     }
                 },
-                "required": ["content"]
+                "required": [
+                    "content"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -972,17 +919,11 @@
                     "note": {
                         "type": "object",
                         "description": "Created note details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["note", "result"]
+                "required": [
+                    "note"
+                ]
             }
         },
         "list_notes": {
@@ -1023,17 +964,11 @@
                     "notes": {
                         "type": "array",
                         "description": "List of notes"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["notes", "result"]
+                "required": [
+                    "notes"
+                ]
             }
         },
         "list_pipelines": {
@@ -1050,17 +985,11 @@
                     "pipelines": {
                         "type": "array",
                         "description": "List of pipelines"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["pipelines", "result"]
+                "required": [
+                    "pipelines"
+                ]
             }
         },
         "get_pipeline": {
@@ -1074,7 +1003,9 @@
                         "description": "The ID of the pipeline to retrieve"
                     }
                 },
-                "required": ["pipeline_id"]
+                "required": [
+                    "pipeline_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1082,17 +1013,11 @@
                     "pipeline": {
                         "type": "object",
                         "description": "Pipeline details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["pipeline", "result"]
+                "required": [
+                    "pipeline"
+                ]
             }
         },
         "list_stages": {
@@ -1114,17 +1039,11 @@
                     "stages": {
                         "type": "array",
                         "description": "List of stages"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["stages", "result"]
+                "required": [
+                    "stages"
+                ]
             }
         },
         "search": {
@@ -1142,7 +1061,12 @@
                         "description": "Item types to search in (deal, person, organization, product)",
                         "items": {
                             "type": "string",
-                            "enum": ["deal", "person", "organization", "product"]
+                            "enum": [
+                                "deal",
+                                "person",
+                                "organization",
+                                "product"
+                            ]
                         }
                     },
                     "fields": {
@@ -1168,7 +1092,9 @@
                         "maximum": 500
                     }
                 },
-                "required": ["term"]
+                "required": [
+                    "term"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1176,17 +1102,11 @@
                     "items": {
                         "type": "array",
                         "description": "Search results"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["items", "result"]
+                "required": [
+                    "items"
+                ]
             }
         }
     }
