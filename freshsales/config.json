@@ -51,6 +51,130 @@
                 },
                 "required": ["views"]
             }
+        },
+        "create_contact": {
+            "display_name": "Create Contact",
+            "description": "Create a new contact. Freshsales requires first_name or last_name, plus email or mobile_number.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first_name": {"type": "string", "description": "First name"},
+                    "last_name": {"type": "string", "description": "Last name"},
+                    "email": {"type": "string", "description": "Primary email address"},
+                    "mobile_number": {"type": "string", "description": "Mobile phone number"},
+                    "work_number": {"type": "string", "description": "Work phone number"},
+                    "job_title": {"type": "string", "description": "Job title"},
+                    "address": {"type": "string", "description": "Street address"},
+                    "city": {"type": "string", "description": "City"},
+                    "state": {"type": "string", "description": "State"},
+                    "zipcode": {"type": "string", "description": "Zip code"},
+                    "country": {"type": "string", "description": "Country"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the contact"},
+                    "sales_account_id": {"type": "integer", "description": "ID of the account to associate with"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "lead_source_id": {"type": "integer", "description": "ID of the lead source"},
+                    "medium": {"type": "string", "description": "Marketing medium the contact came from"},
+                    "keyword": {"type": "string", "description": "Keywords for the contact"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"contact": {"type": "object", "description": "The created contact record"}},
+                "required": ["contact"]
+            }
+        },
+        "get_contact": {
+            "display_name": "Get Contact",
+            "description": "Retrieve a contact by ID, optionally embedding related records.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "contact_id": {"type": "integer", "description": "Contact ID"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner,sales_accounts,deals,tasks,appointments,notes)"}
+                },
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"contact": {"type": "object", "description": "The contact record"}},
+                "required": ["contact"]
+            }
+        },
+        "update_contact": {
+            "display_name": "Update Contact",
+            "description": "Update fields on an existing contact. Only provided fields are changed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "contact_id": {"type": "integer", "description": "Contact ID"},
+                    "first_name": {"type": "string", "description": "First name"},
+                    "last_name": {"type": "string", "description": "Last name"},
+                    "email": {"type": "string", "description": "Primary email address"},
+                    "mobile_number": {"type": "string", "description": "Mobile phone number"},
+                    "work_number": {"type": "string", "description": "Work phone number"},
+                    "job_title": {"type": "string", "description": "Job title"},
+                    "address": {"type": "string", "description": "Street address"},
+                    "city": {"type": "string", "description": "City"},
+                    "state": {"type": "string", "description": "State"},
+                    "zipcode": {"type": "string", "description": "Zip code"},
+                    "country": {"type": "string", "description": "Country"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the contact"},
+                    "sales_account_id": {"type": "integer", "description": "ID of the account to associate with"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "lead_source_id": {"type": "integer", "description": "ID of the lead source"},
+                    "medium": {"type": "string", "description": "Marketing medium the contact came from"},
+                    "keyword": {"type": "string", "description": "Keywords for the contact"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"contact": {"type": "object", "description": "The updated contact record"}},
+                "required": ["contact"]
+            }
+        },
+        "delete_contact": {
+            "display_name": "Delete Contact",
+            "description": "Delete a contact by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"contact_id": {"type": "integer", "description": "Contact ID"}},
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "contact_id": {"type": "integer", "description": "ID of the deleted contact"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_contacts": {
+            "display_name": "List Contacts",
+            "description": "List contacts from a view. Omit view_id to use the 'All Contacts' view automatically (use list_views to discover other views). Returns 25 records per page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "view_id": {"type": "integer", "description": "View (filter) ID to list from; omit for the default 'All Contacts' view"},
+                    "page": {"type": "integer", "minimum": 1, "description": "Page number (default 1)"},
+                    "sort": {"type": "string", "description": "Field to sort by (e.g. created_at, updated_at)"},
+                    "sort_type": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner,sales_accounts)"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "contacts": {"type": "array", "items": {"type": "object"}, "description": "Contacts in the view page"},
+                    "meta": {"type": "object", "description": "Pagination metadata (total, total_pages)"}
+                },
+                "required": ["contacts"]
+            }
         }
     }
 }
