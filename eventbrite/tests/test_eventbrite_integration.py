@@ -25,7 +25,7 @@ import aiohttp
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 
-from autohive_integrations_sdk import FetchResponse, ResultType
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
 from eventbrite.eventbrite import eventbrite
 
 pytestmark = pytest.mark.integration
@@ -62,6 +62,15 @@ def live_context():
                     data = await resp.json(content_type=None)
                 except Exception:
                     data = await resp.text()
+
+                # Mimic ExecutionContext.fetch() error semantics so actions reach
+                # their except blocks and return ActionError as they would in prod.
+                if resp.status == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 60))
+                    raise RateLimitError(retry_after, resp.status, str(data), data)
+                if resp.status < 200 or resp.status >= 300:
+                    raise HTTPError(resp.status, str(data), data)
+
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     ctx = MagicMock(name="ExecutionContext")
