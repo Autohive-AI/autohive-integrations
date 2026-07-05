@@ -119,8 +119,7 @@ Create `freshsales/config.json` (auth + the first action; later tasks add keys t
                     "label": "Bundle Alias",
                     "help_text": "Your Freshworks bundle alias — the 'yourcompany' in yourcompany.myfreshworks.com"
                 }
-            },
-            "required": ["api_key", "bundle_alias"]
+            }
         }
     },
     "actions": {
