@@ -59,11 +59,11 @@ class ListProjectsAction(ActionHandler):
         try:
             params = {}
             if inputs.get("owned") is not None:
-                params["owned"] = inputs.get("owned")
+                params["owned"] = "true" if inputs.get("owned") else "false"
             if inputs.get("membership") is not None:
-                params["membership"] = inputs.get("membership")
+                params["membership"] = "true" if inputs.get("membership") else "false"
             if inputs.get("starred") is not None:
-                params["starred"] = inputs.get("starred")
+                params["starred"] = "true" if inputs.get("starred") else "false"
             if inputs.get("search") is not None:
                 params["search"] = inputs.get("search")
             if inputs.get("visibility") is not None:
@@ -411,11 +411,11 @@ class ListCommitsAction(ActionHandler):
             if inputs.get("author") is not None:
                 params["author"] = inputs.get("author")
             if inputs.get("all") is not None:
-                params["all"] = inputs.get("all")
+                params["all"] = "true" if inputs.get("all") else "false"
             if inputs.get("with_stats") is not None:
-                params["with_stats"] = inputs.get("with_stats")
+                params["with_stats"] = "true" if inputs.get("with_stats") else "false"
             if inputs.get("first_parent") is not None:
-                params["first_parent"] = inputs.get("first_parent")
+                params["first_parent"] = "true" if inputs.get("first_parent") else "false"
             if inputs.get("per_page") is not None:
                 params["per_page"] = inputs.get("per_page")
             if inputs.get("page") is not None:
@@ -571,7 +571,7 @@ class ListPipelineJobsAction(ActionHandler):
             if inputs.get("scope") is not None:
                 params["scope"] = inputs.get("scope")
             if inputs.get("include_retried") is not None:
-                params["include_retried"] = inputs.get("include_retried")
+                params["include_retried"] = "true" if inputs.get("include_retried") else "false"
             if inputs.get("per_page") is not None:
                 params["per_page"] = inputs.get("per_page")
             if inputs.get("page") is not None:
@@ -608,7 +608,7 @@ class ListRepositoryTreeAction(ActionHandler):
             if inputs.get("ref") is not None:
                 params["ref"] = inputs.get("ref")
             if inputs.get("recursive") is not None:
-                params["recursive"] = inputs.get("recursive")
+                params["recursive"] = "true" if inputs.get("recursive") else "false"
             if inputs.get("per_page") is not None:
                 params["per_page"] = inputs.get("per_page")
             if inputs.get("page") is not None:
@@ -718,9 +718,9 @@ class ListContainerRegistryRepositoriesAction(ActionHandler):
 
             params = {}
             if inputs.get("tags") is not None:
-                params["tags"] = inputs.get("tags")
+                params["tags"] = "true" if inputs.get("tags") else "false"
             if inputs.get("tags_count") is not None:
-                params["tags_count"] = inputs.get("tags_count")
+                params["tags_count"] = "true" if inputs.get("tags_count") else "false"
             if inputs.get("per_page") is not None:
                 params["per_page"] = inputs.get("per_page")
             if inputs.get("page") is not None:
@@ -751,9 +751,9 @@ class GetContainerRegistryRepositoryAction(ActionHandler):
 
             params = {}
             if inputs.get("tags") is not None:
-                params["tags"] = inputs.get("tags")
+                params["tags"] = "true" if inputs.get("tags") else "false"
             if inputs.get("tags_count") is not None:
-                params["tags_count"] = inputs.get("tags_count")
+                params["tags_count"] = "true" if inputs.get("tags_count") else "false"
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/registry/repositories/{repository_id}",
