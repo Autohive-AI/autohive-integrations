@@ -271,8 +271,15 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {},
-                "required": []
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "Whether the item was deleted"
+                    }
+                },
+                "required": [
+                    "deleted"
+                ]
             }
         },
         "create_person": {
@@ -465,8 +472,15 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {},
-                "required": []
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "Whether the item was deleted"
+                    }
+                },
+                "required": [
+                    "deleted"
+                ]
             }
         },
         "create_organization": {
@@ -643,8 +657,15 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {},
-                "required": []
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "Whether the item was deleted"
+                    }
+                },
+                "required": [
+                    "deleted"
+                ]
             }
         },
         "create_activity": {
@@ -882,8 +903,15 @@
             },
             "output_schema": {
                 "type": "object",
-                "properties": {},
-                "required": []
+                "properties": {
+                    "deleted": {
+                        "type": "boolean",
+                        "description": "Whether the item was deleted"
+                    }
+                },
+                "required": [
+                    "deleted"
+                ]
             }
         },
         "create_note": {
