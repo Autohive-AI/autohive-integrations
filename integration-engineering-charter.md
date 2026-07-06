@@ -58,6 +58,6 @@ Documentation should describe the integration as shipped, not as imagined future
 
 ### 8. We self-review before asking others to review
 
-Opening a PR is a request for another person's time and judgment. Authors should review their own diff first, remove low-quality artifacts, run local validation, check tests, and ensure the PR is focused.
+Opening a PR is a request for another person's time and judgment. Authors should review their own diff first, run the review skill, remove low-quality artifacts, run local validation, check tests, and ensure the PR is focused.
 
 Reviewers should not be the first people to discover obvious AI boilerplate, unused code, missing tests, hallucinated endpoints, excessive scopes, or unverified behavior.
