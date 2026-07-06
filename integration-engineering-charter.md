@@ -40,7 +40,7 @@ We avoid unnecessary abstractions, complicated cleverness, dead code, broad exce
 
 ### 5. We treat auth and permissions as security decisions
 
-Scopes, permissions, credentials, files, and user data require care. Integrations should request the minimum access needed for the implemented actions.
+Scopes, permissions, credentials, files, and user data require care. Integrations should request the correct access needed for the implemented actions.
 
 Secrets must never be committed. Test data must be safe. Provider responses should not leak credentials or sensitive data through logs, errors, or outputs.
 
