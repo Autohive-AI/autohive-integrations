@@ -1,4 +1,10 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
+from autohive_integrations_sdk import (
+    Integration,
+    ExecutionContext,
+    ActionHandler,
+    ActionResult,
+    ActionError,
+)
 from typing import Dict, Any, Tuple, Optional
 import io
 import re
@@ -350,7 +356,7 @@ class ListDocuments(ActionHandler):
             response = await context.fetch(url, method="GET", params=params)
 
             documents = []
-            for item in response.get("value", []):
+            for item in response.data.get("value", []):
                 if item.get("name", "").lower().endswith(".docx"):
                     documents.append(
                         {
@@ -363,15 +369,16 @@ class ListDocuments(ActionHandler):
                         }
                     )
 
-            next_link = response.get("@odata.nextLink")
+            next_link = response.data.get("@odata.nextLink")
 
-            return ActionResult(
-                data={"documents": documents, "next_page_token": next_link if next_link else None, "result": True},
-                cost_usd=0.0,
-            )
+            result_data = {"documents": documents}
+            if next_link:
+                result_data["next_page_token"] = next_link
+
+            return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"documents": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_word.action("word_get_document")
@@ -390,12 +397,12 @@ class GetDocument(ActionHandler):
                 )
             }
 
-            document = await context.fetch(url, method="GET", params=params)
+            response = await context.fetch(url, method="GET", params=params)
 
-            return ActionResult(data={"document": document, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"document": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_word.action("word_get_content")
@@ -415,17 +422,16 @@ class GetContent(ActionHandler):
             if include_metadata:
                 content_task = context.fetch(content_url, method="GET")
                 meta_task = context.fetch(meta_url, method="GET")
-                response, metadata = await asyncio.gather(content_task, meta_task)
+                content_response, meta_response = await asyncio.gather(content_task, meta_task)
+                metadata = meta_response.data
             else:
-                response = await context.fetch(content_url, method="GET")
+                content_response = await context.fetch(content_url, method="GET")
                 metadata = None
 
-            if not isinstance(response, bytes):
-                return ActionResult(
-                    data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
-                )
+            if not isinstance(content_response.data, bytes):
+                return ActionError(message="Failed to download document content")
 
-            docx_bytes = response
+            docx_bytes = content_response.data
 
             parsed = parse_docx_content(docx_bytes)
 
@@ -446,11 +452,10 @@ class GetContent(ActionHandler):
             if metadata is not None:
                 result_data["metadata"] = metadata
 
-            result_data["result"] = True
             return ActionResult(data=result_data, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_word.action("word_create_document")
@@ -472,10 +477,10 @@ class CreateDocument(ActionHandler):
                     folder_path = folder_path.strip("/")
                     encoded_path = urllib.parse.quote(folder_path)
                     folder_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_path}"
-                    folder_info = await context.fetch(folder_url, method="GET")
+                    folder_response = await context.fetch(folder_url, method="GET")
                     copy_body["parentReference"] = {
-                        "driveId": folder_info.get("parentReference", {}).get("driveId"),
-                        "id": folder_info.get("id"),
+                        "driveId": folder_response.data.get("parentReference", {}).get("driveId"),
+                        "id": folder_response.data.get("id"),
                     }
 
                 await context.fetch(copy_url, method="POST", json=copy_body)
@@ -484,14 +489,13 @@ class CreateDocument(ActionHandler):
                 new_doc = await _wait_for_copy(context, name, folder_path)
 
                 if new_doc is None:
-                    return ActionResult(data={"result": False, "error": "Copy operation timed out"}, cost_usd=0.0)
+                    return ActionError(message="Copy operation timed out")
 
                 return ActionResult(
                     data={
                         "document_id": new_doc.get("id"),
                         "name": new_doc.get("name"),
                         "webUrl": new_doc.get("webUrl"),
-                        "result": True,
                     },
                     cost_usd=0.0,
                 )
@@ -514,16 +518,15 @@ class CreateDocument(ActionHandler):
 
                 return ActionResult(
                     data={
-                        "document_id": response.get("id"),
-                        "name": response.get("name"),
-                        "webUrl": response.get("webUrl"),
-                        "result": True,
+                        "document_id": response.data.get("id"),
+                        "name": response.data.get("name"),
+                        "webUrl": response.data.get("webUrl"),
                     },
                     cost_usd=0.0,
                 )
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 async def _wait_for_copy(
@@ -544,7 +547,8 @@ async def _wait_for_copy(
             else:
                 check_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_name}"
 
-            return await context.fetch(check_url, method="GET")
+            response = await context.fetch(check_url, method="GET")
+            return response.data
         except Exception:
             await asyncio.sleep(delay)
             delay = min(delay * 1.5, 5.0)  # Cap at 5 seconds
@@ -564,14 +568,12 @@ class UpdateContent(ActionHandler):
 
             if preserve_formatting:
                 content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-                existing_bytes = await context.fetch(content_url, method="GET")
+                existing_response = await context.fetch(content_url, method="GET")
 
-                if not isinstance(existing_bytes, bytes):
-                    return ActionResult(
-                        data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
-                    )
+                if not isinstance(existing_response.data, bytes):
+                    return ActionError(message="Failed to download document content")
 
-                docx_bytes, _ = modify_docx_content(existing_bytes, {"replace_all": content})
+                docx_bytes, _ = modify_docx_content(existing_response.data, {"replace_all": content})
             else:
                 docx_bytes = create_docx_from_text(content)
 
@@ -581,12 +583,12 @@ class UpdateContent(ActionHandler):
             await context.fetch(upload_url, method="PUT", headers=headers, data=docx_bytes)
 
             return ActionResult(
-                data={"updated": True, "document_id": document_id, "word_count": count_words(content), "result": True},
+                data={"updated": True, "document_id": document_id, "word_count": count_words(content)},
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_word.action("word_insert_text")
@@ -605,19 +607,15 @@ class InsertText(ActionHandler):
             paragraph_index = inputs.get("paragraph_index", 0)
 
             if location in ("after_paragraph", "before_paragraph") and paragraph_index < 0:
-                return ActionResult(
-                    data={"result": False, "error": "paragraph_index must be non-negative"}, cost_usd=0.0
-                )
+                return ActionError(message="paragraph_index must be non-negative")
 
             content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-            existing_bytes = await context.fetch(content_url, method="GET")
+            existing_response = await context.fetch(content_url, method="GET")
 
-            if not isinstance(existing_bytes, bytes):
-                return ActionResult(
-                    data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
-                )
+            if not isinstance(existing_response.data, bytes):
+                return ActionError(message="Failed to download document content")
 
-            parsed = parse_docx_content(existing_bytes)
+            parsed = parse_docx_content(existing_response.data)
             paragraphs = parsed["paragraphs"]
 
             texts = [p["text"] for p in paragraphs]
@@ -637,7 +635,7 @@ class InsertText(ActionHandler):
                 else:
                     texts.insert(paragraph_index, text)
             else:
-                return ActionResult(data={"result": False, "error": f"Invalid location: {location}"}, cost_usd=0.0)
+                return ActionError(message=f"Invalid location: {location}")
 
             new_content = "\n".join(texts)
             docx_bytes = create_docx_from_text(new_content)
@@ -647,10 +645,10 @@ class InsertText(ActionHandler):
 
             await context.fetch(upload_url, method="PUT", headers=headers, data=docx_bytes)
 
-            return ActionResult(data={"inserted": True, "document_id": document_id, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"inserted": True, "document_id": document_id}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_word.action("word_get_paragraphs")
@@ -665,17 +663,15 @@ class GetParagraphs(ActionHandler):
             include_formatting = inputs.get("include_formatting", False)
 
             if start_index < 0:
-                return ActionResult(data={"result": False, "error": "start_index must be non-negative"}, cost_usd=0.0)
+                return ActionError(message="start_index must be non-negative")
 
             content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-            docx_bytes = await context.fetch(content_url, method="GET")
+            response = await context.fetch(content_url, method="GET")
 
-            if not isinstance(docx_bytes, bytes):
-                return ActionResult(
-                    data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
-                )
+            if not isinstance(response.data, bytes):
+                return ActionError(message="Failed to download document content")
 
-            parsed = parse_docx_content(docx_bytes)
+            parsed = parse_docx_content(response.data)
             paragraphs = parsed["paragraphs"]
 
             if start_index > 0:
@@ -687,12 +683,10 @@ class GetParagraphs(ActionHandler):
             if not include_formatting:
                 paragraphs = [{"index": p["index"], "text": p["text"], "style": p["style"]} for p in paragraphs]
 
-            return ActionResult(
-                data={"paragraphs": paragraphs, "total_count": parsed["paragraph_count"], "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"paragraphs": paragraphs, "total_count": parsed["paragraph_count"]}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_word.action("word_search_replace")
@@ -709,15 +703,15 @@ class SearchReplace(ActionHandler):
             replace_all = inputs.get("replace_all", True)
 
             if not search_text:
-                return ActionResult(data={"result": False, "error": "search_text cannot be empty"}, cost_usd=0.0)
+                return ActionError(message="search_text cannot be empty")
 
             content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-            docx_bytes = await context.fetch(content_url, method="GET")
+            response = await context.fetch(content_url, method="GET")
 
-            if not isinstance(docx_bytes, bytes):
-                return ActionResult(
-                    data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
-                )
+            if not isinstance(response.data, bytes):
+                return ActionError(message="Failed to download document content")
+
+            docx_bytes = response.data
 
             # For match_whole_word, we need to handle it differently
             # since modify_docx_content doesn't support word boundaries
@@ -729,7 +723,7 @@ class SearchReplace(ActionHandler):
 
                 if count_before == 0:
                     return ActionResult(
-                        data={"replaced": False, "replacement_count": 0, "document_id": document_id, "result": True},
+                        data={"replaced": False, "replacement_count": 0, "document_id": document_id},
                         cost_usd=0.0,
                     )
 
@@ -747,7 +741,7 @@ class SearchReplace(ActionHandler):
 
             if replacement_count == 0:
                 return ActionResult(
-                    data={"replaced": False, "replacement_count": 0, "document_id": document_id, "result": True},
+                    data={"replaced": False, "replacement_count": 0, "document_id": document_id},
                     cost_usd=0.0,
                 )
 
@@ -761,13 +755,12 @@ class SearchReplace(ActionHandler):
                     "replaced": replacement_count > 0,
                     "replacement_count": replacement_count,
                     "document_id": document_id,
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_word.action("word_export_pdf")
@@ -785,15 +778,15 @@ class ExportPdf(ActionHandler):
 
             pdf_response = await context.fetch(pdf_url, method="GET")
 
-            if not isinstance(pdf_response, bytes):
-                return ActionResult(data={"result": False, "error": "Failed to convert document to PDF"}, cost_usd=0.0)
+            if not isinstance(pdf_response.data, bytes):
+                return ActionError(message="Failed to convert document to PDF")
 
-            pdf_bytes = pdf_response
+            pdf_bytes = pdf_response.data
 
             if save_to_drive:
                 if not output_name:
-                    doc_info = await context.fetch(f"{GRAPH_API_BASE}/me/drive/items/{document_id}", method="GET")
-                    original_name = doc_info.get("name", "document.docx")
+                    doc_response = await context.fetch(f"{GRAPH_API_BASE}/me/drive/items/{document_id}", method="GET")
+                    original_name = doc_response.data.get("name", "document.docx")
                     output_name = original_name.rsplit(".", 1)[0] + ".pdf"
 
                 if not output_name.lower().endswith(".pdf"):
@@ -814,10 +807,9 @@ class ExportPdf(ActionHandler):
 
                 return ActionResult(
                     data={
-                        "pdf_url": uploaded.get("webUrl"),
-                        "pdf_id": uploaded.get("id"),
-                        "size": uploaded.get("size"),
-                        "result": True,
+                        "pdf_url": uploaded.data.get("webUrl"),
+                        "pdf_id": uploaded.data.get("id"),
+                        "size": uploaded.data.get("size"),
                     },
                     cost_usd=0.0,
                 )
@@ -832,21 +824,17 @@ class ExportPdf(ActionHandler):
                     "pdf_size": len(pdf_bytes),
                     "content_type": "application/pdf",
                     "encoding": "base64",
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @microsoft_word.action("word_get_tables")
 class GetTables(ActionHandler):
-    """Extract tables from a Word document.
-
-    Note: include_formatting is currently not implemented and will be ignored.
-    """
+    """Extract tables from a Word document."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
@@ -854,14 +842,12 @@ class GetTables(ActionHandler):
             table_index = inputs.get("table_index")
 
             content_url = f"{GRAPH_API_BASE}/me/drive/items/{document_id}/content"
-            docx_bytes = await context.fetch(content_url, method="GET")
+            response = await context.fetch(content_url, method="GET")
 
-            if not isinstance(docx_bytes, bytes):
-                return ActionResult(
-                    data={"result": False, "error": "Failed to download document content"}, cost_usd=0.0
-                )
+            if not isinstance(response.data, bytes):
+                return ActionError(message="Failed to download document content")
 
-            parsed = parse_docx_content(docx_bytes)
+            parsed = parse_docx_content(response.data)
             tables = parsed["tables"]
 
             if table_index is not None:
@@ -871,15 +857,12 @@ class GetTables(ActionHandler):
                             "tables": [],
                             "table_count": len(tables),
                             "warning": f"Table index {table_index} out of range (0-{len(tables) - 1})",
-                            "result": True,
                         },
                         cost_usd=0.0,
                     )
                 tables = [tables[table_index]]
 
-            return ActionResult(
-                data={"tables": tables, "table_count": len(parsed["tables"]), "result": True}, cost_usd=0.0
-            )
+            return ActionResult(data={"tables": tables, "table_count": len(parsed["tables"])}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
