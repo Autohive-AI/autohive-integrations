@@ -21,4 +21,6 @@ Reviewers are expected to hold integration PRs to this charter.
 
 A PR may be sent back even if CI passes when the author has not demonstrated API understanding, intentional scope, safe permissions, meaningful tests, maintainable Python, or adequate self-review.
 
-The goal is not to slow down integration development. The goal is to avoid shipping code we do not understand, cannot maintain, or cannot safely stand behind.
+The goal is not to slow down integration development. The goal is to decrease time to develop and maintenance by avoiding shipping code we do not understand, cannot maintain long term, or cannot safely stand behind.
+
+If you are unsure about anything on the above to help you move forward in the integration, reach out to a peer to get clarity
