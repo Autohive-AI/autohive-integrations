@@ -79,6 +79,12 @@ async def test_list_tasks(live_context):
     assert isinstance(result.result.data["tasks"], list)
 
 
+async def test_list_appointments(live_context):
+    result = await freshsales.execute_action("list_appointments", {"filter": "open"}, live_context)
+    assert result.type == ResultType.ACTION
+    assert isinstance(result.result.data["appointments"], list)
+
+
 async def test_search(live_context):
     result = await freshsales.execute_action("search", {"query": "a"}, live_context)
     assert result.type == ResultType.ACTION

@@ -28,7 +28,7 @@ limits are per account per hour and vary by plan; exceeding them returns HTTP 42
 | `create_account` / `get_account` / `update_account` / `delete_account` / `list_accounts` | Sales account (organization) CRUD |
 | `create_deal` / `get_deal` / `update_deal` / `delete_deal` / `list_deals` | Deal CRUD with pipeline/stage support |
 | `create_task` / `get_task` / `update_task` / `delete_task` / `list_tasks` | Task CRUD; list filters by open/due_today/due_tomorrow/overdue/completed; set `status: 1` to complete |
-| `create_appointment` / `get_appointment` / `update_appointment` / `delete_appointment` / `list_appointments` | Appointment CRUD; list filters by past/upcoming |
+| `create_appointment` / `get_appointment` / `update_appointment` / `delete_appointment` / `list_appointments` | Appointment CRUD; list filters by open/completed |
 | `create_note` / `update_note` / `delete_note` | Attach notes to contacts, accounts, or deals |
 | `list_views` | Discover list views (filters) for contacts, accounts, or deals |
 | `search` | Global search across contacts, accounts, and deals |

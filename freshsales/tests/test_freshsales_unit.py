@@ -830,9 +830,9 @@ class TestListAppointments:
     async def test_explicit_filter(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"appointments": []})
 
-        await freshsales.execute_action("list_appointments", {"filter": "upcoming"}, mock_context)
+        await freshsales.execute_action("list_appointments", {"filter": "open"}, mock_context)
 
-        assert mock_context.fetch.call_args.kwargs["params"] == {"filter": "upcoming"}
+        assert mock_context.fetch.call_args.kwargs["params"] == {"filter": "open"}
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):

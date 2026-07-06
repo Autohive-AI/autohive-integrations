@@ -591,11 +591,11 @@
         },
         "list_appointments": {
             "display_name": "List Appointments",
-            "description": "List appointments, optionally filtered to past or upcoming.",
+            "description": "List appointments, optionally filtered by status (open or completed).",
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "filter": {"type": "string", "enum": ["past", "upcoming"], "description": "Time-based filter; omit for all appointments"}
+                    "filter": {"type": "string", "enum": ["open", "completed"], "description": "Status filter: 'open' for upcoming/incomplete, 'completed' for finished appointments; omit for all"}
                 },
                 "required": []
             },
