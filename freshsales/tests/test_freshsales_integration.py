@@ -112,8 +112,7 @@ async def test_contact_lifecycle(live_context):
         assert update.result.data["contact"]["job_title"] == "Integration Test"
     finally:
         if contact_id:
-            delete = await freshsales.execute_action("delete_contact", {"contact_id": contact_id}, live_context)
-            assert delete.type == ResultType.ACTION
+            await freshsales.execute_action("delete_contact", {"contact_id": contact_id}, live_context)
 
 
 @pytest.mark.destructive

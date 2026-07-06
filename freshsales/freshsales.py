@@ -175,7 +175,9 @@ class ListContactsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            view_id = inputs.get("view_id") or await resolve_view_id(context, "contacts")
+            view_id = inputs.get("view_id")
+            if view_id is None:
+                view_id = await resolve_view_id(context, "contacts")
             params = {"page": inputs.get("page", 1)}
             for param in ("sort", "sort_type", "include"):
                 if inputs.get(param):
@@ -291,7 +293,9 @@ class ListAccountsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            view_id = inputs.get("view_id") or await resolve_view_id(context, "sales_accounts")
+            view_id = inputs.get("view_id")
+            if view_id is None:
+                view_id = await resolve_view_id(context, "sales_accounts")
             params = {"page": inputs.get("page", 1)}
             for param in ("sort", "sort_type", "include"):
                 if inputs.get(param):
@@ -398,7 +402,9 @@ class ListDealsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            view_id = inputs.get("view_id") or await resolve_view_id(context, "deals")
+            view_id = inputs.get("view_id")
+            if view_id is None:
+                view_id = await resolve_view_id(context, "deals")
             params = {"page": inputs.get("page", 1)}
             for param in ("sort", "sort_type", "include"):
                 if inputs.get(param):

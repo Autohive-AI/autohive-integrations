@@ -293,6 +293,21 @@ class TestListContacts:
         assert result.type == ResultType.ACTION_ERROR
         assert "No list views available" in result.result.message
 
+    @pytest.mark.asyncio
+    async def test_falls_back_to_first_view_when_no_all_view(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"filters": [{"id": 7, "name": "My Contacts"}, {"id": 9, "name": "Hot leads"}]},
+            ),
+            FetchResponse(status=200, headers={}, data={"contacts": [], "meta": {}}),
+        ]
+
+        await freshsales.execute_action("list_contacts", {}, mock_context)
+
+        assert "/contacts/view/7" in mock_context.fetch.call_args_list[1].args[0]
+
 
 # ---- Account Tests ----
 
