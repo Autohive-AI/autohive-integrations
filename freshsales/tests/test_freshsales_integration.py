@@ -80,9 +80,15 @@ async def test_list_tasks(live_context):
 
 
 async def test_list_appointments(live_context):
-    result = await freshsales.execute_action("list_appointments", {"filter": "open"}, live_context)
-    assert result.type == ResultType.ACTION
-    assert isinstance(result.result.data["appointments"], list)
+    # No filter: the live API returns all appointments (the filter param is optional).
+    unfiltered = await freshsales.execute_action("list_appointments", {}, live_context)
+    assert unfiltered.type == ResultType.ACTION
+    assert isinstance(unfiltered.result.data["appointments"], list)
+
+    filtered = await freshsales.execute_action("list_appointments", {"filter": "open"}, live_context)
+    assert filtered.type == ResultType.ACTION
+    assert isinstance(filtered.result.data["appointments"], list)
+    assert len(filtered.result.data["appointments"]) <= len(unfiltered.result.data["appointments"])
 
 
 async def test_search(live_context):
