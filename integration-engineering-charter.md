@@ -42,7 +42,7 @@ We avoid unnecessary abstractions, complicated cleverness, dead code, broad exce
 
 Scopes, permissions, credentials, files, and user data require care. Integrations should request the correct access needed for the implemented actions.
 
-Secrets must never be committed. Test data must be safe. Provider responses should not leak credentials or sensitive data through logs, errors, or outputs.
+Secrets must never be committed in this repo. Test data must be safe. Provider responses should not leak credentials or sensitive data through logs, errors, or outputs.
 
 ### 6. We verify behavior, not just syntax
 
