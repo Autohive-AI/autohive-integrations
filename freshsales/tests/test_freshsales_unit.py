@@ -17,7 +17,6 @@ _spec.loader.exec_module(_mod)
 freshsales = _mod.freshsales  # the Integration instance
 get_auth_headers = _mod.get_auth_headers
 get_base_url = _mod.get_base_url
-build_body = _mod.build_body
 
 CONFIG_PATH = os.path.join(_parent, "config.json")
 
@@ -66,16 +65,6 @@ class TestGetBaseUrl:
     def test_domain_without_protocol(self, mock_context):
         mock_context.auth["credentials"]["bundle_alias"] = "testcompany.myfreshworks.com"
         assert get_base_url(mock_context) == "https://testcompany.myfreshworks.com/crm/sales/api"
-
-
-class TestBuildBody:
-    def test_includes_only_provided_fields(self):
-        body = build_body({"a": 1, "b": None, "d": "x"}, ("a", "b", "c"))
-        assert body == {"a": 1}
-
-    def test_keeps_falsy_but_not_none_values(self):
-        body = build_body({"a": 0, "b": ""}, ("a", "b"))
-        assert body == {"a": 0, "b": ""}
 
 
 # ---- List Views ----

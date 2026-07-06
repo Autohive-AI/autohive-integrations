@@ -34,11 +34,6 @@ def get_base_url(context: ExecutionContext) -> str:
     return f"https://{alias}.myfreshworks.com/crm/sales/api"
 
 
-def build_body(inputs: Dict[str, Any], fields: tuple) -> Dict[str, Any]:
-    """Collect the provided (non-None) input fields into a request body dict."""
-    return {field: inputs[field] for field in fields if inputs.get(field) is not None}
-
-
 async def resolve_view_id(context: ExecutionContext, resource: str) -> int:
     """
     Return the id of the default 'All ...' view for a resource.
@@ -77,35 +72,36 @@ class ListViewsAction(ActionHandler):
             return ActionError(message=str(e))
 
 
-CONTACT_FIELDS = (
-    "first_name",
-    "last_name",
-    "email",
-    "mobile_number",
-    "work_number",
-    "job_title",
-    "address",
-    "city",
-    "state",
-    "zipcode",
-    "country",
-    "owner_id",
-    "sales_account_id",
-    "territory_id",
-    "lead_source_id",
-    "medium",
-    "keyword",
-    "custom_field",
-)
-
-
 @freshsales.action("create_contact")
 class CreateContactAction(ActionHandler):
     """Create a new contact. Requires first_name or last_name plus email or mobile_number."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, CONTACT_FIELDS)
+            body = {
+                key: value
+                for key, value in {
+                    "first_name": inputs.get("first_name"),
+                    "last_name": inputs.get("last_name"),
+                    "email": inputs.get("email"),
+                    "mobile_number": inputs.get("mobile_number"),
+                    "work_number": inputs.get("work_number"),
+                    "job_title": inputs.get("job_title"),
+                    "address": inputs.get("address"),
+                    "city": inputs.get("city"),
+                    "state": inputs.get("state"),
+                    "zipcode": inputs.get("zipcode"),
+                    "country": inputs.get("country"),
+                    "owner_id": inputs.get("owner_id"),
+                    "sales_account_id": inputs.get("sales_account_id"),
+                    "territory_id": inputs.get("territory_id"),
+                    "lead_source_id": inputs.get("lead_source_id"),
+                    "medium": inputs.get("medium"),
+                    "keyword": inputs.get("keyword"),
+                    "custom_field": inputs.get("custom_field"),
+                }.items()
+                if value is not None
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -141,7 +137,30 @@ class UpdateContactAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, CONTACT_FIELDS)
+            body = {
+                key: value
+                for key, value in {
+                    "first_name": inputs.get("first_name"),
+                    "last_name": inputs.get("last_name"),
+                    "email": inputs.get("email"),
+                    "mobile_number": inputs.get("mobile_number"),
+                    "work_number": inputs.get("work_number"),
+                    "job_title": inputs.get("job_title"),
+                    "address": inputs.get("address"),
+                    "city": inputs.get("city"),
+                    "state": inputs.get("state"),
+                    "zipcode": inputs.get("zipcode"),
+                    "country": inputs.get("country"),
+                    "owner_id": inputs.get("owner_id"),
+                    "sales_account_id": inputs.get("sales_account_id"),
+                    "territory_id": inputs.get("territory_id"),
+                    "lead_source_id": inputs.get("lead_source_id"),
+                    "medium": inputs.get("medium"),
+                    "keyword": inputs.get("keyword"),
+                    "custom_field": inputs.get("custom_field"),
+                }.items()
+                if value is not None
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -179,9 +198,13 @@ class ListContactsAction(ActionHandler):
             if view_id is None:
                 view_id = await resolve_view_id(context, "contacts")
             params = {"page": inputs.get("page", 1)}
-            for param in ("sort", "sort_type", "include"):
-                if inputs.get(param):
-                    params[param] = inputs[param]
+            for param, value in {
+                "sort": inputs.get("sort"),
+                "sort_type": inputs.get("sort_type"),
+                "include": inputs.get("include"),
+            }.items():
+                if value:
+                    params[param] = value
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -194,33 +217,34 @@ class ListContactsAction(ActionHandler):
             return ActionError(message=str(e))
 
 
-ACCOUNT_FIELDS = (
-    "name",
-    "website",
-    "phone",
-    "address",
-    "city",
-    "state",
-    "zipcode",
-    "country",
-    "industry_type_id",
-    "business_type_id",
-    "number_of_employees",
-    "annual_revenue",
-    "owner_id",
-    "territory_id",
-    "parent_sales_account_id",
-    "custom_field",
-)
-
-
 @freshsales.action("create_account")
 class CreateAccountAction(ActionHandler):
     """Create a new sales account (organization)."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, ACCOUNT_FIELDS)
+            body = {
+                key: value
+                for key, value in {
+                    "name": inputs["name"],
+                    "website": inputs.get("website"),
+                    "phone": inputs.get("phone"),
+                    "address": inputs.get("address"),
+                    "city": inputs.get("city"),
+                    "state": inputs.get("state"),
+                    "zipcode": inputs.get("zipcode"),
+                    "country": inputs.get("country"),
+                    "industry_type_id": inputs.get("industry_type_id"),
+                    "business_type_id": inputs.get("business_type_id"),
+                    "number_of_employees": inputs.get("number_of_employees"),
+                    "annual_revenue": inputs.get("annual_revenue"),
+                    "owner_id": inputs.get("owner_id"),
+                    "territory_id": inputs.get("territory_id"),
+                    "parent_sales_account_id": inputs.get("parent_sales_account_id"),
+                    "custom_field": inputs.get("custom_field"),
+                }.items()
+                if value is not None
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -256,7 +280,28 @@ class UpdateAccountAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, ACCOUNT_FIELDS)
+            body = {
+                key: value
+                for key, value in {
+                    "name": inputs.get("name"),
+                    "website": inputs.get("website"),
+                    "phone": inputs.get("phone"),
+                    "address": inputs.get("address"),
+                    "city": inputs.get("city"),
+                    "state": inputs.get("state"),
+                    "zipcode": inputs.get("zipcode"),
+                    "country": inputs.get("country"),
+                    "industry_type_id": inputs.get("industry_type_id"),
+                    "business_type_id": inputs.get("business_type_id"),
+                    "number_of_employees": inputs.get("number_of_employees"),
+                    "annual_revenue": inputs.get("annual_revenue"),
+                    "owner_id": inputs.get("owner_id"),
+                    "territory_id": inputs.get("territory_id"),
+                    "parent_sales_account_id": inputs.get("parent_sales_account_id"),
+                    "custom_field": inputs.get("custom_field"),
+                }.items()
+                if value is not None
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -297,9 +342,13 @@ class ListAccountsAction(ActionHandler):
             if view_id is None:
                 view_id = await resolve_view_id(context, "sales_accounts")
             params = {"page": inputs.get("page", 1)}
-            for param in ("sort", "sort_type", "include"):
-                if inputs.get(param):
-                    params[param] = inputs[param]
+            for param, value in {
+                "sort": inputs.get("sort"),
+                "sort_type": inputs.get("sort_type"),
+                "include": inputs.get("include"),
+            }.items():
+                if value:
+                    params[param] = value
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -312,31 +361,32 @@ class ListAccountsAction(ActionHandler):
             return ActionError(message=str(e))
 
 
-DEAL_FIELDS = (
-    "name",
-    "amount",
-    "sales_account_id",
-    "deal_stage_id",
-    "deal_pipeline_id",
-    "deal_type_id",
-    "lead_source_id",
-    "owner_id",
-    "expected_close",
-    "probability",
-    "currency_id",
-    "territory_id",
-    "campaign_id",
-    "custom_field",
-)
-
-
 @freshsales.action("create_deal")
 class CreateDealAction(ActionHandler):
     """Create a new deal. Name and amount are required."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, DEAL_FIELDS)
+            body = {
+                key: value
+                for key, value in {
+                    "name": inputs["name"],
+                    "amount": inputs["amount"],
+                    "sales_account_id": inputs.get("sales_account_id"),
+                    "deal_stage_id": inputs.get("deal_stage_id"),
+                    "deal_pipeline_id": inputs.get("deal_pipeline_id"),
+                    "deal_type_id": inputs.get("deal_type_id"),
+                    "lead_source_id": inputs.get("lead_source_id"),
+                    "owner_id": inputs.get("owner_id"),
+                    "expected_close": inputs.get("expected_close"),
+                    "probability": inputs.get("probability"),
+                    "currency_id": inputs.get("currency_id"),
+                    "territory_id": inputs.get("territory_id"),
+                    "campaign_id": inputs.get("campaign_id"),
+                    "custom_field": inputs.get("custom_field"),
+                }.items()
+                if value is not None
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(f"{base_url}/deals", method="POST", headers=headers, json={"deal": body})
@@ -370,7 +420,26 @@ class UpdateDealAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, DEAL_FIELDS)
+            body = {
+                key: value
+                for key, value in {
+                    "name": inputs.get("name"),
+                    "amount": inputs.get("amount"),
+                    "sales_account_id": inputs.get("sales_account_id"),
+                    "deal_stage_id": inputs.get("deal_stage_id"),
+                    "deal_pipeline_id": inputs.get("deal_pipeline_id"),
+                    "deal_type_id": inputs.get("deal_type_id"),
+                    "lead_source_id": inputs.get("lead_source_id"),
+                    "owner_id": inputs.get("owner_id"),
+                    "expected_close": inputs.get("expected_close"),
+                    "probability": inputs.get("probability"),
+                    "currency_id": inputs.get("currency_id"),
+                    "territory_id": inputs.get("territory_id"),
+                    "campaign_id": inputs.get("campaign_id"),
+                    "custom_field": inputs.get("custom_field"),
+                }.items()
+                if value is not None
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -406,9 +475,13 @@ class ListDealsAction(ActionHandler):
             if view_id is None:
                 view_id = await resolve_view_id(context, "deals")
             params = {"page": inputs.get("page", 1)}
-            for param in ("sort", "sort_type", "include"):
-                if inputs.get(param):
-                    params[param] = inputs[param]
+            for param, value in {
+                "sort": inputs.get("sort"),
+                "sort_type": inputs.get("sort_type"),
+                "include": inputs.get("include"),
+            }.items():
+                if value:
+                    params[param] = value
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -419,16 +492,24 @@ class ListDealsAction(ActionHandler):
             return ActionError(message=str(e))
 
 
-TASK_FIELDS = ("title", "description", "due_date", "owner_id", "targetable_type", "targetable_id", "status")
-
-
 @freshsales.action("create_task")
 class CreateTaskAction(ActionHandler):
     """Create a task attached to a contact, sales account, or deal."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, TASK_FIELDS)
+            body = {
+                key: value
+                for key, value in {
+                    "title": inputs["title"],
+                    "description": inputs.get("description"),
+                    "due_date": inputs["due_date"],
+                    "owner_id": inputs.get("owner_id"),
+                    "targetable_type": inputs["targetable_type"],
+                    "targetable_id": inputs["targetable_id"],
+                }.items()
+                if value is not None
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(f"{base_url}/tasks", method="POST", headers=headers, json={"task": body})
@@ -457,7 +538,19 @@ class UpdateTaskAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, TASK_FIELDS)
+            body = {
+                key: value
+                for key, value in {
+                    "title": inputs.get("title"),
+                    "description": inputs.get("description"),
+                    "due_date": inputs.get("due_date"),
+                    "owner_id": inputs.get("owner_id"),
+                    "targetable_type": inputs.get("targetable_type"),
+                    "targetable_id": inputs.get("targetable_id"),
+                    "status": inputs.get("status"),
+                }.items()
+                if value is not None
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -498,26 +591,27 @@ class ListTasksAction(ActionHandler):
             return ActionError(message=str(e))
 
 
-APPOINTMENT_FIELDS = (
-    "title",
-    "description",
-    "from_date",
-    "end_date",
-    "time_zone",
-    "location",
-    "is_allday",
-    "targetable_type",
-    "targetable_id",
-)
-
-
 @freshsales.action("create_appointment")
 class CreateAppointmentAction(ActionHandler):
     """Schedule an appointment attached to a contact, sales account, or deal."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, APPOINTMENT_FIELDS)
+            body = {
+                key: value
+                for key, value in {
+                    "title": inputs["title"],
+                    "description": inputs.get("description"),
+                    "from_date": inputs["from_date"],
+                    "end_date": inputs["end_date"],
+                    "time_zone": inputs.get("time_zone"),
+                    "location": inputs.get("location"),
+                    "is_allday": inputs.get("is_allday"),
+                    "targetable_type": inputs["targetable_type"],
+                    "targetable_id": inputs["targetable_id"],
+                }.items()
+                if value is not None
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -550,7 +644,21 @@ class UpdateAppointmentAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, APPOINTMENT_FIELDS)
+            body = {
+                key: value
+                for key, value in {
+                    "title": inputs.get("title"),
+                    "description": inputs.get("description"),
+                    "from_date": inputs.get("from_date"),
+                    "end_date": inputs.get("end_date"),
+                    "time_zone": inputs.get("time_zone"),
+                    "location": inputs.get("location"),
+                    "is_allday": inputs.get("is_allday"),
+                    "targetable_type": inputs.get("targetable_type"),
+                    "targetable_id": inputs.get("targetable_id"),
+                }.items()
+                if value is not None
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(
@@ -600,16 +708,17 @@ class ListAppointmentsAction(ActionHandler):
             return ActionError(message=str(e))
 
 
-NOTE_FIELDS = ("description", "targetable_type", "targetable_id")
-
-
 @freshsales.action("create_note")
 class CreateNoteAction(ActionHandler):
     """Attach a note to a contact, sales account, or deal."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            body = build_body(inputs, NOTE_FIELDS)
+            body = {
+                "description": inputs["description"],
+                "targetable_type": inputs["targetable_type"],
+                "targetable_id": inputs["targetable_id"],
+            }
             headers = get_auth_headers(context)
             base_url = get_base_url(context)
             response = await context.fetch(f"{base_url}/notes", method="POST", headers=headers, json={"note": body})
