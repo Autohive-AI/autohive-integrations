@@ -3,7 +3,7 @@
 
 ## Preamble
 
-Autohive integrations connect our users' workflows to third-party systems they rely on. A poor integration does not only produce bad code; it can break customer workflows, mishandle data, request excessive permissions or create long-term maintenance burden for the team.
+Autohive integrations connect our users' workflows to third-party systems they rely on. A poor integration does not only produce bad code; it can break customer workflows, mishandle data, requesting permissions/scopes not used in the integration or create long-term maintenance burden for the team.
 
 AI-assisted development is a requirement, but authorship cannot be delegated to AI. The person opening the PR is responsible for understanding the provider API, the Autohive SDK, the implementation choices, the tests, the security implications, and the user experience.
 
