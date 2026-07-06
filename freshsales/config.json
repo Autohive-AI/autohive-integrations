@@ -508,6 +508,104 @@
                 },
                 "required": ["tasks"]
             }
+        },
+        "create_appointment": {
+            "display_name": "Create Appointment",
+            "description": "Schedule an appointment attached to a contact, account, or deal.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Appointment title"},
+                    "description": {"type": "string", "description": "Appointment description"},
+                    "from_date": {"type": "string", "description": "Start date-time (ISO 8601, e.g. 2026-07-10T10:00:00Z)"},
+                    "end_date": {"type": "string", "description": "End date-time (ISO 8601)"},
+                    "time_zone": {"type": "string", "description": "Time zone name (e.g. Pacific/Auckland)"},
+                    "location": {"type": "string", "description": "Location or meeting link"},
+                    "is_allday": {"type": "boolean", "description": "Whether this is an all-day appointment"},
+                    "targetable_type": {"type": "string", "enum": ["Contact", "SalesAccount", "Deal"], "description": "Type of record the appointment is attached to"},
+                    "targetable_id": {"type": "integer", "description": "ID of the record the appointment is attached to"}
+                },
+                "required": ["title", "from_date", "end_date", "targetable_type", "targetable_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"appointment": {"type": "object", "description": "The created appointment record"}},
+                "required": ["appointment"]
+            }
+        },
+        "get_appointment": {
+            "display_name": "Get Appointment",
+            "description": "Retrieve an appointment by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"appointment_id": {"type": "integer", "description": "Appointment ID"}},
+                "required": ["appointment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"appointment": {"type": "object", "description": "The appointment record"}},
+                "required": ["appointment"]
+            }
+        },
+        "update_appointment": {
+            "display_name": "Update Appointment",
+            "description": "Update fields on an existing appointment. Only provided fields are changed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "appointment_id": {"type": "integer", "description": "Appointment ID"},
+                    "title": {"type": "string", "description": "Appointment title"},
+                    "description": {"type": "string", "description": "Appointment description"},
+                    "from_date": {"type": "string", "description": "Start date-time (ISO 8601)"},
+                    "end_date": {"type": "string", "description": "End date-time (ISO 8601)"},
+                    "time_zone": {"type": "string", "description": "Time zone name"},
+                    "location": {"type": "string", "description": "Location or meeting link"},
+                    "is_allday": {"type": "boolean", "description": "Whether this is an all-day appointment"},
+                    "targetable_type": {"type": "string", "enum": ["Contact", "SalesAccount", "Deal"], "description": "Type of record the appointment is attached to"},
+                    "targetable_id": {"type": "integer", "description": "ID of the record the appointment is attached to"}
+                },
+                "required": ["appointment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"appointment": {"type": "object", "description": "The updated appointment record"}},
+                "required": ["appointment"]
+            }
+        },
+        "delete_appointment": {
+            "display_name": "Delete Appointment",
+            "description": "Delete an appointment by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"appointment_id": {"type": "integer", "description": "Appointment ID"}},
+                "required": ["appointment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "appointment_id": {"type": "integer", "description": "ID of the deleted appointment"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_appointments": {
+            "display_name": "List Appointments",
+            "description": "List appointments, optionally filtered to past or upcoming.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filter": {"type": "string", "enum": ["past", "upcoming"], "description": "Time-based filter; omit for all appointments"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "appointments": {"type": "array", "items": {"type": "object"}, "description": "Appointments matching the filter"}
+                },
+                "required": ["appointments"]
+            }
         }
     }
 }

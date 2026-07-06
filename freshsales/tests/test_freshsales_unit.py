@@ -688,3 +688,152 @@ class TestListTasks:
         result = await freshsales.execute_action("list_tasks", {}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
+
+
+SAMPLE_APPOINTMENT = {
+    "id": 6001,
+    "title": "Demo call",
+    "from_date": "2026-07-10T10:00:00Z",
+    "end_date": "2026-07-10T11:00:00Z",
+    "targetable_type": "Contact",
+    "targetable_id": 3001,
+}
+
+
+class TestCreateAppointment:
+    @pytest.mark.asyncio
+    async def test_happy_path_wrapped_body(self, mock_context):
+        response_data = {"appointment": SAMPLE_APPOINTMENT}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response_data)
+
+        inputs = {
+            "title": "Demo call",
+            "from_date": "2026-07-10T10:00:00Z",
+            "end_date": "2026-07-10T11:00:00Z",
+            "targetable_type": "Contact",
+            "targetable_id": 3001,
+        }
+        result = await freshsales.execute_action("create_appointment", inputs, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/appointments")
+        assert call_args.kwargs["method"] == "POST"
+        assert call_args.kwargs["json"] == {"appointment": inputs}
+        assert result.result.data["appointment"] == SAMPLE_APPOINTMENT
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("create failed")
+
+        result = await freshsales.execute_action(
+            "create_appointment",
+            {
+                "title": "X",
+                "from_date": "2026-07-10T10:00:00Z",
+                "end_date": "2026-07-10T11:00:00Z",
+                "targetable_type": "Contact",
+                "targetable_id": 1,
+            },
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestGetAppointment:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        response_data = {"appointment": SAMPLE_APPOINTMENT}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response_data)
+
+        result = await freshsales.execute_action("get_appointment", {"appointment_id": 6001}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/appointments/6001")
+        assert call_args.kwargs["method"] == "GET"
+        assert result.result.data["appointment"] == SAMPLE_APPOINTMENT
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("get failed")
+
+        result = await freshsales.execute_action("get_appointment", {"appointment_id": 6001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestUpdateAppointment:
+    @pytest.mark.asyncio
+    async def test_happy_path_put_wrapped_body(self, mock_context):
+        updated = {**SAMPLE_APPOINTMENT, "location": "Zoom"}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"appointment": updated})
+
+        result = await freshsales.execute_action(
+            "update_appointment", {"appointment_id": 6001, "location": "Zoom"}, mock_context
+        )
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/appointments/6001")
+        assert call_args.kwargs["method"] == "PUT"
+        assert call_args.kwargs["json"] == {"appointment": {"location": "Zoom"}}
+        assert result.result.data["appointment"]["location"] == "Zoom"
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("update failed")
+
+        result = await freshsales.execute_action("update_appointment", {"appointment_id": 6001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestDeleteAppointment:
+    @pytest.mark.asyncio
+    async def test_happy_path_delete(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"success": True})
+
+        result = await freshsales.execute_action("delete_appointment", {"appointment_id": 6001}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/appointments/6001")
+        assert call_args.kwargs["method"] == "DELETE"
+        assert result.result.data["success"] is True
+        assert result.result.data["appointment_id"] == 6001
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("delete failed")
+
+        result = await freshsales.execute_action("delete_appointment", {"appointment_id": 6001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestListAppointments:
+    @pytest.mark.asyncio
+    async def test_no_filter_by_default(self, mock_context):
+        response_data = {"appointments": [SAMPLE_APPOINTMENT]}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response_data)
+
+        result = await freshsales.execute_action("list_appointments", {}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/appointments")
+        assert call_args.kwargs["params"] == {}
+        assert result.result.data["appointments"] == [SAMPLE_APPOINTMENT]
+
+    @pytest.mark.asyncio
+    async def test_explicit_filter(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"appointments": []})
+
+        await freshsales.execute_action("list_appointments", {"filter": "upcoming"}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["params"] == {"filter": "upcoming"}
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("list failed")
+
+        result = await freshsales.execute_action("list_appointments", {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR

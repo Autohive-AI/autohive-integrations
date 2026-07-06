@@ -490,3 +490,105 @@ class ListTasksAction(ActionHandler):
             return ActionResult(data={"tasks": response.data.get("tasks", [])})
         except Exception as e:
             return ActionError(message=str(e))
+
+
+APPOINTMENT_FIELDS = (
+    "title",
+    "description",
+    "from_date",
+    "end_date",
+    "time_zone",
+    "location",
+    "is_allday",
+    "targetable_type",
+    "targetable_id",
+)
+
+
+@freshsales.action("create_appointment")
+class CreateAppointmentAction(ActionHandler):
+    """Schedule an appointment attached to a contact, sales account, or deal."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            body = build_body(inputs, APPOINTMENT_FIELDS)
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/appointments", method="POST", headers=headers, json={"appointment": body}
+            )
+            return ActionResult(data={"appointment": response.data.get("appointment", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("get_appointment")
+class GetAppointmentAction(ActionHandler):
+    """Retrieve an appointment by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/appointments/{inputs['appointment_id']}", method="GET", headers=headers
+            )
+            return ActionResult(data={"appointment": response.data.get("appointment", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("update_appointment")
+class UpdateAppointmentAction(ActionHandler):
+    """Update fields on an existing appointment."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            body = build_body(inputs, APPOINTMENT_FIELDS)
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/appointments/{inputs['appointment_id']}",
+                method="PUT",
+                headers=headers,
+                json={"appointment": body},
+            )
+            return ActionResult(data={"appointment": response.data.get("appointment", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("delete_appointment")
+class DeleteAppointmentAction(ActionHandler):
+    """Delete an appointment by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/appointments/{inputs['appointment_id']}", method="DELETE", headers=headers
+            )
+            data = response.data if isinstance(response.data, dict) else {}
+            return ActionResult(
+                data={"success": bool(data.get("success", True)), "appointment_id": inputs["appointment_id"]}
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("list_appointments")
+class ListAppointmentsAction(ActionHandler):
+    """List appointments, optionally filtered to past or upcoming."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            params = {}
+            if inputs.get("filter"):
+                params["filter"] = inputs["filter"]
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(f"{base_url}/appointments", method="GET", headers=headers, params=params)
+            return ActionResult(data={"appointments": response.data.get("appointments", [])})
+        except Exception as e:
+            return ActionError(message=str(e))
