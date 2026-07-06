@@ -549,3 +549,142 @@ class TestListDeals:
         result = await freshsales.execute_action("list_deals", {"view_id": 12}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
+
+
+# ---- Task Tests ----
+
+SAMPLE_TASK = {
+    "id": 5001,
+    "title": "Follow up",
+    "due_date": "2026-07-10T10:00:00Z",
+    "targetable_type": "Contact",
+    "targetable_id": 3001,
+    "status": 0,
+}
+
+
+class TestCreateTask:
+    @pytest.mark.asyncio
+    async def test_happy_path_wrapped_body(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"task": SAMPLE_TASK})
+
+        inputs = {
+            "title": "Follow up",
+            "due_date": "2026-07-10T10:00:00Z",
+            "targetable_type": "Contact",
+            "targetable_id": 3001,
+        }
+        result = await freshsales.execute_action("create_task", inputs, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/tasks")
+        assert call_args.kwargs["method"] == "POST"
+        assert call_args.kwargs["json"] == {"task": inputs}
+        assert result.result.data["task"] == SAMPLE_TASK
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("create failed")
+
+        result = await freshsales.execute_action(
+            "create_task",
+            {"title": "X", "due_date": "2026-07-10", "targetable_type": "Contact", "targetable_id": 1},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestGetTask:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"task": SAMPLE_TASK})
+
+        result = await freshsales.execute_action("get_task", {"task_id": 5001}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/tasks/5001")
+        assert call_args.kwargs["method"] == "GET"
+        assert result.result.data["task"] == SAMPLE_TASK
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("get failed")
+
+        result = await freshsales.execute_action("get_task", {"task_id": 5001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestUpdateTask:
+    @pytest.mark.asyncio
+    async def test_mark_done_via_status(self, mock_context):
+        done = {**SAMPLE_TASK, "status": 1}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"task": done})
+
+        result = await freshsales.execute_action("update_task", {"task_id": 5001, "status": 1}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/tasks/5001")
+        assert call_args.kwargs["method"] == "PUT"
+        assert call_args.kwargs["json"] == {"task": {"status": 1}}
+        assert result.result.data["task"]["status"] == 1
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("update failed")
+
+        result = await freshsales.execute_action("update_task", {"task_id": 5001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestDeleteTask:
+    @pytest.mark.asyncio
+    async def test_happy_path_delete(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"success": True})
+
+        result = await freshsales.execute_action("delete_task", {"task_id": 5001}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/tasks/5001")
+        assert call_args.kwargs["method"] == "DELETE"
+        assert result.result.data["success"] is True
+        assert result.result.data["task_id"] == 5001
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("delete failed")
+
+        result = await freshsales.execute_action("delete_task", {"task_id": 5001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestListTasks:
+    @pytest.mark.asyncio
+    async def test_default_filter_open(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"tasks": [SAMPLE_TASK]})
+
+        result = await freshsales.execute_action("list_tasks", {}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/tasks")
+        assert call_args.kwargs["params"] == {"filter": "open"}
+        assert result.result.data["tasks"] == [SAMPLE_TASK]
+
+    @pytest.mark.asyncio
+    async def test_explicit_filter(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"tasks": []})
+
+        await freshsales.execute_action("list_tasks", {"filter": "completed"}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["params"] == {"filter": "completed"}
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("list failed")
+
+        result = await freshsales.execute_action("list_tasks", {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR

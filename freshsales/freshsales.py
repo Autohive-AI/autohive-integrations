@@ -411,3 +411,82 @@ class ListDealsAction(ActionHandler):
             return ActionResult(data={"deals": response.data.get("deals", []), "meta": response.data.get("meta", {})})
         except Exception as e:
             return ActionError(message=str(e))
+
+
+TASK_FIELDS = ("title", "description", "due_date", "owner_id", "targetable_type", "targetable_id", "status")
+
+
+@freshsales.action("create_task")
+class CreateTaskAction(ActionHandler):
+    """Create a task attached to a contact, sales account, or deal."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            body = build_body(inputs, TASK_FIELDS)
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(f"{base_url}/tasks", method="POST", headers=headers, json={"task": body})
+            return ActionResult(data={"task": response.data.get("task", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("get_task")
+class GetTaskAction(ActionHandler):
+    """Retrieve a task by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(f"{base_url}/tasks/{inputs['task_id']}", method="GET", headers=headers)
+            return ActionResult(data={"task": response.data.get("task", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("update_task")
+class UpdateTaskAction(ActionHandler):
+    """Update fields on an existing task; set status=1 to mark it done."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            body = build_body(inputs, TASK_FIELDS)
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/tasks/{inputs['task_id']}", method="PUT", headers=headers, json={"task": body}
+            )
+            return ActionResult(data={"task": response.data.get("task", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("delete_task")
+class DeleteTaskAction(ActionHandler):
+    """Delete a task by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(f"{base_url}/tasks/{inputs['task_id']}", method="DELETE", headers=headers)
+            data = response.data if isinstance(response.data, dict) else {}
+            return ActionResult(data={"success": bool(data.get("success", True)), "task_id": inputs["task_id"]})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("list_tasks")
+class ListTasksAction(ActionHandler):
+    """List tasks by status filter (open, due_today, due_tomorrow, overdue, completed)."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            params = {"filter": inputs.get("filter", "open")}
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(f"{base_url}/tasks", method="GET", headers=headers, params=params)
+            return ActionResult(data={"tasks": response.data.get("tasks", [])})
+        except Exception as e:
+            return ActionError(message=str(e))

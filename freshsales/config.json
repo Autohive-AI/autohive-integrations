@@ -411,6 +411,103 @@
                 },
                 "required": ["deals"]
             }
+        },
+        "create_task": {
+            "display_name": "Create Task",
+            "description": "Create a task attached to a contact, account, or deal.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Task title"},
+                    "description": {"type": "string", "description": "Task description"},
+                    "due_date": {"type": "string", "description": "Due date-time (ISO 8601, e.g. 2026-07-10T10:00:00Z)"},
+                    "owner_id": {"type": "integer", "description": "ID of the user the task is assigned to"},
+                    "targetable_type": {"type": "string", "enum": ["Contact", "SalesAccount", "Deal"], "description": "Type of record the task is attached to"},
+                    "targetable_id": {"type": "integer", "description": "ID of the record the task is attached to"}
+                },
+                "required": ["title", "due_date", "targetable_type", "targetable_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"task": {"type": "object", "description": "The created task record"}},
+                "required": ["task"]
+            }
+        },
+        "get_task": {
+            "display_name": "Get Task",
+            "description": "Retrieve a task by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"task_id": {"type": "integer", "description": "Task ID"}},
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"task": {"type": "object", "description": "The task record"}},
+                "required": ["task"]
+            }
+        },
+        "update_task": {
+            "display_name": "Update Task",
+            "description": "Update fields on an existing task. Set status to 1 to mark the task as done.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "integer", "description": "Task ID"},
+                    "title": {"type": "string", "description": "Task title"},
+                    "description": {"type": "string", "description": "Task description"},
+                    "due_date": {"type": "string", "description": "Due date-time (ISO 8601)"},
+                    "owner_id": {"type": "integer", "description": "ID of the user the task is assigned to"},
+                    "targetable_type": {"type": "string", "enum": ["Contact", "SalesAccount", "Deal"], "description": "Type of record the task is attached to"},
+                    "targetable_id": {"type": "integer", "description": "ID of the record the task is attached to"},
+                    "status": {"type": "integer", "description": "Task status: set 1 to mark as done"}
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"task": {"type": "object", "description": "The updated task record"}},
+                "required": ["task"]
+            }
+        },
+        "delete_task": {
+            "display_name": "Delete Task",
+            "description": "Delete a task by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"task_id": {"type": "integer", "description": "Task ID"}},
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "task_id": {"type": "integer", "description": "ID of the deleted task"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_tasks": {
+            "display_name": "List Tasks",
+            "description": "List tasks filtered by status (open, due_today, due_tomorrow, overdue, completed). Defaults to open tasks.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "type": "string",
+                        "enum": ["open", "due_today", "due_tomorrow", "overdue", "completed"],
+                        "description": "Task status filter (default: open)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tasks": {"type": "array", "items": {"type": "object"}, "description": "Tasks matching the filter"}
+                },
+                "required": ["tasks"]
+            }
         }
     }
 }
