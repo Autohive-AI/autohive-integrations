@@ -4,9 +4,9 @@ Connects Autohive to Power BI services for managing workspaces, datasets, report
 
 ## Description
 
-This integration provides comprehensive access to Power BI services, enabling users to manage and interact with Power BI workspaces, datasets, reports, and dashboards through a unified interface. It interacts with the Power BI REST API to deliver seamless integration with Power BI's analytics and reporting capabilities.
+This integration provides comprehensive access to Power BI services, enabling users to manage and interact with Power BI workspaces, datasets, reports, and dashboards through a unified interface.
 
-Key capabilities include managing workspaces, refreshing datasets, cloning and exporting reports, querying data with DAX, and accessing dashboard tiles. The integration supports operations on both "My workspace" and specific workspaces, providing flexible access to Power BI content.
+Key capabilities include managing workspaces, refreshing datasets, creating and cloning reports, exporting reports, querying data with DAX, and accessing dashboard tiles. The integration supports operations on both "My workspace" and specific workspaces.
 
 ## Setup & Authentication
 
@@ -15,340 +15,371 @@ This integration uses Power BI OAuth2 authentication through the Autohive platfo
 **Authentication Method:** Platform OAuth2 (Power BI)
 
 Required Power BI API permissions:
-- `Dataset.Read.All` - Read all datasets
-- `Dataset.ReadWrite.All` - Read and write all datasets
-- `Report.Read.All` - Read all reports
-- `Report.ReadWrite.All` - Read and write all reports
-- `Dashboard.Read.All` - Read all dashboards
-- `Workspace.Read.All` - Read all workspaces
-- `Workspace.ReadWrite.All` - Read and write all workspaces
-- `Content.Create` - Create Power BI content
-
-**Authentication Fields:**
-
-The integration uses platform-level OAuth2 authentication, so no manual configuration of authentication fields is required. Users simply need to authorize their Microsoft 365/Azure AD account through the Autohive platform.
+- `offline_access` — Required for refresh tokens (keeps the connection authorized long-term)
+- `Dataset.ReadWrite.All` — Read and write all datasets
+- `Report.ReadWrite.All` — Read and write all reports
+- `Dashboard.Read.All` — Read all dashboards
+- `Workspace.ReadWrite.All` — Read and write all workspaces
+- `Content.Create` — Create Power BI content
+- `Tenant.ReadWrite.All` — Tenant-level read/write access
+- `Item.ReadWrite.All` — Required for Fabric API report creation
 
 ## Actions
 
-### Action: `list_workspaces`
+### `list_workspaces`
 
-*   **Description:** Get a list of all Power BI workspaces the user has access to
-*   **Inputs:**
-    *   `filter`: Optional OData filter expression
-    *   `top`: Maximum number of workspaces to return (default: 100)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `workspaces`: List of workspace objects with id, name, and properties
-    *   `error`: Error message if operation failed
+Get a list of all Power BI workspaces the user has access to.
 
-### Action: `get_workspace`
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `filter` | string | No | OData filter expression |
+| `top` | integer | No | Maximum number of workspaces to return (default: 100) |
 
-*   **Description:** Get details of a specific Power BI workspace
-*   **Inputs:**
-    *   `workspace_id`: The workspace ID
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `workspace`: Workspace object with detailed information
-    *   `error`: Error message if operation failed
+| Output | Type | Description |
+|--------|------|-------------|
+| `workspaces` | array | List of workspace objects with id, name, isReadOnly, isOnDedicatedCapacity, type |
 
-### Action: `list_datasets`
+---
 
-*   **Description:** Get a list of datasets in a workspace or My workspace
-*   **Inputs:**
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `datasets`: List of dataset objects with id, name, and refresh properties
-    *   `error`: Error message if operation failed
+### `get_workspace`
 
-### Action: `get_dataset`
+Get details of a specific Power BI workspace.
 
-*   **Description:** Get details of a specific dataset
-*   **Inputs:**
-    *   `dataset_id`: The dataset ID
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `dataset`: Dataset object with detailed information
-    *   `error`: Error message if operation failed
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `workspace_id` | string | Yes | The workspace ID |
 
-### Action: `refresh_dataset`
+| Output | Type | Description |
+|--------|------|-------------|
+| `workspace` | object | Workspace details |
 
-*   **Description:** Trigger a refresh for a Power BI dataset with support for enhanced refresh options
-*   **Inputs:**
-    *   `dataset_id`: The dataset ID to refresh (required)
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-    *   `notify_option`: Mail notification options - "NoNotification", "MailOnFailure", or "MailOnCompletion" (optional)
-    *   `type`: The type of processing - "Full", "ClearValues", "Calculate", "DataOnly", "Automatic", or "Defragment" (optional)
-    *   `commit_mode`: Commit mode - "Transactional" or "PartialBatch" (optional)
-    *   `max_parallelism`: Maximum number of threads for parallel processing (optional)
-    *   `retry_count`: Number of retry attempts before failing (optional)
-    *   `objects`: Array of tables/partitions to refresh selectively (optional, each with `table` and optional `partition`)
-    *   `apply_refresh_policy`: Whether to apply incremental refresh policy (optional boolean)
-    *   `effective_date`: Override date for incremental refresh policy in ISO 8601 format (optional)
-    *   `timeout`: Timeout in HH:MM:SS format, e.g., "05:00:00" for 5 hours (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `message`: Success or error message
-    *   `request_id`: The refresh request ID for tracking
-    *   `error`: Error message if operation failed
-*   **Notes:**
-    *   Enhanced refresh (with parameters beyond `notify_option`) is not supported for Shared capacities
-    *   For Shared capacities, maximum of 8 refresh requests per day
-    *   For Premium capacities, refresh limits depend on available resources
-    *   Selective refresh using `objects` parameter allows refreshing specific tables or partitions
-    *   Use `timeout` to control long-running refreshes (max 24 hours including retries)
+---
 
-### Action: `get_refresh_history`
+### `list_datasets`
 
-*   **Description:** Get the refresh history for a dataset
-*   **Inputs:**
-    *   `dataset_id`: The dataset ID
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-    *   `top`: Maximum number of refresh records to return (default: 10)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `refreshes`: List of refresh records with status, start time, and end time
-    *   `error`: Error message if operation failed
+Get a list of datasets in a workspace or My workspace.
 
-### Action: `list_reports`
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
 
-*   **Description:** Get a list of reports in a workspace or My workspace
-*   **Inputs:**
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `reports`: List of report objects with id, name, webUrl, and embedUrl
-    *   `error`: Error message if operation failed
+| Output | Type | Description |
+|--------|------|-------------|
+| `datasets` | array | List of dataset objects with id, name, configuredBy, isRefreshable, etc. |
 
-### Action: `get_report`
+---
 
-*   **Description:** Get details of a specific report
-*   **Inputs:**
-    *   `report_id`: The report ID
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `report`: Report object with detailed information
-    *   `error`: Error message if operation failed
+### `get_dataset`
 
-### Action: `get_report_datasources`
+Get details of a specific dataset.
 
-*   **Description:** Get a list of data sources for a specific paginated report (RDL)
-*   **Inputs:**
-    *   `report_id`: The report ID
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `datasources`: List of data source objects with datasourceType, datasourceId, gatewayId, name, connectionString, and connectionDetails
-    *   `error`: Error message if operation failed
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `dataset_id` | string | Yes | The dataset ID |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
 
-### Action: `refresh_report`
+| Output | Type | Description |
+|--------|------|-------------|
+| `dataset` | object | Dataset details |
 
-*   **Description:** Refresh the dataset associated with a Power BI report
-*   **Inputs:**
-    *   `report_id`: The report ID whose dataset should be refreshed
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-    *   `notify_option`: Notification option - "NoNotification" or "MailOnFailure" (default: NoNotification)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `message`: Success or error message
-    *   `dataset_id`: The ID of the dataset that was refreshed
-    *   `error`: Error message if operation failed
+---
 
-### Action: `clone_report`
+### `refresh_dataset`
 
-*   **Description:** Clone a Power BI report to the same or different workspace
-*   **Inputs:**
-    *   `report_id`: The report ID to clone
-    *   `name`: Name for the cloned report
-    *   `workspace_id`: Source workspace ID (optional, defaults to My workspace)
-    *   `target_workspace_id`: Target workspace ID (optional, defaults to source workspace)
-    *   `target_dataset_id`: Target dataset ID for the cloned report (optional)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `id`: ID of the cloned report
-    *   `name`: Name of the cloned report
-    *   `webUrl`: Web URL to access the cloned report
-    *   `embedUrl`: Embed URL for the cloned report
-    *   `error`: Error message if operation failed
+Trigger a refresh for a Power BI dataset. Supports basic and enhanced refresh options.
 
-### Action: `export_report`
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `dataset_id` | string | Yes | The dataset ID to refresh |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+| `notify_option` | string | No | `NoNotification`, `MailOnFailure`, or `MailOnCompletion` |
+| `type` | string | No | `Full`, `ClearValues`, `Calculate`, `DataOnly`, `Automatic`, or `Defragment` |
+| `commit_mode` | string | No | `Transactional` or `PartialBatch` |
+| `max_parallelism` | integer | No | Maximum threads for parallel processing |
+| `retry_count` | integer | No | Retry attempts before failing |
+| `objects` | array | No | Tables/partitions for selective refresh (each with `table` and optional `partition`) |
+| `apply_refresh_policy` | boolean | No | Whether to apply incremental refresh policy |
+| `effective_date` | string | No | Override date for incremental refresh (ISO 8601) |
+| `timeout` | string | No | Timeout in HH:MM:SS format (max 24 hours including retries) |
 
-*   **Description:** Export a Power BI report to PDF, PPTX, or PNG format
-*   **Inputs:**
-    *   `report_id`: The report ID to export
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-    *   `format`: Export format - "PDF", "PPTX", or "PNG" (default: PDF)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `export_id`: ID of the export operation
-    *   `message`: Success or error message
-    *   `error`: Error message if operation failed
+| Output | Type | Description |
+|--------|------|-------------|
+| `message` | string | Confirmation message |
+| `request_id` | string | The refresh request ID for tracking |
 
-### Action: `get_export_status`
+> Enhanced refresh parameters are not supported on Shared capacities.
 
-*   **Description:** Get the status of a report export operation
-*   **Inputs:**
-    *   `report_id`: The report ID
-    *   `export_id`: The export ID
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `status`: Export status (Running, Succeeded, Failed)
-    *   `percentComplete`: Percentage of completion (0-100)
-    *   `error`: Error message if operation failed
+---
 
-### Action: `list_dashboards`
+### `get_refresh_history`
 
-*   **Description:** Get a list of dashboards in a workspace or My workspace
-*   **Inputs:**
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `dashboards`: List of dashboard objects with id, displayName, and embedUrl
-    *   `error`: Error message if operation failed
+Get the refresh history for a dataset.
 
-### Action: `get_dashboard`
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `dataset_id` | string | Yes | The dataset ID |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+| `top` | integer | No | Maximum records to return (default: 10) |
 
-*   **Description:** Get details of a specific dashboard
-*   **Inputs:**
-    *   `dashboard_id`: The dashboard ID
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `dashboard`: Dashboard object with detailed information
-    *   `error`: Error message if operation failed
+| Output | Type | Description |
+|--------|------|-------------|
+| `refreshes` | array | Refresh records with refreshType, startTime, endTime, status, requestId |
 
-### Action: `get_dashboard_tiles`
+---
 
-*   **Description:** Get tiles from a specific dashboard
-*   **Inputs:**
-    *   `dashboard_id`: The dashboard ID
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `tiles`: List of tile objects with id, title, embedUrl, and related IDs
-    *   `error`: Error message if operation failed
+### `list_reports`
 
-### Action: `execute_queries`
+Get a list of reports in a workspace or My workspace.
 
-*   **Description:** Execute DAX queries against a dataset
-*   **Inputs:**
-    *   `dataset_id`: The dataset ID
-    *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
-    *   `queries`: List of query objects, each containing a DAX query string
-*   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `results`: List of query result objects
-    *   `error`: Error message if operation failed
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
 
-## Requirements
+| Output | Type | Description |
+|--------|------|-------------|
+| `reports` | array | List of report objects with id, name, webUrl, embedUrl, datasetId |
 
-*   `autohive_integrations_sdk`
+---
 
-## Usage Examples
+### `get_report`
 
-**Example 1: List all workspaces**
+Get details of a specific report.
 
-```json
-{
-  "top": 50
-}
-```
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `report_id` | string | Yes | The report ID |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
 
-**Example 2: Basic dataset refresh with email notification on failure**
+| Output | Type | Description |
+|--------|------|-------------|
+| `report` | object | Report details |
 
-```json
-{
-  "dataset_id": "cfafbeb1-8037-4d0c-896e-a46fb27ff229",
-  "workspace_id": "f089354e-8366-4e18-aea3-4cb4a3a50b48",
-  "notify_option": "MailOnFailure"
-}
-```
+---
 
-**Example 2b: Enhanced dataset refresh with selective table refresh**
+### `get_report_datasources`
 
-```json
-{
-  "dataset_id": "cfafbeb1-8037-4d0c-896e-a46fb27ff229",
-  "workspace_id": "f089354e-8366-4e18-aea3-4cb4a3a50b48",
-  "type": "Full",
-  "commit_mode": "Transactional",
-  "objects": [
-    {
-      "table": "Sales",
-      "partition": "2024-Q4"
-    },
-    {
-      "table": "Customers"
-    }
-  ],
-  "timeout": "05:00:00",
-  "retry_count": 2,
-  "max_parallelism": 4
-}
-```
+Get data sources connected to a specific report.
 
-**Example 3: Clone a report to a different workspace**
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `report_id` | string | Yes | The report ID |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
 
-```json
-{
-  "report_id": "5b218778-e7a5-4d73-8187-f10824047715",
-  "name": "Sales Report - Q4 Copy",
-  "workspace_id": "f089354e-8366-4e18-aea3-4cb4a3a50b48",
-  "target_workspace_id": "3d9b93c6-7b6d-4801-a491-1738910904fd",
-  "target_dataset_id": "cfafbeb1-8037-4d0c-896e-a46fb27ff229"
-}
-```
+| Output | Type | Description |
+|--------|------|-------------|
+| `datasources` | array | Data sources with datasourceType, datasourceId, gatewayId, name, connectionString, connectionDetails |
 
-**Example 4: Export a report to PDF**
+---
 
-```json
-{
-  "report_id": "5b218778-e7a5-4d73-8187-f10824047715",
-  "workspace_id": "f089354e-8366-4e18-aea3-4cb4a3a50b48",
-  "format": "PDF"
-}
-```
+### `refresh_report`
 
-**Example 5: Execute a DAX query**
+Refresh the dataset associated with a Power BI report.
 
-```json
-{
-  "dataset_id": "cfafbeb1-8037-4d0c-896e-a46fb27ff229",
-  "workspace_id": "f089354e-8366-4e18-aea3-4cb4a3a50b48",
-  "queries": [
-    {
-      "query": "EVALUATE TOPN(10, Sales)"
-    }
-  ]
-}
-```
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `report_id` | string | Yes | The report ID whose dataset should be refreshed |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+| `notify_option` | string | No | `NoNotification` or `MailOnFailure` (default: NoNotification) |
 
-**Example 6: Get dashboard tiles**
+| Output | Type | Description |
+|--------|------|-------------|
+| `message` | string | Confirmation message |
+| `dataset_id` | string | The ID of the dataset that was refreshed |
 
-```json
-{
-  "dashboard_id": "69ffaa6c-b36d-4d01-96f5-1ed67c64d4af",
-  "workspace_id": "f089354e-8366-4e18-aea3-4cb4a3a50b48"
-}
-```
+---
+
+### `clone_report`
+
+Clone a Power BI report to the same or a different workspace.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `report_id` | string | Yes | The report ID to clone |
+| `name` | string | Yes | Name for the cloned report |
+| `workspace_id` | string | No | Source workspace ID (defaults to My workspace) |
+| `target_workspace_id` | string | No | Target workspace ID (defaults to source workspace) |
+| `target_dataset_id` | string | No | Target dataset ID for the cloned report |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `id` | string | ID of the cloned report |
+| `name` | string | Name of the cloned report |
+| `webUrl` | string | Web URL to access the cloned report |
+| `embedUrl` | string | Embed URL for the cloned report |
+
+---
+
+### `export_report`
+
+Export a Power BI report to PDF, PPTX, or PNG. Returns an export ID — poll `get_export_status` to monitor progress.
+
+**Requires Power BI Premium or Fabric dedicated capacity.** On shared capacity this fails with `403 InvalidRequest: "Report requested for export is not on dedicated capacity"` — this isn't a bug, it's a workspace licensing requirement. Check the workspace's `isOnDedicatedCapacity` field (from `get_workspace`) before calling this action.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `report_id` | string | Yes | The report ID to export |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+| `format` | string | No | `PDF`, `PPTX`, or `PNG` (default: PDF) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `export_id` | string | ID of the export operation |
+| `message` | string | Confirmation message |
+
+---
+
+### `get_export_status`
+
+Get the status of a report export operation.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `report_id` | string | Yes | The report ID |
+| `export_id` | string | Yes | The export ID returned by `export_report` |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `status` | string | Export status: `Running`, `Succeeded`, or `Failed` |
+| `percentComplete` | integer | Completion percentage (0–100) |
+
+---
+
+### `list_dashboards`
+
+Get a list of dashboards in a workspace or My workspace.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `dashboards` | array | List of dashboard objects with id, displayName, isReadOnly, embedUrl |
+
+---
+
+### `get_dashboard`
+
+Get details of a specific dashboard.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `dashboard_id` | string | Yes | The dashboard ID |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `dashboard` | object | Dashboard details |
+
+---
+
+### `get_dashboard_tiles`
+
+Get tiles from a specific dashboard.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `dashboard_id` | string | Yes | The dashboard ID |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `tiles` | array | Tile objects with id, title, embedUrl, datasetId, reportId |
+
+---
+
+### `execute_queries`
+
+Execute DAX queries against a dataset.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `dataset_id` | string | Yes | The dataset ID |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+| `queries` | array | Yes | List of query objects, each with a `query` string (DAX) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `results` | array | Query result objects |
+
+---
+
+### `get_dataset_schema`
+
+Discover a dataset's table and column names via DAX metadata functions (`INFO.TABLES()`/`INFO.COLUMNS()`), so `create_report`'s pages/visuals can reference real columns instead of guessing.
+
+**This only works on newer semantic model formats that support DAX schema introspection.** Older Import-mode datasets (and any dataset requiring an on-premises gateway) will return a clear error instead of hanging or guessing. If it fails, use `clone_report` to build on an existing report's dataset bindings instead — that always works regardless of the dataset's schema-introspection support.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `dataset_id` | string | Yes | The dataset ID |
+| `workspace_id` | string | No | Workspace ID (defaults to My workspace) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `tables` | array | Discovered tables, each `{id, name, columns: [...]}` |
+| `columns_available` | boolean | `false` if table names were found but column-level metadata wasn't (still useful — you have table names) |
+
+---
+
+### `create_report`
+
+Create a new Power BI report in a Fabric workspace bound to an existing dataset. Pages and visuals are specified declaratively — the report is built and published automatically via the Microsoft Fabric REST API.
+
+| Input | Type | Required | Description |
+|-------|------|----------|-------------|
+| `display_name` | string | Yes | Name for the new report |
+| `workspace_id` | string | Yes | The Fabric workspace ID |
+| `dataset_id` | string | Yes | The dataset (semantic model) ID to bind the report to |
+| `pages` | array | Yes | Pages to include. Each page has `name` and `visuals`. |
+
+Each visual in `pages[].visuals`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | `table`, `bar`, `line`, `card`, `pie`, `column`, `scatter`, `area`, `donut`, or `matrix` |
+| `table` | string | Yes | Source table name in the dataset |
+| `columns` | array | Yes | Column/measure names. For charts: first item is the category axis, rest are Y-axis measures. |
+| `title` | string | No | Visual title |
+| `x`, `y` | number | No | Position in pixels (auto-laid out if omitted) |
+| `width`, `height` | number | No | Size in pixels (default 600×350) |
+
+| Output | Type | Description |
+|--------|------|-------------|
+| `id` | string | ID of the created report |
+| `display_name` | string | Name of the created report |
+| `workspace_id` | string | Workspace where the report was created |
+| `web_url` | string | URL to open the report in Power BI |
 
 ## Testing
 
-To run the tests:
+Install dependencies and run unit tests:
 
-1.  Navigate to the integration's directory: `cd powerbi`
-2.  Install dependencies: `pip install -r requirements.txt -t dependencies`
-3.  Run the tests: `python tests/test_powerbi_integration.py`
+```bash
+cd powerbi
+pip install -r requirements.txt -t dependencies
+python -m pytest tests/test_powerbi_*_unit.py -v
+```
 
-Note: Testing requires proper Power BI authentication credentials and may require mock data for certain test scenarios.
+Unit tests are split by domain: `test_powerbi_workspaces_unit.py`, `test_powerbi_datasets_unit.py`, `test_powerbi_reports_unit.py`, `test_powerbi_dashboards_unit.py`, and `test_powerbi_queries_unit.py`.
 
-## Additional Notes
+Run integration tests against the live API (requires credentials in `.env`):
 
-- All workspace-related actions support both "My workspace" (default) and specific workspaces by providing the `workspace_id` parameter
-- Dataset refresh operations are asynchronous - use `get_refresh_history` to check the status
-- Report export operations are also asynchronous - use `get_export_status` to monitor progress
-- DAX queries require appropriate permissions and the dataset must support query operations
-- The integration uses the Power BI REST API v1.0
+```bash
+# Read-only tests only
+pytest powerbi/tests/test_powerbi_integration.py -m "integration and not destructive"
+
+# Include destructive tests (triggers real refreshes and creates a real report)
+pytest powerbi/tests/test_powerbi_integration.py -m "integration and destructive"
+```
+
+See `.env.example` for the environment variables required for integration tests.
+
+## Notes
+
+- All workspace-scoped actions accept an optional `workspace_id`; omitting it targets "My workspace"
+- Dataset refresh and report export are asynchronous — use `get_refresh_history` / `get_export_status` to poll progress
+- `create_report` uses the Microsoft Fabric REST API (`api.fabric.microsoft.com/v1`) rather than the standard Power BI REST API
+- **Before calling `create_report`**, try `get_dataset_schema` first to discover real table/column names. If it errors (dataset doesn't support DAX schema introspection, or requires an on-premises gateway), fall back to `clone_report` on an existing report that already uses the target dataset — that always works and avoids guessing column names
+- DAX queries require the dataset to have query execution enabled and appropriate permissions

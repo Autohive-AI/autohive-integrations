@@ -1,4 +1,9 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+import asyncio
+import base64
+import json
+import uuid
+
+from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -6,6 +11,9 @@ powerbi = Integration.load()
 
 # Power BI REST API Base URL
 POWERBI_API_BASE = "https://api.powerbi.com/v1.0/myorg"
+
+# Microsoft Fabric REST API Base URL (used for report creation)
+FABRIC_API_BASE = "https://api.fabric.microsoft.com/v1"
 
 # ---- Action Handlers ----
 
@@ -25,7 +33,7 @@ class ListWorkspacesAction(ActionHandler):
             response = await context.fetch(f"{POWERBI_API_BASE}/groups", params=params)
 
             workspaces = []
-            for workspace in response.get("value", []):
+            for workspace in response.data.get("value", []):
                 workspaces.append(
                     {
                         "id": workspace.get("id"),
@@ -36,10 +44,10 @@ class ListWorkspacesAction(ActionHandler):
                     }
                 )
 
-            return {"workspaces": workspaces, "result": True}
+            return ActionResult(data={"workspaces": workspaces}, cost_usd=0.0)
 
         except Exception as e:
-            return {"workspaces": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("get_workspace")
@@ -50,10 +58,10 @@ class GetWorkspaceAction(ActionHandler):
 
             response = await context.fetch(f"{POWERBI_API_BASE}/groups/{workspace_id}")
 
-            return {"workspace": response, "result": True}
+            return ActionResult(data={"workspace": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"workspace": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("list_datasets")
@@ -70,7 +78,7 @@ class ListDatasetsAction(ActionHandler):
             response = await context.fetch(url)
 
             datasets = []
-            for dataset in response.get("value", []):
+            for dataset in response.data.get("value", []):
                 datasets.append(
                     {
                         "id": dataset.get("id"),
@@ -83,10 +91,10 @@ class ListDatasetsAction(ActionHandler):
                     }
                 )
 
-            return {"datasets": datasets, "result": True}
+            return ActionResult(data={"datasets": datasets}, cost_usd=0.0)
 
         except Exception as e:
-            return {"datasets": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("get_dataset")
@@ -103,10 +111,10 @@ class GetDatasetAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {"dataset": response, "result": True}
+            return ActionResult(data={"dataset": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"dataset": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("refresh_dataset")
@@ -161,13 +169,16 @@ class RefreshDatasetAction(ActionHandler):
 
             # Extract request ID from response headers if available
             request_id = None
-            if hasattr(response, "headers") and "x-ms-request-id" in response.headers:
+            if response.headers and "x-ms-request-id" in response.headers:
                 request_id = response.headers["x-ms-request-id"]
 
-            return {"result": True, "message": "Dataset refresh initiated successfully", "request_id": request_id}
+            return ActionResult(
+                data={"message": "Dataset refresh initiated successfully", "request_id": request_id},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("get_refresh_history")
@@ -188,7 +199,7 @@ class GetRefreshHistoryAction(ActionHandler):
             response = await context.fetch(url, params=params)
 
             refreshes = []
-            for refresh in response.get("value", []):
+            for refresh in response.data.get("value", []):
                 refreshes.append(
                     {
                         "refreshType": refresh.get("refreshType"),
@@ -199,10 +210,10 @@ class GetRefreshHistoryAction(ActionHandler):
                     }
                 )
 
-            return {"refreshes": refreshes, "result": True}
+            return ActionResult(data={"refreshes": refreshes}, cost_usd=0.0)
 
         except Exception as e:
-            return {"refreshes": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("list_reports")
@@ -219,7 +230,7 @@ class ListReportsAction(ActionHandler):
             response = await context.fetch(url)
 
             reports = []
-            for report in response.get("value", []):
+            for report in response.data.get("value", []):
                 reports.append(
                     {
                         "id": report.get("id"),
@@ -230,10 +241,10 @@ class ListReportsAction(ActionHandler):
                     }
                 )
 
-            return {"reports": reports, "result": True}
+            return ActionResult(data={"reports": reports}, cost_usd=0.0)
 
         except Exception as e:
-            return {"reports": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("get_report")
@@ -250,10 +261,10 @@ class GetReportAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {"report": response, "result": True}
+            return ActionResult(data={"report": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"report": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("get_report_datasources")
@@ -271,7 +282,7 @@ class GetReportDatasourcesAction(ActionHandler):
             response = await context.fetch(url)
 
             datasources = []
-            for datasource in response.get("value", []):
+            for datasource in response.data.get("value", []):
                 ds_data = {
                     "datasourceType": datasource.get("datasourceType"),
                     "datasourceId": datasource.get("datasourceId"),
@@ -286,10 +297,10 @@ class GetReportDatasourcesAction(ActionHandler):
 
                 datasources.append(ds_data)
 
-            return {"datasources": datasources, "result": True}
+            return ActionResult(data={"datasources": datasources}, cost_usd=0.0)
 
         except Exception as e:
-            return {"datasources": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("refresh_report")
@@ -307,10 +318,11 @@ class RefreshReportAction(ActionHandler):
                 report_url = f"{POWERBI_API_BASE}/reports/{report_id}"
 
             report_response = await context.fetch(report_url)
-            dataset_id = report_response.get("datasetId")
+            report_data = report_response.data
+            dataset_id = report_data.get("datasetId")
 
             if not dataset_id:
-                return {"result": False, "error": "Report does not have an associated dataset"}
+                return ActionError(message="Report does not have an associated dataset")
 
             # Now refresh the dataset
             if workspace_id:
@@ -322,14 +334,16 @@ class RefreshReportAction(ActionHandler):
 
             await context.fetch(refresh_url, method="POST", json=refresh_request)
 
-            return {
-                "result": True,
-                "message": f"Dataset refresh initiated successfully for report '{report_response.get('name')}'",
-                "dataset_id": dataset_id,
-            }
+            return ActionResult(
+                data={
+                    "message": f"Dataset refresh initiated successfully for report '{report_data.get('name')}'",
+                    "dataset_id": dataset_id,
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("clone_report")
@@ -357,16 +371,18 @@ class CloneReportAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=clone_request)
 
-            return {
-                "id": response.get("id"),
-                "name": response.get("name"),
-                "webUrl": response.get("webUrl"),
-                "embedUrl": response.get("embedUrl"),
-                "result": True,
-            }
+            return ActionResult(
+                data={
+                    "id": response.data.get("id"),
+                    "name": response.data.get("name"),
+                    "webUrl": response.data.get("webUrl"),
+                    "embedUrl": response.data.get("embedUrl"),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("export_report")
@@ -386,10 +402,13 @@ class ExportReportAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=export_request)
 
-            return {"export_id": response.get("id"), "result": True, "message": "Export initiated successfully"}
+            return ActionResult(
+                data={"export_id": response.data.get("id"), "message": "Export initiated successfully"},
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("get_export_status")
@@ -407,14 +426,16 @@ class GetExportStatusAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {
-                "status": response.get("status"),
-                "percentComplete": response.get("percentComplete", 0),
-                "result": True,
-            }
+            return ActionResult(
+                data={
+                    "status": response.data.get("status"),
+                    "percentComplete": response.data.get("percentComplete", 0),
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
-            return {"status": "Failed", "percentComplete": 0, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("list_dashboards")
@@ -431,7 +452,7 @@ class ListDashboardsAction(ActionHandler):
             response = await context.fetch(url)
 
             dashboards = []
-            for dashboard in response.get("value", []):
+            for dashboard in response.data.get("value", []):
                 dashboards.append(
                     {
                         "id": dashboard.get("id"),
@@ -441,10 +462,10 @@ class ListDashboardsAction(ActionHandler):
                     }
                 )
 
-            return {"dashboards": dashboards, "result": True}
+            return ActionResult(data={"dashboards": dashboards}, cost_usd=0.0)
 
         except Exception as e:
-            return {"dashboards": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("get_dashboard")
@@ -461,10 +482,10 @@ class GetDashboardAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return {"dashboard": response, "result": True}
+            return ActionResult(data={"dashboard": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return {"dashboard": {}, "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("get_dashboard_tiles")
@@ -482,7 +503,7 @@ class GetDashboardTilesAction(ActionHandler):
             response = await context.fetch(url)
 
             tiles = []
-            for tile in response.get("value", []):
+            for tile in response.data.get("value", []):
                 tiles.append(
                     {
                         "id": tile.get("id"),
@@ -493,10 +514,10 @@ class GetDashboardTilesAction(ActionHandler):
                     }
                 )
 
-            return {"tiles": tiles, "result": True}
+            return ActionResult(data={"tiles": tiles}, cost_usd=0.0)
 
         except Exception as e:
-            return {"tiles": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
 
 
 @powerbi.action("execute_queries")
@@ -516,7 +537,522 @@ class ExecuteQueriesAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=query_request)
 
-            return {"results": response.get("results", []), "result": True}
+            return ActionResult(data={"results": response.data.get("results", [])}, cost_usd=0.0)
 
         except Exception as e:
-            return {"results": [], "result": False, "error": str(e)}
+            return ActionError(message=str(e))
+
+
+def _find_by_unbracketed_name(row: dict, *candidates: str):
+    """DAX EVALUATE results key each column as e.g. "[Name]" - match ignoring brackets."""
+    for key, value in row.items():
+        if key.strip("[]") in candidates:
+            return value
+    return None
+
+
+async def _discover_schema_via_dax(context: ExecutionContext, workspace_id: str, dataset_id: str) -> dict:
+    """Try INFO.TABLES()/INFO.COLUMNS() - only works on newer semantic model formats."""
+    if workspace_id:
+        url = f"{POWERBI_API_BASE}/groups/{workspace_id}/datasets/{dataset_id}/executeQueries"
+    else:
+        url = f"{POWERBI_API_BASE}/datasets/{dataset_id}/executeQueries"
+
+    async def run_dax_query(dax: str) -> list:
+        request = {"queries": [{"query": dax}], "serializerSettings": {"includeNulls": True}}
+        response = await context.fetch(url, method="POST", json=request)
+        results = response.data.get("results", [])
+        if not results:
+            return []
+        tables = results[0].get("tables", [])
+        return tables[0].get("rows", []) if tables else []
+
+    table_rows = await run_dax_query("EVALUATE INFO.TABLES()")
+
+    tables = []
+    for row in table_rows:
+        table_id = _find_by_unbracketed_name(row, "ID")
+        table_name = _find_by_unbracketed_name(row, "Name")
+        if table_name is None:
+            continue
+        tables.append({"id": table_id, "name": table_name, "columns": []})
+
+    try:
+        column_rows = await run_dax_query("EVALUATE INFO.COLUMNS()")
+    except Exception:
+        # Tables discovered but column metadata unavailable - still useful on its own.
+        return {"tables": tables, "columns_available": False}
+
+    columns_by_table_id = {}
+    for row in column_rows:
+        table_id = _find_by_unbracketed_name(row, "TableID")
+        column_name = _find_by_unbracketed_name(row, "ExplicitName", "InferredName", "Name")
+        if table_id is None or column_name is None:
+            continue
+        columns_by_table_id.setdefault(table_id, []).append(column_name)
+
+    for table in tables:
+        table["columns"] = columns_by_table_id.get(table["id"], [])
+
+    return {"tables": tables, "columns_available": True}
+
+
+async def _discover_schema_via_scanner(context: ExecutionContext, workspace_id: str, dataset_id: str) -> dict:
+    """Fall back to the Admin Metadata Scanning API, which works regardless of semantic
+    model format/DAX introspection support. Requires Tenant.Read.All/Tenant.ReadWrite.All
+    (already in this integration's scopes) and, in most tenants, admin-level access."""
+    scan_request = await context.fetch(
+        f"{POWERBI_API_BASE}/admin/workspaces/getInfo",
+        method="POST",
+        params={"datasetSchema": "true", "datasetExpressions": "true", "lineage": "true"},
+        json={"workspaces": [workspace_id]},
+    )
+    scan_id = scan_request.data.get("id")
+    if not scan_id:
+        raise RuntimeError("Admin metadata scan did not return a scan ID")
+
+    status_url = f"{POWERBI_API_BASE}/admin/workspaces/scanStatus/{scan_id}"
+    for _ in range(10):
+        status_response = await context.fetch(status_url)
+        status = status_response.data.get("status")
+        if status == "Succeeded":
+            break
+        if status in ("Failed", "NotFound"):
+            raise RuntimeError(f"Admin metadata scan {status.lower()}")
+        await asyncio.sleep(2)
+    else:
+        raise RuntimeError("Admin metadata scan did not complete in time")
+
+    result = await context.fetch(f"{POWERBI_API_BASE}/admin/workspaces/scanResult/{scan_id}")
+    for workspace in result.data.get("workspaces", []):
+        for dataset in workspace.get("datasets", []):
+            if dataset.get("id") != dataset_id:
+                continue
+            tables = []
+            for table in dataset.get("tables", []):
+                columns = [c.get("name") for c in table.get("columns", []) if c.get("name")]
+                columns += [m.get("name") for m in table.get("measures", []) if m.get("name")]
+                tables.append({"id": None, "name": table.get("name"), "columns": columns})
+            return {"tables": tables, "columns_available": True}
+
+    raise RuntimeError("Dataset not found in admin metadata scan result")
+
+
+@powerbi.action("get_dataset_schema")
+class GetDatasetSchemaAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            dataset_id = inputs["dataset_id"]
+            workspace_id = inputs.get("workspace_id")
+
+            try:
+                schema = await _discover_schema_via_dax(context, workspace_id, dataset_id)
+                return ActionResult(data=schema, cost_usd=0.0)
+            except Exception as dax_error:
+                if not workspace_id:
+                    return ActionError(
+                        message=(
+                            "This dataset does not support DAX schema introspection "
+                            f"(INFO.TABLES() failed: {dax_error}), and the admin metadata scan fallback "
+                            "requires a workspace_id (it doesn't work for My workspace). Pass workspace_id, "
+                            "or use clone_report to build on an existing report's dataset bindings instead."
+                        )
+                    )
+
+                try:
+                    schema = await _discover_schema_via_scanner(context, workspace_id, dataset_id)
+                    return ActionResult(data=schema, cost_usd=0.0)
+                except Exception as scanner_error:
+                    return ActionError(
+                        message=(
+                            "This dataset does not support DAX schema introspection "
+                            f"(INFO.TABLES() failed: {dax_error}), and the admin metadata scan fallback also "
+                            f"failed ({scanner_error}). The scanner fallback needs Tenant.Read.All/"
+                            "Tenant.ReadWrite.All (already requested) plus tenant admin API access, which "
+                            "this account may not have. Use clone_report to build on an existing report's "
+                            "dataset bindings instead, or check the exact table/column names in Power BI "
+                            "Desktop."
+                        )
+                    )
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+# ---- Helpers for create_report ----
+
+
+def _to_base64(obj: dict) -> str:
+    return base64.b64encode(json.dumps(obj, separators=(",", ":")).encode("utf-8")).decode("utf-8")
+
+
+_VISUAL_TYPE_MAP = {
+    "table": "tableEx",
+    "bar": "barChart",
+    "bar_chart": "barChart",
+    "line": "lineChart",
+    "line_chart": "lineChart",
+    "card": "card",
+    "pie": "pieChart",
+    "pie_chart": "pieChart",
+    "column": "columnChart",
+    "column_chart": "columnChart",
+    "scatter": "scatterChart",
+    "area": "areaChart",
+    "donut": "donutChart",
+    "matrix": "pivotTable",
+}
+
+
+def _build_select_and_projection(alias: str, table: str, col: str, as_measure: bool):
+    """One (Select entry, queryRef) pair for a single field, classic Layout schema."""
+    query_ref = f"{table}.{col}"
+    if as_measure:
+        select = {"Measure": {"Expression": {"SourceRef": {"Source": alias}}, "Property": col}, "Name": query_ref}
+    else:
+        select = {"Column": {"Expression": {"SourceRef": {"Source": alias}}, "Property": col}, "Name": query_ref}
+    return select, query_ref
+
+
+def _build_visual_container(spec: dict, x: float, y: float, width: float, height: float) -> dict:
+    """Build one entry of sections[].visualContainers in the classic (PBIRLegacy) Layout
+    schema confirmed via get_report_definition against a real, working report in this
+    tenant: config/filters are JSON-stringified (not inline objects), there is no
+    $schema/definition/pages split - everything lives inside one report.json."""
+    pbi_type = _VISUAL_TYPE_MAP.get(spec.get("type", "table").lower(), spec.get("type", "tableEx"))
+    table = spec.get("table", "")
+    columns = spec.get("columns", [])
+    title = spec.get("title", "")
+    alias = "t"
+
+    selects = []
+    projections = {}
+
+    if pbi_type in ("tableEx", "pivotTable"):
+        values = []
+        for col in columns:
+            select, query_ref = _build_select_and_projection(alias, table, col, as_measure=False)
+            selects.append(select)
+            values.append({"queryRef": query_ref})
+        if values:
+            projections["Values"] = values
+
+    elif pbi_type == "card":
+        if columns:
+            select, query_ref = _build_select_and_projection(alias, table, columns[0], as_measure=False)
+            selects.append(select)
+            projections["Values"] = [{"queryRef": query_ref}]
+
+    else:
+        # Charts: first column is the category axis, remaining columns are Y-axis values.
+        if columns:
+            select, query_ref = _build_select_and_projection(alias, table, columns[0], as_measure=False)
+            selects.append(select)
+            projections["Category"] = [{"queryRef": query_ref, "active": True}]
+
+            y_values = []
+            for col in columns[1:]:
+                select, query_ref = _build_select_and_projection(alias, table, col, as_measure=False)
+                selects.append(select)
+                y_values.append({"queryRef": query_ref})
+            if y_values:
+                projections["Y"] = y_values
+
+    single_visual = {
+        "visualType": pbi_type,
+        "projections": projections,
+        "prototypeQuery": {
+            "Version": 2,
+            "From": [{"Name": alias, "Entity": table, "Type": 0}],
+            "Select": selects,
+        },
+    }
+    if title:
+        single_visual["vcObjects"] = {
+            "title": [
+                {
+                    "properties": {
+                        "show": {"expr": {"Literal": {"Value": "true"}}},
+                        "text": {"expr": {"Literal": {"Value": f"'{title}'"}}},
+                        "alignment": {"expr": {"Literal": {"Value": "'center'"}}},
+                    }
+                }
+            ]
+        }
+
+    visual_id = uuid.uuid4().hex[:20]
+    config = {
+        "name": visual_id,
+        "layouts": [
+            {"id": 0, "position": {"x": x, "y": y, "z": 1000, "width": width, "height": height, "tabOrder": 1000}}
+        ],
+        "singleVisual": single_visual,
+    }
+
+    return {
+        "x": x,
+        "y": y,
+        "z": 1000.0,
+        "width": width,
+        "height": height,
+        "filters": "[]",
+        "config": json.dumps(config, separators=(",", ":")),
+    }
+
+
+def _build_report_parts(dataset_id: str, display_name: str, pages: list) -> list:
+    """Build the report package parts. Structure confirmed via get_report_definition
+    against a real, already-working report in this tenant: only 3 files exist
+    (.platform, definition.pbir, report.json) - the newer decomposed PBIR layout
+    (separate version.json/pages/*.json/visuals/*.json) is NOT what this tenant's
+    Report Workload expects, despite matching Microsoft's public PBIR docs for other
+    tenants. This is the classic/legacy monolithic Layout schema instead."""
+    parts = []
+
+    # .platform: Fabric item metadata required by the API
+    parts.append(
+        {
+            "path": ".platform",
+            "payload": _to_base64(
+                {
+                    "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+                    "metadata": {"type": "Report", "displayName": display_name},
+                    "config": {"version": "2.0", "logicalId": str(uuid.uuid4())},
+                }
+            ),
+            "payloadType": "InlineBase64",
+        }
+    )
+
+    # definition.pbir: v2.0.0 schema, just connectionString with semanticmodelid
+    parts.append(
+        {
+            "path": "definition.pbir",
+            "payload": _to_base64(
+                {
+                    "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definitionProperties/2.0.0/schema.json",
+                    "version": "4.0",
+                    "datasetReference": {
+                        "byConnection": {
+                            "connectionString": f"semanticmodelid={dataset_id}",
+                        }
+                    },
+                }
+            ),
+            "payloadType": "InlineBase64",
+        }
+    )
+
+    # report.json: everything else lives in this single file - report-level config,
+    # sections (pages), and visualContainers (visuals) - all nested JSON is
+    # double-serialized to strings, not inline objects, matching the real report.
+    sections = []
+    for page_index, page_spec in enumerate(pages):
+        grid_cols = 2
+        visual_width = 600.0
+        visual_height = 350.0
+        padding = 20.0
+
+        visual_containers = []
+        for i, visual_spec in enumerate(page_spec.get("visuals", [])):
+            col = i % grid_cols
+            row = i // grid_cols
+            x = float(visual_spec.get("x", col * (visual_width + padding) + padding))
+            y = float(visual_spec.get("y", row * (visual_height + padding) + padding))
+            width = float(visual_spec.get("width", visual_width))
+            height = float(visual_spec.get("height", visual_height))
+            visual_containers.append(_build_visual_container(visual_spec, x, y, width, height))
+
+        sections.append(
+            {
+                "name": f"ReportSection{page_index}",
+                "displayName": page_spec.get("name", "Page 1"),
+                "displayOption": 1,
+                "height": 720.0,
+                "width": 1280.0,
+                "filters": "[]",
+                "config": "{}",
+                "visualContainers": visual_containers,
+            }
+        )
+
+    report_config = {
+        "version": "5.37",
+        "themeCollection": {},
+        "activeSectionIndex": 0,
+        "settings": {
+            "useNewFilterPaneExperience": True,
+            "allowChangeFilterTypes": True,
+            "useEnhancedTooltips": True,
+        },
+    }
+
+    report_json = {
+        "config": json.dumps(report_config, separators=(",", ":")),
+        "filters": "[]",
+        "layoutOptimization": 0,
+        "pods": [
+            {"boundSection": sections[0]["name"] if sections else "ReportSection0", "config": "{}", "name": "Pod"}
+        ],
+        "resourcePackages": [],
+        "sections": sections,
+    }
+
+    parts.append(
+        {
+            "path": "report.json",
+            "payload": _to_base64(report_json),
+            "payloadType": "InlineBase64",
+        }
+    )
+
+    return parts
+
+
+@powerbi.action("get_report_definition")
+class GetReportDefinitionAction(ActionHandler):
+    """
+    Fetch the raw PBIR file parts (.platform, definition.pbir, report.json, version.json,
+    pages, visuals) of an existing report via the Fabric getDefinition API. Diagnostic tool
+    for reverse-engineering the exact format Fabric expects when create_report's generated
+    package gets rejected - rather than guessing at undocumented schema versions, pull the
+    ground truth from a report Fabric already accepted.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            report_id = inputs["report_id"]
+            workspace_id = inputs["workspace_id"]
+
+            url = f"{FABRIC_API_BASE}/workspaces/{workspace_id}/reports/{report_id}/getDefinition"
+            response = await context.fetch(url, method="POST")
+
+            if response.status == 202:
+                operation_url = response.headers.get("Location") or response.headers.get("location")
+                if not operation_url:
+                    return ActionError(message="Fabric API returned 202 Accepted with no Location header to poll.")
+
+                for _ in range(15):
+                    op_response = await context.fetch(operation_url)
+                    op_data = op_response.data or {}
+                    status = op_data.get("status")
+                    if status == "Succeeded":
+                        break
+                    if status in ("Failed", "Cancelled"):
+                        error = op_data.get("error", {})
+                        return ActionError(
+                            message=f"Get report definition {status.lower()}: {error.get('message', 'unknown error')}"
+                        )
+                    await asyncio.sleep(2)
+                else:
+                    return ActionError(message="Get report definition did not complete in time.")
+
+                result_response = await context.fetch(f"{operation_url}/result")
+                data = result_response.data or {}
+            else:
+                data = response.data or {}
+
+            raw_parts = data.get("definition", {}).get("parts", [])
+            decoded_parts = []
+            for part in raw_parts:
+                payload = part.get("payload", "")
+                try:
+                    content = base64.b64decode(payload).decode("utf-8")
+                except Exception:
+                    content = None
+                decoded_parts.append({"path": part.get("path"), "content": content})
+
+            return ActionResult(data={"parts": decoded_parts}, cost_usd=0.0)
+
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@powerbi.action("create_report")
+class CreateReportAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            display_name = inputs["display_name"]
+            workspace_id = inputs["workspace_id"]
+            dataset_id = inputs["dataset_id"]
+            pages = inputs["pages"]
+
+            for page in pages:
+                for visual in page.get("visuals", []):
+                    if not visual.get("columns"):
+                        raise ValueError(
+                            f"Visual on page '{page.get('name', '?')}' has no columns - an empty "
+                            "columns list silently produces a blank visual with no data bound to it. "
+                            "Use get_dataset_schema to discover real column names first."
+                        )
+
+            parts = _build_report_parts(dataset_id, display_name, pages)
+
+            url = f"{FABRIC_API_BASE}/workspaces/{workspace_id}/reports"
+            response = await context.fetch(
+                url,
+                method="POST",
+                json={
+                    "displayName": display_name,
+                    "definition": {"parts": parts},
+                },
+            )
+
+            # Fabric API returns the created item directly on 201, or 202 Accepted with a
+            # Location header pointing at a long-running operation to poll. Don't assume
+            # context.fetch resolves 202s for us - poll it ourselves and fetch the result.
+            if response.status == 202:
+                operation_url = response.headers.get("Location") or response.headers.get("location")
+                if not operation_url:
+                    return ActionError(
+                        message="Fabric API returned 202 Accepted with no Location header to poll "
+                        "for the created report."
+                    )
+
+                for _ in range(15):
+                    op_response = await context.fetch(operation_url)
+                    op_data = op_response.data or {}
+                    status = op_data.get("status")
+                    if status == "Succeeded":
+                        break
+                    if status in ("Failed", "Cancelled"):
+                        error = op_data.get("error", {})
+                        return ActionError(
+                            message=f"Fabric report creation {status.lower()}: {error.get('message', 'unknown error')}"
+                        )
+                    await asyncio.sleep(2)
+                else:
+                    return ActionError(message="Fabric report creation did not complete in time.")
+
+                result_response = await context.fetch(f"{operation_url}/result")
+                data = result_response.data or {}
+            else:
+                data = response.data or {}
+
+            report_id = data.get("id")
+            if not report_id:
+                return ActionError(
+                    message=(
+                        "Report creation request completed but returned no report ID - the operation may "
+                        "not have finished successfully."
+                    )
+                )
+
+            # The Fabric create/result payload doesn't reliably include displayName/
+            # workspaceId/webUrl the way the standard Power BI REST API does (confirmed
+            # live: webUrl came back missing even though the report was created
+            # successfully). Derive these from known inputs instead of trusting the
+            # response to echo them back.
+            return ActionResult(
+                data={
+                    "id": report_id,
+                    "display_name": data.get("displayName") or display_name,
+                    "workspace_id": data.get("workspaceId") or workspace_id,
+                    "web_url": data.get("webUrl")
+                    or f"https://app.powerbi.com/groups/{workspace_id}/reports/{report_id}",
+                },
+                cost_usd=0.0,
+            )
+
+        except Exception as e:
+            return ActionError(message=str(e))
