@@ -1,0 +1,438 @@
+{
+    "name": "Windcave",
+    "display_name": "Windcave",
+    "version": "1.0.0",
+    "description": "Windcave payment gateway integration for creating hosted payment sessions, processing merchant-initiated transactions, and managing refunds, completions, and voids via the Windcave REST API.",
+    "entry_point": "windcave.py",
+    "auth": {
+        "type": "custom",
+        "title": "Windcave REST API Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "username": {
+                    "type": "string",
+                    "label": "REST API Username",
+                    "help_text": "The REST API username provided by Windcave for your merchant account."
+                },
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "REST API Key",
+                    "help_text": "The REST API key provided by Windcave. Combined with the username for HTTP Basic Authentication."
+                },
+                "use_test_environment": {
+                    "type": "boolean",
+                    "label": "Use UAT/Test Environment",
+                    "help_text": "Enable to send requests to Windcave's UAT environment instead of production. Requires separate UAT credentials.",
+                    "default": false
+                }
+            },
+            "required": []
+        }
+    },
+    "actions": {
+        "create_session": {
+            "display_name": "Create Payment Session",
+            "description": "Create a Windcave Hosted Payment Page (HPP) session for a purchase, authorisation, or card validation. Returns a URL to redirect the customer to for completing payment.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["purchase", "auth", "validate"],
+                        "default": "purchase",
+                        "description": "Session transaction type. 'purchase' charges the card immediately, 'auth' reserves funds for later completion, 'validate' verifies a card without charging it."
+                    },
+                    "amount": {
+                        "type": "number",
+                        "description": "Transaction amount, e.g. 19.99. Required for 'purchase' and 'auth' session types."
+                    },
+                    "amount_surcharge": {
+                        "type": "number",
+                        "description": "Surcharge amount to add on top of 'amount' (e.g. a card processing fee passed on to the customer), e.g. 0.50."
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "3-letter ISO 4217 currency code, e.g. NZD, AUD, USD."
+                    },
+                    "merchant_reference": {
+                        "type": "string",
+                        "description": "Your reference for this transaction, shown in Windcave reporting."
+                    },
+                    "methods": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Payment methods to allow for this session, e.g. [\"card\"] or [\"account2account\"]. Defaults to card payments if omitted."
+                    },
+                    "store_card": {
+                        "type": "boolean",
+                        "description": "Store the card used in this session as a reusable token for future merchant-initiated transactions."
+                    },
+                    "language": {
+                        "type": "string",
+                        "description": "Language code for the hosted payment page, e.g. 'en'."
+                    },
+                    "approved_callback_url": {
+                        "type": "string",
+                        "description": "URL the customer's browser is redirected to after an approved payment."
+                    },
+                    "declined_callback_url": {
+                        "type": "string",
+                        "description": "URL the customer's browser is redirected to after a declined payment."
+                    },
+                    "cancelled_callback_url": {
+                        "type": "string",
+                        "description": "URL the customer's browser is redirected to if they cancel the payment."
+                    },
+                    "notification_url": {
+                        "type": "string",
+                        "description": "Server-to-server URL Windcave sends the transaction result notification to."
+                    }
+                },
+                "required": ["currency", "merchant_reference"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "The Windcave session ID."
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "Current state of the session, e.g. 'incomplete' or 'complete'."
+                    },
+                    "hpp_url": {
+                        "type": ["string", "null"],
+                        "description": "URL to redirect the customer to for completing payment on Windcave's Hosted Payment Page. Null if the session response does not include an HPP link."
+                    },
+                    "session": {
+                        "type": "object",
+                        "description": "The full raw session object returned by Windcave."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful."
+                    }
+                }
+            }
+        },
+        "get_session": {
+            "display_name": "Get Payment Session",
+            "description": "Retrieve a Windcave session by ID, including the outcome of any transaction attempts made during it.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "The Windcave session ID to retrieve."
+                    }
+                },
+                "required": ["session_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "The Windcave session ID."
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "Current state of the session."
+                    },
+                    "authorised": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether the most recent transaction attempt in this session was authorised. Null if no attempt has completed yet."
+                    },
+                    "settlement_date": {
+                        "type": ["string", "null"],
+                        "description": "The settlement date for the most recent transaction attempt, as reported by Windcave. Null if not yet settled or no attempt has completed."
+                    },
+                    "amount_surcharge": {
+                        "type": ["string", "number", "null"],
+                        "description": "The surcharge amount charged on the most recent transaction attempt, if any."
+                    },
+                    "transactions": {
+                        "type": "array",
+                        "description": "All transaction attempts made during this session."
+                    },
+                    "session": {
+                        "type": "object",
+                        "description": "The full raw session object returned by Windcave."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful."
+                    }
+                }
+            }
+        },
+        "create_transaction": {
+            "display_name": "Create Transaction",
+            "description": "Create a direct, merchant-initiated transaction (purchase, authorisation, or validation) against a previously stored card token, without redirecting the customer to a hosted payment page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["purchase", "auth", "validate"],
+                        "default": "purchase",
+                        "description": "Transaction type. 'purchase' charges the card immediately, 'auth' reserves funds for later completion, 'validate' verifies the card without charging it."
+                    },
+                    "amount": {
+                        "type": "number",
+                        "description": "Transaction amount, e.g. 19.99. Required for 'purchase' and 'auth' transaction types."
+                    },
+                    "amount_surcharge": {
+                        "type": "number",
+                        "description": "Surcharge amount to add on top of 'amount' (e.g. a card processing fee passed on to the customer), e.g. 0.50."
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "3-letter ISO 4217 currency code, e.g. NZD, AUD, USD."
+                    },
+                    "merchant_reference": {
+                        "type": "string",
+                        "description": "Your reference for this transaction, shown in Windcave reporting."
+                    },
+                    "card_id": {
+                        "type": "string",
+                        "description": "The stored card token ID, obtained from a prior session created with store_card set to true."
+                    }
+                },
+                "required": ["currency", "merchant_reference", "card_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The Windcave transaction ID."
+                    },
+                    "authorised": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether the transaction was authorised."
+                    },
+                    "settlement_date": {
+                        "type": ["string", "null"],
+                        "description": "The settlement date for this transaction, as reported by Windcave. Null if not yet settled."
+                    },
+                    "amount_surcharge": {
+                        "type": ["string", "number", "null"],
+                        "description": "The surcharge amount charged on this transaction, if any."
+                    },
+                    "transaction": {
+                        "type": "object",
+                        "description": "The full raw transaction object returned by Windcave."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful."
+                    }
+                }
+            }
+        },
+        "get_transaction": {
+            "display_name": "Get Transaction",
+            "description": "Retrieve a Windcave transaction by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The Windcave transaction ID to retrieve."
+                    }
+                },
+                "required": ["transaction_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The Windcave transaction ID."
+                    },
+                    "authorised": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether the transaction was authorised."
+                    },
+                    "settlement_date": {
+                        "type": ["string", "null"],
+                        "description": "The settlement date for this transaction, as reported by Windcave. Null if not yet settled."
+                    },
+                    "amount_surcharge": {
+                        "type": ["string", "number", "null"],
+                        "description": "The surcharge amount charged on this transaction, if any."
+                    },
+                    "transaction": {
+                        "type": "object",
+                        "description": "The full raw transaction object returned by Windcave."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful."
+                    }
+                }
+            }
+        },
+        "complete_transaction": {
+            "display_name": "Complete Transaction",
+            "description": "Complete a prior 'auth' transaction, capturing the previously reserved funds.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The ID of the original 'auth' transaction to complete."
+                    },
+                    "amount": {
+                        "type": "number",
+                        "description": "Amount to capture, e.g. 19.99. Omit to capture the full authorised amount."
+                    },
+                    "amount_surcharge": {
+                        "type": "number",
+                        "description": "Surcharge amount to add on top of 'amount', e.g. 0.50."
+                    },
+                    "merchant_reference": {
+                        "type": "string",
+                        "description": "Your reference for this completion, shown in Windcave reporting."
+                    }
+                },
+                "required": ["transaction_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The Windcave transaction ID for this completion."
+                    },
+                    "authorised": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether the completion was authorised."
+                    },
+                    "settlement_date": {
+                        "type": ["string", "null"],
+                        "description": "The settlement date for this completion, as reported by Windcave. Null if not yet settled."
+                    },
+                    "amount_surcharge": {
+                        "type": ["string", "number", "null"],
+                        "description": "The surcharge amount charged on this completion, if any."
+                    },
+                    "transaction": {
+                        "type": "object",
+                        "description": "The full raw transaction object returned by Windcave."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful."
+                    }
+                }
+            }
+        },
+        "refund_transaction": {
+            "display_name": "Refund Transaction",
+            "description": "Refund a prior purchase or completed transaction, in full or in part, by referencing its transaction ID without needing the original card details.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The ID of the original purchase or completed transaction to refund."
+                    },
+                    "amount": {
+                        "type": "number",
+                        "description": "Amount to refund, e.g. 19.99. Omit to refund the full original amount."
+                    },
+                    "amount_surcharge": {
+                        "type": "number",
+                        "description": "Surcharge amount to refund on top of 'amount', e.g. 0.50."
+                    },
+                    "merchant_reference": {
+                        "type": "string",
+                        "description": "Your reference for this refund, shown in Windcave reporting."
+                    }
+                },
+                "required": ["transaction_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The Windcave transaction ID for this refund."
+                    },
+                    "authorised": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether the refund was authorised."
+                    },
+                    "settlement_date": {
+                        "type": ["string", "null"],
+                        "description": "The settlement date for this refund, as reported by Windcave. Null if not yet settled."
+                    },
+                    "amount_surcharge": {
+                        "type": ["string", "number", "null"],
+                        "description": "The surcharge amount refunded, if any."
+                    },
+                    "transaction": {
+                        "type": "object",
+                        "description": "The full raw transaction object returned by Windcave."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful."
+                    }
+                }
+            }
+        },
+        "void_transaction": {
+            "display_name": "Void Transaction",
+            "description": "Void a prior purchase or authorisation transaction before it settles, cancelling it entirely.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The ID of the transaction to void."
+                    },
+                    "merchant_reference": {
+                        "type": "string",
+                        "description": "Your reference for this void, shown in Windcave reporting."
+                    }
+                },
+                "required": ["transaction_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "transaction_id": {
+                        "type": "string",
+                        "description": "The Windcave transaction ID for this void."
+                    },
+                    "authorised": {
+                        "type": ["boolean", "null"],
+                        "description": "Whether the void was authorised."
+                    },
+                    "settlement_date": {
+                        "type": ["string", "null"],
+                        "description": "The settlement date for this void, as reported by Windcave. Typically null since a voided transaction does not settle."
+                    },
+                    "amount_surcharge": {
+                        "type": ["string", "number", "null"],
+                        "description": "The surcharge amount associated with the voided transaction, if any."
+                    },
+                    "transaction": {
+                        "type": "object",
+                        "description": "The full raw transaction object returned by Windcave."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful."
+                    }
+                }
+            }
+        }
+    }
+}

@@ -370,6 +370,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [toggl](toggl): Time tracking integration with Toggl Track API for managing time entries and workspace data. Supports creating time entries with start/stop times, descriptions, project assignments, billable flags, and tags. Features API token authentication via HTTP Basic Auth. Ideal for automating time tracking workflows and logging billable hours.
 
+### Windcave
+
+[windcave](windcave): Payment gateway integration with the Windcave REST API for creating hosted payment sessions and managing merchant-initiated transactions. Supports creating Hosted Payment Page (HPP) sessions for purchases, authorisations, and card validations, querying sessions for their transaction outcome, and running direct transactions against a previously stored card token. Covers the full transaction lifecycle with completion (capturing a prior authorisation), refunds (full or partial), and voids. Never handles raw card data — card details are only ever entered on Windcave's Hosted Payment Page or referenced via a tokenised card ID. Features HTTP Basic Authentication with REST API username and key, and a configurable UAT/production environment toggle. Includes 7 actions covering session creation, session and transaction lookups, and transaction lifecycle management. Ideal for e-commerce checkout automation, payment reconciliation, and subscription/recurring billing workflows in New Zealand, Australia, and the Pacific.
+
 ## Template
 
 Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) in the SDK repo as the starting point for new integrations.
