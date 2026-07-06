@@ -295,6 +295,122 @@
                 },
                 "required": ["accounts"]
             }
+        },
+        "create_deal": {
+            "display_name": "Create Deal",
+            "description": "Create a new deal. Name and amount are required.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Deal name"},
+                    "amount": {"type": "number", "description": "Deal value"},
+                    "sales_account_id": {"type": "integer", "description": "ID of the account the deal belongs to"},
+                    "deal_stage_id": {"type": "integer", "description": "ID of the deal stage"},
+                    "deal_pipeline_id": {"type": "integer", "description": "ID of the deal pipeline"},
+                    "deal_type_id": {"type": "integer", "description": "ID of the deal type"},
+                    "lead_source_id": {"type": "integer", "description": "ID of the lead source"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the deal"},
+                    "expected_close": {"type": "string", "description": "Expected close date (YYYY-MM-DD)"},
+                    "probability": {"type": "integer", "description": "Win probability (0-100)"},
+                    "currency_id": {"type": "integer", "description": "ID of the deal currency"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "campaign_id": {"type": "integer", "description": "ID of the campaign"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": ["name", "amount"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"deal": {"type": "object", "description": "The created deal record"}},
+                "required": ["deal"]
+            }
+        },
+        "get_deal": {
+            "display_name": "Get Deal",
+            "description": "Retrieve a deal by ID, optionally embedding related records.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "deal_id": {"type": "integer", "description": "Deal ID"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner,sales_account,contacts)"}
+                },
+                "required": ["deal_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"deal": {"type": "object", "description": "The deal record"}},
+                "required": ["deal"]
+            }
+        },
+        "update_deal": {
+            "display_name": "Update Deal",
+            "description": "Update fields on an existing deal (e.g. move stage, change amount). Only provided fields are changed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "deal_id": {"type": "integer", "description": "Deal ID"},
+                    "name": {"type": "string", "description": "Deal name"},
+                    "amount": {"type": "number", "description": "Deal value"},
+                    "sales_account_id": {"type": "integer", "description": "ID of the account the deal belongs to"},
+                    "deal_stage_id": {"type": "integer", "description": "ID of the deal stage"},
+                    "deal_pipeline_id": {"type": "integer", "description": "ID of the deal pipeline"},
+                    "deal_type_id": {"type": "integer", "description": "ID of the deal type"},
+                    "lead_source_id": {"type": "integer", "description": "ID of the lead source"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the deal"},
+                    "expected_close": {"type": "string", "description": "Expected close date (YYYY-MM-DD)"},
+                    "probability": {"type": "integer", "description": "Win probability (0-100)"},
+                    "currency_id": {"type": "integer", "description": "ID of the deal currency"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "campaign_id": {"type": "integer", "description": "ID of the campaign"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": ["deal_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"deal": {"type": "object", "description": "The updated deal record"}},
+                "required": ["deal"]
+            }
+        },
+        "delete_deal": {
+            "display_name": "Delete Deal",
+            "description": "Delete a deal by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"deal_id": {"type": "integer", "description": "Deal ID"}},
+                "required": ["deal_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "deal_id": {"type": "integer", "description": "ID of the deleted deal"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_deals": {
+            "display_name": "List Deals",
+            "description": "List deals from a view. Omit view_id to use the 'All Deals' view automatically (use list_views to discover other views, e.g. pipeline-specific ones). Returns 25 records per page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "view_id": {"type": "integer", "description": "View (filter) ID to list from; omit for the default 'All Deals' view"},
+                    "page": {"type": "integer", "minimum": 1, "description": "Page number (default 1)"},
+                    "sort": {"type": "string", "description": "Field to sort by (e.g. created_at, updated_at)"},
+                    "sort_type": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner,sales_account)"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "deals": {"type": "array", "items": {"type": "object"}, "description": "Deals in the view page"},
+                    "meta": {"type": "object", "description": "Pagination metadata (total, total_pages)"}
+                },
+                "required": ["deals"]
+            }
         }
     }
 }

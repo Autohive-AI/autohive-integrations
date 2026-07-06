@@ -420,3 +420,132 @@ class TestListAccounts:
         result = await freshsales.execute_action("list_accounts", {"view_id": 8}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
+
+
+# ---- Deal Tests ----
+
+SAMPLE_DEAL = {"id": 4001, "name": "Big deal", "amount": "23456.0", "sales_account_id": 2001}
+
+
+class TestCreateDeal:
+    @pytest.mark.asyncio
+    async def test_happy_path_wrapped_body(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"deal": SAMPLE_DEAL})
+
+        result = await freshsales.execute_action(
+            "create_deal", {"name": "Big deal", "amount": 23456, "sales_account_id": 2001}, mock_context
+        )
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/deals")
+        assert call_args.kwargs["method"] == "POST"
+        assert call_args.kwargs["json"] == {"deal": {"name": "Big deal", "amount": 23456, "sales_account_id": 2001}}
+        assert result.result.data["deal"] == SAMPLE_DEAL
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("create failed")
+
+        result = await freshsales.execute_action("create_deal", {"name": "X", "amount": 1}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestGetDeal:
+    @pytest.mark.asyncio
+    async def test_happy_path_and_include(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"deal": SAMPLE_DEAL})
+
+        result = await freshsales.execute_action("get_deal", {"deal_id": 4001, "include": "owner"}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/deals/4001")
+        assert call_args.kwargs["method"] == "GET"
+        assert call_args.kwargs["params"] == {"include": "owner"}
+        assert result.result.data["deal"] == SAMPLE_DEAL
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("get failed")
+
+        result = await freshsales.execute_action("get_deal", {"deal_id": 4001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestUpdateDeal:
+    @pytest.mark.asyncio
+    async def test_happy_path_put_wrapped_body(self, mock_context):
+        updated = {**SAMPLE_DEAL, "amount": "99999.0"}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"deal": updated})
+
+        result = await freshsales.execute_action("update_deal", {"deal_id": 4001, "amount": 99999}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/deals/4001")
+        assert call_args.kwargs["method"] == "PUT"
+        assert call_args.kwargs["json"] == {"deal": {"amount": 99999}}
+        assert result.result.data["deal"]["amount"] == "99999.0"
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("update failed")
+
+        result = await freshsales.execute_action("update_deal", {"deal_id": 4001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestDeleteDeal:
+    @pytest.mark.asyncio
+    async def test_happy_path_delete(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"success": True})
+
+        result = await freshsales.execute_action("delete_deal", {"deal_id": 4001}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/deals/4001")
+        assert call_args.kwargs["method"] == "DELETE"
+        assert result.result.data["success"] is True
+        assert result.result.data["deal_id"] == 4001
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("delete failed")
+
+        result = await freshsales.execute_action("delete_deal", {"deal_id": 4001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestListDeals:
+    @pytest.mark.asyncio
+    async def test_explicit_view_id(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"deals": [SAMPLE_DEAL], "meta": {"total": 1}}
+        )
+
+        result = await freshsales.execute_action("list_deals", {"view_id": 12}, mock_context)
+
+        assert "/deals/view/12" in mock_context.fetch.call_args.args[0]
+        assert result.result.data["deals"] == [SAMPLE_DEAL]
+
+    @pytest.mark.asyncio
+    async def test_auto_resolves_view(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data={"filters": [{"id": 3, "name": "All Deals"}]}),
+            FetchResponse(status=200, headers={}, data={"deals": [], "meta": {}}),
+        ]
+
+        await freshsales.execute_action("list_deals", {}, mock_context)
+
+        assert mock_context.fetch.call_args_list[0].args[0].endswith("/deals/filters")
+        assert "/deals/view/3" in mock_context.fetch.call_args_list[1].args[0]
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("list failed")
+
+        result = await freshsales.execute_action("list_deals", {"view_id": 12}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR

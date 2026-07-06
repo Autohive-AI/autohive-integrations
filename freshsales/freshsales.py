@@ -306,3 +306,108 @@ class ListAccountsAction(ActionHandler):
             )
         except Exception as e:
             return ActionError(message=str(e))
+
+
+DEAL_FIELDS = (
+    "name",
+    "amount",
+    "sales_account_id",
+    "deal_stage_id",
+    "deal_pipeline_id",
+    "deal_type_id",
+    "lead_source_id",
+    "owner_id",
+    "expected_close",
+    "probability",
+    "currency_id",
+    "territory_id",
+    "campaign_id",
+    "custom_field",
+)
+
+
+@freshsales.action("create_deal")
+class CreateDealAction(ActionHandler):
+    """Create a new deal. Name and amount are required."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            body = build_body(inputs, DEAL_FIELDS)
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(f"{base_url}/deals", method="POST", headers=headers, json={"deal": body})
+            return ActionResult(data={"deal": response.data.get("deal", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("get_deal")
+class GetDealAction(ActionHandler):
+    """Retrieve a deal by ID, optionally embedding related records."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            params = {}
+            if inputs.get("include"):
+                params["include"] = inputs["include"]
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/deals/{inputs['deal_id']}", method="GET", headers=headers, params=params
+            )
+            return ActionResult(data={"deal": response.data.get("deal", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("update_deal")
+class UpdateDealAction(ActionHandler):
+    """Update fields on an existing deal."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            body = build_body(inputs, DEAL_FIELDS)
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/deals/{inputs['deal_id']}", method="PUT", headers=headers, json={"deal": body}
+            )
+            return ActionResult(data={"deal": response.data.get("deal", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("delete_deal")
+class DeleteDealAction(ActionHandler):
+    """Delete a deal by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(f"{base_url}/deals/{inputs['deal_id']}", method="DELETE", headers=headers)
+            data = response.data if isinstance(response.data, dict) else {}
+            return ActionResult(data={"success": bool(data.get("success", True)), "deal_id": inputs["deal_id"]})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("list_deals")
+class ListDealsAction(ActionHandler):
+    """List deals from a view, auto-resolving the 'All Deals' view when none is given."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            view_id = inputs.get("view_id") or await resolve_view_id(context, "deals")
+            params = {"page": inputs.get("page", 1)}
+            for param in ("sort", "sort_type", "include"):
+                if inputs.get(param):
+                    params[param] = inputs[param]
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/deals/view/{view_id}", method="GET", headers=headers, params=params
+            )
+            return ActionResult(data={"deals": response.data.get("deals", []), "meta": response.data.get("meta", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
