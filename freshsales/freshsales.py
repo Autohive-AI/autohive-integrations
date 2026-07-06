@@ -592,3 +592,71 @@ class ListAppointmentsAction(ActionHandler):
             return ActionResult(data={"appointments": response.data.get("appointments", [])})
         except Exception as e:
             return ActionError(message=str(e))
+
+
+NOTE_FIELDS = ("description", "targetable_type", "targetable_id")
+
+
+@freshsales.action("create_note")
+class CreateNoteAction(ActionHandler):
+    """Attach a note to a contact, sales account, or deal."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            body = build_body(inputs, NOTE_FIELDS)
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(f"{base_url}/notes", method="POST", headers=headers, json={"note": body})
+            return ActionResult(data={"note": response.data.get("note", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("update_note")
+class UpdateNoteAction(ActionHandler):
+    """Update the content of an existing note."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            body = {"description": inputs["description"]}
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(
+                f"{base_url}/notes/{inputs['note_id']}", method="PUT", headers=headers, json={"note": body}
+            )
+            return ActionResult(data={"note": response.data.get("note", {})})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("delete_note")
+class DeleteNoteAction(ActionHandler):
+    """Delete a note by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(f"{base_url}/notes/{inputs['note_id']}", method="DELETE", headers=headers)
+            data = response.data if isinstance(response.data, dict) else {}
+            return ActionResult(data={"success": bool(data.get("success", True)), "note_id": inputs["note_id"]})
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@freshsales.action("search")
+class SearchAction(ActionHandler):
+    """Search across contacts, sales accounts, and deals."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            params = {"q": inputs["query"], "include": inputs.get("include", "contact,sales_account,deal")}
+            if inputs.get("per_page"):
+                params["per_page"] = inputs["per_page"]
+            headers = get_auth_headers(context)
+            base_url = get_base_url(context)
+            response = await context.fetch(f"{base_url}/search", method="GET", headers=headers, params=params)
+            results = response.data if isinstance(response.data, list) else []
+            return ActionResult(data={"results": results, "total": len(results)})
+        except Exception as e:
+            return ActionError(message=str(e))

@@ -837,3 +837,119 @@ class TestListAppointments:
         result = await freshsales.execute_action("list_appointments", {}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
+
+
+SAMPLE_NOTE = {"id": 7001, "description": "Call summary", "targetable_type": "Contact", "targetable_id": 3001}
+
+
+class TestCreateNote:
+    @pytest.mark.asyncio
+    async def test_happy_path_wrapped_body(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"note": SAMPLE_NOTE})
+
+        inputs = {"description": "Call summary", "targetable_type": "Contact", "targetable_id": 3001}
+        result = await freshsales.execute_action("create_note", inputs, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/notes")
+        assert call_args.kwargs["method"] == "POST"
+        assert call_args.kwargs["json"] == {"note": inputs}
+        assert result.result.data["note"] == SAMPLE_NOTE
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("create failed")
+
+        result = await freshsales.execute_action(
+            "create_note", {"description": "X", "targetable_type": "Contact", "targetable_id": 1}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestUpdateNote:
+    @pytest.mark.asyncio
+    async def test_happy_path_put(self, mock_context):
+        updated = {**SAMPLE_NOTE, "description": "Updated summary"}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"note": updated})
+
+        result = await freshsales.execute_action(
+            "update_note", {"note_id": 7001, "description": "Updated summary"}, mock_context
+        )
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/notes/7001")
+        assert call_args.kwargs["method"] == "PUT"
+        assert call_args.kwargs["json"] == {"note": {"description": "Updated summary"}}
+        assert result.result.data["note"]["description"] == "Updated summary"
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("update failed")
+
+        result = await freshsales.execute_action("update_note", {"note_id": 7001, "description": "X"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestDeleteNote:
+    @pytest.mark.asyncio
+    async def test_happy_path_delete(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"success": True})
+
+        result = await freshsales.execute_action("delete_note", {"note_id": 7001}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/notes/7001")
+        assert call_args.kwargs["method"] == "DELETE"
+        assert result.result.data["success"] is True
+        assert result.result.data["note_id"] == 7001
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("delete failed")
+
+        result = await freshsales.execute_action("delete_note", {"note_id": 7001}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestSearch:
+    @pytest.mark.asyncio
+    async def test_happy_path_returns_results(self, mock_context):
+        results = [{"id": 3001, "type": "contact", "name": "Jane Doe"}]
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=results)
+
+        result = await freshsales.execute_action("search", {"query": "jane"}, mock_context)
+
+        call_args = mock_context.fetch.call_args
+        assert call_args.args[0].endswith("/search")
+        assert call_args.kwargs["params"]["q"] == "jane"
+        assert call_args.kwargs["params"]["include"] == "contact,sales_account,deal"
+        assert result.result.data["results"] == results
+        assert result.result.data["total"] == 1
+
+    @pytest.mark.asyncio
+    async def test_custom_include_entities(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
+
+        await freshsales.execute_action("search", {"query": "acme", "include": "sales_account"}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["params"]["include"] == "sales_account"
+
+    @pytest.mark.asyncio
+    async def test_non_list_response_returns_empty_results(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"unexpected": True})
+
+        result = await freshsales.execute_action("search", {"query": "jane"}, mock_context)
+
+        assert result.result.data["results"] == []
+        assert result.result.data["total"] == 0
+
+    @pytest.mark.asyncio
+    async def test_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("search failed")
+
+        result = await freshsales.execute_action("search", {"query": "jane"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR

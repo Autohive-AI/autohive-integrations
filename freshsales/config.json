@@ -606,6 +606,79 @@
                 },
                 "required": ["appointments"]
             }
+        },
+        "create_note": {
+            "display_name": "Create Note",
+            "description": "Attach a note to a contact, account, or deal.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "description": {"type": "string", "description": "Note content"},
+                    "targetable_type": {"type": "string", "enum": ["Contact", "SalesAccount", "Deal"], "description": "Type of record the note is attached to"},
+                    "targetable_id": {"type": "integer", "description": "ID of the record the note is attached to"}
+                },
+                "required": ["description", "targetable_type", "targetable_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"note": {"type": "object", "description": "The created note record"}},
+                "required": ["note"]
+            }
+        },
+        "update_note": {
+            "display_name": "Update Note",
+            "description": "Update the content of an existing note.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "note_id": {"type": "integer", "description": "Note ID"},
+                    "description": {"type": "string", "description": "New note content"}
+                },
+                "required": ["note_id", "description"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"note": {"type": "object", "description": "The updated note record"}},
+                "required": ["note"]
+            }
+        },
+        "delete_note": {
+            "display_name": "Delete Note",
+            "description": "Delete a note by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"note_id": {"type": "integer", "description": "Note ID"}},
+                "required": ["note_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "note_id": {"type": "integer", "description": "ID of the deleted note"}
+                },
+                "required": ["success"]
+            }
+        },
+        "search": {
+            "display_name": "Search",
+            "description": "Search across contacts, accounts, and deals by name, email, or other text.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search text"},
+                    "include": {"type": "string", "description": "Comma-separated entity types to search: contact, sales_account, deal, user (default: contact,sales_account,deal)"},
+                    "per_page": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Max results to return"}
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "results": {"type": "array", "items": {"type": "object"}, "description": "Matching records with their entity type"},
+                    "total": {"type": "integer", "description": "Number of results returned"}
+                },
+                "required": ["results"]
+            }
         }
     }
 }
