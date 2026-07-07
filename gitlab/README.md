@@ -34,10 +34,9 @@ The OAuth integration automatically handles token management and refresh (tokens
 
 ## Action Results
 
-All actions return a standardized response structure:
-- `result` (boolean): Indicates whether the action succeeded (true) or failed (false)
-- `error` (string, optional): Contains error message if the action failed
-- Additional action-specific data fields
+On success, actions return only their action-specific data fields (documented per action below) — there is no wrapping `result`/`error` envelope.
+
+On failure, the action raises an `ActionError` with a `message` describing what went wrong, rather than returning a response field.
 
 ## Actions (25 Total)
 
@@ -50,7 +49,6 @@ Get information about the authenticated user including profile and email.
 
 **Outputs:**
 - `user`: User information including id, username, email, name, state, avatar_url
-- `result`: Success status
 
 ---
 
@@ -72,7 +70,6 @@ List projects accessible by the authenticated user.
 
 **Outputs:**
 - `projects`: Array of project objects
-- `result`: Success status
 
 ---
 
@@ -85,7 +82,6 @@ Get details of a specific project including statistics.
 
 **Outputs:**
 - `project`: Project details
-- `result`: Success status
 
 ---
 
@@ -111,7 +107,6 @@ List issues for a project or globally with filtering options.
 
 **Outputs:**
 - `issues`: Array of issues
-- `result`: Success status
 
 ---
 
@@ -124,7 +119,6 @@ Get details of a specific issue including labels, assignees, and milestone.
 
 **Outputs:**
 - `issue`: Issue details including title, description, state, labels, assignees
-- `result`: Success status
 
 ---
 
@@ -145,7 +139,6 @@ List merge requests for a project or globally with filtering options.
 
 **Outputs:**
 - `merge_requests`: Array of merge requests
-- `result`: Success status
 
 ---
 
@@ -160,7 +153,6 @@ Get details of a specific merge request including changes and approvals.
 
 **Outputs:**
 - `merge_request`: MR details including source/target branches, state, approvals
-- `result`: Success status
 
 ---
 
@@ -173,7 +165,6 @@ Get the changes (diff) of a merge request.
 
 **Outputs:**
 - `changes`: List of file changes with diffs
-- `result`: Success status
 
 ---
 
@@ -187,7 +178,6 @@ Get commits associated with a merge request.
 
 **Outputs:**
 - `commits`: List of commits in the merge request
-- `result`: Success status
 
 ---
 
@@ -204,7 +194,6 @@ List repository branches sorted alphabetically by name.
 
 **Outputs:**
 - `branches`: Array of branches with name, commit info, and protection status
-- `result`: Success status
 
 ---
 
@@ -217,7 +206,6 @@ Get details of a specific branch including latest commit and protection status.
 
 **Outputs:**
 - `branch`: Branch details including commit, protected status, and merge status
-- `result`: Success status
 
 ---
 
@@ -239,7 +227,6 @@ List repository commits with optional filtering by branch, date, and path.
 
 **Outputs:**
 - `commits`: Array of commits with id, message, author, date
-- `result`: Success status
 
 ---
 
@@ -253,7 +240,6 @@ Get details of a specific commit including stats and parent commits.
 
 **Outputs:**
 - `commit`: Commit details including message, author, stats, parent_ids
-- `result`: Success status
 
 ---
 
@@ -267,7 +253,6 @@ Get the diff of a commit showing all file changes.
 
 **Outputs:**
 - `diffs`: List of file diffs with old_path, new_path, diff content
-- `result`: Success status
 
 ---
 
@@ -289,7 +274,6 @@ List CI/CD pipelines for a project with filtering options.
 
 **Outputs:**
 - `pipelines`: Array of pipelines with id, status, ref, sha, created_at
-- `result`: Success status
 
 ---
 
@@ -302,7 +286,6 @@ Get details of a specific pipeline including duration and coverage.
 
 **Outputs:**
 - `pipeline`: Pipeline details including status, duration, coverage, user
-- `result`: Success status
 
 ---
 
@@ -318,7 +301,6 @@ List jobs for a specific pipeline.
 
 **Outputs:**
 - `jobs`: List of jobs with name, stage, status, duration
-- `result`: Success status
 
 ---
 
@@ -336,7 +318,6 @@ List files and directories in a repository at a specific path and ref.
 
 **Outputs:**
 - `tree`: Array of files/directories with id, name, type, path, mode
-- `result`: Success status
 
 ---
 
@@ -350,7 +331,6 @@ Get a file's metadata and content (base64 encoded) from the repository.
 
 **Outputs:**
 - `file`: File metadata (file_name, file_path, size, encoding) and base64-encoded content
-- `result`: Success status
 
 ---
 
@@ -364,7 +344,6 @@ Get a file's raw content as plain text from the repository.
 
 **Outputs:**
 - `content`: Raw file content as text
-- `result`: Success status
 
 ---
 
@@ -379,7 +358,6 @@ Compare two branches, tags, or commits showing commits and diffs between them.
 
 **Outputs:**
 - `comparison`: Comparison result with commits array and diffs array
-- `result`: Success status
 
 ---
 
@@ -396,7 +374,6 @@ List container registry repositories for a project.
 
 **Outputs:**
 - `repositories`: List of container registry repositories
-- `result`: Success status
 
 ---
 
@@ -411,7 +388,6 @@ Get details of a specific container registry repository.
 
 **Outputs:**
 - `repository`: Container registry repository details
-- `result`: Success status
 
 ---
 
@@ -425,7 +401,6 @@ List tags for a container registry repository.
 
 **Outputs:**
 - `tags`: List of container image tags
-- `result`: Success status
 
 ---
 
@@ -439,7 +414,6 @@ Get details of a specific container registry tag including manifest digest.
 
 **Outputs:**
 - `tag`: Tag details including name, path, location, digest, created_at
-- `result`: Success status
 
 ---
 
