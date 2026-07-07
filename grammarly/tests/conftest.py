@@ -8,7 +8,10 @@ def mock_context():
     ctx = MagicMock(spec=ExecutionContext)
     ctx.fetch = AsyncMock()
     ctx.auth = {
-        "client_id": "test_client_id",
-        "client_secret": "test_client_secret",  # nosec B105
+        "auth_type": "Custom",
+        "credentials": {
+            "client_id": "test_client_id",
+            "client_secret": "test_client_secret",  # nosec B105
+        },
     }
     return ctx
