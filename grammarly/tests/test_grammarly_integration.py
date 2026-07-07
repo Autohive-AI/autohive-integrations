@@ -72,7 +72,10 @@ def live_context(make_context):
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=resp_data)
 
     ctx = make_context(
-        auth={"credentials": {"client_id": GRAMMARLY_CLIENT_ID, "client_secret": GRAMMARLY_CLIENT_SECRET}}
+        auth={
+            "auth_type": "Custom",
+            "credentials": {"client_id": GRAMMARLY_CLIENT_ID, "client_secret": GRAMMARLY_CLIENT_SECRET},
+        }
     )
     ctx.fetch.side_effect = real_fetch
     return ctx
