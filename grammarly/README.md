@@ -270,6 +270,10 @@ To test the integration:
 
 ## Version History
 
+- **2.0.0** - Migrated to autohive-integrations-sdk 2.0.0
+  - `context.fetch()` now returns a `FetchResponse` object; response bodies are read via `.data`
+  - Failures are now surfaced as `ActionError` (with a `message`) instead of an in-band `result`/`error` response field
+  - Successful actions return only their action-specific data fields, with no `result`/`error` envelope
 - **1.0.0** - Initial release with 7 comprehensive actions
   - Writing Score API: analyze_writing_score, get_writing_score_results (2 actions)
   - Analytics API: get_user_analytics (1 action)
