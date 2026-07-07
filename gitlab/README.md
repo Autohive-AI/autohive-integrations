@@ -34,7 +34,7 @@ The OAuth integration automatically handles token management and refresh (tokens
 
 ## Action Results
 
-On success, actions return only their action-specific data fields (documented per action below) — there is no wrapping `result`/`error` envelope.
+On success, actions return only their action-specific data fields (documented per action below), with no wrapping `result`/`error` envelope.
 
 On failure, the action raises an `ActionError` with a `message` describing what went wrong, rather than returning a response field.
 
@@ -480,7 +480,7 @@ GitLab accepts project identifiers in two formats:
 - **2.0.0** - Migrated to autohive-integrations-sdk 2.0.0
   - `context.fetch()` now returns a `FetchResponse` object; response bodies are read via `.data`
   - Failures are now surfaced as `ActionError` (with a `message`) instead of an in-band `result`/`error` response field
-  - Successful actions return only their action-specific data fields — no `result`/`error` envelope
+  - Successful actions return only their action-specific data fields, with no `result`/`error` envelope
 - **1.0.0** - Initial release with 25 read-only actions
   - User: get_current_user (1 action)
   - Projects: list_projects, get_project (2 actions)
