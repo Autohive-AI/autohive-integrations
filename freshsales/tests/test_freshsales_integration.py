@@ -1,20 +1,24 @@
 """
 Live integration tests for the Freshsales integration.
 
-Requires FRESHSALES_API_KEY and FRESHSALES_BUNDLE_ALIAS set in the environment (.env).
+Requires FRESHSALES_API_KEY and FRESHSALES_BUNDLE_ALIAS set in the environment
+(see the Freshsales section of the root .env.example).
 
-Run with:
-    pytest freshsales/tests/test_freshsales_integration.py -m "integration" --import-mode=importlib --tb=short
+Run the safe, read-only tests:
+    pytest freshsales/tests/test_freshsales_integration.py \
+        -m "integration and not destructive" --import-mode=importlib --tb=short
 
-Lifecycle tests that create/delete real records carry the `destructive` marker; exclude
-them with -m "integration and not destructive".
+Destructive lifecycle tests create and delete real records in the connected
+account (with cleanup in finally blocks). Opt in explicitly with:
+    pytest freshsales/tests/test_freshsales_integration.py \
+        -m "integration" --import-mode=importlib --tb=short
 """
 
 import time
 
 import aiohttp
 import pytest
-from autohive_integrations_sdk import FetchResponse, ResultType
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
 
 from freshsales.freshsales import freshsales
 
@@ -31,12 +35,20 @@ def live_context(env_credentials, make_context):
         pytest.skip("FRESHSALES_BUNDLE_ALIAS not set — skipping integration tests")
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
+        # Mirrors SDK 2.0.1 ExecutionContext.fetch(): raise RateLimitError on 429
+        # and HTTPError on any other non-2xx instead of returning a FetchResponse,
+        # so API failures surface as ActionError rather than empty "successes".
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=headers, params=params, **kwargs) as resp:
+                if resp.status == 429:
+                    retry_after = int(resp.headers.get("Retry-After", 60))
+                    raise RateLimitError(retry_after, resp.status, "Rate limit exceeded", await resp.text())
                 try:
                     data = await resp.json(content_type=None)
                 except Exception:
                     data = await resp.text()
+                if not resp.ok:
+                    raise HTTPError(resp.status, str(data), data)
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     credentials = {"api_key": api_key, "bundle_alias": bundle_alias}
@@ -89,6 +101,13 @@ async def test_list_appointments(live_context):
     assert filtered.type == ResultType.ACTION
     assert isinstance(filtered.result.data["appointments"], list)
     assert len(filtered.result.data["appointments"]) <= len(unfiltered.result.data["appointments"])
+
+    # 'completed' is the other provider-recognized filter value (the documented-looking
+    # 'complete' is silently ignored) — pin that it stays accepted and filtering.
+    completed = await freshsales.execute_action("list_appointments", {"filter": "completed"}, live_context)
+    assert completed.type == ResultType.ACTION
+    assert isinstance(completed.result.data["appointments"], list)
+    assert len(completed.result.data["appointments"]) <= len(unfiltered.result.data["appointments"])
 
 
 async def test_search(live_context):

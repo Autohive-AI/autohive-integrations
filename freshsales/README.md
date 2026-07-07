@@ -36,7 +36,7 @@ limits are per account per hour and vary by plan; exceeding them returns HTTP 42
 ## Requirements
 
 - Python 3.13+
-- autohive-integrations-sdk ~= 2.0.0
+- autohive-integrations-sdk ~= 2.0.1
 
 ## Testing
 
@@ -44,6 +44,11 @@ limits are per account per hour and vary by plan; exceeding them returns HTTP 42
 # Unit tests (mocked)
 pytest freshsales/ -v
 
-# Live integration tests — requires FRESHSALES_API_KEY and FRESHSALES_BUNDLE_ALIAS in .env
+# Live integration tests, read-only — requires FRESHSALES_API_KEY and
+# FRESHSALES_BUNDLE_ALIAS in .env (see the Freshsales section of .env.example)
+pytest freshsales/tests/test_freshsales_integration.py -m "integration and not destructive" -v
+
+# Destructive lifecycle tests (create and delete real records; cleanup in
+# finally blocks) — explicit opt-in
 pytest freshsales/tests/test_freshsales_integration.py -m integration -v
 ```
