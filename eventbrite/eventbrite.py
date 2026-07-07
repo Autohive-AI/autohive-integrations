@@ -51,7 +51,11 @@ class ListOrganizationsAction(ActionHandler):
             return ActionResult(
                 data={
                     "organizations": response.data.get("organizations", []),
-                    "pagination": response.data.get("pagination"),
+                    **(
+                        {"pagination": response.data["pagination"]}
+                        if response.data.get("pagination") is not None
+                        else {}
+                    ),
                 },
                 cost_usd=0.0,
             )
@@ -119,7 +123,11 @@ class ListEventsAction(ActionHandler):
             return ActionResult(
                 data={
                     "events": response.data.get("events", []),
-                    "pagination": response.data.get("pagination"),
+                    **(
+                        {"pagination": response.data["pagination"]}
+                        if response.data.get("pagination") is not None
+                        else {}
+                    ),
                 },
                 cost_usd=0.0,
             )
@@ -407,7 +415,11 @@ class ListVenuesAction(ActionHandler):
             return ActionResult(
                 data={
                     "venues": response.data.get("venues", []),
-                    "pagination": response.data.get("pagination"),
+                    **(
+                        {"pagination": response.data["pagination"]}
+                        if response.data.get("pagination") is not None
+                        else {}
+                    ),
                 },
                 cost_usd=0.0,
             )
@@ -517,7 +529,11 @@ class ListOrdersByEventAction(ActionHandler):
             return ActionResult(
                 data={
                     "orders": response.data.get("orders", []),
-                    "pagination": response.data.get("pagination"),
+                    **(
+                        {"pagination": response.data["pagination"]}
+                        if response.data.get("pagination") is not None
+                        else {}
+                    ),
                 },
                 cost_usd=0.0,
             )
@@ -550,7 +566,11 @@ class ListOrdersByOrganizationAction(ActionHandler):
             return ActionResult(
                 data={
                     "orders": response.data.get("orders", []),
-                    "pagination": response.data.get("pagination"),
+                    **(
+                        {"pagination": response.data["pagination"]}
+                        if response.data.get("pagination") is not None
+                        else {}
+                    ),
                 },
                 cost_usd=0.0,
             )
@@ -610,7 +630,11 @@ class ListAttendeesAction(ActionHandler):
             return ActionResult(
                 data={
                     "attendees": response.data.get("attendees", []),
-                    "pagination": response.data.get("pagination"),
+                    **(
+                        {"pagination": response.data["pagination"]}
+                        if response.data.get("pagination") is not None
+                        else {}
+                    ),
                 },
                 cost_usd=0.0,
             )
@@ -668,7 +692,11 @@ class ListTicketClassesAction(ActionHandler):
             return ActionResult(
                 data={
                     "ticket_classes": response.data.get("ticket_classes", []),
-                    "pagination": response.data.get("pagination"),
+                    **(
+                        {"pagination": response.data["pagination"]}
+                        if response.data.get("pagination") is not None
+                        else {}
+                    ),
                 },
                 cost_usd=0.0,
             )
