@@ -1,2 +1,2 @@
-autohive-integrations-sdk~=2.0.0
+autohive-integrations-sdk~=2.0.1
 yarl>=1.9
