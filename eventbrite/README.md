@@ -58,8 +58,6 @@ Retrieves information about the currently authenticated user.
 
 **Outputs:**
 - `user` (object): User details including id, name, email
-- `result` (boolean): Operation success status
-- `error` (string): Error message if operation failed
 
 ---
 
@@ -72,7 +70,6 @@ Lists all organizations the authenticated user is a member of.
 **Outputs:**
 - `organizations` (array): List of organizations
 - `pagination` (object): Pagination information
-- `result` (boolean): Operation success status
 
 ---
 
@@ -88,7 +85,6 @@ Retrieves details of a specific event by its ID.
 
 **Outputs:**
 - `event` (object): Event details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -106,7 +102,6 @@ Lists events for an organization.
 **Outputs:**
 - `events` (array): List of events
 - `pagination` (object): Pagination information
-- `result` (boolean): Operation success status
 
 ---
 
@@ -132,7 +127,6 @@ Creates a new event in an organization.
 
 **Outputs:**
 - `event` (object): Created event details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -146,7 +140,6 @@ Updates an existing event.
 
 **Outputs:**
 - `event` (object): Updated event details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -159,7 +152,6 @@ Deletes an event. Event must not have any pending or completed orders.
 
 **Outputs:**
 - `deleted` (boolean): Whether the event was deleted
-- `result` (boolean): Operation success status
 
 ---
 
@@ -172,7 +164,6 @@ Publishes a draft event to make it live.
 
 **Outputs:**
 - `published` (boolean): Whether the event was published
-- `result` (boolean): Operation success status
 
 ---
 
@@ -185,7 +176,6 @@ Unpublishes a live event back to draft status.
 
 **Outputs:**
 - `unpublished` (boolean): Whether the event was unpublished
-- `result` (boolean): Operation success status
 
 ---
 
@@ -198,7 +188,6 @@ Cancels an event.
 
 **Outputs:**
 - `canceled` (boolean): Whether the event was canceled
-- `result` (boolean): Operation success status
 
 ---
 
@@ -215,7 +204,6 @@ Creates a copy of an existing event.
 
 **Outputs:**
 - `event` (object): Copied event details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -228,7 +216,6 @@ Retrieves the full HTML description of an event.
 
 **Outputs:**
 - `description` (string): Full HTML description
-- `result` (boolean): Operation success status
 
 ---
 
@@ -243,7 +230,6 @@ Retrieves details of a specific venue.
 
 **Outputs:**
 - `venue` (object): Venue details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -257,7 +243,6 @@ Lists venues for an organization.
 **Outputs:**
 - `venues` (array): List of venues
 - `pagination` (object): Pagination information
-- `result` (boolean): Operation success status
 
 ---
 
@@ -280,7 +265,6 @@ Creates a new venue for an organization.
 
 **Outputs:**
 - `venue` (object): Created venue details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -296,7 +280,6 @@ Retrieves details of a specific order.
 
 **Outputs:**
 - `order` (object): Order details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -312,7 +295,6 @@ Lists orders for a specific event.
 **Outputs:**
 - `orders` (array): List of orders
 - `pagination` (object): Pagination information
-- `result` (boolean): Operation success status
 
 ---
 
@@ -328,7 +310,6 @@ Lists orders for an organization across all events.
 **Outputs:**
 - `orders` (array): List of orders
 - `pagination` (object): Pagination information
-- `result` (boolean): Operation success status
 
 ---
 
@@ -344,7 +325,6 @@ Retrieves details of a specific attendee.
 
 **Outputs:**
 - `attendee` (object): Attendee details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -360,7 +340,6 @@ Lists attendees for a specific event.
 **Outputs:**
 - `attendees` (array): List of attendees
 - `pagination` (object): Pagination information
-- `result` (boolean): Operation success status
 
 ---
 
@@ -376,7 +355,6 @@ Retrieves details of a specific ticket class.
 
 **Outputs:**
 - `ticket_class` (object): Ticket class details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -391,7 +369,6 @@ Lists ticket classes for a specific event.
 **Outputs:**
 - `ticket_classes` (array): List of ticket classes
 - `pagination` (object): Pagination information
-- `result` (boolean): Operation success status
 
 ---
 
@@ -415,7 +392,6 @@ Creates a new ticket class for an event.
 
 **Outputs:**
 - `ticket_class` (object): Created ticket class details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -430,7 +406,6 @@ Updates an existing ticket class.
 
 **Outputs:**
 - `ticket_class` (object): Updated ticket class details
-- `result` (boolean): Operation success status
 
 ---
 
@@ -444,7 +419,6 @@ Deletes a ticket class. Cannot delete if tickets have been sold.
 
 **Outputs:**
 - `deleted` (boolean): Whether the ticket class was deleted
-- `result` (boolean): Operation success status
 
 ---
 
@@ -458,7 +432,6 @@ Lists all available event categories.
 
 **Outputs:**
 - `categories` (array): List of categories
-- `result` (boolean): Operation success status
 
 ---
 
@@ -471,20 +444,14 @@ Retrieves details of a specific category.
 
 **Outputs:**
 - `category` (object): Category details
-- `result` (boolean): Operation success status
 
 ---
 
 ## Error Handling
 
-All actions return a consistent error format:
+On success, actions return only their action-specific data fields (documented per action above) — there is no wrapping `result`/`error` envelope.
 
-```json
-{
-  "result": false,
-  "error": "Error message describing what went wrong"
-}
-```
+On failure, the action raises an `ActionError` with a `message` describing what went wrong, rather than returning a response field.
 
 Common error scenarios:
 - **Authentication errors**: Token expired or invalid permissions
