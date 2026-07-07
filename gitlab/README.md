@@ -477,6 +477,10 @@ GitLab accepts project identifiers in two formats:
 
 ## Version History
 
+- **2.0.0** - Migrated to autohive-integrations-sdk 2.0.0
+  - `context.fetch()` now returns a `FetchResponse` object; response bodies are read via `.data`
+  - Failures are now surfaced as `ActionError` (with a `message`) instead of an in-band `result`/`error` response field
+  - Successful actions return only their action-specific data fields — no `result`/`error` envelope
 - **1.0.0** - Initial release with 25 read-only actions
   - User: get_current_user (1 action)
   - Projects: list_projects, get_project (2 actions)
