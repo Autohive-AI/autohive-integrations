@@ -136,6 +136,7 @@ class TestListCategories:
 class TestEventLifecycle:
     @skip_if_not_destructive
     @skip_if_no_org
+    @pytest.mark.destructive
     @pytest.mark.asyncio
     async def test_01_create_update_delete_event(self, live_context):
         create_result = await eventbrite.execute_action(
@@ -153,11 +154,12 @@ class TestEventLifecycle:
         assert create_result.type != ResultType.ACTION_ERROR, create_result.result.message
         event_id = create_result.result.data["event"]["id"]
 
-        update_result = await eventbrite.execute_action(
-            "update_event", {"event_id": event_id, "summary": "Updated by integration test"}, live_context
-        )
-        assert update_result.type != ResultType.ACTION_ERROR, update_result.result.message
-
-        delete_result = await eventbrite.execute_action("delete_event", {"event_id": event_id}, live_context)
-        assert delete_result.type != ResultType.ACTION_ERROR, delete_result.result.message
-        assert delete_result.result.data["deleted"] is True
+        try:
+            update_result = await eventbrite.execute_action(
+                "update_event", {"event_id": event_id, "summary": "Updated by integration test"}, live_context
+            )
+            assert update_result.type != ResultType.ACTION_ERROR, update_result.result.message
+        finally:
+            delete_result = await eventbrite.execute_action("delete_event", {"event_id": event_id}, live_context)
+            assert delete_result.type != ResultType.ACTION_ERROR, delete_result.result.message
+            assert delete_result.result.data["deleted"] is True
