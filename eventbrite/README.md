@@ -449,7 +449,7 @@ Retrieves details of a specific category.
 
 ## Error Handling
 
-On success, actions return only their action-specific data fields (documented per action above) — there is no wrapping `result`/`error` envelope.
+On success, actions return only their action-specific data fields (documented per action above), with no wrapping `result`/`error` envelope.
 
 On failure, the action raises an `ActionError` with a `message` describing what went wrong, rather than returning a response field.
 
