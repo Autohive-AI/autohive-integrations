@@ -1,6 +1,6 @@
 {
     "name": "RSS Reader using Feedseeker and authoive-integration-sdk's fetch",
-    "version": "1.1.0",
+    "version": "2.0.0",
     "description": "An integration for reading RSS feeds using Feedseeker and authoive-integration-sdk's fetch",
     "entry_point": "rss_reader.py",
     "auth": {

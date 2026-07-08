@@ -3,7 +3,7 @@
 # framework for authentication.
 import asyncio
 from context import rss_reader
-from autohive_integrations_sdk import ExecutionContext
+from autohive_integrations_sdk import ExecutionContext, ResultType
 
 
 async def test_get_feed():
@@ -29,16 +29,21 @@ async def test_get_feed():
     async with ExecutionContext(auth=auth) as context:
         try:
             result = await rss_reader.execute_action("get_feed", inputs, context)
+            if result.type != ResultType.ACTION:
+                print(f"Error testing get_feed: {result.result.message}")
+                return
+
+            data = result.result.data
             print("\n=== Get Feed Results ===")
-            print(f"Feed Title: {result['feed_title']}")
-            print(f"Feed URL: {result['feed_link']}")
+            print(f"Feed Title: {data['feed_title']}")
+            print(f"Feed URL: {data['feed_link']}")
             print("\nEntries:")
-            for entry in result["entries"]:
+            for entry in data["entries"]:
                 print(f"\nTitle: {entry['title']}")
                 print(f"Link: {entry['link']}")
                 print(f"Published: {entry['published']}")
         except Exception as e:
-            print(f"Error testing get_feed: {e.message}")
+            print(f"Error testing get_feed: {e}")
 
 
 async def main():
