@@ -1,7 +1,7 @@
 {
     "name": "Eventbrite",
     "display_name": "Eventbrite",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Eventbrite integration for managing events, attendees, orders, venues, and ticket classes",
     "entry_point": "eventbrite.py",
     "auth": {
@@ -33,17 +33,9 @@
                     "user": {
                         "type": "object",
                         "description": "User details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "list_organizations": {
@@ -60,17 +52,11 @@
                     "organizations": {
                         "type": "array",
                         "description": "List of organizations"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["organizations", "result"]
+                "required": [
+                    "organizations"
+                ]
             }
         },
         "get_event": {
@@ -91,7 +77,9 @@
                         }
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -99,17 +87,11 @@
                     "event": {
                         "type": "object",
                         "description": "Event details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["event", "result"]
+                "required": [
+                    "event"
+                ]
             }
         },
         "list_events": {
@@ -125,24 +107,45 @@
                     "status": {
                         "type": "string",
                         "description": "Filter by event status (draft, live, started, ended, completed, canceled, all)",
-                        "enum": ["draft", "live", "started", "ended", "completed", "canceled", "all"]
+                        "enum": [
+                            "draft",
+                            "live",
+                            "started",
+                            "ended",
+                            "completed",
+                            "canceled",
+                            "all"
+                        ]
                     },
                     "order_by": {
                         "type": "string",
                         "description": "Sort order (start_asc, start_desc, created_asc, created_desc, name_asc, name_desc)",
-                        "enum": ["start_asc", "start_desc", "created_asc", "created_desc", "name_asc", "name_desc"]
+                        "enum": [
+                            "start_asc",
+                            "start_desc",
+                            "created_asc",
+                            "created_desc",
+                            "name_asc",
+                            "name_desc"
+                        ]
                     },
                     "time_filter": {
                         "type": "string",
                         "description": "Filter by time (all, past, current_future)",
-                        "enum": ["all", "past", "current_future"]
+                        "enum": [
+                            "all",
+                            "past",
+                            "current_future"
+                        ]
                     },
                     "page_size": {
                         "type": "integer",
                         "description": "Number of results per page (max 50)"
                     }
                 },
-                "required": ["organization_id"]
+                "required": [
+                    "organization_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -154,17 +157,11 @@
                     "pagination": {
                         "type": "object",
                         "description": "Pagination information"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["events", "result"]
+                "required": [
+                    "events"
+                ]
             }
         },
         "create_event": {
@@ -230,7 +227,14 @@
                         "description": "Maximum event capacity"
                     }
                 },
-                "required": ["organization_id", "name", "start_utc", "end_utc", "timezone", "currency"]
+                "required": [
+                    "organization_id",
+                    "name",
+                    "start_utc",
+                    "end_utc",
+                    "timezone",
+                    "currency"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -238,17 +242,11 @@
                     "event": {
                         "type": "object",
                         "description": "Created event details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["event", "result"]
+                "required": [
+                    "event"
+                ]
             }
         },
         "update_event": {
@@ -302,7 +300,9 @@
                         "description": "Updated capacity"
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -310,17 +310,11 @@
                     "event": {
                         "type": "object",
                         "description": "Updated event details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["event", "result"]
+                "required": [
+                    "event"
+                ]
             }
         },
         "delete_event": {
@@ -334,7 +328,9 @@
                         "description": "The ID of the event to delete"
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -342,17 +338,9 @@
                     "deleted": {
                         "type": "boolean",
                         "description": "Whether the event was deleted"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "publish_event": {
@@ -366,7 +354,9 @@
                         "description": "The ID of the event to publish"
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -374,17 +364,9 @@
                     "published": {
                         "type": "boolean",
                         "description": "Whether the event was published"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "unpublish_event": {
@@ -398,7 +380,9 @@
                         "description": "The ID of the event to unpublish"
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -406,17 +390,9 @@
                     "unpublished": {
                         "type": "boolean",
                         "description": "Whether the event was unpublished"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "cancel_event": {
@@ -430,7 +406,9 @@
                         "description": "The ID of the event to cancel"
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -438,17 +416,9 @@
                     "canceled": {
                         "type": "boolean",
                         "description": "Whether the event was canceled"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "copy_event": {
@@ -478,7 +448,9 @@
                         "description": "Timezone for the copied event"
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -486,17 +458,11 @@
                     "event": {
                         "type": "object",
                         "description": "Copied event details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["event", "result"]
+                "required": [
+                    "event"
+                ]
             }
         },
         "get_venue": {
@@ -510,7 +476,9 @@
                         "description": "The ID of the venue to retrieve"
                     }
                 },
-                "required": ["venue_id"]
+                "required": [
+                    "venue_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -518,17 +486,11 @@
                     "venue": {
                         "type": "object",
                         "description": "Venue details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["venue", "result"]
+                "required": [
+                    "venue"
+                ]
             }
         },
         "list_venues": {
@@ -542,7 +504,9 @@
                         "description": "Organization ID to list venues from"
                     }
                 },
-                "required": ["organization_id"]
+                "required": [
+                    "organization_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -554,17 +518,11 @@
                     "pagination": {
                         "type": "object",
                         "description": "Pagination information"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["venues", "result"]
+                "required": [
+                    "venues"
+                ]
             }
         },
         "create_venue": {
@@ -618,7 +576,10 @@
                         "description": "Venue capacity"
                     }
                 },
-                "required": ["organization_id", "name"]
+                "required": [
+                    "organization_id",
+                    "name"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -626,17 +587,11 @@
                     "venue": {
                         "type": "object",
                         "description": "Created venue details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["venue", "result"]
+                "required": [
+                    "venue"
+                ]
             }
         },
         "get_order": {
@@ -657,7 +612,9 @@
                         }
                     }
                 },
-                "required": ["order_id"]
+                "required": [
+                    "order_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -665,17 +622,11 @@
                     "order": {
                         "type": "object",
                         "description": "Order details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["order", "result"]
+                "required": [
+                    "order"
+                ]
             }
         },
         "list_orders_by_event": {
@@ -691,14 +642,21 @@
                     "status": {
                         "type": "string",
                         "description": "Filter by order status (active, inactive, both, all_not_deleted)",
-                        "enum": ["active", "inactive", "both", "all_not_deleted"]
+                        "enum": [
+                            "active",
+                            "inactive",
+                            "both",
+                            "all_not_deleted"
+                        ]
                     },
                     "changed_since": {
                         "type": "string",
                         "description": "Only return orders changed after this time (ISO 8601)"
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -710,17 +668,11 @@
                     "pagination": {
                         "type": "object",
                         "description": "Pagination information"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["orders", "result"]
+                "required": [
+                    "orders"
+                ]
             }
         },
         "list_orders_by_organization": {
@@ -736,14 +688,21 @@
                     "status": {
                         "type": "string",
                         "description": "Filter by order status (active, inactive, both, all_not_deleted)",
-                        "enum": ["active", "inactive", "both", "all_not_deleted"]
+                        "enum": [
+                            "active",
+                            "inactive",
+                            "both",
+                            "all_not_deleted"
+                        ]
                     },
                     "changed_since": {
                         "type": "string",
                         "description": "Only return orders changed after this time (ISO 8601)"
                     }
                 },
-                "required": ["organization_id"]
+                "required": [
+                    "organization_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -755,17 +714,11 @@
                     "pagination": {
                         "type": "object",
                         "description": "Pagination information"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["orders", "result"]
+                "required": [
+                    "orders"
+                ]
             }
         },
         "get_attendee": {
@@ -783,7 +736,10 @@
                         "description": "The ID of the attendee to retrieve"
                     }
                 },
-                "required": ["event_id", "attendee_id"]
+                "required": [
+                    "event_id",
+                    "attendee_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -791,17 +747,11 @@
                     "attendee": {
                         "type": "object",
                         "description": "Attendee details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["attendee", "result"]
+                "required": [
+                    "attendee"
+                ]
             }
         },
         "list_attendees": {
@@ -817,14 +767,20 @@
                     "status": {
                         "type": "string",
                         "description": "Filter by attendee status (attending, not_attending, unpaid)",
-                        "enum": ["attending", "not_attending", "unpaid"]
+                        "enum": [
+                            "attending",
+                            "not_attending",
+                            "unpaid"
+                        ]
                     },
                     "changed_since": {
                         "type": "string",
                         "description": "Only return attendees changed after this time (ISO 8601)"
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -836,17 +792,11 @@
                     "pagination": {
                         "type": "object",
                         "description": "Pagination information"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["attendees", "result"]
+                "required": [
+                    "attendees"
+                ]
             }
         },
         "get_ticket_class": {
@@ -864,7 +814,10 @@
                         "description": "The ID of the ticket class to retrieve"
                     }
                 },
-                "required": ["event_id", "ticket_class_id"]
+                "required": [
+                    "event_id",
+                    "ticket_class_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -872,17 +825,11 @@
                     "ticket_class": {
                         "type": "object",
                         "description": "Ticket class details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["ticket_class", "result"]
+                "required": [
+                    "ticket_class"
+                ]
             }
         },
         "list_ticket_classes": {
@@ -898,10 +845,15 @@
                     "pos": {
                         "type": "string",
                         "description": "Point of sale filter (online, at_the_door)",
-                        "enum": ["online", "at_the_door"]
+                        "enum": [
+                            "online",
+                            "at_the_door"
+                        ]
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -913,17 +865,11 @@
                     "pagination": {
                         "type": "object",
                         "description": "Pagination information"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["ticket_classes", "result"]
+                "required": [
+                    "ticket_classes"
+                ]
             }
         },
         "create_ticket_class": {
@@ -981,7 +927,11 @@
                         "description": "Whether the ticket is hidden from public"
                     }
                 },
-                "required": ["event_id", "name", "quantity_total"]
+                "required": [
+                    "event_id",
+                    "name",
+                    "quantity_total"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -989,17 +939,11 @@
                     "ticket_class": {
                         "type": "object",
                         "description": "Created ticket class details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["ticket_class", "result"]
+                "required": [
+                    "ticket_class"
+                ]
             }
         },
         "update_ticket_class": {
@@ -1049,7 +993,10 @@
                         "description": "Whether the ticket is hidden"
                     }
                 },
-                "required": ["event_id", "ticket_class_id"]
+                "required": [
+                    "event_id",
+                    "ticket_class_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1057,17 +1004,11 @@
                     "ticket_class": {
                         "type": "object",
                         "description": "Updated ticket class details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["ticket_class", "result"]
+                "required": [
+                    "ticket_class"
+                ]
             }
         },
         "delete_ticket_class": {
@@ -1085,7 +1026,10 @@
                         "description": "The ID of the ticket class to delete"
                     }
                 },
-                "required": ["event_id", "ticket_class_id"]
+                "required": [
+                    "event_id",
+                    "ticket_class_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1093,17 +1037,9 @@
                     "deleted": {
                         "type": "boolean",
                         "description": "Whether the ticket class was deleted"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["result"]
+                "required": []
             }
         },
         "list_categories": {
@@ -1120,17 +1056,11 @@
                     "categories": {
                         "type": "array",
                         "description": "List of categories"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["categories", "result"]
+                "required": [
+                    "categories"
+                ]
             }
         },
         "get_category": {
@@ -1144,7 +1074,9 @@
                         "description": "The ID of the category to retrieve"
                     }
                 },
-                "required": ["category_id"]
+                "required": [
+                    "category_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1152,17 +1084,11 @@
                     "category": {
                         "type": "object",
                         "description": "Category details"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["category", "result"]
+                "required": [
+                    "category"
+                ]
             }
         },
         "get_event_description": {
@@ -1176,7 +1102,9 @@
                         "description": "The ID of the event"
                     }
                 },
-                "required": ["event_id"]
+                "required": [
+                    "event_id"
+                ]
             },
             "output_schema": {
                 "type": "object",
@@ -1184,17 +1112,11 @@
                     "description": {
                         "type": "string",
                         "description": "Full HTML description of the event"
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 },
-                "required": ["description", "result"]
+                "required": [
+                    "description"
+                ]
             }
         }
     }
