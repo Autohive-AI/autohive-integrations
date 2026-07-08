@@ -15,7 +15,10 @@ def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {
-        "consumer_key": "test_consumer_key",  # nosec B105
-        "consumer_secret": "test_consumer_secret",  # nosec B105
+        "auth_type": "Custom",
+        "credentials": {
+            "consumer_key": "test_consumer_key",  # nosec B105
+            "consumer_secret": "test_consumer_secret",  # nosec B105
+        },
     }
     return ctx

@@ -3,6 +3,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Dict, Any
 from urllib.parse import quote
@@ -41,10 +42,10 @@ class GetCurrentUserAction(ActionHandler):
         try:
             response = await context.fetch(f"{GITLAB_API_BASE_URL}/user", method="GET")
 
-            return ActionResult(data={"user": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"user": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"user": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Project Handlers ----
@@ -57,19 +58,24 @@ class ListProjectsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            for key in [
-                "owned",
-                "membership",
-                "starred",
-                "search",
-                "visibility",
-                "order_by",
-                "sort",
-                "per_page",
-                "page",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("owned") is not None:
+                params["owned"] = "true" if inputs.get("owned") else "false"
+            if inputs.get("membership") is not None:
+                params["membership"] = "true" if inputs.get("membership") else "false"
+            if inputs.get("starred") is not None:
+                params["starred"] = "true" if inputs.get("starred") else "false"
+            if inputs.get("search") is not None:
+                params["search"] = inputs.get("search")
+            if inputs.get("visibility") is not None:
+                params["visibility"] = inputs.get("visibility")
+            if inputs.get("order_by") is not None:
+                params["order_by"] = inputs.get("order_by")
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs.get("sort")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects",
@@ -77,12 +83,12 @@ class ListProjectsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            projects = response if isinstance(response, list) else []
+            projects = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"projects": projects, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"projects": projects}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"projects": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_project")
@@ -103,10 +109,10 @@ class GetProjectAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return ActionResult(data={"project": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"project": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"project": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Issue Handlers ----
@@ -119,25 +125,36 @@ class ListIssuesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            for key in [
-                "state",
-                "labels",
-                "milestone",
-                "scope",
-                "assignee_id",
-                "author_id",
-                "search",
-                "created_after",
-                "created_before",
-                "updated_after",
-                "updated_before",
-                "order_by",
-                "sort",
-                "per_page",
-                "page",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("state") is not None:
+                params["state"] = inputs.get("state")
+            if inputs.get("labels") is not None:
+                params["labels"] = inputs.get("labels")
+            if inputs.get("milestone") is not None:
+                params["milestone"] = inputs.get("milestone")
+            if inputs.get("scope") is not None:
+                params["scope"] = inputs.get("scope")
+            if inputs.get("assignee_id") is not None:
+                params["assignee_id"] = inputs.get("assignee_id")
+            if inputs.get("author_id") is not None:
+                params["author_id"] = inputs.get("author_id")
+            if inputs.get("search") is not None:
+                params["search"] = inputs.get("search")
+            if inputs.get("created_after") is not None:
+                params["created_after"] = inputs.get("created_after")
+            if inputs.get("created_before") is not None:
+                params["created_before"] = inputs.get("created_before")
+            if inputs.get("updated_after") is not None:
+                params["updated_after"] = inputs.get("updated_after")
+            if inputs.get("updated_before") is not None:
+                params["updated_before"] = inputs.get("updated_before")
+            if inputs.get("order_by") is not None:
+                params["order_by"] = inputs.get("order_by")
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs.get("sort")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             if inputs.get("project_id"):
                 project_id = encode_project_id(inputs["project_id"])
@@ -147,12 +164,12 @@ class ListIssuesAction(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params if params else None)
 
-            issues = response if isinstance(response, list) else []
+            issues = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"issues": issues, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"issues": issues}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"issues": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_issue")
@@ -169,10 +186,10 @@ class GetIssueAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"issue": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"issue": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"issue": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Merge Request Handlers ----
@@ -185,28 +202,42 @@ class ListMergeRequestsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             params = {}
-            for key in [
-                "state",
-                "labels",
-                "milestone",
-                "scope",
-                "author_id",
-                "assignee_id",
-                "reviewer_id",
-                "source_branch",
-                "target_branch",
-                "search",
-                "created_after",
-                "created_before",
-                "updated_after",
-                "updated_before",
-                "order_by",
-                "sort",
-                "per_page",
-                "page",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("state") is not None:
+                params["state"] = inputs.get("state")
+            if inputs.get("labels") is not None:
+                params["labels"] = inputs.get("labels")
+            if inputs.get("milestone") is not None:
+                params["milestone"] = inputs.get("milestone")
+            if inputs.get("scope") is not None:
+                params["scope"] = inputs.get("scope")
+            if inputs.get("author_id") is not None:
+                params["author_id"] = inputs.get("author_id")
+            if inputs.get("assignee_id") is not None:
+                params["assignee_id"] = inputs.get("assignee_id")
+            if inputs.get("reviewer_id") is not None:
+                params["reviewer_id"] = inputs.get("reviewer_id")
+            if inputs.get("source_branch") is not None:
+                params["source_branch"] = inputs.get("source_branch")
+            if inputs.get("target_branch") is not None:
+                params["target_branch"] = inputs.get("target_branch")
+            if inputs.get("search") is not None:
+                params["search"] = inputs.get("search")
+            if inputs.get("created_after") is not None:
+                params["created_after"] = inputs.get("created_after")
+            if inputs.get("created_before") is not None:
+                params["created_before"] = inputs.get("created_before")
+            if inputs.get("updated_after") is not None:
+                params["updated_after"] = inputs.get("updated_after")
+            if inputs.get("updated_before") is not None:
+                params["updated_before"] = inputs.get("updated_before")
+            if inputs.get("order_by") is not None:
+                params["order_by"] = inputs.get("order_by")
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs.get("sort")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             if inputs.get("project_id"):
                 project_id = encode_project_id(inputs["project_id"])
@@ -216,15 +247,12 @@ class ListMergeRequestsAction(ActionHandler):
 
             response = await context.fetch(url, method="GET", params=params if params else None)
 
-            merge_requests = response if isinstance(response, list) else []
+            merge_requests = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"merge_requests": merge_requests, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"merge_requests": merge_requests}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"merge_requests": [], "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_merge_request")
@@ -248,13 +276,10 @@ class GetMergeRequestAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return ActionResult(data={"merge_request": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"merge_request": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"merge_request": {}, "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_merge_request_changes")
@@ -271,12 +296,12 @@ class GetMergeRequestChangesAction(ActionHandler):
                 method="GET",
             )
 
-            changes = response.get("changes", []) if isinstance(response, dict) else []
+            changes = response.data.get("changes", []) if isinstance(response.data, dict) else []
 
-            return ActionResult(data={"changes": changes, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"changes": changes}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"changes": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("list_merge_request_commits")
@@ -289,9 +314,10 @@ class ListMergeRequestCommitsAction(ActionHandler):
             mr_iid = inputs["merge_request_iid"]
 
             params = {}
-            for key in ["per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/merge_requests/{mr_iid}/commits",
@@ -299,12 +325,12 @@ class ListMergeRequestCommitsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            commits = response if isinstance(response, list) else []
+            commits = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"commits": commits, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"commits": commits}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"commits": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Branch Handlers ----
@@ -319,9 +345,14 @@ class ListBranchesAction(ActionHandler):
             project_id = encode_project_id(inputs["project_id"])
 
             params = {}
-            for key in ["search", "regex", "per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("search") is not None:
+                params["search"] = inputs.get("search")
+            if inputs.get("regex") is not None:
+                params["regex"] = inputs.get("regex")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/branches",
@@ -329,12 +360,12 @@ class ListBranchesAction(ActionHandler):
                 params=params if params else None,
             )
 
-            branches = response if isinstance(response, list) else []
+            branches = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"branches": branches, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"branches": branches}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"branches": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_branch")
@@ -351,10 +382,10 @@ class GetBranchAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"branch": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"branch": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"branch": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Commit Handlers ----
@@ -369,20 +400,26 @@ class ListCommitsAction(ActionHandler):
             project_id = encode_project_id(inputs["project_id"])
 
             params = {}
-            for key in [
-                "ref_name",
-                "since",
-                "until",
-                "path",
-                "author",
-                "all",
-                "with_stats",
-                "first_parent",
-                "per_page",
-                "page",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("ref_name") is not None:
+                params["ref_name"] = inputs.get("ref_name")
+            if inputs.get("since") is not None:
+                params["since"] = inputs.get("since")
+            if inputs.get("until") is not None:
+                params["until"] = inputs.get("until")
+            if inputs.get("path") is not None:
+                params["path"] = inputs.get("path")
+            if inputs.get("author") is not None:
+                params["author"] = inputs.get("author")
+            if inputs.get("all") is not None:
+                params["all"] = "true" if inputs.get("all") else "false"
+            if inputs.get("with_stats") is not None:
+                params["with_stats"] = "true" if inputs.get("with_stats") else "false"
+            if inputs.get("first_parent") is not None:
+                params["first_parent"] = "true" if inputs.get("first_parent") else "false"
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/commits",
@@ -390,12 +427,12 @@ class ListCommitsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            commits = response if isinstance(response, list) else []
+            commits = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"commits": commits, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"commits": commits}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"commits": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_commit")
@@ -417,10 +454,10 @@ class GetCommitAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return ActionResult(data={"commit": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"commit": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"commit": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_commit_diff")
@@ -433,9 +470,10 @@ class GetCommitDiffAction(ActionHandler):
             sha = quote(inputs["sha"], safe="")
 
             params = {}
-            for key in ["per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/commits/{sha}/diff",
@@ -443,12 +481,12 @@ class GetCommitDiffAction(ActionHandler):
                 params=params if params else None,
             )
 
-            diffs = response if isinstance(response, list) else []
+            diffs = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"diffs": diffs, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"diffs": diffs}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"diffs": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Pipeline Handlers ----
@@ -463,21 +501,28 @@ class ListPipelinesAction(ActionHandler):
             project_id = encode_project_id(inputs["project_id"])
 
             params = {}
-            for key in [
-                "status",
-                "ref",
-                "sha",
-                "source",
-                "username",
-                "updated_after",
-                "updated_before",
-                "order_by",
-                "sort",
-                "per_page",
-                "page",
-            ]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("status") is not None:
+                params["status"] = inputs.get("status")
+            if inputs.get("ref") is not None:
+                params["ref"] = inputs.get("ref")
+            if inputs.get("sha") is not None:
+                params["sha"] = inputs.get("sha")
+            if inputs.get("source") is not None:
+                params["source"] = inputs.get("source")
+            if inputs.get("username") is not None:
+                params["username"] = inputs.get("username")
+            if inputs.get("updated_after") is not None:
+                params["updated_after"] = inputs.get("updated_after")
+            if inputs.get("updated_before") is not None:
+                params["updated_before"] = inputs.get("updated_before")
+            if inputs.get("order_by") is not None:
+                params["order_by"] = inputs.get("order_by")
+            if inputs.get("sort") is not None:
+                params["sort"] = inputs.get("sort")
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/pipelines",
@@ -485,12 +530,12 @@ class ListPipelinesAction(ActionHandler):
                 params=params if params else None,
             )
 
-            pipelines = response if isinstance(response, list) else []
+            pipelines = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"pipelines": pipelines, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"pipelines": pipelines}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"pipelines": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_pipeline")
@@ -507,10 +552,10 @@ class GetPipelineAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"pipeline": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"pipeline": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"pipeline": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("list_pipeline_jobs")
@@ -523,9 +568,14 @@ class ListPipelineJobsAction(ActionHandler):
             pipeline_id = inputs["pipeline_id"]
 
             params = {}
-            for key in ["scope", "include_retried", "per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("scope") is not None:
+                params["scope"] = inputs.get("scope")
+            if inputs.get("include_retried") is not None:
+                params["include_retried"] = "true" if inputs.get("include_retried") else "false"
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/pipelines/{pipeline_id}/jobs",
@@ -533,12 +583,12 @@ class ListPipelineJobsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            jobs = response if isinstance(response, list) else []
+            jobs = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"jobs": jobs, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"jobs": jobs}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"jobs": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Repository Handlers ----
@@ -553,9 +603,16 @@ class ListRepositoryTreeAction(ActionHandler):
             project_id = encode_project_id(inputs["project_id"])
 
             params = {}
-            for key in ["path", "ref", "recursive", "per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("path") is not None:
+                params["path"] = inputs.get("path")
+            if inputs.get("ref") is not None:
+                params["ref"] = inputs.get("ref")
+            if inputs.get("recursive") is not None:
+                params["recursive"] = "true" if inputs.get("recursive") else "false"
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/repository/tree",
@@ -563,12 +620,12 @@ class ListRepositoryTreeAction(ActionHandler):
                 params=params if params else None,
             )
 
-            tree = response if isinstance(response, list) else []
+            tree = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"tree": tree, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"tree": tree}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tree": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_file")
@@ -587,10 +644,10 @@ class GetFileAction(ActionHandler):
                 params={"ref": ref},
             )
 
-            return ActionResult(data={"file": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"file": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"file": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_file_raw")
@@ -609,18 +666,19 @@ class GetFileRawAction(ActionHandler):
                 params={"ref": ref},
             )
 
-            # Response may be string or bytes depending on content type
-            if isinstance(response, bytes):
-                content = response.decode("utf-8", errors="replace")
-            elif isinstance(response, str):
-                content = response
+            # Response body may be string or bytes depending on content type
+            body = response.data
+            if isinstance(body, bytes):
+                content = body.decode("utf-8", errors="replace")
+            elif isinstance(body, str):
+                content = body
             else:
-                content = str(response)
+                content = str(body)
 
-            return ActionResult(data={"content": content, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"content": content}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"content": "", "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("compare_branches")
@@ -641,10 +699,10 @@ class CompareBranchesAction(ActionHandler):
                 params=params,
             )
 
-            return ActionResult(data={"comparison": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"comparison": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"comparison": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Container Registry Handlers ----
@@ -659,9 +717,14 @@ class ListContainerRegistryRepositoriesAction(ActionHandler):
             project_id = encode_project_id(inputs["project_id"])
 
             params = {}
-            for key in ["tags", "tags_count", "per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("tags") is not None:
+                params["tags"] = "true" if inputs.get("tags") else "false"
+            if inputs.get("tags_count") is not None:
+                params["tags_count"] = "true" if inputs.get("tags_count") else "false"
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/registry/repositories",
@@ -669,15 +732,12 @@ class ListContainerRegistryRepositoriesAction(ActionHandler):
                 params=params if params else None,
             )
 
-            repositories = response if isinstance(response, list) else []
+            repositories = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"repositories": repositories, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"repositories": repositories}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(
-                data={"repositories": [], "result": False, "error": str(e)},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_container_registry_repository")
@@ -690,9 +750,10 @@ class GetContainerRegistryRepositoryAction(ActionHandler):
             repository_id = inputs["repository_id"]
 
             params = {}
-            for key in ["tags", "tags_count"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("tags") is not None:
+                params["tags"] = "true" if inputs.get("tags") else "false"
+            if inputs.get("tags_count") is not None:
+                params["tags_count"] = "true" if inputs.get("tags_count") else "false"
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/registry/repositories/{repository_id}",
@@ -700,10 +761,10 @@ class GetContainerRegistryRepositoryAction(ActionHandler):
                 params=params if params else None,
             )
 
-            return ActionResult(data={"repository": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"repository": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"repository": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("list_container_registry_tags")
@@ -716,9 +777,10 @@ class ListContainerRegistryTagsAction(ActionHandler):
             repository_id = inputs["repository_id"]
 
             params = {}
-            for key in ["per_page", "page"]:
-                if inputs.get(key) is not None:
-                    params[key] = inputs[key]
+            if inputs.get("per_page") is not None:
+                params["per_page"] = inputs.get("per_page")
+            if inputs.get("page") is not None:
+                params["page"] = inputs.get("page")
 
             response = await context.fetch(
                 f"{GITLAB_API_BASE_URL}/projects/{project_id}/registry/repositories/{repository_id}/tags",
@@ -726,12 +788,12 @@ class ListContainerRegistryTagsAction(ActionHandler):
                 params=params if params else None,
             )
 
-            tags = response if isinstance(response, list) else []
+            tags = response.data if isinstance(response.data, list) else []
 
-            return ActionResult(data={"tags": tags, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"tags": tags}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tags": [], "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @gitlab.action("get_container_registry_tag")
@@ -749,7 +811,7 @@ class GetContainerRegistryTagAction(ActionHandler):
                 method="GET",
             )
 
-            return ActionResult(data={"tag": response, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"tag": response.data}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"tag": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
