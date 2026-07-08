@@ -25,7 +25,7 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 ### RSS Reader 
 
-[rss-reader-feedparser](rss-reader-feedparser): Reads RSS feeds using the `feedparser` library. Includes 1 action.
+[rss-reader-feedparser](rss-reader-feedparser): **[UNSUPPORTED]** Legacy RSS reader that reads RSS feeds using the `feedparser` library directly. Kept for reference only; use `rss-reader-feedparser-ah-fetch` for maintained RSS feed workflows. Includes 1 action.
 
 [rss-reader-feedparser-ah-fetch](rss-reader-feedparser-ah-fetch): Reads RSS feeds using `feedparser` and the `autohive-integration-sdk`'s `fetch()` method for HTTP requests. 
 
