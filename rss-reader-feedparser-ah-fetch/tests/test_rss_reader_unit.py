@@ -1,19 +1,7 @@
-"""
-Unit tests for the RSS Reader integration using mocked fetch.
-
-Run with:
-    pytest rss-reader-feedparser-ah-fetch/tests/test_rss_reader_unit.py -m unit
-"""
-
-import os
-import sys
-
 import pytest
-from autohive_integrations_sdk import ResultType
+from autohive_integrations_sdk import FetchResponse, ResultType
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from rss_reader import rss_reader  # noqa: E402
+from rss_reader import build_api_token_header, build_http_basic_auth_url, redact_secret_values, rss_reader  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
@@ -27,29 +15,167 @@ SAMPLE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
       <link>https://example.com/1</link>
       <description>First entry</description>
       <published>2025-01-01T00:00:00Z</published>
+      <author>Alice</author>
+    </item>
+    <item>
+      <title>Entry Two</title>
+      <link>https://example.com/2</link>
+      <description>Second entry</description>
+      <published>2025-01-02T00:00:00Z</published>
     </item>
   </channel>
 </rss>
 """
 
 
-async def test_get_feed(make_context):
-    """get_feed with HTTP basic auth: parses the feed and bakes the
-    credentials into the fetched URL."""
-    ctx = make_context(
-        auth={
-            "auth_type": "Custom",
-            "credentials": {"user_name": "test_user", "password": "test_password"},  # nosec B105
-        }
-    )
-    # Pinned SDK 1.x fetch() returns the body directly, not a FetchResponse.
-    ctx.fetch.return_value = SAMPLE_FEED
-    result = await rss_reader.execute_action("get_feed", {"feed_url": "https://example.com/feed", "limit": 10}, ctx)
+def custom_auth(credentials: dict[str, str]) -> dict[str, object]:
+    return {"auth_type": "Custom", "credentials": credentials}
+
+
+def feed_response(data: str = SAMPLE_FEED) -> FetchResponse:
+    return FetchResponse(status=200, headers={}, data=data)
+
+
+def test_build_http_basic_auth_url_with_https():
+    assert build_http_basic_auth_url("https://example.com/feed", "user", "pass") == "https://user:pass@example.com/feed"
+
+
+def test_build_http_basic_auth_url_adds_default_http_scheme():
+    assert build_http_basic_auth_url("example.com/feed", "user", "pass") == "http://user:pass@example.com/feed"
+
+
+def test_build_api_token_header():
+    assert build_api_token_header("test-token") == {"Authorization": "Bearer test-token"}  # nosec B105
+
+
+def test_redact_secret_values():
+    message = "Request failed for https://user:secret@example.com/feed with token test-token"
+
+    redacted = redact_secret_values(message, "user", "secret", "test-token")  # nosec B105
+
+    assert "user" not in redacted
+    assert "secret" not in redacted
+    assert "test-token" not in redacted
+    assert redacted.count("[REDACTED]") == 3
+
+
+@pytest.mark.asyncio
+async def test_get_feed_without_auth(make_context):
+    ctx = make_context(auth=custom_auth({}))
+    ctx.fetch.return_value = feed_response()
+
+    result = await rss_reader.execute_action("get_feed", {"feed_url": "https://example.com/feed"}, ctx)
+
     assert result.type == ResultType.ACTION
-    data = result.result.data
-    assert data["feed_title"] == "Test Feed"
-    assert len(data["entries"]) == 1
-    assert data["entries"][0]["title"] == "Entry One"
-    # Basic-auth credentials should have been baked into the fetched URL.
-    fetched_url = ctx.fetch.call_args.args[0]
-    assert "test_user:test_password@" in fetched_url
+    assert result.result.data == {
+        "feed_title": "Test Feed",
+        "feed_link": "https://example.com",
+        "entries": [
+            {
+                "title": "Entry One",
+                "link": "https://example.com/1",
+                "description": "First entry",
+                "published": "2025-01-01T00:00:00Z",
+                "author": "Alice",
+            },
+            {
+                "title": "Entry Two",
+                "link": "https://example.com/2",
+                "description": "Second entry",
+                "published": "2025-01-02T00:00:00Z",
+                "author": "",
+            },
+        ],
+    }
+    ctx.fetch.assert_awaited_once_with("https://example.com/feed")
+
+
+@pytest.mark.asyncio
+async def test_get_feed_respects_limit(make_context):
+    ctx = make_context(auth=custom_auth({}))
+    ctx.fetch.return_value = feed_response()
+
+    result = await rss_reader.execute_action("get_feed", {"feed_url": "https://example.com/feed", "limit": 1}, ctx)
+
+    assert result.type == ResultType.ACTION
+    assert len(result.result.data["entries"]) == 1
+    assert result.result.data["entries"][0]["title"] == "Entry One"
+
+
+@pytest.mark.asyncio
+async def test_get_feed_uses_basic_auth_url(make_context):
+    ctx = make_context(auth=custom_auth({"user_name": "test_user", "password": "test_password"}))  # nosec B105
+    ctx.fetch.return_value = feed_response()
+
+    result = await rss_reader.execute_action("get_feed", {"feed_url": "https://example.com/feed"}, ctx)
+
+    assert result.type == ResultType.ACTION
+    ctx.fetch.assert_awaited_once_with("https://test_user:test_password@example.com/feed")
+
+
+@pytest.mark.asyncio
+async def test_get_feed_uses_bearer_token_header(make_context):
+    ctx = make_context(auth=custom_auth({"api_token": "test_token"}))  # nosec B105
+    ctx.fetch.return_value = feed_response()
+
+    result = await rss_reader.execute_action("get_feed", {"feed_url": "https://example.com/feed"}, ctx)
+
+    assert result.type == ResultType.ACTION
+    ctx.fetch.assert_awaited_once_with(
+        "https://example.com/feed",
+        headers={"Authorization": "Bearer test_token"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_feed_prefers_basic_auth_over_bearer_token(make_context):
+    ctx = make_context(
+        auth=custom_auth(
+            {
+                "user_name": "test_user",
+                "password": "test_password",  # nosec B105
+                "api_token": "test_token",  # nosec B105
+            }
+        )
+    )
+    ctx.fetch.return_value = feed_response()
+
+    result = await rss_reader.execute_action("get_feed", {"feed_url": "https://example.com/feed"}, ctx)
+
+    assert result.type == ResultType.ACTION
+    ctx.fetch.assert_awaited_once_with("https://test_user:test_password@example.com/feed")
+
+
+@pytest.mark.asyncio
+async def test_get_feed_returns_action_error_for_fetch_exception(make_context):
+    ctx = make_context(auth=custom_auth({}))
+    ctx.fetch.side_effect = Exception("Network error")
+
+    result = await rss_reader.execute_action("get_feed", {"feed_url": "https://example.com/feed"}, ctx)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Network error" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_get_feed_returns_action_error_for_parse_failure(make_context):
+    ctx = make_context(auth=custom_auth({}))
+    ctx.fetch.return_value = feed_response("not xml")
+
+    result = await rss_reader.execute_action("get_feed", {"feed_url": "https://example.com/feed"}, ctx)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Failed to parse feed" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_get_feed_parse_error_does_not_leak_basic_auth_credentials(make_context):
+    ctx = make_context(auth=custom_auth({"user_name": "test_user", "password": "test_password"}))  # nosec B105
+    ctx.fetch.return_value = feed_response("not xml")
+
+    result = await rss_reader.execute_action("get_feed", {"feed_url": "https://example.com/feed"}, ctx)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Failed to parse feed" in result.result.message
+    assert "test_user" not in result.result.message
+    assert "test_password" not in result.result.message
