@@ -77,8 +77,16 @@ Auth:
 
 ## Testing
 
-To run the tests:
+To run the unit tests:
 
-1.  Navigate to the integration's directory: `cd rss-reader-feedparser-ah-fetch`
-2.  Install dependencies: `pip install -r requirements.txt -t dependencies`
-3.  Run the tests: `python tests/test_rss_reader.py` 
+```bash
+pytest rss-reader-feedparser-ah-fetch/tests/test_rss_reader_unit.py -m unit
+```
+
+To run the read-only end-to-end integration tests against a real public RSS feed:
+
+```bash
+pytest rss-reader-feedparser-ah-fetch/tests/test_rss_reader_integration.py -m "integration and not destructive"
+```
+
+The integration tests default to `https://xkcd.com/rss.xml`. Set `RSS_READER_TEST_FEED_URL` in the root `.env` file to test a different public feed. To test a Basic Auth protected feed, also set `RSS_READER_BASIC_AUTH_FEED_URL`, `RSS_READER_BASIC_AUTH_USER_NAME`, and `RSS_READER_BASIC_AUTH_PASSWORD`.

@@ -23,17 +23,29 @@ def build_http_basic_auth_url(url: str, user_name: str, password: str) -> str:
     return f"{protocol}{user_name}:{password}@{domain_part}"
 
 
-def build_api_token_header(api_token: str) -> str:
+def build_api_token_header(api_token: str) -> Dict[str, str]:
     """
     Build a header with API token authentication.
     """
     return {"Authorization": f"Bearer {api_token}"}
 
 
+def redact_secret_values(message: str, *secrets: str | None) -> str:
+    """Remove credential values from user-facing error messages."""
+    redacted = message
+    for secret in secrets:
+        if secret:
+            redacted = redacted.replace(secret, "[REDACTED]")
+    return redacted
+
+
 # ---- Action Handlers ----
 @rss_reader.action("get_feed")
 class GetFeedAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        user_name = None
+        password = None
+        api_token = None
         try:
             feed_url = inputs["feed_url"]
             limit = inputs.get("limit", 10)
@@ -56,7 +68,7 @@ class GetFeedAction(ActionHandler):
             feed = feedparser.parse(response.data)
 
             if hasattr(feed, "bozo_exception"):
-                raise ValueError(f"Failed to parse feed [{feed_url}] with error: {feed.bozo_exception}")
+                raise ValueError(f"Failed to parse feed with error: {feed.bozo_exception}")
 
             entries = []
             for entry in feed.entries[:limit]:
@@ -78,4 +90,4 @@ class GetFeedAction(ActionHandler):
                 }
             )
         except Exception as e:
-            return ActionError(message=str(e))
+            return ActionError(message=redact_secret_values(str(e), user_name, password, api_token))
