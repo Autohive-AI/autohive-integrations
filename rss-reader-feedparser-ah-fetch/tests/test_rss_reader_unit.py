@@ -1,10 +1,5 @@
-import os
-import sys
-
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from rss_reader import build_api_token_header, build_http_basic_auth_url, redact_secret_values, rss_reader  # noqa: E402
 

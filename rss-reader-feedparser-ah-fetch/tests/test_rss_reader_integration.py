@@ -13,13 +13,10 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
 import os
-import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
-
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from rss_reader import rss_reader
 
