@@ -80,6 +80,22 @@ SAMPLE_RSS1_FEED = """<?xml version="1.0" encoding="UTF-8"?>
 </rdf:RDF>
 """
 
+SAMPLE_RSS2_DUBLIN_CORE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>RSS 2 DC Feed</title>
+    <link>https://example.com/rss2-dc</link>
+    <item>
+      <title>Entry With Dublin Core</title>
+      <link>https://example.com/rss2-dc/1</link>
+      <description>Entry using namespaced metadata</description>
+      <dc:date>2025-01-05T00:00:00Z</dc:date>
+      <dc:creator>Dana</dc:creator>
+    </item>
+  </channel>
+</rss>
+"""
+
 
 def custom_auth(credentials: dict[str, str]) -> dict[str, object]:
     return {"auth_type": "Custom", "credentials": credentials}
@@ -139,6 +155,22 @@ def test_parse_feed_supports_rss1_rdf():
                 "description": "RSS 1 entry description",
                 "published": "2025-01-04T00:00:00Z",
                 "author": "Carol",
+            }
+        ],
+    }
+
+
+def test_parse_feed_preserves_rss2_dublin_core_item_metadata():
+    assert parse_feed(SAMPLE_RSS2_DUBLIN_CORE_FEED) == {
+        "feed_title": "RSS 2 DC Feed",
+        "feed_link": "https://example.com/rss2-dc",
+        "entries": [
+            {
+                "title": "Entry With Dublin Core",
+                "link": "https://example.com/rss2-dc/1",
+                "description": "Entry using namespaced metadata",
+                "published": "2025-01-05T00:00:00Z",
+                "author": "Dana",
             }
         ],
     }

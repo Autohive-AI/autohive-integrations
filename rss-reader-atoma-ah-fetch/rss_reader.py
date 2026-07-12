@@ -73,6 +73,25 @@ def _xml_text(element: Any, path: str, namespaces: Dict[str, str]) -> str:
     return child.text.strip()
 
 
+def _rss_item_metadata(data: bytes) -> list[Dict[str, str]]:
+    """Read namespaced RSS 2.0 item metadata that Atoma does not expose."""
+    namespaces = {
+        "dc": "http://purl.org/dc/elements/1.1/",
+    }
+    try:
+        root = ET.fromstring(data)
+    except Exception:
+        return []
+
+    return [
+        {
+            "author": _xml_text(item, "dc:creator", namespaces),
+            "published": _xml_text(item, "dc:date", namespaces),
+        }
+        for item in root.findall("./channel/item")
+    ]
+
+
 def parse_rss1_feed(data: bytes) -> Dict[str, Any]:
     """Parse RSS 1.0/RDF feed data into the integration's output shape."""
     namespaces = {
@@ -113,6 +132,7 @@ def parse_feed(data: Any) -> Dict[str, Any]:
 
     try:
         rss_feed = atoma.parse_rss_bytes(feed_data)
+        item_metadata = _rss_item_metadata(feed_data)
         return {
             "feed_title": rss_feed.title or "",
             "feed_link": rss_feed.link or "",
@@ -121,10 +141,11 @@ def parse_feed(data: Any) -> Dict[str, Any]:
                     "title": item.title or "",
                     "link": item.link or "",
                     "description": item.description or item.content_encoded or "",
-                    "published": _date_to_string(item.pub_date),
-                    "author": item.author or "",
+                    "published": _date_to_string(item.pub_date)
+                    or (item_metadata[index]["published"] if index < len(item_metadata) else ""),
+                    "author": item.author or (item_metadata[index]["author"] if index < len(item_metadata) else ""),
                 }
-                for item in rss_feed.items
+                for index, item in enumerate(rss_feed.items)
             ],
         }
     except Exception as rss_error:
