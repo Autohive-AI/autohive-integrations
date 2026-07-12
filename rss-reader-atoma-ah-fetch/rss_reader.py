@@ -59,6 +59,13 @@ def _text_value(value: Any) -> str:
     return str(getattr(value, "value", value) or "")
 
 
+def _atom_link(links: list[Any]) -> str:
+    for link in links:
+        if getattr(link, "rel", None) in (None, "alternate"):
+            return link.href
+    return links[0].href if links else ""
+
+
 def _xml_text(element: Any, path: str, namespaces: Dict[str, str]) -> str:
     child = element.find(path, namespaces)
     if child is None or child.text is None:
@@ -131,14 +138,14 @@ def parse_feed(data: Any) -> Dict[str, Any]:
                     f"Failed to parse feed as RSS 2.0, RSS 1.0/RDF, or Atom: {rss_error}; {rss1_error}; {atom_error}"
                 ) from atom_error
 
-            feed_link = atom_feed.links[0].href if atom_feed.links else ""
+            feed_link = _atom_link(atom_feed.links)
             return {
                 "feed_title": _text_value(atom_feed.title),
                 "feed_link": feed_link,
                 "entries": [
                     {
                         "title": _text_value(entry.title),
-                        "link": entry.links[0].href if entry.links else "",
+                        "link": _atom_link(entry.links),
                         "description": _text_value(entry.summary or entry.content),
                         "published": _date_to_string(entry.published or entry.updated),
                         "author": entry.authors[0].name if entry.authors else "",

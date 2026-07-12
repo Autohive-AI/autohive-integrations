@@ -58,7 +58,7 @@ def live_context():
 
 
 def public_feed_url() -> str:
-    return os.environ.get("RSS_READER_TEST_FEED_URL", DEFAULT_PUBLIC_FEED_URL)
+    return os.environ.get("RSS_READER_TEST_FEED_URL") or DEFAULT_PUBLIC_FEED_URL
 
 
 # ---- Read-Only Public Feed Tests ----

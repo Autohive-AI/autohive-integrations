@@ -51,6 +51,7 @@ SAMPLE_ATOM_FEED = """<?xml version="1.0" encoding="UTF-8"?>
   <entry>
     <id>entry-1</id>
     <title>Atom Entry</title>
+    <link rel="self" href="https://example.com/feed/entry-1" />
     <link href="https://example.com/atom/1" />
     <summary>Atom entry summary</summary>
     <updated>2025-01-03T00:00:00Z</updated>
