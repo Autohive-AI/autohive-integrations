@@ -59,6 +59,26 @@ SAMPLE_ATOM_FEED = """<?xml version="1.0" encoding="UTF-8"?>
 </feed>
 """
 
+SAMPLE_RSS1_FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<rdf:RDF
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns="http://purl.org/rss/1.0/"
+  xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel rdf:about="https://example.com/rss1">
+    <title>RSS 1 Feed</title>
+    <link>https://example.com/rss1</link>
+    <description>RSS 1 channel</description>
+  </channel>
+  <item rdf:about="https://example.com/rss1/1">
+    <title>RSS 1 Entry</title>
+    <link>https://example.com/rss1/1</link>
+    <description>RSS 1 entry description</description>
+    <dc:date>2025-01-04T00:00:00Z</dc:date>
+    <dc:creator>Carol</dc:creator>
+  </item>
+</rdf:RDF>
+"""
+
 
 def custom_auth(credentials: dict[str, str]) -> dict[str, object]:
     return {"auth_type": "Custom", "credentials": credentials}
@@ -102,6 +122,22 @@ def test_parse_feed_supports_atom():
                 "description": "Atom entry summary",
                 "published": "2025-01-03T00:00:00+00:00",
                 "author": "Bob",
+            }
+        ],
+    }
+
+
+def test_parse_feed_supports_rss1_rdf():
+    assert parse_feed(SAMPLE_RSS1_FEED) == {
+        "feed_title": "RSS 1 Feed",
+        "feed_link": "https://example.com/rss1",
+        "entries": [
+            {
+                "title": "RSS 1 Entry",
+                "link": "https://example.com/rss1/1",
+                "description": "RSS 1 entry description",
+                "published": "2025-01-04T00:00:00Z",
+                "author": "Carol",
             }
         ],
     }

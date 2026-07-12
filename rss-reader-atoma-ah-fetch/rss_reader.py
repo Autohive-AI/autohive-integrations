@@ -1,6 +1,7 @@
 from typing import Any, Dict
 
 import atoma
+import defusedxml.ElementTree as ET
 from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, Integration
 
 # Create the integration using the config.json
@@ -58,6 +59,47 @@ def _text_value(value: Any) -> str:
     return str(getattr(value, "value", value) or "")
 
 
+def _xml_text(element: Any, path: str, namespaces: Dict[str, str]) -> str:
+    child = element.find(path, namespaces)
+    if child is None or child.text is None:
+        return ""
+    return child.text.strip()
+
+
+def parse_rss1_feed(data: bytes) -> Dict[str, Any]:
+    """Parse RSS 1.0/RDF feed data into the integration's output shape."""
+    namespaces = {
+        "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+        "rss": "http://purl.org/rss/1.0/",
+        "dc": "http://purl.org/dc/elements/1.1/",
+        "content": "http://purl.org/rss/1.0/modules/content/",
+    }
+    root = ET.fromstring(data)
+
+    if root.tag != f"{{{namespaces['rdf']}}}RDF":
+        raise ValueError("Feed is not RSS 1.0/RDF")
+
+    channel = root.find("rss:channel", namespaces)
+    if channel is None:
+        raise ValueError("RSS 1.0/RDF feed is missing a channel")
+
+    return {
+        "feed_title": _xml_text(channel, "rss:title", namespaces),
+        "feed_link": _xml_text(channel, "rss:link", namespaces),
+        "entries": [
+            {
+                "title": _xml_text(item, "rss:title", namespaces),
+                "link": _xml_text(item, "rss:link", namespaces),
+                "description": _xml_text(item, "rss:description", namespaces)
+                or _xml_text(item, "content:encoded", namespaces),
+                "published": _xml_text(item, "dc:date", namespaces),
+                "author": _xml_text(item, "dc:creator", namespaces),
+            }
+            for item in root.findall("rss:item", namespaces)
+        ],
+    }
+
+
 def parse_feed(data: Any) -> Dict[str, Any]:
     """Parse RSS or Atom feed data into the integration's output shape."""
     feed_data = _as_feed_bytes(data)
@@ -80,7 +122,15 @@ def parse_feed(data: Any) -> Dict[str, Any]:
         }
     except Exception as rss_error:
         try:
-            atom_feed = atoma.parse_atom_bytes(feed_data)
+            return parse_rss1_feed(feed_data)
+        except Exception as rss1_error:
+            try:
+                atom_feed = atoma.parse_atom_bytes(feed_data)
+            except Exception as atom_error:
+                raise ValueError(
+                    f"Failed to parse feed as RSS 2.0, RSS 1.0/RDF, or Atom: {rss_error}; {rss1_error}; {atom_error}"
+                ) from atom_error
+
             feed_link = atom_feed.links[0].href if atom_feed.links else ""
             return {
                 "feed_title": _text_value(atom_feed.title),
@@ -96,8 +146,6 @@ def parse_feed(data: Any) -> Dict[str, Any]:
                     for entry in atom_feed.entries
                 ],
             }
-        except Exception as atom_error:
-            raise ValueError(f"Failed to parse feed as RSS or Atom: {rss_error}; {atom_error}") from atom_error
 
 
 # ---- Action Handlers ----
