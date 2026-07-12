@@ -1,2 +1,0 @@
-autohive-integrations-sdk~=2.0.1
-atoma

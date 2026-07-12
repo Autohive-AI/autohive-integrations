@@ -25,7 +25,7 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 ### RSS Reader 
 
-[rss-reader-atoma](rss-reader-atoma): **[UNSUPPORTED]** Legacy RSS reader that reads RSS and Atom feeds using the `atoma` library directly. Kept for reference only; use `rss-reader-atoma-ah-fetch` for maintained RSS feed workflows. Includes 1 action.
+[rss-reader-feedparser](rss-reader-feedparser): **[UNSUPPORTED]** Legacy RSS reader that reads RSS feeds using the `feedparser` library directly. Kept for reference only; use `rss-reader-atoma-ah-fetch` for maintained RSS feed workflows. Includes 1 action.
 
 [rss-reader-atoma-ah-fetch](rss-reader-atoma-ah-fetch): Reads RSS and Atom feeds using `atoma` and the `autohive-integration-sdk`'s `fetch()` method for HTTP requests.
 

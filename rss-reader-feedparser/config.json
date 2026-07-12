@@ -1,7 +1,7 @@
 {
-    "name": "RSS Reader using Atoma",
-    "version": "2.0.0",
-    "description": "An unsupported legacy integration for reading RSS and Atom feeds using Atoma as the internal parser.",
+    "name": "RSS Reader using Feedseeker",
+    "version": "1.0.0",
+    "description": "An integration for reading RSS feeds using Feedseeker as the internal implementeation",
     "entry_point": "rss_reader.py",
     "auth": {
         "identifier": "rss_authentication",
@@ -90,5 +90,5 @@
             "display_name": "Get Feed"
         }
     },
-    "display_name": "RSS Reader using Atoma"
+    "display_name": "RSS Reader using Feedseeker"
 }
