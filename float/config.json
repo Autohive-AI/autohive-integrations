@@ -1522,6 +1522,16 @@
             ],
             "description": "Person ID"
           },
+          "people_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Person IDs assigned to this time off entry"
+          },
           "timeoff_type_id": {
             "type": [
               "integer",

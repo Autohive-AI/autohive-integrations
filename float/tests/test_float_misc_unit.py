@@ -120,6 +120,93 @@ class TestCreateLoggedTime:
 
         assert result.type == ResultType.ACTION_ERROR
 
+    @pytest.mark.asyncio
+    async def test_create_logged_time_unwraps_array_response(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=201,
+            headers={},
+            data=[{"logged_time_id": "abc10", "hours": 8.0, "people_id": 1, "project_id": 1, "date": "2025-01-15"}],
+        )
+
+        result = await float_integration.execute_action(
+            "create_logged_time",
+            {"people_id": 1, "project_id": 1, "date": "2025-01-15", "hours": 8.0},
+            mock_context,
+        )
+
+        assert result.result.data["logged_time_id"] == "abc10"
+
+    @pytest.mark.asyncio
+    async def test_create_logged_time_empty_array_returns_action_error(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=201, headers={}, data=[])
+
+        result = await float_integration.execute_action(
+            "create_logged_time",
+            {"people_id": 1, "project_id": 1, "date": "2025-01-15", "hours": 8.0},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+
+class TestUpdateLoggedTime:
+    @pytest.mark.asyncio
+    async def test_update_logged_time_happy_path(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"logged_time_id": "abc10", "hours": 5.0, "people_id": 1, "project_id": 1, "date": "2025-01-15"},
+        )
+
+        result = await float_integration.execute_action(
+            "update_logged_time",
+            {"logged_time_id": "abc10", "hours": 5.0},
+            mock_context,
+        )
+
+        assert result.result.data["logged_time_id"] == "abc10"
+        assert result.result.data["hours"] == 5.0
+
+    @pytest.mark.asyncio
+    async def test_update_logged_time_unwraps_array_response(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=[{"logged_time_id": "abc10", "hours": 5.0, "people_id": 1, "project_id": 1, "date": "2025-01-15"}],
+        )
+
+        result = await float_integration.execute_action(
+            "update_logged_time",
+            {"logged_time_id": "abc10", "hours": 5.0},
+            mock_context,
+        )
+
+        assert result.result.data["logged_time_id"] == "abc10"
+
+    @pytest.mark.asyncio
+    async def test_update_logged_time_empty_array_returns_action_error(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
+
+        result = await float_integration.execute_action(
+            "update_logged_time",
+            {"logged_time_id": "abc10", "hours": 5.0},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_update_logged_time_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Update failed")
+
+        result = await float_integration.execute_action(
+            "update_logged_time",
+            {"logged_time_id": "abc10", "hours": 5.0},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
 
 # ---- Clients ----
 

@@ -1522,7 +1522,12 @@ class CreateLoggedTimeHandler(ActionHandler):
                 json=request_body,
             )
 
-            data = response.data[0] if isinstance(response.data, list) else response.data
+            if isinstance(response.data, list):
+                if not response.data:
+                    return ActionError(message="Failed to create logged time: Float returned an empty response")
+                data = response.data[0]
+            else:
+                data = response.data
             return ActionResult(data=data, cost_usd=0.0)
 
         except Exception as e:
@@ -1587,7 +1592,14 @@ class UpdateLoggedTimeHandler(ActionHandler):
                 json=request_body,
             )
 
-            data = response.data[0] if isinstance(response.data, list) else response.data
+            if isinstance(response.data, list):
+                if not response.data:
+                    return ActionError(
+                        message=f"Failed to update logged time {logged_time_id}: Float returned an empty response"
+                    )
+                data = response.data[0]
+            else:
+                data = response.data
             return ActionResult(data=data, cost_usd=0.0)
 
         except Exception as e:

@@ -16,7 +16,9 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 
 import importlib.util
 import os
+import random
 import sys
+from datetime import datetime, timedelta
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
@@ -615,24 +617,29 @@ class TestCreateTimeOff:
             pytest.skip("No time off types in account to test with")
         timeoff_type_id = timeoff_types[0]["timeoff_type_id"]
 
-        result = await float_integration.execute_action(
-            "create_time_off",
-            {
-                "people_id": person_id,
-                "timeoff_type_id": timeoff_type_id,
-                "start_date": "2026-07-01",
-                "end_date": "2026-07-01",
-                "hours": 8,
-            },
-            live_context,
-        )
-        assert result.result_type == "ActionResult"
-        data = result.result.data
-        assert "timeoff_id" in data
-        assert person_id in data.get("people_ids", [])
+        timeoff_date = (datetime.now() + timedelta(days=90 + random.randint(0, 3650))).strftime("%Y-%m-%d")
 
-        # Cleanup
-        await float_integration.execute_action("delete_time_off", {"timeoff_id": data["timeoff_id"]}, live_context)
+        timeoff_id = None
+        try:
+            result = await float_integration.execute_action(
+                "create_time_off",
+                {
+                    "people_id": person_id,
+                    "timeoff_type_id": timeoff_type_id,
+                    "start_date": timeoff_date,
+                    "end_date": timeoff_date,
+                    "hours": 8,
+                },
+                live_context,
+            )
+            assert result.result_type == "ActionResult"
+            data = result.result.data
+            assert "timeoff_id" in data
+            timeoff_id = data["timeoff_id"]
+            assert person_id in data.get("people_ids", [])
+        finally:
+            if timeoff_id is not None:
+                await float_integration.execute_action("delete_time_off", {"timeoff_id": timeoff_id}, live_context)
 
 
 @pytest.mark.destructive
@@ -652,41 +659,44 @@ class TestLoggedTimeLifecycle:
             pytest.skip("No projects in account to test with")
         project_id = projects[0]["project_id"]
 
-        # Create — must return a dict, not an array
-        create_result = await float_integration.execute_action(
-            "create_logged_time",
-            {"people_id": person_id, "project_id": project_id, "date": "2026-07-01", "hours": 3},
-            live_context,
-        )
-        assert create_result.result_type == "ActionResult"
-        created = create_result.result.data
-        assert isinstance(created, dict), "Expected dict — array unwrap fix missing in create_logged_time"
-        assert "logged_time_id" in created
-        logged_time_id = created["logged_time_id"]
+        logged_date = (datetime.now() + timedelta(days=90 + random.randint(0, 3650))).strftime("%Y-%m-%d")
 
-        # Update — must also return a dict, not an array
-        update_result = await float_integration.execute_action(
-            "update_logged_time",
-            {"logged_time_id": logged_time_id, "hours": 5},
-            live_context,
-        )
-        assert update_result.result_type == "ActionResult"
-        updated = update_result.result.data
-        assert isinstance(updated, dict), "Expected dict — array unwrap fix missing in update_logged_time"
-        assert updated["hours"] == 5
+        logged_time_id = None
+        try:
+            # Create — must return a dict, not an array
+            create_result = await float_integration.execute_action(
+                "create_logged_time",
+                {"people_id": person_id, "project_id": project_id, "date": logged_date, "hours": 3},
+                live_context,
+            )
+            assert create_result.result_type == "ActionResult"
+            created = create_result.result.data
+            assert isinstance(created, dict), "Expected dict — array unwrap fix missing in create_logged_time"
+            assert "logged_time_id" in created
+            logged_time_id = created["logged_time_id"]
 
-        # Get — returns object directly (no fix needed, verify it still works)
-        get_result = await float_integration.execute_action(
-            "get_logged_time", {"logged_time_id": logged_time_id}, live_context
-        )
-        assert get_result.result_type == "ActionResult"
-        assert get_result.result.data["logged_time_id"] == logged_time_id
+            # Update — must also return a dict, not an array
+            update_result = await float_integration.execute_action(
+                "update_logged_time",
+                {"logged_time_id": logged_time_id, "hours": 5},
+                live_context,
+            )
+            assert update_result.result_type == "ActionResult"
+            updated = update_result.result.data
+            assert isinstance(updated, dict), "Expected dict — array unwrap fix missing in update_logged_time"
+            assert updated["hours"] == 5
 
-        # Delete (cleanup)
-        delete_result = await float_integration.execute_action(
-            "delete_logged_time", {"logged_time_id": logged_time_id}, live_context
-        )
-        assert delete_result.result_type == "ActionResult"
+            # Get — returns object directly (no fix needed, verify it still works)
+            get_result = await float_integration.execute_action(
+                "get_logged_time", {"logged_time_id": logged_time_id}, live_context
+            )
+            assert get_result.result_type == "ActionResult"
+            assert get_result.result.data["logged_time_id"] == logged_time_id
+        finally:
+            if logged_time_id is not None:
+                await float_integration.execute_action(
+                    "delete_logged_time", {"logged_time_id": logged_time_id}, live_context
+                )
         assert delete_result.result.data["success"] is True
 
 
