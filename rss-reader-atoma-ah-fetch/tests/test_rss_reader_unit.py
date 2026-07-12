@@ -96,6 +96,21 @@ SAMPLE_RSS2_DUBLIN_CORE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
 </rss>
 """
 
+SAMPLE_DECODED_ISO_DECLARATION_FEED = """<?xml version="1.0" encoding="ISO-8859-1"?>
+<rss version="2.0">
+  <channel>
+    <title>Café Feed</title>
+    <link>https://example.com/cafe</link>
+    <item>
+      <title>Résumé Entry</title>
+      <link>https://example.com/cafe/1</link>
+      <description>Crème brûlée update</description>
+      <author>Zoë</author>
+    </item>
+  </channel>
+</rss>
+"""
+
 
 def custom_auth(credentials: dict[str, str]) -> dict[str, object]:
     return {"auth_type": "Custom", "credentials": credentials}
@@ -171,6 +186,22 @@ def test_parse_feed_preserves_rss2_dublin_core_item_metadata():
                 "description": "Entry using namespaced metadata",
                 "published": "2025-01-05T00:00:00Z",
                 "author": "Dana",
+            }
+        ],
+    }
+
+
+def test_parse_feed_preserves_decoded_text_with_stale_encoding_declaration():
+    assert parse_feed(SAMPLE_DECODED_ISO_DECLARATION_FEED) == {
+        "feed_title": "Café Feed",
+        "feed_link": "https://example.com/cafe",
+        "entries": [
+            {
+                "title": "Résumé Entry",
+                "link": "https://example.com/cafe/1",
+                "description": "Crème brûlée update",
+                "published": "",
+                "author": "Zoë",
             }
         ],
     }

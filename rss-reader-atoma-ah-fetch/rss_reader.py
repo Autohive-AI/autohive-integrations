@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict
 
 import atoma
@@ -45,7 +46,7 @@ def _as_feed_bytes(data: Any) -> bytes:
     if isinstance(data, bytes):
         return data
     if isinstance(data, str):
-        return data.encode("utf-8")
+        return re.sub(r"^\s*<\?xml[^>]*encoding=[\"'][^\"']+[\"'][^>]*\?>", "", data, count=1).encode("utf-8")
     raise ValueError("Feed response must be text or bytes")
 
 
