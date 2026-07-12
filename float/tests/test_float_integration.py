@@ -617,7 +617,7 @@ class TestCreateTimeOff:
             pytest.skip("No time off types in account to test with")
         timeoff_type_id = timeoff_types[0]["timeoff_type_id"]
 
-        timeoff_date = (datetime.now() + timedelta(days=90 + random.randint(0, 3650))).strftime("%Y-%m-%d")
+        timeoff_date = (datetime.now() + timedelta(days=90 + random.randint(0, 3650))).strftime("%Y-%m-%d")  # nosec B311
 
         timeoff_id = None
         try:
@@ -659,7 +659,7 @@ class TestLoggedTimeLifecycle:
             pytest.skip("No projects in account to test with")
         project_id = projects[0]["project_id"]
 
-        logged_date = (datetime.now() + timedelta(days=90 + random.randint(0, 3650))).strftime("%Y-%m-%d")
+        logged_date = (datetime.now() + timedelta(days=90 + random.randint(0, 3650))).strftime("%Y-%m-%d")  # nosec B311
 
         logged_time_id = None
         try:
@@ -694,10 +694,10 @@ class TestLoggedTimeLifecycle:
             assert get_result.result.data["logged_time_id"] == logged_time_id
         finally:
             if logged_time_id is not None:
-                await float_integration.execute_action(
+                delete_result = await float_integration.execute_action(
                     "delete_logged_time", {"logged_time_id": logged_time_id}, live_context
                 )
-        assert delete_result.result.data["success"] is True
+                assert delete_result.result.data["success"] is True
 
 
 @pytest.mark.destructive
