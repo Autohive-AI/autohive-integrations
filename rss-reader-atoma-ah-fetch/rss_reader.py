@@ -1,0 +1,134 @@
+from typing import Any, Dict
+
+import atoma
+from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, Integration
+
+# Create the integration using the config.json
+rss_reader = Integration.load()
+
+
+def build_http_basic_auth_url(url: str, user_name: str, password: str) -> str:
+    """
+    Build a URL with HTTP basic authentication.
+    """
+    if url.startswith("http://"):
+        protocol = "http://"
+        domain_part = url[7:]  # Remove 'http://'
+    elif url.startswith("https://"):
+        protocol = "https://"
+        domain_part = url[8:]  # Remove 'https://'
+    else:
+        protocol = "http://"
+        domain_part = url
+
+    return f"{protocol}{user_name}:{password}@{domain_part}"
+
+
+def build_api_token_header(api_token: str) -> Dict[str, str]:
+    """
+    Build a header with API token authentication.
+    """
+    return {"Authorization": f"Bearer {api_token}"}
+
+
+def redact_secret_values(message: str, *secrets: str | None) -> str:
+    """Remove credential values from user-facing error messages."""
+    redacted = message
+    for secret in secrets:
+        if secret:
+            redacted = redacted.replace(secret, "[REDACTED]")
+    return redacted
+
+
+def _as_feed_bytes(data: Any) -> bytes:
+    if isinstance(data, bytes):
+        return data
+    if isinstance(data, str):
+        return data.encode("utf-8")
+    raise ValueError("Feed response must be text or bytes")
+
+
+def _date_to_string(value: Any) -> str:
+    return value.isoformat() if value else ""
+
+
+def _text_value(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(getattr(value, "value", value) or "")
+
+
+def parse_feed(data: Any) -> Dict[str, Any]:
+    """Parse RSS or Atom feed data into the integration's output shape."""
+    feed_data = _as_feed_bytes(data)
+
+    try:
+        rss_feed = atoma.parse_rss_bytes(feed_data)
+        return {
+            "feed_title": rss_feed.title or "",
+            "feed_link": rss_feed.link or "",
+            "entries": [
+                {
+                    "title": item.title or "",
+                    "link": item.link or "",
+                    "description": item.description or item.content_encoded or "",
+                    "published": _date_to_string(item.pub_date),
+                    "author": item.author or "",
+                }
+                for item in rss_feed.items
+            ],
+        }
+    except Exception as rss_error:
+        try:
+            atom_feed = atoma.parse_atom_bytes(feed_data)
+            feed_link = atom_feed.links[0].href if atom_feed.links else ""
+            return {
+                "feed_title": _text_value(atom_feed.title),
+                "feed_link": feed_link,
+                "entries": [
+                    {
+                        "title": _text_value(entry.title),
+                        "link": entry.links[0].href if entry.links else "",
+                        "description": _text_value(entry.summary or entry.content),
+                        "published": _date_to_string(entry.published or entry.updated),
+                        "author": entry.authors[0].name if entry.authors else "",
+                    }
+                    for entry in atom_feed.entries
+                ],
+            }
+        except Exception as atom_error:
+            raise ValueError(f"Failed to parse feed as RSS or Atom: {rss_error}; {atom_error}") from atom_error
+
+
+# ---- Action Handlers ----
+@rss_reader.action("get_feed")
+class GetFeedAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        user_name = None
+        password = None
+        api_token = None
+        try:
+            feed_url = inputs["feed_url"]
+            limit = inputs.get("limit", 10)
+
+            creds = context.auth["credentials"]
+            user_name = creds.get("user_name")
+            password = creds.get("password")
+            api_token = creds.get("api_token")
+
+            # Determine authentication method based on available credentials.
+            if user_name and password:
+                feed_url = build_http_basic_auth_url(feed_url, user_name, password)
+                response = await context.fetch(feed_url)
+            elif api_token:
+                headers = build_api_token_header(api_token)
+                response = await context.fetch(feed_url, headers=headers)
+            else:
+                response = await context.fetch(feed_url)
+
+            data = parse_feed(response.data)
+            data["entries"] = data["entries"][:limit]
+
+            return ActionResult(data=data)
+        except Exception as e:
+            return ActionError(message=redact_secret_values(str(e), user_name, password, api_token))

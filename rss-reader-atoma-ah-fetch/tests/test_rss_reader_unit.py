@@ -1,7 +1,22 @@
+import importlib.util
+import os
+
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
 
-from rss_reader import build_api_token_header, build_http_basic_auth_url, redact_secret_values, rss_reader  # noqa: E402
+_INTEGRATION_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_SPEC = importlib.util.spec_from_file_location(
+    "rss_reader_atoma_ah_fetch_mod", os.path.join(_INTEGRATION_DIR, "rss_reader.py")
+)
+rss_reader_module = importlib.util.module_from_spec(_SPEC)
+assert _SPEC.loader is not None
+_SPEC.loader.exec_module(rss_reader_module)
+
+build_api_token_header = rss_reader_module.build_api_token_header
+build_http_basic_auth_url = rss_reader_module.build_http_basic_auth_url
+parse_feed = rss_reader_module.parse_feed
+redact_secret_values = rss_reader_module.redact_secret_values
+rss_reader = rss_reader_module.rss_reader
 
 pytestmark = pytest.mark.unit
 
@@ -14,17 +29,34 @@ SAMPLE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
       <title>Entry One</title>
       <link>https://example.com/1</link>
       <description>First entry</description>
-      <published>2025-01-01T00:00:00Z</published>
+      <pubDate>Wed, 01 Jan 2025 00:00:00 GMT</pubDate>
       <author>Alice</author>
     </item>
     <item>
       <title>Entry Two</title>
       <link>https://example.com/2</link>
       <description>Second entry</description>
-      <published>2025-01-02T00:00:00Z</published>
+      <pubDate>Thu, 02 Jan 2025 00:00:00 GMT</pubDate>
     </item>
   </channel>
 </rss>
+"""
+
+SAMPLE_ATOM_FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <id>feed-1</id>
+  <title>Atom Feed</title>
+  <link href="https://example.com/atom" />
+  <updated>2025-01-01T00:00:00Z</updated>
+  <entry>
+    <id>entry-1</id>
+    <title>Atom Entry</title>
+    <link href="https://example.com/atom/1" />
+    <summary>Atom entry summary</summary>
+    <updated>2025-01-03T00:00:00Z</updated>
+    <author><name>Bob</name></author>
+  </entry>
+</feed>
 """
 
 
@@ -59,6 +91,22 @@ def test_redact_secret_values():
     assert redacted.count("[REDACTED]") == 3
 
 
+def test_parse_feed_supports_atom():
+    assert parse_feed(SAMPLE_ATOM_FEED) == {
+        "feed_title": "Atom Feed",
+        "feed_link": "https://example.com/atom",
+        "entries": [
+            {
+                "title": "Atom Entry",
+                "link": "https://example.com/atom/1",
+                "description": "Atom entry summary",
+                "published": "2025-01-03T00:00:00+00:00",
+                "author": "Bob",
+            }
+        ],
+    }
+
+
 @pytest.mark.asyncio
 async def test_get_feed_without_auth(make_context):
     ctx = make_context(auth=custom_auth({}))
@@ -75,14 +123,14 @@ async def test_get_feed_without_auth(make_context):
                 "title": "Entry One",
                 "link": "https://example.com/1",
                 "description": "First entry",
-                "published": "2025-01-01T00:00:00Z",
+                "published": "2025-01-01T00:00:00+00:00",
                 "author": "Alice",
             },
             {
                 "title": "Entry Two",
                 "link": "https://example.com/2",
                 "description": "Second entry",
-                "published": "2025-01-02T00:00:00Z",
+                "published": "2025-01-02T00:00:00+00:00",
                 "author": "",
             },
         ],

@@ -1,7 +1,7 @@
 {
-    "name": "RSS Reader using Feedseeker",
-    "version": "1.0.0",
-    "description": "An integration for reading RSS feeds using Feedseeker as the internal implementeation",
+    "name": "RSS Reader using Atoma and Autohive SDK fetch",
+    "version": "2.0.0",
+    "description": "An integration for reading RSS and Atom feeds using Atoma and the Autohive SDK fetch method.",
     "entry_point": "rss_reader.py",
     "auth": {
         "identifier": "rss_authentication",
@@ -19,6 +19,12 @@
                     "type": "string",
                     "format": "password",
                     "label": "Password for the RSS feed",
+                    "help_text": "You'll get this from the RSS feed provider."
+                },
+                "api_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API token for the RSS feed",
                     "help_text": "You'll get this from the RSS feed provider."
                 }
             },
@@ -90,5 +96,5 @@
             "display_name": "Get Feed"
         }
     },
-    "display_name": "RSS Reader using Feedseeker"
+    "display_name": "RSS Reader using Atoma and Autohive SDK fetch"
 }

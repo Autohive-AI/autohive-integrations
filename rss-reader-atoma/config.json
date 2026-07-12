@@ -1,7 +1,7 @@
 {
-    "name": "RSS Reader using Feedseeker and authoive-integration-sdk's fetch",
+    "name": "RSS Reader using Atoma",
     "version": "2.0.0",
-    "description": "An integration for reading RSS feeds using Feedseeker and authoive-integration-sdk's fetch",
+    "description": "An unsupported legacy integration for reading RSS and Atom feeds using Atoma as the internal parser.",
     "entry_point": "rss_reader.py",
     "auth": {
         "identifier": "rss_authentication",
@@ -19,12 +19,6 @@
                     "type": "string",
                     "format": "password",
                     "label": "Password for the RSS feed",
-                    "help_text": "You'll get this from the RSS feed provider."
-                },
-                "api_token": {
-                    "type": "string",
-                    "format": "password",
-                    "label": "API token for the RSS feed",
                     "help_text": "You'll get this from the RSS feed provider."
                 }
             },
@@ -96,5 +90,5 @@
             "display_name": "Get Feed"
         }
     },
-    "display_name": "RSS Reader using Feedseeker and authoive-integration-sdk's fetch"
+    "display_name": "RSS Reader using Atoma"
 }

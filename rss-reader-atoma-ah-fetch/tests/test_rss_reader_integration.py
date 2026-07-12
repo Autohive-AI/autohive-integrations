@@ -6,19 +6,28 @@ feed and require no credentials. Optional environment variables can point the
 tests at a specific public or Basic Auth protected feed.
 
 Run with:
-    pytest rss-reader-feedparser-ah-fetch/tests/test_rss_reader_integration.py -m "integration and not destructive"
+    pytest rss-reader-atoma-ah-fetch/tests/test_rss_reader_integration.py -m "integration and not destructive"
 
 Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
+import importlib.util
 import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
 
-from rss_reader import rss_reader
+_INTEGRATION_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_SPEC = importlib.util.spec_from_file_location(
+    "rss_reader_atoma_ah_fetch_integration_mod", os.path.join(_INTEGRATION_DIR, "rss_reader.py")
+)
+rss_reader_module = importlib.util.module_from_spec(_SPEC)
+assert _SPEC.loader is not None
+_SPEC.loader.exec_module(rss_reader_module)
+
+rss_reader = rss_reader_module.rss_reader
 
 pytestmark = pytest.mark.integration
 
