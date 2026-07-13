@@ -619,7 +619,7 @@ class TestCreateTimeOff:
             pytest.skip("No time off types in account to test with")
         timeoff_type_id = timeoff_types[0]["timeoff_type_id"]
 
-        timeoff_date = (datetime.now() + timedelta(days=90 + random.randint(0, 3650))).strftime("%Y-%m-%d")  # nosec B311
+        timeoff_date = (datetime.now() + timedelta(days=90 + random.randint(0, 600))).strftime("%Y-%m-%d")  # nosec B311
 
         timeoff_id = None
         try:
@@ -661,7 +661,7 @@ class TestLoggedTimeLifecycle:
             pytest.skip("No projects in account to test with")
         project_id = projects[0]["project_id"]
 
-        logged_date = (datetime.now() + timedelta(days=90 + random.randint(0, 3650))).strftime("%Y-%m-%d")  # nosec B311
+        logged_date = (datetime.now() + timedelta(days=90 + random.randint(0, 600))).strftime("%Y-%m-%d")  # nosec B311
 
         logged_time_id = None
         try:

@@ -1474,7 +1474,11 @@ class GetLoggedTimeHandler(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data=response.data, cost_usd=0.0)
+            data = response.data
+            if isinstance(data, dict) and "billable" in data and data["billable"] is not None:
+                data["billable"] = bool(data["billable"])
+
+            return ActionResult(data=data, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=f"Failed to get logged time {logged_time_id}: {str(e)}")
