@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
@@ -60,11 +61,12 @@ def live_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
     ctx.auth = {
+        "auth_type": "Custom",
         "credentials": {
             "api_key": API_KEY,
             "application_name": os.environ.get("FLOAT_APP_NAME", "Autohive Float Integration"),
             "contact_email": os.environ.get("FLOAT_CONTACT_EMAIL", ""),
-        }
+        },
     }
     return ctx
 
@@ -632,7 +634,7 @@ class TestCreateTimeOff:
                 },
                 live_context,
             )
-            assert result.result_type == "ActionResult"
+            assert result.type == ResultType.ACTION
             data = result.result.data
             assert "timeoff_id" in data
             timeoff_id = data["timeoff_id"]
@@ -669,7 +671,7 @@ class TestLoggedTimeLifecycle:
                 {"people_id": person_id, "project_id": project_id, "date": logged_date, "hours": 3},
                 live_context,
             )
-            assert create_result.result_type == "ActionResult"
+            assert create_result.type == ResultType.ACTION
             created = create_result.result.data
             assert isinstance(created, dict), "Expected dict — array unwrap fix missing in create_logged_time"
             assert "logged_time_id" in created
@@ -681,7 +683,7 @@ class TestLoggedTimeLifecycle:
                 {"logged_time_id": logged_time_id, "hours": 5},
                 live_context,
             )
-            assert update_result.result_type == "ActionResult"
+            assert update_result.type == ResultType.ACTION
             updated = update_result.result.data
             assert isinstance(updated, dict), "Expected dict — array unwrap fix missing in update_logged_time"
             assert updated["hours"] == 5
@@ -690,7 +692,7 @@ class TestLoggedTimeLifecycle:
             get_result = await float_integration.execute_action(
                 "get_logged_time", {"logged_time_id": logged_time_id}, live_context
             )
-            assert get_result.result_type == "ActionResult"
+            assert get_result.type == ResultType.ACTION
             assert get_result.result.data["logged_time_id"] == logged_time_id
         finally:
             if logged_time_id is not None:
