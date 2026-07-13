@@ -30,6 +30,8 @@ their LINZ account before that layer is accessible to the key.
 
 from typing import Any, Dict, List, Optional
 
+from defusedxml import ElementTree as DefusedET
+
 from autohive_integrations_sdk import (
     ActionError,
     ActionHandler,
@@ -245,6 +247,43 @@ async def _wfs_get_features(
     if isinstance(data, str):
         raise RuntimeError(f"LINZ WFS returned a non-JSON response: {_short(data)}")
     return data if isinstance(data, dict) else {"features": []}
+
+
+async def _wfs_get_capabilities(context: ExecutionContext) -> str:
+    """Fetch the WFS GetCapabilities document (XML) for the user's key."""
+    url = LDS_WFS_URL_TEMPLATE.format(key=_get_api_key(context))
+    params = {"service": "WFS", "version": WFS_VERSION, "request": "GetCapabilities"}
+    response = await context.fetch(url, method="GET", params=params)
+    _check_wfs_response(response)
+    data = response.data
+    if not isinstance(data, str):
+        raise RuntimeError(f"LINZ WFS GetCapabilities returned an unexpected response: {_short(data)}")
+    return data
+
+
+def _parse_capabilities_layers(xml_text: str) -> List[Dict[str, Any]]:
+    """Extract the FeatureType entries a key can query from GetCapabilities.
+
+    Matches elements by local name so namespace prefixes don't matter, and
+    strips the ``data.linz.govt.nz:`` prefix from layer ids.
+    """
+    # fromstring rejects str input carrying an XML encoding declaration.
+    root = DefusedET.fromstring(xml_text.encode("utf-8"))
+    layers: List[Dict[str, Any]] = []
+    for element in root.iter():
+        if element.tag.rsplit("}", 1)[-1] != "FeatureType":
+            continue
+        entry: Dict[str, Any] = {"id": None, "title": None}
+        for child in element:
+            tag = child.tag.rsplit("}", 1)[-1]
+            text = (child.text or "").strip()
+            if tag == "Name":
+                entry["id"] = text.rsplit(":", 1)[-1] or None
+            elif tag == "Title":
+                entry["title"] = text or None
+        if entry["id"]:
+            layers.append(entry)
+    return layers
 
 
 async def _wfs_collect(
@@ -623,6 +662,83 @@ class QueryLayerAction(ActionHandler):
                     "records": records,
                     "count": len(records),
                     "total_matched": _total_matched(collection),
+                },
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+# =============================================================================
+# Action: list_available_layers (works with any valid key — also a diagnostic)
+# =============================================================================
+
+
+_NO_LAYERS_HINT = (
+    "Your API key is valid but cannot see any layers, so every data action will fail with "
+    "'Feature type ... unknown'. Edit the key (or create a new one) at "
+    "https://data.linz.govt.nz/my/api/ and enable the query/web-services (WFS) scope, or remove "
+    "its layer restrictions. Ownership layers such as layer-50805 additionally require accepting "
+    "the LINZ Licence for Personal Data on your LINZ account."
+)
+
+DEFAULT_LAYER_LIST_LIMIT = 500
+
+
+@linz.action("list_available_layers")
+class ListAvailableLayersAction(ActionHandler):
+    """List the LDS layers the user's API key can query, via GetCapabilities.
+
+    GetCapabilities succeeds for any valid key regardless of layer permissions,
+    so this action doubles as a connection diagnostic: an empty list means the
+    key lacks the query/WFS scope (or all layer permissions), not that the
+    request was malformed.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            xml_text = await _wfs_get_capabilities(context)
+            layers = _parse_capabilities_layers(xml_text)
+
+            available_ids = {layer["id"] for layer in layers}
+            integration_layers = {
+                layer_id: layer_id in available_ids
+                for layer_id in (LAYER_TITLES_OWNERS, LAYER_TITLES, LAYER_PRIMARY_PARCELS)
+            }
+
+            name_contains = inputs.get("name_contains")
+            if name_contains:
+                needle = str(name_contains).lower()
+                layers = [
+                    layer
+                    for layer in layers
+                    if needle in (layer["id"] or "").lower() or needle in (layer["title"] or "").lower()
+                ]
+
+            limit = max(int(inputs.get("limit") or DEFAULT_LAYER_LIST_LIMIT), 1)
+            truncated = len(layers) > limit
+
+            if not available_ids:
+                note = _NO_LAYERS_HINT
+            elif not all(integration_layers.values()):
+                missing = [layer_id for layer_id, ok in integration_layers.items() if not ok]
+                note = (
+                    f"The key cannot access {', '.join(missing)}, used by this integration's typed "
+                    "actions. For the ownership layer (layer-50805) accept the LINZ Licence for "
+                    "Personal Data; otherwise check the key's layer permissions at "
+                    "https://data.linz.govt.nz/my/api/."
+                )
+            else:
+                note = "The key can access all layers used by this integration's typed actions."
+
+            return ActionResult(
+                data={
+                    "layers": layers[:limit],
+                    "count": min(len(layers), limit),
+                    "total_available": len(available_ids),
+                    "truncated": truncated,
+                    "integration_layers": integration_layers,
+                    "note": note,
                 },
                 cost_usd=0.0,
             )

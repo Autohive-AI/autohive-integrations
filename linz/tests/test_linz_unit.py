@@ -13,8 +13,10 @@ from linz.linz import (
     _get_api_key,
     _normalize_layer,
     _owner_key,
+    _parse_capabilities_layers,
     _split_owners,
     _total_matched,
+    LAYER_TITLES,
     LAYER_TITLES_OWNERS,
     LAYER_PRIMARY_PARCELS,
 )
@@ -32,6 +34,20 @@ def feature(props, geometry=None, fid=None):
 
 def collection(features, **extra):
     return {"type": "FeatureCollection", "features": features, **extra}
+
+
+def capabilities_xml(feature_types):
+    """Build a WFS 2.0 GetCapabilities document, namespaced like real LDS output."""
+    body = "".join(
+        f"<FeatureType><Name>data.linz.govt.nz:{layer_id}</Name><Title>{title}</Title></FeatureType>"
+        for layer_id, title in feature_types
+    )
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<wfs:WFS_Capabilities version="2.0.0" xmlns="http://www.opengis.net/wfs/2.0" '
+        'xmlns:wfs="http://www.opengis.net/wfs/2.0">'
+        f"<FeatureTypeList>{body}</FeatureTypeList></wfs:WFS_Capabilities>"
+    )
 
 
 # =============================================================================
@@ -132,6 +148,19 @@ class TestHelpers:
             "</ows:Exception></ows:ExceptionReport>"
         )
         assert _extract_exception_text(xml) == "Feature type :layer-50805 unknown"
+
+    def test_parse_capabilities_layers(self):
+        # Must handle the encoding declaration and strip the namespace prefix
+        # from layer ids, exactly as real LDS capabilities documents need.
+        xml = capabilities_xml([("layer-50804", "NZ Property Titles"), ("table-50806", "NZ Title Owners")])
+        assert _parse_capabilities_layers(xml) == [
+            {"id": "layer-50804", "title": "NZ Property Titles"},
+            {"id": "table-50806", "title": "NZ Title Owners"},
+        ]
+
+    def test_parse_capabilities_layers_empty(self):
+        # A key with no query scope returns capabilities with no FeatureTypeList.
+        assert _parse_capabilities_layers(capabilities_xml([])) == []
 
 
 # =============================================================================
@@ -458,3 +487,98 @@ class TestQueryLayer:
         result = await linz.execute_action("query_layer", {}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
+
+
+# =============================================================================
+# list_available_layers
+# =============================================================================
+
+
+class TestListAvailableLayers:
+    ALL_LAYERS = [
+        (LAYER_TITLES_OWNERS, "NZ Property Titles Including Owners"),
+        (LAYER_TITLES, "NZ Property Titles"),
+        (LAYER_PRIMARY_PARCELS, "NZ Primary Parcels"),
+    ]
+
+    @pytest.mark.asyncio
+    async def test_sends_getcapabilities_request(self, mock_context):
+        mock_context.fetch.return_value = ok(capabilities_xml(self.ALL_LAYERS))
+        await linz.execute_action("list_available_layers", {}, mock_context)
+        args, kwargs = mock_context.fetch.call_args
+        assert "services;key=test_api_key/wfs" in args[0]
+        params = kwargs["params"]
+        assert params["request"] == "GetCapabilities"
+        assert "typeNames" not in params
+
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = ok(capabilities_xml(self.ALL_LAYERS))
+        result = await linz.execute_action("list_available_layers", {}, mock_context)
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["count"] == 3
+        assert data["total_available"] == 3
+        assert data["truncated"] is False
+        assert {"id": LAYER_TITLES, "title": "NZ Property Titles"} in data["layers"]
+        assert data["integration_layers"] == {
+            LAYER_TITLES_OWNERS: True,
+            LAYER_TITLES: True,
+            LAYER_PRIMARY_PARCELS: True,
+        }
+        assert "all layers used by this integration" in data["note"]
+
+    @pytest.mark.asyncio
+    async def test_empty_capabilities_gives_scope_hint(self, mock_context):
+        # The real failure mode this action diagnoses: a valid key whose
+        # capabilities expose zero layers (no query/WFS scope).
+        mock_context.fetch.return_value = ok(capabilities_xml([]))
+        result = await linz.execute_action("list_available_layers", {}, mock_context)
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["count"] == 0
+        assert data["total_available"] == 0
+        assert data["integration_layers"][LAYER_TITLES_OWNERS] is False
+        assert "cannot see any layers" in data["note"]
+        assert "data.linz.govt.nz/my/api" in data["note"]
+
+    @pytest.mark.asyncio
+    async def test_missing_ownership_layer_notes_licence(self, mock_context):
+        # Key can query public layers but not the licensed ownership layer.
+        mock_context.fetch.return_value = ok(capabilities_xml(self.ALL_LAYERS[1:]))
+        result = await linz.execute_action("list_available_layers", {}, mock_context)
+        data = result.result.data
+        assert data["integration_layers"] == {
+            LAYER_TITLES_OWNERS: False,
+            LAYER_TITLES: True,
+            LAYER_PRIMARY_PARCELS: True,
+        }
+        assert LAYER_TITLES_OWNERS in data["note"]
+        assert "Personal Data" in data["note"]
+
+    @pytest.mark.asyncio
+    async def test_name_contains_filters_but_not_diagnostics(self, mock_context):
+        mock_context.fetch.return_value = ok(capabilities_xml(self.ALL_LAYERS))
+        result = await linz.execute_action("list_available_layers", {"name_contains": "parcels"}, mock_context)
+        data = result.result.data
+        assert [layer["id"] for layer in data["layers"]] == [LAYER_PRIMARY_PARCELS]
+        assert data["count"] == 1
+        # Diagnostics still reflect the full capabilities, not the filter.
+        assert data["total_available"] == 3
+        assert data["integration_layers"][LAYER_TITLES_OWNERS] is True
+
+    @pytest.mark.asyncio
+    async def test_limit_truncates(self, mock_context):
+        mock_context.fetch.return_value = ok(capabilities_xml(self.ALL_LAYERS))
+        result = await linz.execute_action("list_available_layers", {"limit": 2}, mock_context)
+        data = result.result.data
+        assert data["count"] == 2
+        assert data["truncated"] is True
+        assert data["total_available"] == 3
+
+    @pytest.mark.asyncio
+    async def test_non_xml_response_is_action_error(self, mock_context):
+        mock_context.fetch.return_value = ok({"unexpected": "json"})
+        result = await linz.execute_action("list_available_layers", {}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "unexpected" in result.result.message.lower()

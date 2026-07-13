@@ -11,6 +11,7 @@ generic escape hatch:
 
 | Action | What it does |
 |--------|--------------|
+| `list_available_layers` | List the layers the API key can query (WFS GetCapabilities). Works with **any** valid key, so it doubles as a connection diagnostic. |
 | `find_multi_property_owners` | **Headline use case.** Finds owners who appear on more than one property title within a scoping filter. |
 | `search_property_titles` | Search titles (with owners) by owner name, title number, district or status. |
 | `get_title_owners` | Look up the owners and details of a single title by title number. |
@@ -51,11 +52,18 @@ This integration uses a **per-user LINZ Data Service API key** (custom auth).
 
 1. Sign in (or register) at [data.linz.govt.nz](https://data.linz.govt.nz/).
 2. Create an API key at <https://data.linz.govt.nz/my/api/>.
-3. To read ownership data (`layer-50805`), your LINZ account must accept the
+3. When creating the key, enable the **query/web-services (WFS)** scope. A key
+   without it is still "valid" but can see **zero** layers — every data action
+   then fails with a `400` "Feature type ... unknown" error.
+4. To read ownership data (`layer-50805`), your LINZ account must accept the
    **LINZ Licence for Personal Data**, and the key must have access to that
    layer. Without it LINZ omits the layer from your key's capabilities and a
    request fails with a `400` "Feature type ... unknown" error — the
    integration maps this to a clear licence hint.
+
+To verify a key's access, run `list_available_layers`: it succeeds with any
+valid key and reports which layers the key can see, including the specific
+layers this integration's typed actions depend on.
 
 The key is interpolated into the WFS service path:
 

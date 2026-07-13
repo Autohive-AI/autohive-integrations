@@ -21,6 +21,50 @@
     }
   },
   "actions": {
+    "list_available_layers": {
+      "display_name": "List Available Layers",
+      "description": "List the LINZ Data Service layers this API key can query, via WFS GetCapabilities. Works with any valid API key regardless of layer permissions, so it doubles as a connection diagnostic: an empty list means the key lacks the query/web-services scope. Also reports whether the key can access the layers used by this integration's other actions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name_contains": {
+            "type": "string",
+            "description": "Case-insensitive substring to filter layers by id or title, e.g. 'property titles'."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of layers to return. Defaults to 500.",
+            "default": 500,
+            "minimum": 1
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "layers": {
+            "type": "array",
+            "description": "Layers the key can query, e.g. [{\"id\": \"layer-50804\", \"title\": \"NZ Property Titles\"}].",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "count": { "type": "integer" },
+          "total_available": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "integration_layers": {
+            "type": "object",
+            "description": "Accessibility of the layers this integration's typed actions use, keyed by layer id."
+          },
+          "note": { "type": "string" }
+        }
+      }
+    },
     "find_multi_property_owners": {
       "display_name": "Find Multi-Property Owners",
       "description": "Find owners who appear on more than one property title. Scans the NZ Property Titles Including Owners layer within a scoping filter (owner name and/or land district), splits the concatenated owners field, and aggregates distinct titles per owner. A scoping filter is required — the layer is national and cannot be scanned in full. Note: LINZ cannot label a property commercial vs residential; estate_description is returned so you can infer property type.",

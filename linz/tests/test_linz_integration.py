@@ -79,6 +79,31 @@ def _skip_if_no_ownership_access(result):
 
 
 # ---------------------------------------------------------------------------
+# Capabilities — works with any valid key, even one with no layer access
+# ---------------------------------------------------------------------------
+
+
+class TestListAvailableLayers:
+    async def test_lists_layers_and_reports_integration_access(self, live_context):
+        result = await linz.execute_action("list_available_layers", {"limit": 5}, live_context)
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert isinstance(data["layers"], list)
+        assert len(data["layers"]) <= 5
+        assert set(data["integration_layers"]) == {"layer-50805", "layer-50804", "layer-50772"}
+        assert data["note"]
+        if data["total_available"] == 0:
+            # Valid key with no query scope: the note must say how to fix it.
+            assert "data.linz.govt.nz/my/api" in data["note"]
+
+    async def test_name_contains_filter(self, live_context):
+        result = await linz.execute_action("list_available_layers", {"name_contains": "property titles"}, live_context)
+        assert result.type == ResultType.ACTION, result.result
+        for layer in result.result.data["layers"]:
+            assert "property titles" in ((layer["id"] or "") + (layer["title"] or "")).lower()
+
+
+# ---------------------------------------------------------------------------
 # Public layers — always available with any valid key
 # ---------------------------------------------------------------------------
 
