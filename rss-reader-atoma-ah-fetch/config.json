@@ -4,8 +4,9 @@
     "description": "An integration for reading RSS and Atom feeds using Atoma and the Autohive SDK fetch method.",
     "entry_point": "rss_reader.py",
     "auth": {
-        "identifier": "rss_authentication",
         "type": "custom",
+        "title": "RSS Feed Authentication",
+        "identifier": "rss_authentication",
         "fields": {
             "type": "object",
             "properties": {
