@@ -1,7 +1,7 @@
 {
   "name": "Supabase",
   "display_name": "Supabase",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Integration with Supabase for database operations, storage, and authentication management",
   "entry_point": "supabase.py",
   "auth": {

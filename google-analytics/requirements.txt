@@ -1,4 +1,4 @@
-autohive-integrations-sdk~=1.0.2
+autohive-integrations-sdk~=2.0.0
 google-analytics-data
 google-auth
 google-auth-oauthlib

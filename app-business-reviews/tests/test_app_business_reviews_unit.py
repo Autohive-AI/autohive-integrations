@@ -82,6 +82,7 @@ def mock_context():
     ctx.fetch = AsyncMock(name="fetch")
     # Source reads context.auth.get("credentials", {}).get("api_key", "")
     ctx.auth = {
+        "auth_type": "Custom",
         "credentials": {"api_key": "test_serpapi_key"},  # nosec B105
     }
     return ctx

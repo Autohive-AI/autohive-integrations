@@ -1,6 +1,6 @@
 {
     "name": "HeyGen",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "description": "HeyGen integration for AI avatar generation, video creation, and photo avatar management",
     "entry_point": "heygen.py",
     "supports_billing": true,
@@ -1353,15 +1353,15 @@
                                     "type": "object",
                                     "properties": {
                                         "locale": {
-                                            "type": "string",
+                                            "type": ["string", "null"],
                                             "description": "Locale Code - Language and region code (e.g., en-US, en-GB, pt-BR)"
                                         },
                                         "language": {
-                                            "type": "string",
+                                            "type": ["string", "null"],
                                             "description": "Language Name"
                                         },
                                         "region": {
-                                            "type": "string",
+                                            "type": ["string", "null"],
                                             "description": "Region Name"
                                         }
                                     }

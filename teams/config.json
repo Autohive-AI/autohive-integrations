@@ -1,0 +1,257 @@
+{
+    "name": "Teams",
+    "version": "1.2.0",
+    "description": "An integration with Teams to interact with channels and messages.",
+    "entry_point": "teams.py",
+    "auth": {
+        "type": "platform",
+        "provider": "teams",
+        "scopes": []
+    },
+    "actions": {
+        "list_channels": {
+            "display_name": "List Channels",
+            "description": "List available Teams channels using Graph API.",
+            "input_schema": {
+                "type": "object",
+                "properties": {}
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "channels": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "The channel ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "The channel name"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "search_channels": {
+            "display_name": "Search Channels",
+            "description": "Search for Teams channels by name using Graph API.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query to match against channel names"
+                    }
+                },
+                "required": [
+                    "query"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "channels": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "The channel ID"
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "The channel name"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "get_channel_by_name": {
+            "display_name": "Get Channel by Name",
+            "description": "Find a specific channel by its name using Graph API.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel_name": {
+                        "type": "string",
+                        "description": "The name of the channel to find"
+                    }
+                },
+                "required": [
+                    "channel_name"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "found": {
+                        "type": "boolean",
+                        "description": "Whether the channel was found"
+                    },
+                    "channel": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "The channel ID"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The channel name"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "send_message": {
+            "display_name": "Send Message",
+            "description": "Send a message to a Teams channel.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "The ID of the channel to send the message to."
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "The text of the message."
+                    }
+                },
+                "required": [
+                    "channel_id",
+                    "message"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether the message was sent successfully"
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "Response message from the server"
+                    }
+                }
+            }
+        },
+        "get_channel_messages": {
+            "display_name": "Get Channel Messages",
+            "description": "Fetch recent messages from a Teams channel.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "The ID of the channel to read messages from."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of messages to return (default 20, max 50).",
+                        "default": 20
+                    }
+                },
+                "required": ["channel_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "messages": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string" },
+                                "created_at": { "type": "string" },
+                                "from": { "type": "string" },
+                                "text": { "type": "string" },
+                                "has_replies": { "type": "boolean" }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "get_message_replies": {
+            "display_name": "Get Message Replies",
+            "description": "Get all replies in a message thread.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "The ID of the channel containing the message."
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "The ID of the message to get replies for."
+                    }
+                },
+                "required": ["channel_id", "message_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "replies": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string" },
+                                "created_at": { "type": "string" },
+                                "from": { "type": "string" },
+                                "text": { "type": "string" }
+                            }
+                        }
+                    },
+                    "count": { "type": "integer" }
+                }
+            }
+        },
+        "reply_to_message": {
+            "display_name": "Reply to Message",
+            "description": "Post a reply in a message thread.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "channel_id": {
+                        "type": "string",
+                        "description": "The ID of the channel containing the message."
+                    },
+                    "message_id": {
+                        "type": "string",
+                        "description": "The ID of the message to reply to."
+                    },
+                    "reply": {
+                        "type": "string",
+                        "description": "The reply text."
+                    }
+                },
+                "required": ["channel_id", "message_id", "reply"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": { "type": "boolean" },
+                    "reply_id": { "type": "string" }
+                }
+            }
+        }
+    },
+    "display_name": "Teams"
+}

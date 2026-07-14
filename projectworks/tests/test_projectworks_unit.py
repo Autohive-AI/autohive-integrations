@@ -1,4 +1,4 @@
-"""Unit tests for the ProjectWorks integration using a mocked fetch."""
+"""Unit tests for the Projectworks integration using a mocked fetch."""
 
 import base64
 
@@ -6,7 +6,18 @@ import pytest
 from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
 
-from projectworks.projectworks import projectworks, _as_list, _clean, _get_headers, BASE_URL
+from projectworks.projectworks import (
+    projectworks,
+    _as_list,
+    _clean,
+    _get_headers,
+    _matches_query,
+    _project,
+    _search,
+    BASE_URL,
+    DEFAULT_PAGE_SIZE,
+    DEFAULT_SEARCH_SCAN,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -21,20 +32,13 @@ def ok(data):
 
 
 class TestGetHeaders:
-    def test_basic_auth_header_from_flat_auth(self):
+    def test_basic_auth_header_from_credentials(self):
         ctx = type("Ctx", (), {})()
-        ctx.auth = {"consumer_key": "key123", "consumer_secret": "secret456"}  # nosec B105
+        ctx.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": "secret456"}}  # nosec B105
         headers = _get_headers(ctx)
         expected = base64.b64encode(b"key123:secret456").decode()
         assert headers["Authorization"] == f"Basic {expected}"
         assert headers["Accept"] == "application/json"
-
-    def test_basic_auth_header_from_nested_credentials(self):
-        ctx = type("Ctx", (), {})()
-        ctx.auth = {"credentials": {"consumer_key": "k", "consumer_secret": "s"}}  # nosec B105
-        headers = _get_headers(ctx)
-        expected = base64.b64encode(b"k:s").decode()
-        assert headers["Authorization"] == f"Basic {expected}"
 
     def test_missing_credentials_raise(self):
         ctx = type("Ctx", (), {})()
@@ -44,15 +48,25 @@ class TestGetHeaders:
 
     def test_blank_credentials_raise(self):
         ctx = type("Ctx", (), {})()
-        ctx.auth = {"consumer_key": "key123", "consumer_secret": ""}  # nosec B105
+        ctx.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": ""}}  # nosec B105
         with pytest.raises(ValueError, match="Consumer Key and Consumer Secret are required"):
             _get_headers(ctx)
 
     @pytest.mark.asyncio
-    async def test_action_surfaces_missing_credential_error(self, mock_context):
+    async def test_action_surfaces_blank_credential_error(self, mock_context):
         # The runtime guard should reach the caller as a clear ActionError,
         # not an unauthenticated request.
-        mock_context.auth = {}
+        mock_context.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": ""}}  # nosec B105
+        result = await projectworks.execute_action("list_users", {}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Consumer Key and Consumer Secret are required" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_action_surfaces_missing_credential_error(self, mock_context):
+        # Missing credential keys are caught by the handler's runtime guard
+        # (the config declares no auth.fields.required).
+        mock_context.auth = {"auth_type": "Custom", "credentials": {}}
         result = await projectworks.execute_action("list_users", {}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "Consumer Key and Consumer Secret are required" in result.result.message
@@ -1162,3 +1176,166 @@ class TestSetCustomFields:
             "set_custom_fields", {"entity_type": "user", "entity_id": 1, "fields": []}, mock_context
         )
         assert result.type == ResultType.ACTION_ERROR
+
+
+# =============================================================================
+# CONTEXT-WINDOW HELPERS: default page size + field projection
+# =============================================================================
+
+
+class TestProject:
+    def test_none_fields_passes_records_through(self):
+        records = [{"UserID": 1, "Name": "Jane"}]
+        assert _project(records, None) == records
+
+    def test_empty_fields_passes_records_through(self):
+        records = [{"UserID": 1, "Name": "Jane"}]
+        assert _project(records, []) == records
+
+    def test_trims_to_requested_fields(self):
+        records = [{"UserID": 1, "Name": "Jane", "Email": "j@x.com"}]
+        assert _project(records, ["UserID", "Name"]) == [{"UserID": 1, "Name": "Jane"}]
+
+    def test_unknown_field_simply_absent(self):
+        records = [{"UserID": 1}]
+        assert _project(records, ["UserID", "Missing"]) == [{"UserID": 1}]
+
+    def test_non_dict_records_passthrough(self):
+        assert _project([1, "x"], ["UserID"]) == [1, "x"]
+
+
+class TestListPageSizeAndProjection:
+    @pytest.mark.asyncio
+    async def test_default_page_size_applied_when_unset(self, mock_context):
+        mock_context.fetch.return_value = ok([])
+        await projectworks.execute_action("list_users", {}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["params"]["pageSize"] == DEFAULT_PAGE_SIZE
+
+    @pytest.mark.asyncio
+    async def test_explicit_page_size_overrides_default(self, mock_context):
+        mock_context.fetch.return_value = ok([])
+        await projectworks.execute_action("list_users", {"page_size": 5}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["params"]["pageSize"] == 5
+
+    @pytest.mark.asyncio
+    async def test_fields_projects_list_records(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            [{"UserID": 1, "FirstName": "Jane", "Email": "j@x.com", "Department": "Eng"}]
+        )
+        result = await projectworks.execute_action("list_users", {"fields": ["UserID", "Email"]}, mock_context)
+        assert result.result.data["users"] == [{"UserID": 1, "Email": "j@x.com"}]
+
+
+# =============================================================================
+# SEARCH (free-text convenience over list endpoints)
+# =============================================================================
+
+
+class TestMatchesQuery:
+    def test_case_insensitive_substring(self):
+        assert _matches_query({"Name": "Acme Corp"}, "acme", ["Name"])
+
+    def test_no_match(self):
+        assert not _matches_query({"Name": "Acme Corp"}, "globex", ["Name"])
+
+    def test_ignores_non_string_and_missing_fields(self):
+        assert not _matches_query({"Name": 123, "Other": None}, "1", ["Name", "Other", "Absent"])
+
+    def test_composed_fields_match_multi_word_query(self):
+        # "jane doe" matches neither FirstName nor LastName alone, but does match
+        # the two joined together.
+        record = {"FirstName": "Jane", "LastName": "Doe"}
+        assert not _matches_query(record, "jane doe", ["FirstName", "LastName"])
+        assert _matches_query(record, "jane doe", ["FirstName", "LastName"], [["FirstName", "LastName"]])
+
+
+class TestSearchUsers:
+    @pytest.mark.asyncio
+    async def test_filters_client_side_by_name_or_email(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            [
+                {"UserID": 1, "FirstName": "Jane", "LastName": "Doe", "Email": "jane@x.com"},
+                {"UserID": 2, "FirstName": "John", "LastName": "Smith", "Email": "john@x.com"},
+                {"UserID": 3, "FirstName": "Janet", "LastName": "Roe", "Email": "janet@x.com"},
+            ]
+        )
+        result = await projectworks.execute_action("search_users", {"query": "jan"}, mock_context)
+        ids = [u["UserID"] for u in result.result.data["users"]]
+        assert ids == [1, 3]
+
+    @pytest.mark.asyncio
+    async def test_matches_full_name_across_first_and_last(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            [
+                {"UserID": 1, "FirstName": "Jane", "LastName": "Doe", "Email": "jane@x.com"},
+                {"UserID": 2, "FirstName": "John", "LastName": "Smith", "Email": "john@x.com"},
+            ]
+        )
+        result = await projectworks.execute_action("search_users", {"query": "Jane Doe"}, mock_context)
+        assert [u["UserID"] for u in result.result.data["users"]] == [1]
+
+    @pytest.mark.asyncio
+    async def test_default_scan_page_size(self, mock_context):
+        mock_context.fetch.return_value = ok([])
+        await projectworks.execute_action("search_users", {"query": "x"}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["params"]["pageSize"] == DEFAULT_SEARCH_SCAN
+
+    @pytest.mark.asyncio
+    async def test_limit_caps_results(self, mock_context):
+        mock_context.fetch.return_value = ok([{"UserID": i, "Name": "match"} for i in range(20)])
+        result = await projectworks.execute_action("search_users", {"query": "match", "limit": 3}, mock_context)
+        assert len(result.result.data["users"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_fields_projection_applied(self, mock_context):
+        mock_context.fetch.return_value = ok([{"UserID": 1, "Name": "Acme", "Email": "a@x.com"}])
+        result = await projectworks.execute_action(
+            "search_users", {"query": "acme", "fields": ["UserID"]}, mock_context
+        )
+        assert result.result.data["users"] == [{"UserID": 1}]
+
+    @pytest.mark.asyncio
+    async def test_missing_query_is_validation_error(self, mock_context):
+        # `query` is required in the schema, so the framework rejects the call
+        # before the handler runs and never hits the API.
+        mock_context.fetch.return_value = ok([])
+        result = await projectworks.execute_action("search_users", {}, mock_context)
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_whitespace_only_query_is_a_validation_error(self, mock_context):
+        # The schema's minLength/pattern reject a whitespace-only query before
+        # the handler runs, so it never falls through to matching every record.
+        mock_context.fetch.return_value = ok([{"UserID": 1, "Name": "Jane"}])
+        result = await projectworks.execute_action("search_users", {"query": "   "}, mock_context)
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+
+class TestSearchBlankQueryGuard:
+    @pytest.mark.asyncio
+    async def test_search_rejects_blank_query_at_runtime(self, mock_context):
+        # Defensive runtime guard in `_search` itself, in case a caller
+        # bypasses schema validation (e.g. direct SDK use).
+        with pytest.raises(ValueError, match="query must not be blank"):
+            await _search(mock_context, "Users", "users", "   ", ["Name"])
+        mock_context.fetch.assert_not_called()
+
+
+class TestSearchClientsAndProjects:
+    @pytest.mark.asyncio
+    async def test_search_clients_matches_name(self, mock_context):
+        mock_context.fetch.return_value = ok([{"ClientID": 1, "Name": "Acme"}, {"ClientID": 2, "Name": "Globex"}])
+        result = await projectworks.execute_action("search_clients", {"query": "glob"}, mock_context)
+        assert [c["ClientID"] for c in result.result.data["clients"]] == [2]
+        assert mock_context.fetch.call_args.args[0] == f"{BASE_URL}/Clients"
+
+    @pytest.mark.asyncio
+    async def test_search_projects_matches_number(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            [{"ProjectID": 1, "Name": "Site", "ProjectNumber": "P-100"}, {"ProjectID": 2, "Name": "App"}]
+        )
+        result = await projectworks.execute_action("search_projects", {"query": "p-100"}, mock_context)
+        assert [p["ProjectID"] for p in result.result.data["projects"]] == [1]
+        assert mock_context.fetch.call_args.args[0] == f"{BASE_URL}/Projects"

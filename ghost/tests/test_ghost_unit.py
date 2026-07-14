@@ -205,13 +205,19 @@ async def test_send_newsletter(mock_context):
 
 @pytest.mark.asyncio
 async def test_missing_content_api_key(mock_context):
-    mock_context.auth = {"api_url": "https://demo.ghost.io", "admin_api_key": "id:aabbcc"}
+    mock_context.auth = {
+        "auth_type": "Custom",
+        "credentials": {"api_url": "https://demo.ghost.io", "admin_api_key": "id:aabbcc"},
+    }
     result = await ghost.execute_action("get_posts", {}, mock_context)
     assert result.type == ResultType.ACTION_ERROR
 
 
 @pytest.mark.asyncio
 async def test_missing_api_url(mock_context):
-    mock_context.auth = {"content_api_key": "key", "admin_api_key": "id:aabbcc"}
+    mock_context.auth = {
+        "auth_type": "Custom",
+        "credentials": {"content_api_key": "key", "admin_api_key": "id:aabbcc"},
+    }
     result = await ghost.execute_action("get_posts", {}, mock_context)
     assert result.type == ResultType.ACTION_ERROR

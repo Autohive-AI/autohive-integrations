@@ -11,7 +11,7 @@ supabase = Integration.load()
 
 
 def get_headers(context: ExecutionContext) -> Dict[str, str]:
-    service_role_secret = context.auth.get("service_role_secret", "")
+    service_role_secret = context.auth["credentials"].get("service_role_secret", "")
     return {
         "apikey": service_role_secret,
         "Authorization": f"Bearer {service_role_secret}",
@@ -21,7 +21,7 @@ def get_headers(context: ExecutionContext) -> Dict[str, str]:
 
 
 def get_base_url(context: ExecutionContext) -> str:
-    return context.auth.get("host", "").rstrip("/")
+    return context.auth["credentials"].get("host", "").rstrip("/")
 
 
 # ---- Database (PostgREST) Handlers ----

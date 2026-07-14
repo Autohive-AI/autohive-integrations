@@ -69,7 +69,7 @@ def live_context(make_context):
 
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
-    ctx = make_context(auth={"api_token": CIRCLE_API_TOKEN})
+    ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_token": CIRCLE_API_TOKEN}})
     ctx.fetch.side_effect = real_fetch
     return ctx
 

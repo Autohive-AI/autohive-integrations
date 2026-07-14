@@ -16,7 +16,7 @@ ghost = Integration.load()
 
 
 def _get_base_url(context: ExecutionContext) -> str:
-    url = context.auth.get("api_url", "")
+    url = context.auth["credentials"].get("api_url", "")
     if not url:
         raise ValueError("api_url is required in auth")
     return url.rstrip("/")
@@ -24,7 +24,7 @@ def _get_base_url(context: ExecutionContext) -> str:
 
 def _content_headers(context: ExecutionContext) -> tuple:
     """Returns (base_url, params_with_key)."""
-    content_key = context.auth.get("content_api_key", "")
+    content_key = context.auth["credentials"].get("content_api_key", "")
     if not content_key:
         raise ValueError("content_api_key is required in auth")
     base = _get_base_url(context)
@@ -32,7 +32,7 @@ def _content_headers(context: ExecutionContext) -> tuple:
 
 
 def _make_admin_jwt(context: ExecutionContext) -> str:
-    admin_key = context.auth.get("admin_api_key", "")
+    admin_key = context.auth["credentials"].get("admin_api_key", "")
     if not admin_key:
         raise ValueError("admin_api_key is required in auth")
     if ":" not in admin_key:

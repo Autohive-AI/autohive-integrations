@@ -55,11 +55,12 @@ def live_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
     ctx.auth = {
+        "auth_type": "Custom",
         "credentials": {
             "api_key": API_KEY,
             "application_name": os.environ.get("FLOAT_APP_NAME", "Autohive Float Integration"),
             "contact_email": os.environ.get("FLOAT_CONTACT_EMAIL", ""),
-        }
+        },
     }
     return ctx
 

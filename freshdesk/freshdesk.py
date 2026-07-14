@@ -23,7 +23,7 @@ def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     Returns:
         Dictionary with Authorization and Content-Type headers
     """
-    api_key = context.auth.get("api_key", "")
+    api_key = context.auth["credentials"].get("api_key", "")
 
     # Freshdesk requires Basic Auth with format: api_key:X
     auth_string = f"{api_key}:X"
@@ -43,7 +43,7 @@ def get_base_url(context: ExecutionContext) -> str:
     Returns:
         Base URL string (e.g., https://yourcompany.freshdesk.com/api/v2)
     """
-    domain = context.auth.get("domain", "")
+    domain = context.auth["credentials"].get("domain", "")
 
     return f"https://{domain}.freshdesk.com/api/{FRESHDESK_API_VERSION}"
 

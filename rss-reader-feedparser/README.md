@@ -1,5 +1,9 @@
 # RSS Reader Integration for Autohive using feedparser
 
+> ⚠️ **Status: Unsupported**
+>
+> This integration is **no longer supported or maintained** by the Autohive team. It is kept in the repository for reference only and is not covered by validation, CI checks, or bug-fix updates. Use [`rss-reader-feedparser-ah-fetch`](../rss-reader-feedparser-ah-fetch) for maintained RSS feed workflows that route HTTP requests through the Autohive SDK `context.fetch` layer.
+
 This integration allows Autohive to connect with RSS feeds, enabling users to fetch and process feed entries from any RSS-compatible source.
 
 ## Description
@@ -80,4 +84,4 @@ To run the tests:
 
 1.  Navigate to the integration's directory: `cd rss-reader-feedparser`
 2.  Install dependencies: `pip install -r requirements.txt -t dependencies`
-3.  Run the tests: `python tests/test_rss_reader.py` 
+3.  Run the tests: `python tests/test_rss_reader.py`

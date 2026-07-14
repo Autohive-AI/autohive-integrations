@@ -8,7 +8,10 @@ def mock_context():
     ctx = MagicMock(spec=ExecutionContext)
     ctx.fetch = AsyncMock()
     ctx.auth = {
-        "host": "https://test.supabase.co",
-        "service_role_secret": "test-service-role-secret",  # nosec B105
+        "auth_type": "Custom",
+        "credentials": {
+            "host": "https://test.supabase.co",
+            "service_role_secret": "test-service-role-secret",  # nosec B105
+        },
     }
     return ctx

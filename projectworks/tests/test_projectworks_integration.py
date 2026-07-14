@@ -1,7 +1,7 @@
 """
-End-to-end integration tests for the ProjectWorks integration.
+End-to-end integration tests for the Projectworks integration.
 
-These tests call the real ProjectWorks API and require valid API-account
+These tests call the real Projectworks API and require valid API-account
 credentials set in the environment (via .env or export):
 
     PROJECTWORKS_CONSUMER_KEY
@@ -60,7 +60,10 @@ def live_context(env_credentials):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
     # Custom auth — the action handler builds the Basic auth header from this.
-    ctx.auth = {"consumer_key": consumer_key, "consumer_secret": consumer_secret}
+    ctx.auth = {
+        "auth_type": "Custom",
+        "credentials": {"consumer_key": consumer_key, "consumer_secret": consumer_secret},
+    }
     return ctx
 
 
@@ -300,6 +303,87 @@ class TestListOffices:
         assert isinstance(data["offices"], list)
 
 
+# ---- List field projection / page size (read-only) ----
+
+
+class TestListFieldProjection:
+    async def test_fields_trims_returned_records(self, live_context):
+        # Ask for a lean projection and confirm every returned record carries only
+        # the requested keys (or fewer, if a key is absent on a given record).
+        result = await projectworks.execute_action(
+            "list_users", {"page_size": 3, "fields": ["UserID", "Email"]}, live_context
+        )
+        users = ok_data(result)["users"]
+        if not users:
+            pytest.skip("No users in account to test projection with")
+        for user in users:
+            assert set(user).issubset({"UserID", "Email"})
+
+    async def test_default_page_size_bounds_results(self, live_context):
+        # With no page_size the handler applies DEFAULT_PAGE_SIZE (50), so an
+        # unparameterised call cannot dump an unbounded page.
+        result = await projectworks.execute_action("list_users", {}, live_context)
+        assert len(ok_data(result)["users"]) <= 50
+
+
+# ---- Search (free-text convenience, read-only) ----
+
+
+class TestSearchUsers:
+    async def test_search_matches_listed_user(self, live_context):
+        # Derive a real query term from a listed user, then confirm search finds them.
+        listed = ok_data(await projectworks.execute_action("list_users", {"page_size": 5}, live_context))["users"]
+        if not listed:
+            pytest.skip("No users in account to search")
+        target = listed[0]
+        term = target.get("FirstName") or target.get("Name") or target.get("Email")
+        if not term:
+            pytest.skip("Listed user has no name/email field to search on")
+        target_id = target.get("UserID")
+
+        result = await projectworks.execute_action("search_users", {"query": term, "fields": ["UserID"]}, live_context)
+        users = ok_data(result)["users"]
+        assert isinstance(users, list)
+        assert all(set(u).issubset({"UserID"}) for u in users)
+        assert any(u.get("UserID") == target_id for u in users)
+
+    async def test_unmatched_query_returns_empty(self, live_context):
+        result = await projectworks.execute_action("search_users", {"query": "zzz-nonexistent-user-zzz"}, live_context)
+        assert ok_data(result)["users"] == []
+
+
+class TestSearchClients:
+    async def test_search_matches_listed_client(self, live_context):
+        listed = ok_data(await projectworks.execute_action("list_clients", {"page_size": 5}, live_context))["clients"]
+        if not listed:
+            pytest.skip("No clients in account to search")
+        term = listed[0].get("Name")
+        if not term:
+            pytest.skip("Listed client has no Name field to search on")
+        target_id = listed[0].get("ClientID")
+
+        result = await projectworks.execute_action("search_clients", {"query": term}, live_context)
+        clients = ok_data(result)["clients"]
+        assert isinstance(clients, list)
+        assert any(c.get("ClientID") == target_id for c in clients)
+
+
+class TestSearchProjects:
+    async def test_search_matches_listed_project(self, live_context):
+        listed = ok_data(await projectworks.execute_action("list_projects", {"page_size": 5}, live_context))["projects"]
+        if not listed:
+            pytest.skip("No projects in account to search")
+        term = listed[0].get("Name")
+        if not term:
+            pytest.skip("Listed project has no Name field to search on")
+        target_id = listed[0].get("ProjectID")
+
+        result = await projectworks.execute_action("search_projects", {"query": term}, live_context)
+        projects = ok_data(result)["projects"]
+        assert isinstance(projects, list)
+        assert any(p.get("ProjectID") == target_id for p in projects)
+
+
 # ---- Destructive Tests (Write Operations) ----
 # These create, update, and delete real data on the connected account.
 # Only run deliberately with: pytest -m "integration and destructive"
@@ -314,7 +398,7 @@ class TestTimesheetLifecycle:
     """
 
     async def test_full_lifecycle(self, live_context):
-        # ProjectWorks only accepts time from a user assigned to the task's timecode.
+        # Projectworks only accepts time from a user assigned to the task's timecode.
         # A task's Users array does not reliably reflect that assignment, so derive a
         # known-valid (user, task) pair from an existing timesheet entry instead.
         existing = ok_data(await projectworks.execute_action("list_timesheets", {"page_size": 1}, live_context))[
