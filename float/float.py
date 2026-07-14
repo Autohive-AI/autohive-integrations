@@ -1244,7 +1244,7 @@ class CreateTimeOffHandler(ActionHandler):
             ActionResult containing created time off details
         """
         request_body = {
-            "people_id": inputs["people_id"],
+            "people_ids": [inputs["people_id"]],
             "timeoff_type_id": inputs["timeoff_type_id"],
             "start_date": inputs["start_date"],
             "end_date": inputs["end_date"],
@@ -1296,7 +1296,7 @@ class UpdateTimeOffHandler(ActionHandler):
 
         people_id_val = inputs.get("people_id")
         if people_id_val is not None:
-            request_body["people_id"] = people_id_val
+            request_body["people_ids"] = [people_id_val]
 
         timeoff_type_id_val = inputs.get("timeoff_type_id")
         if timeoff_type_id_val is not None:
@@ -1474,7 +1474,11 @@ class GetLoggedTimeHandler(ActionHandler):
                 headers=headers,
             )
 
-            return ActionResult(data=response.data, cost_usd=0.0)
+            data = response.data
+            if isinstance(data, dict) and "billable" in data and data["billable"] is not None:
+                data["billable"] = bool(data["billable"])
+
+            return ActionResult(data=data, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=f"Failed to get logged time {logged_time_id}: {str(e)}")
@@ -1522,7 +1526,13 @@ class CreateLoggedTimeHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response.data, cost_usd=0.0)
+            if isinstance(response.data, list):
+                if not response.data:
+                    return ActionError(message="Failed to create logged time: Float returned an empty response")
+                data = response.data[0]
+            else:
+                data = response.data
+            return ActionResult(data=data, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=f"Failed to create logged time: {str(e)}")
@@ -1586,7 +1596,15 @@ class UpdateLoggedTimeHandler(ActionHandler):
                 json=request_body,
             )
 
-            return ActionResult(data=response.data, cost_usd=0.0)
+            if isinstance(response.data, list):
+                if not response.data:
+                    return ActionError(
+                        message=f"Failed to update logged time {logged_time_id}: Float returned an empty response"
+                    )
+                data = response.data[0]
+            else:
+                data = response.data
+            return ActionResult(data=data, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=f"Failed to update logged time {logged_time_id}: {str(e)}")

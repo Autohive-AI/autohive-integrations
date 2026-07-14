@@ -1,6 +1,6 @@
 {
   "name": "Float",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Comprehensive Float API integration for resource management, project scheduling, time tracking, and team management. Supports people, projects, tasks/allocations, time off, logged time, clients, departments, and roles.",
   "entry_point": "float.py",
   "supports_billing": false,
@@ -1380,12 +1380,15 @@
               ],
               "description": "Time off ID"
             },
-            "people_id": {
+            "people_ids": {
               "type": [
-                "integer",
+                "array",
                 "null"
               ],
-              "description": "Person ID"
+              "items": {
+                "type": "integer"
+              },
+              "description": "Person IDs assigned to this time off entry"
             },
             "timeoff_type_id": {
               "type": [
@@ -1424,12 +1427,15 @@
             ],
             "description": "Time off ID"
           },
-          "people_id": {
+          "people_ids": {
             "type": [
-              "integer",
+              "array",
               "null"
             ],
-            "description": "Person ID"
+            "items": {
+              "type": "integer"
+            },
+            "description": "Person IDs assigned to this time off entry"
           },
           "timeoff_type_id": {
             "type": [
@@ -1515,12 +1521,15 @@
             ],
             "description": "Created time off ID"
           },
-          "people_id": {
+          "people_ids": {
             "type": [
-              "integer",
+              "array",
               "null"
             ],
-            "description": "Person ID"
+            "items": {
+              "type": "integer"
+            },
+            "description": "Person IDs assigned to this time off entry"
           },
           "timeoff_type_id": {
             "type": [
@@ -1606,12 +1615,15 @@
             ],
             "description": "Time off ID"
           },
-          "people_id": {
+          "people_ids": {
             "type": [
-              "integer",
+              "array",
               "null"
             ],
-            "description": "Person ID"
+            "items": {
+              "type": "integer"
+            },
+            "description": "Person IDs assigned to this time off entry"
           },
           "timeoff_type_id": {
             "type": [

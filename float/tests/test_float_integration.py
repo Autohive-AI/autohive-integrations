@@ -4,8 +4,11 @@ End-to-end integration tests for the Float integration.
 These tests call the real Float API and require a valid API key
 set in the FLOAT_API_KEY environment variable (via .env or export).
 
-Run with:
-    pytest float/tests/test_float_integration.py -m integration
+Run (safe, read-only):
+    pytest float/tests/test_float_integration.py -m "integration and not destructive"
+
+Run (destructive — creates/updates/deletes real data):
+    pytest float/tests/test_float_integration.py -m "integration and destructive"
 
 Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
@@ -13,11 +16,14 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 
 import importlib.util
 import os
+import random
 import sys
+from datetime import datetime, timedelta
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 _deps = os.path.abspath(os.path.join(os.path.dirname(__file__), "../dependencies"))
@@ -594,6 +600,134 @@ class TestTaskLifecycle:
 
         delete_result = await float_integration.execute_action("delete_task", {"task_id": task_id}, live_context)
         assert delete_result.result.data is not None
+
+
+@pytest.mark.destructive
+class TestCreateTimeOff:
+    """Verifies the full time off lifecycle: create/get/update/delete, with people_ids as an array."""
+
+    async def test_creates_gets_updates_deletes_time_off(self, live_context):
+        people_result = await float_integration.execute_action("list_people", {"per_page": 2}, live_context)
+        people = people_result.result.data
+        if not people:
+            pytest.skip("No people in account to test with")
+        person_id = people[0]["people_id"]
+
+        types_result = await float_integration.execute_action("list_time_off_types", {}, live_context)
+        timeoff_types = types_result.result.data
+        if not timeoff_types:
+            pytest.skip("No time off types in account to test with")
+        timeoff_type_id = timeoff_types[0]["timeoff_type_id"]
+
+        timeoff_date = (datetime.now() + timedelta(days=90 + random.randint(0, 600))).strftime("%Y-%m-%d")  # nosec B311
+
+        timeoff_id = None
+        try:
+            result = await float_integration.execute_action(
+                "create_time_off",
+                {
+                    "people_id": person_id,
+                    "timeoff_type_id": timeoff_type_id,
+                    "start_date": timeoff_date,
+                    "end_date": timeoff_date,
+                    "hours": 8,
+                },
+                live_context,
+            )
+            assert result.type == ResultType.ACTION
+            data = result.result.data
+            assert "timeoff_id" in data
+            timeoff_id = data["timeoff_id"]
+            assert person_id in data.get("people_ids", [])
+
+            get_result = await float_integration.execute_action(
+                "get_time_off", {"timeoff_id": timeoff_id}, live_context
+            )
+            assert get_result.type == ResultType.ACTION
+            assert get_result.result.data["timeoff_id"] == timeoff_id
+            assert person_id in get_result.result.data.get("people_ids", [])
+
+            # Reassign to a second person if one is available — verifies update_time_off
+            # actually sends people_ids as an array (not the old singular people_id, which
+            # Float silently ignores).
+            if len(people) > 1:
+                other_person_id = people[1]["people_id"]
+                update_result = await float_integration.execute_action(
+                    "update_time_off",
+                    {"timeoff_id": timeoff_id, "people_id": other_person_id},
+                    live_context,
+                )
+                assert update_result.type == ResultType.ACTION
+                assert other_person_id in update_result.result.data.get("people_ids", [])
+            else:
+                update_result = await float_integration.execute_action(
+                    "update_time_off",
+                    {"timeoff_id": timeoff_id, "hours": 4},
+                    live_context,
+                )
+                assert update_result.type == ResultType.ACTION
+                assert update_result.result.data["hours"] == 4
+        finally:
+            if timeoff_id is not None:
+                await float_integration.execute_action("delete_time_off", {"timeoff_id": timeoff_id}, live_context)
+
+
+@pytest.mark.destructive
+class TestLoggedTimeLifecycle:
+    """Verifies create and update return an object (not a raw array) after unwrapping."""
+
+    async def test_create_update_get_delete(self, live_context):
+        people_result = await float_integration.execute_action("list_people", {"per_page": 1}, live_context)
+        people = people_result.result.data
+        if not people:
+            pytest.skip("No people in account to test with")
+        person_id = people[0]["people_id"]
+
+        projects_result = await float_integration.execute_action("list_projects", {"per_page": 1}, live_context)
+        projects = projects_result.result.data
+        if not projects:
+            pytest.skip("No projects in account to test with")
+        project_id = projects[0]["project_id"]
+
+        logged_date = (datetime.now() + timedelta(days=90 + random.randint(0, 600))).strftime("%Y-%m-%d")  # nosec B311
+
+        logged_time_id = None
+        try:
+            # Create — must return a dict, not an array
+            create_result = await float_integration.execute_action(
+                "create_logged_time",
+                {"people_id": person_id, "project_id": project_id, "date": logged_date, "hours": 3},
+                live_context,
+            )
+            assert create_result.type == ResultType.ACTION
+            created = create_result.result.data
+            assert isinstance(created, dict), "Expected dict — array unwrap fix missing in create_logged_time"
+            assert "logged_time_id" in created
+            logged_time_id = created["logged_time_id"]
+
+            # Update — must also return a dict, not an array
+            update_result = await float_integration.execute_action(
+                "update_logged_time",
+                {"logged_time_id": logged_time_id, "hours": 5},
+                live_context,
+            )
+            assert update_result.type == ResultType.ACTION
+            updated = update_result.result.data
+            assert isinstance(updated, dict), "Expected dict — array unwrap fix missing in update_logged_time"
+            assert updated["hours"] == 5
+
+            # Get — returns object directly (no fix needed, verify it still works)
+            get_result = await float_integration.execute_action(
+                "get_logged_time", {"logged_time_id": logged_time_id}, live_context
+            )
+            assert get_result.type == ResultType.ACTION
+            assert get_result.result.data["logged_time_id"] == logged_time_id
+        finally:
+            if logged_time_id is not None:
+                delete_result = await float_integration.execute_action(
+                    "delete_logged_time", {"logged_time_id": logged_time_id}, live_context
+                )
+                assert delete_result.result.data["success"] is True
 
 
 @pytest.mark.destructive

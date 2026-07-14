@@ -148,7 +148,7 @@ class TestCreateTimeOff:
         )
 
         body = mock_context.fetch.call_args.kwargs.get("json", {})
-        assert body["people_id"] == 123
+        assert body["people_ids"] == [123]
         assert body["full_day"] is True
 
     @pytest.mark.asyncio
@@ -175,6 +175,16 @@ class TestUpdateTimeOff:
         await float_integration.execute_action("update_time_off", {"timeoff_id": 200, "hours": 4.0}, mock_context)
 
         assert mock_context.fetch.call_args.kwargs.get("method") == "PATCH"
+
+    @pytest.mark.asyncio
+    async def test_update_time_off_sends_people_ids_array(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TIMEOFF)
+
+        await float_integration.execute_action("update_time_off", {"timeoff_id": 200, "people_id": 456}, mock_context)
+
+        body = mock_context.fetch.call_args.kwargs.get("json", {})
+        assert body["people_ids"] == [456]
+        assert "people_id" not in body
 
     @pytest.mark.asyncio
     async def test_update_time_off_exception_returns_action_error(self, mock_context):
