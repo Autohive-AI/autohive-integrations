@@ -192,6 +192,25 @@ class TestGetTitleOwners:
         assert isinstance(data["owners"], list)
         assert data["title_no"]
 
+    async def test_chained_search_then_get(self, live_context):
+        # No pre-provisioned ID needed: discover a real title_no via search,
+        # then round-trip it through get_title_owners.
+        search = await linz.execute_action(
+            "search_property_titles", {"land_district": TEST_LAND_DISTRICT, "limit": 1}, live_context
+        )
+        _skip_if_no_ownership_access(search)
+        assert search.type == ResultType.ACTION, search.result
+        titles = search.result.data["titles"]
+        if not titles or not titles[0].get("title_no"):
+            pytest.skip("No titles returned to chain from")
+
+        title_no = titles[0]["title_no"]
+        result = await linz.execute_action("get_title_owners", {"title_no": title_no}, live_context)
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["title_no"] == title_no
+        assert isinstance(data["owners"], list)
+
 
 class TestFindMultiPropertyOwners:
     async def test_scan_by_land_district(self, live_context):

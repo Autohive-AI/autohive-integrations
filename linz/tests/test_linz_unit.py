@@ -73,6 +73,16 @@ class TestGetApiKey:
             _get_api_key(ctx)
 
     @pytest.mark.asyncio
+    async def test_execute_action_with_nested_platform_auth(self, mock_context):
+        # The platform wraps custom-auth credentials under "credentials" at
+        # runtime; the full action path must work with that shape end-to-end.
+        mock_context.auth = {"credentials": {"api_key": "nested_key"}}  # nosec B105
+        mock_context.fetch.return_value = ok({"type": "FeatureCollection", "features": []})
+        result = await linz.execute_action("search_property_titles", {"title_no": "NA1/1"}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert "services;key=nested_key/wfs" in mock_context.fetch.call_args.args[0]
+
+    @pytest.mark.asyncio
     async def test_missing_key_blocked_before_fetch(self, mock_context):
         # auth.fields has no "required" list (the SDK validates context.auth
         # directly, but the runtime auth shape is nested under "credentials",
@@ -407,6 +417,18 @@ class TestFindMultiPropertyOwners:
         assert owner["property_count"] == 1
 
     @pytest.mark.asyncio
+    async def test_request_combines_filters(self, mock_context):
+        mock_context.fetch.return_value = ok(collection([]))
+        await linz.execute_action(
+            "find_multi_property_owners",
+            {"owner_name": "smith", "land_district": "Otago", "status": "LIVE"},
+            mock_context,
+        )
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["typeNames"] == LAYER_TITLES_OWNERS
+        assert params["cql_filter"] == "(owners ILIKE '%smith%') AND (land_district = 'Otago') AND (status = 'LIVE')"
+
+    @pytest.mark.asyncio
     async def test_truncation_flag_and_paging(self, mock_context):
         # Two full pages then exact stop at max_titles_scanned via truncation.
         page1 = collection([feature({"title_no": f"A{i}", "owners": "BULK OWNER"}) for i in range(1000)])
@@ -487,6 +509,13 @@ class TestQueryLayer:
         result = await linz.execute_action("query_layer", {}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_fetch_exception_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = Exception("Connection reset")
+        result = await linz.execute_action("query_layer", {"layer": "50772"}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Connection reset" in result.result.message
 
 
 # =============================================================================
