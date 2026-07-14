@@ -64,9 +64,9 @@ def live_context(env_credentials):
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
-    # Custom auth: the SDK passes context.auth straight through to the handler,
-    # which reads api_key from it. Flat shape matches config.auth.fields.
-    ctx.auth = {"api_key": api_key}
+    # SDK 2.0.1+ requires the platform auth envelope; auth.fields describes
+    # the inner credentials object.
+    ctx.auth = {"auth_type": "Custom", "credentials": {"api_key": api_key}}
     return ctx
 
 

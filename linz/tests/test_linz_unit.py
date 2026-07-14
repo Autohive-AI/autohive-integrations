@@ -73,24 +73,32 @@ class TestGetApiKey:
             _get_api_key(ctx)
 
     @pytest.mark.asyncio
-    async def test_execute_action_with_nested_platform_auth(self, mock_context):
-        # The platform wraps custom-auth credentials under "credentials" at
+    async def test_execute_action_with_platform_auth_envelope(self, mock_context):
+        # The platform passes {"auth_type": ..., "credentials": {...}} at
         # runtime; the full action path must work with that shape end-to-end.
-        mock_context.auth = {"credentials": {"api_key": "nested_key"}}  # nosec B105
+        mock_context.auth = {"auth_type": "Custom", "credentials": {"api_key": "nested_key"}}  # nosec B105
         mock_context.fetch.return_value = ok({"type": "FeatureCollection", "features": []})
         result = await linz.execute_action("search_property_titles", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION
         assert "services;key=nested_key/wfs" in mock_context.fetch.call_args.args[0]
 
     @pytest.mark.asyncio
+    async def test_flat_auth_rejected_by_sdk(self, mock_context):
+        # SDK 2.0.1+ rejects non-envelope auth before the handler runs.
+        mock_context.auth = {"api_key": "flat_key"}  # nosec B105
+        result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_missing_key_blocked_before_fetch(self, mock_context):
-        # auth.fields has no "required" list (the SDK validates context.auth
-        # directly, but the runtime auth shape is nested under "credentials",
-        # so a top-level "required" there would reject every real request).
-        # The handler's own _get_api_key check blocks the network call instead.
-        mock_context.auth = {}
+        # auth.fields has no "required" list, so an empty credentials object
+        # passes SDK schema validation; the handler's own _get_api_key check
+        # blocks the network call instead.
+        mock_context.auth = {"auth_type": "Custom", "credentials": {}}
         result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
+        assert "API key is required" in result.result.message
         mock_context.fetch.assert_not_called()
 
 
