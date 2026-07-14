@@ -5,8 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-# Make linz.py importable as a top-level module.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Make the linz package importable (as `from linz.linz import ...`) even when
+# tests run from outside the repo root. Adding the repo root — not the linz/
+# directory itself — keeps linz.py from shadowing the linz package.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 
 @pytest.fixture
