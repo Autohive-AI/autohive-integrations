@@ -1380,12 +1380,15 @@
               ],
               "description": "Time off ID"
             },
-            "people_id": {
+            "people_ids": {
               "type": [
-                "integer",
+                "array",
                 "null"
               ],
-              "description": "Person ID"
+              "items": {
+                "type": "integer"
+              },
+              "description": "Person IDs assigned to this time off entry"
             },
             "timeoff_type_id": {
               "type": [
@@ -1424,12 +1427,15 @@
             ],
             "description": "Time off ID"
           },
-          "people_id": {
+          "people_ids": {
             "type": [
-              "integer",
+              "array",
               "null"
             ],
-            "description": "Person ID"
+            "items": {
+              "type": "integer"
+            },
+            "description": "Person IDs assigned to this time off entry"
           },
           "timeoff_type_id": {
             "type": [
@@ -1514,13 +1520,6 @@
               "null"
             ],
             "description": "Created time off ID"
-          },
-          "people_id": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "description": "Person ID"
           },
           "people_ids": {
             "type": [
@@ -1616,12 +1615,15 @@
             ],
             "description": "Time off ID"
           },
-          "people_id": {
+          "people_ids": {
             "type": [
-              "integer",
+              "array",
               "null"
             ],
-            "description": "Person ID"
+            "items": {
+              "type": "integer"
+            },
+            "description": "Person IDs assigned to this time off entry"
           },
           "timeoff_type_id": {
             "type": [

@@ -1296,7 +1296,7 @@ class UpdateTimeOffHandler(ActionHandler):
 
         people_id_val = inputs.get("people_id")
         if people_id_val is not None:
-            request_body["people_id"] = people_id_val
+            request_body["people_ids"] = [people_id_val]
 
         timeoff_type_id_val = inputs.get("timeoff_type_id")
         if timeoff_type_id_val is not None:

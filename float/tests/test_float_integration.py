@@ -604,10 +604,10 @@ class TestTaskLifecycle:
 
 @pytest.mark.destructive
 class TestCreateTimeOff:
-    """Verifies create_time_off sends people_ids as an array (not people_id integer)."""
+    """Verifies the full time off lifecycle: create/get/update/delete, with people_ids as an array."""
 
-    async def test_creates_and_deletes_time_off(self, live_context):
-        people_result = await float_integration.execute_action("list_people", {"per_page": 1}, live_context)
+    async def test_creates_gets_updates_deletes_time_off(self, live_context):
+        people_result = await float_integration.execute_action("list_people", {"per_page": 2}, live_context)
         people = people_result.result.data
         if not people:
             pytest.skip("No people in account to test with")
@@ -639,6 +639,34 @@ class TestCreateTimeOff:
             assert "timeoff_id" in data
             timeoff_id = data["timeoff_id"]
             assert person_id in data.get("people_ids", [])
+
+            get_result = await float_integration.execute_action(
+                "get_time_off", {"timeoff_id": timeoff_id}, live_context
+            )
+            assert get_result.type == ResultType.ACTION
+            assert get_result.result.data["timeoff_id"] == timeoff_id
+            assert person_id in get_result.result.data.get("people_ids", [])
+
+            # Reassign to a second person if one is available — verifies update_time_off
+            # actually sends people_ids as an array (not the old singular people_id, which
+            # Float silently ignores).
+            if len(people) > 1:
+                other_person_id = people[1]["people_id"]
+                update_result = await float_integration.execute_action(
+                    "update_time_off",
+                    {"timeoff_id": timeoff_id, "people_id": other_person_id},
+                    live_context,
+                )
+                assert update_result.type == ResultType.ACTION
+                assert other_person_id in update_result.result.data.get("people_ids", [])
+            else:
+                update_result = await float_integration.execute_action(
+                    "update_time_off",
+                    {"timeoff_id": timeoff_id, "hours": 4},
+                    live_context,
+                )
+                assert update_result.type == ResultType.ACTION
+                assert update_result.result.data["hours"] == 4
         finally:
             if timeoff_id is not None:
                 await float_integration.execute_action("delete_time_off", {"timeoff_id": timeoff_id}, live_context)
