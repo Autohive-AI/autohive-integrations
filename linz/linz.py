@@ -446,7 +446,6 @@ class GetTitleOwnersAction(ActionHandler):
                 data={
                     "title_no": props.get("title_no", title_no),
                     "owners": owners,
-                    "number_owners": props.get("number_owners"),
                     "estate_description": props.get("estate_description"),
                     "land_district": props.get("land_district"),
                     "status": props.get("status"),
@@ -524,7 +523,6 @@ class FindMultiPropertyOwnersAction(ActionHandler):
                     "estate_description": props.get("estate_description"),
                     "type": props.get("type"),
                     "status": props.get("status"),
-                    "number_owners": props.get("number_owners"),
                 }
                 names = _split_owners(props.get("owners"))
                 for name in names:

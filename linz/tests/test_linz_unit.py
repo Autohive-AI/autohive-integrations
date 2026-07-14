@@ -307,7 +307,6 @@ class TestGetTitleOwners:
                         {
                             "title_no": "NA1/1",
                             "owners": "JOHN SMITH, JANE SMITH",
-                            "number_owners": 2,
                             "estate_description": "Fee Simple, 1/1",
                             "land_district": "North Auckland",
                             "status": "Live",
@@ -320,7 +319,6 @@ class TestGetTitleOwners:
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["owners"] == ["JOHN SMITH", "JANE SMITH"]
-        assert data["number_owners"] == 2
         assert data["estate_description"] == "Fee Simple, 1/1"
 
     @pytest.mark.asyncio

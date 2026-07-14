@@ -123,8 +123,7 @@
                       "land_district": { "type": ["string", "null"] },
                       "estate_description": { "type": ["string", "null"] },
                       "type": { "type": ["string", "null"] },
-                      "status": { "type": ["string", "null"] },
-                      "number_owners": { "type": ["number", "null"] }
+                      "status": { "type": ["string", "null"] }
                     }
                   }
                 }
@@ -210,7 +209,6 @@
         "properties": {
           "title_no": { "type": ["string", "null"] },
           "owners": { "type": "array", "items": { "type": "string" } },
-          "number_owners": { "type": ["number", "null"] },
           "estate_description": { "type": ["string", "null"] },
           "land_district": { "type": ["string", "null"] },
           "status": { "type": ["string", "null"] },
