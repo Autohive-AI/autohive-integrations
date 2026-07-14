@@ -4,6 +4,11 @@ Read New Zealand property, title, ownership and parcel data from the
 [LINZ Data Service (LDS)](https://data.linz.govt.nz/) via its Web Feature
 Service (WFS) API.
 
+Official API documentation:
+
+- [LDS web services guide (WFS)](https://www.linz.govt.nz/guidance/data-service/linz-data-service-guide/web-services)
+- [WFS filter methods and parameters](https://www.linz.govt.nz/guidance/data-service/linz-data-service-guide/web-services/wfs-filter-methods-and-parameters)
+
 ## Overview
 
 This integration queries LDS layers over WFS and exposes typed actions plus a
