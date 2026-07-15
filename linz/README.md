@@ -60,11 +60,12 @@ This integration uses a **per-user LINZ Data Service API key** (custom auth).
 3. When creating the key, enable the **query/web-services (WFS)** scope. A key
    without it is still "valid" but can see **zero** layers — every data action
    then fails with a `400` "Feature type ... unknown" error.
-4. To read ownership data (`layer-50805`), your LINZ account must accept the
-   **LINZ Licence for Personal Data**, and the key must have access to that
-   layer. Without it LINZ omits the layer from your key's capabilities and a
-   request fails with a `400` "Feature type ... unknown" error — the
-   integration maps this to a clear licence hint.
+4. To read ownership data (`layer-50805`), your LINZ account must hold the
+   **LINZ Licence for Personal Data** —
+   [apply for the licence here](https://www.linz.govt.nz/products-services/data/licensing-and-using-data/linz-licence-personal-data/apply-linz-licence-personal-data) —
+   and the key must have access to that layer. Without it LINZ omits the layer
+   from your key's capabilities and a request fails with a `400` "Feature type
+   ... unknown" error — the integration maps this to a clear licence hint.
 
 To verify a key's access, run `list_available_layers`: it succeeds with any
 valid key and reports which layers the key can see, including the specific

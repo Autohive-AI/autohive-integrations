@@ -15,7 +15,7 @@
           "type": "string",
           "format": "password",
           "label": "API Key",
-          "help_text": "Create a key at https://data.linz.govt.nz/my/api/. To read ownership data (layer-50805) the key must have accepted the LINZ Licence for Personal Data on your LINZ account."
+          "help_text": "Create a key at https://data.linz.govt.nz/my/api/. To read ownership data (layer-50805) your LINZ account must hold the LINZ Licence for Personal Data — apply at https://www.linz.govt.nz/products-services/data/licensing-and-using-data/linz-licence-personal-data/apply-linz-licence-personal-data"
         }
       }
     }
