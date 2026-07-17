@@ -109,6 +109,13 @@ obligations.
   attribute names and values — use `ILIKE` for case-insensitive text matching.
 - Geometry is omitted from results by default to save tokens; pass
   `include_geometry: true` on `search_parcels` / `query_layer` to include it.
+- All list actions cap `limit` at **1000 records per request** (2000 for
+  `list_available_layers`), enforced in both the input schema and at runtime;
+  use `start_index` (clamped to ≥ 0) to page. `query_layer` is intentionally
+  unrestricted in *which* datasets it can reach — including the licensed
+  ownership ones — because the per-user API key and LINZ Personal Data Licence
+  are the access-control boundary: the integration can never return data the
+  caller's own key isn't licensed for.
 
 ## Limitations
 

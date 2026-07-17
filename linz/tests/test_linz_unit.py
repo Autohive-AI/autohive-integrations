@@ -7,6 +7,8 @@ from autohive_integrations_sdk.integration import ResultType
 from linz.linz import (
     linz,
     _and,
+    _bounded_limit,
+    _bounded_start_index,
     _cql_literal,
     _extract_exception_text,
     _extract_features,
@@ -21,7 +23,9 @@ from linz.linz import (
     LAYER_TITLES_OWNERS,
     LAYER_TITLE_OWNERS,
     LAYER_PRIMARY_PARCELS,
+    MAX_QUERY_LIMIT,
     OWNER_SCAN_FIELDS,
+    QueryLayerAction,
     TABLE_TITLE_OWNERS_LIST,
 )
 
@@ -150,6 +154,19 @@ class TestHelpers:
 
     def test_owner_key_normalises(self):
         assert _owner_key("  john   smith ") == "JOHN SMITH"
+
+    def test_bounded_limit(self):
+        assert _bounded_limit(None, 100, 1000) == 100  # default
+        assert _bounded_limit(5, 100, 1000) == 5
+        assert _bounded_limit(999999, 100, 1000) == 1000  # clamped to cap
+        assert _bounded_limit(0, 100, 1000) == 1
+        assert _bounded_limit(-3, 100, 1000) == 1
+
+    def test_bounded_start_index(self):
+        assert _bounded_start_index(None) is None
+        assert _bounded_start_index(0) == 0
+        assert _bounded_start_index(25) == 25
+        assert _bounded_start_index(-5) == 0
 
     def test_owner_display_name_corporate(self):
         assert _owner_display_name({"corporate_name": "ACME LIMITED"}) == "ACME LIMITED"
@@ -738,6 +755,29 @@ class TestQueryLayer:
         result = await linz.execute_action("query_layer", {}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_limit_above_cap_rejected_by_schema(self, mock_context):
+        result = await linz.execute_action("query_layer", {"layer": "50805", "limit": 5000}, mock_context)
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_negative_start_index_rejected_by_schema(self, mock_context):
+        result = await linz.execute_action("query_layer", {"layer": "50805", "start_index": -1}, mock_context)
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_runtime_clamp_defends_without_schema(self, mock_context):
+        # Defense-in-depth: even calling the handler directly (bypassing SDK
+        # schema validation) the limit and start_index are clamped before they
+        # reach WFS.
+        mock_context.fetch.return_value = ok(collection([]))
+        await QueryLayerAction().execute({"layer": "50805", "limit": 999999, "start_index": -5}, mock_context)
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["count"] == MAX_QUERY_LIMIT
+        assert params["startIndex"] == 0
 
     @pytest.mark.asyncio
     async def test_fetch_exception_returns_action_error(self, mock_context):

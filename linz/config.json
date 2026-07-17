@@ -33,9 +33,10 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of layers to return. Defaults to 500.",
+            "description": "Maximum number of layers to return. Defaults to 500, capped at 2000.",
             "default": 500,
-            "minimum": 1
+            "minimum": 1,
+            "maximum": 2000
           }
         },
         "required": []
@@ -181,12 +182,15 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of titles to return. Defaults to 100.",
-            "default": 100
+            "description": "Maximum number of titles to return. Defaults to 100, capped at 1000 per request — use start_index to page.",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 1000
           },
           "start_index": {
             "type": "integer",
-            "description": "Zero-based offset for pagination."
+            "description": "Zero-based offset for pagination.",
+            "minimum": 0
           }
         },
         "required": []
@@ -287,12 +291,15 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of parcels to return. Defaults to 100.",
-            "default": 100
+            "description": "Maximum number of parcels to return. Defaults to 100, capped at 1000 per request — use start_index to page.",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 1000
           },
           "start_index": {
             "type": "integer",
-            "description": "Zero-based offset for pagination."
+            "description": "Zero-based offset for pagination.",
+            "minimum": 0
           }
         },
         "required": []
@@ -311,7 +318,7 @@
     },
     "query_layer": {
       "display_name": "Query LDS Layer",
-      "description": "Run a raw WFS GetFeature query against any LINZ Data Service layer or table. Escape hatch for data not covered by the typed actions (e.g. street addresses, geodetic marks, owner-centric ownership tables). Supply a layer id and an optional CQL filter.",
+      "description": "Run a raw WFS GetFeature query against any LINZ Data Service layer or table. Escape hatch for data not covered by the typed actions (e.g. street addresses, geodetic marks, owner-centric ownership tables). Supply a layer id and an optional CQL filter. Results are capped at 1000 records per request (use start_index to page). Licensed ownership datasets remain queryable: access is governed by the caller's own LINZ API key and Personal Data Licence, the same boundary the typed actions rely on.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -338,12 +345,15 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of records to return. Defaults to 100.",
-            "default": 100
+            "description": "Maximum number of records to return. Defaults to 100, capped at 1000 per request — use start_index to page.",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 1000
           },
           "start_index": {
             "type": "integer",
-            "description": "Zero-based offset for pagination."
+            "description": "Zero-based offset for pagination.",
+            "minimum": 0
           }
         },
         "required": [

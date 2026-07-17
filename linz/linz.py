@@ -67,6 +67,12 @@ WFS_VERSION = "2.0.0"
 DEFAULT_PAGE_SIZE = 1000
 # Safety ceiling for the multi-property scan so a broad filter can't run away.
 MAX_SCAN_HARD_CAP = 10000
+# Hard cap on limit for the single-request list actions (aligned with the LDS
+# page size) — enforced at runtime as well as in the input schemas.
+MAX_QUERY_LIMIT = 1000
+# Hard cap for list_available_layers; the capabilities document is already in
+# memory, so this only bounds response size.
+MAX_LAYER_LIST_LIMIT = 2000
 # Titles per detail-enrichment request (title_no IN (...) keeps the URL short).
 TITLE_DETAIL_CHUNK = 200
 
@@ -115,6 +121,19 @@ def _normalize_layer(layer: str) -> str:
     if layer.isdigit():
         return f"layer-{layer}"
     return layer
+
+
+def _bounded_limit(value: Any, default: int, maximum: int) -> int:
+    """Clamp a user-supplied limit to [1, maximum]; None falls back to default."""
+    limit = default if value is None else int(value)
+    return min(max(limit, 1), maximum)
+
+
+def _bounded_start_index(value: Any) -> Optional[int]:
+    """Clamp a user-supplied start index to >= 0 (None passes through)."""
+    if value is None:
+        return None
+    return max(int(value), 0)
 
 
 def _cql_literal(value: str) -> str:
@@ -444,13 +463,13 @@ class SearchPropertyTitlesAction(ActionHandler):
                     message="Provide at least one filter (owner_name, title_no, land_district, status or cql_filter)."
                 )
 
-            limit = inputs.get("limit") or 100
+            limit = _bounded_limit(inputs.get("limit"), 100, MAX_QUERY_LIMIT)
             collection = await _wfs_get_features(
                 context,
                 LAYER_TITLES_OWNERS,
                 cql_filter=cql,
                 count=limit,
-                start_index=inputs.get("start_index"),
+                start_index=_bounded_start_index(inputs.get("start_index")),
             )
             features = _extract_features(collection)
             titles = [_strip_geometry(f, include_geometry=False) for f in features]
@@ -740,13 +759,13 @@ class SearchParcelsAction(ActionHandler):
                 )
 
             include_geometry = bool(inputs.get("include_geometry"))
-            limit = inputs.get("limit") or 100
+            limit = _bounded_limit(inputs.get("limit"), 100, MAX_QUERY_LIMIT)
             collection = await _wfs_get_features(
                 context,
                 LAYER_PRIMARY_PARCELS,
                 cql_filter=cql,
                 count=limit,
-                start_index=inputs.get("start_index"),
+                start_index=_bounded_start_index(inputs.get("start_index")),
             )
             features = _extract_features(collection)
             parcels = [_strip_geometry(f, include_geometry=include_geometry) for f in features]
@@ -781,13 +800,13 @@ class QueryLayerAction(ActionHandler):
             layer = inputs["layer"]  # required by schema
 
             include_geometry = bool(inputs.get("include_geometry"))
-            limit = inputs.get("limit") or 100
+            limit = _bounded_limit(inputs.get("limit"), 100, MAX_QUERY_LIMIT)
             collection = await _wfs_get_features(
                 context,
                 _normalize_layer(layer),
                 cql_filter=inputs.get("cql_filter"),
                 count=limit,
-                start_index=inputs.get("start_index"),
+                start_index=_bounded_start_index(inputs.get("start_index")),
                 sort_by=inputs.get("sort_by"),
                 srs_name=inputs.get("srs_name"),
             )
@@ -858,7 +877,7 @@ class ListAvailableLayersAction(ActionHandler):
                     if needle in (layer["id"] or "").lower() or needle in (layer["title"] or "").lower()
                 ]
 
-            limit = max(int(inputs.get("limit") or DEFAULT_LAYER_LIST_LIMIT), 1)
+            limit = _bounded_limit(inputs.get("limit"), DEFAULT_LAYER_LIST_LIMIT, MAX_LAYER_LIST_LIMIT)
             truncated = len(layers) > limit
 
             if not available_ids:
