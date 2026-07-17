@@ -37,8 +37,11 @@ titles per owner**. It returns owners holding at least `min_properties` (default
 2) titles, sorted by count, with each owner's titles and descriptors.
 
 A scoping filter is **required** — the layer is national and cannot be scanned
-in full. Use `max_titles_scanned` (default 2000, max 10000) to bound the scan;
-when the result is `truncated`, narrow the filter or raise the cap.
+in full. Use `max_titles_scanned` (default 2000, max 10000) to bound the scan.
+`truncated: true` means matching titles beyond the cap were actually omitted
+(verified against the server's match count, or by probing one record past the
+cap when LINZ reports the total as unknown) — narrow the filter or raise the
+cap for completeness. A scan that exactly fills the cap is not truncated.
 
 ### ⚠️ Commercial vs residential is not available from LINZ
 

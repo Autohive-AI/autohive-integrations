@@ -297,6 +297,10 @@ async def _wfs_collect(
     """Page through GetFeature results up to ``max_records`` features.
 
     Returns ``{"features": [...], "scanned": N, "truncated": bool}``.
+    ``truncated`` is True only when matching records were actually omitted:
+    a full final page alone doesn't prove more matches exist, so the server's
+    numeric match count is consulted, falling back to probing for one record
+    past the cap.
     """
     max_records = min(max(int(max_records), 1), MAX_SCAN_HARD_CAP)
     collected: List[Dict[str, Any]] = []
@@ -320,8 +324,21 @@ async def _wfs_collect(
             break  # last page
         start_index += page_size
         if len(collected) >= max_records:
-            # There may be more matches than we scanned.
-            truncated = True
+            total = _total_matched(collection)
+            if total is not None:
+                truncated = total > len(collected)
+            else:
+                # LDS reported an unknown total — probe one record past the
+                # cap to see whether anything was actually omitted.
+                probe = await _wfs_get_features(
+                    context,
+                    type_name,
+                    cql_filter=cql_filter,
+                    count=1,
+                    start_index=len(collected),
+                    sort_by=sort_by,
+                )
+                truncated = bool(_extract_features(probe))
             break
 
     return {"features": collected, "scanned": len(collected), "truncated": truncated}

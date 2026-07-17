@@ -132,7 +132,10 @@
           },
           "owner_count": { "type": "integer" },
           "titles_scanned": { "type": "integer" },
-          "truncated": { "type": "boolean" },
+          "truncated": {
+            "type": "boolean",
+            "description": "True only when matching titles beyond max_titles_scanned were actually omitted (confirmed via the server's match count, or by probing one record past the cap). Exactly hitting the cap is not reported as truncated."
+          },
           "min_properties": { "type": "integer" },
           "note": { "type": "string" }
         }

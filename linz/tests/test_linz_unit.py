@@ -434,12 +434,19 @@ class TestFindMultiPropertyOwners:
         assert params["typeNames"] == LAYER_TITLES_OWNERS
         assert params["cql_filter"] == "(owners ILIKE '%smith%') AND (land_district = 'Otago') AND (status = 'LIVE')"
 
+    @staticmethod
+    def bulk_page(prefix, size=1000, **extra):
+        return collection(
+            [feature({"title_no": f"{prefix}{i}", "owners": "BULK OWNER"}) for i in range(size)], **extra
+        )
+
     @pytest.mark.asyncio
-    async def test_truncation_flag_and_paging(self, mock_context):
-        # Two full pages then exact stop at max_titles_scanned via truncation.
-        page1 = collection([feature({"title_no": f"A{i}", "owners": "BULK OWNER"}) for i in range(1000)])
-        page2 = collection([feature({"title_no": f"B{i}", "owners": "BULK OWNER"}) for i in range(1000)])
-        mock_context.fetch.side_effect = [ok(page1), ok(page2)]
+    async def test_truncated_when_numeric_total_exceeds_cap(self, mock_context):
+        # numberMatched is numeric and > cap: truncated without a probe request.
+        mock_context.fetch.side_effect = [
+            ok(self.bulk_page("A", numberMatched=2500)),
+            ok(self.bulk_page("B", numberMatched=2500)),
+        ]
         result = await linz.execute_action(
             "find_multi_property_owners",
             {"owner_name": "bulk", "max_titles_scanned": 2000, "min_properties": 1},
@@ -449,6 +456,64 @@ class TestFindMultiPropertyOwners:
         assert data["titles_scanned"] == 2000
         assert data["truncated"] is True
         assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_exact_cap_with_numeric_total_not_truncated(self, mock_context):
+        # Exactly cap matches (numberMatched == cap): nothing was omitted, so
+        # a full final page must NOT be reported as truncated.
+        mock_context.fetch.side_effect = [
+            ok(self.bulk_page("A", numberMatched=2000)),
+            ok(self.bulk_page("B", numberMatched=2000)),
+        ]
+        result = await linz.execute_action(
+            "find_multi_property_owners",
+            {"owner_name": "bulk", "max_titles_scanned": 2000, "min_properties": 1},
+            mock_context,
+        )
+        data = result.result.data
+        assert data["titles_scanned"] == 2000
+        assert data["truncated"] is False
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_exact_cap_unknown_total_probes_and_not_truncated(self, mock_context):
+        # LDS reports totalFeatures "unknown": a probe one past the cap comes
+        # back empty, proving exactly cap matches — not truncated.
+        mock_context.fetch.side_effect = [
+            ok(self.bulk_page("A", totalFeatures="unknown")),
+            ok(self.bulk_page("B", totalFeatures="unknown")),
+            ok(collection([])),
+        ]
+        result = await linz.execute_action(
+            "find_multi_property_owners",
+            {"owner_name": "bulk", "max_titles_scanned": 2000, "min_properties": 1},
+            mock_context,
+        )
+        data = result.result.data
+        assert data["titles_scanned"] == 2000
+        assert data["truncated"] is False
+        assert mock_context.fetch.call_count == 3
+        probe_params = mock_context.fetch.call_args.kwargs["params"]
+        assert probe_params["count"] == 1
+        assert probe_params["startIndex"] == 2000
+
+    @pytest.mark.asyncio
+    async def test_cap_plus_one_unknown_total_truncated(self, mock_context):
+        # The probe past the cap returns a record: data really was omitted.
+        mock_context.fetch.side_effect = [
+            ok(self.bulk_page("A", totalFeatures="unknown")),
+            ok(self.bulk_page("B", totalFeatures="unknown")),
+            ok(collection([feature({"title_no": "C0", "owners": "BULK OWNER"})])),
+        ]
+        result = await linz.execute_action(
+            "find_multi_property_owners",
+            {"owner_name": "bulk", "max_titles_scanned": 2000, "min_properties": 1},
+            mock_context,
+        )
+        data = result.result.data
+        assert data["titles_scanned"] == 2000
+        assert data["truncated"] is True
+        assert mock_context.fetch.call_count == 3
 
 
 # =============================================================================
