@@ -67,13 +67,13 @@
     },
     "find_multi_property_owners": {
       "display_name": "Find Multi-Property Owners",
-      "description": "Find owners who appear on more than one property title. Scans the NZ Property Titles Including Owners layer within a scoping filter (owner name and/or land district), splits the concatenated owners field, and aggregates distinct titles per owner. A scoping filter is required — the layer is national and cannot be scanned in full. Note: LINZ cannot label a property commercial vs residential; estate_description is returned so you can infer property type.",
+      "description": "Find owners who appear on more than one property title. Scans the NZ Property Title Owners layer (layer-50806, one row per owner/title pair) within a scoping filter (owner name and/or land district) and aggregates distinct titles per owner — owner names are exact per-row values, never parsed out of a concatenated string. A scoping filter is required — the layer is national and cannot be scanned in full. Title estate details are enriched from layer-50805 (about one extra request per 200 distinct titles in the results; disable via include_title_details). Note: LINZ cannot label a property commercial vs residential; estate_description is returned so you can infer property type.",
       "input_schema": {
         "type": "object",
         "properties": {
           "owner_name": {
             "type": "string",
-            "description": "Owner name or fragment to scope and group by (e.g. a surname or company name). Case-insensitive substring match against the title owners field."
+            "description": "Owner name or fragment to scope and group by (e.g. a surname or company name). Case-insensitive substring match against the per-row owner field."
           },
           "land_district": {
             "type": "string",
@@ -87,18 +87,23 @@
           },
           "max_titles_scanned": {
             "type": "integer",
-            "description": "Maximum number of title records to scan (safety cap, max 10000). Defaults to 2000. If the result is truncated, narrow the filter or increase this.",
+            "description": "Maximum number of owner-title records to scan (safety cap, max 10000). A title held by N matching owners contributes N records. Defaults to 2000. If the result is truncated, narrow the filter or increase this.",
             "default": 2000,
             "minimum": 1,
             "maximum": 10000
           },
           "status": {
             "type": "string",
-            "description": "Optional title status filter. CQL is case-sensitive; use the LDS value 'LIVE'."
+            "description": "Optional title status filter (matches the layer's title_status field). CQL is case-sensitive; use the LDS value 'LIVE'."
           },
           "cql_filter": {
             "type": "string",
-            "description": "Optional raw CQL filter ANDed with the other filters, for advanced scoping."
+            "description": "Optional raw CQL filter ANDed with the other filters, for advanced scoping. Runs against layer-50806 fields (owner, title_no, title_status, land_district, part_ownership)."
+          },
+          "include_title_details": {
+            "type": "boolean",
+            "description": "Enrich each title with estate_description and type from layer-50805 (extra requests). Defaults to true.",
+            "default": true
           }
         },
         "required": []
@@ -123,7 +128,11 @@
                       "land_district": { "type": ["string", "null"] },
                       "estate_description": { "type": ["string", "null"] },
                       "type": { "type": ["string", "null"] },
-                      "status": { "type": ["string", "null"] }
+                      "status": { "type": ["string", "null"] },
+                      "part_ownership": {
+                        "type": ["boolean", "null"],
+                        "description": "True when this owner holds a part share in the title."
+                      }
                     }
                   }
                 }
@@ -131,7 +140,10 @@
             }
           },
           "owner_count": { "type": "integer" },
-          "titles_scanned": { "type": "integer" },
+          "titles_scanned": {
+            "type": "integer",
+            "description": "Owner-title records scanned from layer-50806 (a title with N matching owners counts N times)."
+          },
           "truncated": {
             "type": "boolean",
             "description": "True only when matching titles beyond max_titles_scanned were actually omitted (confirmed via the server's match count, or by probing one record past the cap). Exactly hitting the cap is not reported as truncated."
@@ -143,7 +155,7 @@
     },
     "search_property_titles": {
       "display_name": "Search Property Titles",
-      "description": "Search NZ property titles (including owners) by owner name, title number, land district or status. Returns title records with the owners field, estate description and registration details.",
+      "description": "Search NZ property titles (including owners) by owner name, title number, land district or status. Returns title records with the owners field, estate description and registration details. The owners field is an aggregated comma-separated display string — don't split it to enumerate owners (real names can contain commas); use get_title_owners or find_multi_property_owners for exact per-owner records.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -194,7 +206,7 @@
     },
     "get_title_owners": {
       "display_name": "Get Title Owners",
-      "description": "Get the owners and details of a single property title by its title number.",
+      "description": "Get the owners and details of a single property title by its title number. Owner names come from the normalised NZ Property Titles Owners List (table-51564), one record per registered owner; the aggregated owners display string is only split as a best-effort fallback (owners_exact reports which source was used).",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -212,6 +224,26 @@
         "properties": {
           "title_no": { "type": ["string", "null"] },
           "owners": { "type": "array", "items": { "type": "string" } },
+          "owners_exact": {
+            "type": "boolean",
+            "description": "True when owners came from the normalised owners table (table-51564); false when parsed best-effort from the aggregated display string."
+          },
+          "owner_details": {
+            "type": "array",
+            "description": "One entry per registered owner record from table-51564 (empty when owners_exact is false).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "owner_name": { "type": "string" },
+                "owner_type": { "type": ["string", "null"] },
+                "estate_share": { "type": ["string", "null"] },
+                "prime_surname": { "type": ["string", "null"] },
+                "prime_other_names": { "type": ["string", "null"] },
+                "corporate_name": { "type": ["string", "null"] },
+                "name_suffix": { "type": ["string", "null"] }
+              }
+            }
+          },
           "estate_description": { "type": ["string", "null"] },
           "land_district": { "type": ["string", "null"] },
           "status": { "type": ["string", "null"] },
@@ -285,7 +317,7 @@
         "properties": {
           "layer": {
             "type": "string",
-            "description": "LDS layer or table id, e.g. '50805', 'layer-50805' or 'table-50806'."
+            "description": "LDS layer or table id, e.g. '50805', 'layer-50805' or 'table-51564'."
           },
           "cql_filter": {
             "type": "string",

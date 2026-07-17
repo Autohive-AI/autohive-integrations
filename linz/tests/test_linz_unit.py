@@ -12,13 +12,17 @@ from linz.linz import (
     _extract_features,
     _get_api_key,
     _normalize_layer,
+    _owner_display_name,
     _owner_key,
     _parse_capabilities_layers,
     _split_owners,
     _total_matched,
     LAYER_TITLES,
     LAYER_TITLES_OWNERS,
+    LAYER_TITLE_OWNERS,
     LAYER_PRIMARY_PARCELS,
+    OWNER_SCAN_FIELDS,
+    TABLE_TITLE_OWNERS_LIST,
 )
 
 pytestmark = pytest.mark.unit
@@ -113,7 +117,7 @@ class TestHelpers:
 
     def test_normalize_layer_prefixed(self):
         assert _normalize_layer("layer-50805") == "layer-50805"
-        assert _normalize_layer("table-50806") == "table-50806"
+        assert _normalize_layer("table-51564") == "table-51564"
 
     def test_normalize_layer_blank_raises(self):
         with pytest.raises(ValueError):
@@ -147,6 +151,17 @@ class TestHelpers:
     def test_owner_key_normalises(self):
         assert _owner_key("  john   smith ") == "JOHN SMITH"
 
+    def test_owner_display_name_corporate(self):
+        assert _owner_display_name({"corporate_name": "ACME LIMITED"}) == "ACME LIMITED"
+
+    def test_owner_display_name_individual(self):
+        # Mirrors LINZ's construction: prime_other_names + prime_surname.
+        assert _owner_display_name({"prime_other_names": "John David", "prime_surname": "Smith"}) == "John David Smith"
+
+    def test_owner_display_name_corporate_wins_and_empty_is_none(self):
+        assert _owner_display_name({"corporate_name": "ACME", "prime_surname": "Smith"}) == "ACME"
+        assert _owner_display_name({}) is None
+
     def test_extract_features(self):
         assert _extract_features(collection([{"x": 1}])) == [{"x": 1}]
         assert _extract_features({}) == []
@@ -170,10 +185,12 @@ class TestHelpers:
     def test_parse_capabilities_layers(self):
         # Must handle the encoding declaration and strip the namespace prefix
         # from layer ids, exactly as real LDS capabilities documents need.
-        xml = capabilities_xml([("layer-50804", "NZ Property Titles"), ("table-50806", "NZ Title Owners")])
+        xml = capabilities_xml(
+            [("layer-50804", "NZ Property Titles"), ("table-51564", "NZ Property Titles Owners List")]
+        )
         assert _parse_capabilities_layers(xml) == [
             {"id": "layer-50804", "title": "NZ Property Titles"},
-            {"id": "table-50806", "title": "NZ Title Owners"},
+            {"id": "table-51564", "title": "NZ Property Titles Owners List"},
         ]
 
     def test_parse_capabilities_layers_empty(self):
@@ -298,28 +315,96 @@ class TestSearchPropertyTitles:
 
 
 class TestGetTitleOwners:
-    @pytest.mark.asyncio
-    async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = ok(
-            collection(
-                [
-                    feature(
-                        {
-                            "title_no": "NA1/1",
-                            "owners": "JOHN SMITH, JANE SMITH",
-                            "estate_description": "Fee Simple, 1/1",
-                            "land_district": "North Auckland",
-                            "status": "Live",
-                        }
-                    )
-                ]
+    TITLE_50805 = collection(
+        [
+            feature(
+                {
+                    "title_no": "NA1/1",
+                    "owners": "JANE SMITH, JOHN SMITH",
+                    "estate_description": "Fee Simple, 1/1",
+                    "land_district": "North Auckland",
+                    "status": "Live",
+                }
             )
-        )
+        ]
+    )
+
+    @staticmethod
+    def owner_row(**props):
+        defaults = {
+            "owner_type": "Individual",
+            "estate_share": "1/2",
+            "prime_surname": None,
+            "prime_other_names": None,
+            "corporate_name": None,
+            "name_suffix": None,
+        }
+        return feature({**defaults, **props})
+
+    @pytest.mark.asyncio
+    async def test_happy_path_owners_from_normalised_table(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok(self.TITLE_50805),
+            ok(
+                collection(
+                    [
+                        self.owner_row(prime_other_names="John", prime_surname="Smith"),
+                        self.owner_row(prime_other_names="Jane", prime_surname="Smith"),
+                    ]
+                )
+            ),
+        ]
         result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["owners"] == ["JOHN SMITH", "JANE SMITH"]
+        assert data["owners"] == ["John Smith", "Jane Smith"]
+        assert data["owners_exact"] is True
         assert data["estate_description"] == "Fee Simple, 1/1"
+        assert [d["owner_name"] for d in data["owner_details"]] == ["John Smith", "Jane Smith"]
+        assert data["owner_details"][0]["estate_share"] == "1/2"
+        # Second request must hit the normalised owners table.
+        owners_params = mock_context.fetch.call_args.kwargs["params"]
+        assert owners_params["typeNames"] == TABLE_TITLE_OWNERS_LIST
+        assert owners_params["cql_filter"] == "title_no = 'NA1/1'"
+
+    @pytest.mark.asyncio
+    async def test_comma_in_corporate_name_is_one_owner(self, mock_context):
+        # The regression the aggregated-string split could never get right: a
+        # single owner whose real name contains a comma.
+        mock_context.fetch.side_effect = [
+            ok(self.TITLE_50805),
+            ok(
+                collection([self.owner_row(owner_type="Corporate", corporate_name="SMITH, JONES AND PARTNERS LIMITED")])
+            ),
+        ]
+        result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
+        data = result.result.data
+        assert data["owners"] == ["SMITH, JONES AND PARTNERS LIMITED"]
+        assert data["owners_exact"] is True
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_display_string_when_table_empty(self, mock_context):
+        mock_context.fetch.side_effect = [ok(self.TITLE_50805), ok(collection([]))]
+        result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
+        data = result.result.data
+        assert data["owners"] == ["JANE SMITH", "JOHN SMITH"]
+        assert data["owners_exact"] is False
+        assert data["owner_details"] == []
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_table_inaccessible(self, mock_context):
+        # A key licensed for layer-50805 but not table-51564 must still work.
+        unknown = (
+            '<?xml version="1.0"?><ows:ExceptionReport><ows:Exception>'
+            "<ows:ExceptionText>Feature type :table-51564 unknown</ows:ExceptionText>"
+            "</ows:Exception></ows:ExceptionReport>"
+        )
+        mock_context.fetch.side_effect = [ok(self.TITLE_50805), ok(unknown, status=400)]
+        result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["owners"] == ["JANE SMITH", "JOHN SMITH"]
+        assert data["owners_exact"] is False
 
     @pytest.mark.asyncio
     async def test_missing_title_no(self, mock_context):
@@ -334,6 +419,8 @@ class TestGetTitleOwners:
         result = await linz.execute_action("get_title_owners", {"title_no": "ZZ9/9"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "No title found" in result.result.message
+        # No owners-table lookup for a missing title.
+        assert mock_context.fetch.call_count == 1
 
 
 # =============================================================================
@@ -342,6 +429,24 @@ class TestGetTitleOwners:
 
 
 class TestFindMultiPropertyOwners:
+    @staticmethod
+    def owner_row(owner, title_no, district="Otago", status="LIVE", part=False):
+        """One layer-50806 feature: a distinct (owner, title) pair."""
+        return feature(
+            {
+                "owner": owner,
+                "title_no": title_no,
+                "title_status": status,
+                "land_district": district,
+                "part_ownership": part,
+            }
+        )
+
+    @staticmethod
+    def detail_row(title_no, estate="Fee Simple, 1/1", type_="Freehold"):
+        """One layer-50805 enrichment feature."""
+        return feature({"title_no": title_no, "estate_description": estate, "type": type_})
+
     @pytest.mark.asyncio
     async def test_requires_scoping_filter(self, mock_context):
         result = await linz.execute_action("find_multi_property_owners", {}, mock_context)
@@ -350,73 +455,85 @@ class TestFindMultiPropertyOwners:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_aggregates_distinct_titles(self, mock_context):
-        # District-wide scan (no owner_name): both multi-title owners returned.
-        # SMITH owns T1+T2; JONES owns T2+T3.
-        mock_context.fetch.return_value = ok(
-            collection(
-                [
-                    feature({"title_no": "T1", "owners": "JOHN SMITH", "land_district": "Otago"}),
-                    feature({"title_no": "T2", "owners": "JOHN SMITH, JANE JONES", "land_district": "Otago"}),
-                    feature({"title_no": "T3", "owners": "JANE JONES", "land_district": "Otago"}),
-                ]
-            )
-        )
+    async def test_aggregates_distinct_titles_from_owner_rows(self, mock_context):
+        # District-wide scan: SMITH owns T1+T2; JONES owns T2+T3. Each scanned
+        # record is one (owner, title) row — no string splitting involved.
+        mock_context.fetch.side_effect = [
+            ok(
+                collection(
+                    [
+                        self.owner_row("JOHN SMITH", "T1"),
+                        self.owner_row("JOHN SMITH", "T2"),
+                        self.owner_row("JANE JONES", "T2"),
+                        self.owner_row("JANE JONES", "T3"),
+                    ]
+                )
+            ),
+            ok(collection([self.detail_row(t) for t in ("T1", "T2", "T3")])),
+        ]
         result = await linz.execute_action("find_multi_property_owners", {"land_district": "Otago"}, mock_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["titles_scanned"] == 3
+        assert data["titles_scanned"] == 4  # owner-title rows, not titles
         assert data["owner_count"] == 2
         by_name = {o["owner_name"]: o for o in data["owners"]}
         assert by_name["JOHN SMITH"]["property_count"] == 2
         assert {t["title_no"] for t in by_name["JOHN SMITH"]["titles"]} == {"T1", "T2"}
         assert {t["title_no"] for t in by_name["JANE JONES"]["titles"]} == {"T2", "T3"}
+        # The scan must hit the row-per-owner layer without geometry.
+        scan_params = mock_context.fetch.call_args_list[0].kwargs["params"]
+        assert scan_params["typeNames"] == LAYER_TITLE_OWNERS
+        assert scan_params["propertyName"] == OWNER_SCAN_FIELDS
 
     @pytest.mark.asyncio
-    async def test_owner_name_filters_co_owners(self, mock_context):
-        # Scoped to SMITH: JANE JONES (a co-owner) must not be aggregated even
-        # though she co-owns two titles with smiths.
+    async def test_comma_in_owner_name_is_single_owner(self, mock_context):
+        # The regression comma-splitting used to get wrong: one corporate owner
+        # whose real name contains ', ' must not become two owners.
         mock_context.fetch.return_value = ok(
             collection(
                 [
-                    feature({"title_no": "T1", "owners": "JOHN SMITH, JANE JONES"}),
-                    feature({"title_no": "T2", "owners": "MARY SMITH, JANE JONES"}),
+                    self.owner_row("SMITH, JONES AND PARTNERS LIMITED", "T1"),
+                    self.owner_row("SMITH, JONES AND PARTNERS LIMITED", "T2"),
                 ]
             )
         )
         result = await linz.execute_action(
             "find_multi_property_owners",
-            {"owner_name": "smith", "min_properties": 1},
+            {"owner_name": "smith", "include_title_details": False},
             mock_context,
         )
-        names = {o["owner_name"] for o in result.result.data["owners"]}
-        assert "JANE JONES" not in names
-        assert names == {"JOHN SMITH", "MARY SMITH"}
+        data = result.result.data
+        assert data["owner_count"] == 1
+        owner = data["owners"][0]
+        assert owner["owner_name"] == "SMITH, JONES AND PARTNERS LIMITED"
+        assert owner["property_count"] == 2
 
     @pytest.mark.asyncio
     async def test_min_properties_threshold(self, mock_context):
-        mock_context.fetch.return_value = ok(collection([feature({"title_no": "T1", "owners": "SOLO OWNER"})]))
+        mock_context.fetch.return_value = ok(collection([self.owner_row("SOLO OWNER", "T1")]))
         result = await linz.execute_action(
             "find_multi_property_owners",
             {"land_district": "Otago", "min_properties": 2},
             mock_context,
         )
         assert result.result.data["owner_count"] == 0
+        # No results → no enrichment request.
+        assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_duplicate_title_not_double_counted(self, mock_context):
-        # Same title appearing twice (e.g. multiple estates) counts once.
+    async def test_duplicate_row_not_double_counted(self, mock_context):
+        # The same (owner, title) row appearing twice counts once.
         mock_context.fetch.return_value = ok(
             collection(
                 [
-                    feature({"title_no": "T1", "owners": "JOHN SMITH"}),
-                    feature({"title_no": "T1", "owners": "JOHN SMITH"}),
+                    self.owner_row("JOHN SMITH", "T1"),
+                    self.owner_row("JOHN SMITH", "T1"),
                 ]
             )
         )
         result = await linz.execute_action(
             "find_multi_property_owners",
-            {"owner_name": "smith", "min_properties": 1},
+            {"owner_name": "smith", "min_properties": 1, "include_title_details": False},
             mock_context,
         )
         owner = result.result.data["owners"][0]
@@ -431,14 +548,71 @@ class TestFindMultiPropertyOwners:
             mock_context,
         )
         params = mock_context.fetch.call_args.kwargs["params"]
-        assert params["typeNames"] == LAYER_TITLES_OWNERS
-        assert params["cql_filter"] == "(owners ILIKE '%smith%') AND (land_district = 'Otago') AND (status = 'LIVE')"
+        assert params["typeNames"] == LAYER_TITLE_OWNERS
+        assert (
+            params["cql_filter"] == "(owner ILIKE '%smith%') AND (land_district = 'Otago') AND (title_status = 'LIVE')"
+        )
+
+    @pytest.mark.asyncio
+    async def test_title_details_enriched_from_50805(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok(
+                collection(
+                    [
+                        self.owner_row("JOHN SMITH", "T1", part=True),
+                        self.owner_row("JOHN SMITH", "T2"),
+                    ]
+                )
+            ),
+            ok(
+                collection(
+                    [
+                        self.detail_row("T1", estate="Fee Simple, 1/2, Lot 1 DP 1", type_="Freehold"),
+                        self.detail_row("T2", estate="Leasehold, 1/1", type_="Leasehold"),
+                    ]
+                )
+            ),
+        ]
+        result = await linz.execute_action(
+            "find_multi_property_owners",
+            {"owner_name": "smith", "min_properties": 2},
+            mock_context,
+        )
+        titles = {t["title_no"]: t for t in result.result.data["owners"][0]["titles"]}
+        assert titles["T1"]["estate_description"] == "Fee Simple, 1/2, Lot 1 DP 1"
+        assert titles["T1"]["part_ownership"] is True
+        assert titles["T2"]["type"] == "Leasehold"
+        detail_params = mock_context.fetch.call_args.kwargs["params"]
+        assert detail_params["typeNames"] == LAYER_TITLES_OWNERS
+        assert detail_params["cql_filter"] == "title_no IN ('T1', 'T2')"
+        assert detail_params["propertyName"] == "title_no,estate_description,type"
+
+    @pytest.mark.asyncio
+    async def test_include_title_details_false_skips_enrichment(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            collection([self.owner_row("JOHN SMITH", "T1"), self.owner_row("JOHN SMITH", "T2")])
+        )
+        result = await linz.execute_action(
+            "find_multi_property_owners",
+            {"owner_name": "smith", "include_title_details": False},
+            mock_context,
+        )
+        assert mock_context.fetch.call_count == 1
+        title = result.result.data["owners"][0]["titles"][0]
+        assert title["estate_description"] is None
 
     @staticmethod
     def bulk_page(prefix, size=1000, **extra):
         return collection(
-            [feature({"title_no": f"{prefix}{i}", "owners": "BULK OWNER"}) for i in range(size)], **extra
+            [TestFindMultiPropertyOwners.owner_row("BULK OWNER", f"{prefix}{i}") for i in range(size)], **extra
         )
+
+    BULK_INPUTS = {
+        "owner_name": "bulk",
+        "max_titles_scanned": 2000,
+        "min_properties": 1,
+        "include_title_details": False,
+    }
 
     @pytest.mark.asyncio
     async def test_truncated_when_numeric_total_exceeds_cap(self, mock_context):
@@ -447,11 +621,7 @@ class TestFindMultiPropertyOwners:
             ok(self.bulk_page("A", numberMatched=2500)),
             ok(self.bulk_page("B", numberMatched=2500)),
         ]
-        result = await linz.execute_action(
-            "find_multi_property_owners",
-            {"owner_name": "bulk", "max_titles_scanned": 2000, "min_properties": 1},
-            mock_context,
-        )
+        result = await linz.execute_action("find_multi_property_owners", self.BULK_INPUTS, mock_context)
         data = result.result.data
         assert data["titles_scanned"] == 2000
         assert data["truncated"] is True
@@ -465,11 +635,7 @@ class TestFindMultiPropertyOwners:
             ok(self.bulk_page("A", numberMatched=2000)),
             ok(self.bulk_page("B", numberMatched=2000)),
         ]
-        result = await linz.execute_action(
-            "find_multi_property_owners",
-            {"owner_name": "bulk", "max_titles_scanned": 2000, "min_properties": 1},
-            mock_context,
-        )
+        result = await linz.execute_action("find_multi_property_owners", self.BULK_INPUTS, mock_context)
         data = result.result.data
         assert data["titles_scanned"] == 2000
         assert data["truncated"] is False
@@ -484,11 +650,7 @@ class TestFindMultiPropertyOwners:
             ok(self.bulk_page("B", totalFeatures="unknown")),
             ok(collection([])),
         ]
-        result = await linz.execute_action(
-            "find_multi_property_owners",
-            {"owner_name": "bulk", "max_titles_scanned": 2000, "min_properties": 1},
-            mock_context,
-        )
+        result = await linz.execute_action("find_multi_property_owners", self.BULK_INPUTS, mock_context)
         data = result.result.data
         assert data["titles_scanned"] == 2000
         assert data["truncated"] is False
@@ -503,13 +665,9 @@ class TestFindMultiPropertyOwners:
         mock_context.fetch.side_effect = [
             ok(self.bulk_page("A", totalFeatures="unknown")),
             ok(self.bulk_page("B", totalFeatures="unknown")),
-            ok(collection([feature({"title_no": "C0", "owners": "BULK OWNER"})])),
+            ok(collection([self.owner_row("BULK OWNER", "C0")])),
         ]
-        result = await linz.execute_action(
-            "find_multi_property_owners",
-            {"owner_name": "bulk", "max_titles_scanned": 2000, "min_properties": 1},
-            mock_context,
-        )
+        result = await linz.execute_action("find_multi_property_owners", self.BULK_INPUTS, mock_context)
         data = result.result.data
         assert data["titles_scanned"] == 2000
         assert data["truncated"] is True
@@ -595,11 +753,16 @@ class TestQueryLayer:
 
 
 class TestListAvailableLayers:
-    ALL_LAYERS = [
+    OWNERSHIP_LAYERS = [
         (LAYER_TITLES_OWNERS, "NZ Property Titles Including Owners"),
+        (LAYER_TITLE_OWNERS, "NZ Property Title Owners"),
+        (TABLE_TITLE_OWNERS_LIST, "NZ Property Titles Owners List"),
+    ]
+    PUBLIC_LAYERS = [
         (LAYER_TITLES, "NZ Property Titles"),
         (LAYER_PRIMARY_PARCELS, "NZ Primary Parcels"),
     ]
+    ALL_LAYERS = OWNERSHIP_LAYERS + PUBLIC_LAYERS
 
     @pytest.mark.asyncio
     async def test_sends_getcapabilities_request(self, mock_context):
@@ -617,12 +780,14 @@ class TestListAvailableLayers:
         result = await linz.execute_action("list_available_layers", {}, mock_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["count"] == 3
-        assert data["total_available"] == 3
+        assert data["count"] == 5
+        assert data["total_available"] == 5
         assert data["truncated"] is False
         assert {"id": LAYER_TITLES, "title": "NZ Property Titles"} in data["layers"]
         assert data["integration_layers"] == {
             LAYER_TITLES_OWNERS: True,
+            LAYER_TITLE_OWNERS: True,
+            TABLE_TITLE_OWNERS_LIST: True,
             LAYER_TITLES: True,
             LAYER_PRIMARY_PARCELS: True,
         }
@@ -643,13 +808,15 @@ class TestListAvailableLayers:
         assert "data.linz.govt.nz/my/api" in data["note"]
 
     @pytest.mark.asyncio
-    async def test_missing_ownership_layer_notes_licence(self, mock_context):
-        # Key can query public layers but not the licensed ownership layer.
-        mock_context.fetch.return_value = ok(capabilities_xml(self.ALL_LAYERS[1:]))
+    async def test_missing_ownership_layers_note_licence(self, mock_context):
+        # Key can query public layers but none of the licensed ownership datasets.
+        mock_context.fetch.return_value = ok(capabilities_xml(self.PUBLIC_LAYERS))
         result = await linz.execute_action("list_available_layers", {}, mock_context)
         data = result.result.data
         assert data["integration_layers"] == {
             LAYER_TITLES_OWNERS: False,
+            LAYER_TITLE_OWNERS: False,
+            TABLE_TITLE_OWNERS_LIST: False,
             LAYER_TITLES: True,
             LAYER_PRIMARY_PARCELS: True,
         }
@@ -664,7 +831,7 @@ class TestListAvailableLayers:
         assert [layer["id"] for layer in data["layers"]] == [LAYER_PRIMARY_PARCELS]
         assert data["count"] == 1
         # Diagnostics still reflect the full capabilities, not the filter.
-        assert data["total_available"] == 3
+        assert data["total_available"] == 5
         assert data["integration_layers"][LAYER_TITLES_OWNERS] is True
 
     @pytest.mark.asyncio
@@ -674,7 +841,7 @@ class TestListAvailableLayers:
         data = result.result.data
         assert data["count"] == 2
         assert data["truncated"] is True
-        assert data["total_available"] == 3
+        assert data["total_available"] == 5
 
     @pytest.mark.asyncio
     async def test_non_xml_response_is_action_error(self, mock_context):

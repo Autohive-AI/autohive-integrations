@@ -90,7 +90,13 @@ class TestListAvailableLayers:
         data = result.result.data
         assert isinstance(data["layers"], list)
         assert len(data["layers"]) <= 5
-        assert set(data["integration_layers"]) == {"layer-50805", "layer-50804", "layer-50772"}
+        assert set(data["integration_layers"]) == {
+            "layer-50805",
+            "layer-50806",
+            "table-51564",
+            "layer-50804",
+            "layer-50772",
+        }
         assert data["note"]
         if data["total_available"] == 0:
             # Valid key with no query scope: the note must say how to fix it.
@@ -210,6 +216,10 @@ class TestGetTitleOwners:
         data = result.result.data
         assert data["title_no"] == title_no
         assert isinstance(data["owners"], list)
+        # A licensed key should resolve owners from the normalised table.
+        assert isinstance(data["owner_details"], list)
+        if data["owners_exact"]:
+            assert len(data["owner_details"]) >= len(data["owners"])
 
 
 class TestFindMultiPropertyOwners:

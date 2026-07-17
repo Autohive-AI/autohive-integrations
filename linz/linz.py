@@ -7,9 +7,14 @@ Reads property, title, ownership and parcel data from the LINZ Data Service
 USE CASE — owners of multiple properties:
 -----------------------------------------
 The headline action ``find_multi_property_owners`` scans the
-"NZ Property Titles Including Owners" layer (``layer-50805``), aggregates the
-concatenated ``owners`` field across distinct titles, and returns owners who
-appear on more than one title.
+"NZ Property Title Owners" layer (``layer-50806``) — one row per distinct
+(owner, title) pair — aggregates distinct titles per owner, and returns owners
+who appear on more than one title. Owner names come from a per-row field, never
+from splitting the aggregated ``owners`` display string on ``layer-50805``
+(LINZ builds that string with ``string_agg(DISTINCT owner, ', ')`` over
+unescaped free-text names, so a comma inside a real name is indistinguishable
+from the separator). Title descriptors (``estate_description``, ``type``) are
+enriched from ``layer-50805`` afterwards.
 
 LIMITATION — commercial vs residential:
 ---------------------------------------
@@ -52,6 +57,8 @@ LDS_WFS_URL_TEMPLATE = "https://data.linz.govt.nz/services;key={key}/wfs"  # noq
 
 # Well-known LDS layers used by the typed actions.
 LAYER_TITLES_OWNERS = "layer-50805"  # NZ Property Titles Including Owners (licensed)
+LAYER_TITLE_OWNERS = "layer-50806"  # NZ Property Title Owners: one row per (owner, title) (licensed)
+TABLE_TITLE_OWNERS_LIST = "table-51564"  # NZ Property Titles Owners List: normalised owner records (licensed)
 LAYER_TITLES = "layer-50804"  # NZ Property Titles (no owner names)
 LAYER_PRIMARY_PARCELS = "layer-50772"  # NZ Primary Parcels
 
@@ -60,6 +67,12 @@ WFS_VERSION = "2.0.0"
 DEFAULT_PAGE_SIZE = 1000
 # Safety ceiling for the multi-property scan so a broad filter can't run away.
 MAX_SCAN_HARD_CAP = 10000
+# Titles per detail-enrichment request (title_no IN (...) keeps the URL short).
+TITLE_DETAIL_CHUNK = 200
+
+# Fields requested when scanning layer-50806 — excludes the (large) title
+# geometry, which LDS omits when propertyName is set.
+OWNER_SCAN_FIELDS = "owner,title_no,title_status,land_district,part_ownership"
 
 PROPERTY_TYPE_NOTE = (
     "LINZ data does not classify properties as commercial or residential; that "
@@ -219,6 +232,7 @@ async def _wfs_get_features(
     start_index: Optional[int] = None,
     sort_by: Optional[str] = None,
     srs_name: Optional[str] = None,
+    property_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Issue a WFS 2.0.0 GetFeature request and return the GeoJSON collection."""
     url = LDS_WFS_URL_TEMPLATE.format(key=_get_api_key(context))
@@ -239,6 +253,8 @@ async def _wfs_get_features(
         params["sortBy"] = sort_by
     if srs_name:
         params["srsName"] = srs_name
+    if property_name:
+        params["propertyName"] = property_name
 
     response = await context.fetch(url, method="GET", params=params)
     _check_wfs_response(response)
@@ -293,6 +309,7 @@ async def _wfs_collect(
     cql_filter: Optional[str],
     max_records: int,
     sort_by: Optional[str] = None,
+    property_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Page through GetFeature results up to ``max_records`` features.
 
@@ -316,6 +333,7 @@ async def _wfs_collect(
             count=page_size,
             start_index=start_index,
             sort_by=sort_by,
+            property_name=property_name,
         )
         features = _extract_features(collection)
         collected.extend(features)
@@ -337,6 +355,7 @@ async def _wfs_collect(
                     count=1,
                     start_index=len(collected),
                     sort_by=sort_by,
+                    property_name=property_name,
                 )
                 truncated = bool(_extract_features(probe))
             break
@@ -353,17 +372,32 @@ def _strip_geometry(feature: Dict[str, Any], include_geometry: bool) -> Dict[str
 
 
 # =============================================================================
-# Owner-name parsing for the multi-property use case
+# Owner-name helpers
 # =============================================================================
 
 
-def _split_owners(owners_value: Any) -> List[str]:
-    """Split the LDS concatenated ``owners`` string into individual names.
+def _owner_display_name(props: Dict[str, Any]) -> Optional[str]:
+    """Build an owner's display name from a normalised owners-list row.
 
-    LDS renders multiple owners comma-separated, e.g.
-    ``"JOHN DAVID SMITH, JANE MARY SMITH"`` or ``"ACME PROPERTIES LIMITED"``.
-    This is best-effort: an owner whose stored name contains a comma cannot be
-    distinguished from a separator.
+    Mirrors how LINZ constructs owner names for its aggregated layers: the
+    corporate name as-is, or ``prime_other_names + prime_surname`` for
+    individuals.
+    """
+    corporate = props.get("corporate_name")
+    if corporate and str(corporate).strip():
+        return str(corporate).strip()
+    parts = [props.get("prime_other_names"), props.get("prime_surname")]
+    name = " ".join(str(p).strip() for p in parts if p and str(p).strip())
+    return name or None
+
+
+def _split_owners(owners_value: Any) -> List[str]:
+    """Split the LDS concatenated ``owners`` display string into names.
+
+    LAST-RESORT FALLBACK ONLY: LINZ builds ``owners`` by comma-joining
+    unescaped free-text names, so an owner whose stored name contains a comma
+    cannot be distinguished from a separator. Prefer the per-row sources
+    (``layer-50806`` / ``table-51564``) wherever they are accessible.
     """
     if not owners_value:
         return []
@@ -441,7 +475,14 @@ class SearchPropertyTitlesAction(ActionHandler):
 
 @linz.action("get_title_owners")
 class GetTitleOwnersAction(ActionHandler):
-    """Get the owners and details of a single title by title number."""
+    """Get the owners and details of a single title by title number.
+
+    Title details come from ``layer-50805``. Owner names come from the
+    normalised owners list (``table-51564``) — one record per registered
+    owner, no comma-splitting. Only when that table yields nothing (e.g. a key
+    without access to it) does the action fall back to best-effort splitting
+    of the aggregated ``owners`` display string, flagged via ``owners_exact``.
+    """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
@@ -458,11 +499,52 @@ class GetTitleOwnersAction(ActionHandler):
                 return ActionError(message=f"No title found for title_no '{title_no}'.")
 
             props = _properties(features[0])
-            owners = _split_owners(props.get("owners"))
+
+            try:
+                rows_collection = await _wfs_get_features(
+                    context,
+                    TABLE_TITLE_OWNERS_LIST,
+                    cql_filter=f"title_no = {_cql_literal(title_no)}",
+                    count=DEFAULT_PAGE_SIZE,
+                )
+                owner_rows = _extract_features(rows_collection)
+            except RuntimeError:
+                owner_rows = []  # key can't reach the normalised table
+
+            owners: List[str] = []
+            owner_details: List[Dict[str, Any]] = []
+            seen_keys = set()
+            for row in owner_rows:
+                row_props = _properties(row)
+                name = _owner_display_name(row_props)
+                if not name:
+                    continue
+                owner_details.append(
+                    {
+                        "owner_name": name,
+                        "owner_type": row_props.get("owner_type"),
+                        "estate_share": row_props.get("estate_share"),
+                        "prime_surname": row_props.get("prime_surname"),
+                        "prime_other_names": row_props.get("prime_other_names"),
+                        "corporate_name": row_props.get("corporate_name"),
+                        "name_suffix": row_props.get("name_suffix"),
+                    }
+                )
+                key = _owner_key(name)
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    owners.append(name)
+
+            owners_exact = bool(owners)
+            if not owners_exact:
+                owners = _split_owners(props.get("owners"))
+
             return ActionResult(
                 data={
                     "title_no": props.get("title_no", title_no),
                     "owners": owners,
+                    "owners_exact": owners_exact,
+                    "owner_details": owner_details,
                     "estate_description": props.get("estate_description"),
                     "land_district": props.get("land_district"),
                     "status": props.get("status"),
@@ -482,13 +564,47 @@ class GetTitleOwnersAction(ActionHandler):
 # =============================================================================
 
 
+async def _enrich_title_details(context: ExecutionContext, results: List[Dict[str, Any]]) -> None:
+    """Merge estate_description/type from layer-50805 into title records.
+
+    The owner scan runs against layer-50806, which doesn't carry estate
+    descriptors; look them up per distinct title in chunked ``title_no IN``
+    queries (geometry excluded) and fill the records in place.
+    """
+    title_nos = sorted({t["title_no"] for owner in results for t in owner["titles"]})
+    details: Dict[str, Dict[str, Any]] = {}
+    for i in range(0, len(title_nos), TITLE_DETAIL_CHUNK):
+        chunk = title_nos[i : i + TITLE_DETAIL_CHUNK]
+        in_list = ", ".join(_cql_literal(t) for t in chunk)
+        collection = await _wfs_get_features(
+            context,
+            LAYER_TITLES_OWNERS,
+            cql_filter=f"title_no IN ({in_list})",
+            count=len(chunk),
+            property_name="title_no,estate_description,type",
+        )
+        for feature in _extract_features(collection):
+            props = _properties(feature)
+            if props.get("title_no"):
+                details[props["title_no"]] = props
+    for owner in results:
+        for title_record in owner["titles"]:
+            detail = details.get(title_record["title_no"])
+            if detail:
+                title_record["estate_description"] = detail.get("estate_description")
+                title_record["type"] = detail.get("type")
+
+
 @linz.action("find_multi_property_owners")
 class FindMultiPropertyOwnersAction(ActionHandler):
     """Find owners who appear on more than one property title.
 
-    Scans the NZ Property Titles Including Owners layer within a scoping filter,
-    splits the concatenated ``owners`` field, and aggregates distinct titles per
-    owner. Returns owners holding at least ``min_properties`` titles.
+    Scans the NZ Property Title Owners layer (``layer-50806``, one row per
+    distinct owner/title pair) within a scoping filter and aggregates distinct
+    titles per owner. Owner names are exact per-row values — never parsed out
+    of the aggregated ``owners`` display string, whose unescaped commas can't
+    be split reliably. Returns owners holding at least ``min_properties``
+    titles, with estate descriptors enriched from ``layer-50805``.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
@@ -509,11 +625,11 @@ class FindMultiPropertyOwnersAction(ActionHandler):
 
             clauses: List[str] = []
             if owner_name:
-                clauses.append(f"owners ILIKE {_cql_literal('%' + owner_name + '%')}")
+                clauses.append(f"owner ILIKE {_cql_literal('%' + owner_name + '%')}")
             if land_district:
                 clauses.append(f"land_district = {_cql_literal(land_district)}")
             if inputs.get("status"):
-                clauses.append(f"status = {_cql_literal(inputs['status'])}")
+                clauses.append(f"title_status = {_cql_literal(inputs['status'])}")
             if extra:
                 clauses.append(extra)
 
@@ -521,36 +637,39 @@ class FindMultiPropertyOwnersAction(ActionHandler):
             if min_properties < 1:
                 min_properties = 1
             max_scan = int(inputs.get("max_titles_scanned") or 2000)
+            include_title_details = inputs.get("include_title_details")
+            if include_title_details is None:
+                include_title_details = True
 
             scan = await _wfs_collect(
                 context,
-                LAYER_TITLES_OWNERS,
+                LAYER_TITLE_OWNERS,
                 cql_filter=_and(clauses),
                 max_records=max_scan,
+                property_name=OWNER_SCAN_FIELDS,
             )
 
-            # Aggregate distinct titles per owner.
+            # Aggregate distinct titles per owner. Each scanned row is one
+            # (owner, title) pair, so no name splitting or client-side owner
+            # re-filtering is needed — the CQL filter already matched the
+            # per-row owner field.
             owners_index: Dict[str, Dict[str, Any]] = {}
             for feature in scan["features"]:
                 props = _properties(feature)
+                name = (props.get("owner") or "").strip()
                 title_no = props.get("title_no")
-                title_record = {
+                if not name or title_no is None:
+                    continue
+                key = _owner_key(name)
+                entry = owners_index.setdefault(key, {"owner_name": name, "_titles": {}})
+                entry["_titles"][title_no] = {
                     "title_no": title_no,
                     "land_district": props.get("land_district"),
-                    "estate_description": props.get("estate_description"),
-                    "type": props.get("type"),
-                    "status": props.get("status"),
+                    "status": props.get("title_status"),
+                    "part_ownership": props.get("part_ownership"),
+                    "estate_description": None,
+                    "type": None,
                 }
-                names = _split_owners(props.get("owners"))
-                for name in names:
-                    # If owner_name was given, only aggregate matching owners so
-                    # co-owners on the same title don't pollute the result.
-                    if owner_name and owner_name.upper() not in name.upper():
-                        continue
-                    key = _owner_key(name)
-                    entry = owners_index.setdefault(key, {"owner_name": name, "_titles": {}})
-                    if title_no is not None:
-                        entry["_titles"][title_no] = title_record
 
             results = []
             for entry in owners_index.values():
@@ -564,6 +683,9 @@ class FindMultiPropertyOwnersAction(ActionHandler):
                         }
                     )
             results.sort(key=lambda r: r["property_count"], reverse=True)
+
+            if results and include_title_details:
+                await _enrich_title_details(context, results)
 
             return ActionResult(
                 data={
@@ -718,7 +840,13 @@ class ListAvailableLayersAction(ActionHandler):
             available_ids = {layer["id"] for layer in layers}
             integration_layers = {
                 layer_id: layer_id in available_ids
-                for layer_id in (LAYER_TITLES_OWNERS, LAYER_TITLES, LAYER_PRIMARY_PARCELS)
+                for layer_id in (
+                    LAYER_TITLES_OWNERS,
+                    LAYER_TITLE_OWNERS,
+                    TABLE_TITLE_OWNERS_LIST,
+                    LAYER_TITLES,
+                    LAYER_PRIMARY_PARCELS,
+                )
             }
 
             name_contains = inputs.get("name_contains")
@@ -739,9 +867,9 @@ class ListAvailableLayersAction(ActionHandler):
                 missing = [layer_id for layer_id, ok in integration_layers.items() if not ok]
                 note = (
                     f"The key cannot access {', '.join(missing)}, used by this integration's typed "
-                    "actions. For the ownership layer (layer-50805) accept the LINZ Licence for "
-                    "Personal Data; otherwise check the key's layer permissions at "
-                    "https://data.linz.govt.nz/my/api/."
+                    "actions. For the ownership datasets (layer-50805, layer-50806, table-51564) "
+                    "accept the LINZ Licence for Personal Data; otherwise check the key's layer "
+                    "permissions at https://data.linz.govt.nz/my/api/."
                 )
             else:
                 note = "The key can access all layers used by this integration's typed actions."

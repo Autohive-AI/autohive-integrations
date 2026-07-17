@@ -23,25 +23,40 @@ generic escape hatch:
 | `search_parcels` | Search primary parcels by appellation, title, intent or district. |
 | `query_layer` | Run a raw WFS query against any LDS layer or table. |
 
-Layers used:
+Datasets used (the ownership ones all require the same Personal Data Licence):
 
-- `layer-50805` — **NZ Property Titles Including Owners** (licensed personal data; owner names)
+- `layer-50806` — **NZ Property Title Owners**: one row per distinct
+  (owner, title) pair — the aggregation source for `find_multi_property_owners`
+- `table-51564` — **NZ Property Titles Owners List**: normalised owner records
+  (`prime_surname`, `prime_other_names`, `corporate_name`, `estate_share`, …) —
+  the owner source for `get_title_owners`
+- `layer-50805` — **NZ Property Titles Including Owners**: one row per title
+  with an aggregated `owners` display string — search results and estate
+  descriptors
 - `layer-50772` — NZ Primary Parcels
 
 ## Use case: owners of multiple properties
 
-`find_multi_property_owners` scans `layer-50805` within a **scoping filter**
-(an `owner_name` such as a surname, and/or a `land_district`), splits the
-concatenated `owners` field into individual owners, and aggregates **distinct
-titles per owner**. It returns owners holding at least `min_properties` (default
-2) titles, sorted by count, with each owner's titles and descriptors.
+`find_multi_property_owners` scans `layer-50806` within a **scoping filter**
+(an `owner_name` such as a surname, and/or a `land_district`) and aggregates
+**distinct titles per owner**. Because that layer has one row per
+(owner, title) pair, owner names are exact per-row values — the integration
+never splits the aggregated `owners` display string, which LINZ builds by
+comma-joining unescaped free-text names (a comma inside a real corporate name
+would be indistinguishable from a separator and would invent owners and skew
+property counts). It returns owners holding at least `min_properties` (default
+2) titles, sorted by count, with each owner's titles enriched with
+`estate_description`/`type` from `layer-50805` (about one extra request per
+200 distinct titles; set `include_title_details: false` to skip).
 
 A scoping filter is **required** — the layer is national and cannot be scanned
-in full. Use `max_titles_scanned` (default 2000, max 10000) to bound the scan.
-`truncated: true` means matching titles beyond the cap were actually omitted
-(verified against the server's match count, or by probing one record past the
-cap when LINZ reports the total as unknown) — narrow the filter or raise the
-cap for completeness. A scan that exactly fills the cap is not truncated.
+in full. Use `max_titles_scanned` (default 2000, max 10000) to bound the scan;
+it caps **owner-title rows**, so a title held by N matching owners consumes N
+of the budget. `truncated: true` means matching rows beyond the cap were
+actually omitted (verified against the server's match count, or by probing one
+record past the cap when LINZ reports the total as unknown) — narrow the
+filter or raise the cap for completeness. A scan that exactly fills the cap is
+not truncated.
 
 ### ⚠️ Commercial vs residential is not available from LINZ
 
@@ -63,7 +78,8 @@ This integration uses a **per-user LINZ Data Service API key** (custom auth).
 3. When creating the key, enable the **query/web-services (WFS)** scope. A key
    without it is still "valid" but can see **zero** layers — every data action
    then fails with a `400` "Feature type ... unknown" error.
-4. To read ownership data (`layer-50805`), your LINZ account must hold the
+4. To read ownership data (`layer-50805`, `layer-50806`, `table-51564`), your
+   LINZ account must hold the
    **LINZ Licence for Personal Data** —
    [apply for the licence here](https://www.linz.govt.nz/products-services/data/licensing-and-using-data/linz-licence-personal-data/apply-linz-licence-personal-data) —
    and the key must have access to that layer. Without it LINZ omits the layer
@@ -96,11 +112,15 @@ obligations.
 
 ## Limitations
 
-- The `owners` field is a concatenated string; owner aggregation is best-effort
-  string matching (an owner whose stored name contains a comma cannot be
-  distinguished from a separator, and there is no normalised owner ID over WFS).
+- The `owners` field on `layer-50805` (returned by `search_property_titles`) is
+  an aggregated comma-separated display string and is **not safely splittable**
+  — real names can contain commas. Owner enumeration and aggregation therefore
+  use the per-row sources (`layer-50806` / `table-51564`); `get_title_owners`
+  falls back to best-effort splitting only when the key cannot reach the
+  normalised table, and reports it via `owners_exact: false`.
 - No commercial/residential classification (see above).
-- Scans are bounded by `max_titles_scanned`; very broad filters may truncate.
+- Scans are bounded by `max_titles_scanned` (owner-title rows); very broad
+  filters may truncate.
 
 ## Testing
 
