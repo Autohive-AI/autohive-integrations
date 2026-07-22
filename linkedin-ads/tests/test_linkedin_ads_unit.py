@@ -360,7 +360,7 @@ CREATE_INPUTS = {
     "account_id": "123456789",
     "campaign_group_id": "111222333",
     "name": "New Campaign",
-    "objective_type": "WEBSITE_VISITS",
+    "objective_type": "WEBSITE_VISIT",
     "type": "SPONSORED_UPDATES",
     "daily_budget_amount": 100,
 }

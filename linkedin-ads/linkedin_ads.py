@@ -10,7 +10,7 @@ from autohive_integrations_sdk import (
     ActionError,
 )
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 linkedin_ads = Integration.load()
 
@@ -267,10 +267,30 @@ class CreateCampaignAction(ActionHandler):
             status = inputs.get("status", "DRAFT")
             cost_type = inputs.get("cost_type")
             unit_cost_amount = inputs.get("unit_cost_amount")
+            # Required by the API but with sensible defaults so simple creates work.
+            locale_country = inputs.get("locale_country", "US")
+            locale_language = inputs.get("locale_language", "en")
+            offsite_delivery_enabled = inputs.get("offsite_delivery_enabled", False)
+            political_intent = inputs.get("political_intent", "NOT_DECLARED")
 
             account_numeric_id = extract_id_from_urn(account_id)
             account_urn = build_urn("account", account_numeric_id)
             campaign_group_urn = build_urn("campaign_group", extract_id_from_urn(campaign_group_id))
+
+            # runSchedule.start is required; default to now, allow YYYY-MM-DD overrides.
+            start_date = inputs.get("start_date")
+            end_date = inputs.get("end_date")
+            if start_date:
+                start_ms = int(
+                    datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000
+                )
+            else:
+                start_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+            run_schedule = {"start": start_ms}
+            if end_date:
+                run_schedule["end"] = int(
+                    datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000
+                )
 
             campaign_data = {
                 "account": account_urn,
@@ -283,6 +303,10 @@ class CreateCampaignAction(ActionHandler):
                     "amount": str(daily_budget),
                     "currencyCode": currency_code,
                 },
+                "locale": {"country": locale_country, "language": locale_language},
+                "offsiteDeliveryEnabled": offsite_delivery_enabled,
+                "politicalIntent": political_intent,
+                "runSchedule": run_schedule,
             }
 
             if cost_type:

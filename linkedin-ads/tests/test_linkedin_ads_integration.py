@@ -247,7 +247,7 @@ class TestCampaignLifecycle:
                 "account_id": account_id,
                 "campaign_group_id": campaign_group_id,
                 "name": f"Autohive Integration Test {os.getpid()}",
-                "objective_type": "WEBSITE_VISITS",
+                "objective_type": "WEBSITE_VISIT",
                 "type": "SPONSORED_UPDATES",
                 "daily_budget_amount": 10,
                 "currency_code": "USD",

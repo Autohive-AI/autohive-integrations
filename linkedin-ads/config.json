@@ -120,8 +120,8 @@
                     },
                     "objective_type": {
                         "type": "string",
-                        "description": "Campaign objective",
-                        "enum": ["BRAND_AWARENESS", "ENGAGEMENT", "JOB_APPLICANTS", "LEAD_GENERATION", "WEBSITE_CONVERSIONS", "WEBSITE_VISITS", "VIDEO_VIEWS"]
+                        "description": "Campaign objective (singular enum symbols as required by the API)",
+                        "enum": ["BRAND_AWARENESS", "ENGAGEMENT", "JOB_APPLICANTS", "LEAD_GENERATION", "WEBSITE_CONVERSION", "WEBSITE_VISIT", "VIDEO_VIEW", "WEBSITE_TRAFFIC"]
                     },
                     "type": {
                         "type": "string",
@@ -151,6 +151,35 @@
                     "unit_cost_amount": {
                         "type": "number",
                         "description": "Bid amount per unit (optional - only set if cost_type is provided)"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Campaign run-schedule start date (YYYY-MM-DD). Defaults to today if omitted."
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Optional campaign run-schedule end date (YYYY-MM-DD). Open-ended if omitted."
+                    },
+                    "locale_country": {
+                        "type": "string",
+                        "description": "Campaign locale country code (required by the API)",
+                        "default": "US"
+                    },
+                    "locale_language": {
+                        "type": "string",
+                        "description": "Campaign locale language code (required by the API)",
+                        "default": "en"
+                    },
+                    "offsite_delivery_enabled": {
+                        "type": "boolean",
+                        "description": "Serve ads on the LinkedIn Audience Network (required by the API)",
+                        "default": false
+                    },
+                    "political_intent": {
+                        "type": "string",
+                        "description": "Whether the campaign is political advertising (required by the API)",
+                        "enum": ["POLITICAL", "NOT_POLITICAL", "NOT_DECLARED"],
+                        "default": "NOT_DECLARED"
                     }
                 },
                 "required": ["account_id", "campaign_group_id", "name", "objective_type", "type", "daily_budget_amount"]
