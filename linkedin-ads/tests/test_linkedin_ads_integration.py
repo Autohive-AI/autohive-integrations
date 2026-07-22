@@ -16,9 +16,9 @@ Never runs in CI: the default marker filter (-m unit) excludes these, and the
 test_*_integration.py filename is not matched by python_files in pyproject.toml.
 
 Environment variables (see root .env.example):
-    LINKEDIN_ADS_ACCESS_TOKEN   (required)
-    LINKEDIN_ADS_TEST_ACCOUNT_ID (optional — otherwise the first accessible
-                                  account is used)
+    LINKEDIN_ADS_ACCESS_TOKEN     (required)
+    LINKEDIN_ADS_TEST_ACCOUNT_ID  (optional — otherwise the first accessible
+                                   account is used)
 """
 
 import os
@@ -26,50 +26,43 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import aiohttp
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import FetchResponse, HTTPError
 
-from linkedin_ads import (
-    GetAdAccountsAction,
-    GetCampaignsAction,
-    GetCampaignAction,
-    GetCampaignGroupsAction,
-    GetCreativesAction,
-    GetAdAnalyticsAction,
-    GetAdAccountUsersAction,
-    CreateCampaignAction,
-    UpdateCampaignAction,
-    PauseCampaignAction,
-    ActivateCampaignAction,
-)
+from autohive_integrations_sdk import FetchResponse, HTTPError, ResultType
+
+from linkedin_ads import linkedin_ads
 
 pytestmark = pytest.mark.integration
 
 ACCESS_TOKEN = os.environ.get("LINKEDIN_ADS_ACCESS_TOKEN", "")
 TEST_ACCOUNT_ID = os.environ.get("LINKEDIN_ADS_TEST_ACCOUNT_ID", "")
 
+skip_if_no_creds = pytest.mark.skipif(not ACCESS_TOKEN, reason="LINKEDIN_ADS_ACCESS_TOKEN required")
+
 
 @pytest.fixture
 def live_context():
-    """Real ExecutionContext.fetch backed by aiohttp with Bearer auth.
+    """Execution context wired to a real HTTP client with a LinkedIn OAuth token.
 
-    The integration relies on the SDK's platform-auth layer to inject the
-    token in production; here we inject it manually. fetch receives the
-    pre-encoded yarl.URL that make_request builds and forwards it verbatim,
-    and raises HTTPError on non-2xx to mirror the real SDK.
+    The integration relies on the SDK's platform-auth layer to inject the token
+    in production; in tests we bypass it and add the Authorization header
+    manually. fetch receives the pre-encoded yarl.URL built by li_fetch and
+    forwards it verbatim, and raises HTTPError on non-2xx to mirror the SDK.
     """
-    if not ACCESS_TOKEN:
-        pytest.skip("LINKEDIN_ADS_ACCESS_TOKEN not set — skipping integration tests")
 
-    import aiohttp
-
-    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
+    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, body=None, **kwargs):
         merged_headers = dict(headers or {})
         merged_headers["Authorization"] = f"Bearer {ACCESS_TOKEN}"
         async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
-                data = await resp.json(content_type=None)
+            async with session.request(
+                method, url, json=json, data=body, headers=merged_headers, params=params
+            ) as resp:
+                try:
+                    data = await resp.json(content_type=None)
+                except Exception:
+                    data = await resp.text()
                 if resp.status >= 400:
                     raise HTTPError(resp.status, str(data), data)
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
@@ -87,8 +80,10 @@ async def resolve_account_id(live_context):
     """Return a usable ad account ID — the env override, else the first one."""
     if TEST_ACCOUNT_ID:
         return TEST_ACCOUNT_ID
-    result = await GetAdAccountsAction().execute({}, live_context)
-    accounts = result.data.get("accounts", [])
+    result = await linkedin_ads.execute_action("get_ad_accounts", {}, live_context)
+    if result.type == ResultType.ACTION_ERROR:
+        pytest.skip(f"could not list accounts: {result.result.message}")
+    accounts = result.result.data.get("accounts", [])
     if not accounts:
         pytest.skip("No ad accounts available for this token")
     return str(accounts[0]["id"])
@@ -97,108 +92,127 @@ async def resolve_account_id(live_context):
 # ---- Read-Only Tests ----
 
 
+@skip_if_no_creds
 class TestGetAdAccounts:
+    @pytest.mark.asyncio
     async def test_returns_accounts(self, live_context):
-        result = await GetAdAccountsAction().execute({}, live_context)
+        result = await linkedin_ads.execute_action("get_ad_accounts", {}, live_context)
 
-        assert result.data["result"] is True
-        assert isinstance(result.data["accounts"], list)
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert isinstance(result.result.data["accounts"], list)
 
+    @pytest.mark.asyncio
     async def test_respects_page_size(self, live_context):
-        result = await GetAdAccountsAction().execute({"page_size": 1}, live_context)
+        result = await linkedin_ads.execute_action("get_ad_accounts", {"page_size": 1}, live_context)
 
-        assert result.data["result"] is True
-        assert len(result.data["accounts"]) <= 1
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert len(result.result.data["accounts"]) <= 1
 
 
+@skip_if_no_creds
 class TestGetAdAccountUsers:
+    @pytest.mark.asyncio
     async def test_returns_users(self, live_context):
         account_id = await resolve_account_id(live_context)
 
-        result = await GetAdAccountUsersAction().execute({"account_id": account_id}, live_context)
+        result = await linkedin_ads.execute_action("get_ad_account_users", {"account_id": account_id}, live_context)
 
-        assert result.data["result"] is True
-        assert isinstance(result.data["users"], list)
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert isinstance(result.result.data["users"], list)
 
 
+@skip_if_no_creds
 class TestGetCampaigns:
+    @pytest.mark.asyncio
     async def test_returns_campaigns(self, live_context):
         account_id = await resolve_account_id(live_context)
 
-        result = await GetCampaignsAction().execute({"account_id": account_id}, live_context)
+        result = await linkedin_ads.execute_action("get_campaigns", {"account_id": account_id}, live_context)
 
-        assert result.data["result"] is True
-        assert "campaigns" in result.data
-        assert result.data["total"] == len(result.data["campaigns"])
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert result.result.data["total"] == len(result.result.data["campaigns"])
 
+    @pytest.mark.asyncio
     async def test_status_filter_accepted(self, live_context):
         account_id = await resolve_account_id(live_context)
 
-        result = await GetCampaignsAction().execute({"account_id": account_id, "status": "ACTIVE"}, live_context)
+        result = await linkedin_ads.execute_action(
+            "get_campaigns", {"account_id": account_id, "status": "ACTIVE"}, live_context
+        )
 
-        assert result.data["result"] is True
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
 
 
+@skip_if_no_creds
 class TestGetCampaignGroups:
+    @pytest.mark.asyncio
     async def test_returns_campaign_groups(self, live_context):
         account_id = await resolve_account_id(live_context)
 
-        result = await GetCampaignGroupsAction().execute({"account_id": account_id}, live_context)
+        result = await linkedin_ads.execute_action("get_campaign_groups", {"account_id": account_id}, live_context)
 
-        assert result.data["result"] is True
-        assert isinstance(result.data["campaign_groups"], list)
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert isinstance(result.result.data["campaign_groups"], list)
 
 
+@skip_if_no_creds
 class TestGetCampaign:
+    @pytest.mark.asyncio
     async def test_get_single_campaign(self, live_context):
         account_id = await resolve_account_id(live_context)
 
-        listing = await GetCampaignsAction().execute({"account_id": account_id}, live_context)
-        campaigns = listing.data.get("campaigns", [])
+        listing = await linkedin_ads.execute_action("get_campaigns", {"account_id": account_id}, live_context)
+        campaigns = listing.result.data.get("campaigns", [])
         if not campaigns:
             pytest.skip("No campaigns in the account to fetch")
 
         campaign_id = str(campaigns[0]["id"])
-        result = await GetCampaignAction().execute({"account_id": account_id, "campaign_id": campaign_id}, live_context)
+        result = await linkedin_ads.execute_action(
+            "get_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
+        )
 
-        assert result.data["result"] is True
-        assert "campaign" in result.data
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert "campaign" in result.result.data
 
+    @pytest.mark.asyncio
     async def test_nonexistent_campaign_returns_error(self, live_context):
         account_id = await resolve_account_id(live_context)
 
-        result = await GetCampaignAction().execute({"account_id": account_id, "campaign_id": "999999999"}, live_context)
+        result = await linkedin_ads.execute_action(
+            "get_campaign", {"account_id": account_id, "campaign_id": "999999999"}, live_context
+        )
 
-        # Path resolves; the campaign does not exist -> friendly not-found.
-        assert result.data["result"] is False
-        assert "not found" in result.data["error"].lower()
+        # Path resolves; the campaign does not exist -> handler returns ActionError.
+        assert result.type == ResultType.ACTION_ERROR
+        assert "404" in result.result.message
 
 
+@skip_if_no_creds
 class TestGetCreatives:
+    @pytest.mark.asyncio
     async def test_returns_creatives(self, live_context):
         account_id = await resolve_account_id(live_context)
 
-        result = await GetCreativesAction().execute({"account_id": account_id}, live_context)
+        result = await linkedin_ads.execute_action("get_creatives", {"account_id": account_id}, live_context)
 
-        assert result.data["result"] is True
-        assert isinstance(result.data["creatives"], list)
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert isinstance(result.result.data["creatives"], list)
 
 
+@skip_if_no_creds
 class TestGetAdAnalytics:
+    @pytest.mark.asyncio
     async def test_returns_analytics(self, live_context):
         account_id = await resolve_account_id(live_context)
 
-        result = await GetAdAnalyticsAction().execute(
-            {
-                "account_id": account_id,
-                "start_date": "2026-06-01",
-                "end_date": "2026-06-30",
-            },
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {"account_id": account_id, "start_date": "2026-06-01", "end_date": "2026-06-30"},
             live_context,
         )
 
-        assert result.data["result"] is True
-        assert isinstance(result.data["analytics"], list)
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert isinstance(result.result.data["analytics"], list)
 
 
 # ---- Destructive Tests (Write Operations) ----
@@ -206,6 +220,7 @@ class TestGetAdAnalytics:
 # Only run with: pytest -m "integration and destructive"
 
 
+@skip_if_no_creds
 @pytest.mark.destructive
 class TestCampaignLifecycle:
     """create -> get -> update -> pause -> activate -> archive (cleanup).
@@ -215,18 +230,19 @@ class TestCampaignLifecycle:
     closest available cleanup. The campaign is created in DRAFT status.
     """
 
+    @pytest.mark.asyncio
     async def test_full_lifecycle(self, live_context):
         account_id = await resolve_account_id(live_context)
 
-        # A campaign group is required to create a campaign — grab one.
-        groups = await GetCampaignGroupsAction().execute({"account_id": account_id}, live_context)
-        group_list = groups.data.get("campaign_groups", [])
+        groups = await linkedin_ads.execute_action("get_campaign_groups", {"account_id": account_id}, live_context)
+        group_list = groups.result.data.get("campaign_groups", [])
         if not group_list:
             pytest.skip("No campaign group available to create a campaign in")
         campaign_group_id = str(group_list[0]["id"])
 
         # Step 1: create_campaign (DRAFT)
-        created = await CreateCampaignAction().execute(
+        created = await linkedin_ads.execute_action(
+            "create_campaign",
             {
                 "account_id": account_id,
                 "campaign_group_id": campaign_group_id,
@@ -239,37 +255,39 @@ class TestCampaignLifecycle:
             },
             live_context,
         )
-        assert created.data["result"] is True
-        campaign_id = str(created.data["campaign_id"])
+        assert created.type != ResultType.ACTION_ERROR, created.result.message
+        campaign_id = str(created.result.data["campaign_id"])
         assert campaign_id
 
-        # Step 2: get_campaign — confirm it exists on the account-scoped path
-        fetched = await GetCampaignAction().execute(
-            {"account_id": account_id, "campaign_id": campaign_id}, live_context
+        # Step 2: get_campaign
+        fetched = await linkedin_ads.execute_action(
+            "get_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
         )
-        assert fetched.data["result"] is True
+        assert fetched.type != ResultType.ACTION_ERROR, fetched.result.message
 
         # Step 3: update_campaign — rename
-        updated = await UpdateCampaignAction().execute(
+        updated = await linkedin_ads.execute_action(
+            "update_campaign",
             {"account_id": account_id, "campaign_id": campaign_id, "name": "Autohive Test (renamed)"},
             live_context,
         )
-        assert updated.data["result"] is True
+        assert updated.type != ResultType.ACTION_ERROR, updated.result.message
 
         # Step 4: pause_campaign
-        paused = await PauseCampaignAction().execute(
-            {"account_id": account_id, "campaign_id": campaign_id}, live_context
+        paused = await linkedin_ads.execute_action(
+            "pause_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
         )
-        assert paused.data["result"] is True
+        assert paused.type != ResultType.ACTION_ERROR, paused.result.message
 
         # Step 5: activate_campaign
-        activated = await ActivateCampaignAction().execute(
-            {"account_id": account_id, "campaign_id": campaign_id}, live_context
+        activated = await linkedin_ads.execute_action(
+            "activate_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
         )
-        assert activated.data["result"] is True
+        assert activated.type != ResultType.ACTION_ERROR, activated.result.message
 
         # Step 6: cleanup — archive (no delete action exists)
-        await UpdateCampaignAction().execute(
+        await linkedin_ads.execute_action(
+            "update_campaign",
             {"account_id": account_id, "campaign_id": campaign_id, "status": "ARCHIVED"},
             live_context,
         )

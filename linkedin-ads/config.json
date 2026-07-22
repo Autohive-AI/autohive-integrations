@@ -1,7 +1,7 @@
 {
     "name": "LinkedIn Ads",
     "display_name": "LinkedIn Ads",
-    "version": "1.1.0",
+    "version": "2.0.0",
     "description": "Integration with LinkedIn Marketing API for managing ad accounts, campaigns, creatives, and analytics.",
     "entry_point": "linkedin_ads.py",
     "auth": {
@@ -35,12 +35,6 @@
                     "accounts": {
                         "type": "array",
                         "description": "List of ad accounts"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -75,12 +69,6 @@
                     "campaigns": {
                         "type": "array",
                         "description": "List of campaigns"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -108,12 +96,6 @@
                     "campaign": {
                         "type": "object",
                         "description": "Campaign details"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -179,12 +161,6 @@
                     "campaign_id": {
                         "type": "string",
                         "description": "Created campaign ID"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -231,11 +207,9 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
+                    "message": {
+                        "type": "string",
+                        "description": "Result message"
                     }
                 }
             }
@@ -260,11 +234,9 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
+                    "message": {
+                        "type": "string",
+                        "description": "Result message"
                     }
                 }
             }
@@ -289,11 +261,9 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
+                    "message": {
+                        "type": "string",
+                        "description": "Result message"
                     }
                 }
             }
@@ -322,12 +292,6 @@
                     "campaign_groups": {
                         "type": "array",
                         "description": "List of campaign groups"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -355,12 +319,6 @@
                     "creatives": {
                         "type": "array",
                         "description": "List of creatives"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -403,12 +361,6 @@
                     "analytics": {
                         "type": "array",
                         "description": "Analytics data"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -432,12 +384,6 @@
                     "users": {
                         "type": "array",
                         "description": "List of users with access"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }

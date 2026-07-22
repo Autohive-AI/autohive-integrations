@@ -7,8 +7,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
-    HTTPError,
-    RateLimitError,
+    ActionError,
 )
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -99,19 +98,24 @@ def build_urn(entity_type: str, entity_id: str) -> str:
     return f"{prefix}:{entity_id}"
 
 
-async def make_request(
+async def li_fetch(
     context: ExecutionContext,
     method: str,
     endpoint: str,
     params: Optional[Dict[str, Any]] = None,
     json_body: Optional[Dict[str, Any]] = None,
     extra_headers: Optional[Dict[str, str]] = None,
-) -> Dict[str, Any]:
-    """Make a request to the LinkedIn Marketing API.
+) -> Any:
+    """Call the LinkedIn Marketing API and return the parsed response body.
 
-    Returns ``{"success": True, "data": <parsed body>}`` on success (the
-    ``FetchResponse`` wrapper is unwrapped to its ``.data`` body), or
-    ``{"success": False, "error": ..., "details": ...}`` on failure.
+    Non-2xx responses raise (``context.fetch`` raises ``HTTPError``); callers
+    convert exceptions into ``ActionError``.
+
+    The query string is baked into the URL and sent as a pre-encoded
+    ``yarl.URL`` so aiohttp forwards it verbatim — with the default
+    (``encoded=False``) aiohttp decodes the ``%3A`` in URN tokens back to
+    literal colons, which LinkedIn's Rest.li parser rejects inside
+    ``List(...)`` finder values.
     """
     headers = get_headers()
     if extra_headers:
@@ -120,73 +124,34 @@ async def make_request(
     url = f"{API_BASE_URL}{endpoint}"
     if params:
         url = f"{url}?{build_query(params)}"
-
-    # Pass a pre-encoded yarl.URL so aiohttp sends our query verbatim. With the
-    # default (encoded=False) aiohttp re-canonicalizes the URL and decodes the
-    # %3A in URN tokens back to literal colons, which LinkedIn's Rest.li parser
-    # rejects with ILLEGAL_ARGUMENT inside List(...) finder values.
     request_url = yarl.URL(url, encoded=True)
 
-    try:
-        if method == "GET":
-            response = await context.fetch(request_url, headers=headers)
-        elif method == "POST":
-            response = await context.fetch(request_url, method="POST", json=json_body, headers=headers)
-        elif method == "DELETE":
-            response = await context.fetch(request_url, method="DELETE", headers=headers)
-        else:
-            return {"success": False, "error": f"Unsupported HTTP method: {method}"}
+    if method == "GET":
+        response = await context.fetch(request_url, headers=headers)
+    elif method == "POST":
+        response = await context.fetch(request_url, method="POST", json=json_body, headers=headers)
+    else:
+        raise ValueError(f"Unsupported HTTP method: {method}")
 
-        # context.fetch returns a FetchResponse(status, headers, data); unwrap
-        # to the parsed body. Fall back to the response itself for test doubles
-        # that return the body directly.
-        data = getattr(response, "data", response)
-        return {"success": True, "data": data}
-    except RateLimitError as e:
-        return {
-            "success": False,
-            "error": "Rate limit exceeded - try again later",
-            "details": {"status": e.status, "response": e.response_data},
-        }
-    except HTTPError as e:
-        friendly = {
-            401: "Unauthorized - check your access token",
-            403: "Forbidden - insufficient permissions",
-            404: "Resource not found",
-        }.get(e.status)
-        error = f"{friendly} (HTTP {e.status})" if friendly else f"HTTP {e.status}: {e.message}"
-        return {
-            "success": False,
-            "error": error,
-            "details": {"status": e.status, "response": e.response_data},
-        }
-    except Exception as e:
-        error_message = str(e)
-        return {"success": False, "error": error_message, "details": {"raw_error": error_message}}
+    return getattr(response, "data", response)
 
 
 @linkedin_ads.action("get_ad_accounts")
 class GetAdAccountsAction(ActionHandler):
     """Retrieve all ad accounts the authenticated user has access to."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             page_size = inputs.get("page_size", 25)
 
-            result = await make_request(
+            data = await li_fetch(
                 context,
                 "GET",
                 "/adAccountUsers",
                 params={"q": "authenticatedUser", "count": page_size},
             )
 
-            if not result["success"]:
-                return ActionResult(
-                    data={"result": False, "error": result["error"], "accounts": []},
-                    cost_usd=0.0,
-                )
-
-            elements = (result["data"] or {}).get("elements", [])
+            elements = (data or {}).get("elements", [])
 
             account_ids = []
             for element in elements:
@@ -197,115 +162,80 @@ class GetAdAccountsAction(ActionHandler):
                     except ValueError:
                         continue
 
-            if not account_ids:
-                return ActionResult(data={"result": True, "accounts": []}, cost_usd=0.0)
-
             # The versioned API does not support BATCH_GET on /adAccounts
             # (ids=List(...) returns 404 RESOURCE_NOT_FOUND), so fetch each
             # account individually via GET /adAccounts/{id}.
             accounts = []
             for account_id in account_ids:
-                acct_result = await make_request(context, "GET", f"/adAccounts/{account_id}")
-                if acct_result["success"] and acct_result["data"]:
-                    accounts.append(acct_result["data"])
+                try:
+                    account = await li_fetch(context, "GET", f"/adAccounts/{account_id}")
+                except Exception:  # nosec B112 - skip an account that can't be fetched rather than failing the whole listing
+                    continue
+                if account:
+                    accounts.append(account)
 
-            return ActionResult(data={"result": True, "accounts": accounts}, cost_usd=0.0)
+            return ActionResult(data={"accounts": accounts}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "accounts": []}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @linkedin_ads.action("get_campaigns")
 class GetCampaignsAction(ActionHandler):
     """Retrieve campaigns for a specific ad account."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             account_id = inputs.get("account_id", "")
             if not account_id:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "account_id is required",
-                        "campaigns": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="account_id is required")
 
-            try:
-                validated_id = extract_id_from_urn(account_id)
-            except ValueError as e:
-                return ActionResult(
-                    data={"result": False, "error": str(e), "campaigns": []},
-                    cost_usd=0.0,
-                )
+            validated_id = extract_id_from_urn(account_id)
             status = inputs.get("status")
             page_size = inputs.get("page_size", 25)
 
             params = {"q": "search", "count": page_size}
-
             if status:
                 params["search"] = f"(status:(values:List({status})))"
 
             # Campaign endpoints are now account-scoped: the account id lives in
             # the URL path, not the query.
-            result = await make_request(context, "GET", f"/adAccounts/{validated_id}/adCampaigns", params=params)
+            data = await li_fetch(context, "GET", f"/adAccounts/{validated_id}/adCampaigns", params=params)
 
-            if not result["success"]:
-                return ActionResult(
-                    data={"result": False, "error": result["error"], "campaigns": []},
-                    cost_usd=0.0,
-                )
-
-            campaigns = (result["data"] or {}).get("elements", [])
-            return ActionResult(
-                data={"result": True, "campaigns": campaigns, "total": len(campaigns)},
-                cost_usd=0.0,
-            )
+            campaigns = (data or {}).get("elements", [])
+            return ActionResult(data={"campaigns": campaigns, "total": len(campaigns)}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "campaigns": []}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @linkedin_ads.action("get_campaign")
 class GetCampaignAction(ActionHandler):
     """Retrieve detailed information about a specific campaign."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             campaign_id = inputs.get("campaign_id", "")
             account_id = inputs.get("account_id", "")
             if not campaign_id:
-                return ActionResult(
-                    data={"result": False, "error": "campaign_id is required"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="campaign_id is required")
             if not account_id:
-                return ActionResult(
-                    data={"result": False, "error": "account_id is required"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="account_id is required")
 
-            try:
-                account_numeric_id = extract_id_from_urn(account_id)
-                numeric_id = extract_id_from_urn(campaign_id)
-            except ValueError as e:
-                return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            account_numeric_id = extract_id_from_urn(account_id)
+            numeric_id = extract_id_from_urn(campaign_id)
 
             # Campaign endpoints are now account-scoped.
-            result = await make_request(context, "GET", f"/adAccounts/{account_numeric_id}/adCampaigns/{numeric_id}")
+            data = await li_fetch(context, "GET", f"/adAccounts/{account_numeric_id}/adCampaigns/{numeric_id}")
 
-            if not result["success"]:
-                return ActionResult(data={"result": False, "error": result["error"]}, cost_usd=0.0)
-
-            return ActionResult(data={"result": True, "campaign": result["data"]}, cost_usd=0.0)
+            return ActionResult(data={"campaign": data}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @linkedin_ads.action("create_campaign")
 class CreateCampaignAction(ActionHandler):
     """Create a new advertising campaign."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             account_id = inputs.get("account_id", "")
             campaign_group_id = inputs.get("campaign_group_id", "")
@@ -318,27 +248,12 @@ class CreateCampaignAction(ActionHandler):
             cost_type = inputs.get("cost_type")
             unit_cost_amount = inputs.get("unit_cost_amount")
 
-            if not all(
-                [
-                    account_id,
-                    campaign_group_id,
-                    name,
-                    objective_type,
-                    campaign_type,
-                    daily_budget,
-                ]
-            ):
-                return ActionResult(
-                    data={"result": False, "error": "Missing required fields"},
-                    cost_usd=0.0,
-                )
+            if not all([account_id, campaign_group_id, name, objective_type, campaign_type, daily_budget]):
+                return ActionError(message="Missing required fields")
 
-            try:
-                account_numeric_id = extract_id_from_urn(account_id)
-                account_urn = build_urn("account", account_numeric_id)
-                campaign_group_urn = build_urn("campaign_group", extract_id_from_urn(campaign_group_id))
-            except ValueError as e:
-                return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            account_numeric_id = extract_id_from_urn(account_id)
+            account_urn = build_urn("account", account_numeric_id)
+            campaign_group_urn = build_urn("campaign_group", extract_id_from_urn(campaign_group_id))
 
             campaign_data = {
                 "account": account_urn,
@@ -362,76 +277,58 @@ class CreateCampaignAction(ActionHandler):
                 }
 
             # Campaign endpoints are now account-scoped.
-            result = await make_request(
-                context, "POST", f"/adAccounts/{account_numeric_id}/adCampaigns", json_body=campaign_data
+            data = await li_fetch(
+                context,
+                "POST",
+                f"/adAccounts/{account_numeric_id}/adCampaigns",
+                json_body=campaign_data,
             )
 
-            if not result["success"]:
-                return ActionResult(data={"result": False, "error": result["error"]}, cost_usd=0.0)
-
-            campaign_id = (result["data"] or {}).get("id", "")
-            return ActionResult(
-                data={
-                    "result": True,
-                    "campaign_id": campaign_id,
-                    "campaign": result["data"],
-                },
-                cost_usd=0.0,
-            )
+            campaign_id = (data or {}).get("id", "")
+            return ActionResult(data={"campaign_id": campaign_id, "campaign": data}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @linkedin_ads.action("update_campaign")
 class UpdateCampaignAction(ActionHandler):
     """Update an existing campaign's settings."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             campaign_id = inputs.get("campaign_id", "")
             account_id = inputs.get("account_id", "")
             if not campaign_id:
-                return ActionResult(
-                    data={"result": False, "error": "campaign_id is required"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="campaign_id is required")
             if not account_id:
-                return ActionResult(
-                    data={"result": False, "error": "account_id is required"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="account_id is required")
 
-            try:
-                account_numeric_id = extract_id_from_urn(account_id)
-                numeric_id = extract_id_from_urn(campaign_id)
-            except ValueError as e:
-                return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            account_numeric_id = extract_id_from_urn(account_id)
+            numeric_id = extract_id_from_urn(campaign_id)
 
-            patch_data = {"patch": {"$set": {}}}
-
+            patch_set: Dict[str, Any] = {}
             if inputs.get("name"):
-                patch_data["patch"]["$set"]["name"] = inputs["name"]
+                patch_set["name"] = inputs["name"]
             if inputs.get("status"):
-                patch_data["patch"]["$set"]["status"] = inputs["status"]
+                patch_set["status"] = inputs["status"]
             if inputs.get("daily_budget_amount"):
-                patch_data["patch"]["$set"]["dailyBudget"] = {
+                patch_set["dailyBudget"] = {
                     "amount": str(inputs["daily_budget_amount"]),
                     "currencyCode": inputs.get("currency_code", "USD"),
                 }
             if inputs.get("total_budget_amount"):
-                patch_data["patch"]["$set"]["totalBudget"] = {
+                patch_set["totalBudget"] = {
                     "amount": str(inputs["total_budget_amount"]),
                     "currencyCode": inputs.get("currency_code", "USD"),
                 }
 
-            if not patch_data["patch"]["$set"]:
-                return ActionResult(
-                    data={"result": False, "error": "No update fields provided"},
-                    cost_usd=0.0,
-                )
+            if not patch_set:
+                return ActionError(message="No update fields provided")
+
+            patch_data = {"patch": {"$set": patch_set}}
 
             # Campaign endpoints are now account-scoped.
-            result = await make_request(
+            await li_fetch(
                 context,
                 "POST",
                 f"/adAccounts/{account_numeric_id}/adCampaigns/{numeric_id}",
@@ -439,46 +336,31 @@ class UpdateCampaignAction(ActionHandler):
                 extra_headers={"X-RestLi-Method": "PARTIAL_UPDATE"},
             )
 
-            if not result["success"]:
-                return ActionResult(data={"result": False, "error": result["error"]}, cost_usd=0.0)
-
-            return ActionResult(
-                data={"result": True, "message": "Campaign updated successfully"},
-                cost_usd=0.0,
-            )
+            return ActionResult(data={"message": "Campaign updated successfully"}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @linkedin_ads.action("pause_campaign")
 class PauseCampaignAction(ActionHandler):
     """Pause an active campaign."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             campaign_id = inputs.get("campaign_id", "")
             account_id = inputs.get("account_id", "")
             if not campaign_id:
-                return ActionResult(
-                    data={"result": False, "error": "campaign_id is required"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="campaign_id is required")
             if not account_id:
-                return ActionResult(
-                    data={"result": False, "error": "account_id is required"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="account_id is required")
 
-            try:
-                account_numeric_id = extract_id_from_urn(account_id)
-                numeric_id = extract_id_from_urn(campaign_id)
-            except ValueError as e:
-                return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            account_numeric_id = extract_id_from_urn(account_id)
+            numeric_id = extract_id_from_urn(campaign_id)
 
             patch_data = {"patch": {"$set": {"status": "PAUSED"}}}
 
             # Campaign endpoints are now account-scoped.
-            result = await make_request(
+            await li_fetch(
                 context,
                 "POST",
                 f"/adAccounts/{account_numeric_id}/adCampaigns/{numeric_id}",
@@ -486,46 +368,31 @@ class PauseCampaignAction(ActionHandler):
                 extra_headers={"X-RestLi-Method": "PARTIAL_UPDATE"},
             )
 
-            if not result["success"]:
-                return ActionResult(data={"result": False, "error": result["error"]}, cost_usd=0.0)
-
-            return ActionResult(
-                data={"result": True, "message": "Campaign paused successfully"},
-                cost_usd=0.0,
-            )
+            return ActionResult(data={"message": "Campaign paused successfully"}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @linkedin_ads.action("activate_campaign")
 class ActivateCampaignAction(ActionHandler):
     """Activate a paused or draft campaign."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             campaign_id = inputs.get("campaign_id", "")
             account_id = inputs.get("account_id", "")
             if not campaign_id:
-                return ActionResult(
-                    data={"result": False, "error": "campaign_id is required"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="campaign_id is required")
             if not account_id:
-                return ActionResult(
-                    data={"result": False, "error": "account_id is required"},
-                    cost_usd=0.0,
-                )
+                return ActionError(message="account_id is required")
 
-            try:
-                account_numeric_id = extract_id_from_urn(account_id)
-                numeric_id = extract_id_from_urn(campaign_id)
-            except ValueError as e:
-                return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            account_numeric_id = extract_id_from_urn(account_id)
+            numeric_id = extract_id_from_urn(campaign_id)
 
             patch_data = {"patch": {"$set": {"status": "ACTIVE"}}}
 
             # Campaign endpoints are now account-scoped.
-            result = await make_request(
+            await li_fetch(
                 context,
                 "POST",
                 f"/adAccounts/{account_numeric_id}/adCampaigns/{numeric_id}",
@@ -533,144 +400,80 @@ class ActivateCampaignAction(ActionHandler):
                 extra_headers={"X-RestLi-Method": "PARTIAL_UPDATE"},
             )
 
-            if not result["success"]:
-                return ActionResult(data={"result": False, "error": result["error"]}, cost_usd=0.0)
-
-            return ActionResult(
-                data={"result": True, "message": "Campaign activated successfully"},
-                cost_usd=0.0,
-            )
+            return ActionResult(data={"message": "Campaign activated successfully"}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @linkedin_ads.action("get_campaign_groups")
 class GetCampaignGroupsAction(ActionHandler):
     """Retrieve campaign groups for an ad account."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             account_id = inputs.get("account_id", "")
             if not account_id:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "account_id is required",
-                        "campaign_groups": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="account_id is required")
 
-            try:
-                validated_id = extract_id_from_urn(account_id)
-            except ValueError as e:
-                return ActionResult(
-                    data={"result": False, "error": str(e), "campaign_groups": []},
-                    cost_usd=0.0,
-                )
+            validated_id = extract_id_from_urn(account_id)
             status = inputs.get("status")
 
             params = {"q": "search", "count": 25}
-
             if status:
                 params["search"] = f"(status:(values:List({status})))"
 
             # Campaign group endpoints are now account-scoped.
-            result = await make_request(context, "GET", f"/adAccounts/{validated_id}/adCampaignGroups", params=params)
+            data = await li_fetch(context, "GET", f"/adAccounts/{validated_id}/adCampaignGroups", params=params)
 
-            if not result["success"]:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": result["error"],
-                        "campaign_groups": [],
-                    },
-                    cost_usd=0.0,
-                )
-
-            campaign_groups = (result["data"] or {}).get("elements", [])
-            return ActionResult(data={"result": True, "campaign_groups": campaign_groups}, cost_usd=0.0)
+            campaign_groups = (data or {}).get("elements", [])
+            return ActionResult(data={"campaign_groups": campaign_groups}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(
-                data={"result": False, "error": str(e), "campaign_groups": []},
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @linkedin_ads.action("get_creatives")
 class GetCreativesAction(ActionHandler):
-    """Retrieve creatives (ads) for a campaign."""
+    """Retrieve creatives (ads) for an ad account, optionally by campaign."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             account_id = inputs.get("account_id", "")
             if not account_id:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "account_id is required",
-                        "creatives": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="account_id is required")
 
+            validated_account_id = extract_id_from_urn(account_id)
             campaign_id = inputs.get("campaign_id", "")
-            try:
-                validated_account_id = extract_id_from_urn(account_id)
-                params = {"q": "criteria", "count": 25}
-                if campaign_id:
-                    campaign_urn = build_urn("campaign", extract_id_from_urn(campaign_id))
-                    params["campaigns"] = f"List({urn_param(campaign_urn)})"
-            except ValueError as e:
-                return ActionResult(
-                    data={"result": False, "error": str(e), "creatives": []},
-                    cost_usd=0.0,
-                )
+
+            params = {"q": "criteria", "count": 25}
+            if campaign_id:
+                campaign_urn = build_urn("campaign", extract_id_from_urn(campaign_id))
+                params["campaigns"] = f"List({urn_param(campaign_urn)})"
 
             # Creatives are now retrieved via the account-scoped `criteria`
             # finder, optionally filtered by campaign.
-            result = await make_request(context, "GET", f"/adAccounts/{validated_account_id}/creatives", params=params)
+            data = await li_fetch(context, "GET", f"/adAccounts/{validated_account_id}/creatives", params=params)
 
-            if not result["success"]:
-                return ActionResult(
-                    data={"result": False, "error": result["error"], "creatives": []},
-                    cost_usd=0.0,
-                )
-
-            creatives = (result["data"] or {}).get("elements", [])
-            return ActionResult(data={"result": True, "creatives": creatives}, cost_usd=0.0)
+            creatives = (data or {}).get("elements", [])
+            return ActionResult(data={"creatives": creatives}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "creatives": []}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @linkedin_ads.action("get_ad_analytics")
 class GetAdAnalyticsAction(ActionHandler):
     """Retrieve performance analytics for campaigns."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             account_id = inputs.get("account_id", "")
             start_date = inputs.get("start_date", "")
             end_date = inputs.get("end_date", "")
 
             if not all([account_id, start_date, end_date]):
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "account_id, start_date, and end_date are required",
-                        "analytics": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="account_id, start_date, and end_date are required")
 
-            try:
-                validated_id = extract_id_from_urn(account_id)
-                account_urn = build_urn("account", validated_id)
-            except ValueError as e:
-                return ActionResult(
-                    data={"result": False, "error": str(e), "analytics": []},
-                    cost_usd=0.0,
-                )
+            validated_id = extract_id_from_urn(account_id)
+            account_urn = build_urn("account", validated_id)
             campaign_ids = inputs.get("campaign_ids", [])
             time_granularity = inputs.get("time_granularity", "DAILY")
 
@@ -678,14 +481,7 @@ class GetAdAnalyticsAction(ActionHandler):
                 start_dt = datetime.strptime(start_date, "%Y-%m-%d")
                 end_dt = datetime.strptime(end_date, "%Y-%m-%d")
             except ValueError:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "Invalid date format. Use YYYY-MM-DD",
-                        "analytics": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="Invalid date format. Use YYYY-MM-DD")
 
             date_range = (
                 f"(start:(year:{start_dt.year},month:{start_dt.month},day:{start_dt.day}),"
@@ -707,54 +503,32 @@ class GetAdAnalyticsAction(ActionHandler):
                 )
                 params["campaigns"] = f"List({campaign_urns})"
 
-            result = await make_request(context, "GET", "/adAnalytics", params=params)
+            data = await li_fetch(context, "GET", "/adAnalytics", params=params)
 
-            if not result["success"]:
-                return ActionResult(
-                    data={"result": False, "error": result["error"], "analytics": []},
-                    cost_usd=0.0,
-                )
-
-            analytics = (result["data"] or {}).get("elements", [])
-            return ActionResult(data={"result": True, "analytics": analytics}, cost_usd=0.0)
+            analytics = (data or {}).get("elements", [])
+            return ActionResult(data={"analytics": analytics}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "analytics": []}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @linkedin_ads.action("get_ad_account_users")
 class GetAdAccountUsersAction(ActionHandler):
     """Retrieve users with access to an ad account."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             account_id = inputs.get("account_id", "")
             if not account_id:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": "account_id is required",
-                        "users": [],
-                    },
-                    cost_usd=0.0,
-                )
+                return ActionError(message="account_id is required")
 
-            try:
-                validated_id = extract_id_from_urn(account_id)
-                account_urn = build_urn("account", validated_id)
-            except ValueError as e:
-                return ActionResult(data={"result": False, "error": str(e), "users": []}, cost_usd=0.0)
+            validated_id = extract_id_from_urn(account_id)
+            account_urn = build_urn("account", validated_id)
 
             params = {"q": "accounts", "accounts": f"List({urn_param(account_urn)})"}
 
-            result = await make_request(context, "GET", "/adAccountUsers", params=params)
+            data = await li_fetch(context, "GET", "/adAccountUsers", params=params)
 
-            if not result["success"]:
-                return ActionResult(
-                    data={"result": False, "error": result["error"], "users": []},
-                    cost_usd=0.0,
-                )
-
-            users = (result["data"] or {}).get("elements", [])
-            return ActionResult(data={"result": True, "users": users}, cost_usd=0.0)
+            users = (data or {}).get("elements", [])
+            return ActionResult(data={"users": users}, cost_usd=0.0)
         except Exception as e:
-            return ActionResult(data={"result": False, "error": str(e), "users": []}, cost_usd=0.0)
+            return ActionError(message=str(e))
