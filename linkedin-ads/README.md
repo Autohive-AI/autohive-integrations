@@ -67,6 +67,34 @@ Analytics requests only project fields that exist in the `AdAnalytics` v8 schema
 Derived metrics such as cost-per-click and click-through-rate are not stored
 fields and must be computed by consumers from these values.
 
+## Testing
+
+Unit tests are mocked and run in CI:
+
+```bash
+pytest linkedin-ads/
+```
+
+Integration tests call the real LinkedIn Marketing API and are excluded from CI.
+They require an OAuth2 access token (scopes `r_ads`, `r_ads_reporting`, `rw_ads`)
+in `LINKEDIN_ADS_ACCESS_TOKEN`; set `LINKEDIN_ADS_TEST_ACCOUNT_ID` to pin a
+specific account (otherwise the first accessible account is used). See the root
+`.env.example`.
+
+Read-only tests (safe — use this by default):
+
+```bash
+pytest linkedin-ads/tests/test_linkedin_ads_integration.py -m "integration and not destructive"
+```
+
+Destructive tests **create and mutate real campaigns** on the connected account
+(create → update → pause → activate → archive; there is no delete-campaign
+action). Run these deliberately, never in CI:
+
+```bash
+pytest linkedin-ads/tests/test_linkedin_ads_integration.py -m "integration and destructive"
+```
+
 ## Resources
 
 - [LinkedIn Marketing API Documentation](https://learn.microsoft.com/en-us/linkedin/marketing/)
