@@ -1,7 +1,7 @@
 {
     "name": "LinkedIn Ads",
     "display_name": "LinkedIn Ads",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Integration with LinkedIn Marketing API for managing ad accounts, campaigns, creatives, and analytics.",
     "entry_point": "linkedin_ads.py",
     "auth": {
@@ -91,12 +91,16 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID the campaign belongs to (e.g., 'urn:li:sponsoredAccount:123456789'). Required by the LinkedIn API, which now scopes campaign requests to an account."
+                    },
                     "campaign_id": {
                         "type": "string",
                         "description": "The campaign ID (e.g., 'urn:li:sponsoredCampaign:123456789')"
                     }
                 },
-                "required": ["campaign_id"]
+                "required": ["account_id", "campaign_id"]
             },
             "output_schema": {
                 "type": "object",
@@ -191,6 +195,10 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID the campaign belongs to (e.g., 'urn:li:sponsoredAccount:123456789'). Required by the LinkedIn API, which now scopes campaign requests to an account."
+                    },
                     "campaign_id": {
                         "type": "string",
                         "description": "The campaign ID to update"
@@ -218,7 +226,7 @@
                         "default": "USD"
                     }
                 },
-                "required": ["campaign_id"]
+                "required": ["account_id", "campaign_id"]
             },
             "output_schema": {
                 "type": "object",
@@ -238,12 +246,16 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID the campaign belongs to (e.g., 'urn:li:sponsoredAccount:123456789'). Required by the LinkedIn API, which now scopes campaign requests to an account."
+                    },
                     "campaign_id": {
                         "type": "string",
                         "description": "The campaign ID to pause"
                     }
                 },
-                "required": ["campaign_id"]
+                "required": ["account_id", "campaign_id"]
             },
             "output_schema": {
                 "type": "object",
@@ -263,12 +275,16 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID the campaign belongs to (e.g., 'urn:li:sponsoredAccount:123456789'). Required by the LinkedIn API, which now scopes campaign requests to an account."
+                    },
                     "campaign_id": {
                         "type": "string",
                         "description": "The campaign ID to activate"
                     }
                 },
-                "required": ["campaign_id"]
+                "required": ["account_id", "campaign_id"]
             },
             "output_schema": {
                 "type": "object",
@@ -318,16 +334,20 @@
         },
         "get_creatives": {
             "display_name": "Get Creatives",
-            "description": "Retrieve creatives (ads) for a campaign.",
+            "description": "Retrieve creatives (ads) for an ad account, optionally filtered by campaign.",
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID (e.g., 'urn:li:sponsoredAccount:123456789'). Required by the LinkedIn API, which now scopes creative requests to an account."
+                    },
                     "campaign_id": {
                         "type": "string",
-                        "description": "The campaign ID to get creatives for"
+                        "description": "Optional campaign ID to filter creatives to a single campaign"
                     }
                 },
-                "required": ["campaign_id"]
+                "required": ["account_id"]
             },
             "output_schema": {
                 "type": "object",

@@ -1,8 +1,14 @@
+import urllib.parse
+
+import yarl
+
 from autohive_integrations_sdk import (
     Integration,
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    HTTPError,
+    RateLimitError,
 )
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -13,6 +19,11 @@ linkedin_ads = Integration.load()
 API_BASE_URL = "https://api.linkedin.com/rest"
 API_VERSION = "202601"
 
+# Analytics fields that exist in the AdAnalytics v8 schema. Derived metrics
+# like costPerClick / clickThroughRate are NOT stored fields and are rejected
+# by the API, so they are computed by consumers instead of requested here.
+ANALYTICS_FIELDS = "impressions,clicks,costInLocalCurrency,externalWebsiteConversions"
+
 
 def get_headers() -> Dict[str, str]:
     """Build headers for LinkedIn Marketing API requests."""
@@ -21,6 +32,42 @@ def get_headers() -> Dict[str, str]:
         "X-Restli-Protocol-Version": "2.0.0",
         "Content-Type": "application/json",
     }
+
+
+def build_query(params: Dict[str, Any]) -> str:
+    """Build a Rest.li query string.
+
+    LinkedIn's versioned API relies on the structural characters ``( ) , :``
+    in finder/analytics syntax (e.g. ``accounts=List(urn:li:sponsoredAccount:1)``
+    and ``dateRange=(start:(year:2026,...))``). Those must reach the server
+    literally, so they are kept out of percent-encoding. Everything else in a
+    value is percent-encoded normally. ``None`` values are skipped.
+
+    This query string is appended to the URL directly rather than passed via
+    the SDK's ``params`` argument, because the SDK percent-encodes every value
+    (including the structural characters), which the API rejects.
+
+    ``%`` is kept literal too, so URNs whose colons have already been encoded
+    with :func:`urn_param` (required inside ``List(...)`` finder values) survive
+    intact rather than being double-encoded.
+    """
+    parts = []
+    for key, value in params.items():
+        if value is None:
+            continue
+        parts.append(f"{key}={urllib.parse.quote(str(value), safe='(),:%')}")
+    return "&".join(parts)
+
+
+def urn_param(urn: str) -> str:
+    """Percent-encode a URN for embedding inside a Rest.li finder value.
+
+    Inside ``List(...)`` finder values the colons of a URN token must be
+    percent-encoded (``urn:li:sponsoredAccount:1`` -> ``urn%3Ali%3A...``) or the
+    API rejects the request with ``ILLEGAL_ARGUMENT``. The surrounding
+    structural characters stay literal.
+    """
+    return urllib.parse.quote(urn, safe="")
 
 
 def extract_id_from_urn(urn: str) -> str:
@@ -60,56 +107,62 @@ async def make_request(
     json_body: Optional[Dict[str, Any]] = None,
     extra_headers: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
-    """Make a request to the LinkedIn Marketing API."""
+    """Make a request to the LinkedIn Marketing API.
+
+    Returns ``{"success": True, "data": <parsed body>}`` on success (the
+    ``FetchResponse`` wrapper is unwrapped to its ``.data`` body), or
+    ``{"success": False, "error": ..., "details": ...}`` on failure.
+    """
     headers = get_headers()
     if extra_headers:
         headers.update(extra_headers)
 
     url = f"{API_BASE_URL}{endpoint}"
+    if params:
+        url = f"{url}?{build_query(params)}"
+
+    # Pass a pre-encoded yarl.URL so aiohttp sends our query verbatim. With the
+    # default (encoded=False) aiohttp re-canonicalizes the URL and decodes the
+    # %3A in URN tokens back to literal colons, which LinkedIn's Rest.li parser
+    # rejects with ILLEGAL_ARGUMENT inside List(...) finder values.
+    request_url = yarl.URL(url, encoded=True)
 
     try:
         if method == "GET":
-            response = await context.fetch(url, params=params, headers=headers)
+            response = await context.fetch(request_url, headers=headers)
         elif method == "POST":
-            response = await context.fetch(url, method="POST", json=json_body, headers=headers)
+            response = await context.fetch(request_url, method="POST", json=json_body, headers=headers)
         elif method == "DELETE":
-            response = await context.fetch(url, method="DELETE", headers=headers)
+            response = await context.fetch(request_url, method="DELETE", headers=headers)
         else:
             return {"success": False, "error": f"Unsupported HTTP method: {method}"}
 
-        return {"success": True, "data": response}
+        # context.fetch returns a FetchResponse(status, headers, data); unwrap
+        # to the parsed body. Fall back to the response itself for test doubles
+        # that return the body directly.
+        data = getattr(response, "data", response)
+        return {"success": True, "data": data}
+    except RateLimitError as e:
+        return {
+            "success": False,
+            "error": "Rate limit exceeded - try again later",
+            "details": {"status": e.status, "response": e.response_data},
+        }
+    except HTTPError as e:
+        friendly = {
+            401: "Unauthorized - check your access token",
+            403: "Forbidden - insufficient permissions",
+            404: "Resource not found",
+        }.get(e.status)
+        error = f"{friendly} (HTTP {e.status})" if friendly else f"HTTP {e.status}: {e.message}"
+        return {
+            "success": False,
+            "error": error,
+            "details": {"status": e.status, "response": e.response_data},
+        }
     except Exception as e:
         error_message = str(e)
-        error_details = {"raw_error": error_message}
-
-        if hasattr(e, "status_code"):
-            status_code = e.status_code
-            if status_code == 401:
-                return {
-                    "success": False,
-                    "error": "Unauthorized - check your access token",
-                    "details": error_details,
-                }
-            elif status_code == 403:
-                return {
-                    "success": False,
-                    "error": "Forbidden - insufficient permissions",
-                    "details": error_details,
-                }
-            elif status_code == 404:
-                return {
-                    "success": False,
-                    "error": "Resource not found",
-                    "details": error_details,
-                }
-            elif status_code == 429:
-                return {
-                    "success": False,
-                    "error": "Rate limit exceeded - try again later",
-                    "details": error_details,
-                }
-
-        return {"success": False, "error": error_message, "details": error_details}
+        return {"success": False, "error": error_message, "details": {"raw_error": error_message}}
 
 
 @linkedin_ads.action("get_ad_accounts")
@@ -133,7 +186,7 @@ class GetAdAccountsAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
-            elements = result["data"].get("elements", [])
+            elements = (result["data"] or {}).get("elements", [])
 
             account_ids = []
             for element in elements:
@@ -147,23 +200,16 @@ class GetAdAccountsAction(ActionHandler):
             if not account_ids:
                 return ActionResult(data={"result": True, "accounts": []}, cost_usd=0.0)
 
-            ids_param = ",".join(account_ids)
-            batch_result = await make_request(context, "GET", "/adAccounts", params={"ids": f"List({ids_param})"})
+            # The versioned API does not support BATCH_GET on /adAccounts
+            # (ids=List(...) returns 404 RESOURCE_NOT_FOUND), so fetch each
+            # account individually via GET /adAccounts/{id}.
+            accounts = []
+            for account_id in account_ids:
+                acct_result = await make_request(context, "GET", f"/adAccounts/{account_id}")
+                if acct_result["success"] and acct_result["data"]:
+                    accounts.append(acct_result["data"])
 
-            if not batch_result["success"]:
-                return ActionResult(
-                    data={
-                        "result": False,
-                        "error": batch_result["error"],
-                        "accounts": [],
-                    },
-                    cost_usd=0.0,
-                )
-
-            accounts = batch_result["data"].get("results", {})
-            account_list = list(accounts.values()) if isinstance(accounts, dict) else accounts
-
-            return ActionResult(data={"result": True, "accounts": account_list}, cost_usd=0.0)
+            return ActionResult(data={"result": True, "accounts": accounts}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e), "accounts": []}, cost_usd=0.0)
 
@@ -187,7 +233,6 @@ class GetCampaignsAction(ActionHandler):
 
             try:
                 validated_id = extract_id_from_urn(account_id)
-                account_urn = build_urn("account", validated_id)
             except ValueError as e:
                 return ActionResult(
                     data={"result": False, "error": str(e), "campaigns": []},
@@ -196,16 +241,14 @@ class GetCampaignsAction(ActionHandler):
             status = inputs.get("status")
             page_size = inputs.get("page_size", 25)
 
-            params = {
-                "q": "search",
-                "search.account.values[0]": account_urn,
-                "count": page_size,
-            }
+            params = {"q": "search", "count": page_size}
 
             if status:
-                params["search.status.values[0]"] = status
+                params["search"] = f"(status:(values:List({status})))"
 
-            result = await make_request(context, "GET", "/adCampaigns", params=params)
+            # Campaign endpoints are now account-scoped: the account id lives in
+            # the URL path, not the query.
+            result = await make_request(context, "GET", f"/adAccounts/{validated_id}/adCampaigns", params=params)
 
             if not result["success"]:
                 return ActionResult(
@@ -213,7 +256,7 @@ class GetCampaignsAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
-            campaigns = result["data"].get("elements", [])
+            campaigns = (result["data"] or {}).get("elements", [])
             return ActionResult(
                 data={"result": True, "campaigns": campaigns, "total": len(campaigns)},
                 cost_usd=0.0,
@@ -229,14 +272,26 @@ class GetCampaignAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             campaign_id = inputs.get("campaign_id", "")
+            account_id = inputs.get("account_id", "")
             if not campaign_id:
                 return ActionResult(
                     data={"result": False, "error": "campaign_id is required"},
                     cost_usd=0.0,
                 )
+            if not account_id:
+                return ActionResult(
+                    data={"result": False, "error": "account_id is required"},
+                    cost_usd=0.0,
+                )
 
-            numeric_id = extract_id_from_urn(campaign_id)
-            result = await make_request(context, "GET", f"/adCampaigns/{numeric_id}")
+            try:
+                account_numeric_id = extract_id_from_urn(account_id)
+                numeric_id = extract_id_from_urn(campaign_id)
+            except ValueError as e:
+                return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
+
+            # Campaign endpoints are now account-scoped.
+            result = await make_request(context, "GET", f"/adAccounts/{account_numeric_id}/adCampaigns/{numeric_id}")
 
             if not result["success"]:
                 return ActionResult(data={"result": False, "error": result["error"]}, cost_usd=0.0)
@@ -279,7 +334,8 @@ class CreateCampaignAction(ActionHandler):
                 )
 
             try:
-                account_urn = build_urn("account", extract_id_from_urn(account_id))
+                account_numeric_id = extract_id_from_urn(account_id)
+                account_urn = build_urn("account", account_numeric_id)
                 campaign_group_urn = build_urn("campaign_group", extract_id_from_urn(campaign_group_id))
             except ValueError as e:
                 return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
@@ -305,12 +361,15 @@ class CreateCampaignAction(ActionHandler):
                     "currencyCode": currency_code,
                 }
 
-            result = await make_request(context, "POST", "/adCampaigns", json_body=campaign_data)
+            # Campaign endpoints are now account-scoped.
+            result = await make_request(
+                context, "POST", f"/adAccounts/{account_numeric_id}/adCampaigns", json_body=campaign_data
+            )
 
             if not result["success"]:
                 return ActionResult(data={"result": False, "error": result["error"]}, cost_usd=0.0)
 
-            campaign_id = result["data"].get("id", "")
+            campaign_id = (result["data"] or {}).get("id", "")
             return ActionResult(
                 data={
                     "result": True,
@@ -330,13 +389,23 @@ class UpdateCampaignAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             campaign_id = inputs.get("campaign_id", "")
+            account_id = inputs.get("account_id", "")
             if not campaign_id:
                 return ActionResult(
                     data={"result": False, "error": "campaign_id is required"},
                     cost_usd=0.0,
                 )
+            if not account_id:
+                return ActionResult(
+                    data={"result": False, "error": "account_id is required"},
+                    cost_usd=0.0,
+                )
 
-            numeric_id = extract_id_from_urn(campaign_id)
+            try:
+                account_numeric_id = extract_id_from_urn(account_id)
+                numeric_id = extract_id_from_urn(campaign_id)
+            except ValueError as e:
+                return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
             patch_data = {"patch": {"$set": {}}}
 
@@ -361,10 +430,11 @@ class UpdateCampaignAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
+            # Campaign endpoints are now account-scoped.
             result = await make_request(
                 context,
                 "POST",
-                f"/adCampaigns/{numeric_id}",
+                f"/adAccounts/{account_numeric_id}/adCampaigns/{numeric_id}",
                 json_body=patch_data,
                 extra_headers={"X-RestLi-Method": "PARTIAL_UPDATE"},
             )
@@ -387,20 +457,31 @@ class PauseCampaignAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             campaign_id = inputs.get("campaign_id", "")
+            account_id = inputs.get("account_id", "")
             if not campaign_id:
                 return ActionResult(
                     data={"result": False, "error": "campaign_id is required"},
                     cost_usd=0.0,
                 )
+            if not account_id:
+                return ActionResult(
+                    data={"result": False, "error": "account_id is required"},
+                    cost_usd=0.0,
+                )
 
-            numeric_id = extract_id_from_urn(campaign_id)
+            try:
+                account_numeric_id = extract_id_from_urn(account_id)
+                numeric_id = extract_id_from_urn(campaign_id)
+            except ValueError as e:
+                return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
             patch_data = {"patch": {"$set": {"status": "PAUSED"}}}
 
+            # Campaign endpoints are now account-scoped.
             result = await make_request(
                 context,
                 "POST",
-                f"/adCampaigns/{numeric_id}",
+                f"/adAccounts/{account_numeric_id}/adCampaigns/{numeric_id}",
                 json_body=patch_data,
                 extra_headers={"X-RestLi-Method": "PARTIAL_UPDATE"},
             )
@@ -423,20 +504,31 @@ class ActivateCampaignAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             campaign_id = inputs.get("campaign_id", "")
+            account_id = inputs.get("account_id", "")
             if not campaign_id:
                 return ActionResult(
                     data={"result": False, "error": "campaign_id is required"},
                     cost_usd=0.0,
                 )
+            if not account_id:
+                return ActionResult(
+                    data={"result": False, "error": "account_id is required"},
+                    cost_usd=0.0,
+                )
 
-            numeric_id = extract_id_from_urn(campaign_id)
+            try:
+                account_numeric_id = extract_id_from_urn(account_id)
+                numeric_id = extract_id_from_urn(campaign_id)
+            except ValueError as e:
+                return ActionResult(data={"result": False, "error": str(e)}, cost_usd=0.0)
 
             patch_data = {"patch": {"$set": {"status": "ACTIVE"}}}
 
+            # Campaign endpoints are now account-scoped.
             result = await make_request(
                 context,
                 "POST",
-                f"/adCampaigns/{numeric_id}",
+                f"/adAccounts/{account_numeric_id}/adCampaigns/{numeric_id}",
                 json_body=patch_data,
                 extra_headers={"X-RestLi-Method": "PARTIAL_UPDATE"},
             )
@@ -471,7 +563,6 @@ class GetCampaignGroupsAction(ActionHandler):
 
             try:
                 validated_id = extract_id_from_urn(account_id)
-                account_urn = build_urn("account", validated_id)
             except ValueError as e:
                 return ActionResult(
                     data={"result": False, "error": str(e), "campaign_groups": []},
@@ -479,12 +570,13 @@ class GetCampaignGroupsAction(ActionHandler):
                 )
             status = inputs.get("status")
 
-            params = {"q": "search", "search.account.values[0]": account_urn}
+            params = {"q": "search", "count": 25}
 
             if status:
-                params["search.status.values[0]"] = status
+                params["search"] = f"(status:(values:List({status})))"
 
-            result = await make_request(context, "GET", "/adCampaignGroups", params=params)
+            # Campaign group endpoints are now account-scoped.
+            result = await make_request(context, "GET", f"/adAccounts/{validated_id}/adCampaignGroups", params=params)
 
             if not result["success"]:
                 return ActionResult(
@@ -496,7 +588,7 @@ class GetCampaignGroupsAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
-            campaign_groups = result["data"].get("elements", [])
+            campaign_groups = (result["data"] or {}).get("elements", [])
             return ActionResult(data={"result": True, "campaign_groups": campaign_groups}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(
@@ -511,29 +603,33 @@ class GetCreativesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            campaign_id = inputs.get("campaign_id", "")
-            if not campaign_id:
+            account_id = inputs.get("account_id", "")
+            if not account_id:
                 return ActionResult(
                     data={
                         "result": False,
-                        "error": "campaign_id is required",
+                        "error": "account_id is required",
                         "creatives": [],
                     },
                     cost_usd=0.0,
                 )
 
+            campaign_id = inputs.get("campaign_id", "")
             try:
-                validated_id = extract_id_from_urn(campaign_id)
-                campaign_urn = build_urn("campaign", validated_id)
+                validated_account_id = extract_id_from_urn(account_id)
+                params = {"q": "criteria", "count": 25}
+                if campaign_id:
+                    campaign_urn = build_urn("campaign", extract_id_from_urn(campaign_id))
+                    params["campaigns"] = f"List({urn_param(campaign_urn)})"
             except ValueError as e:
                 return ActionResult(
                     data={"result": False, "error": str(e), "creatives": []},
                     cost_usd=0.0,
                 )
 
-            params = {"q": "search", "search.campaign.values[0]": campaign_urn}
-
-            result = await make_request(context, "GET", "/creatives", params=params)
+            # Creatives are now retrieved via the account-scoped `criteria`
+            # finder, optionally filtered by campaign.
+            result = await make_request(context, "GET", f"/adAccounts/{validated_account_id}/creatives", params=params)
 
             if not result["success"]:
                 return ActionResult(
@@ -541,7 +637,7 @@ class GetCreativesAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
-            creatives = result["data"].get("elements", [])
+            creatives = (result["data"] or {}).get("elements", [])
             return ActionResult(data={"result": True, "creatives": creatives}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e), "creatives": []}, cost_usd=0.0)
@@ -591,25 +687,25 @@ class GetAdAnalyticsAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
+            date_range = (
+                f"(start:(year:{start_dt.year},month:{start_dt.month},day:{start_dt.day}),"
+                f"end:(year:{end_dt.year},month:{end_dt.month},day:{end_dt.day}))"
+            )
+
             params = {
                 "q": "analytics",
                 "pivot": "CAMPAIGN",
-                "dateRange.start.day": start_dt.day,
-                "dateRange.start.month": start_dt.month,
-                "dateRange.start.year": start_dt.year,
-                "dateRange.end.day": end_dt.day,
-                "dateRange.end.month": end_dt.month,
-                "dateRange.end.year": end_dt.year,
+                "dateRange": date_range,
                 "timeGranularity": time_granularity,
-                "accounts[0]": account_urn,
-                "fields": (
-                    "impressions,clicks,costInLocalCurrency,externalWebsiteConversions,costPerClick,clickThroughRate"
-                ),
+                "accounts": f"List({urn_param(account_urn)})",
+                "fields": ANALYTICS_FIELDS,
             }
 
             if campaign_ids:
-                for i, cid in enumerate(campaign_ids):
-                    params[f"campaigns[{i}]"] = build_urn("campaign", cid)
+                campaign_urns = ",".join(
+                    urn_param(build_urn("campaign", extract_id_from_urn(cid))) for cid in campaign_ids
+                )
+                params["campaigns"] = f"List({campaign_urns})"
 
             result = await make_request(context, "GET", "/adAnalytics", params=params)
 
@@ -619,7 +715,7 @@ class GetAdAnalyticsAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
-            analytics = result["data"].get("elements", [])
+            analytics = (result["data"] or {}).get("elements", [])
             return ActionResult(data={"result": True, "analytics": analytics}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e), "analytics": []}, cost_usd=0.0)
@@ -648,7 +744,7 @@ class GetAdAccountUsersAction(ActionHandler):
             except ValueError as e:
                 return ActionResult(data={"result": False, "error": str(e), "users": []}, cost_usd=0.0)
 
-            params = {"q": "account", "account": account_urn}
+            params = {"q": "accounts", "accounts": f"List({urn_param(account_urn)})"}
 
             result = await make_request(context, "GET", "/adAccountUsers", params=params)
 
@@ -658,7 +754,7 @@ class GetAdAccountUsersAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
-            users = result["data"].get("elements", [])
+            users = (result["data"] or {}).get("elements", [])
             return ActionResult(data={"result": True, "users": users}, cost_usd=0.0)
         except Exception as e:
             return ActionResult(data={"result": False, "error": str(e), "users": []}, cost_usd=0.0)
