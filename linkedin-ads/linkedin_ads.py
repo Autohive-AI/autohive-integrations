@@ -98,7 +98,7 @@ def build_urn(entity_type: str, entity_id: str) -> str:
     return f"{prefix}:{entity_id}"
 
 
-async def li_fetch(
+async def li_request(
     context: ExecutionContext,
     method: str,
     endpoint: str,
@@ -106,13 +106,13 @@ async def li_fetch(
     json_body: Optional[Dict[str, Any]] = None,
     extra_headers: Optional[Dict[str, str]] = None,
 ) -> Any:
-    """Call the LinkedIn Marketing API and return the parsed response body.
+    """Call the LinkedIn Marketing API and return the raw response object.
 
     Non-2xx responses raise (``context.fetch`` raises ``HTTPError``); callers
     convert exceptions into ``ActionError``.
 
     The query string is baked into the URL and sent as a pre-encoded
-    ``yarl.URL`` so aiohttp forwards it verbatim — with the default
+    ``yarl.URL`` so aiohttp forwards it verbatim: with the default
     (``encoded=False``) aiohttp decodes the ``%3A`` in URN tokens back to
     literal colons, which LinkedIn's Rest.li parser rejects inside
     ``List(...)`` finder values.
@@ -127,13 +127,40 @@ async def li_fetch(
     request_url = yarl.URL(url, encoded=True)
 
     if method == "GET":
-        response = await context.fetch(request_url, headers=headers)
+        return await context.fetch(request_url, headers=headers)
     elif method == "POST":
-        response = await context.fetch(request_url, method="POST", json=json_body, headers=headers)
-    else:
-        raise ValueError(f"Unsupported HTTP method: {method}")
+        return await context.fetch(request_url, method="POST", json=json_body, headers=headers)
+    raise ValueError(f"Unsupported HTTP method: {method}")
 
+
+async def li_fetch(
+    context: ExecutionContext,
+    method: str,
+    endpoint: str,
+    params: Optional[Dict[str, Any]] = None,
+    json_body: Optional[Dict[str, Any]] = None,
+    extra_headers: Optional[Dict[str, str]] = None,
+) -> Any:
+    """Call the LinkedIn Marketing API and return the parsed response body."""
+    response = await li_request(context, method, endpoint, params, json_body, extra_headers)
     return getattr(response, "data", response)
+
+
+def created_entity_id(response: Any) -> str:
+    """Extract the id of a newly created entity from a create response.
+
+    LinkedIn returns the new id in the JSON body for some resources but in the
+    ``x-restli-id`` response header for others (campaigns included). Prefer the
+    body, fall back to the header (matched case-insensitively).
+    """
+    data = getattr(response, "data", None)
+    if isinstance(data, dict) and data.get("id"):
+        return str(data["id"])
+    headers = getattr(response, "headers", None) or {}
+    for key, value in headers.items():
+        if key.lower() == "x-restli-id":
+            return str(value)
+    return ""
 
 
 @linkedin_ads.action("get_ad_accounts")
@@ -185,10 +212,7 @@ class GetCampaignsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            account_id = inputs.get("account_id", "")
-            if not account_id:
-                return ActionError(message="account_id is required")
-
+            account_id = inputs["account_id"]
             validated_id = extract_id_from_urn(account_id)
             status = inputs.get("status")
             page_size = inputs.get("page_size", 25)
@@ -213,12 +237,8 @@ class GetCampaignAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            campaign_id = inputs.get("campaign_id", "")
-            account_id = inputs.get("account_id", "")
-            if not campaign_id:
-                return ActionError(message="campaign_id is required")
-            if not account_id:
-                return ActionError(message="account_id is required")
+            campaign_id = inputs["campaign_id"]
+            account_id = inputs["account_id"]
 
             account_numeric_id = extract_id_from_urn(account_id)
             numeric_id = extract_id_from_urn(campaign_id)
@@ -237,19 +257,16 @@ class CreateCampaignAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            account_id = inputs.get("account_id", "")
-            campaign_group_id = inputs.get("campaign_group_id", "")
-            name = inputs.get("name", "")
-            objective_type = inputs.get("objective_type", "")
-            campaign_type = inputs.get("type", "")
-            daily_budget = inputs.get("daily_budget_amount")
+            account_id = inputs["account_id"]
+            campaign_group_id = inputs["campaign_group_id"]
+            name = inputs["name"]
+            objective_type = inputs["objective_type"]
+            campaign_type = inputs["type"]
+            daily_budget = inputs["daily_budget_amount"]
             currency_code = inputs.get("currency_code", "USD")
             status = inputs.get("status", "DRAFT")
             cost_type = inputs.get("cost_type")
             unit_cost_amount = inputs.get("unit_cost_amount")
-
-            if not all([account_id, campaign_group_id, name, objective_type, campaign_type, daily_budget]):
-                return ActionError(message="Missing required fields")
 
             account_numeric_id = extract_id_from_urn(account_id)
             account_urn = build_urn("account", account_numeric_id)
@@ -276,16 +293,19 @@ class CreateCampaignAction(ActionHandler):
                     "currencyCode": currency_code,
                 }
 
-            # Campaign endpoints are now account-scoped.
-            data = await li_fetch(
+            # Campaign endpoints are now account-scoped. LinkedIn returns the
+            # new campaign id in the x-restli-id response header (not the body),
+            # so read the full response rather than just the parsed body.
+            response = await li_request(
                 context,
                 "POST",
                 f"/adAccounts/{account_numeric_id}/adCampaigns",
                 json_body=campaign_data,
             )
 
-            campaign_id = (data or {}).get("id", "")
-            return ActionResult(data={"campaign_id": campaign_id, "campaign": data}, cost_usd=0.0)
+            campaign_id = created_entity_id(response)
+            campaign = getattr(response, "data", None)
+            return ActionResult(data={"campaign_id": campaign_id, "campaign": campaign}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -296,12 +316,8 @@ class UpdateCampaignAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            campaign_id = inputs.get("campaign_id", "")
-            account_id = inputs.get("account_id", "")
-            if not campaign_id:
-                return ActionError(message="campaign_id is required")
-            if not account_id:
-                return ActionError(message="account_id is required")
+            campaign_id = inputs["campaign_id"]
+            account_id = inputs["account_id"]
 
             account_numeric_id = extract_id_from_urn(account_id)
             numeric_id = extract_id_from_urn(campaign_id)
@@ -347,12 +363,8 @@ class PauseCampaignAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            campaign_id = inputs.get("campaign_id", "")
-            account_id = inputs.get("account_id", "")
-            if not campaign_id:
-                return ActionError(message="campaign_id is required")
-            if not account_id:
-                return ActionError(message="account_id is required")
+            campaign_id = inputs["campaign_id"]
+            account_id = inputs["account_id"]
 
             account_numeric_id = extract_id_from_urn(account_id)
             numeric_id = extract_id_from_urn(campaign_id)
@@ -379,12 +391,8 @@ class ActivateCampaignAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            campaign_id = inputs.get("campaign_id", "")
-            account_id = inputs.get("account_id", "")
-            if not campaign_id:
-                return ActionError(message="campaign_id is required")
-            if not account_id:
-                return ActionError(message="account_id is required")
+            campaign_id = inputs["campaign_id"]
+            account_id = inputs["account_id"]
 
             account_numeric_id = extract_id_from_urn(account_id)
             numeric_id = extract_id_from_urn(campaign_id)
@@ -411,10 +419,7 @@ class GetCampaignGroupsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            account_id = inputs.get("account_id", "")
-            if not account_id:
-                return ActionError(message="account_id is required")
-
+            account_id = inputs["account_id"]
             validated_id = extract_id_from_urn(account_id)
             status = inputs.get("status")
 
@@ -437,10 +442,7 @@ class GetCreativesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            account_id = inputs.get("account_id", "")
-            if not account_id:
-                return ActionError(message="account_id is required")
-
+            account_id = inputs["account_id"]
             validated_account_id = extract_id_from_urn(account_id)
             campaign_id = inputs.get("campaign_id", "")
 
@@ -465,12 +467,9 @@ class GetAdAnalyticsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            account_id = inputs.get("account_id", "")
-            start_date = inputs.get("start_date", "")
-            end_date = inputs.get("end_date", "")
-
-            if not all([account_id, start_date, end_date]):
-                return ActionError(message="account_id, start_date, and end_date are required")
+            account_id = inputs["account_id"]
+            start_date = inputs["start_date"]
+            end_date = inputs["end_date"]
 
             validated_id = extract_id_from_urn(account_id)
             account_urn = build_urn("account", validated_id)
@@ -517,10 +516,7 @@ class GetAdAccountUsersAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            account_id = inputs.get("account_id", "")
-            if not account_id:
-                return ActionError(message="account_id is required")
-
+            account_id = inputs["account_id"]
             validated_id = extract_id_from_urn(account_id)
             account_urn = build_urn("account", validated_id)
 

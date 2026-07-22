@@ -381,6 +381,16 @@ class TestCreateCampaign:
         assert call.kwargs["json"]["account"] == "urn:li:sponsoredAccount:123456789"
 
     @pytest.mark.asyncio
+    async def test_campaign_id_read_from_restli_header(self, mock_context):
+        # LinkedIn returns the new campaign id in the x-restli-id header, not the body.
+        mock_context.fetch.return_value = FetchResponse(status=201, headers={"x-restli-id": "999888"}, data=None)
+
+        result = await linkedin_ads.execute_action("create_campaign", CREATE_INPUTS, mock_context)
+
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["campaign_id"] == "999888"
+
+    @pytest.mark.asyncio
     async def test_error_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("bad request")
 
