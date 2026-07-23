@@ -198,9 +198,8 @@ class TestGetCampaigns:
     async def test_cursor_pagination(self, mock_context):
         mock_context.fetch.return_value = ok({"elements": [], "metadata": {"nextPageToken": "TOK2"}})
 
-        result = await linkedin_ads.execute_action(
-            "get_campaigns", {"account_id": "123", "page_size": 50, "page_token": "TOK1"}, mock_context
-        )
+        inputs = {"account_id": "123", "page_size": 50, "page_token": "TOK1"}  # nosec B105
+        result = await linkedin_ads.execute_action("get_campaigns", inputs, mock_context)
 
         assert result.type == ResultType.ACTION
         url = fetch_url(mock_context)
@@ -276,9 +275,8 @@ class TestGetCampaignGroups:
     async def test_cursor_pagination(self, mock_context):
         mock_context.fetch.return_value = ok({"elements": [], "metadata": {"nextPageToken": "TOK2"}})
 
-        result = await linkedin_ads.execute_action(
-            "get_campaign_groups", {"account_id": "123", "page_size": 50, "page_token": "TOK1"}, mock_context
-        )
+        inputs = {"account_id": "123", "page_size": 50, "page_token": "TOK1"}  # nosec B105
+        result = await linkedin_ads.execute_action("get_campaign_groups", inputs, mock_context)
 
         assert result.type == ResultType.ACTION
         url = fetch_url(mock_context)
@@ -319,9 +317,8 @@ class TestGetCreatives:
     async def test_cursor_pagination(self, mock_context):
         mock_context.fetch.return_value = ok({"elements": [], "metadata": {"nextPageToken": "TOK2"}})
 
-        result = await linkedin_ads.execute_action(
-            "get_creatives", {"account_id": "123", "page_size": 50, "page_token": "TOK1"}, mock_context
-        )
+        inputs = {"account_id": "123", "page_size": 50, "page_token": "TOK1"}  # nosec B105
+        result = await linkedin_ads.execute_action("get_creatives", inputs, mock_context)
 
         assert result.type == ResultType.ACTION
         url = fetch_url(mock_context)
