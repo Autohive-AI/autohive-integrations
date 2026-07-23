@@ -56,9 +56,13 @@
                     },
                     "page_size": {
                         "type": "integer",
-                        "description": "Number of results per page",
+                        "description": "Number of results per page (cursor-based pagination)",
                         "default": 25,
                         "maximum": 100
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Cursor token from a previous response's next_page_token to fetch the next page"
                     }
                 },
                 "required": ["account_id"]
@@ -69,6 +73,10 @@
                     "campaigns": {
                         "type": "array",
                         "description": "List of campaigns"
+                    },
+                    "next_page_token": {
+                        "type": ["string", "null"],
+                        "description": "Cursor token for the next page; null when there are no more results"
                     }
                 }
             }
@@ -311,6 +319,16 @@
                         "type": "string",
                         "description": "Filter by status",
                         "enum": ["ACTIVE", "PAUSED", "ARCHIVED", "DRAFT"]
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of results per page (cursor-based pagination)",
+                        "default": 25,
+                        "maximum": 100
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Cursor token from a previous response's next_page_token to fetch the next page"
                     }
                 },
                 "required": ["account_id"]
@@ -321,6 +339,10 @@
                     "campaign_groups": {
                         "type": "array",
                         "description": "List of campaign groups"
+                    },
+                    "next_page_token": {
+                        "type": ["string", "null"],
+                        "description": "Cursor token for the next page; null when there are no more results"
                     }
                 }
             }
@@ -338,6 +360,16 @@
                     "campaign_id": {
                         "type": "string",
                         "description": "Optional campaign ID to filter creatives to a single campaign"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of results per page (cursor-based pagination)",
+                        "default": 25,
+                        "maximum": 100
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Cursor token from a previous response's next_page_token to fetch the next page"
                     }
                 },
                 "required": ["account_id"]
@@ -348,6 +380,10 @@
                     "creatives": {
                         "type": "array",
                         "description": "List of creatives"
+                    },
+                    "next_page_token": {
+                        "type": ["string", "null"],
+                        "description": "Cursor token for the next page; null when there are no more results"
                     }
                 }
             }

@@ -216,8 +216,13 @@ class GetCampaignsAction(ActionHandler):
             validated_id = extract_id_from_urn(account_id)
             status = inputs.get("status")
             page_size = inputs.get("page_size", 25)
+            page_token = inputs.get("page_token")
 
-            params = {"q": "search", "count": page_size}
+            # Search finders use cursor-based pagination (pageSize/pageToken)
+            # from API version 202401; the old index-based `count` is ignored.
+            params = {"q": "search", "pageSize": page_size}
+            if page_token:
+                params["pageToken"] = page_token
             if status:
                 params["search"] = f"(status:(values:List({status})))"
 
@@ -226,7 +231,11 @@ class GetCampaignsAction(ActionHandler):
             data = await li_fetch(context, "GET", f"/adAccounts/{validated_id}/adCampaigns", params=params)
 
             campaigns = (data or {}).get("elements", [])
-            return ActionResult(data={"campaigns": campaigns, "total": len(campaigns)}, cost_usd=0.0)
+            next_page_token = ((data or {}).get("metadata") or {}).get("nextPageToken")
+            return ActionResult(
+                data={"campaigns": campaigns, "total": len(campaigns), "next_page_token": next_page_token},
+                cost_usd=0.0,
+            )
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -446,8 +455,14 @@ class GetCampaignGroupsAction(ActionHandler):
             account_id = inputs["account_id"]
             validated_id = extract_id_from_urn(account_id)
             status = inputs.get("status")
+            page_size = inputs.get("page_size", 25)
+            page_token = inputs.get("page_token")
 
-            params = {"q": "search", "count": 25}
+            # Search finders use cursor-based pagination (pageSize/pageToken)
+            # from API version 202401; the old index-based `count` is ignored.
+            params = {"q": "search", "pageSize": page_size}
+            if page_token:
+                params["pageToken"] = page_token
             if status:
                 params["search"] = f"(status:(values:List({status})))"
 
@@ -455,7 +470,10 @@ class GetCampaignGroupsAction(ActionHandler):
             data = await li_fetch(context, "GET", f"/adAccounts/{validated_id}/adCampaignGroups", params=params)
 
             campaign_groups = (data or {}).get("elements", [])
-            return ActionResult(data={"campaign_groups": campaign_groups}, cost_usd=0.0)
+            next_page_token = ((data or {}).get("metadata") or {}).get("nextPageToken")
+            return ActionResult(
+                data={"campaign_groups": campaign_groups, "next_page_token": next_page_token}, cost_usd=0.0
+            )
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -469,8 +487,14 @@ class GetCreativesAction(ActionHandler):
             account_id = inputs["account_id"]
             validated_account_id = extract_id_from_urn(account_id)
             campaign_id = inputs.get("campaign_id", "")
+            page_size = inputs.get("page_size", 25)
+            page_token = inputs.get("page_token")
 
-            params = {"q": "criteria", "count": 25}
+            # The criteria finder uses cursor-based pagination (pageSize/pageToken)
+            # from API version 202401; the old index-based `count` is ignored.
+            params = {"q": "criteria", "pageSize": page_size}
+            if page_token:
+                params["pageToken"] = page_token
             if campaign_id:
                 campaign_urn = build_urn("campaign", extract_id_from_urn(campaign_id))
                 params["campaigns"] = f"List({urn_param(campaign_urn)})"
@@ -480,7 +504,8 @@ class GetCreativesAction(ActionHandler):
             data = await li_fetch(context, "GET", f"/adAccounts/{validated_account_id}/creatives", params=params)
 
             creatives = (data or {}).get("elements", [])
-            return ActionResult(data={"creatives": creatives}, cost_usd=0.0)
+            next_page_token = ((data or {}).get("metadata") or {}).get("nextPageToken")
+            return ActionResult(data={"creatives": creatives, "next_page_token": next_page_token}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 

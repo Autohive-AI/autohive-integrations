@@ -174,7 +174,25 @@ class TestGetCampaigns:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["total"] == 2
-        assert "/adAccounts/123/adCampaigns" in fetch_url(mock_context)
+        url = fetch_url(mock_context)
+        assert "/adAccounts/123/adCampaigns" in url
+        assert "pageSize=25" in url
+        assert "count=" not in url
+        assert result.result.data["next_page_token"] is None
+
+    @pytest.mark.asyncio
+    async def test_cursor_pagination(self, mock_context):
+        mock_context.fetch.return_value = ok({"elements": [], "metadata": {"nextPageToken": "TOK2"}})
+
+        result = await linkedin_ads.execute_action(
+            "get_campaigns", {"account_id": "123", "page_size": 50, "page_token": "TOK1"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        url = fetch_url(mock_context)
+        assert "pageSize=50" in url
+        assert "pageToken=TOK1" in url
+        assert result.result.data["next_page_token"] == "TOK2"
 
     @pytest.mark.asyncio
     async def test_status_filter_compact_syntax(self, mock_context):
@@ -234,7 +252,25 @@ class TestGetCampaignGroups:
 
         assert result.type == ResultType.ACTION
         assert len(result.result.data["campaign_groups"]) == 2
-        assert "/adAccounts/123/adCampaignGroups" in fetch_url(mock_context)
+        url = fetch_url(mock_context)
+        assert "/adAccounts/123/adCampaignGroups" in url
+        assert "pageSize=25" in url
+        assert "count=" not in url
+        assert result.result.data["next_page_token"] is None
+
+    @pytest.mark.asyncio
+    async def test_cursor_pagination(self, mock_context):
+        mock_context.fetch.return_value = ok({"elements": [], "metadata": {"nextPageToken": "TOK2"}})
+
+        result = await linkedin_ads.execute_action(
+            "get_campaign_groups", {"account_id": "123", "page_size": 50, "page_token": "TOK1"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        url = fetch_url(mock_context)
+        assert "pageSize=50" in url
+        assert "pageToken=TOK1" in url
+        assert result.result.data["next_page_token"] == "TOK2"
 
     @pytest.mark.asyncio
     async def test_error_returns_action_error(self, mock_context):
@@ -259,6 +295,23 @@ class TestGetCreatives:
         url = fetch_url(mock_context)
         assert "/adAccounts/123/creatives" in url
         assert "q=criteria" in url
+        assert "pageSize=25" in url
+        assert "count=" not in url
+        assert result.result.data["next_page_token"] is None
+
+    @pytest.mark.asyncio
+    async def test_cursor_pagination(self, mock_context):
+        mock_context.fetch.return_value = ok({"elements": [], "metadata": {"nextPageToken": "TOK2"}})
+
+        result = await linkedin_ads.execute_action(
+            "get_creatives", {"account_id": "123", "page_size": 50, "page_token": "TOK1"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        url = fetch_url(mock_context)
+        assert "pageSize=50" in url
+        assert "pageToken=TOK1" in url
+        assert result.result.data["next_page_token"] == "TOK2"
 
     @pytest.mark.asyncio
     async def test_campaign_filter_encoded(self, mock_context):
