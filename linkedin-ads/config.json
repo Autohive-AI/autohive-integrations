@@ -133,8 +133,8 @@
                     },
                     "type": {
                         "type": "string",
-                        "description": "Campaign type",
-                        "enum": ["TEXT_AD", "SPONSORED_UPDATES", "SPONSORED_INMAILS", "DYNAMIC"]
+                        "description": "Campaign type. DYNAMIC is not supported: it requires a campaign format and both daily and total budgets, which this create action does not emit.",
+                        "enum": ["TEXT_AD", "SPONSORED_UPDATES", "SPONSORED_INMAILS"]
                     },
                     "daily_budget_amount": {
                         "type": "number",
