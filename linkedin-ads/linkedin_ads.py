@@ -336,9 +336,10 @@ class CreateCampaignAction(ActionHandler):
                 json_body=campaign_data,
             )
 
+            # LinkedIn returns the new id in the x-restli-id header with no
+            # response body, so only the declared campaign_id is returned.
             campaign_id = created_entity_id(response)
-            campaign = getattr(response, "data", None)
-            return ActionResult(data={"campaign_id": campaign_id, "campaign": campaign}, cost_usd=0.0)
+            return ActionResult(data={"campaign_id": campaign_id}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
