@@ -161,6 +161,20 @@ class TestGetAdAccounts:
         assert result.type == ResultType.ACTION_ERROR
         assert "forbidden" in result.result.message
 
+    @pytest.mark.asyncio
+    async def test_all_account_fetches_fail_returns_error(self, mock_context):
+        # IDs are discovered but every per-account detail fetch fails: this must
+        # surface an error rather than a misleading empty success.
+        mock_context.fetch.side_effect = [
+            ok({"elements": [{"account": "urn:li:sponsoredAccount:123"}]}),
+            Exception("HTTP 403: forbidden"),
+        ]
+
+        result = await linkedin_ads.execute_action("get_ad_accounts", {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "could not fetch" in result.result.message.lower()
+
 
 # ---- get_campaigns ----
 

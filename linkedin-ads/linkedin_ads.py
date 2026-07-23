@@ -193,13 +193,25 @@ class GetAdAccountsAction(ActionHandler):
             # (ids=List(...) returns 404 RESOURCE_NOT_FOUND), so fetch each
             # account individually via GET /adAccounts/{id}.
             accounts = []
+            fetch_errors = []
             for account_id in account_ids:
                 try:
                     account = await li_fetch(context, "GET", f"/adAccounts/{account_id}")
-                except Exception:  # nosec B112 - skip an account that can't be fetched rather than failing the whole listing
+                except Exception as fetch_err:  # nosec B112 - skip an inaccessible account rather than failing the whole listing
+                    fetch_errors.append(f"{account_id}: {fetch_err}")
                     continue
                 if account:
                     accounts.append(account)
+
+            # Best-effort skipping is fine for an individual inaccessible account,
+            # but if account ids were discovered and none could be fetched (e.g.
+            # an auth or API-contract failure) surface it instead of returning a
+            # misleading empty success.
+            if account_ids and not accounts:
+                return ActionError(
+                    message="Found accessible ad account ids but could not fetch any account details: "
+                    + "; ".join(fetch_errors)
+                )
 
             return ActionResult(data={"accounts": accounts}, cost_usd=0.0)
         except Exception as e:
