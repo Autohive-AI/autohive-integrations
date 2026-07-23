@@ -133,8 +133,13 @@
                     },
                     "type": {
                         "type": "string",
-                        "description": "Campaign type. DYNAMIC is not supported: it requires a campaign format and both daily and total budgets, which this create action does not emit.",
-                        "enum": ["TEXT_AD", "SPONSORED_UPDATES", "SPONSORED_INMAILS"]
+                        "description": "Campaign type. DYNAMIC requires 'format' (FOLLOW_COMPANY, JOBS, or SPOTLIGHT) and both daily_budget_amount and total_budget_amount.",
+                        "enum": ["TEXT_AD", "SPONSORED_UPDATES", "SPONSORED_INMAILS", "DYNAMIC"]
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Campaign ad format. Required for DYNAMIC campaigns (use FOLLOW_COMPANY, JOBS, or SPOTLIGHT). Optional for other types.",
+                        "enum": ["STANDARD_UPDATE", "CAROUSEL", "SINGLE_VIDEO", "SPONSORED_INMAIL", "SPONSORED_MESSAGE", "SPONSORED_UPDATE_EVENT", "TEXT_AD", "SPOTLIGHT", "FOLLOW_COMPANY", "JOBS"]
                     },
                     "daily_budget_amount": {
                         "type": "number",
@@ -159,6 +164,10 @@
                     "unit_cost_amount": {
                         "type": "number",
                         "description": "Bid amount per unit (optional - only set if cost_type is provided)"
+                    },
+                    "total_budget_amount": {
+                        "type": "number",
+                        "description": "Total lifetime budget in account currency. Required for DYNAMIC campaigns (alongside daily_budget_amount); optional otherwise."
                     },
                     "start_date": {
                         "type": "string",
