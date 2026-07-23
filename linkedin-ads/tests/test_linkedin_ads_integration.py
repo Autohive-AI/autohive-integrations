@@ -259,35 +259,40 @@ class TestCampaignLifecycle:
         campaign_id = str(created.result.data["campaign_id"])
         assert campaign_id
 
-        # Step 2: get_campaign
-        fetched = await linkedin_ads.execute_action(
-            "get_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
-        )
-        assert fetched.type == ResultType.ACTION, fetched.result
+        try:
+            # Step 2: get_campaign
+            fetched = await linkedin_ads.execute_action(
+                "get_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
+            )
+            assert fetched.type == ResultType.ACTION, fetched.result
 
-        # Step 3: update_campaign — rename
-        updated = await linkedin_ads.execute_action(
-            "update_campaign",
-            {"account_id": account_id, "campaign_id": campaign_id, "name": "Autohive Test (renamed)"},
-            live_context,
-        )
-        assert updated.type == ResultType.ACTION, updated.result
+            # Step 3: update_campaign — rename
+            updated = await linkedin_ads.execute_action(
+                "update_campaign",
+                {"account_id": account_id, "campaign_id": campaign_id, "name": "Autohive Test (renamed)"},
+                live_context,
+            )
+            assert updated.type == ResultType.ACTION, updated.result
 
-        # Step 4: pause_campaign
-        paused = await linkedin_ads.execute_action(
-            "pause_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
-        )
-        assert paused.type == ResultType.ACTION, paused.result
+            # Step 4: pause_campaign
+            paused = await linkedin_ads.execute_action(
+                "pause_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
+            )
+            assert paused.type == ResultType.ACTION, paused.result
 
-        # Step 5: activate_campaign
-        activated = await linkedin_ads.execute_action(
-            "activate_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
-        )
-        assert activated.type == ResultType.ACTION, activated.result
-
-        # Step 6: cleanup — archive (no delete action exists)
-        await linkedin_ads.execute_action(
-            "update_campaign",
-            {"account_id": account_id, "campaign_id": campaign_id, "status": "ARCHIVED"},
-            live_context,
-        )
+            # Step 5: activate_campaign
+            activated = await linkedin_ads.execute_action(
+                "activate_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
+            )
+            assert activated.type == ResultType.ACTION, activated.result
+        finally:
+            # Cleanup runs even if a step above fails, so no test campaign is
+            # left behind. There is no delete action and the campaign is ACTIVE
+            # by this point (LinkedIn only allows DELETE on DRAFT campaigns), so
+            # archive is the correct terminal cleanup. Assert it succeeded.
+            cleanup = await linkedin_ads.execute_action(
+                "update_campaign",
+                {"account_id": account_id, "campaign_id": campaign_id, "status": "ARCHIVED"},
+                live_context,
+            )
+            assert cleanup.type == ResultType.ACTION, cleanup.result
