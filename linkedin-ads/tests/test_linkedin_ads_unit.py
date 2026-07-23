@@ -298,6 +298,8 @@ class TestGetCreatives:
         assert "pageSize=25" in url
         assert "count=" not in url
         assert result.result.data["next_page_token"] is None
+        # The criteria finder requires the Rest.li FINDER method header.
+        assert mock_context.fetch.call_args.kwargs["headers"]["X-RestLi-Method"] == "FINDER"
 
     @pytest.mark.asyncio
     async def test_cursor_pagination(self, mock_context):

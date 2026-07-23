@@ -500,8 +500,15 @@ class GetCreativesAction(ActionHandler):
                 params["campaigns"] = f"List({urn_param(campaign_urn)})"
 
             # Creatives are now retrieved via the account-scoped `criteria`
-            # finder, optionally filtered by campaign.
-            data = await li_fetch(context, "GET", f"/adAccounts/{validated_account_id}/creatives", params=params)
+            # finder, optionally filtered by campaign. The criteria finder
+            # requires the Rest.li FINDER method header per LinkedIn's docs.
+            data = await li_fetch(
+                context,
+                "GET",
+                f"/adAccounts/{validated_account_id}/creatives",
+                params=params,
+                extra_headers={"X-RestLi-Method": "FINDER"},
+            )
 
             creatives = (data or {}).get("elements", [])
             next_page_token = ((data or {}).get("metadata") or {}).get("nextPageToken")
