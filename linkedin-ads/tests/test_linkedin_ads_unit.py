@@ -173,7 +173,7 @@ class TestGetCampaigns:
         result = await linkedin_ads.execute_action("get_campaigns", {"account_id": "123"}, mock_context)
 
         assert result.type == ResultType.ACTION
-        assert result.result.data["total"] == 2
+        assert len(result.result.data["campaigns"]) == 2
         url = fetch_url(mock_context)
         assert "/adAccounts/123/adCampaigns" in url
         assert "pageSize=25" in url

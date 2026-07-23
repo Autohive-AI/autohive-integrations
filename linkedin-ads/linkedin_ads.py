@@ -233,7 +233,7 @@ class GetCampaignsAction(ActionHandler):
             campaigns = (data or {}).get("elements", [])
             next_page_token = ((data or {}).get("metadata") or {}).get("nextPageToken")
             return ActionResult(
-                data={"campaigns": campaigns, "total": len(campaigns), "next_page_token": next_page_token},
+                data={"campaigns": campaigns, "next_page_token": next_page_token},
                 cost_usd=0.0,
             )
         except Exception as e:

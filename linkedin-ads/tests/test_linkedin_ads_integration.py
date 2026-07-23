@@ -130,7 +130,7 @@ class TestGetCampaigns:
         result = await linkedin_ads.execute_action("get_campaigns", {"account_id": account_id}, live_context)
 
         assert result.type == ResultType.ACTION, result.result
-        assert result.result.data["total"] == len(result.result.data["campaigns"])
+        assert isinstance(result.result.data["campaigns"], list)
 
     @pytest.mark.asyncio
     async def test_status_filter_accepted(self, live_context):
