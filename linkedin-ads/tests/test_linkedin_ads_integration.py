@@ -98,14 +98,14 @@ class TestGetAdAccounts:
     async def test_returns_accounts(self, live_context):
         result = await linkedin_ads.execute_action("get_ad_accounts", {}, live_context)
 
-        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert result.type == ResultType.ACTION, result.result
         assert isinstance(result.result.data["accounts"], list)
 
     @pytest.mark.asyncio
     async def test_respects_page_size(self, live_context):
         result = await linkedin_ads.execute_action("get_ad_accounts", {"page_size": 1}, live_context)
 
-        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert result.type == ResultType.ACTION, result.result
         assert len(result.result.data["accounts"]) <= 1
 
 
@@ -117,7 +117,7 @@ class TestGetAdAccountUsers:
 
         result = await linkedin_ads.execute_action("get_ad_account_users", {"account_id": account_id}, live_context)
 
-        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert result.type == ResultType.ACTION, result.result
         assert isinstance(result.result.data["users"], list)
 
 
@@ -129,7 +129,7 @@ class TestGetCampaigns:
 
         result = await linkedin_ads.execute_action("get_campaigns", {"account_id": account_id}, live_context)
 
-        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert result.type == ResultType.ACTION, result.result
         assert result.result.data["total"] == len(result.result.data["campaigns"])
 
     @pytest.mark.asyncio
@@ -140,7 +140,7 @@ class TestGetCampaigns:
             "get_campaigns", {"account_id": account_id, "status": "ACTIVE"}, live_context
         )
 
-        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert result.type == ResultType.ACTION, result.result
 
 
 @skip_if_no_creds
@@ -151,7 +151,7 @@ class TestGetCampaignGroups:
 
         result = await linkedin_ads.execute_action("get_campaign_groups", {"account_id": account_id}, live_context)
 
-        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert result.type == ResultType.ACTION, result.result
         assert isinstance(result.result.data["campaign_groups"], list)
 
 
@@ -171,7 +171,7 @@ class TestGetCampaign:
             "get_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
         )
 
-        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert result.type == ResultType.ACTION, result.result
         assert "campaign" in result.result.data
 
     @pytest.mark.asyncio
@@ -195,7 +195,7 @@ class TestGetCreatives:
 
         result = await linkedin_ads.execute_action("get_creatives", {"account_id": account_id}, live_context)
 
-        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert result.type == ResultType.ACTION, result.result
         assert isinstance(result.result.data["creatives"], list)
 
 
@@ -211,7 +211,7 @@ class TestGetAdAnalytics:
             live_context,
         )
 
-        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        assert result.type == ResultType.ACTION, result.result
         assert isinstance(result.result.data["analytics"], list)
 
 
@@ -255,7 +255,7 @@ class TestCampaignLifecycle:
             },
             live_context,
         )
-        assert created.type != ResultType.ACTION_ERROR, created.result.message
+        assert created.type == ResultType.ACTION, created.result
         campaign_id = str(created.result.data["campaign_id"])
         assert campaign_id
 
@@ -263,7 +263,7 @@ class TestCampaignLifecycle:
         fetched = await linkedin_ads.execute_action(
             "get_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
         )
-        assert fetched.type != ResultType.ACTION_ERROR, fetched.result.message
+        assert fetched.type == ResultType.ACTION, fetched.result
 
         # Step 3: update_campaign — rename
         updated = await linkedin_ads.execute_action(
@@ -271,19 +271,19 @@ class TestCampaignLifecycle:
             {"account_id": account_id, "campaign_id": campaign_id, "name": "Autohive Test (renamed)"},
             live_context,
         )
-        assert updated.type != ResultType.ACTION_ERROR, updated.result.message
+        assert updated.type == ResultType.ACTION, updated.result
 
         # Step 4: pause_campaign
         paused = await linkedin_ads.execute_action(
             "pause_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
         )
-        assert paused.type != ResultType.ACTION_ERROR, paused.result.message
+        assert paused.type == ResultType.ACTION, paused.result
 
         # Step 5: activate_campaign
         activated = await linkedin_ads.execute_action(
             "activate_campaign", {"account_id": account_id, "campaign_id": campaign_id}, live_context
         )
-        assert activated.type != ResultType.ACTION_ERROR, activated.result.message
+        assert activated.type == ResultType.ACTION, activated.result
 
         # Step 6: cleanup — archive (no delete action exists)
         await linkedin_ads.execute_action(

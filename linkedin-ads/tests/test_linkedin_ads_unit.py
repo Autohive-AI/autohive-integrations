@@ -139,7 +139,7 @@ class TestGetAdAccounts:
 
         result = await linkedin_ads.execute_action("get_ad_accounts", {}, mock_context)
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         assert len(result.result.data["accounts"]) == 1
         assert result.result.data["accounts"][0]["name"] == "Test Account"
         assert fetch_url(mock_context, 1).endswith("/adAccounts/123")
@@ -172,7 +172,7 @@ class TestGetCampaigns:
 
         result = await linkedin_ads.execute_action("get_campaigns", {"account_id": "123"}, mock_context)
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         assert result.result.data["total"] == 2
         assert "/adAccounts/123/adCampaigns" in fetch_url(mock_context)
 
@@ -206,7 +206,7 @@ class TestGetCampaign:
             "get_campaign", {"account_id": "456", "campaign_id": "urn:li:sponsoredCampaign:123"}, mock_context
         )
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         assert result.result.data["campaign"]["name"] == "Test Campaign"
         assert fetch_url(mock_context).endswith("/adAccounts/456/adCampaigns/123")
 
@@ -232,7 +232,7 @@ class TestGetCampaignGroups:
 
         result = await linkedin_ads.execute_action("get_campaign_groups", {"account_id": "123"}, mock_context)
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         assert len(result.result.data["campaign_groups"]) == 2
         assert "/adAccounts/123/adCampaignGroups" in fetch_url(mock_context)
 
@@ -255,7 +255,7 @@ class TestGetCreatives:
 
         result = await linkedin_ads.execute_action("get_creatives", {"account_id": "123"}, mock_context)
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         url = fetch_url(mock_context)
         assert "/adAccounts/123/creatives" in url
         assert "q=criteria" in url
@@ -291,7 +291,7 @@ class TestGetAdAnalytics:
             mock_context,
         )
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         url = fetch_url(mock_context)
         assert "dateRange=(start:(year:2026,month:6,day:1),end:(year:2026,month:6,day:30))" in url
         assert "accounts=List(urn%3Ali%3AsponsoredAccount%3A123)" in url
@@ -338,7 +338,7 @@ class TestGetAdAccountUsers:
 
         result = await linkedin_ads.execute_action("get_ad_account_users", {"account_id": "123"}, mock_context)
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         assert len(result.result.data["users"]) == 1
         url = fetch_url(mock_context)
         assert "q=accounts" in url
@@ -373,7 +373,7 @@ class TestCreateCampaign:
 
         result = await linkedin_ads.execute_action("create_campaign", CREATE_INPUTS, mock_context)
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         assert result.result.data["campaign_id"] == "new-123"
         call = mock_context.fetch.call_args
         assert str(call.args[0]).endswith("/adAccounts/123456789/adCampaigns")
@@ -387,7 +387,7 @@ class TestCreateCampaign:
 
         result = await linkedin_ads.execute_action("create_campaign", CREATE_INPUTS, mock_context)
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         assert result.result.data["campaign_id"] == "999888"
 
     @pytest.mark.asyncio
@@ -412,7 +412,7 @@ class TestUpdateCampaign:
             "update_campaign", {"account_id": "456", "campaign_id": "123", "name": "Renamed"}, mock_context
         )
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         assert "updated" in result.result.data["message"]
         call = mock_context.fetch.call_args
         assert str(call.args[0]).endswith("/adAccounts/456/adCampaigns/123")
@@ -441,7 +441,7 @@ class TestPauseCampaign:
             "pause_campaign", {"account_id": "456", "campaign_id": "123"}, mock_context
         )
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         assert "paused" in result.result.data["message"]
         call = mock_context.fetch.call_args
         assert str(call.args[0]).endswith("/adAccounts/456/adCampaigns/123")
@@ -470,7 +470,7 @@ class TestActivateCampaign:
             "activate_campaign", {"account_id": "456", "campaign_id": "123"}, mock_context
         )
 
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
         assert "activated" in result.result.data["message"]
         call = mock_context.fetch.call_args
         assert call.kwargs["json"]["patch"]["$set"]["status"] == "ACTIVE"
