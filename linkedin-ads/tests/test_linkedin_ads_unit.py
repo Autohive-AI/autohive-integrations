@@ -412,6 +412,8 @@ class TestGetAdAccountUsers:
         assert len(result.result.data["users"]) == 1
         url = fetch_url(mock_context)
         assert "q=accounts" in url
+        # The versioned API requires a List(...) value here; a bare URN is
+        # rejected with 400 "Invalid value type for parameter accounts".
         assert "accounts=List(urn%3Ali%3AsponsoredAccount%3A123)" in url
 
     @pytest.mark.asyncio

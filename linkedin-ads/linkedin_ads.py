@@ -629,6 +629,11 @@ class GetAdAccountUsersAction(ActionHandler):
             validated_id = extract_id_from_urn(account_id)
             account_urn = build_urn("account", validated_id)
 
+            # The q=accounts finder expects accounts as a List(...) value on the
+            # live versioned API: a bare URN is rejected with 400 "Invalid value
+            # type for parameter accounts" (verified against v202601). The public
+            # docs show a bare URN, but that does not match the versioned API.
+            # Only the first account in the list is matched.
             params = {"q": "accounts", "accounts": f"List({urn_param(account_urn)})"}
 
             data = await li_fetch(context, "GET", "/adAccountUsers", params=params)
