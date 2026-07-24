@@ -192,6 +192,8 @@ class TestGetCampaigns:
         assert "/adAccounts/123/adCampaigns" in url
         assert "pageSize=25" in url
         assert "count=" not in url
+        # Search criteria is mandatory; with no status filter we default to all statuses.
+        assert "search=(status:(values:List(ACTIVE,PAUSED,ARCHIVED,COMPLETED,CANCELED,DRAFT)))" in url
         assert result.result.data["next_page_token"] is None
 
     @pytest.mark.asyncio
@@ -269,6 +271,8 @@ class TestGetCampaignGroups:
         assert "/adAccounts/123/adCampaignGroups" in url
         assert "pageSize=25" in url
         assert "count=" not in url
+        # Search criteria is mandatory; with no status filter we default to all statuses.
+        assert "search=(status:(values:List(ACTIVE,PAUSED,ARCHIVED,CANCELED,DRAFT)))" in url
         assert result.result.data["next_page_token"] is None
 
     @pytest.mark.asyncio

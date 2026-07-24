@@ -27,6 +27,13 @@ ANALYTICS_FIELDS = "impressions,clicks,costInLocalCurrency,externalWebsiteConver
 # Jobs ads. LinkedIn requires a dynamic format on DYNAMIC-type campaigns.
 DYNAMIC_CAMPAIGN_FORMATS = {"FOLLOW_COMPANY", "JOBS", "SPOTLIGHT"}
 
+# LinkedIn's campaign / campaign-group search finders document search criteria
+# as mandatory. When the caller does not pass a status filter, default to every
+# non-deleted status so the finder still has a valid criterion and returns the
+# full listing (PENDING_DELETION / REMOVED are deleted and intentionally left out).
+CAMPAIGN_SEARCH_STATUSES = ("ACTIVE", "PAUSED", "ARCHIVED", "COMPLETED", "CANCELED", "DRAFT")
+CAMPAIGN_GROUP_SEARCH_STATUSES = ("ACTIVE", "PAUSED", "ARCHIVED", "CANCELED", "DRAFT")
+
 
 def get_headers() -> Dict[str, str]:
     """Build headers for LinkedIn Marketing API requests."""
@@ -239,8 +246,10 @@ class GetCampaignsAction(ActionHandler):
             params = {"q": "search", "pageSize": page_size}
             if page_token:
                 params["pageToken"] = page_token
-            if status:
-                params["search"] = f"(status:(values:List({status})))"
+            # Search criteria is mandatory for this finder; default to all
+            # non-deleted statuses when the caller does not filter by status.
+            status_values = status if status else ",".join(CAMPAIGN_SEARCH_STATUSES)
+            params["search"] = f"(status:(values:List({status_values})))"
 
             # Campaign endpoints are now account-scoped: the account id lives in
             # the URL path, not the query.
@@ -505,8 +514,10 @@ class GetCampaignGroupsAction(ActionHandler):
             params = {"q": "search", "pageSize": page_size}
             if page_token:
                 params["pageToken"] = page_token
-            if status:
-                params["search"] = f"(status:(values:List({status})))"
+            # Search criteria is mandatory for this finder; default to all
+            # non-deleted statuses when the caller does not filter by status.
+            status_values = status if status else ",".join(CAMPAIGN_GROUP_SEARCH_STATUSES)
+            params["search"] = f"(status:(values:List({status_values})))"
 
             # Campaign group endpoints are now account-scoped.
             data = await li_fetch(context, "GET", f"/adAccounts/{validated_id}/adCampaignGroups", params=params)
