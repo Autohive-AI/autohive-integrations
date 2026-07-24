@@ -129,7 +129,7 @@
                     "objective_type": {
                         "type": "string",
                         "description": "Campaign objective (singular enum symbols as required by the API)",
-                        "enum": ["BRAND_AWARENESS", "ENGAGEMENT", "JOB_APPLICANTS", "LEAD_GENERATION", "WEBSITE_CONVERSION", "WEBSITE_VISIT", "VIDEO_VIEW", "WEBSITE_TRAFFIC"]
+                        "enum": ["BRAND_AWARENESS", "ENGAGEMENT", "JOB_APPLICANT", "LEAD_GENERATION", "WEBSITE_CONVERSION", "WEBSITE_VISIT", "VIDEO_VIEW", "WEBSITE_TRAFFIC"]
                     },
                     "type": {
                         "type": "string",
