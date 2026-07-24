@@ -1,7 +1,7 @@
 {
     "name": "LinkedIn Ads",
     "display_name": "LinkedIn Ads",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Integration with LinkedIn Marketing API for managing ad accounts, campaigns, creatives, and analytics.",
     "entry_point": "linkedin_ads.py",
     "auth": {
@@ -35,12 +35,6 @@
                     "accounts": {
                         "type": "array",
                         "description": "List of ad accounts"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -62,9 +56,13 @@
                     },
                     "page_size": {
                         "type": "integer",
-                        "description": "Number of results per page",
+                        "description": "Number of results per page (cursor-based pagination)",
                         "default": 25,
                         "maximum": 100
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Cursor token from a previous response's next_page_token to fetch the next page"
                     }
                 },
                 "required": ["account_id"]
@@ -76,11 +74,9 @@
                         "type": "array",
                         "description": "List of campaigns"
                     },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
+                    "next_page_token": {
+                        "type": ["string", "null"],
+                        "description": "Cursor token for the next page; null when there are no more results"
                     }
                 }
             }
@@ -91,12 +87,16 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID the campaign belongs to (e.g., 'urn:li:sponsoredAccount:123456789'). Required by the LinkedIn API, which now scopes campaign requests to an account."
+                    },
                     "campaign_id": {
                         "type": "string",
                         "description": "The campaign ID (e.g., 'urn:li:sponsoredCampaign:123456789')"
                     }
                 },
-                "required": ["campaign_id"]
+                "required": ["account_id", "campaign_id"]
             },
             "output_schema": {
                 "type": "object",
@@ -104,12 +104,6 @@
                     "campaign": {
                         "type": "object",
                         "description": "Campaign details"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -134,13 +128,18 @@
                     },
                     "objective_type": {
                         "type": "string",
-                        "description": "Campaign objective",
-                        "enum": ["BRAND_AWARENESS", "ENGAGEMENT", "JOB_APPLICANTS", "LEAD_GENERATION", "WEBSITE_CONVERSIONS", "WEBSITE_VISITS", "VIDEO_VIEWS"]
+                        "description": "Campaign objective (singular enum symbols as required by the API)",
+                        "enum": ["BRAND_AWARENESS", "ENGAGEMENT", "JOB_APPLICANT", "LEAD_GENERATION", "WEBSITE_CONVERSION", "WEBSITE_VISIT", "VIDEO_VIEW", "WEBSITE_TRAFFIC"]
                     },
                     "type": {
                         "type": "string",
-                        "description": "Campaign type",
+                        "description": "Campaign type. DYNAMIC requires 'format' (FOLLOW_COMPANY, JOBS, or SPOTLIGHT) and both daily_budget_amount and total_budget_amount.",
                         "enum": ["TEXT_AD", "SPONSORED_UPDATES", "SPONSORED_INMAILS", "DYNAMIC"]
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "Campaign ad format. Required for DYNAMIC campaigns (use FOLLOW_COMPANY, JOBS, or SPOTLIGHT). Optional for other types.",
+                        "enum": ["STANDARD_UPDATE", "CAROUSEL", "SINGLE_VIDEO", "SPONSORED_INMAIL", "SPONSORED_MESSAGE", "SPONSORED_UPDATE_EVENT", "TEXT_AD", "SPOTLIGHT", "FOLLOW_COMPANY", "JOBS"]
                     },
                     "daily_budget_amount": {
                         "type": "number",
@@ -165,6 +164,39 @@
                     "unit_cost_amount": {
                         "type": "number",
                         "description": "Bid amount per unit (optional - only set if cost_type is provided)"
+                    },
+                    "total_budget_amount": {
+                        "type": "number",
+                        "description": "Total lifetime budget in account currency. Required for DYNAMIC campaigns (alongside daily_budget_amount); optional otherwise."
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "description": "Campaign run-schedule start date (YYYY-MM-DD). Defaults to today if omitted."
+                    },
+                    "end_date": {
+                        "type": "string",
+                        "description": "Optional campaign run-schedule end date (YYYY-MM-DD). Open-ended if omitted."
+                    },
+                    "locale_country": {
+                        "type": "string",
+                        "description": "Campaign locale country code (required by the API)",
+                        "default": "US"
+                    },
+                    "locale_language": {
+                        "type": "string",
+                        "description": "Campaign locale language code (required by the API)",
+                        "default": "en"
+                    },
+                    "offsite_delivery_enabled": {
+                        "type": "boolean",
+                        "description": "Serve ads on the LinkedIn Audience Network (required by the API)",
+                        "default": false
+                    },
+                    "political_intent": {
+                        "type": "string",
+                        "description": "Whether the campaign is political advertising (required by the API)",
+                        "enum": ["POLITICAL", "NOT_POLITICAL", "NOT_DECLARED"],
+                        "default": "NOT_DECLARED"
                     }
                 },
                 "required": ["account_id", "campaign_group_id", "name", "objective_type", "type", "daily_budget_amount"]
@@ -175,12 +207,6 @@
                     "campaign_id": {
                         "type": "string",
                         "description": "Created campaign ID"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -191,6 +217,10 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID the campaign belongs to (e.g., 'urn:li:sponsoredAccount:123456789'). Required by the LinkedIn API, which now scopes campaign requests to an account."
+                    },
                     "campaign_id": {
                         "type": "string",
                         "description": "The campaign ID to update"
@@ -218,16 +248,14 @@
                         "default": "USD"
                     }
                 },
-                "required": ["campaign_id"]
+                "required": ["account_id", "campaign_id"]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
+                    "message": {
+                        "type": "string",
+                        "description": "Result message"
                     }
                 }
             }
@@ -238,21 +266,23 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID the campaign belongs to (e.g., 'urn:li:sponsoredAccount:123456789'). Required by the LinkedIn API, which now scopes campaign requests to an account."
+                    },
                     "campaign_id": {
                         "type": "string",
                         "description": "The campaign ID to pause"
                     }
                 },
-                "required": ["campaign_id"]
+                "required": ["account_id", "campaign_id"]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
+                    "message": {
+                        "type": "string",
+                        "description": "Result message"
                     }
                 }
             }
@@ -263,21 +293,23 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID the campaign belongs to (e.g., 'urn:li:sponsoredAccount:123456789'). Required by the LinkedIn API, which now scopes campaign requests to an account."
+                    },
                     "campaign_id": {
                         "type": "string",
                         "description": "The campaign ID to activate"
                     }
                 },
-                "required": ["campaign_id"]
+                "required": ["account_id", "campaign_id"]
             },
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
+                    "message": {
+                        "type": "string",
+                        "description": "Result message"
                     }
                 }
             }
@@ -296,6 +328,16 @@
                         "type": "string",
                         "description": "Filter by status",
                         "enum": ["ACTIVE", "PAUSED", "ARCHIVED", "DRAFT"]
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of results per page (cursor-based pagination)",
+                        "default": 25,
+                        "maximum": 100
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Cursor token from a previous response's next_page_token to fetch the next page"
                     }
                 },
                 "required": ["account_id"]
@@ -307,27 +349,39 @@
                         "type": "array",
                         "description": "List of campaign groups"
                     },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
+                    "next_page_token": {
+                        "type": ["string", "null"],
+                        "description": "Cursor token for the next page; null when there are no more results"
                     }
                 }
             }
         },
         "get_creatives": {
             "display_name": "Get Creatives",
-            "description": "Retrieve creatives (ads) for a campaign.",
+            "description": "Retrieve creatives (ads) for an ad account, optionally filtered by campaign.",
             "input_schema": {
                 "type": "object",
                 "properties": {
+                    "account_id": {
+                        "type": "string",
+                        "description": "The LinkedIn Ad Account ID (e.g., 'urn:li:sponsoredAccount:123456789'). Required by the LinkedIn API, which now scopes creative requests to an account."
+                    },
                     "campaign_id": {
                         "type": "string",
-                        "description": "The campaign ID to get creatives for"
+                        "description": "Optional campaign ID to filter creatives to a single campaign"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of results per page (cursor-based pagination)",
+                        "default": 25,
+                        "maximum": 100
+                    },
+                    "page_token": {
+                        "type": "string",
+                        "description": "Cursor token from a previous response's next_page_token to fetch the next page"
                     }
                 },
-                "required": ["campaign_id"]
+                "required": ["account_id"]
             },
             "output_schema": {
                 "type": "object",
@@ -336,11 +390,9 @@
                         "type": "array",
                         "description": "List of creatives"
                     },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
+                    "next_page_token": {
+                        "type": ["string", "null"],
+                        "description": "Cursor token for the next page; null when there are no more results"
                     }
                 }
             }
@@ -383,12 +435,6 @@
                     "analytics": {
                         "type": "array",
                         "description": "Analytics data"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
@@ -412,12 +458,6 @@
                     "users": {
                         "type": "array",
                         "description": "List of users with access"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 }
             }
