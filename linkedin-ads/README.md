@@ -60,6 +60,14 @@ compact Rest.li query syntax (e.g. `accounts=List(urn:li:sponsoredAccount:1)` an
 these values are sent literally rather than percent-encoded, which the API
 requires.
 
+### Pagination
+
+The list actions `get_campaigns`, `get_campaign_groups`, and `get_creatives`
+use LinkedIn's cursor-based pagination (required from API version 202401). Pass
+an optional `page_size` (default 25, max 100). To fetch the next page, pass the
+`next_page_token` returned by the previous response as `page_token`. When
+`next_page_token` is `null`, there are no more results.
+
 ### Analytics fields
 
 Analytics requests only project fields that exist in the `AdAnalytics` v8 schema:
