@@ -23,10 +23,6 @@ API_VERSION = "202601"
 # by the API, so they are computed by consumers instead of requested here.
 ANALYTICS_FIELDS = "impressions,clicks,costInLocalCurrency,externalWebsiteConversions"
 
-# campaignFormat symbols valid for DYNAMIC campaigns: Spotlight, Follower, and
-# Jobs ads. LinkedIn requires a dynamic format on DYNAMIC-type campaigns.
-DYNAMIC_CAMPAIGN_FORMATS = {"FOLLOW_COMPANY", "JOBS", "SPOTLIGHT"}
-
 # LinkedIn's campaign / campaign-group search finders document search criteria
 # as mandatory. When the caller does not pass a status filter, default to every
 # non-deleted status so the finder still has a valid criterion and returns the
@@ -309,19 +305,6 @@ class CreateCampaignAction(ActionHandler):
             offsite_delivery_enabled = inputs.get("offsite_delivery_enabled", False)
             political_intent = inputs.get("political_intent", "NOT_DECLARED")
 
-            # Dynamic campaigns require a dynamic campaign format and BOTH a daily
-            # and a total budget; without them LinkedIn rejects the create.
-            if campaign_type == "DYNAMIC":
-                if campaign_format not in DYNAMIC_CAMPAIGN_FORMATS:
-                    return ActionError(
-                        message="Dynamic campaigns require 'format' to be one of "
-                        + ", ".join(sorted(DYNAMIC_CAMPAIGN_FORMATS))
-                    )
-                if total_budget_amount is None:
-                    return ActionError(
-                        message="Dynamic campaigns require both daily_budget_amount and total_budget_amount"
-                    )
-
             account_numeric_id = extract_id_from_urn(account_id)
             account_urn = build_urn("account", account_numeric_id)
             campaign_group_urn = build_urn("campaign_group", extract_id_from_urn(campaign_group_id))
@@ -365,9 +348,7 @@ class CreateCampaignAction(ActionHandler):
                     "amount": str(unit_cost_amount),
                     "currencyCode": currency_code,
                 }
-            # `format` is optional for most types but mandatory for DYNAMIC (and
-            # Carousel/Video); `totalBudget` is mandatory alongside dailyBudget
-            # for DYNAMIC and otherwise optional.
+            # Optional campaign format (e.g. Carousel/Video) and total lifetime budget.
             if campaign_format:
                 campaign_data["format"] = campaign_format
             if total_budget_amount is not None:

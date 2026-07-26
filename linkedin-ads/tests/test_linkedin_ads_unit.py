@@ -472,53 +472,17 @@ class TestCreateCampaign:
         assert "bad request" in result.result.message
 
     @pytest.mark.asyncio
-    async def test_dynamic_success_emits_format_and_total_budget(self, mock_context):
-        mock_context.fetch.return_value = ok({"id": "dyn-1"})
+    async def test_optional_format_and_total_budget_emitted(self, mock_context):
+        mock_context.fetch.return_value = ok({"id": "new-123"})
 
-        inputs = {
-            **CREATE_INPUTS,
-            "type": "DYNAMIC",
-            "format": "SPOTLIGHT",
-            "total_budget_amount": 500,
-        }
+        inputs = {**CREATE_INPUTS, "format": "CAROUSEL", "total_budget_amount": 500}
         result = await linkedin_ads.execute_action("create_campaign", inputs, mock_context)
 
         assert result.type == ResultType.ACTION
         body = mock_context.fetch.call_args.kwargs["json"]
-        assert body["type"] == "DYNAMIC"
-        assert body["format"] == "SPOTLIGHT"
+        assert body["format"] == "CAROUSEL"
         assert body["totalBudget"] == {"amount": "500", "currencyCode": "USD"}
         assert body["dailyBudget"]["amount"] == "100"
-
-    @pytest.mark.asyncio
-    async def test_dynamic_without_format_returns_error(self, mock_context):
-        inputs = {**CREATE_INPUTS, "type": "DYNAMIC", "total_budget_amount": 500}
-
-        result = await linkedin_ads.execute_action("create_campaign", inputs, mock_context)
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "format" in result.result.message
-        mock_context.fetch.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_dynamic_with_nondynamic_format_returns_error(self, mock_context):
-        inputs = {**CREATE_INPUTS, "type": "DYNAMIC", "format": "CAROUSEL", "total_budget_amount": 500}
-
-        result = await linkedin_ads.execute_action("create_campaign", inputs, mock_context)
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "format" in result.result.message
-        mock_context.fetch.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_dynamic_without_total_budget_returns_error(self, mock_context):
-        inputs = {**CREATE_INPUTS, "type": "DYNAMIC", "format": "SPOTLIGHT"}
-
-        result = await linkedin_ads.execute_action("create_campaign", inputs, mock_context)
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "total_budget_amount" in result.result.message
-        mock_context.fetch.assert_not_called()
 
 
 # ---- update_campaign ----

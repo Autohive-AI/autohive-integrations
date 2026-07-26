@@ -133,13 +133,13 @@
                     },
                     "type": {
                         "type": "string",
-                        "description": "Campaign type. DYNAMIC requires 'format' (FOLLOW_COMPANY, JOBS, or SPOTLIGHT) and both daily_budget_amount and total_budget_amount.",
-                        "enum": ["TEXT_AD", "SPONSORED_UPDATES", "SPONSORED_INMAILS", "DYNAMIC"]
+                        "description": "Campaign type. DYNAMIC is not supported here: a valid Dynamic create also requires an organization associatedEntity and a format-specific placement selection that this action does not model (tracked as a follow-up).",
+                        "enum": ["TEXT_AD", "SPONSORED_UPDATES", "SPONSORED_INMAILS"]
                     },
                     "format": {
                         "type": "string",
-                        "description": "Campaign ad format. Required for DYNAMIC campaigns (use FOLLOW_COMPANY, JOBS, or SPOTLIGHT). Optional for other types.",
-                        "enum": ["STANDARD_UPDATE", "CAROUSEL", "SINGLE_VIDEO", "SPONSORED_INMAIL", "SPONSORED_MESSAGE", "SPONSORED_UPDATE_EVENT", "TEXT_AD", "SPOTLIGHT", "FOLLOW_COMPANY", "JOBS"]
+                        "description": "Optional campaign ad format (e.g. for Carousel or Video campaigns).",
+                        "enum": ["STANDARD_UPDATE", "CAROUSEL", "SINGLE_VIDEO", "SPONSORED_INMAIL", "SPONSORED_MESSAGE", "SPONSORED_UPDATE_EVENT", "TEXT_AD"]
                     },
                     "daily_budget_amount": {
                         "type": "number",
@@ -167,7 +167,7 @@
                     },
                     "total_budget_amount": {
                         "type": "number",
-                        "description": "Total lifetime budget in account currency. Required for DYNAMIC campaigns (alongside daily_budget_amount); optional otherwise."
+                        "description": "Optional total lifetime budget in account currency."
                     },
                     "start_date": {
                         "type": "string",
