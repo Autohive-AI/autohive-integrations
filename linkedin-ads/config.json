@@ -327,7 +327,7 @@
                     "status": {
                         "type": "string",
                         "description": "Filter by status",
-                        "enum": ["ACTIVE", "PAUSED", "ARCHIVED", "DRAFT"]
+                        "enum": ["ACTIVE", "PAUSED", "ARCHIVED", "CANCELED", "DRAFT"]
                     },
                     "page_size": {
                         "type": "integer",
