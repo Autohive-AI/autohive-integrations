@@ -19,6 +19,26 @@ def mock_context():
     with a VALIDATION_ERROR before the handler runs.
     """
     ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {"auth_type": "Custom", "credentials": {"api_key": "test_api_key"}}  # nosec B105
     return ctx
+
+
+@pytest.fixture
+def mock_wfs(monkeypatch):
+    """Patch the single WFS request seam (`_wfs_request`).
+
+    The integration now issues its HTTP calls with aiohttp directly (not
+    `context.fetch`) so the API key — which LINZ carries in the URL path —
+    never reaches the SDK's request logging. Unit tests therefore mock this
+    one function: set `.return_value`/`.side_effect` to feed responses, and
+    inspect `.call_args.kwargs["params"]` to assert on the request.
+    """
+    import importlib
+
+    # `from linz import linz` resolves to the Integration instance (the package
+    # __init__ re-exports it), so reach the module object via its full name.
+    linz_module = importlib.import_module("linz.linz")
+
+    m = AsyncMock(name="_wfs_request")
+    monkeypatch.setattr(linz_module, "_wfs_request", m)
+    return m

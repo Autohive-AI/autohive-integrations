@@ -1,7 +1,10 @@
-"""Unit tests for the LINZ integration using a mocked WFS fetch."""
+"""Unit tests for the LINZ integration using a mocked WFS request seam."""
 
+import json
+from unittest.mock import MagicMock
+
+import aiohttp
 import pytest
-from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
 
 from linz.linz import (
@@ -17,8 +20,11 @@ from linz.linz import (
     _owner_display_name,
     _owner_key,
     _parse_capabilities_layers,
+    _redact,
     _split_owners,
     _total_matched,
+    _wfs_request,
+    _WfsResponse,
     LAYER_TITLES,
     LAYER_TITLES_OWNERS,
     LAYER_TITLE_OWNERS,
@@ -33,7 +39,7 @@ pytestmark = pytest.mark.unit
 
 
 def ok(data, status=200):
-    return FetchResponse(status=status, headers={}, data=data)
+    return _WfsResponse(status=status, data=data)
 
 
 def feature(props, geometry=None, fid=None):
@@ -81,33 +87,34 @@ class TestGetApiKey:
             _get_api_key(ctx)
 
     @pytest.mark.asyncio
-    async def test_execute_action_with_platform_auth_envelope(self, mock_context):
+    async def test_execute_action_with_platform_auth_envelope(self, mock_context, mock_wfs):
         # The platform passes {"auth_type": ..., "credentials": {...}} at
         # runtime; the full action path must work with that shape end-to-end.
         mock_context.auth = {"auth_type": "Custom", "credentials": {"api_key": "nested_key"}}  # nosec B105
-        mock_context.fetch.return_value = ok({"type": "FeatureCollection", "features": []})
+        mock_wfs.return_value = ok({"type": "FeatureCollection", "features": []})
         result = await linz.execute_action("search_property_titles", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION
-        assert "services;key=nested_key/wfs" in mock_context.fetch.call_args.args[0]
+        # The nested-credentials envelope resolved and a WFS request was issued.
+        mock_wfs.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_flat_auth_rejected_by_sdk(self, mock_context):
+    async def test_flat_auth_rejected_by_sdk(self, mock_context, mock_wfs):
         # SDK 2.0.1+ rejects non-envelope auth before the handler runs.
         mock_context.auth = {"api_key": "flat_key"}  # nosec B105
         result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR
-        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_missing_key_blocked_before_fetch(self, mock_context):
         # auth.fields has no "required" list, so an empty credentials object
-        # passes SDK schema validation; the handler's own _get_api_key check
-        # blocks the network call instead.
+        # passes SDK schema validation; _get_api_key (called at the top of the
+        # real _wfs_request, before any socket is opened) blocks the call.
+        # NB: no mock_wfs here — we want the real key check to run.
         mock_context.auth = {"auth_type": "Custom", "credentials": {}}
         result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "API key is required" in result.result.message
-        mock_context.fetch.assert_not_called()
 
 
 # =============================================================================
@@ -222,13 +229,10 @@ class TestHelpers:
 
 class TestWfsRequest:
     @pytest.mark.asyncio
-    async def test_key_in_url_and_params(self, mock_context):
-        mock_context.fetch.return_value = ok(collection([]))
+    async def test_request_params(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(collection([]))
         await linz.execute_action("search_property_titles", {"title_no": "NA1/1"}, mock_context)
-        args, kwargs = mock_context.fetch.call_args
-        url = args[0]
-        assert "services;key=test_api_key/wfs" in url
-        params = kwargs["params"]
+        params = mock_wfs.call_args.kwargs["params"]
         assert params["service"] == "WFS"
         assert params["version"] == "2.0.0"
         assert params["request"] == "GetFeature"
@@ -237,21 +241,21 @@ class TestWfsRequest:
         assert params["cql_filter"] == "(title_no = 'NA1/1')"
 
     @pytest.mark.asyncio
-    async def test_403_gives_licence_hint(self, mock_context):
-        mock_context.fetch.return_value = ok({"message": "forbidden"}, status=403)
+    async def test_403_gives_licence_hint(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok({"message": "forbidden"}, status=403)
         result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "Personal Data" in result.result.message
 
     @pytest.mark.asyncio
-    async def test_xml_exception_report(self, mock_context):
-        mock_context.fetch.return_value = ok("<ExceptionReport>bad cql</ExceptionReport>")
+    async def test_xml_exception_report(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok("<ExceptionReport>bad cql</ExceptionReport>")
         result = await linz.execute_action("search_property_titles", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "exception" in result.result.message.lower()
 
     @pytest.mark.asyncio
-    async def test_unknown_layer_maps_to_licence_hint(self, mock_context):
+    async def test_unknown_layer_maps_to_licence_hint(self, mock_context, mock_wfs):
         # Real LDS behaviour for an unlicensed ownership layer: 400 + unknown
         # feature type. Should surface the Personal Data Licence hint.
         xml = (
@@ -259,31 +263,31 @@ class TestWfsRequest:
             "<ows:ExceptionText>Feature type :layer-50805 unknown</ows:ExceptionText>"
             "</ows:Exception></ows:ExceptionReport>"
         )
-        mock_context.fetch.return_value = ok(xml, status=400)
+        mock_wfs.return_value = ok(xml, status=400)
         result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "Personal Data" in result.result.message
 
     @pytest.mark.asyncio
-    async def test_total_matched_unknown_is_null(self, mock_context):
-        mock_context.fetch.return_value = ok(
+    async def test_total_matched_unknown_is_null(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(
             collection([feature({"title_no": "NA1/1"})], totalFeatures="unknown", numberReturned=1)
         )
         result = await linz.execute_action("search_property_titles", {"title_no": "NA1/1"}, mock_context)
         assert result.result.data["total_matched"] is None
 
     @pytest.mark.asyncio
-    async def test_fetch_exception_returns_action_error(self, mock_context):
+    async def test_fetch_exception_returns_action_error(self, mock_context, mock_wfs):
         # Every action wraps work in try/except — a transport failure must
         # surface as an ActionError, not propagate.
-        mock_context.fetch.side_effect = Exception("Connection refused")
+        mock_wfs.side_effect = Exception("Connection refused")
         result = await linz.execute_action("search_property_titles", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "Connection refused" in result.result.message
 
     @pytest.mark.asyncio
-    async def test_500_returns_action_error(self, mock_context):
-        mock_context.fetch.return_value = ok({"message": "boom"}, status=500)
+    async def test_500_returns_action_error(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok({"message": "boom"}, status=500)
         result = await linz.execute_action("search_parcels", {"appellation": "Lot 1"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "500" in result.result.message
@@ -296,8 +300,8 @@ class TestWfsRequest:
 
 class TestSearchPropertyTitles:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = ok(
+    async def test_happy_path(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(
             collection(
                 [feature({"title_no": "NA1/1", "owners": "JOHN SMITH", "land_district": "North Auckland"})],
                 numberMatched=1,
@@ -312,18 +316,18 @@ class TestSearchPropertyTitles:
         assert data["total_matched"] == 1
 
     @pytest.mark.asyncio
-    async def test_owner_name_uses_ilike(self, mock_context):
-        mock_context.fetch.return_value = ok(collection([]))
+    async def test_owner_name_uses_ilike(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(collection([]))
         await linz.execute_action("search_property_titles", {"owner_name": "smith"}, mock_context)
-        cql = mock_context.fetch.call_args.kwargs["params"]["cql_filter"]
+        cql = mock_wfs.call_args.kwargs["params"]["cql_filter"]
         assert "owners ILIKE '%smith%'" in cql
 
     @pytest.mark.asyncio
-    async def test_requires_a_filter(self, mock_context):
+    async def test_requires_a_filter(self, mock_context, mock_wfs):
         result = await linz.execute_action("search_property_titles", {}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "at least one filter" in result.result.message
-        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
 
 
 # =============================================================================
@@ -359,8 +363,8 @@ class TestGetTitleOwners:
         return feature({**defaults, **props})
 
     @pytest.mark.asyncio
-    async def test_happy_path_owners_from_normalised_table(self, mock_context):
-        mock_context.fetch.side_effect = [
+    async def test_happy_path_owners_from_normalised_table(self, mock_context, mock_wfs):
+        mock_wfs.side_effect = [
             ok(self.TITLE_50805),
             ok(
                 collection(
@@ -380,15 +384,15 @@ class TestGetTitleOwners:
         assert [d["owner_name"] for d in data["owner_details"]] == ["John Smith", "Jane Smith"]
         assert data["owner_details"][0]["estate_share"] == "1/2"
         # Second request must hit the normalised owners table.
-        owners_params = mock_context.fetch.call_args.kwargs["params"]
+        owners_params = mock_wfs.call_args.kwargs["params"]
         assert owners_params["typeNames"] == TABLE_TITLE_OWNERS_LIST
         assert owners_params["cql_filter"] == "title_no = 'NA1/1'"
 
     @pytest.mark.asyncio
-    async def test_comma_in_corporate_name_is_one_owner(self, mock_context):
+    async def test_comma_in_corporate_name_is_one_owner(self, mock_context, mock_wfs):
         # The regression the aggregated-string split could never get right: a
         # single owner whose real name contains a comma.
-        mock_context.fetch.side_effect = [
+        mock_wfs.side_effect = [
             ok(self.TITLE_50805),
             ok(
                 collection([self.owner_row(owner_type="Corporate", corporate_name="SMITH, JONES AND PARTNERS LIMITED")])
@@ -400,8 +404,8 @@ class TestGetTitleOwners:
         assert data["owners_exact"] is True
 
     @pytest.mark.asyncio
-    async def test_falls_back_to_display_string_when_table_empty(self, mock_context):
-        mock_context.fetch.side_effect = [ok(self.TITLE_50805), ok(collection([]))]
+    async def test_falls_back_to_display_string_when_table_empty(self, mock_context, mock_wfs):
+        mock_wfs.side_effect = [ok(self.TITLE_50805), ok(collection([]))]
         result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
         data = result.result.data
         assert data["owners"] == ["JANE SMITH", "JOHN SMITH"]
@@ -409,14 +413,14 @@ class TestGetTitleOwners:
         assert data["owner_details"] == []
 
     @pytest.mark.asyncio
-    async def test_falls_back_when_table_inaccessible(self, mock_context):
+    async def test_falls_back_when_table_inaccessible(self, mock_context, mock_wfs):
         # A key licensed for layer-50805 but not table-51564 must still work.
         unknown = (
             '<?xml version="1.0"?><ows:ExceptionReport><ows:Exception>'
             "<ows:ExceptionText>Feature type :table-51564 unknown</ows:ExceptionText>"
             "</ows:Exception></ows:ExceptionReport>"
         )
-        mock_context.fetch.side_effect = [ok(self.TITLE_50805), ok(unknown, status=400)]
+        mock_wfs.side_effect = [ok(self.TITLE_50805), ok(unknown, status=400)]
         result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -424,20 +428,20 @@ class TestGetTitleOwners:
         assert data["owners_exact"] is False
 
     @pytest.mark.asyncio
-    async def test_missing_title_no(self, mock_context):
+    async def test_missing_title_no(self, mock_context, mock_wfs):
         # title_no is a required input — rejected by SDK validation pre-handler.
         result = await linz.execute_action("get_title_owners", {}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR
-        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_not_found(self, mock_context):
-        mock_context.fetch.return_value = ok(collection([]))
+    async def test_not_found(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(collection([]))
         result = await linz.execute_action("get_title_owners", {"title_no": "ZZ9/9"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "No title found" in result.result.message
         # No owners-table lookup for a missing title.
-        assert mock_context.fetch.call_count == 1
+        assert mock_wfs.call_count == 1
 
 
 # =============================================================================
@@ -465,17 +469,17 @@ class TestFindMultiPropertyOwners:
         return feature({"title_no": title_no, "estate_description": estate, "type": type_})
 
     @pytest.mark.asyncio
-    async def test_requires_scoping_filter(self, mock_context):
+    async def test_requires_scoping_filter(self, mock_context, mock_wfs):
         result = await linz.execute_action("find_multi_property_owners", {}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "scoping filter is required" in result.result.message
-        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_aggregates_distinct_titles_from_owner_rows(self, mock_context):
+    async def test_aggregates_distinct_titles_from_owner_rows(self, mock_context, mock_wfs):
         # District-wide scan: SMITH owns T1+T2; JONES owns T2+T3. Each scanned
         # record is one (owner, title) row — no string splitting involved.
-        mock_context.fetch.side_effect = [
+        mock_wfs.side_effect = [
             ok(
                 collection(
                     [
@@ -498,15 +502,15 @@ class TestFindMultiPropertyOwners:
         assert {t["title_no"] for t in by_name["JOHN SMITH"]["titles"]} == {"T1", "T2"}
         assert {t["title_no"] for t in by_name["JANE JONES"]["titles"]} == {"T2", "T3"}
         # The scan must hit the row-per-owner layer without geometry.
-        scan_params = mock_context.fetch.call_args_list[0].kwargs["params"]
+        scan_params = mock_wfs.call_args_list[0].kwargs["params"]
         assert scan_params["typeNames"] == LAYER_TITLE_OWNERS
         assert scan_params["propertyName"] == OWNER_SCAN_FIELDS
 
     @pytest.mark.asyncio
-    async def test_comma_in_owner_name_is_single_owner(self, mock_context):
+    async def test_comma_in_owner_name_is_single_owner(self, mock_context, mock_wfs):
         # The regression comma-splitting used to get wrong: one corporate owner
         # whose real name contains ', ' must not become two owners.
-        mock_context.fetch.return_value = ok(
+        mock_wfs.return_value = ok(
             collection(
                 [
                     self.owner_row("SMITH, JONES AND PARTNERS LIMITED", "T1"),
@@ -526,8 +530,8 @@ class TestFindMultiPropertyOwners:
         assert owner["property_count"] == 2
 
     @pytest.mark.asyncio
-    async def test_min_properties_threshold(self, mock_context):
-        mock_context.fetch.return_value = ok(collection([self.owner_row("SOLO OWNER", "T1")]))
+    async def test_min_properties_threshold(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(collection([self.owner_row("SOLO OWNER", "T1")]))
         result = await linz.execute_action(
             "find_multi_property_owners",
             {"land_district": "Otago", "min_properties": 2},
@@ -535,12 +539,12 @@ class TestFindMultiPropertyOwners:
         )
         assert result.result.data["owner_count"] == 0
         # No results → no enrichment request.
-        assert mock_context.fetch.call_count == 1
+        assert mock_wfs.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_duplicate_row_not_double_counted(self, mock_context):
+    async def test_duplicate_row_not_double_counted(self, mock_context, mock_wfs):
         # The same (owner, title) row appearing twice counts once.
-        mock_context.fetch.return_value = ok(
+        mock_wfs.return_value = ok(
             collection(
                 [
                     self.owner_row("JOHN SMITH", "T1"),
@@ -557,22 +561,22 @@ class TestFindMultiPropertyOwners:
         assert owner["property_count"] == 1
 
     @pytest.mark.asyncio
-    async def test_request_combines_filters(self, mock_context):
-        mock_context.fetch.return_value = ok(collection([]))
+    async def test_request_combines_filters(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(collection([]))
         await linz.execute_action(
             "find_multi_property_owners",
             {"owner_name": "smith", "land_district": "Otago", "status": "LIVE"},
             mock_context,
         )
-        params = mock_context.fetch.call_args.kwargs["params"]
+        params = mock_wfs.call_args.kwargs["params"]
         assert params["typeNames"] == LAYER_TITLE_OWNERS
         assert (
             params["cql_filter"] == "(owner ILIKE '%smith%') AND (land_district = 'Otago') AND (title_status = 'LIVE')"
         )
 
     @pytest.mark.asyncio
-    async def test_title_details_enriched_from_50805(self, mock_context):
-        mock_context.fetch.side_effect = [
+    async def test_title_details_enriched_from_50805(self, mock_context, mock_wfs):
+        mock_wfs.side_effect = [
             ok(
                 collection(
                     [
@@ -599,22 +603,20 @@ class TestFindMultiPropertyOwners:
         assert titles["T1"]["estate_description"] == "Fee Simple, 1/2, Lot 1 DP 1"
         assert titles["T1"]["part_ownership"] is True
         assert titles["T2"]["type"] == "Leasehold"
-        detail_params = mock_context.fetch.call_args.kwargs["params"]
+        detail_params = mock_wfs.call_args.kwargs["params"]
         assert detail_params["typeNames"] == LAYER_TITLES_OWNERS
         assert detail_params["cql_filter"] == "title_no IN ('T1', 'T2')"
         assert detail_params["propertyName"] == "title_no,estate_description,type"
 
     @pytest.mark.asyncio
-    async def test_include_title_details_false_skips_enrichment(self, mock_context):
-        mock_context.fetch.return_value = ok(
-            collection([self.owner_row("JOHN SMITH", "T1"), self.owner_row("JOHN SMITH", "T2")])
-        )
+    async def test_include_title_details_false_skips_enrichment(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(collection([self.owner_row("JOHN SMITH", "T1"), self.owner_row("JOHN SMITH", "T2")]))
         result = await linz.execute_action(
             "find_multi_property_owners",
             {"owner_name": "smith", "include_title_details": False},
             mock_context,
         )
-        assert mock_context.fetch.call_count == 1
+        assert mock_wfs.call_count == 1
         title = result.result.data["owners"][0]["titles"][0]
         assert title["estate_description"] is None
 
@@ -632,9 +634,9 @@ class TestFindMultiPropertyOwners:
     }
 
     @pytest.mark.asyncio
-    async def test_truncated_when_numeric_total_exceeds_cap(self, mock_context):
+    async def test_truncated_when_numeric_total_exceeds_cap(self, mock_context, mock_wfs):
         # numberMatched is numeric and > cap: truncated without a probe request.
-        mock_context.fetch.side_effect = [
+        mock_wfs.side_effect = [
             ok(self.bulk_page("A", numberMatched=2500)),
             ok(self.bulk_page("B", numberMatched=2500)),
         ]
@@ -642,13 +644,13 @@ class TestFindMultiPropertyOwners:
         data = result.result.data
         assert data["titles_scanned"] == 2000
         assert data["truncated"] is True
-        assert mock_context.fetch.call_count == 2
+        assert mock_wfs.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_exact_cap_with_numeric_total_not_truncated(self, mock_context):
+    async def test_exact_cap_with_numeric_total_not_truncated(self, mock_context, mock_wfs):
         # Exactly cap matches (numberMatched == cap): nothing was omitted, so
         # a full final page must NOT be reported as truncated.
-        mock_context.fetch.side_effect = [
+        mock_wfs.side_effect = [
             ok(self.bulk_page("A", numberMatched=2000)),
             ok(self.bulk_page("B", numberMatched=2000)),
         ]
@@ -656,13 +658,13 @@ class TestFindMultiPropertyOwners:
         data = result.result.data
         assert data["titles_scanned"] == 2000
         assert data["truncated"] is False
-        assert mock_context.fetch.call_count == 2
+        assert mock_wfs.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_exact_cap_unknown_total_probes_and_not_truncated(self, mock_context):
+    async def test_exact_cap_unknown_total_probes_and_not_truncated(self, mock_context, mock_wfs):
         # LDS reports totalFeatures "unknown": a probe one past the cap comes
         # back empty, proving exactly cap matches — not truncated.
-        mock_context.fetch.side_effect = [
+        mock_wfs.side_effect = [
             ok(self.bulk_page("A", totalFeatures="unknown")),
             ok(self.bulk_page("B", totalFeatures="unknown")),
             ok(collection([])),
@@ -671,15 +673,15 @@ class TestFindMultiPropertyOwners:
         data = result.result.data
         assert data["titles_scanned"] == 2000
         assert data["truncated"] is False
-        assert mock_context.fetch.call_count == 3
-        probe_params = mock_context.fetch.call_args.kwargs["params"]
+        assert mock_wfs.call_count == 3
+        probe_params = mock_wfs.call_args.kwargs["params"]
         assert probe_params["count"] == 1
         assert probe_params["startIndex"] == 2000
 
     @pytest.mark.asyncio
-    async def test_cap_plus_one_unknown_total_truncated(self, mock_context):
+    async def test_cap_plus_one_unknown_total_truncated(self, mock_context, mock_wfs):
         # The probe past the cap returns a record: data really was omitted.
-        mock_context.fetch.side_effect = [
+        mock_wfs.side_effect = [
             ok(self.bulk_page("A", totalFeatures="unknown")),
             ok(self.bulk_page("B", totalFeatures="unknown")),
             ok(collection([self.owner_row("BULK OWNER", "C0")])),
@@ -688,7 +690,7 @@ class TestFindMultiPropertyOwners:
         data = result.result.data
         assert data["titles_scanned"] == 2000
         assert data["truncated"] is True
-        assert mock_context.fetch.call_count == 3
+        assert mock_wfs.call_count == 3
 
 
 # =============================================================================
@@ -698,34 +700,32 @@ class TestFindMultiPropertyOwners:
 
 class TestSearchParcels:
     @pytest.mark.asyncio
-    async def test_happy_path_strips_geometry(self, mock_context):
-        mock_context.fetch.return_value = ok(
+    async def test_happy_path_strips_geometry(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(
             collection(
                 [feature({"appellation": "Lot 1 DP 1", "parcel_intent": "Fee Simple"}, geometry={"big": "poly"})]
             )
         )
         result = await linz.execute_action("search_parcels", {"appellation": "Lot 1"}, mock_context)
         assert result.type == ResultType.ACTION
-        assert mock_context.fetch.call_args.kwargs["params"]["typeNames"] == LAYER_PRIMARY_PARCELS
+        assert mock_wfs.call_args.kwargs["params"]["typeNames"] == LAYER_PRIMARY_PARCELS
         parcel = result.result.data["parcels"][0]
         assert parcel["appellation"] == "Lot 1 DP 1"
         assert "geometry" not in parcel
 
     @pytest.mark.asyncio
-    async def test_include_geometry(self, mock_context):
-        mock_context.fetch.return_value = ok(
-            collection([feature({"appellation": "Lot 1"}, geometry={"type": "Polygon"})])
-        )
+    async def test_include_geometry(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(collection([feature({"appellation": "Lot 1"}, geometry={"type": "Polygon"})]))
         result = await linz.execute_action(
             "search_parcels", {"appellation": "Lot 1", "include_geometry": True}, mock_context
         )
         assert result.result.data["parcels"][0]["geometry"] == {"type": "Polygon"}
 
     @pytest.mark.asyncio
-    async def test_requires_filter(self, mock_context):
+    async def test_requires_filter(self, mock_context, mock_wfs):
         result = await linz.execute_action("search_parcels", {}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
-        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
 
 
 # =============================================================================
@@ -735,53 +735,53 @@ class TestSearchParcels:
 
 class TestQueryLayer:
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = ok(collection([feature({"id_field": 1})], numberMatched=1))
+    async def test_happy_path(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(collection([feature({"id_field": 1})], numberMatched=1))
         result = await linz.execute_action(
             "query_layer",
             {"layer": "50805", "cql_filter": "land_district = 'Otago'", "limit": 5},
             mock_context,
         )
         assert result.type == ResultType.ACTION
-        params = mock_context.fetch.call_args.kwargs["params"]
+        params = mock_wfs.call_args.kwargs["params"]
         assert params["typeNames"] == "layer-50805"
         assert params["cql_filter"] == "land_district = 'Otago'"
         assert params["count"] == 5
         assert result.result.data["count"] == 1
 
     @pytest.mark.asyncio
-    async def test_missing_layer(self, mock_context):
+    async def test_missing_layer(self, mock_context, mock_wfs):
         # layer is a required input — rejected by SDK validation pre-handler.
         result = await linz.execute_action("query_layer", {}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR
-        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_limit_above_cap_rejected_by_schema(self, mock_context):
+    async def test_limit_above_cap_rejected_by_schema(self, mock_context, mock_wfs):
         result = await linz.execute_action("query_layer", {"layer": "50805", "limit": 5000}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR
-        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_negative_start_index_rejected_by_schema(self, mock_context):
+    async def test_negative_start_index_rejected_by_schema(self, mock_context, mock_wfs):
         result = await linz.execute_action("query_layer", {"layer": "50805", "start_index": -1}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR
-        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_runtime_clamp_defends_without_schema(self, mock_context):
+    async def test_runtime_clamp_defends_without_schema(self, mock_context, mock_wfs):
         # Defense-in-depth: even calling the handler directly (bypassing SDK
         # schema validation) the limit and start_index are clamped before they
         # reach WFS.
-        mock_context.fetch.return_value = ok(collection([]))
+        mock_wfs.return_value = ok(collection([]))
         await QueryLayerAction().execute({"layer": "50805", "limit": 999999, "start_index": -5}, mock_context)
-        params = mock_context.fetch.call_args.kwargs["params"]
+        params = mock_wfs.call_args.kwargs["params"]
         assert params["count"] == MAX_QUERY_LIMIT
         assert params["startIndex"] == 0
 
     @pytest.mark.asyncio
-    async def test_fetch_exception_returns_action_error(self, mock_context):
-        mock_context.fetch.side_effect = Exception("Connection reset")
+    async def test_fetch_exception_returns_action_error(self, mock_context, mock_wfs):
+        mock_wfs.side_effect = Exception("Connection reset")
         result = await linz.execute_action("query_layer", {"layer": "50772"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "Connection reset" in result.result.message
@@ -805,18 +805,16 @@ class TestListAvailableLayers:
     ALL_LAYERS = OWNERSHIP_LAYERS + PUBLIC_LAYERS
 
     @pytest.mark.asyncio
-    async def test_sends_getcapabilities_request(self, mock_context):
-        mock_context.fetch.return_value = ok(capabilities_xml(self.ALL_LAYERS))
+    async def test_sends_getcapabilities_request(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(capabilities_xml(self.ALL_LAYERS))
         await linz.execute_action("list_available_layers", {}, mock_context)
-        args, kwargs = mock_context.fetch.call_args
-        assert "services;key=test_api_key/wfs" in args[0]
-        params = kwargs["params"]
+        params = mock_wfs.call_args.kwargs["params"]
         assert params["request"] == "GetCapabilities"
         assert "typeNames" not in params
 
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = ok(capabilities_xml(self.ALL_LAYERS))
+    async def test_happy_path(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(capabilities_xml(self.ALL_LAYERS))
         result = await linz.execute_action("list_available_layers", {}, mock_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -834,10 +832,10 @@ class TestListAvailableLayers:
         assert "all layers used by this integration" in data["note"]
 
     @pytest.mark.asyncio
-    async def test_empty_capabilities_gives_scope_hint(self, mock_context):
+    async def test_empty_capabilities_gives_scope_hint(self, mock_context, mock_wfs):
         # The real failure mode this action diagnoses: a valid key whose
         # capabilities expose zero layers (no query/WFS scope).
-        mock_context.fetch.return_value = ok(capabilities_xml([]))
+        mock_wfs.return_value = ok(capabilities_xml([]))
         result = await linz.execute_action("list_available_layers", {}, mock_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
@@ -848,9 +846,9 @@ class TestListAvailableLayers:
         assert "data.linz.govt.nz/my/api" in data["note"]
 
     @pytest.mark.asyncio
-    async def test_missing_ownership_layers_note_licence(self, mock_context):
+    async def test_missing_ownership_layers_note_licence(self, mock_context, mock_wfs):
         # Key can query public layers but none of the licensed ownership datasets.
-        mock_context.fetch.return_value = ok(capabilities_xml(self.PUBLIC_LAYERS))
+        mock_wfs.return_value = ok(capabilities_xml(self.PUBLIC_LAYERS))
         result = await linz.execute_action("list_available_layers", {}, mock_context)
         data = result.result.data
         assert data["integration_layers"] == {
@@ -864,8 +862,8 @@ class TestListAvailableLayers:
         assert "Personal Data" in data["note"]
 
     @pytest.mark.asyncio
-    async def test_name_contains_filters_but_not_diagnostics(self, mock_context):
-        mock_context.fetch.return_value = ok(capabilities_xml(self.ALL_LAYERS))
+    async def test_name_contains_filters_but_not_diagnostics(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(capabilities_xml(self.ALL_LAYERS))
         result = await linz.execute_action("list_available_layers", {"name_contains": "parcels"}, mock_context)
         data = result.result.data
         assert [layer["id"] for layer in data["layers"]] == [LAYER_PRIMARY_PARCELS]
@@ -875,8 +873,8 @@ class TestListAvailableLayers:
         assert data["integration_layers"][LAYER_TITLES_OWNERS] is True
 
     @pytest.mark.asyncio
-    async def test_limit_truncates(self, mock_context):
-        mock_context.fetch.return_value = ok(capabilities_xml(self.ALL_LAYERS))
+    async def test_limit_truncates(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(capabilities_xml(self.ALL_LAYERS))
         result = await linz.execute_action("list_available_layers", {"limit": 2}, mock_context)
         data = result.result.data
         assert data["count"] == 2
@@ -884,8 +882,146 @@ class TestListAvailableLayers:
         assert data["total_available"] == 5
 
     @pytest.mark.asyncio
-    async def test_non_xml_response_is_action_error(self, mock_context):
-        mock_context.fetch.return_value = ok({"unexpected": "json"})
+    async def test_non_xml_response_is_action_error(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok({"unexpected": "json"})
         result = await linz.execute_action("list_available_layers", {}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "unexpected" in result.result.message.lower()
+
+
+# =============================================================================
+# _wfs_request / _redact — the aiohttp seam that keeps the key out of logs
+# =============================================================================
+
+
+class _FakeResp:
+    """Minimal stand-in for an aiohttp response used as an async CM."""
+
+    def __init__(self, status=200, text="{}", content_type="application/json"):
+        self.status = status
+        self._text = text
+        self.headers = {"Content-Type": content_type}
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def text(self):
+        return self._text
+
+
+class _RaisingCtx:
+    """Async CM whose entry raises — models aiohttp failing on request."""
+
+    def __init__(self, error):
+        self._error = error
+
+    async def __aenter__(self):
+        raise self._error
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class _FakeSession:
+    def __init__(self, resp=None, error=None):
+        self._resp = resp
+        self._error = error
+        self.calls = []
+
+    def get(self, url, params=None, **kwargs):
+        self.calls.append((url, params, kwargs))
+        return _RaisingCtx(self._error) if self._error is not None else self._resp
+
+    async def close(self):  # pragma: no cover - not exercised
+        pass
+
+
+def _key_context(session):
+    ctx = MagicMock(name="ExecutionContext")
+    ctx.auth = {"auth_type": "Custom", "credentials": {"api_key": "SEKRET"}}  # nosec B105
+    ctx._session = session
+    return ctx
+
+
+class TestRedact:
+    def test_strips_key_from_url(self):
+        url = "https://data.linz.govt.nz/services;key=SEKRET/wfs?service=WFS"
+        out = _redact(url)
+        assert "SEKRET" not in out
+        assert "services;key=<redacted>/wfs" in out
+
+    def test_passes_through_unrelated_text(self):
+        assert _redact("Connection refused") == "Connection refused"
+        assert _redact(None) == ""
+
+
+class TestWfsRequestDirect:
+    @pytest.mark.asyncio
+    async def test_key_placed_in_url_path_not_params(self, monkeypatch):
+        import importlib
+
+        linz_module = importlib.import_module("linz.linz")
+
+        session = _FakeSession(resp=_FakeResp(text=json.dumps({"features": []})))
+        monkeypatch.setattr(linz_module.aiohttp, "ClientSession", _FakeSession)
+        ctx = _key_context(session)
+
+        result = await _wfs_request(ctx, params={"service": "WFS", "cql_filter": "a = 'b'"})
+
+        assert result.status == 200
+        assert result.data == {"features": []}
+        url, params, _ = session.calls[0]
+        assert "services;key=SEKRET/wfs" in url  # key in path
+        assert "SEKRET" not in json.dumps(params)  # never in query params
+        assert params["cql_filter"] == "a = 'b'"
+
+    @pytest.mark.asyncio
+    async def test_xml_body_returned_as_string(self, monkeypatch):
+        import importlib
+
+        linz_module = importlib.import_module("linz.linz")
+
+        session = _FakeSession(resp=_FakeResp(status=400, text="<ExceptionReport/>", content_type="application/xml"))
+        monkeypatch.setattr(linz_module.aiohttp, "ClientSession", _FakeSession)
+
+        result = await _wfs_request(_key_context(session), params={"service": "WFS"})
+        assert result.status == 400
+        assert result.data == "<ExceptionReport/>"
+
+    @pytest.mark.asyncio
+    async def test_client_error_is_redacted_and_urlless(self, monkeypatch):
+        import importlib
+
+        linz_module = importlib.import_module("linz.linz")
+
+        leaky = "cannot connect to https://data.linz.govt.nz/services;key=SEKRET/wfs?x=1"
+        session = _FakeSession(error=aiohttp.ClientError(leaky))
+        monkeypatch.setattr(linz_module.aiohttp, "ClientSession", _FakeSession)
+
+        with pytest.raises(RuntimeError) as excinfo:
+            await _wfs_request(_key_context(session), params={"service": "WFS"})
+
+        message = str(excinfo.value)
+        assert "SEKRET" not in message
+        assert "<redacted>" in message
+
+    @pytest.mark.asyncio
+    async def test_timeout_message_has_no_url(self, monkeypatch):
+        import asyncio
+
+        import importlib
+
+        linz_module = importlib.import_module("linz.linz")
+
+        session = _FakeSession(error=asyncio.TimeoutError())
+        monkeypatch.setattr(linz_module.aiohttp, "ClientSession", _FakeSession)
+
+        with pytest.raises(RuntimeError) as excinfo:
+            await _wfs_request(_key_context(session), params={"service": "WFS"})
+
+        message = str(excinfo.value)
+        assert "SEKRET" not in message
+        assert "data.linz.govt.nz" not in message

@@ -31,10 +31,21 @@ This integration uses a per-user LINZ Data Service API key (custom auth). The
 ownership layer (``layer-50805``) is licensed personal data: each user must
 generate their own API key AND accept the LINZ Licence for Personal Data on
 their LINZ account before that layer is accessible to the key.
+
+LINZ carries the API key in the request *path* (``…/services;key=<KEY>/wfs``),
+not a header, so any component that logs a request URL would expose the key.
+To keep full control of what is emitted, this integration issues its WFS calls
+with ``aiohttp`` directly rather than the SDK's ``context.fetch`` (whose
+error path logs the full URL), and redacts the key from any error text it
+surfaces (see ``_redact`` / ``_wfs_request``).
 """
 
-from typing import Any, Dict, List, Optional
+import asyncio
+import json
+import re
+from typing import Any, Dict, List, NamedTuple, Optional
 
+import aiohttp
 from defusedxml import ElementTree as DefusedET
 
 from autohive_integrations_sdk import (
@@ -63,6 +74,8 @@ LAYER_TITLES = "layer-50804"  # NZ Property Titles (no owner names)
 LAYER_PRIMARY_PARCELS = "layer-50772"  # NZ Primary Parcels
 
 WFS_VERSION = "2.0.0"
+# Per-request timeout (seconds) for direct aiohttp WFS calls.
+WFS_TIMEOUT_SECONDS = 30
 # LDS caps JSON GetFeature responses; 1000 is a safe per-page size.
 DEFAULT_PAGE_SIZE = 1000
 # Safety ceiling for the multi-property scan so a broad filter can't run away.
@@ -167,6 +180,71 @@ def _properties(feature: Dict[str, Any]) -> Dict[str, Any]:
 # =============================================================================
 
 
+class _WfsResponse(NamedTuple):
+    """Minimal response wrapper: the pieces the error/parse helpers need."""
+
+    status: int
+    data: Any
+
+
+# Matches the API key wherever it appears in a service URL/path so it can be
+# scrubbed from any text that might be logged or returned to the caller.
+_KEY_IN_TEXT = re.compile(r"(services;key=)[^/\s\"']+", re.IGNORECASE)
+
+
+def _redact(text: Any) -> str:
+    """Strip the API key out of any message before it can be logged/surfaced."""
+    return _KEY_IN_TEXT.sub(r"\1<redacted>", str(text or ""))
+
+
+def _parse_wfs_body(text: str, content_type: str) -> Any:
+    """Parse a WFS body: JSON payloads → dict, anything else (XML) → str.
+
+    Mirrors how the callers expect ``response.data``: a dict for a successful
+    GeoJSON GetFeature, and the raw string for XML exception reports and
+    GetCapabilities.
+    """
+    if "json" in content_type.lower():
+        try:
+            return json.loads(text)
+        except ValueError:
+            return text
+    return text
+
+
+async def _wfs_request(context: ExecutionContext, *, params: Dict[str, Any]) -> _WfsResponse:
+    """Issue a GET to the LDS WFS endpoint with aiohttp directly.
+
+    Deliberately does NOT use ``context.fetch``: LINZ puts the API key in the
+    URL path, and the SDK's fetch logs the full URL on error, which would leak
+    the key. Here the key never leaves this function in any raised message —
+    transport errors are re-raised with their text redacted, and no URL is
+    ever included.
+    """
+    url = LDS_WFS_URL_TEMPLATE.format(key=_get_api_key(context))
+    query = {key: str(value) for key, value in params.items() if value is not None}
+    timeout = aiohttp.ClientTimeout(total=WFS_TIMEOUT_SECONDS)
+
+    # Reuse the context's session if present (as context.fetch does); otherwise
+    # create one and cache it on the context so paged scans keep the connection.
+    session = getattr(context, "_session", None)
+    if not isinstance(session, aiohttp.ClientSession):
+        session = aiohttp.ClientSession()
+        context._session = session
+
+    try:
+        async with session.get(url, params=query, timeout=timeout, ssl=True) as response:
+            text = await response.text()
+            content_type = response.headers.get("Content-Type", "")
+            return _WfsResponse(status=response.status, data=_parse_wfs_body(text, content_type))
+    except asyncio.TimeoutError:
+        # Never echo the URL/params — they carry the key.
+        raise RuntimeError("LINZ WFS request timed out.") from None
+    except aiohttp.ClientError as exc:
+        # aiohttp error strings can embed the request URL; redact before raising.
+        raise RuntimeError(f"LINZ WFS request failed: {_redact(exc)}") from None
+
+
 _LICENCE_HINT = (
     "access denied. Verify your API key is valid and that your LINZ account has accepted the "
     "LINZ Licence for Personal Data required to access ownership layers such as layer-50805. "
@@ -254,7 +332,6 @@ async def _wfs_get_features(
     property_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Issue a WFS 2.0.0 GetFeature request and return the GeoJSON collection."""
-    url = LDS_WFS_URL_TEMPLATE.format(key=_get_api_key(context))
     params: Dict[str, Any] = {
         "service": "WFS",
         "version": WFS_VERSION,
@@ -275,7 +352,7 @@ async def _wfs_get_features(
     if property_name:
         params["propertyName"] = property_name
 
-    response = await context.fetch(url, method="GET", params=params)
+    response = await _wfs_request(context, params=params)
     _check_wfs_response(response)
 
     data = response.data
@@ -286,9 +363,8 @@ async def _wfs_get_features(
 
 async def _wfs_get_capabilities(context: ExecutionContext) -> str:
     """Fetch the WFS GetCapabilities document (XML) for the user's key."""
-    url = LDS_WFS_URL_TEMPLATE.format(key=_get_api_key(context))
     params = {"service": "WFS", "version": WFS_VERSION, "request": "GetCapabilities"}
-    response = await context.fetch(url, method="GET", params=params)
+    response = await _wfs_request(context, params=params)
     _check_wfs_response(response)
     data = response.data
     if not isinstance(data, str):
@@ -484,7 +560,7 @@ class SearchPropertyTitlesAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=str(e))
+            return ActionError(message=_redact(e))
 
 
 # =============================================================================
@@ -575,7 +651,7 @@ class GetTitleOwnersAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=str(e))
+            return ActionError(message=_redact(e))
 
 
 # =============================================================================
@@ -723,7 +799,7 @@ class FindMultiPropertyOwnersAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=str(e))
+            return ActionError(message=_redact(e))
 
 
 # =============================================================================
@@ -779,7 +855,7 @@ class SearchParcelsAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=str(e))
+            return ActionError(message=_redact(e))
 
 
 # =============================================================================
@@ -822,7 +898,7 @@ class QueryLayerAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=str(e))
+            return ActionError(message=_redact(e))
 
 
 # =============================================================================
@@ -905,4 +981,4 @@ class ListAvailableLayersAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=str(e))
+            return ActionError(message=_redact(e))

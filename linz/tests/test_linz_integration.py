@@ -19,11 +19,11 @@ Never runs in CI — the default marker filter (-m unit) and the
 test_*_integration.py naming both exclude it.
 """
 
-import json as _json
 import os
 
+import aiohttp
 import pytest
-from autohive_integrations_sdk import FetchResponse
+import pytest_asyncio
 from autohive_integrations_sdk.integration import ResultType
 
 from linz.linz import linz
@@ -39,35 +39,30 @@ TEST_LAND_DISTRICT = os.environ.get("LINZ_TEST_LAND_DISTRICT", "Otago")
 _NO_OWNERSHIP_ACCESS = ("personal data", "unknown")
 
 
-@pytest.fixture
-def live_context(env_credentials):
-    """Custom-auth context whose fetch makes real WFS calls via aiohttp."""
+@pytest_asyncio.fixture
+async def live_context(env_credentials):
+    """Custom-auth context whose _session makes real WFS calls via aiohttp.
+
+    The integration issues its WFS requests with aiohttp directly (see
+    _wfs_request) — reusing context._session — rather than context.fetch, so
+    the API key it puts in the URL path never reaches the SDK's request logs.
+    This fixture therefore provides a real aiohttp session on the context and
+    closes it on teardown.
+    """
     api_key = env_credentials("LINZ_API_KEY")
     if not api_key:
         pytest.skip("LINZ_API_KEY not set — skipping integration tests")
 
-    import aiohttp
-    from unittest.mock import AsyncMock, MagicMock
-
-    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
-        async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, json=json, headers=headers, params=params) as resp:
-                text = await resp.text()
-                # LDS returns JSON on success and XML on error; mirror the SDK's
-                # fetch by parsing JSON when possible and passing the raw string
-                # through otherwise (the integration handles both).
-                try:
-                    data = _json.loads(text)
-                except Exception:
-                    data = text
-                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
+    from unittest.mock import MagicMock
 
     ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock(side_effect=real_fetch)
     # SDK 2.0.1+ requires the platform auth envelope; auth.fields describes
     # the inner credentials object.
     ctx.auth = {"auth_type": "Custom", "credentials": {"api_key": api_key}}
-    return ctx
+
+    async with aiohttp.ClientSession() as session:
+        ctx._session = session
+        yield ctx
 
 
 def _skip_if_no_ownership_access(result):
