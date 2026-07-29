@@ -109,8 +109,22 @@ returning `0` — `qualifiedLeads`, `costPerQualifiedLead`, and the reach fields
 are all routinely missing from rows. Consumers must treat every analytics key as
 optional. `frequency` is `null` when reach is absent for that row.
 
+Every request also projects `pivotValues` and `dateRange`. Rest.li field
+projection is exact, so anything not named in `fields` is dropped: without these
+two, rows come back with metrics but no campaign URN and no day, which makes them
+impossible to attribute.
+
 LinkedIn caps the `fields` parameter at 20 metrics per request; the action
-rejects anything over that before calling the API.
+rejects anything over that before calling the API. With both option flags on the
+projection is 15 fields.
+
+**Throttling trade-off.** LinkedIn limits requests to 45 million metric values
+per 5 minute window, counted as metrics requested multiplied by rows returned.
+`include_leadgen_metrics` defaults to `true`, which takes the base projection
+from 6 fields to 13 and so raises the data cost of every call against that
+budget. It defaults on because the metrics are the reason most callers use this
+action, and a caller that has to opt in generally will not. Set it to `false` for
+high-volume or wide-date-range reporting where the lead columns are not needed.
 
 ## Testing
 

@@ -128,6 +128,11 @@ class TestApiConfiguration:
         assert "clickThroughRate" not in ANALYTICS_FIELDS
         assert "impressions" in ANALYTICS_FIELDS
 
+    def test_analytics_fields_include_attribution(self):
+        """Without these, rows carry metrics but no campaign and no date."""
+        assert "pivotValues" in ANALYTICS_FIELDS
+        assert "dateRange" in ANALYTICS_FIELDS
+
 
 # ---- get_ad_accounts ----
 
@@ -509,6 +514,27 @@ class TestGetAdAnalytics:
         )
 
         assert result.type == ResultType.ACTION
+
+    @pytest.mark.asyncio
+    async def test_attribution_fields_always_requested(self, mock_context):
+        """Rows are useless without a campaign URN and a date, on every path."""
+        mock_context.fetch.return_value = ok({"elements": []})
+
+        for extra in ({}, {"include_leadgen_metrics": False}, {"include_reach": True}):
+            mock_context.fetch.reset_mock()
+            await linkedin_ads.execute_action(
+                "get_ad_analytics",
+                {
+                    "account_id": "123",
+                    "start_date": "2026-06-01",
+                    "end_date": "2026-06-30",
+                    **extra,
+                },
+                mock_context,
+            )
+            url = fetch_url(mock_context)
+            assert "pivotValues" in url, extra
+            assert "fields=" in url and "dateRange" in url.split("fields=")[1], extra
 
     @pytest.mark.asyncio
     async def test_bookings_metric_requested(self, mock_context):

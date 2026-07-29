@@ -215,6 +215,27 @@ class TestGetAdAnalytics:
         assert isinstance(result.result.data["analytics"], list)
 
     @pytest.mark.asyncio
+    async def test_rows_are_attributable(self, live_context):
+        """Every row must identify its campaign and its date.
+
+        Rest.li drops anything not named in the fields projection, so omitting
+        pivotValues/dateRange yields anonymous rows that cannot be attributed.
+        """
+        account_id = await resolve_account_id(live_context)
+
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {"account_id": account_id, "start_date": "2026-06-01", "end_date": "2026-06-30"},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION, result.result
+        for row in result.result.data["analytics"]:
+            assert row.get("pivotValues"), row
+            assert row["pivotValues"][0].startswith("urn:li:sponsoredCampaign:"), row
+            assert row.get("dateRange"), row
+
+    @pytest.mark.asyncio
     async def test_leadgen_fields_accepted_by_api(self, live_context):
         """Lead Gen metrics are served under r_ads_reporting alone.
 

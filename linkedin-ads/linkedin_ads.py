@@ -25,7 +25,12 @@ API_VERSION = "202607"
 # Analytics fields that exist in the AdAnalytics v8 schema. Derived metrics
 # like costPerClick / clickThroughRate are NOT stored fields and are rejected
 # by the API, so they are computed by consumers instead of requested here.
-ANALYTICS_FIELDS = "impressions,clicks,costInLocalCurrency,externalWebsiteConversions"
+#
+# pivotValues and dateRange must be requested explicitly. Rest.li field
+# projection is exact: anything not named in `fields` is dropped, so without
+# them every row comes back with metrics but no campaign URN and no day,
+# leaving the numbers unattributable.
+ANALYTICS_FIELDS = "impressions,clicks,costInLocalCurrency,externalWebsiteConversions,pivotValues,dateRange"
 
 # Lead Gen form metrics. These live in the same AdAnalytics schema and need no
 # scope beyond r_ads_reporting - r_ads_leadgen_automation is only required for
