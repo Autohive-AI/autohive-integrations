@@ -1,7 +1,7 @@
 """
 End-to-end integration tests for the LinkedIn Ads integration.
 
-These call the real LinkedIn Marketing API (v202601) and require a valid
+These call the real LinkedIn Marketing API (v202607) and require a valid
 OAuth2 access token with the r_ads, r_ads_reporting, and rw_ads scopes in
 the LINKEDIN_ADS_ACCESS_TOKEN environment variable (via .env or export).
 

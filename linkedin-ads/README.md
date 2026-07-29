@@ -42,7 +42,11 @@ This integration uses OAuth 2.0 with the following scopes:
 
 ## API Version
 
-This integration uses LinkedIn Marketing API version `202601`.
+This integration uses LinkedIn Marketing API version `202607`.
+
+`202605` or newer is required: `appointmentsScheduled` (bookings) was added in
+`202605` and older versions reject it with
+`400 Projected field "appointmentsScheduled" not present in schema`.
 
 ### Account-scoped endpoints
 
@@ -70,10 +74,43 @@ an optional `page_size` (default 25, max 100). To fetch the next page, pass the
 
 ### Analytics fields
 
-Analytics requests only project fields that exist in the `AdAnalytics` v8 schema:
-`impressions`, `clicks`, `costInLocalCurrency`, `externalWebsiteConversions`.
-Derived metrics such as cost-per-click and click-through-rate are not stored
-fields and must be computed by consumers from these values.
+Analytics requests only project fields that exist in the `AdAnalytics` v8 schema.
+The always-requested base set is `impressions`, `clicks`, `costInLocalCurrency`,
+`externalWebsiteConversions`. Derived metrics such as cost-per-click and
+click-through-rate are not stored fields and must be computed by consumers from
+these values.
+
+**Lead Gen form metrics** (`include_leadgen_metrics`, default `true`) add
+`oneClickLeadFormOpens`, `oneClickLeads`, `qualifiedLeads`,
+`costPerQualifiedLead`, `appointmentsScheduled`, `viralOneClickLeadFormOpens`,
+and `viralOneClickLeads`. `appointmentsScheduled` is what Campaign Manager
+labels "bookings". The `viral*` variants count leads from organic reshares of a
+sponsored post.
+
+These are ordinary reporting fields — they need no scope beyond
+`r_ads_reporting`, which is the only permission the
+[reporting docs](https://learn.microsoft.com/en-us/linkedin/marketing/integrations/ads-reporting/ads-reporting)
+list for `adAnalytics`. The separate `r_ads_leadgen_automation` scope is only
+required for the Lead Sync API (`/leadFormResponses`), which returns the
+submitted lead records themselves, and is not used by this integration.
+
+**Reach and frequency** (`include_reach`, default `false`) add
+`approximateMemberReach` and `audiencePenetration`, plus a derived `frequency`
+(`impressions / reach`, rounded to 4dp; `null` when LinkedIn omits reach for a
+row). LinkedIn only serves these when the field is named explicitly, the pivot
+is non-demographic (this integration always pivots on `CAMPAIGN`), and the date
+range is 92 days or less. Past 92 days it returns `200` with the fields
+**silently absent** rather than an error, so the range is validated up front and
+a longer range returns an action error instead. Off by default so longer
+reporting windows keep working.
+
+**Absent versus zero.** LinkedIn omits metrics it has no data for rather than
+returning `0` — `qualifiedLeads`, `costPerQualifiedLead`, and the reach fields
+are all routinely missing from rows. Consumers must treat every analytics key as
+optional. `frequency` is `null` when reach is absent for that row.
+
+LinkedIn caps the `fields` parameter at 20 metrics per request; the action
+rejects anything over that before calling the API.
 
 ## Testing
 

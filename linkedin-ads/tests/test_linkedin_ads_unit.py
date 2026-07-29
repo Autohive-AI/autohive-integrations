@@ -18,6 +18,8 @@ from linkedin_ads import (
     API_VERSION,
     API_BASE_URL,
     ANALYTICS_FIELDS,
+    LEADGEN_ANALYTICS_FIELDS,
+    REACH_ANALYTICS_FIELD,
 )
 
 pytestmark = pytest.mark.unit
@@ -118,7 +120,8 @@ class TestApiConfiguration:
         assert API_BASE_URL == "https://api.linkedin.com/rest"
 
     def test_api_version(self):
-        assert API_VERSION == "202601"
+        # 202605+ is required for appointmentsScheduled.
+        assert API_VERSION == "202607"
 
     def test_analytics_fields_exclude_derived_metrics(self):
         assert "costPerClick" not in ANALYTICS_FIELDS
@@ -396,6 +399,226 @@ class TestGetAdAnalytics:
         assert "campaigns=List(urn%3Ali%3AsponsoredCampaign%3A111,urn%3Ali%3AsponsoredCampaign%3A222)" in fetch_url(
             mock_context
         )
+
+    @pytest.mark.asyncio
+    async def test_leadgen_metrics_requested_by_default(self, mock_context):
+        mock_context.fetch.return_value = ok({"elements": []})
+
+        await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {"account_id": "123", "start_date": "2026-06-01", "end_date": "2026-06-30"},
+            mock_context,
+        )
+
+        assert f"{ANALYTICS_FIELDS},{LEADGEN_ANALYTICS_FIELDS}" in fetch_url(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_leadgen_metrics_can_be_disabled(self, mock_context):
+        mock_context.fetch.return_value = ok({"elements": []})
+
+        await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": "123",
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-30",
+                "include_leadgen_metrics": False,
+            },
+            mock_context,
+        )
+
+        assert "oneClickLeads" not in fetch_url(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_reach_omitted_unless_requested(self, mock_context):
+        mock_context.fetch.return_value = ok({"elements": []})
+
+        await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {"account_id": "123", "start_date": "2026-06-01", "end_date": "2026-06-30"},
+            mock_context,
+        )
+
+        assert REACH_ANALYTICS_FIELD not in fetch_url(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_reach_requested_and_frequency_derived(self, mock_context):
+        mock_context.fetch.return_value = ok({"elements": [{"impressions": 1000, REACH_ANALYTICS_FIELD: 250}]})
+
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": "123",
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-30",
+                "include_reach": True,
+            },
+            mock_context,
+        )
+
+        assert REACH_ANALYTICS_FIELD in fetch_url(mock_context)
+        assert result.result.data["analytics"][0]["frequency"] == 4.0
+
+    @pytest.mark.asyncio
+    async def test_frequency_none_when_reach_missing(self, mock_context):
+        mock_context.fetch.return_value = ok({"elements": [{"impressions": 1000}]})
+
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": "123",
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-30",
+                "include_reach": True,
+            },
+            mock_context,
+        )
+
+        assert result.result.data["analytics"][0]["frequency"] is None
+
+    @pytest.mark.asyncio
+    async def test_reach_rejects_range_over_92_days(self, mock_context):
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": "123",
+                "start_date": "2026-01-01",
+                "end_date": "2026-06-30",
+                "include_reach": True,
+            },
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "92 days or less" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_reach_allows_range_of_exactly_92_days(self, mock_context):
+        mock_context.fetch.return_value = ok({"elements": []})
+
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": "123",
+                "start_date": "2026-01-01",
+                "end_date": "2026-04-02",
+                "include_reach": True,
+            },
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+
+    @pytest.mark.asyncio
+    async def test_bookings_metric_requested(self, mock_context):
+        """appointmentsScheduled is Campaign Manager's "bookings" - needs API 202605+."""
+        mock_context.fetch.return_value = ok({"elements": []})
+
+        await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {"account_id": "123", "start_date": "2026-06-01", "end_date": "2026-06-30"},
+            mock_context,
+        )
+
+        assert "appointmentsScheduled" in fetch_url(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_audience_penetration_requested_with_reach(self, mock_context):
+        mock_context.fetch.return_value = ok({"elements": []})
+
+        await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": "123",
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-30",
+                "include_reach": True,
+            },
+            mock_context,
+        )
+
+        assert "audiencePenetration" in fetch_url(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_field_count_within_linkedin_limit(self, mock_context):
+        """LinkedIn rejects more than 20 metrics in one request."""
+        mock_context.fetch.return_value = ok({"elements": []})
+
+        await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": "123",
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-30",
+                "include_reach": True,
+            },
+            mock_context,
+        )
+
+        url = fetch_url(mock_context)
+        fields = url.split("fields=")[1].split("&")[0]
+        assert len(fields.split(",")) <= 20
+
+    @pytest.mark.asyncio
+    async def test_populated_response_passed_through(self, mock_context):
+        """A realistic populated row survives intact, with frequency added.
+
+        Field shape mirrors a real 202607 response observed live: costInLocalCurrency
+        is a string, and metrics LinkedIn has no data for are omitted entirely
+        rather than returned as zero.
+        """
+        mock_context.fetch.return_value = ok(
+            {
+                "elements": [
+                    {
+                        "impressions": 21557,
+                        "clicks": 21,
+                        "costInLocalCurrency": "209.999999999999996249",
+                        "externalWebsiteConversions": 0,
+                        "oneClickLeadFormOpens": 14,
+                        "oneClickLeads": 6,
+                        "appointmentsScheduled": 2,
+                        "approximateMemberReach": 13005,
+                        "audiencePenetration": 0.619,
+                        "pivotValues": ["urn:li:sponsoredCampaign:651900016"],
+                    }
+                ]
+            }
+        )
+
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": "123",
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-30",
+                "include_reach": True,
+            },
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        row = result.result.data["analytics"][0]
+        assert row["oneClickLeadFormOpens"] == 14
+        assert row["oneClickLeads"] == 6
+        assert row["appointmentsScheduled"] == 2
+        assert row["approximateMemberReach"] == 13005
+        assert row["audiencePenetration"] == 0.619
+        assert row["frequency"] == round(21557 / 13005, 4)
+        # Absent keys stay absent rather than being invented.
+        assert "qualifiedLeads" not in row
+
+    @pytest.mark.asyncio
+    async def test_reversed_dates_return_action_error(self, mock_context):
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {"account_id": "123", "start_date": "2026-06-30", "end_date": "2026-06-01"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "earlier than start_date" in result.result.message
 
 
 # ---- get_ad_account_users ----
