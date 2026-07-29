@@ -16,12 +16,43 @@ linkedin_ads = Integration.load()
 
 # LinkedIn Marketing API Configuration
 API_BASE_URL = "https://api.linkedin.com/rest"
-API_VERSION = "202601"
+# 202607 is required for appointmentsScheduled ("bookings"), which was added in
+# 202605 and 400s as an unknown schema field on anything older. Nothing between
+# 202602 and 202607 breaks the endpoints used here - the only breaking change in
+# that window is metricType on the member post/video analytics APIs.
+API_VERSION = "202607"
 
 # Analytics fields that exist in the AdAnalytics v8 schema. Derived metrics
 # like costPerClick / clickThroughRate are NOT stored fields and are rejected
 # by the API, so they are computed by consumers instead of requested here.
-ANALYTICS_FIELDS = "impressions,clicks,costInLocalCurrency,externalWebsiteConversions"
+#
+# pivotValues and dateRange must be requested explicitly. Rest.li field
+# projection is exact: anything not named in `fields` is dropped, so without
+# them every row comes back with metrics but no campaign URN and no day,
+# leaving the numbers unattributable.
+ANALYTICS_FIELDS = "impressions,clicks,costInLocalCurrency,externalWebsiteConversions,pivotValues,dateRange"
+
+# Lead Gen form metrics. These live in the same AdAnalytics schema and need no
+# scope beyond r_ads_reporting - r_ads_leadgen_automation is only required for
+# the Lead Sync API (retrieving the submitted lead records themselves).
+# appointmentsScheduled is "bookings" in Campaign Manager and requires API
+# version 202605 or newer. The viral* variants count leads from organic reshares
+# of a sponsored post, which are otherwise invisible in reporting.
+LEADGEN_ANALYTICS_FIELDS = (
+    "oneClickLeadFormOpens,oneClickLeads,qualifiedLeads,costPerQualifiedLead,"
+    "appointmentsScheduled,viralOneClickLeadFormOpens,viralOneClickLeads"
+)
+
+# Reach metrics. LinkedIn only serves these when they are named explicitly, the
+# pivot is non-demographic (we always pivot on CAMPAIGN), and the date range is
+# 92 days or less. Past 92 days it returns 200 with the fields silently absent
+# rather than an error, so the range is validated up front instead.
+REACH_ANALYTICS_FIELD = "approximateMemberReach"
+REACH_ANALYTICS_FIELDS = f"{REACH_ANALYTICS_FIELD},audiencePenetration"
+REACH_MAX_RANGE_DAYS = 92
+
+# LinkedIn caps the fields parameter at 20 metrics per request.
+MAX_ANALYTICS_FIELDS = 20
 
 # LinkedIn's campaign / campaign-group search finders document search criteria
 # as mandatory. When the caller does not pass a status filter, default to every
@@ -551,6 +582,23 @@ class GetCreativesAction(ActionHandler):
             return ActionError(message=str(e))
 
 
+def compute_frequency(element: Dict[str, Any]) -> Optional[float]:
+    """Average impressions per reached member.
+
+    LinkedIn does not return frequency as a field, so derive it from
+    impressions / approximateMemberReach. Returns None when reach is absent or
+    zero (LinkedIn omits reach for rows it cannot approximate).
+    """
+    try:
+        reach = float(element.get(REACH_ANALYTICS_FIELD) or 0)
+        impressions = float(element.get("impressions") or 0)
+    except (TypeError, ValueError):
+        return None
+    if reach <= 0:
+        return None
+    return round(impressions / reach, 4)
+
+
 @linkedin_ads.action("get_ad_analytics")
 class GetAdAnalyticsAction(ActionHandler):
     """Retrieve performance analytics for campaigns."""
@@ -565,12 +613,35 @@ class GetAdAnalyticsAction(ActionHandler):
             account_urn = build_urn("account", validated_id)
             campaign_ids = inputs.get("campaign_ids", [])
             time_granularity = inputs.get("time_granularity", "DAILY")
+            include_leadgen = inputs.get("include_leadgen_metrics", True)
+            include_reach = inputs.get("include_reach", False)
 
             try:
                 start_dt = datetime.strptime(start_date, "%Y-%m-%d")
                 end_dt = datetime.strptime(end_date, "%Y-%m-%d")
             except ValueError:
                 return ActionError(message="Invalid date format. Use YYYY-MM-DD")
+
+            if end_dt < start_dt:
+                return ActionError(message="end_date must not be earlier than start_date")
+
+            fields = ANALYTICS_FIELDS
+            if include_leadgen:
+                fields = f"{fields},{LEADGEN_ANALYTICS_FIELDS}"
+            if include_reach:
+                range_days = (end_dt - start_dt).days + 1
+                if range_days > REACH_MAX_RANGE_DAYS:
+                    return ActionError(
+                        message=(
+                            f"{REACH_ANALYTICS_FIELD} is only available for date ranges of "
+                            f"{REACH_MAX_RANGE_DAYS} days or less (requested {range_days}). "
+                            "Shorten the range or set include_reach to false."
+                        )
+                    )
+                fields = f"{fields},{REACH_ANALYTICS_FIELDS}"
+
+            if len(fields.split(",")) > MAX_ANALYTICS_FIELDS:
+                return ActionError(message=f"Too many analytics fields requested (max {MAX_ANALYTICS_FIELDS})")
 
             date_range = (
                 f"(start:(year:{start_dt.year},month:{start_dt.month},day:{start_dt.day}),"
@@ -583,7 +654,7 @@ class GetAdAnalyticsAction(ActionHandler):
                 "dateRange": date_range,
                 "timeGranularity": time_granularity,
                 "accounts": f"List({urn_param(account_urn)})",
-                "fields": ANALYTICS_FIELDS,
+                "fields": fields,
             }
 
             if campaign_ids:
@@ -595,6 +666,9 @@ class GetAdAnalyticsAction(ActionHandler):
             data = await li_fetch(context, "GET", "/adAnalytics", params=params)
 
             analytics = (data or {}).get("elements", [])
+            if include_reach:
+                for element in analytics:
+                    element["frequency"] = compute_frequency(element)
             return ActionResult(data={"analytics": analytics}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))

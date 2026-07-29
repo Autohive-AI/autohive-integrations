@@ -1,7 +1,7 @@
 """
 End-to-end integration tests for the LinkedIn Ads integration.
 
-These call the real LinkedIn Marketing API (v202601) and require a valid
+These call the real LinkedIn Marketing API (v202607) and require a valid
 OAuth2 access token with the r_ads, r_ads_reporting, and rw_ads scopes in
 the LINKEDIN_ADS_ACCESS_TOKEN environment variable (via .env or export).
 
@@ -213,6 +213,117 @@ class TestGetAdAnalytics:
 
         assert result.type == ResultType.ACTION, result.result
         assert isinstance(result.result.data["analytics"], list)
+
+    @pytest.mark.asyncio
+    async def test_rows_are_attributable(self, live_context):
+        """Every row must identify its campaign and its date.
+
+        Rest.li drops anything not named in the fields projection, so omitting
+        pivotValues/dateRange yields anonymous rows that cannot be attributed.
+        """
+        account_id = await resolve_account_id(live_context)
+
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {"account_id": account_id, "start_date": "2026-06-01", "end_date": "2026-06-30"},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION, result.result
+        for row in result.result.data["analytics"]:
+            assert row.get("pivotValues"), row
+            assert row["pivotValues"][0].startswith("urn:li:sponsoredCampaign:"), row
+            assert row.get("dateRange"), row
+
+    @pytest.mark.asyncio
+    async def test_leadgen_fields_accepted_by_api(self, live_context):
+        """Lead Gen metrics are served under r_ads_reporting alone.
+
+        LinkedIn validates the fields projection against the AdAnalytics schema
+        and rejects unknown names with 400 ("Projected field ... not present in
+        schema"), so a successful call proves every requested field exists. A
+        403 here would mean the metrics really do need an extra scope.
+        """
+        account_id = await resolve_account_id(live_context)
+
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": account_id,
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-30",
+                "include_leadgen_metrics": True,
+            },
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION, result.result
+
+    @pytest.mark.asyncio
+    async def test_bookings_field_requires_current_api_version(self, live_context):
+        """appointmentsScheduled needs API version 202605 or newer.
+
+        If this starts failing with "Projected field \"appointmentsScheduled\"
+        not present in schema", API_VERSION has been rolled back below 202605.
+        """
+        account_id = await resolve_account_id(live_context)
+
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {"account_id": account_id, "start_date": "2026-06-01", "end_date": "2026-06-30"},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION, result.result
+
+    @pytest.mark.asyncio
+    async def test_reach_returns_and_frequency_matches(self, live_context):
+        """Reach is requested and frequency is derived consistently.
+
+        Rows without delivery omit reach entirely, so frequency is asserted only
+        on rows that actually carry it.
+        """
+        account_id = await resolve_account_id(live_context)
+
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": account_id,
+                "start_date": "2026-05-01",
+                "end_date": "2026-07-01",
+                "include_reach": True,
+            },
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION, result.result
+        rows = result.result.data["analytics"]
+        for row in rows:
+            assert "frequency" in row
+            reach = row.get("approximateMemberReach")
+            if reach:
+                assert row["frequency"] == round(row["impressions"] / reach, 4)
+            else:
+                assert row["frequency"] is None
+
+    @pytest.mark.asyncio
+    async def test_reach_rejected_beyond_92_days(self, live_context):
+        """Past 92 days LinkedIn drops reach silently, so the action errors first."""
+        account_id = await resolve_account_id(live_context)
+
+        result = await linkedin_ads.execute_action(
+            "get_ad_analytics",
+            {
+                "account_id": account_id,
+                "start_date": "2026-01-01",
+                "end_date": "2026-07-01",
+                "include_reach": True,
+            },
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "92 days or less" in result.result.message
 
 
 # ---- Destructive Tests (Write Operations) ----

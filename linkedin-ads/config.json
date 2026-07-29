@@ -1,7 +1,7 @@
 {
     "name": "LinkedIn Ads",
     "display_name": "LinkedIn Ads",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Integration with LinkedIn Marketing API for managing ad accounts, campaigns, creatives, and analytics.",
     "entry_point": "linkedin_ads.py",
     "auth": {
@@ -425,6 +425,16 @@
                         "description": "Time granularity for data",
                         "enum": ["DAILY", "MONTHLY", "ALL"],
                         "default": "DAILY"
+                    },
+                    "include_leadgen_metrics": {
+                        "type": "boolean",
+                        "description": "Include Lead Gen form metrics: form opens, leads, qualified leads, cost per qualified lead, appointments scheduled (bookings), and the viral equivalents. Requires no permissions beyond r_ads_reporting.",
+                        "default": true
+                    },
+                    "include_reach": {
+                        "type": "boolean",
+                        "description": "Include unique member reach, audience penetration, and a derived frequency (impressions per reached member). Only supported for date ranges of 92 days or less.",
+                        "default": false
                     }
                 },
                 "required": ["account_id", "start_date", "end_date"]
@@ -434,7 +444,7 @@
                 "properties": {
                     "analytics": {
                         "type": "array",
-                        "description": "Analytics data"
+                        "description": "Analytics data. Each row carries impressions, clicks, cost and conversions, plus Lead Gen metrics (including appointmentsScheduled) and approximateMemberReach, audiencePenetration and a derived frequency when those are requested. LinkedIn omits metrics it has no data for, so treat every key as optional."
                     }
                 }
             }
