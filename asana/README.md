@@ -1,5 +1,7 @@
 # Asana Integration for Autohive
 
+<!-- Temporary CI smoke test for #425; no integration behavior is changed. -->
+
 Connects Autohive to the Asana API to enable task management, project organization, workspace collaboration, and team productivity automation.
 
 ## Description
