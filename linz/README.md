@@ -100,6 +100,17 @@ A per-user key is the correct model because ownership data is licensed personal
 data tied to the individual's licence acceptance and Privacy Act 2020
 obligations.
 
+That URL also carries the `cql_filter`, which embeds the **owner name being
+searched for** — itself licensed personal data. Because both aiohttp transport
+errors and LINZ/GeoServer exception reports echo the request URL and submitted
+filter back, no provider or transport error text is ever surfaced: it is used
+only to *classify* the failure, and the message returned to the caller is always
+one the integration authored (a curated hint for recognised cases — missing
+licence, unknown layer, invalid request, layer not found — plus the HTTP status,
+and a generic message otherwise). Unit tests assert that a sentinel API key and
+a sentinel owner name are absent from transport errors, XML exception reports,
+non-2xx JSON bodies and the final `ActionError`.
+
 ## Filtering notes
 
 - Text filters use CQL. The typed actions build `ILIKE` (case-insensitive)

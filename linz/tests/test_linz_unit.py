@@ -29,6 +29,7 @@ from linz.linz import (
     LAYER_TITLES_OWNERS,
     LAYER_TITLE_OWNERS,
     LAYER_PRIMARY_PARCELS,
+    LinzError,
     MAX_QUERY_LIMIT,
     OWNER_SCAN_FIELDS,
     QueryLayerAction,
@@ -36,6 +37,12 @@ from linz.linz import (
 )
 
 pytestmark = pytest.mark.unit
+
+# Sentinels for the leak assertions: both are licensed/secret values that travel
+# in the WFS request URL (the key in its path, the owner name inside cql_filter)
+# and so must never appear in anything surfaced to the caller.
+SENTINEL_KEY = "SEKRET"  # nosec B105
+SENTINEL_OWNER = "ZZOWNERSENTINELZZ"
 
 
 def ok(data, status=200):
@@ -83,7 +90,7 @@ class TestGetApiKey:
     def test_missing_raises(self):
         ctx = type("Ctx", (), {})()
         ctx.auth = {}
-        with pytest.raises(ValueError, match="API key is required"):
+        with pytest.raises(LinzError, match="API key is required"):
             _get_api_key(ctx)
 
     @pytest.mark.asyncio
@@ -131,7 +138,7 @@ class TestHelpers:
         assert _normalize_layer("table-51564") == "table-51564"
 
     def test_normalize_layer_blank_raises(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(LinzError):
             _normalize_layer("  ")
 
     def test_cql_literal_escapes_quotes(self):
@@ -279,11 +286,13 @@ class TestWfsRequest:
     @pytest.mark.asyncio
     async def test_fetch_exception_returns_action_error(self, mock_context, mock_wfs):
         # Every action wraps work in try/except — a transport failure must
-        # surface as an ActionError, not propagate.
+        # surface as an ActionError, not propagate. The exception text itself is
+        # not this module's, so it is replaced with the generic message.
         mock_wfs.side_effect = Exception("Connection refused")
         result = await linz.execute_action("search_property_titles", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
-        assert "Connection refused" in result.result.message
+        assert "unexpected error" in result.result.message
+        assert "Connection refused" not in result.result.message
 
     @pytest.mark.asyncio
     async def test_500_returns_action_error(self, mock_context, mock_wfs):
@@ -784,7 +793,8 @@ class TestQueryLayer:
         mock_wfs.side_effect = Exception("Connection reset")
         result = await linz.execute_action("query_layer", {"layer": "50772"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
-        assert "Connection reset" in result.result.message
+        assert "unexpected error" in result.result.message
+        assert "Connection reset" not in result.result.message
 
 
 # =============================================================================
@@ -941,7 +951,7 @@ class _FakeSession:
 
 def _key_context(session):
     ctx = MagicMock(name="ExecutionContext")
-    ctx.auth = {"auth_type": "Custom", "credentials": {"api_key": "SEKRET"}}  # nosec B105
+    ctx.auth = {"auth_type": "Custom", "credentials": {"api_key": SENTINEL_KEY}}  # nosec B105
     ctx._session = session
     return ctx
 
@@ -992,21 +1002,29 @@ class TestWfsRequestDirect:
         assert result.data == "<ExceptionReport/>"
 
     @pytest.mark.asyncio
-    async def test_client_error_is_redacted_and_urlless(self, monkeypatch):
+    async def test_client_error_text_is_discarded(self, monkeypatch):
+        # aiohttp builds its message from the request URL, which carries both
+        # the key and the CQL filter — the whole text must be dropped, not
+        # merely key-redacted.
         import importlib
 
         linz_module = importlib.import_module("linz.linz")
 
-        leaky = "cannot connect to https://data.linz.govt.nz/services;key=SEKRET/wfs?x=1"
+        leaky = (
+            "cannot connect to https://data.linz.govt.nz/services;key=SEKRET/wfs"
+            f"?cql_filter=owner+ILIKE+'%25{SENTINEL_OWNER}%25'"
+        )
         session = _FakeSession(error=aiohttp.ClientError(leaky))
         monkeypatch.setattr(linz_module.aiohttp, "ClientSession", _FakeSession)
 
-        with pytest.raises(RuntimeError) as excinfo:
+        with pytest.raises(LinzError) as excinfo:
             await _wfs_request(_key_context(session), params={"service": "WFS"})
 
         message = str(excinfo.value)
         assert "SEKRET" not in message
-        assert "<redacted>" in message
+        assert SENTINEL_OWNER not in message
+        assert "data.linz.govt.nz" not in message
+        assert "could not reach the LINZ Data Service" in message
 
     @pytest.mark.asyncio
     async def test_timeout_message_has_no_url(self, monkeypatch):
@@ -1019,9 +1037,105 @@ class TestWfsRequestDirect:
         session = _FakeSession(error=asyncio.TimeoutError())
         monkeypatch.setattr(linz_module.aiohttp, "ClientSession", _FakeSession)
 
-        with pytest.raises(RuntimeError) as excinfo:
+        with pytest.raises(LinzError) as excinfo:
             await _wfs_request(_key_context(session), params={"service": "WFS"})
 
         message = str(excinfo.value)
         assert "SEKRET" not in message
         assert "data.linz.govt.nz" not in message
+
+
+# =============================================================================
+# Error messages must never echo the API key or a searched owner name
+# =============================================================================
+
+
+class TestErrorsDoNotLeakKeyOrOwnerName:
+    """Nothing LINZ or aiohttp says about a failed request may reach the caller.
+
+    The WFS request URL carries the API key in its path and the searched owner
+    name inside ``cql_filter``; LDS exception reports and transport errors echo
+    both. Every failure path must surface a message this module authored.
+    """
+
+    # A realistic LDS exception report: it quotes the submitted filter back.
+    LEAKY_XML = (
+        '<?xml version="1.0"?><ows:ExceptionReport version="2.0.0">'
+        '<ows:Exception exceptionCode="InvalidParameterValue" locator="filter">'
+        f"<ows:ExceptionText>Unable to parse cql_filter: (owner ILIKE '%{SENTINEL_OWNER}%') AND "
+        "(bogus_field = 1) requested from "
+        f"https://data.linz.govt.nz/services;key={SENTINEL_KEY}/wfs</ows:ExceptionText>"
+        "</ows:Exception></ows:ExceptionReport>"
+    )
+
+    OWNER_SEARCH_INPUTS = {"owner_name": SENTINEL_OWNER, "include_title_details": False}
+
+    @staticmethod
+    def assert_clean(message):
+        assert SENTINEL_OWNER not in message
+        assert SENTINEL_KEY not in message
+        assert "cql_filter" not in message.lower()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", [200, 400, 403, 500])
+    async def test_xml_exception_report_is_not_echoed(self, mock_context, mock_wfs, status):
+        # An XML ExceptionReport is only classified, never quoted — at any
+        # status, including the 200 LDS sometimes returns with one.
+        mock_wfs.return_value = ok(self.LEAKY_XML, status=status)
+        result = await linz.execute_action("find_multi_property_owners", self.OWNER_SEARCH_INPUTS, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        self.assert_clean(result.result.message)
+
+    @pytest.mark.asyncio
+    async def test_non_2xx_json_body_is_not_echoed(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(
+            {"message": f"rejected filter owner ILIKE '%{SENTINEL_OWNER}%' for key {SENTINEL_KEY}"},
+            status=500,
+        )
+        result = await linz.execute_action("find_multi_property_owners", self.OWNER_SEARCH_INPUTS, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        self.assert_clean(result.result.message)
+        assert "500" in result.result.message  # the status itself is still useful
+
+    @pytest.mark.asyncio
+    async def test_non_json_body_is_not_echoed(self, mock_context, mock_wfs):
+        # A 200 whose body is neither GeoJSON nor an exception report.
+        mock_wfs.return_value = ok(f"<html>filter owner ILIKE '%{SENTINEL_OWNER}%' failed</html>")
+        result = await linz.execute_action("find_multi_property_owners", self.OWNER_SEARCH_INPUTS, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        self.assert_clean(result.result.message)
+
+    @pytest.mark.asyncio
+    async def test_transport_error_is_not_echoed_by_the_action(self, mock_context, mock_wfs):
+        # A LinzError transport failure raised through the full action path.
+        mock_wfs.side_effect = LinzError("LINZ WFS request failed: could not reach the LINZ Data Service.")
+        result = await linz.execute_action("find_multi_property_owners", self.OWNER_SEARCH_INPUTS, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        self.assert_clean(result.result.message)
+
+    @pytest.mark.asyncio
+    async def test_unexpected_exception_text_is_not_echoed(self, mock_context, mock_wfs):
+        # An exception this module did not author — its text is dropped whole,
+        # since anything embedding the request could carry either secret.
+        mock_wfs.side_effect = Exception(
+            f"aiohttp: GET https://data.linz.govt.nz/services;key={SENTINEL_KEY}/wfs"
+            f"?cql_filter=owner+ILIKE+'%{SENTINEL_OWNER}%' failed"
+        )
+        result = await linz.execute_action("find_multi_property_owners", self.OWNER_SEARCH_INPUTS, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        self.assert_clean(result.result.message)
+        assert "data.linz.govt.nz" not in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_owner_search_across_all_actions(self, mock_context, mock_wfs):
+        # Every action that can carry an owner name in its filter must be clean.
+        mock_wfs.return_value = ok(self.LEAKY_XML, status=400)
+        for action, inputs in (
+            ("search_property_titles", {"owner_name": SENTINEL_OWNER}),
+            ("find_multi_property_owners", self.OWNER_SEARCH_INPUTS),
+            ("get_title_owners", {"title_no": "NA1/1"}),
+            ("query_layer", {"layer": "50805", "cql_filter": f"owners ILIKE '%{SENTINEL_OWNER}%'"}),
+        ):
+            result = await linz.execute_action(action, inputs, mock_context)
+            assert result.type == ResultType.ACTION_ERROR, action
+            self.assert_clean(result.result.message)

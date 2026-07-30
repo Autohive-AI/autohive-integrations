@@ -38,6 +38,13 @@ To keep full control of what is emitted, this integration issues its WFS calls
 with ``aiohttp`` directly rather than the SDK's ``context.fetch`` (whose
 error path logs the full URL), and redacts the key from any error text it
 surfaces (see ``_redact`` / ``_wfs_request``).
+
+The same request URL also carries the ``cql_filter``, which embeds the owner
+name being searched for — licensed personal data. Both aiohttp transport errors
+and LDS exception reports routinely echo the request URL / submitted filter, so
+no provider or transport error text is ever surfaced: it is used only to
+*classify* a failure, and the message returned to the caller is always one this
+module authored (see ``LinzError`` / ``_check_wfs_response``).
 """
 
 import asyncio
@@ -101,6 +108,30 @@ PROPERTY_TYPE_NOTE = (
 
 
 # =============================================================================
+# Errors
+# =============================================================================
+
+
+class LinzError(Exception):
+    """An error whose message this module authored and is safe to surface.
+
+    Only ``LinzError`` messages reach the caller: every action handler maps any
+    other exception to a fixed generic message. Provider error bodies and
+    transport error strings are never included, because a WFS request URL
+    carries both the API key and the ``cql_filter`` — which may contain the
+    owner name being searched for — and LDS echoes them back freely. Handlers
+    still pass the message through ``_redact`` as belt-and-braces, in case a
+    curated message ever embeds a service URL.
+    """
+
+
+# Returned in place of any exception this module did not author.
+_UNEXPECTED_ERROR = (
+    "The LINZ integration hit an unexpected error handling this request. Check your inputs and try again."
+)
+
+
+# =============================================================================
 # Auth
 # =============================================================================
 
@@ -111,7 +142,7 @@ def _get_api_key(context: ExecutionContext) -> str:
     creds = auth.get("credentials", auth) if isinstance(auth, dict) else {}
     key = (creds or {}).get("api_key", "")
     if not key:
-        raise ValueError(
+        raise LinzError(
             "LINZ Data Service API key is required. Create one at "
             "https://data.linz.govt.nz/my/api/ and ensure it has accepted the "
             "LINZ Licence for Personal Data for ownership layers."
@@ -128,7 +159,7 @@ def _normalize_layer(layer: str) -> str:
     """Accept '50805', 'layer-50805' or 'table-1234' and return a WFS typeName."""
     layer = str(layer).strip()
     if not layer:
-        raise ValueError("layer is required")
+        raise LinzError("layer is required")
     if layer.startswith("layer-") or layer.startswith("table-"):
         return layer
     if layer.isdigit():
@@ -217,9 +248,10 @@ async def _wfs_request(context: ExecutionContext, *, params: Dict[str, Any]) -> 
 
     Deliberately does NOT use ``context.fetch``: LINZ puts the API key in the
     URL path, and the SDK's fetch logs the full URL on error, which would leak
-    the key. Here the key never leaves this function in any raised message —
-    transport errors are re-raised with their text redacted, and no URL is
-    ever included.
+    the key. Here neither the key nor the CQL filter (which may carry an owner
+    name) leaves this function in any raised message — transport failures are
+    re-raised with a fixed message, never the underlying exception text, which
+    aiohttp builds from the request URL.
     """
     url = LDS_WFS_URL_TEMPLATE.format(key=_get_api_key(context))
     query = {key: str(value) for key, value in params.items() if value is not None}
@@ -238,11 +270,12 @@ async def _wfs_request(context: ExecutionContext, *, params: Dict[str, Any]) -> 
             content_type = response.headers.get("Content-Type", "")
             return _WfsResponse(status=response.status, data=_parse_wfs_body(text, content_type))
     except asyncio.TimeoutError:
-        # Never echo the URL/params — they carry the key.
-        raise RuntimeError("LINZ WFS request timed out.") from None
-    except aiohttp.ClientError as exc:
-        # aiohttp error strings can embed the request URL; redact before raising.
-        raise RuntimeError(f"LINZ WFS request failed: {_redact(exc)}") from None
+        # Never echo the URL/params — they carry the key and the CQL filter.
+        raise LinzError("LINZ WFS request timed out.") from None
+    except aiohttp.ClientError:
+        # aiohttp builds its error strings from the request URL, so the
+        # exception text is discarded entirely rather than redacted.
+        raise LinzError("LINZ WFS request failed: could not reach the LINZ Data Service.") from None
 
 
 _LICENCE_HINT = (
@@ -251,9 +284,23 @@ _LICENCE_HINT = (
     "(LINZ reports an inaccessible layer as an 'unknown' feature type.)"
 )
 
+_INVALID_REQUEST_HINT = (
+    "Check the layer id, the field names used in your filter, and the CQL syntax; run "
+    "list_available_layers to confirm the layer is queryable by your key."
+)
+
+_GENERIC_PROVIDER_ERROR = (
+    "the LINZ Data Service reported an error for this request. Try again, and narrow the filter "
+    "if the request was a large scan."
+)
+
 
 def _extract_exception_text(xml: str) -> str:
-    """Pull the human-readable message out of an OWS/WFS exception report."""
+    """Pull the human-readable message out of an OWS/WFS exception report.
+
+    Used only to CLASSIFY a failure — the returned text may echo the submitted
+    CQL filter (and therefore an owner name), so it must never be surfaced.
+    """
     for tag in ("ExceptionText", "ServiceException"):
         start = xml.find(f"<ows:{tag}")
         if start == -1:
@@ -273,33 +320,38 @@ def _is_unknown_layer_exception(text: str) -> bool:
 
 
 def _check_wfs_response(response: Any) -> None:
-    """Raise a clear error for non-2xx responses or WFS exception reports."""
+    """Raise a curated error for non-2xx responses or WFS exception reports.
+
+    The provider's error text is used only to classify the failure (missing
+    licence / unknown layer vs invalid request) and is never included in the
+    raised message: LDS exception reports echo the submitted CQL filter, which
+    can carry the owner name being searched for. Recognised cases map to a
+    curated hint; anything else gets the generic provider-error message plus the
+    HTTP status.
+    """
     status = getattr(response, "status", None)
     data = getattr(response, "data", None)
     is_xml_exception = isinstance(data, str) and ("ExceptionReport" in data or "ServiceException" in data)
+    # Classification only — never surfaced.
+    unknown_layer = is_xml_exception and _is_unknown_layer_exception(_extract_exception_text(data))
 
     if isinstance(status, int) and 200 <= status < 300:
         # LDS sometimes returns an XML ExceptionReport with a 200 status.
+        if unknown_layer:
+            raise LinzError(f"LINZ WFS: {_LICENCE_HINT}")
         if is_xml_exception:
-            msg = _extract_exception_text(data)
-            if _is_unknown_layer_exception(msg):
-                raise RuntimeError(f"LINZ WFS: {_LICENCE_HINT} Detail: {msg}")
-            raise RuntimeError(f"LINZ WFS exception: {msg}")
+            raise LinzError(f"LINZ WFS returned an exception report for this request. {_INVALID_REQUEST_HINT}")
         return
 
-    if is_xml_exception:
-        msg = _extract_exception_text(data)
-        if _is_unknown_layer_exception(msg):
-            raise RuntimeError(f"LINZ WFS {status}: {_LICENCE_HINT} Detail: {msg}")
-        detail = msg
-    else:
-        detail = data if isinstance(data, str) else (data.get("message") if isinstance(data, dict) else str(data))
-
+    if unknown_layer:
+        raise LinzError(f"LINZ WFS {status}: {_LICENCE_HINT}")
     if status in (401, 403):
-        raise RuntimeError(f"LINZ WFS {status}: {_LICENCE_HINT} Detail: {_short(detail)}")
+        raise LinzError(f"LINZ WFS {status}: {_LICENCE_HINT}")
     if status == 404:
-        raise RuntimeError(f"LINZ WFS 404: layer not found. Check the layer id. Detail: {_short(detail)}")
-    raise RuntimeError(f"LINZ WFS error {status}: {_short(detail)}")
+        raise LinzError("LINZ WFS 404: layer not found. Check the layer id.")
+    if status == 400:
+        raise LinzError(f"LINZ WFS 400: the request was rejected as invalid. {_INVALID_REQUEST_HINT}")
+    raise LinzError(f"LINZ WFS error {status}: {_GENERIC_PROVIDER_ERROR}")
 
 
 def _short(text: Any, limit: int = 400) -> str:
@@ -357,7 +409,9 @@ async def _wfs_get_features(
 
     data = response.data
     if isinstance(data, str):
-        raise RuntimeError(f"LINZ WFS returned a non-JSON response: {_short(data)}")
+        # The body could be anything (including an echo of the filter) — say
+        # only that it wasn't the GeoJSON we asked for.
+        raise LinzError("LINZ WFS returned a non-JSON response where GeoJSON was expected.")
     return data if isinstance(data, dict) else {"features": []}
 
 
@@ -368,7 +422,7 @@ async def _wfs_get_capabilities(context: ExecutionContext) -> str:
     _check_wfs_response(response)
     data = response.data
     if not isinstance(data, str):
-        raise RuntimeError(f"LINZ WFS GetCapabilities returned an unexpected response: {_short(data)}")
+        raise LinzError("LINZ WFS GetCapabilities returned an unexpected (non-XML) response.")
     return data
 
 
@@ -559,8 +613,10 @@ class SearchPropertyTitlesAction(ActionHandler):
                 },
                 cost_usd=0.0,
             )
-        except Exception as e:
+        except LinzError as e:
             return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
 
 
 # =============================================================================
@@ -603,7 +659,7 @@ class GetTitleOwnersAction(ActionHandler):
                     count=DEFAULT_PAGE_SIZE,
                 )
                 owner_rows = _extract_features(rows_collection)
-            except RuntimeError:
+            except LinzError:
                 owner_rows = []  # key can't reach the normalised table
 
             owners: List[str] = []
@@ -650,8 +706,10 @@ class GetTitleOwnersAction(ActionHandler):
                 },
                 cost_usd=0.0,
             )
-        except Exception as e:
+        except LinzError as e:
             return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
 
 
 # =============================================================================
@@ -798,8 +856,10 @@ class FindMultiPropertyOwnersAction(ActionHandler):
                 },
                 cost_usd=0.0,
             )
-        except Exception as e:
+        except LinzError as e:
             return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
 
 
 # =============================================================================
@@ -854,8 +914,10 @@ class SearchParcelsAction(ActionHandler):
                 },
                 cost_usd=0.0,
             )
-        except Exception as e:
+        except LinzError as e:
             return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
 
 
 # =============================================================================
@@ -897,8 +959,10 @@ class QueryLayerAction(ActionHandler):
                 },
                 cost_usd=0.0,
             )
-        except Exception as e:
+        except LinzError as e:
             return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
 
 
 # =============================================================================
@@ -980,5 +1044,7 @@ class ListAvailableLayersAction(ActionHandler):
                 },
                 cost_usd=0.0,
             )
-        except Exception as e:
+        except LinzError as e:
             return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
