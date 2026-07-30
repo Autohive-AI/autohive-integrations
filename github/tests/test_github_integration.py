@@ -24,6 +24,12 @@ pytestmark = pytest.mark.integration
 PUBLIC_OWNER = "octocat"
 PUBLIC_REPO = "Hello-World"
 
+# octocat/Hello-World is flat, so directory-listing coverage uses a public repo
+# with a stable tree.
+DIR_OWNER = "github"
+DIR_REPO = "gitignore"
+DIR_PATH = "Global"
+
 
 @pytest.fixture
 def live_context(env_credentials):
@@ -102,3 +108,41 @@ class TestGitHubReadOnlyActions:
         assert result.result.data["status"] == "identical"
         assert result.result.data["ahead_by"] == 0
         assert result.result.data["behind_by"] == 0
+
+    async def test_get_file_content_returns_decoded_file(self, live_context):
+        result = await github.execute_action(
+            "get_file_content",
+            {"owner": PUBLIC_OWNER, "repo": PUBLIC_REPO, "path": "README"},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["type"] == "file"
+        assert result.result.data["name"] == "README"
+        assert result.result.data["content"]
+        assert result.result.data["sha"]
+        assert result.result.data["entries"] == []
+
+    async def test_get_file_content_lists_directory_entries(self, live_context):
+        result = await github.execute_action(
+            "get_file_content",
+            {"owner": DIR_OWNER, "repo": DIR_REPO, "path": DIR_PATH},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["type"] == "dir"
+        assert result.result.data["content"] == ""
+        assert result.result.data["name"] == DIR_PATH
+        assert result.result.data["path"] == DIR_PATH
+
+        entries = result.result.data["entries"]
+        assert entries
+        assert {"name", "path", "type", "sha", "size", "download_url"} <= set(entries[0])
+        assert all(entry["type"] in ("file", "dir") for entry in entries)
+
+        by_name = {entry["name"]: entry for entry in entries}
+        assert "macOS.gitignore" in by_name
+        assert by_name["macOS.gitignore"]["type"] == "file"
+        assert by_name["macOS.gitignore"]["path"] == "Global/macOS.gitignore"
+        assert by_name["macOS.gitignore"]["size"] > 0

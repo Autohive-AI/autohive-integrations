@@ -148,6 +148,47 @@ class TestGetFileContent:
         assert "contents/test.txt" in url
 
     @pytest.mark.asyncio
+    async def test_directory_path_returns_entries(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=[
+                {
+                    "name": "README.md",
+                    "path": "reference/hnz-contracts/README.md",
+                    "type": "file",
+                    "sha": "a1",
+                    "size": 42,
+                    "download_url": "https://raw.example/README.md",
+                },
+                {
+                    "name": "specs",
+                    "path": "reference/hnz-contracts/specs",
+                    "type": "dir",
+                    "sha": "b2",
+                    "size": 0,
+                    "download_url": None,
+                },
+            ],
+        )
+
+        result = await github.execute_action(
+            "get_file_content",
+            {"owner": "octocat", "repo": "Hello-World", "path": "reference/hnz-contracts"},
+            mock_context,
+        )
+
+        assert result.result.data["type"] == "dir"
+        assert result.result.data["content"] == ""
+        assert result.result.data["name"] == "hnz-contracts"
+        entries = result.result.data["entries"]
+        assert len(entries) == 2
+        assert entries[0]["name"] == "README.md"
+        assert entries[0]["type"] == "file"
+        assert entries[1]["type"] == "dir"
+        assert entries[1]["download_url"] == ""
+
+    @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("File not found")
 
