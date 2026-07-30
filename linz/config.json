@@ -201,7 +201,7 @@
           },
           "start_index": {
             "type": "integer",
-            "description": "Zero-based offset for pagination.",
+            "description": "Zero-based offset for pagination. Results are sorted by the layer's id, so consecutive pages neither skip nor repeat records.",
             "minimum": 0
           }
         },
@@ -310,7 +310,7 @@
           },
           "start_index": {
             "type": "integer",
-            "description": "Zero-based offset for pagination.",
+            "description": "Zero-based offset for pagination. Results are sorted by the layer's id, so consecutive pages neither skip nor repeat records.",
             "minimum": 0
           }
         },
@@ -344,7 +344,7 @@
           },
           "sort_by": {
             "type": "string",
-            "description": "Field to sort by, optionally with '+D' for descending, e.g. 'issue_date+D'."
+            "description": "Field to sort by, optionally with '+D' for descending, e.g. 'issue_date+D'. Every LDS layer and table has an integer 'id' primary key — use sort_by: 'id' for deterministic paging. No sort is applied by default, because this action can target any dataset and a sort on a field the target lacks is rejected by LINZ."
           },
           "srs_name": {
             "type": "string",
@@ -364,7 +364,7 @@
           },
           "start_index": {
             "type": "integer",
-            "description": "Zero-based offset for pagination.",
+            "description": "Zero-based offset for pagination. Ordering is whatever the server returns unless you pass sort_by, so pass sort_by ('id' on LDS layers) when paging, or consecutive pages may skip or repeat records.",
             "minimum": 0
           }
         },

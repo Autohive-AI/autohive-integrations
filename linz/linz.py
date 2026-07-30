@@ -109,9 +109,19 @@ MAX_LAYER_LIST_LIMIT = 2000
 # Titles per detail-enrichment request (title_no IN (...) keeps the URL short).
 TITLE_DETAIL_CHUNK = 200
 
+# Sort key for every paged request. A startIndex/count window is only coherent
+# if the server orders rows the same way for each page: without an explicit
+# sortBy, WFS makes no ordering guarantee, so rows can be skipped or repeated
+# between pages (and the truncation probe can look at a different row than the
+# one it is meant to check). Each LDS layer/table this integration pages over
+# exposes an integer primary key named `id` as its first attribute (verified via
+# DescribeFeatureType on layer-50804/50805/50806/50772 and table-51564).
+STABLE_SORT_FIELD = "id"
+
 # Fields requested when scanning layer-50806 — excludes the (large) title
-# geometry, which LDS omits when propertyName is set.
-OWNER_SCAN_FIELDS = "owner,title_no,title_status,land_district,part_ownership"
+# geometry, which LDS omits when propertyName is set. `id` is the paging sort
+# key; it is not returned to the caller.
+OWNER_SCAN_FIELDS = "id,owner,title_no,title_status,land_district,part_ownership"
 
 PROPERTY_TYPE_NOTE = (
     "LINZ data does not classify properties as commercial or residential; that "
@@ -498,16 +508,22 @@ async def _wfs_collect(
     *,
     cql_filter: Optional[str],
     max_records: int,
-    sort_by: Optional[str] = None,
+    sort_by: str = STABLE_SORT_FIELD,
     property_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Page through GetFeature results up to ``max_records`` features.
+
+    Every page — and the truncation probe — is sorted by ``sort_by``, which
+    defaults to the layer's ``id`` primary key. WFS gives no ordering guarantee
+    for an unsorted request, so without it consecutive ``startIndex`` windows
+    could re-order between calls and silently skip or duplicate rows. Callers
+    overriding it must pass a field that uniquely orders the rows.
 
     Returns ``{"features": [...], "scanned": N, "truncated": bool}``.
     ``truncated`` is True only when matching records were actually omitted:
     a full final page alone doesn't prove more matches exist, so the server's
     numeric match count is consulted, falling back to probing for one record
-    past the cap.
+    past the cap (which is only meaningful under the same stable sort).
     """
     max_records = min(max(int(max_records), 1), MAX_SCAN_HARD_CAP)
     collected: List[Dict[str, Any]] = []
@@ -641,6 +657,8 @@ class SearchPropertyTitlesAction(ActionHandler):
                 cql_filter=cql,
                 count=limit,
                 start_index=_bounded_start_index(inputs.get("start_index")),
+                # Sorted so successive start_index pages don't skip/repeat rows.
+                sort_by=STABLE_SORT_FIELD,
             )
             features = _extract_features(collection)
             titles = [_strip_geometry(f, include_geometry=False) for f in features]
@@ -962,6 +980,8 @@ class SearchParcelsAction(ActionHandler):
                 cql_filter=cql,
                 count=limit,
                 start_index=_bounded_start_index(inputs.get("start_index")),
+                # Sorted so successive start_index pages don't skip/repeat rows.
+                sort_by=STABLE_SORT_FIELD,
             )
             features = _extract_features(collection)
             parcels = [_strip_geometry(f, include_geometry=include_geometry) for f in features]
@@ -991,6 +1011,11 @@ class QueryLayerAction(ActionHandler):
 
     Power-user escape hatch for layers/tables not covered by the typed actions
     (e.g. street addresses, geodetic marks, the owner-centric ownership tables).
+
+    Unlike the typed actions, no sort is injected: this action can target any
+    dataset, and a sortBy on a field the target doesn't have is rejected by LDS.
+    The caller owns ordering — pass ``sort_by`` (``"id"`` on LDS layers) when
+    paging with ``start_index``, or consecutive pages may skip/repeat rows.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:

@@ -144,11 +144,19 @@ non-2xx JSON bodies and the final `ActionError`.
   `include_geometry: true` on `search_parcels` / `query_layer` to include it.
 - All list actions cap `limit` at **1000 records per request** (2000 for
   `list_available_layers`), enforced in both the input schema and at runtime;
-  use `start_index` (clamped to ≥ 0) to page. `query_layer` is intentionally
-  unrestricted in *which* datasets it can reach — including the licensed
-  ownership ones — because the per-user API key and LINZ Personal Data Licence
-  are the access-control boundary: the integration can never return data the
-  caller's own key isn't licensed for.
+  use `start_index` (clamped to ≥ 0) to page.
+- Paged requests are sorted by the layer's integer `id` primary key. WFS makes
+  no ordering promise for an unsorted query, so without it consecutive
+  `startIndex` windows can skip or repeat records — that applies to
+  `start_index` on the typed list actions and to the internal paging and
+  truncation probe behind `find_multi_property_owners`. `query_layer` is the
+  exception: it can target any dataset, and a sort on a field the target lacks
+  is rejected by LINZ, so it applies no default sort — pass `sort_by: "id"`
+  yourself when paging.
+- `query_layer` is intentionally unrestricted in *which* datasets it can reach —
+  including the licensed ownership ones — because the per-user API key and LINZ
+  Personal Data Licence are the access-control boundary: the integration can
+  never return data the caller's own key isn't licensed for.
 
 ## Limitations
 

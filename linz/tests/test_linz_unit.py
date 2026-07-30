@@ -37,6 +37,7 @@ from linz.linz import (
     OWNER_SCAN_FIELDS,
     PROPERTY_TYPE_NOTE,
     QueryLayerAction,
+    STABLE_SORT_FIELD,
     TABLE_TITLE_OWNERS_LIST,
 )
 
@@ -381,6 +382,16 @@ class TestSearchPropertyTitles:
         await linz.execute_action("search_property_titles", {"owner_name": "smith"}, mock_context)
         cql = mock_wfs.call_args.kwargs["params"]["cql_filter"]
         assert "owners ILIKE '%smith%'" in cql
+
+    @pytest.mark.asyncio
+    async def test_paging_is_sorted(self, mock_context, mock_wfs):
+        # A start_index window is only stable if the server orders rows the same
+        # way each time — the typed actions pin that to the layer's id.
+        mock_wfs.return_value = ok(collection([]))
+        await linz.execute_action("search_property_titles", {"owner_name": "smith", "start_index": 100}, mock_context)
+        params = mock_wfs.call_args.kwargs["params"]
+        assert params["sortBy"] == STABLE_SORT_FIELD
+        assert params["startIndex"] == 100
 
     @pytest.mark.asyncio
     async def test_requires_a_filter(self, mock_context, mock_wfs):
@@ -770,6 +781,49 @@ class TestFindMultiPropertyOwners:
     }
 
     @pytest.mark.asyncio
+    async def test_every_scan_page_and_the_probe_share_a_stable_sort(self, mock_context, mock_wfs):
+        # startIndex windows are only coherent under an explicit sort: WFS makes
+        # no ordering promise otherwise, so pages could re-order between calls
+        # and skip or repeat rows — and the probe could look at a different row
+        # than the one it is meant to check. Every request in the scan must carry
+        # the same sortBy, and the sort field must be among the requested
+        # properties for the paging to be reproducible.
+        mock_wfs.side_effect = [
+            ok(self.bulk_page("A", totalFeatures="unknown")),
+            ok(self.bulk_page("B", totalFeatures="unknown")),
+            ok(collection([])),
+        ]
+        await linz.execute_action("find_multi_property_owners", self.BULK_INPUTS, mock_context)
+        assert mock_wfs.call_count == 3  # two pages + the truncation probe
+        for call in mock_wfs.call_args_list:
+            params = call.kwargs["params"]
+            assert params["sortBy"] == STABLE_SORT_FIELD
+            assert STABLE_SORT_FIELD in params["propertyName"].split(",")
+        # ...and the pages really do walk a single ordered sequence.
+        assert [c.kwargs["params"]["startIndex"] for c in mock_wfs.call_args_list] == [0, 1000, 2000]
+
+    @pytest.mark.asyncio
+    async def test_scan_sort_field_is_not_leaked_into_results(self, mock_context, mock_wfs):
+        # `id` is requested for paging only — the title records are built from
+        # named fields, so it must not appear in the output.
+        mock_wfs.return_value = ok(
+            collection(
+                [
+                    feature({**self.owner_row("JOHN SMITH", "T1")["properties"], "id": 11}),
+                    feature({**self.owner_row("JOHN SMITH", "T2")["properties"], "id": 12}),
+                ]
+            )
+        )
+        result = await linz.execute_action(
+            "find_multi_property_owners",
+            {"owner_name": "smith", "include_title_details": False},
+            mock_context,
+        )
+        owner = result.result.data["owners"][0]
+        assert "id" not in owner
+        assert all("id" not in title for title in owner["titles"])
+
+    @pytest.mark.asyncio
     async def test_truncated_when_numeric_total_exceeds_cap(self, mock_context, mock_wfs):
         # numberMatched is numeric and > cap: truncated without a probe request.
         mock_wfs.side_effect = [
@@ -858,6 +912,14 @@ class TestSearchParcels:
         assert result.result.data["parcels"][0]["geometry"] == {"type": "Polygon"}
 
     @pytest.mark.asyncio
+    async def test_paging_is_sorted(self, mock_context, mock_wfs):
+        mock_wfs.return_value = ok(collection([]))
+        await linz.execute_action("search_parcels", {"appellation": "Lot 1", "start_index": 200}, mock_context)
+        params = mock_wfs.call_args.kwargs["params"]
+        assert params["sortBy"] == STABLE_SORT_FIELD
+        assert params["startIndex"] == 200
+
+    @pytest.mark.asyncio
     async def test_requires_filter(self, mock_context, mock_wfs):
         result = await linz.execute_action("search_parcels", {}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
@@ -884,6 +946,18 @@ class TestQueryLayer:
         assert params["cql_filter"] == "land_district = 'Otago'"
         assert params["count"] == 5
         assert result.result.data["count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_caller_owns_the_sort(self, mock_context, mock_wfs):
+        # This action can target any dataset, and a sortBy on a field the target
+        # lacks is rejected by LDS — so no sort is injected here (unlike the
+        # typed actions). A caller-supplied sort_by is passed through verbatim.
+        mock_wfs.return_value = ok(collection([]))
+        await linz.execute_action("query_layer", {"layer": "50772", "start_index": 50}, mock_context)
+        assert "sortBy" not in mock_wfs.call_args.kwargs["params"]
+
+        await linz.execute_action("query_layer", {"layer": "50772", "start_index": 50, "sort_by": "id"}, mock_context)
+        assert mock_wfs.call_args.kwargs["params"]["sortBy"] == "id"
 
     @pytest.mark.asyncio
     async def test_missing_layer(self, mock_context, mock_wfs):

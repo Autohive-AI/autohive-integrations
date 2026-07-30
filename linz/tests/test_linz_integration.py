@@ -136,6 +136,27 @@ class TestSearchParcels:
         if parcels:
             assert "geometry" in parcels[0]
 
+    async def test_consecutive_pages_do_not_overlap(self, live_context):
+        # The paged actions pin sortBy to the layer's id precisely so a
+        # start_index window means the same thing twice. Verified against the
+        # live service, since the guarantee is LDS's to keep.
+        pages = []
+        for start_index in (0, 5):
+            result = await linz.execute_action(
+                "search_parcels",
+                {"land_district": TEST_LAND_DISTRICT, "limit": 5, "start_index": start_index},
+                live_context,
+            )
+            assert result.type == ResultType.ACTION, result.result
+            pages.append([p["id"] for p in result.result.data["parcels"]])
+
+        first, second = pages
+        if len(first) < 5 or not second:
+            pytest.skip("Not enough parcels in the test district to page")
+        assert not set(first) & set(second), "start_index pages overlapped — paging is not stable"
+        assert first == sorted(first) and second == sorted(second)
+        assert max(first) < min(second)
+
 
 class TestQueryLayer:
     async def test_public_titles_layer(self, live_context):
