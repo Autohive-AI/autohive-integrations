@@ -158,6 +158,38 @@ non-2xx JSON bodies and the final `ActionError`.
   Personal Data Licence are the access-control boundary: the integration can
   never return data the caller's own key isn't licensed for.
 
+## ⚠️ No retries, backoff or rate-limit handling
+
+This version issues its WFS calls with `aiohttp` directly rather than through the
+SDK's `context.fetch`, because `context.fetch` logs the full request URL on error
+and LINZ carries the API key in that URL (see
+[Authentication](#authentication)). The trade-off is that this integration does
+**not** inherit the SDK client's request-resilience behaviour, and implements
+none of its own:
+
+- **No automatic retries.** Every action makes a single attempt per request. A
+  transient failure is returned to the caller as an error.
+- **No exponential backoff.**
+- **No `Retry-After` / rate-limit semantics.** The header is not read and not
+  surfaced. A `429` is treated like any other unrecognised status and returned as
+  a generic WFS error carrying the status —
+  `LINZ WFS error 429: the LINZ Data Service reported an error for this
+  request. …`
+- **A fixed 30s per-request timeout** (`WFS_TIMEOUT_SECONDS`), after which the
+  request fails rather than being retried.
+
+So retry/backoff is the caller's responsibility: have the calling workflow retry
+the action on error, with its own delay. Be especially aware of this on
+`find_multi_property_owners`, the only action that issues multiple sequential
+requests per call — one scan page per 1000 owner-title rows (up to ten at the
+10000 hard cap), an optional truncation probe, plus one enrichment request per
+200 distinct titles in the results. A large scan is the most likely thing here to
+meet a LINZ rate limit, and it will fail rather than back off and continue. Keep
+the filter narrow and `max_titles_scanned` modest.
+
+Adding retries with backoff and `Retry-After` support (without reintroducing the
+URL-logging leak) is the obvious follow-up for a later version.
+
 ## Limitations
 
 - The `owners` field on `layer-50805` (returned by `search_property_titles`) is
@@ -172,6 +204,8 @@ non-2xx JSON bodies and the final `ActionError`.
 - `find_multi_property_owners` groups by owner **name**, not identity — LINZ
   exposes no cross-title owner identifier, so same-name owners are conflated and
   name variants split one owner (see above). Results are verification candidates.
+- No retries, exponential backoff or `Retry-After` / rate-limit handling; a `429`
+  comes back as a generic WFS error (see above). Retry from the calling workflow.
 - No commercial/residential classification (see above).
 - Scans are bounded by `max_titles_scanned` (owner-title rows); very broad
   filters may truncate.

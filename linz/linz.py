@@ -58,6 +58,17 @@ and LDS exception reports routinely echo the request URL / submitted filter, so
 no provider or transport error text is ever surfaced: it is used only to
 *classify* a failure, and the message returned to the caller is always one this
 module authored (see ``LinzError`` / ``_check_wfs_response``).
+
+TRADE-OFF — no retries or rate-limit handling:
+----------------------------------------------
+Bypassing ``context.fetch`` also means forgoing the SDK client's request
+resilience, and this version implements none of its own: one attempt per request,
+no exponential backoff, no ``Retry-After`` handling, and a fixed
+``WFS_TIMEOUT_SECONDS`` timeout. A 429 falls through to the generic
+non-2xx branch of ``_check_wfs_response`` and is returned with its status, like
+any other unrecognised failure — so retrying is the caller's responsibility.
+``find_multi_property_owners`` is the most exposed action, being the only one
+that issues multiple sequential requests per call. See README.
 """
 
 import asyncio

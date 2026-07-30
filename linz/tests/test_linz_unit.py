@@ -306,6 +306,20 @@ class TestWfsRequest:
         assert result.type == ResultType.ACTION_ERROR
         assert "500" in result.result.message
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", [429, 503])
+    async def test_no_retry_on_throttling_or_transient_failure(self, mock_context, mock_wfs, status):
+        # Documented limitation (see README): this integration bypasses
+        # context.fetch to keep the key out of request logs, and implements no
+        # retries, backoff or Retry-After handling of its own. A 429 is returned
+        # as a generic WFS error carrying its status, after exactly one attempt —
+        # retrying is the caller's job.
+        mock_wfs.return_value = ok({"message": "slow down"}, status=status)
+        result = await linz.execute_action("search_parcels", {"appellation": "Lot 1"}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert str(status) in result.result.message
+        assert mock_wfs.call_count == 1  # no retry
+
 
 class TestLayerAccessClassification:
     """Only "the key can't have this layer" gets the LinzLayerAccessError type.
