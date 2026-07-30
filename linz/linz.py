@@ -49,15 +49,18 @@ LINZ carries the API key in the request *path* (``…/services;key=<KEY>/wfs``),
 not a header, so any component that logs a request URL would expose the key.
 To keep full control of what is emitted, this integration issues its WFS calls
 with ``aiohttp`` directly rather than the SDK's ``context.fetch`` (whose
-error path logs the full URL), and redacts the key from any error text it
+error path logs the full URL), and keeps the key out of every message it
 surfaces (see ``_redact`` / ``_wfs_request``).
 
 The same request URL also carries the ``cql_filter``, which embeds the owner
-name being searched for — licensed personal data. Both aiohttp transport errors
-and LDS exception reports routinely echo the request URL / submitted filter, so
-no provider or transport error text is ever surfaced: it is used only to
-*classify* a failure, and the message returned to the caller is always one this
-module authored (see ``LinzError`` / ``_check_wfs_response``).
+name being searched for — licensed personal data. The two error sources leak
+different halves of that: aiohttp builds its error strings from the request URL,
+which carries the key, and LDS CQL parse errors echo the submitted filter
+verbatim (``Could not parse CQL filter list … Parsing : owner ILIKE '%…%'``),
+which carries the owner name. So no provider or transport error text is ever
+surfaced: it is used only to *classify* a failure, and the message returned to
+the caller is always one this module authored (see ``LinzError`` /
+``_check_wfs_response``).
 
 TRADE-OFF — no retries or rate-limit handling:
 ----------------------------------------------
@@ -124,9 +127,12 @@ TITLE_DETAIL_CHUNK = 200
 # if the server orders rows the same way for each page: without an explicit
 # sortBy, WFS makes no ordering guarantee, so rows can be skipped or repeated
 # between pages (and the truncation probe can look at a different row than the
-# one it is meant to check). Each LDS layer/table this integration pages over
+# one it is meant to check). Every LDS layer/table this integration touches
 # exposes an integer primary key named `id` as its first attribute (verified via
-# DescribeFeatureType on layer-50804/50805/50806/50772 and table-51564).
+# DescribeFeatureType on layer-50804/50805/50806/50772 and table-51564); it is
+# unique, so it orders the rows completely. Note that offset paging can still
+# shift if LINZ republishes the layer between requests — the sort removes the
+# arbitrary-ordering problem, not the moving-data one.
 STABLE_SORT_FIELD = "id"
 
 # Fields requested when scanning layer-50806 — excludes the (large) title

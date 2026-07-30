@@ -123,14 +123,21 @@ data tied to the individual's licence acceptance and Privacy Act 2020
 obligations.
 
 That URL also carries the `cql_filter`, which embeds the **owner name being
-searched for** — itself licensed personal data. Because both aiohttp transport
-errors and LINZ/GeoServer exception reports echo the request URL and submitted
-filter back, no provider or transport error text is ever surfaced: it is used
-only to *classify* the failure, and the message returned to the caller is always
-one the integration authored (a curated hint for recognised cases — missing
-licence, unknown layer, invalid request, layer not found — plus the HTTP status,
-and a generic message otherwise). Unit tests assert that a sentinel API key and
-a sentinel owner name are absent from transport errors, XML exception reports,
+searched for** — itself licensed personal data. The two error sources leak
+different halves of that:
+
+- **aiohttp** builds its error strings from the request URL, which carries the
+  **key**.
+- **LINZ/GeoServer** echoes the submitted filter back verbatim in CQL parse
+  errors, which carries the **owner name** — e.g. a malformed filter returns
+  `Could not parse CQL filter list. … Parsing : owner ILIKE '%SMITH%'`.
+
+So no provider or transport error text is ever surfaced: it is used only to
+*classify* the failure, and the message returned to the caller is always one the
+integration authored (a curated hint for recognised cases — missing licence,
+unknown layer, invalid request, layer not found — plus the HTTP status, and a
+generic message otherwise). Unit tests assert that a sentinel API key and a
+sentinel owner name are absent from transport errors, XML exception reports,
 non-2xx JSON bodies and the final `ActionError`.
 
 ## Filtering notes
@@ -151,8 +158,10 @@ non-2xx JSON bodies and the final `ActionError`.
   `start_index` on the typed list actions and to the internal paging and
   truncation probe behind `find_multi_property_owners`. `query_layer` is the
   exception: it can target any dataset, and a sort on a field the target lacks
-  is rejected by LINZ, so it applies no default sort — pass `sort_by: "id"`
-  yourself when paging.
+  is rejected by LINZ (`400 Illegal property name`), so it applies no default
+  sort — pass `sort_by: "id"` yourself when paging. Note the sort fixes the
+  arbitrary-ordering problem, not the moving-data one: offset paging can still
+  shift if LINZ republishes the layer between your requests.
 - `query_layer` is intentionally unrestricted in *which* datasets it can reach —
   including the licensed ownership ones — because the per-user API key and LINZ
   Personal Data Licence are the access-control boundary: the integration can

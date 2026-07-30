@@ -201,7 +201,7 @@
           },
           "start_index": {
             "type": "integer",
-            "description": "Zero-based offset for pagination. Results are sorted by the layer's id, so consecutive pages neither skip nor repeat records.",
+            "description": "Zero-based offset for pagination. Results are sorted by the layer's id, so consecutive pages walk one ordered sequence rather than an arbitrary one. Offset paging can still shift if the underlying data changes between requests.",
             "minimum": 0
           }
         },
@@ -310,7 +310,7 @@
           },
           "start_index": {
             "type": "integer",
-            "description": "Zero-based offset for pagination. Results are sorted by the layer's id, so consecutive pages neither skip nor repeat records.",
+            "description": "Zero-based offset for pagination. Results are sorted by the layer's id, so consecutive pages walk one ordered sequence rather than an arbitrary one. Offset paging can still shift if the underlying data changes between requests.",
             "minimum": 0
           }
         },
@@ -344,7 +344,7 @@
           },
           "sort_by": {
             "type": "string",
-            "description": "Field to sort by, optionally with '+D' for descending, e.g. 'issue_date+D'. Every LDS layer and table has an integer 'id' primary key — use sort_by: 'id' for deterministic paging. No sort is applied by default, because this action can target any dataset and a sort on a field the target lacks is rejected by LINZ."
+            "description": "Field to sort by, optionally with '+D' for descending, e.g. 'issue_date+D'. The LDS layers this integration uses all expose an integer 'id' primary key, and it is usually the right choice for deterministic paging; if the target lacks it, LINZ returns a 400 'Illegal property name'. No sort is applied by default, because this action can target any dataset and a sort on a field the target lacks is rejected by LINZ."
           },
           "srs_name": {
             "type": "string",
