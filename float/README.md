@@ -1,5 +1,7 @@
 # Float Integration for Autohive
 
+<!-- Temporary CI smoke test for #427; no integration behavior is changed. -->
+
 Comprehensive Float API integration for resource management, project scheduling, time tracking, and team management. This integration provides full access to Float's core resources including people, projects, tasks/allocations, time off, logged time, clients, departments, and roles.
 
 ## Description
