@@ -17,7 +17,7 @@ generic escape hatch:
 | Action | What it does |
 |--------|--------------|
 | `list_available_layers` | List the layers the API key can query (WFS GetCapabilities). Works with **any** valid key, so it doubles as a connection diagnostic. |
-| `find_multi_property_owners` | **Headline use case.** Finds owners who appear on more than one property title within a scoping filter. |
+| `find_multi_property_owners` | **Headline use case.** Finds owner **names** that appear on more than one property title within a scoping filter. A name match, **not verified common ownership** — see the caveat below. |
 | `search_property_titles` | Search titles (with owners) by owner name, title number, district or status. |
 | `get_title_owners` | Look up the owners and details of a single title by title number. |
 | `search_parcels` | Search primary parcels by appellation, title, intent or district. |
@@ -38,14 +38,14 @@ Datasets used (the ownership ones all require the same Personal Data Licence):
 ## Use case: owners of multiple properties
 
 `find_multi_property_owners` scans `layer-50806` within a **scoping filter**
-(an `owner_name` such as a surname, and/or a `land_district`) and aggregates
-**distinct titles per owner**. Because that layer has one row per
+(an `owner_name` such as a surname, and/or a `land_district`) and groups
+**distinct titles by normalised owner name**. Because that layer has one row per
 (owner, title) pair, owner names are exact per-row values — the integration
 never splits the aggregated `owners` display string, which LINZ builds by
 comma-joining unescaped free-text names (a comma inside a real corporate name
 would be indistinguishable from a separator and would invent owners and skew
-property counts). It returns owners holding at least `min_properties` (default
-2) titles, sorted by count, with each owner's titles enriched with
+property counts). It returns name groups spanning at least `min_properties`
+(default 2) titles, sorted by count, with each group's titles enriched with
 `estate_description`/`type` from `layer-50805` (about one extra request per
 200 distinct titles; set `include_title_details: false` to skip).
 
@@ -57,6 +57,28 @@ actually omitted (verified against the server's match count, or by probing one
 record past the cap when LINZ reports the total as unknown) — narrow the
 filter or raise the cap for completeness. A scan that exactly fills the cap is
 not truncated.
+
+### ⚠️ Matching owner names is not identity
+
+`layer-50806` exposes **no stable cross-title person or entity identifier** — the
+only thing linking an owner row on one title to a row on another is the owner
+*name* text. So this action finds **matching owner names across titles, not
+verified common ownership**:
+
+- **Matching names are not proof of common identity.** A group is a set of titles
+  whose owner name matches, nothing more.
+- **Same-name individuals or entities may be conflated** into a single group,
+  inflating `property_count`.
+- **Name variants may split one owner** across several groups — initials vs full
+  middle names, punctuation and spacing differences, a trading name vs the
+  registered company name — deflating `property_count`.
+- **Results are candidates for further verification**, not definitive ownership
+  analysis. Start verification with `get_title_owners`, which returns a title's
+  full registered owner records (`prime_surname`, `prime_other_names`,
+  `corporate_name`, `estate_share`) from `table-51564`.
+
+The same caveat is returned at runtime in the action's `note` field, so a
+downstream agent sees it alongside the results.
 
 ### ⚠️ Commercial vs residential is not available from LINZ
 
@@ -136,6 +158,9 @@ non-2xx JSON bodies and the final `ActionError`.
   use the per-row sources (`layer-50806` / `table-51564`); `get_title_owners`
   falls back to best-effort splitting only when the key cannot reach the
   normalised table, and reports it via `owners_exact: false`.
+- `find_multi_property_owners` groups by owner **name**, not identity — LINZ
+  exposes no cross-title owner identifier, so same-name owners are conflated and
+  name variants split one owner (see above). Results are verification candidates.
 - No commercial/residential classification (see above).
 - Scans are bounded by `max_titles_scanned` (owner-title rows); very broad
   filters may truncate.

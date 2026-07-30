@@ -31,7 +31,9 @@ from linz.linz import (
     LAYER_PRIMARY_PARCELS,
     LinzError,
     MAX_QUERY_LIMIT,
+    OWNER_NAME_MATCH_NOTE,
     OWNER_SCAN_FIELDS,
+    PROPERTY_TYPE_NOTE,
     QueryLayerAction,
     TABLE_TITLE_OWNERS_LIST,
 )
@@ -514,6 +516,40 @@ class TestFindMultiPropertyOwners:
         scan_params = mock_wfs.call_args_list[0].kwargs["params"]
         assert scan_params["typeNames"] == LAYER_TITLE_OWNERS
         assert scan_params["propertyName"] == OWNER_SCAN_FIELDS
+
+    @pytest.mark.asyncio
+    async def test_note_warns_that_grouping_is_by_name_not_identity(self, mock_context, mock_wfs):
+        # layer-50806 has no cross-title owner id, so grouping is a name match.
+        # A downstream agent only learns that from the note — it must always
+        # ship with the results, truncated or not.
+        mock_wfs.return_value = ok(collection([self.owner_row("JOHN SMITH", "T1"), self.owner_row("JOHN SMITH", "T2")]))
+        result = await linz.execute_action(
+            "find_multi_property_owners",
+            {"owner_name": "smith", "include_title_details": False},
+            mock_context,
+        )
+        note = result.result.data["note"]
+        assert OWNER_NAME_MATCH_NOTE in note
+        assert "not verified common ownership" in note
+        assert PROPERTY_TYPE_NOTE in note  # the existing caveat is not displaced
+
+    @pytest.mark.asyncio
+    async def test_same_name_owners_are_conflated(self, mock_context, mock_wfs):
+        # The documented failure mode: two unrelated JOHN SMITHs on two titles
+        # are indistinguishable from one JOHN SMITH holding both. Asserted so
+        # the behaviour stays documented rather than silently "fixed" — LINZ
+        # gives us nothing to tell them apart.
+        mock_wfs.return_value = ok(
+            collection([self.owner_row("JOHN SMITH", "T1", district="Otago"), self.owner_row("john  smith", "T2")])
+        )
+        result = await linz.execute_action(
+            "find_multi_property_owners",
+            {"owner_name": "smith", "include_title_details": False},
+            mock_context,
+        )
+        data = result.result.data
+        assert data["owner_count"] == 1
+        assert data["owners"][0]["property_count"] == 2
 
     @pytest.mark.asyncio
     async def test_comma_in_owner_name_is_single_owner(self, mock_context, mock_wfs):

@@ -16,6 +16,19 @@ unescaped free-text names, so a comma inside a real name is indistinguishable
 from the separator). Title descriptors (``estate_description``, ``type``) are
 enriched from ``layer-50805`` afterwards.
 
+LIMITATION — name matching is not identity:
+-------------------------------------------
+``layer-50806`` carries no stable cross-title person or entity identifier: the
+only thing linking an owner row on one title to a row on another is the owner
+*name* text. So ``find_multi_property_owners`` finds **matching owner names
+across titles, not verified common ownership** — two unrelated people sharing a
+name are merged into one group, and name variants (initials, middle names,
+punctuation, a trading name vs a registered company name) split one owner across
+several. Every group is a candidate for further verification, never a definitive
+ownership finding; ``get_title_owners`` returns the full registered owner records
+for a title, which is where verification should start. This caveat is repeated in
+the action's ``note`` output so a downstream agent sees it at runtime.
+
 LIMITATION — commercial vs residential:
 ---------------------------------------
 LINZ title/ownership data does NOT classify a property as commercial or
@@ -104,6 +117,18 @@ PROPERTY_TYPE_NOTE = (
     "LINZ data does not classify properties as commercial or residential; that "
     "lives in council/QV rating data. Use estate_description and parcel details "
     "to infer property type."
+)
+
+# Returned with every find_multi_property_owners result: the grouping is a name
+# match, and LINZ gives us nothing stronger to group on (see module docstring).
+OWNER_NAME_MATCH_NOTE = (
+    "These results are matching owner NAMES across titles, not verified common ownership: "
+    "layer-50806 has no stable cross-title person or entity identifier, so grouping is by "
+    "normalised name only. Same-name individuals or entities are conflated into one group, and "
+    "name variants (initials, middle names, punctuation, trading vs registered names) split one "
+    "owner into several. Treat each group as a candidate for further verification — start with "
+    "get_title_owners for a title's full registered owner records — not as definitive ownership "
+    "analysis."
 )
 
 
@@ -750,14 +775,21 @@ async def _enrich_title_details(context: ExecutionContext, results: List[Dict[st
 
 @linz.action("find_multi_property_owners")
 class FindMultiPropertyOwnersAction(ActionHandler):
-    """Find owners who appear on more than one property title.
+    """Find matching owner names across more than one property title.
 
     Scans the NZ Property Title Owners layer (``layer-50806``, one row per
-    distinct owner/title pair) within a scoping filter and aggregates distinct
-    titles per owner. Owner names are exact per-row values — never parsed out
-    of the aggregated ``owners`` display string, whose unescaped commas can't
-    be split reliably. Returns owners holding at least ``min_properties``
+    distinct owner/title pair) within a scoping filter and groups distinct titles
+    by normalised owner name. Owner names are exact per-row values — never parsed
+    out of the aggregated ``owners`` display string, whose unescaped commas can't
+    be split reliably. Returns name groups spanning at least ``min_properties``
     titles, with estate descriptors enriched from ``layer-50805``.
+
+    NOT identity resolution: ``layer-50806`` exposes no stable cross-title
+    person/entity id, so a group is a set of titles whose owner name matches —
+    same-name owners are conflated and name variants split one owner into
+    several. Results are candidates for verification (see
+    ``OWNER_NAME_MATCH_NOTE``, returned in the ``note`` output), not definitive
+    ownership analysis.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
@@ -802,10 +834,13 @@ class FindMultiPropertyOwnersAction(ActionHandler):
                 property_name=OWNER_SCAN_FIELDS,
             )
 
-            # Aggregate distinct titles per owner. Each scanned row is one
-            # (owner, title) pair, so no name splitting or client-side owner
-            # re-filtering is needed — the CQL filter already matched the
-            # per-row owner field.
+            # Group distinct titles by normalised owner name. Each scanned row is
+            # one (owner, title) pair, so no name splitting or client-side owner
+            # re-filtering is needed — the CQL filter already matched the per-row
+            # owner field. The name IS the grouping key: layer-50806 offers no
+            # cross-title owner id, so a group means "these titles share an owner
+            # name", not "these titles share an owner" — hence
+            # OWNER_NAME_MATCH_NOTE on the way out.
             owners_index: Dict[str, Dict[str, Any]] = {}
             for feature in scan["features"]:
                 props = _properties(feature)
@@ -847,7 +882,7 @@ class FindMultiPropertyOwnersAction(ActionHandler):
                     "titles_scanned": scan["scanned"],
                     "truncated": scan["truncated"],
                     "min_properties": min_properties,
-                    "note": PROPERTY_TYPE_NOTE
+                    "note": f"{OWNER_NAME_MATCH_NOTE} {PROPERTY_TYPE_NOTE}"
                     + (
                         " Results truncated at max_titles_scanned — increase it or narrow the filter for completeness."
                         if scan["truncated"]
