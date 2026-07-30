@@ -222,7 +222,7 @@
     },
     "get_title_owners": {
       "display_name": "Get Title Owners",
-      "description": "Get the owners and details of a single property title by its title number. Owner names come from the normalised NZ Property Titles Owners List (table-51564), one record per registered owner; the aggregated owners display string is only split as a best-effort fallback (owners_exact reports which source was used).",
+      "description": "Get the owners and details of a single property title by its title number. Owner names come from the normalised NZ Property Titles Owners List (table-51564), one record per registered owner; the aggregated owners display string is only split as a best-effort fallback, and only when that table returns no rows for the title or the key is not licensed for it (owners_exact reports which source was used). Any other failure on the owners-table lookup — timeout, 5xx, malformed response — returns an error rather than an inexact answer.",
       "input_schema": {
         "type": "object",
         "properties": {

@@ -150,6 +150,18 @@ class LinzError(Exception):
     """
 
 
+class LinzLayerAccessError(LinzError):
+    """The user's key cannot reach the requested layer or table.
+
+    Raised ONLY for the two responses LINZ uses to say "not yours": an
+    unknown-feature-type exception report (how LDS reports a layer the key isn't
+    licensed for) and 401/403. Optional-source lookups catch this specific type
+    to fall back to another dataset; every other failure — timeout, 5xx,
+    malformed body, a bug in this module — stays a plain ``LinzError`` and must
+    surface as an error rather than be mistaken for "no access".
+    """
+
+
 # Returned in place of any exception this module did not author.
 _UNEXPECTED_ERROR = (
     "The LINZ integration hit an unexpected error handling this request. Check your inputs and try again."
@@ -353,6 +365,10 @@ def _check_wfs_response(response: Any) -> None:
     can carry the owner name being searched for. Recognised cases map to a
     curated hint; anything else gets the generic provider-error message plus the
     HTTP status.
+
+    The two "the key can't have this layer" responses — an unknown-feature-type
+    exception report and 401/403 — raise the ``LinzLayerAccessError`` subclass so
+    an optional-source lookup can fall back on those alone.
     """
     status = getattr(response, "status", None)
     data = getattr(response, "data", None)
@@ -363,15 +379,15 @@ def _check_wfs_response(response: Any) -> None:
     if isinstance(status, int) and 200 <= status < 300:
         # LDS sometimes returns an XML ExceptionReport with a 200 status.
         if unknown_layer:
-            raise LinzError(f"LINZ WFS: {_LICENCE_HINT}")
+            raise LinzLayerAccessError(f"LINZ WFS: {_LICENCE_HINT}")
         if is_xml_exception:
             raise LinzError(f"LINZ WFS returned an exception report for this request. {_INVALID_REQUEST_HINT}")
         return
 
     if unknown_layer:
-        raise LinzError(f"LINZ WFS {status}: {_LICENCE_HINT}")
+        raise LinzLayerAccessError(f"LINZ WFS {status}: {_LICENCE_HINT}")
     if status in (401, 403):
-        raise LinzError(f"LINZ WFS {status}: {_LICENCE_HINT}")
+        raise LinzLayerAccessError(f"LINZ WFS {status}: {_LICENCE_HINT}")
     if status == 404:
         raise LinzError("LINZ WFS 404: layer not found. Check the layer id.")
     if status == 400:
@@ -655,9 +671,12 @@ class GetTitleOwnersAction(ActionHandler):
 
     Title details come from ``layer-50805``. Owner names come from the
     normalised owners list (``table-51564``) — one record per registered
-    owner, no comma-splitting. Only when that table yields nothing (e.g. a key
-    without access to it) does the action fall back to best-effort splitting
-    of the aggregated ``owners`` display string, flagged via ``owners_exact``.
+    owner, no comma-splitting. The action falls back to best-effort splitting of
+    the aggregated ``owners`` display string (flagged via ``owners_exact``) in
+    exactly two cases: the table returns no rows for the title, or the key is not
+    licensed for it (``LinzLayerAccessError``). Any other failure on that lookup
+    — timeout, 5xx, malformed response — is returned as an error instead, so an
+    inexact answer is never passed off as the best available one.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
@@ -684,8 +703,14 @@ class GetTitleOwnersAction(ActionHandler):
                     count=DEFAULT_PAGE_SIZE,
                 )
                 owner_rows = _extract_features(rows_collection)
-            except LinzError:
-                owner_rows = []  # key can't reach the normalised table
+            except LinzLayerAccessError:
+                # ONLY "your key can't have this table" (unknown feature type,
+                # 401/403) justifies the inexact fallback. A timeout, a 5xx, a
+                # malformed body or a bug must not masquerade as "no access" —
+                # those propagate and become an ActionError, because silently
+                # degrading to comma-splitting would report owners_exact: false
+                # for a table the key can actually read.
+                owner_rows = []
 
             owners: List[str] = []
             owner_details: List[Dict[str, Any]] = []

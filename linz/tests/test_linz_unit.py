@@ -14,6 +14,7 @@ from linz.linz import (
     _bounded_start_index,
     _cql_literal,
     _extract_exception_text,
+    _check_wfs_response,
     _extract_features,
     _get_api_key,
     _normalize_layer,
@@ -30,6 +31,7 @@ from linz.linz import (
     LAYER_TITLE_OWNERS,
     LAYER_PRIMARY_PARCELS,
     LinzError,
+    LinzLayerAccessError,
     MAX_QUERY_LIMIT,
     OWNER_NAME_MATCH_NOTE,
     OWNER_SCAN_FIELDS,
@@ -304,6 +306,53 @@ class TestWfsRequest:
         assert "500" in result.result.message
 
 
+class TestLayerAccessClassification:
+    """Only "the key can't have this layer" gets the LinzLayerAccessError type.
+
+    Optional-source lookups fall back on that type alone, so anything else
+    landing in it would silently downgrade a result instead of erroring.
+    """
+
+    UNKNOWN_XML = (
+        '<?xml version="1.0"?><ows:ExceptionReport><ows:Exception>'
+        "<ows:ExceptionText>Feature type :table-51564 unknown</ows:ExceptionText>"
+        "</ows:Exception></ows:ExceptionReport>"
+    )
+
+    @pytest.mark.parametrize(
+        "response",
+        [
+            ok(UNKNOWN_XML, status=400),
+            ok(UNKNOWN_XML, status=200),
+            ok({"message": "no"}, status=401),
+            ok({"message": "no"}, status=403),
+        ],
+        ids=["unknown-400", "unknown-200", "401", "403"],
+    )
+    def test_access_responses_raise_the_access_subclass(self, response):
+        with pytest.raises(LinzLayerAccessError):
+            _check_wfs_response(response)
+
+    @pytest.mark.parametrize(
+        "response",
+        [
+            ok({"message": "boom"}, status=500),
+            ok({"message": "gateway"}, status=502),
+            ok({"message": "gone"}, status=404),
+            ok("<ExceptionReport>bad cql</ExceptionReport>", status=400),
+            ok("<ExceptionReport>bad cql</ExceptionReport>", status=200),
+        ],
+        ids=["500", "502", "404", "invalid-request-400", "exception-at-200"],
+    )
+    def test_other_failures_stay_plain_errors(self, response):
+        with pytest.raises(LinzError) as excinfo:
+            _check_wfs_response(response)
+        assert not isinstance(excinfo.value, LinzLayerAccessError)
+
+    def test_success_raises_nothing(self):
+        assert _check_wfs_response(ok(collection([]))) is None
+
+
 # =============================================================================
 # search_property_titles
 # =============================================================================
@@ -423,20 +472,62 @@ class TestGetTitleOwners:
         assert data["owners_exact"] is False
         assert data["owner_details"] == []
 
+    UNKNOWN_TABLE_XML = (
+        '<?xml version="1.0"?><ows:ExceptionReport><ows:Exception>'
+        "<ows:ExceptionText>Feature type :table-51564 unknown</ows:ExceptionText>"
+        "</ows:Exception></ows:ExceptionReport>"
+    )
+
     @pytest.mark.asyncio
-    async def test_falls_back_when_table_inaccessible(self, mock_context, mock_wfs):
+    @pytest.mark.parametrize(
+        "table_response",
+        [
+            # How LDS reports a table the key isn't licensed for.
+            ok(UNKNOWN_TABLE_XML, status=400),
+            ok(UNKNOWN_TABLE_XML, status=200),  # LDS also does this at 200
+            ok({"message": "forbidden"}, status=403),
+            ok({"message": "unauthorized"}, status=401),
+        ],
+        ids=["unknown-400", "unknown-200", "403", "401"],
+    )
+    async def test_falls_back_when_table_inaccessible(self, mock_context, mock_wfs, table_response):
         # A key licensed for layer-50805 but not table-51564 must still work.
-        unknown = (
-            '<?xml version="1.0"?><ows:ExceptionReport><ows:Exception>'
-            "<ows:ExceptionText>Feature type :table-51564 unknown</ows:ExceptionText>"
-            "</ows:Exception></ows:ExceptionReport>"
-        )
-        mock_wfs.side_effect = [ok(self.TITLE_50805), ok(unknown, status=400)]
+        # These are the only responses that justify the inexact fallback.
+        mock_wfs.side_effect = [ok(self.TITLE_50805), table_response]
         result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["owners"] == ["JANE SMITH", "JOHN SMITH"]
         assert data["owners_exact"] is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "table_failure",
+        [
+            ok({"message": "boom"}, status=500),
+            ok({"message": "bad gateway"}, status=502),
+            ok("<ExceptionReport>bad filter</ExceptionReport>", status=400),
+            ok("<html>not geojson</html>", status=200),  # malformed body
+            LinzError("LINZ WFS request timed out."),
+            Exception("programming failure"),
+        ],
+        ids=["500", "502", "invalid-request", "malformed", "timeout", "bug"],
+    )
+    async def test_non_access_failure_on_table_is_an_error(self, mock_context, mock_wfs, table_failure):
+        # A timeout, 5xx, malformed response or bug must NOT be read as "the key
+        # can't reach the table" and silently degrade to comma-splitting —
+        # owners_exact: false would then be a lie about the available data.
+        def responses(*args, **kwargs):
+            if mock_wfs.call_count == 1:
+                return ok(self.TITLE_50805)
+            if isinstance(table_failure, Exception):
+                raise table_failure
+            return table_failure
+
+        mock_wfs.side_effect = responses
+        result = await linz.execute_action("get_title_owners", {"title_no": "NA1/1"}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_wfs.call_count == 2
 
     @pytest.mark.asyncio
     async def test_missing_title_no(self, mock_context, mock_wfs):

@@ -156,8 +156,11 @@ non-2xx JSON bodies and the final `ActionError`.
   an aggregated comma-separated display string and is **not safely splittable**
   — real names can contain commas. Owner enumeration and aggregation therefore
   use the per-row sources (`layer-50806` / `table-51564`); `get_title_owners`
-  falls back to best-effort splitting only when the key cannot reach the
-  normalised table, and reports it via `owners_exact: false`.
+  falls back to best-effort splitting only when the normalised table returns no
+  rows for the title or the key is not licensed for it (an unknown-feature-type
+  response, or a 401/403), and reports it via `owners_exact: false`. Any other
+  failure on that lookup — timeout, 5xx, malformed response — is returned as an
+  error, so a degraded answer is never passed off as the best available one.
 - `find_multi_property_owners` groups by owner **name**, not identity — LINZ
   exposes no cross-title owner identifier, so same-name owners are conflated and
   name variants split one owner (see above). Results are verification candidates.
