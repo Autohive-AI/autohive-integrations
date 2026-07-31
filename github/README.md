@@ -14,7 +14,7 @@ This integration provides complete access to GitHub's REST API (v2022-11-28), al
 - **Commit Operations**: Access commit history and details
 - **Branch Management**: Create, delete, and manage branches
 - **Webhook Integration**: Set up automated workflows with webhooks
-- **File Operations**: Read, create, update, and delete files directly in repositories
+- **File Operations**: Read, create, update, and delete files directly in repositories, and browse directory listings
 - **Gist Management**: Create and manage code snippets
 - **Rate Limiting**: Built-in rate limit monitoring and handling
 
@@ -501,18 +501,25 @@ Deletes a webhook from a repository.
 
 #### `get_file_content`
 
-Retrieves the content of a file from a repository.
+Retrieves the content of a file from a repository, or lists the entries of a directory when `path` points to a folder. GitHub's contents endpoint returns a single object for a file and an array for a directory, and this action handles both shapes.
 
 **Inputs:**
 - `owner` (string, required): Repository owner
 - `repo` (string, required): Repository name
-- `path` (string, required): File path in repository (e.g., 'src/main.py')
+- `path` (string, required): File path (e.g., 'src/main.py') or directory path (e.g., 'src') to list its entries
 - `ref` (string, optional): Branch, tag, or commit SHA (defaults to default branch)
 
 **Outputs:**
-- `content` (string): Decoded file content
-- `sha` (string): File SHA for updates
+- `type` (string): `file` for a single file, `dir` for a directory listing
+- `content` (string): Decoded file content. Empty string when `path` is a directory
+- `sha` (string): File SHA for updates. Empty string when `path` is a directory
+- `size` (integer): File size in bytes. `0` when `path` is a directory
+- `name` (string): File or directory name
+- `path` (string): Full path of the file or directory
+- `entries` (array): Directory entries when `path` is a directory, empty for a single file. Each entry has `name`, `path`, `type` (`file` or `dir`), `sha`, `size`, and `download_url`
 - `result` (boolean): Operation success status
+
+**Browsing a repository tree:** point `path` at a directory to get its immediate children, then call the action again with a child's `path` to walk deeper. Use `''` or the repo root path to list the top level.
 
 #### `create_file`
 
@@ -731,6 +738,14 @@ Common error scenarios:
     "inputs": {
       "owner": "myorg",
       "repo": "config-repo",
+      "path": "config"
+    }
+  },
+  {
+    "action": "get_file_content",
+    "inputs": {
+      "owner": "myorg",
+      "repo": "config-repo",
       "path": "config/production.json"
     }
   },
@@ -795,6 +810,10 @@ For integration issues or questions:
 - Contact Autohive support for platform-related issues
 
 ## Version History
+
+- **2.6.0**
+  - `get_file_content` now handles directory paths, returning a `type` field and an `entries` array instead of failing on GitHub's array response shape
+  - Added `type` and `entries` to the `get_file_content` output schema
 
 - **1.0.0** (Initial Release)
   - Complete GitHub REST API integration

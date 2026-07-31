@@ -789,7 +789,7 @@ class GitHubAPI:
     async def get_file_content(
         context: ExecutionContext, owner: str, repo: str, path: str, ref: str = None
     ) -> Dict[str, Any]:
-        """Get file content from repository"""
+        """Get file content from repository, or a directory listing when path is a directory"""
         url = f"{GitHubAPI.BASE_URL}/repos/{owner}/{repo}/contents/{path}"
         params = {}
 
@@ -803,15 +803,39 @@ class GitHubAPI:
         )
         response = fetch_result.data
 
+        # GitHub returns a list of entries when the path is a directory
+        if isinstance(response, list):
+            return {
+                "type": "dir",
+                "content": "",
+                "sha": "",
+                "size": 0,
+                "name": path.rstrip("/").split("/")[-1],
+                "path": path,
+                "entries": [
+                    {
+                        "name": entry.get("name", ""),
+                        "path": entry.get("path", ""),
+                        "type": entry.get("type", ""),
+                        "sha": entry.get("sha", ""),
+                        "size": entry.get("size", 0),
+                        "download_url": entry.get("download_url") or "",
+                    }
+                    for entry in response
+                ],
+            }
+
         # Decode base64 content
         content = base64.b64decode(response.get("content", "").replace("\n", "")).decode("utf-8")
 
         return {
+            "type": response.get("type", "file"),
             "content": content,
             "sha": response.get("sha", ""),
             "size": response.get("size", 0),
             "name": response.get("name", ""),
             "path": response.get("path", ""),
+            "entries": [],
         }
 
     @staticmethod
@@ -2153,11 +2177,13 @@ class GetFileContent(ActionHandler):
 
         return ActionResult(
             data={
+                "type": file_data["type"],
                 "content": file_data["content"],
                 "sha": file_data["sha"],
                 "size": file_data["size"],
                 "name": file_data["name"],
                 "path": file_data["path"],
+                "entries": file_data["entries"],
             },
             cost_usd=0.0,
         )

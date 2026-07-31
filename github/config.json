@@ -1,6 +1,6 @@
 {
   "name": "GitHub",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "GitHub API integration for complete repository management including CRUD operations for repos, branches, issues, PRs, files, and more.",
   "display_name": "GitHub",
   "supports_connected_account": true,
@@ -2398,7 +2398,7 @@
     },
     "get_file_content": {
       "display_name": "Get File Content",
-      "description": "Get file content from repository",
+      "description": "Get the content of a file in a repository, or list the entries of a directory when path points to a folder. When path is a directory, 'type' is 'dir', 'content' is empty, and 'entries' holds the files and subfolders.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -2412,7 +2412,7 @@
           },
           "path": {
             "type": "string",
-            "description": "File path"
+            "description": "File path, or directory path to list its entries"
           },
           "ref": {
             "type": "string",
@@ -2428,8 +2428,13 @@
       "output_schema": {
         "type": "object",
         "properties": {
+          "type": {
+            "type": "string",
+            "description": "'file' for a single file, 'dir' for a directory listing"
+          },
           "content": {
-            "type": "string"
+            "type": "string",
+            "description": "Decoded file content. Empty when path is a directory."
           },
           "sha": {
             "type": "string"
@@ -2442,6 +2447,34 @@
           },
           "path": {
             "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "description": "Directory entries when path is a directory. Empty for a single file.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "'file' or 'dir'"
+                },
+                "sha": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "download_url": {
+                  "type": "string"
+                }
+              }
+            }
           }
         }
       }
