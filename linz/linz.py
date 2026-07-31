@@ -1,0 +1,1152 @@
+"""
+Land Information New Zealand (LINZ) Integration
+
+Reads property, title, ownership and parcel data from the LINZ Data Service
+(LDS) Web Feature Service (WFS) API.
+
+USE CASE — owners of multiple properties:
+-----------------------------------------
+The headline action ``find_multi_property_owners`` scans the
+"NZ Property Title Owners" layer (``layer-50806``) — one row per distinct
+(owner, title) pair — aggregates distinct titles per owner, and returns owners
+who appear on more than one title. Owner names come from a per-row field, never
+from splitting the aggregated ``owners`` display string on ``layer-50805``
+(LINZ builds that string with ``string_agg(DISTINCT owner, ', ')`` over
+unescaped free-text names, so a comma inside a real name is indistinguishable
+from the separator). Title descriptors (``estate_description``, ``type``) are
+enriched from ``layer-50805`` afterwards.
+
+LIMITATION — name matching is not identity:
+-------------------------------------------
+``layer-50806`` carries no stable cross-title person or entity identifier: the
+only thing linking an owner row on one title to a row on another is the owner
+*name* text. So ``find_multi_property_owners`` finds **matching owner names
+across titles, not verified common ownership** — two unrelated people sharing a
+name are merged into one group, and name variants (initials, middle names,
+punctuation, a trading name vs a registered company name) split one owner across
+several. Every group is a candidate for further verification, never a definitive
+ownership finding; ``get_title_owners`` returns the full registered owner records
+for a title, which is where verification should start. This caveat is repeated in
+the action's ``note`` output so a downstream agent sees it at runtime.
+
+LIMITATION — commercial vs residential:
+---------------------------------------
+LINZ title/ownership data does NOT classify a property as commercial or
+residential. That distinction lives in council / Quotable Value (QV) *rating*
+data, which is not part of LINZ. This integration therefore surfaces the LINZ
+descriptors that exist (``estate_description``, parcel ``appellation`` /
+``parcel_intent``) so a downstream agent can make an informed inference, but it
+cannot definitively label a property's use type. See README for details.
+
+SECURITY MODEL:
+---------------
+This integration uses a per-user LINZ Data Service API key (custom auth). The
+ownership layer (``layer-50805``) is licensed personal data: each user must
+generate their own API key AND accept the LINZ Licence for Personal Data on
+their LINZ account before that layer is accessible to the key.
+
+LINZ carries the API key in the request *path* (``…/services;key=<KEY>/wfs``),
+not a header, so any component that logs a request URL would expose the key.
+To keep full control of what is emitted, this integration issues its WFS calls
+with ``aiohttp`` directly rather than the SDK's ``context.fetch`` (whose
+error path logs the full URL), and keeps the key out of every message it
+surfaces (see ``_redact`` / ``_wfs_request``).
+
+The same request URL also carries the ``cql_filter``, which embeds the owner
+name being searched for — licensed personal data. The two error sources leak
+different halves of that: aiohttp builds its error strings from the request URL,
+which carries the key, and LDS CQL parse errors echo the submitted filter
+verbatim (``Could not parse CQL filter list … Parsing : owner ILIKE '%…%'``),
+which carries the owner name. So no provider or transport error text is ever
+surfaced: it is used only to *classify* a failure, and the message returned to
+the caller is always one this module authored (see ``LinzError`` /
+``_check_wfs_response``).
+
+TRADE-OFF — no retries or rate-limit handling:
+----------------------------------------------
+Bypassing ``context.fetch`` also means forgoing the SDK client's request
+resilience, and this version implements none of its own: one attempt per request,
+no exponential backoff, no ``Retry-After`` handling, and a fixed
+``WFS_TIMEOUT_SECONDS`` timeout. A 429 falls through to the generic
+non-2xx branch of ``_check_wfs_response`` and is returned with its status, like
+any other unrecognised failure — so retrying is the caller's responsibility.
+``find_multi_property_owners`` is the most exposed action, being the only one
+that issues multiple sequential requests per call. See README.
+"""
+
+import asyncio
+import json
+import re
+from typing import Any, Dict, List, NamedTuple, Optional
+
+import aiohttp
+from defusedxml import ElementTree as DefusedET
+
+from autohive_integrations_sdk import (
+    ActionError,
+    ActionHandler,
+    ActionResult,
+    ExecutionContext,
+    Integration,
+)
+
+linz = Integration.load()
+
+# =============================================================================
+# API configuration
+# =============================================================================
+
+# The API key is interpolated into the service path, not a query parameter:
+#   https://data.linz.govt.nz/services;key=<API_KEY>/wfs
+LDS_WFS_URL_TEMPLATE = "https://data.linz.govt.nz/services;key={key}/wfs"  # noqa: E501
+
+# Well-known LDS layers used by the typed actions.
+LAYER_TITLES_OWNERS = "layer-50805"  # NZ Property Titles Including Owners (licensed)
+LAYER_TITLE_OWNERS = "layer-50806"  # NZ Property Title Owners: one row per (owner, title) (licensed)
+TABLE_TITLE_OWNERS_LIST = "table-51564"  # NZ Property Titles Owners List: normalised owner records (licensed)
+LAYER_TITLES = "layer-50804"  # NZ Property Titles (no owner names)
+LAYER_PRIMARY_PARCELS = "layer-50772"  # NZ Primary Parcels
+
+WFS_VERSION = "2.0.0"
+# Per-request timeout (seconds) for direct aiohttp WFS calls.
+WFS_TIMEOUT_SECONDS = 30
+# LDS caps JSON GetFeature responses; 1000 is a safe per-page size.
+DEFAULT_PAGE_SIZE = 1000
+# Safety ceiling for the multi-property scan so a broad filter can't run away.
+MAX_SCAN_HARD_CAP = 10000
+# Hard cap on limit for the single-request list actions (aligned with the LDS
+# page size) — enforced at runtime as well as in the input schemas.
+MAX_QUERY_LIMIT = 1000
+# Hard cap for list_available_layers; the capabilities document is already in
+# memory, so this only bounds response size.
+MAX_LAYER_LIST_LIMIT = 2000
+# Titles per detail-enrichment request (title_no IN (...) keeps the URL short).
+TITLE_DETAIL_CHUNK = 200
+
+# Sort key for every paged request. A startIndex/count window is only coherent
+# if the server orders rows the same way for each page: without an explicit
+# sortBy, WFS makes no ordering guarantee, so rows can be skipped or repeated
+# between pages (and the truncation probe can look at a different row than the
+# one it is meant to check). Every LDS layer/table this integration touches
+# exposes an integer primary key named `id` as its first attribute (verified via
+# DescribeFeatureType on layer-50804/50805/50806/50772 and table-51564); it is
+# unique, so it orders the rows completely. Note that offset paging can still
+# shift if LINZ republishes the layer between requests — the sort removes the
+# arbitrary-ordering problem, not the moving-data one.
+STABLE_SORT_FIELD = "id"
+
+# Fields requested when scanning layer-50806 — excludes the (large) title
+# geometry, which LDS omits when propertyName is set. `id` is the paging sort
+# key; it is not returned to the caller.
+OWNER_SCAN_FIELDS = "id,owner,title_no,title_status,land_district,part_ownership"
+
+PROPERTY_TYPE_NOTE = (
+    "LINZ data does not classify properties as commercial or residential; that "
+    "lives in council/QV rating data. Use estate_description and parcel details "
+    "to infer property type."
+)
+
+# Returned with every find_multi_property_owners result: the grouping is a name
+# match, and LINZ gives us nothing stronger to group on (see module docstring).
+OWNER_NAME_MATCH_NOTE = (
+    "These results are matching owner NAMES across titles, not verified common ownership: "
+    "layer-50806 has no stable cross-title person or entity identifier, so grouping is by "
+    "normalised name only. Same-name individuals or entities are conflated into one group, and "
+    "name variants (initials, middle names, punctuation, trading vs registered names) split one "
+    "owner into several. Treat each group as a candidate for further verification — start with "
+    "get_title_owners for a title's full registered owner records — not as definitive ownership "
+    "analysis."
+)
+
+
+# =============================================================================
+# Errors
+# =============================================================================
+
+
+class LinzError(Exception):
+    """An error whose message this module authored and is safe to surface.
+
+    Only ``LinzError`` messages reach the caller: every action handler maps any
+    other exception to a fixed generic message. Provider error bodies and
+    transport error strings are never included, because a WFS request URL
+    carries both the API key and the ``cql_filter`` — which may contain the
+    owner name being searched for — and LDS echoes them back freely. Handlers
+    still pass the message through ``_redact`` as belt-and-braces, in case a
+    curated message ever embeds a service URL.
+    """
+
+
+class LinzLayerAccessError(LinzError):
+    """The user's key cannot reach the requested layer or table.
+
+    Raised ONLY for the two responses LINZ uses to say "not yours": an
+    unknown-feature-type exception report (how LDS reports a layer the key isn't
+    licensed for) and 401/403. Optional-source lookups catch this specific type
+    to fall back to another dataset; every other failure — timeout, 5xx,
+    malformed body, a bug in this module — stays a plain ``LinzError`` and must
+    surface as an error rather than be mistaken for "no access".
+    """
+
+
+# Returned in place of any exception this module did not author.
+_UNEXPECTED_ERROR = (
+    "The LINZ integration hit an unexpected error handling this request. Check your inputs and try again."
+)
+
+
+# =============================================================================
+# Auth
+# =============================================================================
+
+
+def _get_api_key(context: ExecutionContext) -> str:
+    """Read the LINZ Data Service API key from auth (flat or nested)."""
+    auth = context.auth or {}
+    creds = auth.get("credentials", auth) if isinstance(auth, dict) else {}
+    key = (creds or {}).get("api_key", "")
+    if not key:
+        raise LinzError(
+            "LINZ Data Service API key is required. Create one at "
+            "https://data.linz.govt.nz/my/api/ and ensure it has accepted the "
+            "LINZ Licence for Personal Data for ownership layers."
+        )
+    return key
+
+
+# =============================================================================
+# CQL / layer helpers
+# =============================================================================
+
+
+def _normalize_layer(layer: str) -> str:
+    """Accept '50805', 'layer-50805' or 'table-1234' and return a WFS typeName."""
+    layer = str(layer).strip()
+    if not layer:
+        raise LinzError("layer is required")
+    if layer.startswith("layer-") or layer.startswith("table-"):
+        return layer
+    if layer.isdigit():
+        return f"layer-{layer}"
+    return layer
+
+
+def _bounded_limit(value: Any, default: int, maximum: int) -> int:
+    """Clamp a user-supplied limit to [1, maximum]; None falls back to default."""
+    limit = default if value is None else int(value)
+    return min(max(limit, 1), maximum)
+
+
+def _bounded_start_index(value: Any) -> Optional[int]:
+    """Clamp a user-supplied start index to >= 0 (None passes through)."""
+    if value is None:
+        return None
+    return max(int(value), 0)
+
+
+def _cql_literal(value: str) -> str:
+    """Quote a CQL string literal, escaping embedded single quotes."""
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _and(clauses: List[str]) -> Optional[str]:
+    clauses = [c for c in clauses if c]
+    if not clauses:
+        return None
+    return " AND ".join(f"({c})" for c in clauses)
+
+
+def _extract_features(collection: Any) -> List[Dict[str, Any]]:
+    """Pull the feature list out of a GeoJSON FeatureCollection."""
+    if isinstance(collection, dict):
+        feats = collection.get("features")
+        if isinstance(feats, list):
+            return feats
+    return []
+
+
+def _properties(feature: Dict[str, Any]) -> Dict[str, Any]:
+    props = feature.get("properties")
+    return props if isinstance(props, dict) else {}
+
+
+# =============================================================================
+# WFS client
+# =============================================================================
+
+
+class _WfsResponse(NamedTuple):
+    """Minimal response wrapper: the pieces the error/parse helpers need."""
+
+    status: int
+    data: Any
+
+
+# Matches the API key wherever it appears in a service URL/path so it can be
+# scrubbed from any text that might be logged or returned to the caller.
+_KEY_IN_TEXT = re.compile(r"(services;key=)[^/\s\"']+", re.IGNORECASE)
+
+
+def _redact(text: Any) -> str:
+    """Strip the API key out of any message before it can be logged/surfaced."""
+    return _KEY_IN_TEXT.sub(r"\1<redacted>", str(text or ""))
+
+
+def _parse_wfs_body(text: str, content_type: str) -> Any:
+    """Parse a WFS body: JSON payloads → dict, anything else (XML) → str.
+
+    Mirrors how the callers expect ``response.data``: a dict for a successful
+    GeoJSON GetFeature, and the raw string for XML exception reports and
+    GetCapabilities.
+    """
+    if "json" in content_type.lower():
+        try:
+            return json.loads(text)
+        except ValueError:
+            return text
+    return text
+
+
+async def _wfs_request(context: ExecutionContext, *, params: Dict[str, Any]) -> _WfsResponse:
+    """Issue a GET to the LDS WFS endpoint with aiohttp directly.
+
+    Deliberately does NOT use ``context.fetch``: LINZ puts the API key in the
+    URL path, and the SDK's fetch logs the full URL on error, which would leak
+    the key. Here neither the key nor the CQL filter (which may carry an owner
+    name) leaves this function in any raised message — transport failures are
+    re-raised with a fixed message, never the underlying exception text, which
+    aiohttp builds from the request URL.
+    """
+    url = LDS_WFS_URL_TEMPLATE.format(key=_get_api_key(context))
+    query = {key: str(value) for key, value in params.items() if value is not None}
+    timeout = aiohttp.ClientTimeout(total=WFS_TIMEOUT_SECONDS)
+
+    # Reuse the context's session if present (as context.fetch does); otherwise
+    # create one and cache it on the context so paged scans keep the connection.
+    session = getattr(context, "_session", None)
+    if not isinstance(session, aiohttp.ClientSession):
+        session = aiohttp.ClientSession()
+        context._session = session
+
+    try:
+        async with session.get(url, params=query, timeout=timeout, ssl=True) as response:
+            text = await response.text()
+            content_type = response.headers.get("Content-Type", "")
+            return _WfsResponse(status=response.status, data=_parse_wfs_body(text, content_type))
+    except asyncio.TimeoutError:
+        # Never echo the URL/params — they carry the key and the CQL filter.
+        raise LinzError("LINZ WFS request timed out.") from None
+    except aiohttp.ClientError:
+        # aiohttp builds its error strings from the request URL, so the
+        # exception text is discarded entirely rather than redacted.
+        raise LinzError("LINZ WFS request failed: could not reach the LINZ Data Service.") from None
+
+
+_LICENCE_HINT = (
+    "access denied. Verify your API key is valid and that your LINZ account has accepted the "
+    "LINZ Licence for Personal Data required to access ownership layers such as layer-50805. "
+    "(LINZ reports an inaccessible layer as an 'unknown' feature type.)"
+)
+
+_INVALID_REQUEST_HINT = (
+    "Check the layer id, the field names used in your filter, and the CQL syntax; run "
+    "list_available_layers to confirm the layer is queryable by your key."
+)
+
+_GENERIC_PROVIDER_ERROR = (
+    "the LINZ Data Service reported an error for this request. Try again, and narrow the filter "
+    "if the request was a large scan."
+)
+
+
+def _extract_exception_text(xml: str) -> str:
+    """Pull the human-readable message out of an OWS/WFS exception report.
+
+    Used only to CLASSIFY a failure — the returned text may echo the submitted
+    CQL filter (and therefore an owner name), so it must never be surfaced.
+    """
+    for tag in ("ExceptionText", "ServiceException"):
+        start = xml.find(f"<ows:{tag}")
+        if start == -1:
+            start = xml.find(f"<{tag}")
+        if start != -1:
+            gt = xml.find(">", start)
+            end = xml.find("<", gt + 1)
+            if gt != -1 and end != -1:
+                return xml[gt + 1 : end].strip()
+    return _short(xml)
+
+
+def _is_unknown_layer_exception(text: str) -> bool:
+    """True when LDS reports a feature type as unknown (usually = no licence)."""
+    low = text.lower()
+    return "unknown" in low and ("feature type" in low or "typename" in low or "layer-" in low)
+
+
+def _check_wfs_response(response: Any) -> None:
+    """Raise a curated error for non-2xx responses or WFS exception reports.
+
+    The provider's error text is used only to classify the failure (missing
+    licence / unknown layer vs invalid request) and is never included in the
+    raised message: LDS exception reports echo the submitted CQL filter, which
+    can carry the owner name being searched for. Recognised cases map to a
+    curated hint; anything else gets the generic provider-error message plus the
+    HTTP status.
+
+    The two "the key can't have this layer" responses — an unknown-feature-type
+    exception report and 401/403 — raise the ``LinzLayerAccessError`` subclass so
+    an optional-source lookup can fall back on those alone.
+    """
+    status = getattr(response, "status", None)
+    data = getattr(response, "data", None)
+    is_xml_exception = isinstance(data, str) and ("ExceptionReport" in data or "ServiceException" in data)
+    # Classification only — never surfaced.
+    unknown_layer = is_xml_exception and _is_unknown_layer_exception(_extract_exception_text(data))
+
+    if isinstance(status, int) and 200 <= status < 300:
+        # LDS sometimes returns an XML ExceptionReport with a 200 status.
+        if unknown_layer:
+            raise LinzLayerAccessError(f"LINZ WFS: {_LICENCE_HINT}")
+        if is_xml_exception:
+            raise LinzError(f"LINZ WFS returned an exception report for this request. {_INVALID_REQUEST_HINT}")
+        return
+
+    if unknown_layer:
+        raise LinzLayerAccessError(f"LINZ WFS {status}: {_LICENCE_HINT}")
+    if status in (401, 403):
+        raise LinzLayerAccessError(f"LINZ WFS {status}: {_LICENCE_HINT}")
+    if status == 404:
+        raise LinzError("LINZ WFS 404: layer not found. Check the layer id.")
+    if status == 400:
+        raise LinzError(f"LINZ WFS 400: the request was rejected as invalid. {_INVALID_REQUEST_HINT}")
+    raise LinzError(f"LINZ WFS error {status}: {_GENERIC_PROVIDER_ERROR}")
+
+
+def _short(text: Any, limit: int = 400) -> str:
+    s = str(text or "").strip()
+    return s if len(s) <= limit else s[:limit] + "…"
+
+
+def _total_matched(collection: Dict[str, Any]) -> Optional[int]:
+    """Return a numeric match count, or None (LDS often returns 'unknown')."""
+    for key in ("numberMatched", "totalFeatures"):
+        val = collection.get(key)
+        if isinstance(val, bool):
+            continue
+        if isinstance(val, int):
+            return val
+        if isinstance(val, str) and val.isdigit():
+            return int(val)
+    return None
+
+
+async def _wfs_get_features(
+    context: ExecutionContext,
+    type_name: str,
+    *,
+    cql_filter: Optional[str] = None,
+    count: Optional[int] = None,
+    start_index: Optional[int] = None,
+    sort_by: Optional[str] = None,
+    srs_name: Optional[str] = None,
+    property_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Issue a WFS 2.0.0 GetFeature request and return the GeoJSON collection."""
+    params: Dict[str, Any] = {
+        "service": "WFS",
+        "version": WFS_VERSION,
+        "request": "GetFeature",
+        "typeNames": type_name,
+        "outputFormat": "json",
+    }
+    if cql_filter:
+        params["cql_filter"] = cql_filter
+    if count is not None:
+        params["count"] = count
+    if start_index is not None:
+        params["startIndex"] = start_index
+    if sort_by:
+        params["sortBy"] = sort_by
+    if srs_name:
+        params["srsName"] = srs_name
+    if property_name:
+        params["propertyName"] = property_name
+
+    response = await _wfs_request(context, params=params)
+    _check_wfs_response(response)
+
+    data = response.data
+    if isinstance(data, str):
+        # The body could be anything (including an echo of the filter) — say
+        # only that it wasn't the GeoJSON we asked for.
+        raise LinzError("LINZ WFS returned a non-JSON response where GeoJSON was expected.")
+    return data if isinstance(data, dict) else {"features": []}
+
+
+async def _wfs_get_capabilities(context: ExecutionContext) -> str:
+    """Fetch the WFS GetCapabilities document (XML) for the user's key."""
+    params = {"service": "WFS", "version": WFS_VERSION, "request": "GetCapabilities"}
+    response = await _wfs_request(context, params=params)
+    _check_wfs_response(response)
+    data = response.data
+    if not isinstance(data, str):
+        raise LinzError("LINZ WFS GetCapabilities returned an unexpected (non-XML) response.")
+    return data
+
+
+def _parse_capabilities_layers(xml_text: str) -> List[Dict[str, Any]]:
+    """Extract the FeatureType entries a key can query from GetCapabilities.
+
+    Matches elements by local name so namespace prefixes don't matter, and
+    strips the ``data.linz.govt.nz:`` prefix from layer ids.
+    """
+    # fromstring rejects str input carrying an XML encoding declaration.
+    root = DefusedET.fromstring(xml_text.encode("utf-8"))
+    layers: List[Dict[str, Any]] = []
+    for element in root.iter():
+        if element.tag.rsplit("}", 1)[-1] != "FeatureType":
+            continue
+        entry: Dict[str, Any] = {"id": None, "title": None}
+        for child in element:
+            tag = child.tag.rsplit("}", 1)[-1]
+            text = (child.text or "").strip()
+            if tag == "Name":
+                entry["id"] = text.rsplit(":", 1)[-1] or None
+            elif tag == "Title":
+                entry["title"] = text or None
+        if entry["id"]:
+            layers.append(entry)
+    return layers
+
+
+async def _wfs_collect(
+    context: ExecutionContext,
+    type_name: str,
+    *,
+    cql_filter: Optional[str],
+    max_records: int,
+    sort_by: str = STABLE_SORT_FIELD,
+    property_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Page through GetFeature results up to ``max_records`` features.
+
+    Every page — and the truncation probe — is sorted by ``sort_by``, which
+    defaults to the layer's ``id`` primary key. WFS gives no ordering guarantee
+    for an unsorted request, so without it consecutive ``startIndex`` windows
+    could re-order between calls and silently skip or duplicate rows. Callers
+    overriding it must pass a field that uniquely orders the rows.
+
+    Returns ``{"features": [...], "scanned": N, "truncated": bool}``.
+    ``truncated`` is True only when matching records were actually omitted:
+    a full final page alone doesn't prove more matches exist, so the server's
+    numeric match count is consulted, falling back to probing for one record
+    past the cap (which is only meaningful under the same stable sort).
+    """
+    max_records = min(max(int(max_records), 1), MAX_SCAN_HARD_CAP)
+    collected: List[Dict[str, Any]] = []
+    start_index = 0
+    truncated = False
+
+    while len(collected) < max_records:
+        page_size = min(DEFAULT_PAGE_SIZE, max_records - len(collected))
+        collection = await _wfs_get_features(
+            context,
+            type_name,
+            cql_filter=cql_filter,
+            count=page_size,
+            start_index=start_index,
+            sort_by=sort_by,
+            property_name=property_name,
+        )
+        features = _extract_features(collection)
+        collected.extend(features)
+
+        if len(features) < page_size:
+            break  # last page
+        start_index += page_size
+        if len(collected) >= max_records:
+            total = _total_matched(collection)
+            if total is not None:
+                truncated = total > len(collected)
+            else:
+                # LDS reported an unknown total — probe one record past the
+                # cap to see whether anything was actually omitted.
+                probe = await _wfs_get_features(
+                    context,
+                    type_name,
+                    cql_filter=cql_filter,
+                    count=1,
+                    start_index=len(collected),
+                    sort_by=sort_by,
+                    property_name=property_name,
+                )
+                truncated = bool(_extract_features(probe))
+            break
+
+    return {"features": collected, "scanned": len(collected), "truncated": truncated}
+
+
+def _strip_geometry(feature: Dict[str, Any], include_geometry: bool) -> Dict[str, Any]:
+    """Return a feature dict, optionally dropping the (large) geometry."""
+    props = _properties(feature)
+    if include_geometry:
+        return {"id": feature.get("id"), "geometry": feature.get("geometry"), **props}
+    return {"id": feature.get("id"), **props}
+
+
+# =============================================================================
+# Owner-name helpers
+# =============================================================================
+
+
+def _owner_display_name(props: Dict[str, Any]) -> Optional[str]:
+    """Build an owner's display name from a normalised owners-list row.
+
+    Mirrors how LINZ constructs owner names for its aggregated layers: the
+    corporate name as-is, or ``prime_other_names + prime_surname`` for
+    individuals.
+    """
+    corporate = props.get("corporate_name")
+    if corporate and str(corporate).strip():
+        return str(corporate).strip()
+    parts = [props.get("prime_other_names"), props.get("prime_surname")]
+    name = " ".join(str(p).strip() for p in parts if p and str(p).strip())
+    return name or None
+
+
+def _split_owners(owners_value: Any) -> List[str]:
+    """Split the LDS concatenated ``owners`` display string into names.
+
+    LAST-RESORT FALLBACK ONLY: LINZ builds ``owners`` by comma-joining
+    unescaped free-text names, so an owner whose stored name contains a comma
+    cannot be distinguished from a separator. Prefer the per-row sources
+    (``layer-50806`` / ``table-51564``) wherever they are accessible.
+    """
+    if not owners_value:
+        return []
+    if isinstance(owners_value, list):
+        parts = [str(p) for p in owners_value]
+    else:
+        parts = str(owners_value).split(",")
+    return [p.strip() for p in parts if p and p.strip()]
+
+
+def _owner_key(name: str) -> str:
+    """Normalise an owner name for grouping (case/whitespace-insensitive)."""
+    return " ".join(name.upper().split())
+
+
+# =============================================================================
+# Action: search_property_titles
+# =============================================================================
+
+
+@linz.action("search_property_titles")
+class SearchPropertyTitlesAction(ActionHandler):
+    """Search NZ property titles (with owners) by owner name, title, or district."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            clauses: List[str] = []
+            if inputs.get("owner_name"):
+                clauses.append(f"owners ILIKE {_cql_literal('%' + inputs['owner_name'] + '%')}")
+            if inputs.get("title_no"):
+                clauses.append(f"title_no = {_cql_literal(inputs['title_no'])}")
+            if inputs.get("land_district"):
+                clauses.append(f"land_district = {_cql_literal(inputs['land_district'])}")
+            if inputs.get("status"):
+                clauses.append(f"status = {_cql_literal(inputs['status'])}")
+
+            extra = inputs.get("cql_filter")
+            if extra:
+                clauses.append(extra)
+
+            cql = _and(clauses)
+            if not cql:
+                return ActionError(
+                    message="Provide at least one filter (owner_name, title_no, land_district, status or cql_filter)."
+                )
+
+            limit = _bounded_limit(inputs.get("limit"), 100, MAX_QUERY_LIMIT)
+            collection = await _wfs_get_features(
+                context,
+                LAYER_TITLES_OWNERS,
+                cql_filter=cql,
+                count=limit,
+                start_index=_bounded_start_index(inputs.get("start_index")),
+                # Sorted so successive start_index pages don't skip/repeat rows.
+                sort_by=STABLE_SORT_FIELD,
+            )
+            features = _extract_features(collection)
+            titles = [_strip_geometry(f, include_geometry=False) for f in features]
+
+            return ActionResult(
+                data={
+                    "titles": titles,
+                    "count": len(titles),
+                    "total_matched": _total_matched(collection),
+                    "note": PROPERTY_TYPE_NOTE,
+                },
+                cost_usd=0.0,
+            )
+        except LinzError as e:
+            return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
+
+
+# =============================================================================
+# Action: get_title_owners
+# =============================================================================
+
+
+@linz.action("get_title_owners")
+class GetTitleOwnersAction(ActionHandler):
+    """Get the owners and details of a single title by title number.
+
+    Title details come from ``layer-50805``. Owner names come from the
+    normalised owners list (``table-51564``) — one record per registered
+    owner, no comma-splitting. The action falls back to best-effort splitting of
+    the aggregated ``owners`` display string (flagged via ``owners_exact``) in
+    exactly two cases: the table returns no rows for the title, or the key is not
+    licensed for it (``LinzLayerAccessError``). Any other failure on that lookup
+    — timeout, 5xx, malformed response — is returned as an error instead, so an
+    inexact answer is never passed off as the best available one.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            title_no = inputs["title_no"]  # required by schema
+
+            collection = await _wfs_get_features(
+                context,
+                LAYER_TITLES_OWNERS,
+                cql_filter=f"title_no = {_cql_literal(title_no)}",
+                count=10,
+            )
+            features = _extract_features(collection)
+            if not features:
+                return ActionError(message=f"No title found for title_no '{title_no}'.")
+
+            props = _properties(features[0])
+
+            try:
+                rows_collection = await _wfs_get_features(
+                    context,
+                    TABLE_TITLE_OWNERS_LIST,
+                    cql_filter=f"title_no = {_cql_literal(title_no)}",
+                    count=DEFAULT_PAGE_SIZE,
+                )
+                owner_rows = _extract_features(rows_collection)
+            except LinzLayerAccessError:
+                # ONLY "your key can't have this table" (unknown feature type,
+                # 401/403) justifies the inexact fallback. A timeout, a 5xx, a
+                # malformed body or a bug must not masquerade as "no access" —
+                # those propagate and become an ActionError, because silently
+                # degrading to comma-splitting would report owners_exact: false
+                # for a table the key can actually read.
+                owner_rows = []
+
+            owners: List[str] = []
+            owner_details: List[Dict[str, Any]] = []
+            seen_keys = set()
+            for row in owner_rows:
+                row_props = _properties(row)
+                name = _owner_display_name(row_props)
+                if not name:
+                    continue
+                owner_details.append(
+                    {
+                        "owner_name": name,
+                        "owner_type": row_props.get("owner_type"),
+                        "estate_share": row_props.get("estate_share"),
+                        "prime_surname": row_props.get("prime_surname"),
+                        "prime_other_names": row_props.get("prime_other_names"),
+                        "corporate_name": row_props.get("corporate_name"),
+                        "name_suffix": row_props.get("name_suffix"),
+                    }
+                )
+                key = _owner_key(name)
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    owners.append(name)
+
+            owners_exact = bool(owners)
+            if not owners_exact:
+                owners = _split_owners(props.get("owners"))
+
+            return ActionResult(
+                data={
+                    "title_no": props.get("title_no", title_no),
+                    "owners": owners,
+                    "owners_exact": owners_exact,
+                    "owner_details": owner_details,
+                    "estate_description": props.get("estate_description"),
+                    "land_district": props.get("land_district"),
+                    "status": props.get("status"),
+                    "type": props.get("type"),
+                    "guarantee_status": props.get("guarantee_status"),
+                    "issue_date": props.get("issue_date"),
+                    "note": PROPERTY_TYPE_NOTE,
+                },
+                cost_usd=0.0,
+            )
+        except LinzError as e:
+            return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
+
+
+# =============================================================================
+# Action: find_multi_property_owners (headline use case)
+# =============================================================================
+
+
+async def _enrich_title_details(context: ExecutionContext, results: List[Dict[str, Any]]) -> None:
+    """Merge estate_description/type from layer-50805 into title records.
+
+    The owner scan runs against layer-50806, which doesn't carry estate
+    descriptors; look them up per distinct title in chunked ``title_no IN``
+    queries (geometry excluded) and fill the records in place.
+    """
+    title_nos = sorted({t["title_no"] for owner in results for t in owner["titles"]})
+    details: Dict[str, Dict[str, Any]] = {}
+    for i in range(0, len(title_nos), TITLE_DETAIL_CHUNK):
+        chunk = title_nos[i : i + TITLE_DETAIL_CHUNK]
+        in_list = ", ".join(_cql_literal(t) for t in chunk)
+        collection = await _wfs_get_features(
+            context,
+            LAYER_TITLES_OWNERS,
+            cql_filter=f"title_no IN ({in_list})",
+            count=len(chunk),
+            property_name="title_no,estate_description,type",
+        )
+        for feature in _extract_features(collection):
+            props = _properties(feature)
+            if props.get("title_no"):
+                details[props["title_no"]] = props
+    for owner in results:
+        for title_record in owner["titles"]:
+            detail = details.get(title_record["title_no"])
+            if detail:
+                title_record["estate_description"] = detail.get("estate_description")
+                title_record["type"] = detail.get("type")
+
+
+@linz.action("find_multi_property_owners")
+class FindMultiPropertyOwnersAction(ActionHandler):
+    """Find matching owner names across more than one property title.
+
+    Scans the NZ Property Title Owners layer (``layer-50806``, one row per
+    distinct owner/title pair) within a scoping filter and groups distinct titles
+    by normalised owner name. Owner names are exact per-row values — never parsed
+    out of the aggregated ``owners`` display string, whose unescaped commas can't
+    be split reliably. Returns name groups spanning at least ``min_properties``
+    titles, with estate descriptors enriched from ``layer-50805``.
+
+    NOT identity resolution: ``layer-50806`` exposes no stable cross-title
+    person/entity id, so a group is a set of titles whose owner name matches —
+    same-name owners are conflated and name variants split one owner into
+    several. Results are candidates for verification (see
+    ``OWNER_NAME_MATCH_NOTE``, returned in the ``note`` output), not definitive
+    ownership analysis.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            owner_name = inputs.get("owner_name")
+            land_district = inputs.get("land_district")
+            extra = inputs.get("cql_filter")
+
+            # Require a scoping filter — the layer is national and cannot be
+            # scanned in full.
+            if not (owner_name or land_district or extra):
+                return ActionError(
+                    message=(
+                        "A scoping filter is required: provide owner_name (e.g. a surname) and/or "
+                        "land_district and/or cql_filter. Scanning all of New Zealand is not supported."
+                    )
+                )
+
+            clauses: List[str] = []
+            if owner_name:
+                clauses.append(f"owner ILIKE {_cql_literal('%' + owner_name + '%')}")
+            if land_district:
+                clauses.append(f"land_district = {_cql_literal(land_district)}")
+            if inputs.get("status"):
+                clauses.append(f"title_status = {_cql_literal(inputs['status'])}")
+            if extra:
+                clauses.append(extra)
+
+            min_properties = int(inputs.get("min_properties") or 2)
+            if min_properties < 1:
+                min_properties = 1
+            max_scan = int(inputs.get("max_titles_scanned") or 2000)
+            include_title_details = inputs.get("include_title_details")
+            if include_title_details is None:
+                include_title_details = True
+
+            scan = await _wfs_collect(
+                context,
+                LAYER_TITLE_OWNERS,
+                cql_filter=_and(clauses),
+                max_records=max_scan,
+                property_name=OWNER_SCAN_FIELDS,
+            )
+
+            # Group distinct titles by normalised owner name. Each scanned row is
+            # one (owner, title) pair, so no name splitting or client-side owner
+            # re-filtering is needed — the CQL filter already matched the per-row
+            # owner field. The name IS the grouping key: layer-50806 offers no
+            # cross-title owner id, so a group means "these titles share an owner
+            # name", not "these titles share an owner" — hence
+            # OWNER_NAME_MATCH_NOTE on the way out.
+            owners_index: Dict[str, Dict[str, Any]] = {}
+            for feature in scan["features"]:
+                props = _properties(feature)
+                name = (props.get("owner") or "").strip()
+                title_no = props.get("title_no")
+                if not name or title_no is None:
+                    continue
+                key = _owner_key(name)
+                entry = owners_index.setdefault(key, {"owner_name": name, "_titles": {}})
+                entry["_titles"][title_no] = {
+                    "title_no": title_no,
+                    "land_district": props.get("land_district"),
+                    "status": props.get("title_status"),
+                    "part_ownership": props.get("part_ownership"),
+                    "estate_description": None,
+                    "type": None,
+                }
+
+            results = []
+            for entry in owners_index.values():
+                titles = list(entry["_titles"].values())
+                if len(titles) >= min_properties:
+                    results.append(
+                        {
+                            "owner_name": entry["owner_name"],
+                            "property_count": len(titles),
+                            "titles": titles,
+                        }
+                    )
+            results.sort(key=lambda r: r["property_count"], reverse=True)
+
+            if results and include_title_details:
+                await _enrich_title_details(context, results)
+
+            return ActionResult(
+                data={
+                    "owners": results,
+                    "owner_count": len(results),
+                    "titles_scanned": scan["scanned"],
+                    "truncated": scan["truncated"],
+                    "min_properties": min_properties,
+                    "note": f"{OWNER_NAME_MATCH_NOTE} {PROPERTY_TYPE_NOTE}"
+                    + (
+                        " Results truncated at max_titles_scanned — increase it or narrow the filter for completeness."
+                        if scan["truncated"]
+                        else ""
+                    ),
+                },
+                cost_usd=0.0,
+            )
+        except LinzError as e:
+            return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
+
+
+# =============================================================================
+# Action: search_parcels
+# =============================================================================
+
+
+@linz.action("search_parcels")
+class SearchParcelsAction(ActionHandler):
+    """Search NZ primary parcels by appellation, title, intent or district."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            clauses: List[str] = []
+            if inputs.get("appellation"):
+                clauses.append(f"appellation ILIKE {_cql_literal('%' + inputs['appellation'] + '%')}")
+            if inputs.get("title_no"):
+                clauses.append(f"titles ILIKE {_cql_literal('%' + inputs['title_no'] + '%')}")
+            if inputs.get("parcel_intent"):
+                clauses.append(f"parcel_intent = {_cql_literal(inputs['parcel_intent'])}")
+            if inputs.get("land_district"):
+                clauses.append(f"land_district = {_cql_literal(inputs['land_district'])}")
+            if inputs.get("cql_filter"):
+                clauses.append(inputs["cql_filter"])
+
+            cql = _and(clauses)
+            if not cql:
+                return ActionError(
+                    message=(
+                        "Provide at least one filter (appellation, title_no, "
+                        "parcel_intent, land_district or cql_filter)."
+                    )
+                )
+
+            include_geometry = bool(inputs.get("include_geometry"))
+            limit = _bounded_limit(inputs.get("limit"), 100, MAX_QUERY_LIMIT)
+            collection = await _wfs_get_features(
+                context,
+                LAYER_PRIMARY_PARCELS,
+                cql_filter=cql,
+                count=limit,
+                start_index=_bounded_start_index(inputs.get("start_index")),
+                # Sorted so successive start_index pages don't skip/repeat rows.
+                sort_by=STABLE_SORT_FIELD,
+            )
+            features = _extract_features(collection)
+            parcels = [_strip_geometry(f, include_geometry=include_geometry) for f in features]
+
+            return ActionResult(
+                data={
+                    "parcels": parcels,
+                    "count": len(parcels),
+                    "total_matched": _total_matched(collection),
+                },
+                cost_usd=0.0,
+            )
+        except LinzError as e:
+            return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
+
+
+# =============================================================================
+# Action: query_layer (generic escape hatch)
+# =============================================================================
+
+
+@linz.action("query_layer")
+class QueryLayerAction(ActionHandler):
+    """Run a raw WFS GetFeature query against any LDS layer or table.
+
+    Power-user escape hatch for layers/tables not covered by the typed actions
+    (e.g. street addresses, geodetic marks, the owner-centric ownership tables).
+
+    Unlike the typed actions, no sort is injected: this action can target any
+    dataset, and a sortBy on a field the target doesn't have is rejected by LDS.
+    The caller owns ordering — pass ``sort_by`` (``"id"`` on LDS layers) when
+    paging with ``start_index``, or consecutive pages may skip/repeat rows.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            layer = inputs["layer"]  # required by schema
+
+            include_geometry = bool(inputs.get("include_geometry"))
+            limit = _bounded_limit(inputs.get("limit"), 100, MAX_QUERY_LIMIT)
+            collection = await _wfs_get_features(
+                context,
+                _normalize_layer(layer),
+                cql_filter=inputs.get("cql_filter"),
+                count=limit,
+                start_index=_bounded_start_index(inputs.get("start_index")),
+                sort_by=inputs.get("sort_by"),
+                srs_name=inputs.get("srs_name"),
+            )
+            features = _extract_features(collection)
+            records = [_strip_geometry(f, include_geometry=include_geometry) for f in features]
+
+            return ActionResult(
+                data={
+                    "records": records,
+                    "count": len(records),
+                    "total_matched": _total_matched(collection),
+                },
+                cost_usd=0.0,
+            )
+        except LinzError as e:
+            return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
+
+
+# =============================================================================
+# Action: list_available_layers (works with any valid key — also a diagnostic)
+# =============================================================================
+
+
+_NO_LAYERS_HINT = (
+    "Your API key is valid but cannot see any layers, so every data action will fail with "
+    "'Feature type ... unknown'. Edit the key (or create a new one) at "
+    "https://data.linz.govt.nz/my/api/ and enable the query/web-services (WFS) scope, or remove "
+    "its layer restrictions. Ownership layers such as layer-50805 additionally require accepting "
+    "the LINZ Licence for Personal Data on your LINZ account."
+)
+
+DEFAULT_LAYER_LIST_LIMIT = 500
+
+
+@linz.action("list_available_layers")
+class ListAvailableLayersAction(ActionHandler):
+    """List the LDS layers the user's API key can query, via GetCapabilities.
+
+    GetCapabilities succeeds for any valid key regardless of layer permissions,
+    so this action doubles as a connection diagnostic: an empty list means the
+    key lacks the query/WFS scope (or all layer permissions), not that the
+    request was malformed.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            xml_text = await _wfs_get_capabilities(context)
+            layers = _parse_capabilities_layers(xml_text)
+
+            available_ids = {layer["id"] for layer in layers}
+            integration_layers = {
+                layer_id: layer_id in available_ids
+                for layer_id in (
+                    LAYER_TITLES_OWNERS,
+                    LAYER_TITLE_OWNERS,
+                    TABLE_TITLE_OWNERS_LIST,
+                    LAYER_TITLES,
+                    LAYER_PRIMARY_PARCELS,
+                )
+            }
+
+            name_contains = inputs.get("name_contains")
+            if name_contains:
+                needle = str(name_contains).lower()
+                layers = [
+                    layer
+                    for layer in layers
+                    if needle in (layer["id"] or "").lower() or needle in (layer["title"] or "").lower()
+                ]
+
+            limit = _bounded_limit(inputs.get("limit"), DEFAULT_LAYER_LIST_LIMIT, MAX_LAYER_LIST_LIMIT)
+            truncated = len(layers) > limit
+
+            if not available_ids:
+                note = _NO_LAYERS_HINT
+            elif not all(integration_layers.values()):
+                missing = [layer_id for layer_id, ok in integration_layers.items() if not ok]
+                note = (
+                    f"The key cannot access {', '.join(missing)}, used by this integration's typed "
+                    "actions. For the ownership datasets (layer-50805, layer-50806, table-51564) "
+                    "accept the LINZ Licence for Personal Data; otherwise check the key's layer "
+                    "permissions at https://data.linz.govt.nz/my/api/."
+                )
+            else:
+                note = "The key can access all layers used by this integration's typed actions."
+
+            return ActionResult(
+                data={
+                    "layers": layers[:limit],
+                    "count": min(len(layers), limit),
+                    "total_available": len(available_ids),
+                    "truncated": truncated,
+                    "integration_layers": integration_layers,
+                    "note": note,
+                },
+                cost_usd=0.0,
+            )
+        except LinzError as e:
+            return ActionError(message=_redact(e))
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
