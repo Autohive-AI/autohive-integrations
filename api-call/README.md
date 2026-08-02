@@ -1,5 +1,7 @@
 # API Call Integration for Autohive
 
+<!-- Temporary HiveUp CI validation trigger. -->
+
 Generic API integration for making HTTP requests to any API endpoint directly from Autohive workflows.
 
 ## Description
