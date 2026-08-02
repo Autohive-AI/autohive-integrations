@@ -1,5 +1,7 @@
 # GitHub Integration for Autohive
 
+<!-- Temporary HiveUp CI validation trigger. -->
+
 A comprehensive GitHub integration for the Autohive platform that enables full repository management, issue tracking, pull request workflows, commit operations, branch management, webhooks, gists, and file operations.
 
 ## Description
