@@ -1,5 +1,7 @@
 # Gmail Integration for Autohive
 
+<!-- Temporary HiveUp CI validation trigger. -->
+
 Connects Autohive to the Gmail API to send, read, search, label, and organise email messages, threads, and drafts on behalf of an authenticated user.
 
 ## Description
