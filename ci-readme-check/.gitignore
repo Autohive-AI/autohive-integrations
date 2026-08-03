@@ -1,0 +1,9 @@
+.coverage
+.env
+.hiveup/
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+dependencies/
+*.zip

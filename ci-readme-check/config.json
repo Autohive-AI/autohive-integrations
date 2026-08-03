@@ -1,0 +1,26 @@
+{
+  "name": "ci-readme-check",
+  "display_name": "Ci Readme Check",
+  "version": "1.0.0",
+  "description": "Ci Readme Check integration",
+  "entry_point": "ci_readme_check.py",
+  "actions": {
+    "get_data": {
+      "display_name": "Get Data",
+      "description": "Retrieve sample data.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
