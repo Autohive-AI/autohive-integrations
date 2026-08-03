@@ -109,6 +109,9 @@ Declarations outside that list are dropped, and the rest of the `style` attribut
 | `position`, `z-index`, `top`/`right`/`bottom`/`left`, `float`, `clip`, `transform` | Overlay and off-canvas tricks used to hide or spoof content |
 | `opacity`, `visibility` | Conceal text from the reader while leaving it in the document |
 | `behavior`, `expression`, `-moz-binding`, `filter` | Legacy script-execution vectors |
+| `fill`, `stroke`, `fill-opacity`, `stroke-opacity` and the rest of bleach's default SVG set | Outside the allow-list; the opacity variants hide content, and `<svg>` is not an allowed tag |
+
+`CSSSanitizer` also keeps its own default SVG property allow-list independently of `allowed_css_properties`, so that is cleared explicitly (`allowed_svg_properties=[]`); otherwise eight SVG properties would survive despite not being listed below.
 
 A property allow-list alone is not enough, because bleach's `CSSSanitizer` matches property *names* and never
 inspects values: `background-color: url(...)` would otherwise survive on an allowed property. `EmailCSSSanitizer`

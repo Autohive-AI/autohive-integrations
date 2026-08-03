@@ -246,7 +246,17 @@ def create_email_message(body: str, files: list = None, is_html: bool = False) -
         # Without a css_sanitizer, bleach warns (NoCssSanitizerWarning) and
         # empties every style value, so the `style` attribute allowed above would
         # survive with no declarations left in it.
-        css_sanitizer = EmailCSSSanitizer(allowed_css_properties=ALLOWED_CSS_PROPERTIES)
+        # allowed_svg_properties must be cleared explicitly. CSSSanitizer keeps
+        # its own default SVG allowlist (fill, stroke, fill-opacity,
+        # stroke-opacity and four more) independently of allowed_css_properties,
+        # so leaving it at the default would let properties outside
+        # ALLOWED_CSS_PROPERTIES through. fill-opacity and stroke-opacity are
+        # content-hiding vectors of exactly the kind `opacity` is excluded for,
+        # and <svg> is not an allowed tag here anyway.
+        css_sanitizer = EmailCSSSanitizer(
+            allowed_css_properties=ALLOWED_CSS_PROPERTIES,
+            allowed_svg_properties=[],
+        )
 
         # Sanitize the HTML content
         sanitized_body = bleach.clean(

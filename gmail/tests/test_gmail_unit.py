@@ -183,6 +183,29 @@ class TestCreateEmailMessage:
         assert "expression(" not in rendered
         assert "text" in rendered
 
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            # CSSSanitizer keeps its own default SVG property allowlist unless
+            # allowed_svg_properties is cleared, so these would otherwise survive
+            # despite not being in ALLOWED_CSS_PROPERTIES. fill-opacity and
+            # stroke-opacity hide content, which `opacity` is excluded for.
+            "fill:red",
+            "fill-opacity:0",
+            "fill-rule:evenodd",
+            "stroke:blue",
+            "stroke-opacity:0",
+            "stroke-width:2",
+            "stroke-linecap:round",
+            "stroke-linejoin:bevel",
+        ],
+    )
+    def test_html_body_drops_default_svg_css_properties(self, declaration):
+        body = f'<p style="{declaration}">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert declaration.split(":", 1)[0] not in rendered
+        assert "text" in rendered
+
     def test_html_body_keeps_safe_declarations_alongside_rejected_ones(self):
         body = '<p style="color:blue;position:absolute;padding:4px">text</p>'
         rendered = _html_part(create_email_message(body, files=None, is_html=True))
