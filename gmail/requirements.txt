@@ -1,4 +1,4 @@
-autohive-integrations-sdk~=2.0.0
+autohive-integrations-sdk~=2.0.1
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
