@@ -98,8 +98,12 @@ When `body_format` is `"html"` on `send_email` / `reply_to_thread` / `create_dra
 ### Inline CSS policy
 
 Inline `style` declarations are preserved, but only against an allow-list of visual-formatting properties
-(`ALLOWED_CSS_PROPERTIES` in `gmail.py`): text and font, colour, `background-color`, the box model, borders, and the
-table and list primitives that email templates rely on.
+(`ALLOWED_CSS_PROPERTIES` in `gmail.py`): text and font, colour, `background-color`, the box model, borders,
+`box-shadow` and `text-shadow`, and the table and list primitives that email templates rely on.
+
+CSS animations are not supported and cannot be. `animation` requires an `@keyframes` rule and `transition`
+requires a state selector, and both need a CSS rule block; `<style>` is not an allowed tag, because email clients
+strip stylesheet blocks anyway. That is the reason the schemas ask for inline styles in the first place.
 
 Declarations outside that list are dropped, and the rest of the `style` attribute is kept. Notable exclusions and why:
 
@@ -109,6 +113,7 @@ Declarations outside that list are dropped, and the rest of the `style` attribut
 | `position`, `z-index`, `top`/`right`/`bottom`/`left`, `float`, `clip`, `transform` | Overlay and off-canvas tricks used to hide or spoof content |
 | `opacity`, `visibility` | Conceal text from the reader while leaving it in the document |
 | `behavior`, `expression`, `-moz-binding`, `filter` | Legacy script-execution vectors |
+| `animation`, `transition`, `transform` | Need `@keyframes` or a selector, neither of which can exist in an inline `style` attribute, so they could never do anything |
 | `fill`, `stroke`, `fill-opacity`, `stroke-opacity` and the rest of bleach's default SVG set | Outside the allow-list; the opacity variants hide content, and `<svg>` is not an allowed tag |
 
 `CSSSanitizer` also keeps its own default SVG property allow-list independently of `allowed_css_properties`, so that is cleared explicitly (`allowed_svg_properties=[]`); otherwise eight SVG properties would survive despite not being listed below.

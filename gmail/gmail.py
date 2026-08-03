@@ -83,6 +83,11 @@ ALLOWED_CSS_PROPERTIES = [
     "min-width",
     "max-height",
     "min-height",
+    # Depth. Neither can fetch remote content nor conceal text, so both are safe
+    # to keep. Apple Mail and Gmail on the web render them; Outlook's Word
+    # engine ignores them, which degrades gracefully.
+    "box-shadow",
+    "text-shadow",
     # Borders
     "border",
     "border-top",

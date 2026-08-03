@@ -206,6 +206,37 @@ class TestCreateEmailMessage:
         assert declaration.split(":", 1)[0] not in rendered
         assert "text" in rendered
 
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            "box-shadow:0 2px 6px rgba(16,35,59,0.12)",
+            "text-shadow:0 1px 0 #ffffff",
+        ],
+    )
+    def test_html_body_preserves_shadow_declarations(self, declaration):
+        # Shadows cannot fetch remote content or conceal text, so they are on the
+        # allowlist. Outlook ignores them, which degrades gracefully.
+        body = f'<p style="{declaration}">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert declaration.split(":", 1)[0] in rendered
+
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            # Animations and transitions need @keyframes or a selector, neither of
+            # which can exist inline, so they are kept off the allowlist rather
+            # than preserved as declarations that could never do anything.
+            "animation:pulse 2s infinite",
+            "animation-name:pulse",
+            "transition:color 0.3s ease",
+        ],
+    )
+    def test_html_body_drops_animation_declarations(self, declaration):
+        body = f'<p style="{declaration}">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert declaration.split(":", 1)[0] not in rendered
+        assert "text" in rendered
+
     def test_html_body_keeps_safe_declarations_alongside_rejected_ones(self):
         body = '<p style="color:blue;position:absolute;padding:4px">text</p>'
         rendered = _html_part(create_email_message(body, files=None, is_html=True))
