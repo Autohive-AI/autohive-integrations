@@ -434,6 +434,9 @@ def build_raw_email(
     body_format = inputs.get("body_format", "text")
     is_html = body_format == "html"
     input_files = inputs.get("files", [])
+    # .get() not inputs["body"]: the sync check flags this per action, but this
+    # helper also serves create_draft, whose required list is empty, so a draft
+    # legitimately has no body.
     body = append_signature(inputs.get("body", ""), inputs.get("signature", ""), is_html)
     message = create_email_message(body, input_files, is_html)
 
@@ -446,6 +449,7 @@ def build_raw_email(
     recipients: List[str] = []
     if extra_to:
         recipients.extend(extra_to)
+    # Same reason as body above: `to` is required on send_email but not on create_draft.
     to_value = inputs.get("to")
     if to_value:
         if isinstance(to_value, list):
@@ -824,6 +828,8 @@ class ReadInbox(ActionHandler):
             user_id = inputs["user_id"]
 
             # Build query based on scope
+            # .get() with a default rather than inputs["scope"]: the default is the
+            # documented behaviour and dropping it to satisfy the sync check would lose it.
             scope = inputs.get("scope", "all")
 
             if scope == "unread":
