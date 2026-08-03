@@ -57,6 +57,14 @@ def _decoded_text(msg):
     return "\n".join(chunks)
 
 
+def _load_config():
+    """Load the integration's config.json for schema assertions."""
+    import json
+    from pathlib import Path
+
+    return json.loads((Path(__file__).parent.parent / "config.json").read_text(encoding="utf-8"))
+
+
 def _html_part(msg):
     """Return the decoded text/html part of a MIME message.
 
@@ -143,14 +151,24 @@ class TestCreateEmailMessage:
         send_email and reply_to_thread previously read it without declaring it,
         so callers had no way to set a BCC on either.
         """
-        import json
-        from pathlib import Path
-
-        config = json.loads((Path(__file__).parent.parent / "config.json").read_text(encoding="utf-8"))
+        config = _load_config()
         for action in ("send_email", "reply_to_thread", "create_draft", "update_draft"):
             props = config["actions"][action]["input_schema"]["properties"]
             assert "bcc" in props, f"{action} reads bcc in code but does not declare it"
             assert props["bcc"]["type"] == "array"
+
+    def test_reply_to_thread_declares_optional_subject(self):
+        """The reply handler supports a caller-supplied subject.
+
+        It only derives "Re: <original>" when the input is missing or empty, so
+        the override has to be declared or callers can never reach it.
+        """
+        config = _load_config()
+        props = config["actions"]["reply_to_thread"]["input_schema"]["properties"]
+        assert "subject" in props
+        assert props["subject"]["type"] == "string"
+        # Deriving the subject is the documented default, so it stays optional.
+        assert "subject" not in config["actions"]["reply_to_thread"]["input_schema"]["required"]
 
     def test_html_body_strips_disallowed_protocol(self):
         body = '<a href="javascript:alert(1)">click</a>'
