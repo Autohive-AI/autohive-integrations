@@ -6,10 +6,12 @@ the `build` call to return a configured MagicMock service.
 """
 
 import base64
+import warnings
 from unittest.mock import MagicMock, patch
 
 import pytest
 from autohive_integrations_sdk.integration import ResultType
+from bleach.sanitizer import NoCssSanitizerWarning
 
 from gmail.gmail import (
     gmail,
@@ -55,6 +57,27 @@ def _decoded_text(msg):
     return "\n".join(chunks)
 
 
+def _load_config():
+    """Load the integration's config.json for schema assertions."""
+    import json
+    from pathlib import Path
+
+    return json.loads((Path(__file__).parent.parent / "config.json").read_text(encoding="utf-8"))
+
+
+def _html_part(msg):
+    """Return the decoded text/html part of a MIME message.
+
+    Style assertions must look at the HTML part alone: ``_decoded_text``
+    concatenates every part, and the text/plain alternative is html2text output
+    with the markup already stripped.
+    """
+    for part in msg.walk():
+        if part.get_content_type() == "text/html":
+            return part.get_payload(decode=True).decode("utf-8", errors="replace")
+    raise AssertionError("message has no text/html part")
+
+
 # ============================================================
 #  Module-level helper tests
 # ============================================================
@@ -90,6 +113,63 @@ class TestCreateEmailMessage:
         assert "<script>" not in rendered
         assert "Safe" in rendered
 
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "<style>@keyframes pulse{0%{color:red}}</style><p>Hi</p>",
+            "<STYLE type='text/css'>.a{color:red}</STYLE><p>Hi</p>",
+            "<script>fetch('http://evil.test')</script><p>Hi</p>",
+            "<p>Hi</p><style>.a{color:red}</style>",
+        ],
+    )
+    def test_html_body_discards_raw_text_element_contents(self, body):
+        # bleach.clean(strip=True) drops the tag but keeps its text, so a <style>
+        # block would otherwise be printed in the email as literal CSS.
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "keyframes" not in rendered
+        assert "color:red" not in rendered
+        assert "evil.test" not in rendered
+        assert "Hi" in rendered
+
+    def test_html_body_discards_an_unterminated_style_block(self):
+        # A real parser treats everything after an unclosed <style> as CSS, so
+        # the remainder is dropped rather than emitted as text.
+        body = "<p>before</p><style>.a{color:red}"
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "color:red" not in rendered
+
+    def test_html_body_keeps_content_either_side_of_a_style_block(self):
+        body = "<p>before</p><style>.a{color:red}</style><p>after</p>"
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "before" in rendered
+        assert "after" in rendered
+        assert "color:red" not in rendered
+
+    def test_bcc_is_declared_by_every_action_that_supports_it(self):
+        """build_raw_email honours `bcc` for all four send/draft actions.
+
+        send_email and reply_to_thread previously read it without declaring it,
+        so callers had no way to set a BCC on either.
+        """
+        config = _load_config()
+        for action in ("send_email", "reply_to_thread", "create_draft", "update_draft"):
+            props = config["actions"][action]["input_schema"]["properties"]
+            assert "bcc" in props, f"{action} reads bcc in code but does not declare it"
+            assert props["bcc"]["type"] == "array"
+
+    def test_reply_to_thread_declares_optional_subject(self):
+        """The reply handler supports a caller-supplied subject.
+
+        It only derives "Re: <original>" when the input is missing or empty, so
+        the override has to be declared or callers can never reach it.
+        """
+        config = _load_config()
+        props = config["actions"]["reply_to_thread"]["input_schema"]["properties"]
+        assert "subject" in props
+        assert props["subject"]["type"] == "string"
+        # Deriving the subject is the documented default, so it stays optional.
+        assert "subject" not in config["actions"]["reply_to_thread"]["input_schema"]["required"]
+
     def test_html_body_strips_disallowed_protocol(self):
         body = '<a href="javascript:alert(1)">click</a>'
         msg = create_email_message(body, files=None, is_html=True)
@@ -102,6 +182,132 @@ class TestCreateEmailMessage:
         rendered = _decoded_text(msg)
         assert "<strong>" in rendered
         assert "<em>" in rendered
+
+    def test_html_body_does_not_warn_about_a_missing_css_sanitizer(self):
+        # bleach emits NoCssSanitizerWarning when `style` is allowed without a
+        # css_sanitizer, and empties every declaration when it does so.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", NoCssSanitizerWarning)
+            create_email_message('<p style="color:red">Hello</p>', files=None, is_html=True)
+
+    def test_html_body_preserves_safe_inline_styles(self):
+        # The send_email / reply_to_thread / create_draft schemas instruct callers
+        # to style tags inline rather than with <style> blocks, so the
+        # declarations have to survive sanitization.
+        body = '<p style="color:red;font-size:14px">Hello</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "color:red" in rendered
+        assert "font-size:14px" in rendered
+
+    def test_html_body_preserves_table_formatting(self):
+        body = (
+            '<table style="border-collapse:collapse">'
+            '<tr><td style="padding:8px;border:1px solid #ccc">cell</td></tr></table>'
+        )
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "border-collapse:collapse" in rendered
+        assert "padding:8px" in rendered
+        assert "border:1px solid #ccc" in rendered
+
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            "position:fixed",
+            "z-index:99",
+            "opacity:0",
+            "visibility:hidden",
+            "float:left",
+            "background-image:url(http://tracker.test/x.png)",
+            "list-style-image:url(http://tracker.test/x.png)",
+            "cursor:url(http://tracker.test/x.png),auto",
+        ],
+    )
+    def test_html_body_drops_css_properties_outside_the_allowlist(self, declaration):
+        body = f'<p style="{declaration}">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        prop = declaration.split(":", 1)[0]
+        assert prop not in rendered
+        assert "text" in rendered
+
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            # url() on an allowlisted property: bleach's CSSSanitizer allowlists
+            # property names only and never inspects the value, so these are
+            # rejected by the value-level guard instead.
+            "background-color:url(http://tracker.test/x.png)",
+            "font-family:url(http://tracker.test/x.png)",
+            "width:expression(alert(1))",
+            "color:expression(alert(1))",
+        ],
+    )
+    def test_html_body_drops_unsafe_values_on_allowlisted_properties(self, declaration):
+        body = f'<p style="{declaration}">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "url(" not in rendered
+        assert "expression(" not in rendered
+        assert "text" in rendered
+
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            # CSSSanitizer keeps its own default SVG property allowlist unless
+            # allowed_svg_properties is cleared, so these would otherwise survive
+            # despite not being in ALLOWED_CSS_PROPERTIES. fill-opacity and
+            # stroke-opacity hide content, which `opacity` is excluded for.
+            "fill:red",
+            "fill-opacity:0",
+            "fill-rule:evenodd",
+            "stroke:blue",
+            "stroke-opacity:0",
+            "stroke-width:2",
+            "stroke-linecap:round",
+            "stroke-linejoin:bevel",
+        ],
+    )
+    def test_html_body_drops_default_svg_css_properties(self, declaration):
+        body = f'<p style="{declaration}">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert declaration.split(":", 1)[0] not in rendered
+        assert "text" in rendered
+
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            "box-shadow:0 2px 6px rgba(16,35,59,0.12)",
+            "text-shadow:0 1px 0 #ffffff",
+        ],
+    )
+    def test_html_body_preserves_shadow_declarations(self, declaration):
+        # Shadows cannot fetch remote content or conceal text, so they are on the
+        # allowlist. Outlook ignores them, which degrades gracefully.
+        body = f'<p style="{declaration}">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert declaration.split(":", 1)[0] in rendered
+
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            # Animations and transitions need @keyframes or a selector, neither of
+            # which can exist inline, so they are kept off the allowlist rather
+            # than preserved as declarations that could never do anything.
+            "animation:pulse 2s infinite",
+            "animation-name:pulse",
+            "transition:color 0.3s ease",
+        ],
+    )
+    def test_html_body_drops_animation_declarations(self, declaration):
+        body = f'<p style="{declaration}">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert declaration.split(":", 1)[0] not in rendered
+        assert "text" in rendered
+
+    def test_html_body_keeps_safe_declarations_alongside_rejected_ones(self):
+        body = '<p style="color:blue;position:absolute;padding:4px">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "color:blue" in rendered
+        assert "padding:4px" in rendered
+        assert "position" not in rendered
 
     def test_html_body_includes_plain_text_alternative(self):
         body = "<p>HTML body</p>"

