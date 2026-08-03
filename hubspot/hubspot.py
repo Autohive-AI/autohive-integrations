@@ -1121,6 +1121,7 @@ class GetRecentTicketsActionHandler(ActionHandler):
             "content",
             "hs_pipeline_stage",
             "hs_ticket_priority",
+            "hubspot_owner_id",
             "createdate",
             "hs_lastmodifieddate",
             "hs_ticket_category",
