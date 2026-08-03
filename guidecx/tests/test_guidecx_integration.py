@@ -223,6 +223,10 @@ async def resolve_customer_id(live_context):
             return str(link).rstrip("/").rsplit("/", 1)[-1]
 
     pytest.skip("No project in this workspace has an associated customer")
+    # pytest.skip raises, so this is unreachable. It is spelled out so the
+    # function has no implicit fall-through return: an implicit None here would
+    # be indistinguishable from a real customer ID going missing.
+    raise AssertionError("unreachable: pytest.skip always raises")
 
 
 @skip_if_no_creds
