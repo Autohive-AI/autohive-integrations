@@ -18,7 +18,7 @@ jobs:
 
       - name: Validate
         id: validate
-        uses: autohive-ai/autohive-integrations-tooling@test/hiveup-integrations-ci
+        uses: autohive-ai/autohive-integrations-tooling@fix/deduplicate-bandit-output
         with:
           base_ref: origin/${{ github.base_ref }}
           # Don't post directly: pull_request workflows triggered from forks
