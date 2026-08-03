@@ -59,11 +59,30 @@ def prune(params: Dict[str, Any]) -> Dict[str, Any]:
     and sending it would either be rejected or silently narrow the results.
     Zero is kept, since ``offset=0`` is meaningful.
 
-    List values are passed through unchanged: the repeatable filters (``id``,
-    ``status``, ``statusCategory``, ``customerId``, ``tag``, ...) are declared
-    as arrays in the spec and are sent as repeated query parameters.
+    Non-empty list values are passed through unchanged: the repeatable filters
+    (``id``, ``status``, ``statusCategory``, ``customerId``, ``tag``, ...) are
+    declared as arrays in the spec and are sent as repeated query parameters.
+
+    Use :func:`prune_body` for request bodies, where an empty list is a
+    meaningful instruction rather than an absent filter.
     """
     return {key: value for key, value in params.items() if value is not None and value != "" and value != []}
+
+
+def prune_body(fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop unset fields from a request body, keeping empty collections.
+
+    This differs from :func:`prune` in one important way: an empty list is
+    preserved. In a query string ``tag=[]`` means "do not filter by tag", but in
+    an upsert body ``"tags": []`` is how a caller clears a project's tags, and
+    the API honours it (verified against a live workspace: sending an empty
+    ``tags`` array removes the existing tags, while omitting the key leaves them
+    untouched). Pruning it would make clearing tags impossible.
+
+    Only None and the empty string are treated as "not supplied", since neither
+    is a value the API accepts as a deliberate reset here.
+    """
+    return {key: value for key, value in fields.items() if value is not None and value != ""}
 
 
 async def gcx_fetch(
@@ -233,7 +252,7 @@ class UpdateTaskAction(ActionHandler):
 
             # Fields left out of the entry are not modified, so only the ones
             # the caller actually set are sent.
-            task: Dict[str, Any] = prune(
+            task: Dict[str, Any] = prune_body(
                 {
                     "status": inputs.get("status"),
                     "endDate": inputs.get("end_date"),
@@ -456,7 +475,7 @@ class UpsertWebhookAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            webhook = prune(
+            webhook = prune_body(
                 {
                     "id": inputs.get("webhook_id"),
                     "eventType": inputs["event_type"],
@@ -536,7 +555,7 @@ class ListTimeRecordsAction(ActionHandler):
 
 def time_record_body(inputs: Dict[str, Any]) -> Dict[str, Any]:
     """Build the one-item bulk body shared by the two time-logging actions."""
-    record = prune(
+    record = prune_body(
         {
             "memberId": inputs["member_id"],
             "dateOfWork": inputs["date_of_work"],
@@ -617,7 +636,7 @@ class CreateProjectAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            project = prune(
+            project = prune_body(
                 {
                     "name": inputs["name"],
                     "templateId": inputs.get("template_id"),
@@ -668,7 +687,7 @@ class UpdateProjectAction(ActionHandler):
         try:
             project_id = inputs["project_id"]
 
-            project = prune(
+            project = prune_body(
                 {
                     "name": inputs.get("name"),
                     "startDate": inputs.get("start_date"),
@@ -708,7 +727,7 @@ class CreatePhaseAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             project_id = inputs["project_id"]
-            phase = prune(
+            phase = prune_body(
                 {
                     "name": inputs["name"],
                     "templateId": inputs.get("template_id"),
@@ -739,7 +758,7 @@ class CreateMilestoneAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             project_id = inputs["project_id"]
-            milestone = prune(
+            milestone = prune_body(
                 {
                     "name": inputs["name"],
                     "phaseId": inputs["phase_id"],
@@ -775,7 +794,7 @@ class CreateTaskAction(ActionHandler):
             # `parentId` must be a milestone: a task cannot hang directly off a
             # project, and omitting it fails with
             # 'task [0] has an invalid parentId: ""'.
-            task = prune(
+            task = prune_body(
                 {
                     "name": inputs["name"],
                     "parentId": inputs["milestone_id"],

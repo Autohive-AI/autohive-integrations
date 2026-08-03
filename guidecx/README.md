@@ -186,6 +186,11 @@ caller believe they received a full result set.
   sandbox is permanent.
 - **Rate limit is 500 requests** per window, reported in `X-RateLimit-Limit`.
 
+- **Tags are additive, not a replacement set.** Sending `tags: ["b"]` to a project that already has `["a"]` leaves
+  it with `["a", "b"]`; duplicates are ignored. The only way to remove tags is to send an empty array, which clears
+  all of them. Omitting the key leaves tags untouched. All three behaviours are verified against a live workspace,
+  and the distinction matters in code: an empty array must survive request-body construction rather than being
+  dropped as an absent value, or clearing tags becomes impossible.
 - **Nothing structural can be deleted.** v3 has no delete endpoint for projects, phases, milestones or tasks, so
   anything created via the API is permanent. Dependencies and webhooks are the only removable resources, and
   `remove_project_member` unassigns rather than deletes. Bear this in mind when testing against a sandbox.

@@ -18,6 +18,7 @@ from guidecx.guidecx import (  # noqa: E402
     get_headers,
     paged_result,
     prune,
+    prune_body,
     page_args,
     first_record,
     time_record_body,
@@ -1314,3 +1315,86 @@ class TestRemoveDependency:
         )
 
         assert result.type == ResultType.ACTION_ERROR
+
+
+# ---- prune_body vs prune ----
+
+
+class TestPruneBody:
+    def test_keeps_empty_list_unlike_prune(self):
+        # An empty list in a query string means "no filter" and is dropped, but
+        # in a request body it is how a caller clears a collection.
+        assert prune_body({"tags": []}) == {"tags": []}
+        assert prune({"tags": []}) == {}
+
+    def test_drops_none_and_empty_string(self):
+        assert prune_body({"a": None, "b": "", "c": "keep"}) == {"c": "keep"}
+
+    def test_keeps_zero_and_false(self):
+        assert prune_body({"hours": 0, "flag": False}) == {"hours": 0, "flag": False}
+
+    def test_keeps_populated_list(self):
+        assert prune_body({"tags": ["a"]}) == {"tags": ["a"]}
+
+
+class TestClearTagsViaUpdateProject:
+    @pytest.mark.asyncio
+    async def test_empty_tags_are_sent_so_tags_can_be_cleared(self, mock_context):
+        # Regression: prune() stripped `tags: []` out of the body, which made
+        # clearing a project's tags impossible. The API honours an empty array.
+        mock_context.fetch.return_value = ok({"data": [{"id": "p1", "tags": []}]})
+
+        result = await guidecx.execute_action("update_project", {"project_id": "p1", "tags": []}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        sent = fetch_kwargs(mock_context)["json"]["projects"][0]
+        assert sent["tags"] == []
+        assert sent["id"] == "p1"
+
+    @pytest.mark.asyncio
+    async def test_empty_tags_alone_counts_as_an_update(self, mock_context):
+        # Previously this fell through to "No update fields provided" because
+        # the only field had been pruned away.
+        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+
+        result = await guidecx.execute_action("update_project", {"project_id": "p1", "tags": []}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        mock_context.fetch.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_clearing_tags_alongside_another_field(self, mock_context):
+        # Previously the rename succeeded while the tags were silently retained.
+        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+
+        await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New", "tags": []}, mock_context)
+
+        sent = fetch_kwargs(mock_context)["json"]["projects"][0]
+        assert sent["name"] == "New"
+        assert sent["tags"] == []
+
+    @pytest.mark.asyncio
+    async def test_omitting_tags_leaves_them_out_of_the_body(self, mock_context):
+        # Omitted means "leave untouched", which is distinct from clearing.
+        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+
+        await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New"}, mock_context)
+
+        assert "tags" not in fetch_kwargs(mock_context)["json"]["projects"][0]
+
+    @pytest.mark.asyncio
+    async def test_no_fields_still_errors(self, mock_context):
+        result = await guidecx.execute_action("update_project", {"project_id": "p1"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_tags_on_create_task_are_preserved(self, mock_context):
+        mock_context.fetch.return_value = ok({"data": [{"id": "t1"}]})
+
+        await guidecx.execute_action(
+            "create_task", {"project_id": "p1", "milestone_id": "m1", "name": "T", "tags": []}, mock_context
+        )
+
+        assert fetch_kwargs(mock_context)["json"]["tasks"][0]["tags"] == []

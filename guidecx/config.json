@@ -2009,7 +2009,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Optional tags to apply to the project."
+            "description": "Tags to add. Tags are additive rather than a replacement set: existing tags are kept and duplicates are ignored. Pass an empty array to remove all tags."
           },
           "cash_value": {
             "type": "number",
@@ -2141,7 +2141,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Replacement set of tags for the project."
+            "description": "Tags to add. Tags are additive rather than a replacement set: existing tags are kept and duplicates are ignored. Pass an empty array to remove all tags."
           },
           "cash_value": {
             "type": "number",
@@ -2491,7 +2491,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Optional tags to apply to the task."
+            "description": "Tags to add. Tags are additive rather than a replacement set: existing tags are kept and duplicates are ignored. Pass an empty array to remove all tags."
           },
           "placement": {
             "type": "string",

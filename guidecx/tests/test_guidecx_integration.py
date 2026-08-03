@@ -864,3 +864,68 @@ class TestDependencyLifecycle:
         assert gone.type == ResultType.ACTION, gone.result
         remaining = [(d["parentId"], d["dependentId"]) for d in gone.result.data["dependencies"]]
         assert (parent_id, dependent_id) not in remaining
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+class TestClearProjectTags:
+    @pytest.mark.asyncio
+    async def test_tags_are_additive_and_only_an_empty_array_clears_them(self, live_context):
+        """Pin down GUIDEcx's three distinct tag behaviours.
+
+        Sending tags appends rather than replaces, omitting the key leaves them
+        untouched, and only an empty array removes them. The empty array is the
+        interesting case for the implementation: it has to survive request-body
+        construction rather than being dropped as an absent value, or clearing
+        tags becomes impossible.
+        """
+        project_id = await resolve_project_id(live_context)
+
+        async def current_tags():
+            got = await guidecx.execute_action("get_project", {"project_id": project_id}, live_context)
+            assert got.type == ResultType.ACTION, got.result
+            return sorted(t["name"] for t in (got.result.data["project"].get("tags") or []))
+
+        original = await current_tags()
+
+        try:
+            # Start from a known-empty state so the append behaviour is visible.
+            await guidecx.execute_action("update_project", {"project_id": project_id, "tags": []}, live_context)
+            assert await current_tags() == []
+
+            first = await guidecx.execute_action(
+                "update_project", {"project_id": project_id, "tags": ["autohive-test-one"]}, live_context
+            )
+            assert first.type == ResultType.ACTION, first.result
+            assert await current_tags() == ["autohive-test-one"]
+
+            # A second tag is added to the first, not swapped for it.
+            await guidecx.execute_action(
+                "update_project", {"project_id": project_id, "tags": ["autohive-test-two"]}, live_context
+            )
+            assert await current_tags() == ["autohive-test-one", "autohive-test-two"]
+
+            # Re-sending an existing tag does not duplicate it.
+            await guidecx.execute_action(
+                "update_project", {"project_id": project_id, "tags": ["autohive-test-two"]}, live_context
+            )
+            assert await current_tags() == ["autohive-test-one", "autohive-test-two"]
+
+            # Omitting the key leaves tags untouched.
+            await guidecx.execute_action(
+                "update_project", {"project_id": project_id, "status_explanation": "autohive test"}, live_context
+            )
+            assert await current_tags() == ["autohive-test-one", "autohive-test-two"]
+
+            # Only an empty array clears them.
+            cleared = await guidecx.execute_action(
+                "update_project", {"project_id": project_id, "tags": []}, live_context
+            )
+            assert cleared.type == ResultType.ACTION, cleared.result
+            assert await current_tags() == []
+        finally:
+            await guidecx.execute_action("update_project", {"project_id": project_id, "tags": []}, live_context)
+            if original:
+                await guidecx.execute_action(
+                    "update_project", {"project_id": project_id, "tags": original}, live_context
+                )
