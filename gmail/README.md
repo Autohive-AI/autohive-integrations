@@ -95,6 +95,30 @@ When `body_format` is `"html"` on `send_email` / `reply_to_thread` / `create_dra
 - **Do not** include `<style>` blocks or `<script>` — they are stripped. Use inline `style="..."` attributes instead.
 - A plain-text version is generated automatically from the sanitised HTML and sent as the `text/plain` alternative.
 
+### Inline CSS policy
+
+Inline `style` declarations are preserved, but only against an allow-list of visual-formatting properties
+(`ALLOWED_CSS_PROPERTIES` in `gmail.py`): text and font, colour, `background-color`, the box model, borders, and the
+table and list primitives that email templates rely on.
+
+Declarations outside that list are dropped, and the rest of the `style` attribute is kept. Notable exclusions and why:
+
+| Excluded | Reason |
+|---|---|
+| `background`, `background-image`, `list-style-image`, `cursor`, `border-image` | Take a `url()`, which fetches remote content and leaks the recipient's IP and open time, defeating the client's image blocking |
+| `position`, `z-index`, `top`/`right`/`bottom`/`left`, `float`, `clip`, `transform` | Overlay and off-canvas tricks used to hide or spoof content |
+| `opacity`, `visibility` | Conceal text from the reader while leaving it in the document |
+| `behavior`, `expression`, `-moz-binding`, `filter` | Legacy script-execution vectors |
+
+A property allow-list alone is not enough, because bleach's `CSSSanitizer` matches property *names* and never
+inspects values: `background-color: url(...)` would otherwise survive on an allowed property. `EmailCSSSanitizer`
+therefore also rejects any declaration whose value contains `url(`, `expression(`, `-moz-binding`, `javascript:` or
+`vbscript:`.
+
+This needs the `css` extra (`bleach[css]`), which pulls in `tinycss2`. Without a CSS sanitiser bleach warns
+(`NoCssSanitizerWarning`) and silently empties every declaration, so allowing `style` without one means inline
+styling is advertised but never delivered.
+
 ## Requirements
 
 Pinned in [`requirements.txt`](requirements.txt):

@@ -11,8 +11,133 @@ from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import html2text
 import bleach
+from bleach.css_sanitizer import CSSSanitizer
 
 gmail = Integration.load()
+
+# CSS properties preserved inside inline ``style`` attributes on outgoing HTML
+# email.
+#
+# Inline styles are a deliberate part of this integration's contract: the
+# send_email / reply_to_thread / create_draft schemas tell callers never to use
+# <style> blocks and to style tags inline instead, because email clients
+# routinely strip stylesheet blocks. Bleach only keeps style values when it is
+# given a CSSSanitizer, so without this the schema asks for inline styles and
+# then silently discards every declaration.
+#
+# The allowlist is restricted to visual formatting. Deliberately excluded:
+#
+# - anything that takes a url() value (background, background-image,
+#   list-style-image, cursor, src): these fetch remote content, which leaks the
+#   recipient's IP and open-time to a third party and defeats an email client's
+#   image-blocking.
+# - position, z-index, top/right/bottom/left, float, clip, transform: overlay
+#   and off-canvas tricks used to hide or spoof content.
+# - behavior, expression, -moz-binding, filter: legacy script-execution vectors.
+# - opacity and visibility: used to conceal text from the reader while keeping
+#   it in the document.
+#
+# The property allowlist is the primary control, but it is not sufficient on its
+# own: bleach's CSSSanitizer filters by property *name* and never inspects the
+# value, so "background-color: url(...)" or "width: expression(...)" would pass
+# through on an allowlisted property. Those are invalid CSS for those properties
+# and renderers drop them, but that is a weak guarantee to rely on when the whole
+# point of this allowlist is to be conservative, so UNSAFE_CSS_VALUE_TOKENS
+# rejects the declaration outright.
+ALLOWED_CSS_PROPERTIES = [
+    # Text and font
+    "color",
+    "font",
+    "font-family",
+    "font-size",
+    "font-style",
+    "font-variant",
+    "font-weight",
+    "letter-spacing",
+    "line-height",
+    "text-align",
+    "text-decoration",
+    "text-indent",
+    "text-transform",
+    "vertical-align",
+    "white-space",
+    "word-break",
+    "word-wrap",
+    "direction",
+    # Background colour only, never background shorthand or images
+    "background-color",
+    # Box model
+    "margin",
+    "margin-top",
+    "margin-right",
+    "margin-bottom",
+    "margin-left",
+    "padding",
+    "padding-top",
+    "padding-right",
+    "padding-bottom",
+    "padding-left",
+    "width",
+    "height",
+    "max-width",
+    "min-width",
+    "max-height",
+    "min-height",
+    # Borders
+    "border",
+    "border-top",
+    "border-right",
+    "border-bottom",
+    "border-left",
+    "border-color",
+    "border-style",
+    "border-width",
+    "border-radius",
+    "border-collapse",
+    "border-spacing",
+    # Tables and layout primitives that email templates rely on
+    "display",
+    "table-layout",
+    "caption-side",
+    "empty-cells",
+    "list-style-type",
+    "list-style-position",
+    "overflow",
+    "overflow-x",
+    "overflow-y",
+]
+
+# Value-level tokens that make a declaration unsafe regardless of its property.
+# ``url(`` would fetch remote content; the rest are legacy script-execution
+# vectors. Matched case-insensitively against the whitespace-stripped value.
+UNSAFE_CSS_VALUE_TOKENS = ("url(", "expression(", "-moz-binding", "javascript:", "vbscript:")
+
+
+class EmailCSSSanitizer(CSSSanitizer):
+    """CSS sanitizer that also rejects unsafe declaration *values*.
+
+    ``CSSSanitizer`` allowlists property names only, so a declaration such as
+    ``background-color: url(http://tracker/x)`` is preserved even though the
+    property allowlist was chosen specifically to keep remote fetches out. This
+    subclass drops any declaration whose value contains a token from
+    :data:`UNSAFE_CSS_VALUE_TOKENS`, leaving the rest of the style intact.
+    """
+
+    def sanitize_css(self, style: str) -> str:
+        cleaned = super().sanitize_css(style)
+        if not cleaned:
+            return cleaned
+
+        kept = []
+        for declaration in cleaned.split(";"):
+            if not declaration.strip():
+                continue
+            lowered = declaration.lower().replace(" ", "")
+            if any(token in lowered for token in UNSAFE_CSS_VALUE_TOKENS):
+                continue
+            kept.append(declaration.strip())
+
+        return "; ".join(kept) + ";" if kept else ""
 
 
 def build_date_clause(after: str = "", before: str = "") -> str:
@@ -118,12 +243,18 @@ def create_email_message(body: str, files: list = None, is_html: bool = False) -
 
         allowed_protocols = ["http", "https", "mailto"]
 
+        # Without a css_sanitizer, bleach warns (NoCssSanitizerWarning) and
+        # empties every style value, so the `style` attribute allowed above would
+        # survive with no declarations left in it.
+        css_sanitizer = EmailCSSSanitizer(allowed_css_properties=ALLOWED_CSS_PROPERTIES)
+
         # Sanitize the HTML content
         sanitized_body = bleach.clean(
             body,
             tags=allowed_tags,
             attributes=allowed_attributes,
             protocols=allowed_protocols,
+            css_sanitizer=css_sanitizer,
             strip=True,  # Remove disallowed tags entirely
         )
 

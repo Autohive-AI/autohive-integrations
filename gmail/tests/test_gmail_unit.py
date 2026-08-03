@@ -6,10 +6,12 @@ the `build` call to return a configured MagicMock service.
 """
 
 import base64
+import warnings
 from unittest.mock import MagicMock, patch
 
 import pytest
 from autohive_integrations_sdk.integration import ResultType
+from bleach.sanitizer import NoCssSanitizerWarning
 
 from gmail.gmail import (
     gmail,
@@ -53,6 +55,19 @@ def _decoded_text(msg):
         if payload:
             chunks.append(payload.decode("utf-8", errors="replace"))
     return "\n".join(chunks)
+
+
+def _html_part(msg):
+    """Return the decoded text/html part of a MIME message.
+
+    Style assertions must look at the HTML part alone: ``_decoded_text``
+    concatenates every part, and the text/plain alternative is html2text output
+    with the markup already stripped.
+    """
+    for part in msg.walk():
+        if part.get_content_type() == "text/html":
+            return part.get_payload(decode=True).decode("utf-8", errors="replace")
+    raise AssertionError("message has no text/html part")
 
 
 # ============================================================
@@ -102,6 +117,78 @@ class TestCreateEmailMessage:
         rendered = _decoded_text(msg)
         assert "<strong>" in rendered
         assert "<em>" in rendered
+
+    def test_html_body_does_not_warn_about_a_missing_css_sanitizer(self):
+        # bleach emits NoCssSanitizerWarning when `style` is allowed without a
+        # css_sanitizer, and empties every declaration when it does so.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", NoCssSanitizerWarning)
+            create_email_message('<p style="color:red">Hello</p>', files=None, is_html=True)
+
+    def test_html_body_preserves_safe_inline_styles(self):
+        # The send_email / reply_to_thread / create_draft schemas instruct callers
+        # to style tags inline rather than with <style> blocks, so the
+        # declarations have to survive sanitization.
+        body = '<p style="color:red;font-size:14px">Hello</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "color:red" in rendered
+        assert "font-size:14px" in rendered
+
+    def test_html_body_preserves_table_formatting(self):
+        body = (
+            '<table style="border-collapse:collapse">'
+            '<tr><td style="padding:8px;border:1px solid #ccc">cell</td></tr></table>'
+        )
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "border-collapse:collapse" in rendered
+        assert "padding:8px" in rendered
+        assert "border:1px solid #ccc" in rendered
+
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            "position:fixed",
+            "z-index:99",
+            "opacity:0",
+            "visibility:hidden",
+            "float:left",
+            "background-image:url(http://tracker.test/x.png)",
+            "list-style-image:url(http://tracker.test/x.png)",
+            "cursor:url(http://tracker.test/x.png),auto",
+        ],
+    )
+    def test_html_body_drops_css_properties_outside_the_allowlist(self, declaration):
+        body = f'<p style="{declaration}">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        prop = declaration.split(":", 1)[0]
+        assert prop not in rendered
+        assert "text" in rendered
+
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            # url() on an allowlisted property: bleach's CSSSanitizer allowlists
+            # property names only and never inspects the value, so these are
+            # rejected by the value-level guard instead.
+            "background-color:url(http://tracker.test/x.png)",
+            "font-family:url(http://tracker.test/x.png)",
+            "width:expression(alert(1))",
+            "color:expression(alert(1))",
+        ],
+    )
+    def test_html_body_drops_unsafe_values_on_allowlisted_properties(self, declaration):
+        body = f'<p style="{declaration}">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "url(" not in rendered
+        assert "expression(" not in rendered
+        assert "text" in rendered
+
+    def test_html_body_keeps_safe_declarations_alongside_rejected_ones(self):
+        body = '<p style="color:blue;position:absolute;padding:4px">text</p>'
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "color:blue" in rendered
+        assert "padding:4px" in rendered
+        assert "position" not in rendered
 
     def test_html_body_includes_plain_text_alternative(self):
         body = "<p>HTML body</p>"
