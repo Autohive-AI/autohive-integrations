@@ -95,6 +95,13 @@ When `body_format` is `"html"` on `send_email` / `reply_to_thread` / `create_dra
 - **Do not** include `<style>` blocks or `<script>` — they are stripped. Use inline `style="..."` attributes instead.
 - A plain-text version is generated automatically from the sanitised HTML and sent as the `text/plain` alternative.
 
+### `<style>` and `<script>` blocks
+
+Both elements are removed **with their contents** before sanitisation. `bleach.clean(strip=True)` removes a
+disallowed tag but keeps the text inside it, so a `<style>` block would otherwise be printed in the email body as
+literal CSS. An unterminated `<style>` drops everything after it, matching how a real parser treats a raw-text
+element.
+
 ### Inline CSS policy
 
 Inline `style` declarations are preserved, but only against an allow-list of visual-formatting properties

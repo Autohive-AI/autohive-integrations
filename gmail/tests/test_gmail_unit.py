@@ -105,6 +105,38 @@ class TestCreateEmailMessage:
         assert "<script>" not in rendered
         assert "Safe" in rendered
 
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "<style>@keyframes pulse{0%{color:red}}</style><p>Hi</p>",
+            "<STYLE type='text/css'>.a{color:red}</STYLE><p>Hi</p>",
+            "<script>fetch('http://evil.test')</script><p>Hi</p>",
+            "<p>Hi</p><style>.a{color:red}</style>",
+        ],
+    )
+    def test_html_body_discards_raw_text_element_contents(self, body):
+        # bleach.clean(strip=True) drops the tag but keeps its text, so a <style>
+        # block would otherwise be printed in the email as literal CSS.
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "keyframes" not in rendered
+        assert "color:red" not in rendered
+        assert "evil.test" not in rendered
+        assert "Hi" in rendered
+
+    def test_html_body_discards_an_unterminated_style_block(self):
+        # A real parser treats everything after an unclosed <style> as CSS, so
+        # the remainder is dropped rather than emitted as text.
+        body = "<p>before</p><style>.a{color:red}"
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "color:red" not in rendered
+
+    def test_html_body_keeps_content_either_side_of_a_style_block(self):
+        body = "<p>before</p><style>.a{color:red}</style><p>after</p>"
+        rendered = _html_part(create_email_message(body, files=None, is_html=True))
+        assert "before" in rendered
+        assert "after" in rendered
+        assert "color:red" not in rendered
+
     def test_html_body_strips_disallowed_protocol(self):
         body = '<a href="javascript:alert(1)">click</a>'
         msg = create_email_message(body, files=None, is_html=True)

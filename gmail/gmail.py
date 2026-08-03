@@ -7,6 +7,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 import base64
+import re
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import html2text
@@ -116,6 +117,29 @@ ALLOWED_CSS_PROPERTIES = [
 # ``url(`` would fetch remote content; the rest are legacy script-execution
 # vectors. Matched case-insensitively against the whitespace-stripped value.
 UNSAFE_CSS_VALUE_TOKENS = ("url(", "expression(", "-moz-binding", "javascript:", "vbscript:")
+
+# <style> and <script> are raw-text elements: their contents are CSS or JS, not
+# prose. bleach.clean(strip=True) removes the tag but keeps the text inside it,
+# so a <style> block ends up printed in the email body as literal CSS. That is
+# inert, but it is a visible mess rather than a silent drop, and it is a likely
+# mistake: the action schemas tell callers never to use <style> blocks, which
+# means some will.
+#
+# Both are stripped whole, contents included, before bleach runs. Neither can
+# legally nest inside itself in HTML, so a non-greedy match to the first closing
+# tag is correct.
+RAW_TEXT_ELEMENT_RE = re.compile(r"<\s*(script|style)\b[^>]*>.*?<\s*/\s*\1\s*>", re.IGNORECASE | re.DOTALL)
+
+# An unterminated <style> or <script> swallows the rest of the document in a
+# real parser, so drop from the opening tag to the end rather than leaving the
+# contents behind.
+UNCLOSED_RAW_TEXT_ELEMENT_RE = re.compile(r"<\s*(script|style)\b[^>]*>.*\Z", re.IGNORECASE | re.DOTALL)
+
+
+def strip_raw_text_elements(html: str) -> str:
+    """Remove <style> and <script> elements along with their contents."""
+    cleaned = RAW_TEXT_ELEMENT_RE.sub("", html)
+    return UNCLOSED_RAW_TEXT_ELEMENT_RE.sub("", cleaned)
 
 
 class EmailCSSSanitizer(CSSSanitizer):
@@ -265,7 +289,7 @@ def create_email_message(body: str, files: list = None, is_html: bool = False) -
 
         # Sanitize the HTML content
         sanitized_body = bleach.clean(
-            body,
+            strip_raw_text_elements(body),
             tags=allowed_tags,
             attributes=allowed_attributes,
             protocols=allowed_protocols,
