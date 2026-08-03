@@ -836,8 +836,9 @@ class ReadInbox(ActionHandler):
             query = compose_messages_query(scope_clause, inputs)
 
             request_params = {"userId": user_id, "q": query}
-            if "pageToken" in inputs:
-                request_params["pageToken"] = inputs["pageToken"]
+            page_token = inputs.get("pageToken")
+            if page_token is not None:
+                request_params["pageToken"] = page_token
 
             # Get list of messages
             request = service.users().messages().list(**request_params)
@@ -887,8 +888,9 @@ class ReadAllMail(ActionHandler):
             request_params = {"userId": user_id, "includeSpamTrash": include_spam_trash}
             if query:
                 request_params["q"] = query
-            if "pageToken" in inputs:
-                request_params["pageToken"] = inputs["pageToken"]
+            page_token = inputs.get("pageToken")
+            if page_token is not None:
+                request_params["pageToken"] = page_token
 
             # Get list of messages
             request = service.users().messages().list(**request_params)
@@ -929,8 +931,9 @@ class ListLabels(ActionHandler):
             labels = result.get("labels", [])
 
             # Filter labels based on type if specified
-            if "label_type" in inputs:
-                label_type = inputs["label_type"].lower()
+            label_type = inputs.get("label_type")
+            if label_type is not None:
+                label_type = label_type.lower()
                 if label_type == "user":
                     labels = [label for label in labels if label.get("type") == "user"]
                 elif label_type == "system":
@@ -974,10 +977,12 @@ class ListEmailsByLabel(ActionHandler):
             # Build request parameters
             request_params = {"userId": user_id, "q": query}
 
-            if "pageToken" in inputs:
-                request_params["pageToken"] = inputs["pageToken"]
-            if "maxResults" in inputs:
-                request_params["maxResults"] = inputs["maxResults"]
+            page_token = inputs.get("pageToken")
+            if page_token is not None:
+                request_params["pageToken"] = page_token
+            max_results = inputs.get("maxResults")
+            if max_results is not None:
+                request_params["maxResults"] = max_results
 
             # Get list of messages
             request = service.users().messages().list(**request_params)
@@ -1059,13 +1064,17 @@ class CreateLabel(ActionHandler):
                 "labelListVisibility": inputs.get("labelListVisibility", "labelShow"),
             }
 
-            # Add color if provided
-            if "textColor" in inputs or "backgroundColor" in inputs:
-                color = {}
-                if "textColor" in inputs:
-                    color["textColor"] = inputs["textColor"]
-                if "backgroundColor" in inputs:
-                    color["backgroundColor"] = inputs["backgroundColor"]
+            # Add color if provided. Built from the resolved values rather than
+            # from key presence, so an explicitly null colour does not produce an
+            # empty color object for Gmail to reject.
+            text_color = inputs.get("textColor")
+            background_color = inputs.get("backgroundColor")
+            color = {}
+            if text_color is not None:
+                color["textColor"] = text_color
+            if background_color is not None:
+                color["backgroundColor"] = background_color
+            if color:
                 label_body["color"] = color
 
             # Create the label using Gmail API
@@ -1315,17 +1324,21 @@ class ListDrafts(ActionHandler):
             # Build request parameters
             request_params = {"userId": user_id}
 
-            if "pageToken" in inputs:
-                request_params["pageToken"] = inputs["pageToken"]
+            page_token = inputs.get("pageToken")
+            if page_token is not None:
+                request_params["pageToken"] = page_token
 
-            if "maxResults" in inputs:
-                request_params["maxResults"] = inputs["maxResults"]
+            max_results = inputs.get("maxResults")
+            if max_results is not None:
+                request_params["maxResults"] = max_results
 
-            if "q" in inputs:
-                request_params["q"] = inputs["q"]
+            q = inputs.get("q")
+            if q is not None:
+                request_params["q"] = q
 
-            if "includeSpamTrash" in inputs:
-                request_params["includeSpamTrash"] = inputs["includeSpamTrash"]
+            include_spam_trash = inputs.get("includeSpamTrash")
+            if include_spam_trash is not None:
+                request_params["includeSpamTrash"] = include_spam_trash
 
             # Get list of drafts
             request = service.users().drafts().list(**request_params)
