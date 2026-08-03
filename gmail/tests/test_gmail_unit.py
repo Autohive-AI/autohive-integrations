@@ -137,6 +137,21 @@ class TestCreateEmailMessage:
         assert "after" in rendered
         assert "color:red" not in rendered
 
+    def test_bcc_is_declared_by_every_action_that_supports_it(self):
+        """build_raw_email honours `bcc` for all four send/draft actions.
+
+        send_email and reply_to_thread previously read it without declaring it,
+        so callers had no way to set a BCC on either.
+        """
+        import json
+        from pathlib import Path
+
+        config = json.loads((Path(__file__).parent.parent / "config.json").read_text(encoding="utf-8"))
+        for action in ("send_email", "reply_to_thread", "create_draft", "update_draft"):
+            props = config["actions"][action]["input_schema"]["properties"]
+            assert "bcc" in props, f"{action} reads bcc in code but does not declare it"
+            assert props["bcc"]["type"] == "array"
+
     def test_html_body_strips_disallowed_protocol(self):
         body = '<a href="javascript:alert(1)">click</a>'
         msg = create_email_message(body, files=None, is_html=True)

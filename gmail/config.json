@@ -1,7 +1,7 @@
 {
     "name": "Gmail",
     "display_name": "Gmail",
-    "version": "2.2.0",
+    "version": "2.3.0",
     "description": "Send, read, and manage emails with labels and threads.",
     "entry_point": "gmail.py",
     "auth": {
@@ -44,6 +44,14 @@
                         "items": {
                             "type": "string",
                             "description": "Email address to CC"
+                        }
+                    },
+                    "bcc": {
+                        "type": "array",
+                        "description": "The email addresses to BCC in the reply",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address to BCC"
                         }
                     },
                     "body": {
@@ -346,6 +354,14 @@
                         "items": {
                             "type": "string",
                             "description": "Email address to CC"
+                        }
+                    },
+                    "bcc": {
+                        "type": "array",
+                        "description": "The email addresses to BCC",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address to BCC"
                         }
                     },
                     "subject": {
