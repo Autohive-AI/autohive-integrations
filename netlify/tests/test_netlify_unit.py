@@ -467,19 +467,20 @@ async def test_create_deploy_normalizes_leading_slash_consistently():
     """Slashed and unslashed forms of the same path produce identical requests."""
     content = "<html>Hello</html>"
 
-    def run(path):
+    async def deploy(path):
+        """Deploy a single file at `path` and return the context it used."""
         import hashlib
 
         sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()
         ctx = make_ctx_multi([{"id": "d1", "required": [sha1]}, None, {"id": "d1", "url": "https://d1.netlify.app"}])
-        return ctx, netlify_integration.execute_action(
+        result = await netlify_integration.execute_action(
             "create_deploy", {"site_id": "s1", "files": {path: content}}, ctx
         )
+        assert result.type == ResultType.ACTION, getattr(result.result, "message", "")
+        return ctx
 
-    slashed_ctx, slashed = run("/index.html")
-    await slashed
-    plain_ctx, plain = run("index.html")
-    await plain
+    slashed_ctx = await deploy("/index.html")
+    plain_ctx = await deploy("index.html")
 
     def urls(ctx):
         return [c.args[0] if c.args else c.kwargs.get("url", "") for c in ctx.fetch.call_args_list]
