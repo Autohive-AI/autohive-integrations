@@ -1982,11 +1982,11 @@
           },
           "customer_name": {
             "type": "string",
-            "description": "Optional name for a new customer to create and attach. Ignored when customer_id is given."
+            "description": "Name for a new customer to create and attach. Requires customer_domain. Ignored when customer_id is given."
           },
           "customer_domain": {
             "type": "string",
-            "description": "Optional email domain for the new customer."
+            "description": "Email domain for the new customer. Requires customer_name. Ignored when customer_id is given."
           },
           "project_manager_id": {
             "type": "string",
@@ -2018,7 +2018,24 @@
         },
         "required": [
           "name"
-        ]
+        ],
+        "if": {
+          "not": {
+            "required": [
+              "customer_id"
+            ]
+          }
+        },
+        "then": {
+          "dependencies": {
+            "customer_name": [
+              "customer_domain"
+            ],
+            "customer_domain": [
+              "customer_name"
+            ]
+          }
+        }
       },
       "output_schema": {
         "type": "object",

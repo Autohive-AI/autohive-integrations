@@ -187,6 +187,10 @@ caller believe they received a full result set.
 - **There is no dedicated create-customer endpoint**, but a customer can be created inline by passing a
   `customer` object (`name`, `domain`) to the project batch upsert (`PATCH /projects`). That endpoint also creates
   projects. Neither is exposed as an action here — this integration is deliberately read-plus-task-update.
+- **An inline customer needs both `name` and `domain`.** The spec states "If an id is not provided, the name and
+  domain must be provided", and the live API rejects a name-only customer with
+  `400 invalid customer: "name:..."`. `create_project` therefore requires `customer_name` and `customer_domain`
+  together whenever `customer_id` is absent, in both the input schema and the handler.
 - **Newly created customers have a zero `createdDate`** (`0001-01-01T00:00:00Z`) rather than the creation time.
   Treat these timestamps as unreliable for customers created via the API.
 

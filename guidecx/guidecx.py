@@ -661,11 +661,26 @@ class CreateProjectAction(ActionHandler):
             # A customer is either referenced by ID or created inline from a
             # name and domain. There is no dedicated create-customer endpoint,
             # so the inline form is the only way to make one via the API.
+            #
+            # The spec is explicit that the inline form needs both halves: "If
+            # an id is not provided, the name and domain must be provided."
+            # The input schema enforces the pairing, and this repeats the check
+            # so the contract holds regardless of how the action is invoked.
             customer_id = inputs.get("customer_id")
+            customer_name = inputs.get("customer_name")
+            customer_domain = inputs.get("customer_domain")
+
             if customer_id:
                 project["customer"] = {"id": customer_id}
-            elif inputs.get("customer_name"):
-                project["customer"] = prune({"name": inputs["customer_name"], "domain": inputs.get("customer_domain")})
+            elif customer_name or customer_domain:
+                if not (customer_name and customer_domain):
+                    return ActionError(
+                        message=(
+                            "Creating a customer inline requires both customer_name and customer_domain. "
+                            "Provide the missing one, or pass customer_id to attach an existing customer."
+                        )
+                    )
+                project["customer"] = {"name": customer_name, "domain": customer_domain}
 
             if inputs.get("project_manager_id"):
                 project["internalTeam"] = [{"id": inputs["project_manager_id"], "role": "PROJECT_MANAGER"}]

@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock  # noqa: E402
 
-from autohive_integrations_sdk import FetchResponse, ResultType  # noqa: E402
+from autohive_integrations_sdk import ActionError, FetchResponse, ResultType  # noqa: E402
 
 from guidecx.guidecx import (  # noqa: E402
     guidecx,
@@ -1035,6 +1035,49 @@ class TestCreateProject:
 
         sent = fetch_kwargs(mock_context)["json"]["projects"][0]
         assert sent["customer"] == {"name": "Acme Co", "domain": "acme.com"}
+
+    @pytest.mark.asyncio
+    async def test_customer_name_without_domain_is_rejected(self, mock_context):
+        """The spec requires name and domain together when no id is given."""
+        result = await guidecx.execute_action(
+            "create_project", {"name": "Acme", "customer_name": "Acme Co"}, mock_context
+        )
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_customer_domain_without_name_is_rejected(self, mock_context):
+        """Previously a lone domain was silently dropped instead of erroring."""
+        result = await guidecx.execute_action(
+            "create_project", {"name": "Acme", "customer_domain": "acme.com"}, mock_context
+        )
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_customer_id_still_allows_a_stray_name(self, mock_context):
+        """The pairing rule only applies when customer_id is absent."""
+        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+
+        result = await guidecx.execute_action(
+            "create_project", {"name": "Acme", "customer_id": "c1", "customer_name": "ignored"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        assert fetch_kwargs(mock_context)["json"]["projects"][0]["customer"] == {"id": "c1"}
+
+    @pytest.mark.asyncio
+    async def test_handler_rejects_half_a_customer_even_if_schema_is_bypassed(self, mock_context):
+        """The handler repeats the check, so the contract does not rest on the schema alone."""
+        from guidecx.guidecx import CreateProjectAction
+
+        result = await CreateProjectAction().execute({"name": "Acme", "customer_name": "Acme Co"}, mock_context)
+
+        assert isinstance(result, ActionError)
+        assert "customer_domain" in result.message
+        mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_project_manager_becomes_internal_team_entry(self, mock_context):
