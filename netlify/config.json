@@ -1,7 +1,7 @@
 {
   "name": "Netlify",
   "display_name": "Netlify",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Integration with Netlify for managing sites, deployments, and hosting",
   "entry_point": "netlify.py",
   "auth": {
