@@ -193,19 +193,39 @@ Gets details of a specific deployment.
 ## Important Notes
 
 - Site names must be unique across Netlify
-- File paths in deployments should start with `/`
+- File paths in deployments are relative to the site root; a leading `/` is optional and normalized for you
 - Deployments use SHA1 hashing for file deduplication
 - Large files may take longer to deploy
 - Custom domains require DNS configuration
 
 ## Testing
 
-To test the integration:
+### Unit tests
 
-1. Navigate to the integration directory: `cd Netlify`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Update test files with your access token and site IDs
-4. Run tests: `python tests/test_netlify.py`
+Mocked, no credentials required. These are what CI runs:
+
+```bash
+pytest netlify/tests/test_netlify_unit.py
+```
+
+### Integration tests
+
+These call the real Netlify API. Set `NETLIFY_ACCESS_TOKEN` in the repository
+root `.env` (see `.env.example`); tests skip automatically when it is missing.
+
+Read-only tests — safe to run repeatedly:
+
+```bash
+pytest netlify/tests/test_netlify_integration.py -m "integration and not destructive"
+```
+
+Destructive tests — **these create and delete real sites and deploys on the
+connected Netlify account.** Run only when you are sure that account is
+expendable:
+
+```bash
+pytest netlify/tests/test_netlify_integration.py -m "integration and destructive"
+```
 
 ## Common Use Cases
 

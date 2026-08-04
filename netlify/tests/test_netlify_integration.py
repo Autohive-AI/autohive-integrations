@@ -15,9 +15,12 @@ Never runs in CI — the default pytest marker filter (-m unit) excludes these.
 
 import os
 
+import asyncio
+
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError
+from autohive_integrations_sdk.integration import ResultType
 from unittest.mock import AsyncMock, MagicMock
 
 import netlify as netlify_mod  # noqa: E402
@@ -27,6 +30,24 @@ netlify_integration = netlify_mod.netlify
 pytestmark = pytest.mark.integration
 
 ACCESS_TOKEN = os.environ.get("NETLIFY_ACCESS_TOKEN", "")
+
+
+async def fetch_deployed_page(url, attempts=10, delay=3):
+    """GET a deployed URL, retrying while Netlify finishes propagating it.
+
+    Returns (status, body). A freshly created deploy can 404 at the edge for a
+    few seconds before it goes live, so a single request would be flaky.
+    """
+    status, body = None, ""
+    async with aiohttp.ClientSession() as session:
+        for _ in range(attempts):
+            async with session.get(url) as resp:
+                status = resp.status
+                body = await resp.text()
+            if status == 200:
+                break
+            await asyncio.sleep(delay)
+    return status, body
 
 
 @pytest.fixture
@@ -266,10 +287,122 @@ class TestDeployLifecycle:
                 },
                 live_context,
             )
+            assert deploy_result.type == ResultType.ACTION_RESULT, getattr(deploy_result.result, "message", "")
             data = deploy_result.result.data
             assert "deploy" in data
             assert "deploy_url" in data
             assert data["deploy"]["id"]
+
+        finally:
+            if site_id:
+                await netlify_integration.execute_action("delete_site", {"site_id": site_id}, live_context)
+
+
+@pytest.mark.destructive
+class TestDeployFilePathNormalization:
+    """Deploying with an unslashed path must work and must actually serve the file.
+
+    Regression cover for the upload URL being built as ".../filesindex.html"
+    instead of ".../files/index.html", which made every deploy keyed on
+    "index.html" fail with HTTP 404.
+    """
+
+    async def test_deploy_succeeds_with_path_missing_leading_slash(self, live_context):
+        import time
+
+        site_name = f"autohive-noslash-test-{int(time.time())}"
+        site_id = None
+
+        try:
+            create_site_result = await netlify_integration.execute_action(
+                "create_site", {"name": site_name}, live_context
+            )
+            site_id = create_site_result.result.data["site"]["id"]
+            assert site_id
+
+            # "index.html", not "/index.html" — this is what used to 404.
+            deploy_result = await netlify_integration.execute_action(
+                "create_deploy",
+                {
+                    "site_id": site_id,
+                    "files": {"index.html": "<html><body><h1>No Leading Slash</h1></body></html>"},
+                },
+                live_context,
+            )
+
+            assert deploy_result.type == ResultType.ACTION_RESULT, getattr(deploy_result.result, "message", "")
+            data = deploy_result.result.data
+            assert data["deploy"]["id"]
+            assert data["deploy_url"]
+
+        finally:
+            if site_id:
+                await netlify_integration.execute_action("delete_site", {"site_id": site_id}, live_context)
+
+    async def test_deployed_file_is_actually_served(self, live_context):
+        """The uploaded content is retrievable — proves the file reached Netlify.
+
+        A deploy can report success while serving nothing if the declared
+        digest paths and the upload URL disagree, so assert on the live page.
+        """
+        import time
+
+        site_name = f"autohive-serve-test-{int(time.time())}"
+        marker = f"autohive-marker-{int(time.time())}"
+        site_id = None
+
+        try:
+            create_site_result = await netlify_integration.execute_action(
+                "create_site", {"name": site_name}, live_context
+            )
+            site_id = create_site_result.result.data["site"]["id"]
+
+            deploy_result = await netlify_integration.execute_action(
+                "create_deploy",
+                {"site_id": site_id, "files": {"index.html": f"<html><body><p>{marker}</p></body></html>"}},
+                live_context,
+            )
+            assert deploy_result.type == ResultType.ACTION_RESULT, getattr(deploy_result.result, "message", "")
+
+            deploy_url = deploy_result.result.data["deploy_url"]
+            assert deploy_url
+
+            status, body = await fetch_deployed_page(deploy_url)
+            assert status == 200, f"{deploy_url} returned {status}"
+            assert marker in body, "deploy reported success but the file was not served"
+
+        finally:
+            if site_id:
+                await netlify_integration.execute_action("delete_site", {"site_id": site_id}, live_context)
+
+    async def test_slashed_and_unslashed_paths_both_deploy(self, live_context):
+        """Both spellings of the same path are accepted, in one multi-file deploy."""
+        import time
+
+        site_name = f"autohive-mixed-test-{int(time.time())}"
+        site_id = None
+
+        try:
+            create_site_result = await netlify_integration.execute_action(
+                "create_site", {"name": site_name}, live_context
+            )
+            site_id = create_site_result.result.data["site"]["id"]
+
+            deploy_result = await netlify_integration.execute_action(
+                "create_deploy",
+                {
+                    "site_id": site_id,
+                    "files": {
+                        "index.html": "<html><body>root</body></html>",
+                        "/about.html": "<html><body>about</body></html>",
+                        "styles/main.css": "body { color: rebeccapurple; }",
+                    },
+                },
+                live_context,
+            )
+
+            assert deploy_result.type == ResultType.ACTION_RESULT, getattr(deploy_result.result, "message", "")
+            assert deploy_result.result.data["deploy"]["id"]
 
         finally:
             if site_id:
