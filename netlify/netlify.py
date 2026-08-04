@@ -132,6 +132,8 @@ class CreateDeployAction(ActionHandler):
     """Create a new deploy for a site with files."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        # Tracks which request is in flight so a failure names the step that broke.
+        step = "preparing file digests"
         try:
             site_id = inputs["site_id"]
             files = inputs["files"]
@@ -142,13 +144,18 @@ class CreateDeployAction(ActionHandler):
             hash_to_path = {}
 
             for path, content in files.items():
+                # Netlify keys the "required" list off the paths declared here, and its
+                # upload route is /files/<path>. Normalize to a single leading slash so
+                # "index.html" and "/index.html" are treated identically.
+                normalized_path = "/" + path.lstrip("/")
                 sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()  # nosec B324
-                files_dict[path] = sha1
+                files_dict[normalized_path] = sha1
                 if sha1 not in hash_to_content:
                     hash_to_content[sha1] = content
-                    hash_to_path[sha1] = path
+                    hash_to_path[sha1] = normalized_path
 
             # Create deploy with file digests
+            step = f"creating deploy for site {site_id}"
             deploy_response = await context.fetch(
                 f"{NETLIFY_API_BASE_URL}/sites/{site_id}/deploys", method="POST", json={"files": files_dict}
             )
@@ -165,6 +172,7 @@ class CreateDeployAction(ActionHandler):
                     file_content = hash_to_content[sha1_hash]
                     file_path = hash_to_path[sha1_hash]
 
+                    step = f"uploading {file_path} to deploy {deploy_id}"
                     await context.fetch(
                         f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}/files{file_path}",
                         method="PUT",
@@ -173,6 +181,7 @@ class CreateDeployAction(ActionHandler):
                     )
 
             # Get final deploy info
+            step = f"retrieving deploy {deploy_id}"
             final_response = await context.fetch(f"{NETLIFY_API_BASE_URL}/deploys/{deploy_id}", method="GET")
             final_deploy = final_response.data
 
@@ -183,7 +192,7 @@ class CreateDeployAction(ActionHandler):
             return ActionResult(data={"deploy": final_deploy, "deploy_url": deploy_url}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionError(message=str(e))
+            return ActionError(message=f"{e} (while {step})")
 
 
 @netlify.action("get_deploy")

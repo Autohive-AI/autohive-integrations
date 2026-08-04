@@ -136,7 +136,7 @@
           },
           "files": {
             "type": "object",
-            "description": "Files to deploy (path: content mapping)"
+            "description": "Files to deploy, as a mapping of site-root-relative path to file content, e.g. {\"/index.html\": \"<html>...</html>\"}. A leading slash is optional and added if missing."
           }
         },
         "required": ["site_id", "files"]

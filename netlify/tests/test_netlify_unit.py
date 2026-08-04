@@ -424,6 +424,82 @@ async def test_create_deploy_multiple_files_hashed_correctly():
 
 
 @pytest.mark.asyncio
+async def test_create_deploy_path_without_leading_slash_is_normalized_in_digests():
+    """A path like "index.html" is declared to Netlify as "/index.html"."""
+    import hashlib
+
+    content = "<html>Hello</html>"
+    sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()
+
+    deploy_init = {"id": "d1", "required": []}
+    final_deploy = {"id": "d1", "deploy_ssl_url": "https://d1.netlify.app"}
+    ctx = make_ctx_multi([deploy_init, final_deploy])
+
+    await netlify_integration.execute_action("create_deploy", {"site_id": "s1", "files": {"index.html": content}}, ctx)
+
+    sent_files = ctx.fetch.call_args_list[0].kwargs.get("json", {}).get("files", {})
+    assert sent_files == {"/index.html": sha1}
+
+
+@pytest.mark.asyncio
+async def test_create_deploy_path_without_leading_slash_uploads_to_valid_url():
+    """Regression: "index.html" must not produce a ".../filesindex.html" 404."""
+    import hashlib
+
+    content = "<html>Hello</html>"
+    sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()
+
+    deploy_init = {"id": "d1", "required": [sha1]}
+    final_deploy = {"id": "d1", "deploy_ssl_url": "https://d1.netlify.app"}
+    ctx = make_ctx_multi([deploy_init, None, final_deploy])
+
+    await netlify_integration.execute_action("create_deploy", {"site_id": "s1", "files": {"index.html": content}}, ctx)
+
+    assert ctx.fetch.call_count == 3
+    upload_call = ctx.fetch.call_args_list[1]
+    upload_url = upload_call.args[0] if upload_call.args else upload_call.kwargs.get("url", "")
+    assert upload_url.endswith("/deploys/d1/files/index.html")
+    assert "filesindex.html" not in upload_url
+
+
+@pytest.mark.asyncio
+async def test_create_deploy_normalizes_leading_slash_consistently():
+    """Slashed and unslashed forms of the same path produce identical requests."""
+    content = "<html>Hello</html>"
+
+    def run(path):
+        import hashlib
+
+        sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()
+        ctx = make_ctx_multi([{"id": "d1", "required": [sha1]}, None, {"id": "d1", "url": "https://d1.netlify.app"}])
+        return ctx, netlify_integration.execute_action(
+            "create_deploy", {"site_id": "s1", "files": {path: content}}, ctx
+        )
+
+    slashed_ctx, slashed = run("/index.html")
+    await slashed
+    plain_ctx, plain = run("index.html")
+    await plain
+
+    def urls(ctx):
+        return [c.args[0] if c.args else c.kwargs.get("url", "") for c in ctx.fetch.call_args_list]
+
+    assert urls(slashed_ctx) == urls(plain_ctx)
+
+
+@pytest.mark.asyncio
+async def test_create_deploy_error_message_names_the_failing_step():
+    """A failure identifies which request broke, not just the bare status."""
+    ctx = make_ctx_error(Exception("HTTP 404: Not Found"))
+    result = await netlify_integration.execute_action(
+        "create_deploy", {"site_id": "site-abc", "files": {"index.html": "hi"}}, ctx
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "HTTP 404: Not Found" in result.result.message
+    assert "creating deploy for site site-abc" in result.result.message
+
+
+@pytest.mark.asyncio
 async def test_create_deploy_missing_id_in_deploy_response_returns_action_error():
     """If Netlify's initial create-deploy response has no 'id', ActionError before any URL corruption."""
     deploy_init = {"required": ["abc123"]}  # no "id" key

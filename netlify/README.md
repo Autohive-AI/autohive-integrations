@@ -142,8 +142,9 @@ Creates a new deployment with files.
 
 **Inputs:**
 - `site_id` (required): The ID of the site
-- `files` (required): Object mapping file paths to content
+- `files` (required): Object mapping site-root-relative file paths to content
   - Example: `{"/index.html": "<html>...</html>", "/style.css": "body {...}"}`
+  - The leading slash is optional — `index.html` and `/index.html` are equivalent
 
 **Outputs:**
 - `deploy`: Deployment object with details
