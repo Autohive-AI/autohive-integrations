@@ -107,6 +107,16 @@ before you add any.
 `at_end`) to control ordering within the parent. The API also supports positional insertion, which is not exposed
 because it requires `sortOrder` values the caller would have to look up first.
 
+### Updating projects
+
+GUIDEcx has no dedicated project-update endpoint. `PATCH /api/v3/projects` is a batch **upsert**: the spec states
+that if a project with the given ID exists it is updated, and otherwise a new project is created. A typo or a
+stale `project_id` would therefore silently create a duplicate project rather than fail, and v3 has no project
+deletion endpoint to undo it.
+
+`update_project` guards against this by looking the ID up first and returning an error unless it matches an
+existing project exactly. That costs one extra read per update.
+
 ### Webhook event types
 
 `upsert_webhook` restricts `event_type` to the values below. The OpenAPI spec declares this field as a free-form

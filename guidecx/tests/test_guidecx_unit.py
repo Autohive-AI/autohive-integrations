@@ -1077,17 +1077,60 @@ class TestCreateProject:
 class TestUpdateProject:
     @pytest.mark.asyncio
     async def test_sends_id_with_changed_fields(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1", "name": "New"}]})
+        # First fetch is the existence check, second is the upsert itself.
+        mock_context.fetch.side_effect = [
+            ok({"data": [{"id": "p1"}]}),
+            ok({"data": [{"id": "p1", "name": "New"}]}),
+        ]
 
         result = await guidecx.execute_action(
             "update_project", {"project_id": "p1", "name": "New", "cash_value": 100}, mock_context
         )
 
         assert result.type == ResultType.ACTION
-        sent = fetch_kwargs(mock_context)["json"]["projects"][0]
+        sent = fetch_kwargs(mock_context, 1)["json"]["projects"][0]
         assert sent["id"] == "p1"
         assert sent["name"] == "New"
         assert sent["cashValue"] == 100
+
+    @pytest.mark.asyncio
+    async def test_checks_the_project_exists_before_upserting(self, mock_context):
+        """The pre-flight lookup filters on the exact ID and is sent first."""
+        mock_context.fetch.side_effect = [
+            ok({"data": [{"id": "p1"}]}),
+            ok({"data": [{"id": "p1", "name": "New"}]}),
+        ]
+
+        await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New"}, mock_context)
+
+        assert mock_context.fetch.call_count == 2
+        assert fetch_url(mock_context, 0).endswith("/projects")
+        assert fetch_kwargs(mock_context, 0)["params"] == {"id": ["p1"], "limit": 1}
+        assert fetch_kwargs(mock_context, 1)["method"] == "PATCH"
+
+    @pytest.mark.asyncio
+    async def test_unknown_project_id_is_refused_without_upserting(self, mock_context):
+        """PATCH /projects is an upsert, so an unknown ID must not be sent."""
+        mock_context.fetch.return_value = ok({"data": []})
+
+        result = await guidecx.execute_action("update_project", {"project_id": "nope", "name": "New"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "nope" in result.result.message
+        assert "upsert" in result.result.message
+        # Only the lookup happened, no PATCH was sent.
+        assert mock_context.fetch.call_count == 1
+        assert all(call.kwargs.get("method") != "PATCH" for call in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_id_mismatch_in_lookup_is_treated_as_missing(self, mock_context):
+        """A record whose ID differs is not a match, even though the API returned one."""
+        mock_context.fetch.return_value = ok({"data": [{"id": "some-other-project"}]})
+
+        result = await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
     async def test_no_fields_returns_error_without_calling_api(self, mock_context):
@@ -1099,7 +1142,7 @@ class TestUpdateProject:
 
     @pytest.mark.asyncio
     async def test_empty_response_returns_error(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": []})
+        mock_context.fetch.side_effect = [ok({"data": [{"id": "p1"}]}), ok({"data": []})]
 
         result = await guidecx.execute_action("update_project", {"project_id": "p1", "name": "x"}, mock_context)
 
@@ -1338,16 +1381,22 @@ class TestPruneBody:
 
 
 class TestClearTagsViaUpdateProject:
+    """update_project sends the existence check first, so the upsert is call 1."""
+
+    @staticmethod
+    def upsert_responses(upsert_data):
+        return [ok({"data": [{"id": "p1"}]}), ok({"data": upsert_data})]
+
     @pytest.mark.asyncio
     async def test_empty_tags_are_sent_so_tags_can_be_cleared(self, mock_context):
         # Regression: prune() stripped `tags: []` out of the body, which made
         # clearing a project's tags impossible. The API honours an empty array.
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1", "tags": []}]})
+        mock_context.fetch.side_effect = self.upsert_responses([{"id": "p1", "tags": []}])
 
         result = await guidecx.execute_action("update_project", {"project_id": "p1", "tags": []}, mock_context)
 
         assert result.type == ResultType.ACTION
-        sent = fetch_kwargs(mock_context)["json"]["projects"][0]
+        sent = fetch_kwargs(mock_context, 1)["json"]["projects"][0]
         assert sent["tags"] == []
         assert sent["id"] == "p1"
 
@@ -1355,32 +1404,32 @@ class TestClearTagsViaUpdateProject:
     async def test_empty_tags_alone_counts_as_an_update(self, mock_context):
         # Previously this fell through to "No update fields provided" because
         # the only field had been pruned away.
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+        mock_context.fetch.side_effect = self.upsert_responses([{"id": "p1"}])
 
         result = await guidecx.execute_action("update_project", {"project_id": "p1", "tags": []}, mock_context)
 
         assert result.type == ResultType.ACTION
-        mock_context.fetch.assert_called_once()
+        assert fetch_kwargs(mock_context, 1)["method"] == "PATCH"
 
     @pytest.mark.asyncio
     async def test_clearing_tags_alongside_another_field(self, mock_context):
         # Previously the rename succeeded while the tags were silently retained.
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+        mock_context.fetch.side_effect = self.upsert_responses([{"id": "p1"}])
 
         await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New", "tags": []}, mock_context)
 
-        sent = fetch_kwargs(mock_context)["json"]["projects"][0]
+        sent = fetch_kwargs(mock_context, 1)["json"]["projects"][0]
         assert sent["name"] == "New"
         assert sent["tags"] == []
 
     @pytest.mark.asyncio
     async def test_omitting_tags_leaves_them_out_of_the_body(self, mock_context):
         # Omitted means "leave untouched", which is distinct from clearing.
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+        mock_context.fetch.side_effect = self.upsert_responses([{"id": "p1"}])
 
         await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New"}, mock_context)
 
-        assert "tags" not in fetch_kwargs(mock_context)["json"]["projects"][0]
+        assert "tags" not in fetch_kwargs(mock_context, 1)["json"]["projects"][0]
 
     @pytest.mark.asyncio
     async def test_no_fields_still_errors(self, mock_context):

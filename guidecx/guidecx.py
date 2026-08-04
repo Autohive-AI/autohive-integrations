@@ -137,6 +137,21 @@ def paged_result(body: Any, key: str, limit: int, offset: int) -> Dict[str, Any]
     }
 
 
+async def find_project(context: ExecutionContext, project_id: str) -> Optional[Dict[str, Any]]:
+    """Return the project with exactly this ID, or None if it does not exist.
+
+    There is no ``GET /projects/{id}`` in the v3 API. The search endpoint accepts
+    a repeatable ``id`` filter, so a single-id search is the supported way to
+    fetch one project. The returned ID is compared exactly rather than trusting
+    the first record, so a filter the server ignored cannot look like a match.
+    """
+    body = await gcx_fetch(context, "GET", "/projects", params={"id": [project_id], "limit": 1})
+    for project in (body or {}).get("data") or []:
+        if project.get("id") == project_id:
+            return project
+    return None
+
+
 @guidecx.action("list_projects")
 class ListProjectsAction(ActionHandler):
     """Search onboarding projects with optional filters."""
@@ -174,16 +189,11 @@ class GetProjectAction(ActionHandler):
         try:
             project_id = inputs["project_id"]
 
-            # There is no GET /projects/{id} in the v3 API. The search endpoint
-            # accepts a repeatable `id` filter, so a single-id search is the
-            # supported way to fetch one project.
-            body = await gcx_fetch(context, "GET", "/projects", params={"id": [project_id], "limit": 1})
-
-            projects = (body or {}).get("data") or []
-            if not projects:
+            project = await find_project(context, project_id)
+            if project is None:
                 return ActionError(message=f"No GUIDEcx project found with id '{project_id}'.")
 
-            return ActionResult(data={"project": projects[0]}, cost_usd=0.0)
+            return ActionResult(data={"project": project}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -705,6 +715,21 @@ class UpdateProjectAction(ActionHandler):
                         "status, status_explanation, tags or cash_value."
                     )
                 )
+
+            # PATCH /projects is a batch *upsert*: an ID that does not exist
+            # creates a new project rather than failing. A typo or a stale ID
+            # would therefore silently produce a duplicate, and v3 has no
+            # project delete endpoint to undo it, so confirm the project exists
+            # before sending the update.
+            if await find_project(context, project_id) is None:
+                return ActionError(
+                    message=(
+                        f"No GUIDEcx project found with id '{project_id}'. Refusing to send the update: "
+                        "PATCH /projects is a batch upsert, so an unknown ID would create a new project "
+                        "instead of updating one, and GUIDEcx v3 has no endpoint to delete it."
+                    )
+                )
+
             project["id"] = project_id
 
             body = await gcx_fetch(context, "PATCH", "/projects", json_body={"projects": [project]})
