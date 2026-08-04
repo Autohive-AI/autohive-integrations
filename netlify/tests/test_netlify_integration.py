@@ -287,7 +287,7 @@ class TestDeployLifecycle:
                 },
                 live_context,
             )
-            assert deploy_result.type == ResultType.ACTION_RESULT, getattr(deploy_result.result, "message", "")
+            assert deploy_result.type == ResultType.ACTION, getattr(deploy_result.result, "message", "")
             data = deploy_result.result.data
             assert "deploy" in data
             assert "deploy_url" in data
@@ -330,7 +330,7 @@ class TestDeployFilePathNormalization:
                 live_context,
             )
 
-            assert deploy_result.type == ResultType.ACTION_RESULT, getattr(deploy_result.result, "message", "")
+            assert deploy_result.type == ResultType.ACTION, getattr(deploy_result.result, "message", "")
             data = deploy_result.result.data
             assert data["deploy"]["id"]
             assert data["deploy_url"]
@@ -362,7 +362,7 @@ class TestDeployFilePathNormalization:
                 {"site_id": site_id, "files": {"index.html": f"<html><body><p>{marker}</p></body></html>"}},
                 live_context,
             )
-            assert deploy_result.type == ResultType.ACTION_RESULT, getattr(deploy_result.result, "message", "")
+            assert deploy_result.type == ResultType.ACTION, getattr(deploy_result.result, "message", "")
 
             deploy_url = deploy_result.result.data["deploy_url"]
             assert deploy_url
@@ -401,7 +401,7 @@ class TestDeployFilePathNormalization:
                 live_context,
             )
 
-            assert deploy_result.type == ResultType.ACTION_RESULT, getattr(deploy_result.result, "message", "")
+            assert deploy_result.type == ResultType.ACTION, getattr(deploy_result.result, "message", "")
             assert deploy_result.result.data["deploy"]["id"]
 
         finally:
