@@ -49,7 +49,7 @@ Notes posted through `add_task_note` are attributed to that same user.
 | `log_project_time` | Log hours against a project | `project_id`, `member_id`, `hours_worked`, `date_of_work`, `comment`, `time_category_id` | `time_record` |
 | `create_project` | Create a project, optionally with an inline customer and a project manager | `name`, `template_id`, `customer_id`, `customer_name`, `customer_domain`, `project_manager_id`, `start_date`, `end_date`, `status`, `tags`, `cash_value` | `project`, `customer_id` |
 | `update_project` | Update a project's name, dates, status, tags or contract value | `project_id`, `name`, `start_date`, `end_date`, `status`, `status_explanation`, `tags`, `cash_value` | `project` |
-| `create_phase` | Create a phase in a project | `project_id`, `name`, `template_id`, `description`, `placement` | `phase` |
+| `create_phase` | Create a phase in a project | `project_id`, `name`, `template_id`, `placement` | `phase` |
 | `create_milestone` | Create a milestone inside a phase | `project_id`, `phase_id`, `name`, `template_id`, `description`, `placement` | `milestone` |
 | `create_task` | Create a task under a milestone | `project_id`, `milestone_id`, `name`, `description`, `start_date`, `end_date`, `assignee_id`, `priority`, `responsibility`, `visibility`, `estimated_hours`, `tags`, `placement` | `task` |
 | `list_dependencies` | List task dependencies (no pagination) | `project_id`, `parent_id`, `dependent_id` | `dependencies`, `count` |
@@ -102,6 +102,10 @@ A task cannot hang directly off a project. `create_task` takes `milestone_id` an
 
 Creating a project also creates one phase automatically, so `list_phases` on a new project returns one entry
 before you add any.
+
+Milestones and tasks take a `description`, but phases do not: the spec's phase input defines only `id`, `name`,
+`templateId` and `position`. The endpoint returns 200 for unknown fields and drops them, so a phase description
+would appear to save and then not exist. `create_phase` therefore does not expose one.
 
 `create_phase`, `create_milestone` and `create_task` accept `placement` (`at_start` or `at_end`, default
 `at_end`) to control ordering within the parent. The API also supports positional insertion, which is not exposed

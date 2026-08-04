@@ -2249,10 +2249,6 @@
             "type": "string",
             "description": "Optional phase template ID to build the phase from."
           },
-          "description": {
-            "type": "string",
-            "description": "Optional phase description."
-          },
           "placement": {
             "type": "string",
             "enum": [

@@ -1170,14 +1170,37 @@ class TestCreatePhase:
         }
 
     @pytest.mark.asyncio
-    async def test_description_maps_to_formatted_description(self, mock_context):
+    async def test_description_is_never_sent(self, mock_context):
+        """Phases have no description field in the v3 API.
+
+        phaseUpsertPhaseInput defines only id, name, templateId and position.
+        The endpoint returns 200 for unknown fields and silently drops them, so
+        forwarding a description would look like it worked while doing nothing.
+        """
         mock_context.fetch.return_value = ok({"data": [{"id": "ph1"}]})
 
-        await guidecx.execute_action(
+        result = await guidecx.execute_action(
             "create_phase", {"project_id": "p1", "name": "Phase", "description": "<p>d</p>"}, mock_context
         )
 
-        assert fetch_kwargs(mock_context)["json"]["phases"][0]["formattedDescription"] == "<p>d</p>"
+        assert result.type == ResultType.ACTION
+        sent = fetch_kwargs(mock_context)["json"]["phases"][0]
+        assert "formattedDescription" not in sent
+        assert "description" not in sent
+        assert sent == {"name": "Phase"}
+
+    @pytest.mark.asyncio
+    async def test_description_is_not_in_the_input_schema(self):
+        """The action must not advertise a field the API ignores."""
+        import json
+        import os
+
+        config_path = os.path.join(os.path.dirname(__file__), "..", "config.json")
+        with open(config_path, encoding="utf-8") as handle:
+            config = json.load(handle)
+
+        properties = config["actions"]["create_phase"]["input_schema"]["properties"]
+        assert "description" not in properties
 
 
 class TestCreateMilestone:

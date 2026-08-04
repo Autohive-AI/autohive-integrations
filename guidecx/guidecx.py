@@ -752,11 +752,17 @@ class CreatePhaseAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             project_id = inputs["project_id"]
+
+            # Phases have no description field. The spec's phaseUpsertPhaseInput
+            # defines only id, name, templateId and position, unlike the
+            # milestone and task inputs which do carry formattedDescription.
+            # Sending one is silently dropped: the endpoint returns 200 and the
+            # phase comes back without it (verified live, and confirmed against
+            # a milestone control that does echo the field back).
             phase = prune_body(
                 {
                     "name": inputs["name"],
                     "templateId": inputs.get("template_id"),
-                    "formattedDescription": inputs.get("description"),
                 }
             )
 
