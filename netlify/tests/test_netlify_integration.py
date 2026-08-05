@@ -31,6 +31,29 @@ pytestmark = pytest.mark.integration
 
 ACCESS_TOKEN = os.environ.get("NETLIFY_ACCESS_TOKEN", "")
 
+# Netlify throttles site/deploy creation hard, so the destructive suite needs to
+# wait its turn. These make the full destructive run take a few minutes.
+RATE_LIMIT_RETRIES = 6
+RATE_LIMIT_BACKOFF_SECONDS = 30
+
+
+async def cleanup_site(live_context, site_id):
+    """Delete a test site and fail loudly if the deletion did not happen.
+
+    delete_site converts HTTP failures into an ActionError instead of raising,
+    so an unasserted cleanup call lets a destructive test pass while leaving a
+    real site behind on the account. Assert the outcome so a leak is visible.
+    """
+    if not site_id:
+        return
+
+    result = await netlify_integration.execute_action("delete_site", {"site_id": site_id}, live_context)
+
+    assert result.type == ResultType.ACTION, (
+        f"cleanup failed, site {site_id} may still exist: {getattr(result.result, 'message', '')}"
+    )
+    assert result.result.data.get("deleted") is True, f"cleanup did not report deletion for site {site_id}"
+
 
 async def fetch_deployed_page(url, attempts=10, delay=3):
     """GET a deployed URL, retrying while Netlify finishes propagating it.
@@ -58,22 +81,35 @@ def live_context():
     async def real_fetch(url, *, method="GET", params=None, json=None, headers=None, data=None, **kwargs):
         auth_headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
         merged_headers = {**auth_headers, **(headers or {})}
-        async with aiohttp.ClientSession() as session:
-            async with session.request(
-                method,
-                url,
-                params=params,
-                json=json,
-                headers=merged_headers,
-                data=data,
-            ) as resp:
-                try:
-                    resp_data = await resp.json(content_type=None)
-                except Exception:
-                    resp_data = await resp.text()
-                if not resp.ok:
-                    raise HTTPError(resp.status, str(resp_data))
-                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=resp_data)
+
+        # Netlify rate-limits site and deploy creation aggressively (observed:
+        # roughly two per minute, then "API Deploy rate limit surpassed"). The
+        # destructive suite creates a site per test, so back off and retry on
+        # 429 rather than reporting a rate limit as a test failure.
+        for attempt in range(RATE_LIMIT_RETRIES):
+            async with aiohttp.ClientSession() as session:
+                async with session.request(
+                    method,
+                    url,
+                    params=params,
+                    json=json,
+                    headers=merged_headers,
+                    data=data,
+                ) as resp:
+                    try:
+                        resp_data = await resp.json(content_type=None)
+                    except Exception:
+                        resp_data = await resp.text()
+
+                    if resp.status == 429 and attempt < RATE_LIMIT_RETRIES - 1:
+                        await asyncio.sleep(RATE_LIMIT_BACKOFF_SECONDS)
+                        continue
+
+                    if not resp.ok:
+                        raise HTTPError(resp.status, str(resp_data))
+                    return FetchResponse(status=resp.status, headers=dict(resp.headers), data=resp_data)
+
+        raise HTTPError(429, "Netlify rate limit did not clear within the retry budget")
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
@@ -249,11 +285,7 @@ class TestSiteLifecycle:
             assert "site" in update_result.result.data
 
         finally:
-            if site_id:
-                delete_result = await netlify_integration.execute_action(
-                    "delete_site", {"site_id": site_id}, live_context
-                )
-                assert delete_result.result.data["deleted"] is True
+            await cleanup_site(live_context, site_id)
 
 
 @pytest.mark.destructive
@@ -294,8 +326,7 @@ class TestDeployLifecycle:
             assert data["deploy"]["id"]
 
         finally:
-            if site_id:
-                await netlify_integration.execute_action("delete_site", {"site_id": site_id}, live_context)
+            await cleanup_site(live_context, site_id)
 
 
 @pytest.mark.destructive
@@ -336,8 +367,7 @@ class TestDeployFilePathNormalization:
             assert data["deploy_url"]
 
         finally:
-            if site_id:
-                await netlify_integration.execute_action("delete_site", {"site_id": site_id}, live_context)
+            await cleanup_site(live_context, site_id)
 
     async def test_deployed_file_is_actually_served(self, live_context):
         """The uploaded content is retrievable — proves the file reached Netlify.
@@ -372,8 +402,7 @@ class TestDeployFilePathNormalization:
             assert marker in body, "deploy reported success but the file was not served"
 
         finally:
-            if site_id:
-                await netlify_integration.execute_action("delete_site", {"site_id": site_id}, live_context)
+            await cleanup_site(live_context, site_id)
 
     async def test_slashed_and_unslashed_paths_both_deploy(self, live_context):
         """Both spellings of the same path are accepted, in one multi-file deploy."""
@@ -405,5 +434,4 @@ class TestDeployFilePathNormalization:
             assert deploy_result.result.data["deploy"]["id"]
 
         finally:
-            if site_id:
-                await netlify_integration.execute_action("delete_site", {"site_id": site_id}, live_context)
+            await cleanup_site(live_context, site_id)
