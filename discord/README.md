@@ -146,4 +146,28 @@ Unit tests mock the Discord API and cover every action, the guild-authorization 
 pytest discord/ -v
 ```
 
-Live testing needs `DISCORD_BOT_TOKEN` set in your environment, plus a server the bot has been installed into.
+### Integration tests
+
+Integration tests call the real Discord API. They need these set in your environment or root `.env`, and skip cleanly when any is missing:
+
+| Variable | Purpose |
+| --- | --- |
+| `DISCORD_BOT_TOKEN` | Bot token for a Discord application |
+| `DISCORD_GUILD_ID` | Server the bot has been installed into |
+| `DISCORD_CHANNEL_ID` | Text channel in that server the bot can read |
+
+The bot needs View Channels and Read Message History for the read-only tests, plus Send Messages and Add Reactions for the destructive ones.
+
+Read-only tests are safe to run repeatedly:
+
+```bash
+pytest discord/tests/test_discord_integration.py -m "integration and not destructive"
+```
+
+The destructive tests post real messages and reactions into `DISCORD_CHANNEL_ID`. Run them deliberately, against a channel you do not mind writing to:
+
+```bash
+pytest discord/tests/test_discord_integration.py -m "integration and destructive"
+```
+
+Neither set runs in CI: the default marker filter is `-m unit`, and `python_files` does not match `test_*_integration.py`.
