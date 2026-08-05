@@ -197,7 +197,7 @@
           },
           "reaction": {
             "type": "string",
-            "description": "The emoji to react with (Unicode emoji or custom emoji ID)"
+            "description": "The emoji to react with: a Unicode emoji, a custom emoji as name:id, or a custom emoji ID from this server"
           }
         },
         "required": ["channel", "message_id", "reaction"]
@@ -229,7 +229,7 @@
           },
           "reaction": {
             "type": "string",
-            "description": "The emoji to remove (Unicode emoji or custom emoji ID)"
+            "description": "The emoji to remove: a Unicode emoji, a custom emoji as name:id, or a custom emoji ID from this server"
           }
         },
         "required": ["channel", "message_id", "reaction"]

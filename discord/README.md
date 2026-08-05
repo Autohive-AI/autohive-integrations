@@ -68,7 +68,7 @@ The bot's own token is supplied to the runtime through the `DISCORD_BOT_TOKEN` e
 - **Inputs:**
   - `channel`: The ID of the Discord channel (required)
   - `message_id`: The ID of the message to react to (required)
-  - `reaction`: The emoji to react with, either a Unicode emoji or a custom emoji ID (required)
+  - `reaction`: The emoji to react with (required). See [emoji formats](#emoji-formats) below
 - **Outputs:**
   - `success`: `true` when the reaction was added
 
@@ -78,9 +78,21 @@ The bot's own token is supplied to the runtime through the `DISCORD_BOT_TOKEN` e
 - **Inputs:**
   - `channel`: The ID of the Discord channel (required)
   - `message_id`: The ID of the message to remove a reaction from (required)
-  - `reaction`: The emoji to remove (required)
+  - `reaction`: The emoji to remove (required). See [emoji formats](#emoji-formats) below
 - **Outputs:**
   - `success`: `true` when the reaction was removed
+
+### Emoji formats
+
+Discord's reaction endpoints need the emoji URL encoded, and a custom emoji identified as `name:id` rather than by id alone. Both reaction actions accept three forms and handle the encoding for you:
+
+| Input | Example | Handling |
+| --- | --- | --- |
+| Unicode emoji | `👍` | URL encoded |
+| Custom emoji as `name:id` | `partyparrot:41771983429993937` | URL encoded, used directly |
+| Bare custom emoji ID | `41771983429993937` | Name looked up from the connected server's emoji, then sent as `name:id` |
+
+Supplying a bare id costs one extra API call to resolve the name. If no emoji with that id exists in the connected server, the action returns an error naming the id rather than failing with Discord's opaque `10014: Unknown Emoji`.
 
 ## Requirements
 

@@ -192,18 +192,102 @@ class TestAddReaction:
         assert result.result.data["success"] is True
 
     @pytest.mark.asyncio
-    async def test_alphanumeric_emoji_not_encoded(self, mock_context):
+    async def test_unicode_emoji_is_encoded(self, mock_context):
         mock_context.fetch.side_effect = [
             _channel_response(),
             FetchResponse(status=204, headers={}, data=None),
         ]
 
         await discord.execute_action(
-            "add_reaction", {"channel": CHANNEL_ID, "message_id": MESSAGE_ID, "reaction": "thumbsup"}, mock_context
+            "add_reaction", {"channel": CHANNEL_ID, "message_id": MESSAGE_ID, "reaction": "👍"}, mock_context
         )
 
         url = mock_context.fetch.call_args_list[1].args[0]
-        assert "thumbsup" in url
+        assert "%F0%9F%91%8D" in url
+        assert "👍" not in url
+
+
+class TestReactionEmojiFormats:
+    """Discord needs the emoji path segment URL encoded, and custom emoji as name:id.
+
+    A bare id fails with 10014: Unknown Emoji, so the id is resolved to name:id
+    against the authorized guild's emoji list.
+    """
+
+    @pytest.mark.asyncio
+    async def test_name_id_pair_is_encoded_without_lookup(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _channel_response(),
+            FetchResponse(status=204, headers={}, data=None),
+        ]
+
+        await discord.execute_action(
+            "add_reaction",
+            {"channel": CHANNEL_ID, "message_id": MESSAGE_ID, "reaction": "partyparrot:555"},
+            mock_context,
+        )
+
+        url = mock_context.fetch.call_args_list[1].args[0]
+        assert "partyparrot%3A555" in url
+        # Channel verification plus the reaction call, so no emoji lookup.
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_bare_custom_emoji_id_is_resolved_to_name_id(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _channel_response(),
+            FetchResponse(status=200, headers={}, data=[{"id": "555", "name": "partyparrot"}]),
+            FetchResponse(status=204, headers={}, data=None),
+        ]
+
+        result = await discord.execute_action(
+            "add_reaction", {"channel": CHANNEL_ID, "message_id": MESSAGE_ID, "reaction": "555"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        lookup_url = mock_context.fetch.call_args_list[1].args[0]
+        assert lookup_url.endswith(f"/guilds/{GUILD_ID}/emojis")
+        assert "partyparrot%3A555" in mock_context.fetch.call_args_list[2].args[0]
+
+    @pytest.mark.asyncio
+    async def test_unknown_custom_emoji_id_returns_error(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _channel_response(),
+            FetchResponse(status=200, headers={}, data=[{"id": "999", "name": "other"}]),
+        ]
+
+        result = await discord.execute_action(
+            "add_reaction", {"channel": CHANNEL_ID, "message_id": MESSAGE_ID, "reaction": "555"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_blank_reaction_returns_error(self, mock_context):
+        mock_context.fetch.return_value = _channel_response()
+
+        result = await discord.execute_action(
+            "add_reaction", {"channel": CHANNEL_ID, "message_id": MESSAGE_ID, "reaction": "   "}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_remove_reaction_resolves_bare_id(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _channel_response(),
+            FetchResponse(status=200, headers={}, data=[{"id": "555", "name": "partyparrot"}]),
+            FetchResponse(status=204, headers={}, data=None),
+        ]
+
+        result = await discord.execute_action(
+            "remove_reaction", {"channel": CHANNEL_ID, "message_id": MESSAGE_ID, "reaction": "555"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        call = mock_context.fetch.call_args_list[2]
+        assert "partyparrot%3A555" in call.args[0]
+        assert call.kwargs.get("method") == "DELETE"
 
 
 class TestRemoveReaction:

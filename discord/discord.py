@@ -59,6 +59,49 @@ async def _verify_channel_guild(channel_id: str, context: ExecutionContext):
     return None
 
 
+async def _resolve_reaction_emoji(reaction: str, context: ExecutionContext):
+    """Return the reaction emoji encoded the way Discord's reaction routes expect.
+
+    Discord requires the emoji path segment to be URL encoded, and a custom
+    emoji to be given as ``name:id`` rather than a bare id, or the request fails
+    with ``10014: Unknown Emoji``. Three input shapes are accepted:
+
+    * A Unicode emoji, e.g. ``👍``.
+    * A custom emoji already in ``name:id`` form, e.g. ``partyparrot:12345``.
+    * A bare custom emoji id, e.g. ``12345``, which the schema documents. The
+      name is looked up from the authorized guild's emoji list to build
+      ``name:id``, since Discord will not accept the id on its own.
+
+    Returns an ``(encoded_emoji, error)`` pair, where exactly one is set.
+    """
+    reaction = reaction.strip()
+    if not reaction:
+        return None, ActionError(message="A reaction emoji is required.")
+
+    # Already name:id, so only encoding is needed.
+    if ":" in reaction:
+        return quote(reaction), None
+
+    # A bare snowflake is a custom emoji id. Resolve its name to build name:id.
+    if reaction.isdigit():
+        guild_id = context.metadata.get("guild")
+        response = await context.fetch(
+            f"{DISCORD_API_BASE}/guilds/{guild_id}/emojis",
+            headers=_bot_headers(),
+        )
+        for emoji in response.data or []:
+            if emoji.get("id") == reaction:
+                return quote(f"{emoji.get('name')}:{reaction}"), None
+        return None, ActionError(
+            message=(
+                f"Custom emoji {reaction} was not found in this server. Provide a Unicode emoji, "
+                "or a custom emoji as name:id."
+            )
+        )
+
+    return quote(reaction), None
+
+
 @discord.action("list_channels")
 class ListChannelsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -121,9 +164,9 @@ class AddReactionAction(ActionHandler):
         if err:
             return err
 
-        emoji = inputs["reaction"]
-        if not emoji.isalnum():
-            emoji = quote(emoji)
+        emoji, err = await _resolve_reaction_emoji(inputs["reaction"], context)
+        if err:
+            return err
 
         await context.fetch(
             f"{DISCORD_API_BASE}/channels/{inputs['channel']}/messages/{inputs['message_id']}/reactions/{emoji}/@me",
@@ -140,9 +183,9 @@ class RemoveReactionAction(ActionHandler):
         if err:
             return err
 
-        emoji = inputs["reaction"]
-        if not emoji.isalnum():
-            emoji = quote(emoji)
+        emoji, err = await _resolve_reaction_emoji(inputs["reaction"], context)
+        if err:
+            return err
 
         await context.fetch(
             f"{DISCORD_API_BASE}/channels/{inputs['channel']}/messages/{inputs['message_id']}/reactions/{emoji}/@me",
