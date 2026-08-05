@@ -61,8 +61,18 @@ def live_context():
     """
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, body=None, **kwargs):
+        # The SDK does not forward `params` to the HTTP client: it flattens them
+        # into the URL itself, JSON-encoding any list value. Accepting params
+        # here and handing them to aiohttp would serialize lists differently
+        # from production and hide exactly that class of bug, so refuse them.
+        # The integration builds its own query string; see build_query.
+        assert params is None, (
+            "context.fetch was called with params=; the SDK would JSON-encode list values, "
+            "so the integration must build the query string into the URL instead"
+        )
+
         async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, json=json, data=body, headers=headers, params=params) as resp:
+            async with session.request(method, url, json=json, data=body, headers=headers) as resp:
                 try:
                     data = await resp.json(content_type=None)
                 except Exception:

@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock  # noqa: E402
+from urllib.parse import parse_qs, urlparse  # noqa: E402
 
 from autohive_integrations_sdk import ActionError, FetchResponse, ResultType  # noqa: E402
 
@@ -23,6 +24,7 @@ from guidecx.guidecx import (  # noqa: E402
     first_record,
     time_record_body,
     placement_body,
+    build_query,
 )
 
 pytestmark = pytest.mark.unit
@@ -41,6 +43,22 @@ def fetch_url(mock_context, index=0):
 def fetch_kwargs(mock_context, index=0):
     """The keyword arguments passed to context.fetch."""
     return mock_context.fetch.call_args_list[index].kwargs
+
+
+def fetch_path(mock_context, index=0):
+    """The request URL without its query string."""
+    return urlparse(fetch_url(mock_context, index)).path
+
+
+def fetch_params(mock_context, index=0):
+    """Query parameters parsed back out of the request URL.
+
+    The integration builds the query string itself rather than passing params
+    to context.fetch, because the SDK JSON-encodes list values and GUIDEcx
+    rejects that. Values are always lists here, so a filter sent as repeated
+    parameters is distinguishable from one sent once.
+    """
+    return parse_qs(urlparse(fetch_url(mock_context, index)).query)
 
 
 @pytest.fixture
@@ -161,6 +179,67 @@ class TestApiConfiguration:
         assert API_BASE_URL == "https://api.guidecx.com/api/v3"
 
 
+# ---- query string serialization ----
+
+
+class TestBuildQuery:
+    """GUIDEcx declares its list filters collectionFormat: multi.
+
+    The SDK's context.fetch(params=...) JSON-encodes list values, which GUIDEcx
+    rejects with HTTP 400, so the query string is built by the integration.
+    """
+
+    def test_list_becomes_repeated_parameters(self):
+        assert build_query({"statusCategory": ["IN_PROGRESS", "LATE"]}) == (
+            "statusCategory=IN_PROGRESS&statusCategory=LATE"
+        )
+
+    def test_single_element_list_is_still_a_bare_value(self):
+        assert build_query({"id": ["p1"]}) == "id=p1"
+
+    def test_scalars_pass_through(self):
+        assert build_query({"limit": 50, "offset": 0}) == "limit=50&offset=0"
+
+    def test_booleans_are_lowercased(self):
+        # str(True) would send "True", which is not a JSON boolean literal.
+        assert build_query({"hasCustomer": True}) == "hasCustomer=true"
+        assert build_query({"hasCustomer": False}) == "hasCustomer=false"
+
+    def test_values_are_url_encoded(self):
+        assert build_query({"email": ["a@b.com"]}) == "email=a%40b.com"
+
+    def test_never_emits_a_json_array(self):
+        """Regression: the failure mode was id=%5B%22p1%22%5D."""
+        query = build_query({"id": ["p1", "p2"], "tag": ["x"]})
+        assert "%5B" not in query and "[" not in query
+        assert query == "id=p1&id=p2&tag=x"
+
+
+class TestQueryReachesTheUrl:
+    """The query has to be in the URL, not handed to context.fetch as params."""
+
+    @pytest.mark.asyncio
+    async def test_params_are_not_delegated_to_the_sdk(self, mock_context):
+        mock_context.fetch.return_value = ok({"data": [], "metadata": {"total": 0}})
+
+        await guidecx.execute_action("list_projects", {"status_category": ["IN_PROGRESS", "LATE"]}, mock_context)
+
+        # Passing params= would let the SDK JSON-encode the list again.
+        assert "params" not in fetch_kwargs(mock_context)
+        assert "statusCategory=IN_PROGRESS&statusCategory=LATE" in fetch_url(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_get_project_sends_a_bare_id_filter(self, mock_context):
+        """This is the call that returned HTTP 400 in production."""
+        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+
+        await guidecx.execute_action("get_project", {"project_id": "p1"}, mock_context)
+
+        url = fetch_url(mock_context)
+        assert "id=p1" in url
+        assert "%5B" not in url
+
+
 # ---- list_projects ----
 
 
@@ -181,7 +260,7 @@ class TestListProjects:
         assert data["projects"][0]["name"] == "Acme Onboarding"
         assert data["total"] == 3
         assert data["has_more"] is True
-        assert fetch_url(mock_context).endswith("/projects")
+        assert fetch_path(mock_context).endswith("/projects")
 
     @pytest.mark.asyncio
     async def test_sends_default_pagination(self, mock_context):
@@ -189,9 +268,9 @@ class TestListProjects:
 
         await guidecx.execute_action("list_projects", {}, mock_context)
 
-        params = fetch_kwargs(mock_context)["params"]
-        assert params["limit"] == DEFAULT_LIMIT
-        assert params["offset"] == 0
+        params = fetch_params(mock_context)
+        assert params["limit"] == [str(DEFAULT_LIMIT)]
+        assert params["offset"] == ["0"]
 
     @pytest.mark.asyncio
     async def test_sends_filters_with_api_names(self, mock_context):
@@ -207,10 +286,10 @@ class TestListProjects:
             mock_context,
         )
 
-        params = fetch_kwargs(mock_context)["params"]
+        params = fetch_params(mock_context)
         assert params["statusCategory"] == ["IN_PROGRESS", "LATE"]
         assert params["customerId"] == ["c1"]
-        assert params["updatedAfter"] == "2026-01-01T00:00:00Z"
+        assert params["updatedAfter"] == ["2026-01-01T00:00:00Z"]
 
     @pytest.mark.asyncio
     async def test_limit_above_the_cap_is_rejected(self, mock_context):
@@ -228,7 +307,7 @@ class TestListProjects:
 
         await guidecx.execute_action("list_projects", {"limit": MAX_LIMIT}, mock_context)
 
-        assert fetch_kwargs(mock_context)["params"]["limit"] == MAX_LIMIT
+        assert fetch_params(mock_context)["limit"] == [str(MAX_LIMIT)]
 
     @pytest.mark.asyncio
     async def test_sends_bearer_token(self, mock_context):
@@ -280,8 +359,8 @@ class TestGetProject:
 
         await guidecx.execute_action("get_project", {"project_id": "p1"}, mock_context)
 
-        assert fetch_url(mock_context).endswith("/projects")
-        assert fetch_kwargs(mock_context)["params"] == {"id": ["p1"], "limit": 1}
+        assert fetch_path(mock_context).endswith("/projects")
+        assert fetch_params(mock_context) == {"id": ["p1"], "limit": ["1"]}
 
     @pytest.mark.asyncio
     async def test_not_found_returns_error(self, mock_context):
@@ -318,10 +397,10 @@ class TestListMilestones:
 
         await guidecx.execute_action("list_milestones", {"project_id": "p1", "phase_id": "ph1"}, mock_context)
 
-        params = fetch_kwargs(mock_context)["params"]
-        assert params["projectId"] == "p1"
-        assert params["phaseId"] == "ph1"
-        assert fetch_url(mock_context).endswith("/milestones")
+        params = fetch_params(mock_context)
+        assert params["projectId"] == ["p1"]
+        assert params["phaseId"] == ["ph1"]
+        assert fetch_path(mock_context).endswith("/milestones")
 
 
 # ---- list_tasks ----
@@ -359,13 +438,13 @@ class TestListTasks:
             mock_context,
         )
 
-        params = fetch_kwargs(mock_context)["params"]
-        assert params["projectId"] == "p1"
-        assert params["milestoneId"] == "m1"
-        assert params["assigneeId"] == "u1"
+        params = fetch_params(mock_context)
+        assert params["projectId"] == ["p1"]
+        assert params["milestoneId"] == ["m1"]
+        assert params["assigneeId"] == ["u1"]
         assert params["statusCategory"] == ["STUCK"]
-        assert params["name"] == "contract"
-        assert params["typeFilter"] == "TASK"
+        assert params["name"] == ["contract"]
+        assert params["typeFilter"] == ["TASK"]
 
     @pytest.mark.asyncio
     async def test_error_returns_action_error(self, mock_context):
@@ -400,7 +479,7 @@ class TestUpdateTask:
             "update_task", {"project_id": "p1", "task_id": "t1", "status": "Complete"}, mock_context
         )
 
-        assert fetch_url(mock_context).endswith("/projects/p1/tasks")
+        assert fetch_path(mock_context).endswith("/projects/p1/tasks")
         kwargs = fetch_kwargs(mock_context)
         assert kwargs["method"] == "PATCH"
         assert kwargs["json"] == {"tasks": [{"id": "t1", "status": "Complete"}]}
@@ -465,7 +544,7 @@ class TestAddTaskNote:
 
         await guidecx.execute_action("add_task_note", {"task_id": "t1", "content": "Hello"}, mock_context)
 
-        assert fetch_url(mock_context).endswith("/tasks/t1/messages")
+        assert fetch_path(mock_context).endswith("/tasks/t1/messages")
         kwargs = fetch_kwargs(mock_context)
         assert kwargs["method"] == "POST"
         assert kwargs["json"] == {"messages": [{"formattedContent": "Hello", "internalOnly": False}]}
@@ -502,7 +581,7 @@ class TestGetCustomer:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["customer"]["domain"] == "acme.com"
-        assert fetch_url(mock_context).endswith("/customers/c1")
+        assert fetch_path(mock_context).endswith("/customers/c1")
 
     @pytest.mark.asyncio
     async def test_missing_data_returns_error(self, mock_context):
@@ -610,8 +689,8 @@ class TestListPhases:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["phases"][0]["name"] == "Kickoff"
-        assert fetch_url(mock_context).endswith("/phases")
-        assert fetch_kwargs(mock_context)["params"]["projectId"] == "p1"
+        assert fetch_path(mock_context).endswith("/phases")
+        assert fetch_params(mock_context)["projectId"] == ["p1"]
 
     @pytest.mark.asyncio
     async def test_error_returns_action_error(self, mock_context):
@@ -633,7 +712,7 @@ class TestListProjectMembers:
 
         await guidecx.execute_action("list_project_members", {"project_id": "p1"}, mock_context)
 
-        assert fetch_url(mock_context).endswith("/projects/p1/members")
+        assert fetch_path(mock_context).endswith("/projects/p1/members")
 
     @pytest.mark.asyncio
     async def test_sends_filters(self, mock_context):
@@ -645,7 +724,7 @@ class TestListProjectMembers:
             mock_context,
         )
 
-        params = fetch_kwargs(mock_context)["params"]
+        params = fetch_params(mock_context)
         assert params["email"] == ["a@b.com"]
         assert params["projectRole"] == ["PROJECT_MANAGER"]
 
@@ -678,7 +757,7 @@ class TestRemoveProjectMember:
 
         assert result.type == ResultType.ACTION
         assert result.result.data == {"removed": True, "member_id": "m1"}
-        assert fetch_url(mock_context).endswith("/projects/p1/members/m1")
+        assert fetch_path(mock_context).endswith("/projects/p1/members/m1")
         assert fetch_kwargs(mock_context)["method"] == "DELETE"
 
     @pytest.mark.asyncio
@@ -705,11 +784,11 @@ class TestListMembers:
             "list_members", {"email": ["a@b.com"], "status": ["ACTIVE"], "role": ["ADMIN"]}, mock_context
         )
 
-        params = fetch_kwargs(mock_context)["params"]
+        params = fetch_params(mock_context)
         assert params["email"] == ["a@b.com"]
         assert params["status"] == ["ACTIVE"]
         assert params["role"] == ["ADMIN"]
-        assert fetch_url(mock_context).endswith("/members")
+        assert fetch_path(mock_context).endswith("/members")
 
     @pytest.mark.asyncio
     async def test_returns_members(self, mock_context):
@@ -740,7 +819,7 @@ class TestListRoles:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["roles"][0]["category"] == "INTERNAL"
-        assert fetch_kwargs(mock_context)["params"]["name"] == "Admin"
+        assert fetch_params(mock_context)["name"] == ["Admin"]
 
 
 # ---- webhooks ----
@@ -755,7 +834,7 @@ class TestListWebhooks:
 
         await guidecx.execute_action("list_webhooks", {"include_disabled": True}, mock_context)
 
-        assert fetch_kwargs(mock_context)["params"]["include_disabled"] == "true"
+        assert fetch_params(mock_context)["include_disabled"] == ["true"]
 
     @pytest.mark.asyncio
     async def test_include_disabled_false_is_still_sent(self, mock_context):
@@ -763,7 +842,7 @@ class TestListWebhooks:
 
         await guidecx.execute_action("list_webhooks", {"include_disabled": False}, mock_context)
 
-        assert fetch_kwargs(mock_context)["params"]["include_disabled"] == "false"
+        assert fetch_params(mock_context)["include_disabled"] == ["false"]
 
     @pytest.mark.asyncio
     async def test_omits_include_disabled_when_unset(self, mock_context):
@@ -771,7 +850,7 @@ class TestListWebhooks:
 
         await guidecx.execute_action("list_webhooks", {}, mock_context)
 
-        assert "include_disabled" not in fetch_kwargs(mock_context)["params"]
+        assert "include_disabled" not in fetch_params(mock_context)
 
     @pytest.mark.asyncio
     async def test_returns_snake_case_fields(self, mock_context):
@@ -849,7 +928,7 @@ class TestDeleteWebhook:
 
         assert result.type == ResultType.ACTION
         assert result.result.data == {"deleted": True, "webhook_id": "w1"}
-        assert fetch_url(mock_context).endswith("/webhooks/w1")
+        assert fetch_path(mock_context).endswith("/webhooks/w1")
         assert fetch_kwargs(mock_context)["method"] == "DELETE"
 
     @pytest.mark.asyncio
@@ -878,7 +957,7 @@ class TestListTimeCategories:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["time_categories"][0]["billable"] is True
-        assert fetch_url(mock_context).endswith("/time-categories")
+        assert fetch_path(mock_context).endswith("/time-categories")
 
 
 class TestListTimeRecords:
@@ -899,13 +978,13 @@ class TestListTimeRecords:
             mock_context,
         )
 
-        params = fetch_kwargs(mock_context)["params"]
-        assert params["projectId"] == "p1"
-        assert params["taskId"] == "t1"
+        params = fetch_params(mock_context)
+        assert params["projectId"] == ["p1"]
+        assert params["taskId"] == ["t1"]
         assert params["memberId"] == ["m1"]
         assert params["timeCategoryId"] == ["c1"]
-        assert params["workedAfter"] == "2026-01-01T00:00:00Z"
-        assert params["workedBefore"] == "2026-12-31T00:00:00Z"
+        assert params["workedAfter"] == ["2026-01-01T00:00:00Z"]
+        assert params["workedBefore"] == ["2026-12-31T00:00:00Z"]
 
     @pytest.mark.asyncio
     async def test_returns_records(self, mock_context):
@@ -931,7 +1010,7 @@ class TestLogTaskTime:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["time_record"]["id"] == "tr1"
-        assert fetch_url(mock_context).endswith("/tasks/t1/time-records")
+        assert fetch_path(mock_context).endswith("/tasks/t1/time-records")
         kwargs = fetch_kwargs(mock_context)
         assert kwargs["method"] == "POST"
         assert kwargs["json"]["timeRecords"][0]["memberId"] == "m1"
@@ -962,7 +1041,7 @@ class TestLogProjectTime:
         )
 
         assert result.type == ResultType.ACTION
-        assert fetch_url(mock_context).endswith("/projects/p1/time-records")
+        assert fetch_path(mock_context).endswith("/projects/p1/time-records")
         assert fetch_kwargs(mock_context)["json"]["timeRecords"][0]["hoursWorked"] == 2
 
     @pytest.mark.asyncio
@@ -1007,7 +1086,7 @@ class TestCreateProject:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["project"]["id"] == "p1"
-        assert fetch_url(mock_context).endswith("/projects")
+        assert fetch_path(mock_context).endswith("/projects")
         kwargs = fetch_kwargs(mock_context)
         assert kwargs["method"] == "PATCH"
         assert kwargs["json"] == {"projects": [{"name": "Acme"}]}
@@ -1147,8 +1226,8 @@ class TestUpdateProject:
         await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New"}, mock_context)
 
         assert mock_context.fetch.call_count == 2
-        assert fetch_url(mock_context, 0).endswith("/projects")
-        assert fetch_kwargs(mock_context, 0)["params"] == {"id": ["p1"], "limit": 1}
+        assert fetch_path(mock_context, 0).endswith("/projects")
+        assert fetch_params(mock_context, 0) == {"id": ["p1"], "limit": ["1"]}
         assert fetch_kwargs(mock_context, 1)["method"] == "PATCH"
 
     @pytest.mark.asyncio
@@ -1206,7 +1285,7 @@ class TestCreatePhase:
         )
 
         assert result.type == ResultType.ACTION
-        assert fetch_url(mock_context).endswith("/projects/p1/phases")
+        assert fetch_path(mock_context).endswith("/projects/p1/phases")
         assert fetch_kwargs(mock_context)["json"] == {
             "phases": [{"name": "Phase"}],
             "placement": {"atStart": True},
@@ -1256,7 +1335,7 @@ class TestCreateMilestone:
         )
 
         assert result.type == ResultType.ACTION
-        assert fetch_url(mock_context).endswith("/projects/p1/milestones")
+        assert fetch_path(mock_context).endswith("/projects/p1/milestones")
         sent = fetch_kwargs(mock_context)["json"]["milestones"][0]
         assert sent == {"name": "MS", "phaseId": "ph1"}
 
@@ -1282,7 +1361,7 @@ class TestCreateTask:
         )
 
         assert result.type == ResultType.ACTION
-        assert fetch_url(mock_context).endswith("/projects/p1/tasks")
+        assert fetch_path(mock_context).endswith("/projects/p1/tasks")
         sent = fetch_kwargs(mock_context)["json"]["tasks"][0]
         assert sent["parentId"] == "m1"
         assert "milestone_id" not in sent
@@ -1355,7 +1434,7 @@ class TestListDependencies:
         assert data["count"] == 1
         assert data["dependencies"][0]["parentId"] == "a"
         assert "has_more" not in data
-        assert fetch_kwargs(mock_context)["params"] == {"projectId": "p1"}
+        assert fetch_params(mock_context) == {"projectId": ["p1"]}
 
     @pytest.mark.asyncio
     async def test_sends_id_filters(self, mock_context):
@@ -1363,7 +1442,7 @@ class TestListDependencies:
 
         await guidecx.execute_action("list_dependencies", {"parent_id": ["a"], "dependent_id": ["b"]}, mock_context)
 
-        params = fetch_kwargs(mock_context)["params"]
+        params = fetch_params(mock_context)
         assert params == {"parentId": ["a"], "dependentId": ["b"]}
 
     @pytest.mark.asyncio
@@ -1413,7 +1492,7 @@ class TestRemoveDependency:
         assert result.result.data == {"removed": True, "parent_id": "a", "dependent_id": "b"}
         kwargs = fetch_kwargs(mock_context)
         assert kwargs["method"] == "DELETE"
-        assert kwargs["params"] == {"parentId": "a", "dependentId": "b"}
+        assert fetch_params(mock_context) == {"parentId": ["a"], "dependentId": ["b"]}
 
     @pytest.mark.asyncio
     async def test_error_returns_action_error(self, mock_context):

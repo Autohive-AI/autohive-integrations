@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlencode
 
 from autohive_integrations_sdk import (
     Integration,
@@ -85,6 +86,31 @@ def prune_body(fields: Dict[str, Any]) -> Dict[str, Any]:
     return {key: value for key, value in fields.items() if value is not None and value != ""}
 
 
+def build_query(params: Dict[str, Any]) -> str:
+    """Serialize query parameters the way GUIDEcx expects.
+
+    The repeatable filters (``id``, ``status``, ``statusCategory``,
+    ``customerId``, ``tag``, ...) are declared ``collectionFormat: multi`` in
+    the spec, so a list has to become repeated parameters:
+
+        id=a&id=b        not        id=["a", "b"]
+
+    This cannot be delegated to ``context.fetch(params=...)``. The SDK
+    JSON-encodes any list value before URL-encoding it, which GUIDEcx rejects
+    with HTTP 400, so the query string is built here and appended to the URL.
+
+    Booleans are lowercased, since ``str(True)`` would send "True".
+    """
+    pairs = []
+    for key, value in params.items():
+        values = value if isinstance(value, (list, tuple)) else [value]
+        for item in values:
+            if isinstance(item, bool):
+                item = "true" if item else "false"
+            pairs.append((key, item))
+    return urlencode(pairs)
+
+
 async def gcx_fetch(
     context: ExecutionContext,
     method: str,
@@ -96,14 +122,19 @@ async def gcx_fetch(
 
     Non-2xx responses raise (``context.fetch`` raises ``HTTPError``); callers
     convert exceptions into ``ActionError``.
+
+    The query string is built into the URL rather than passed as ``params``;
+    see :func:`build_query` for why.
     """
     url = f"{API_BASE_URL}{endpoint}"
+    if params:
+        url = f"{url}?{build_query(params)}"
     headers = get_headers(context)
 
     if method == "GET":
-        response = await context.fetch(url, headers=headers, params=params)
+        response = await context.fetch(url, headers=headers)
     else:
-        response = await context.fetch(url, method=method, headers=headers, params=params, json=json_body)
+        response = await context.fetch(url, method=method, headers=headers, json=json_body)
 
     return getattr(response, "data", response)
 
