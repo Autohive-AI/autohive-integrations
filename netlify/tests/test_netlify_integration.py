@@ -15,9 +15,12 @@ Never runs in CI — the default pytest marker filter (-m unit) excludes these.
 
 import os
 
+import asyncio
+
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError
+from autohive_integrations_sdk.integration import ResultType
 from unittest.mock import AsyncMock, MagicMock
 
 import netlify as netlify_mod  # noqa: E402
@@ -28,6 +31,47 @@ pytestmark = pytest.mark.integration
 
 ACCESS_TOKEN = os.environ.get("NETLIFY_ACCESS_TOKEN", "")
 
+# Netlify throttles site/deploy creation hard, so the destructive suite needs to
+# wait its turn. These make the full destructive run take a few minutes.
+RATE_LIMIT_RETRIES = 6
+RATE_LIMIT_BACKOFF_SECONDS = 30
+
+
+async def cleanup_site(live_context, site_id):
+    """Delete a test site and fail loudly if the deletion did not happen.
+
+    delete_site converts HTTP failures into an ActionError instead of raising,
+    so an unasserted cleanup call lets a destructive test pass while leaving a
+    real site behind on the account. Assert the outcome so a leak is visible.
+    """
+    if not site_id:
+        return
+
+    result = await netlify_integration.execute_action("delete_site", {"site_id": site_id}, live_context)
+
+    assert result.type == ResultType.ACTION, (
+        f"cleanup failed, site {site_id} may still exist: {getattr(result.result, 'message', '')}"
+    )
+    assert result.result.data.get("deleted") is True, f"cleanup did not report deletion for site {site_id}"
+
+
+async def fetch_deployed_page(url, attempts=10, delay=3):
+    """GET a deployed URL, retrying while Netlify finishes propagating it.
+
+    Returns (status, body). A freshly created deploy can 404 at the edge for a
+    few seconds before it goes live, so a single request would be flaky.
+    """
+    status, body = None, ""
+    async with aiohttp.ClientSession() as session:
+        for _ in range(attempts):
+            async with session.get(url) as resp:
+                status = resp.status
+                body = await resp.text()
+            if status == 200:
+                break
+            await asyncio.sleep(delay)
+    return status, body
+
 
 @pytest.fixture
 def live_context():
@@ -37,22 +81,35 @@ def live_context():
     async def real_fetch(url, *, method="GET", params=None, json=None, headers=None, data=None, **kwargs):
         auth_headers = {"Authorization": f"Bearer {ACCESS_TOKEN}"}
         merged_headers = {**auth_headers, **(headers or {})}
-        async with aiohttp.ClientSession() as session:
-            async with session.request(
-                method,
-                url,
-                params=params,
-                json=json,
-                headers=merged_headers,
-                data=data,
-            ) as resp:
-                try:
-                    resp_data = await resp.json(content_type=None)
-                except Exception:
-                    resp_data = await resp.text()
-                if not resp.ok:
-                    raise HTTPError(resp.status, str(resp_data))
-                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=resp_data)
+
+        # Netlify rate-limits site and deploy creation aggressively (observed:
+        # roughly two per minute, then "API Deploy rate limit surpassed"). The
+        # destructive suite creates a site per test, so back off and retry on
+        # 429 rather than reporting a rate limit as a test failure.
+        for attempt in range(RATE_LIMIT_RETRIES):
+            async with aiohttp.ClientSession() as session:
+                async with session.request(
+                    method,
+                    url,
+                    params=params,
+                    json=json,
+                    headers=merged_headers,
+                    data=data,
+                ) as resp:
+                    try:
+                        resp_data = await resp.json(content_type=None)
+                    except Exception:
+                        resp_data = await resp.text()
+
+                    if resp.status == 429 and attempt < RATE_LIMIT_RETRIES - 1:
+                        await asyncio.sleep(RATE_LIMIT_BACKOFF_SECONDS)
+                        continue
+
+                    if not resp.ok:
+                        raise HTTPError(resp.status, str(resp_data))
+                    return FetchResponse(status=resp.status, headers=dict(resp.headers), data=resp_data)
+
+        raise HTTPError(429, "Netlify rate limit did not clear within the retry budget")
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
@@ -228,11 +285,7 @@ class TestSiteLifecycle:
             assert "site" in update_result.result.data
 
         finally:
-            if site_id:
-                delete_result = await netlify_integration.execute_action(
-                    "delete_site", {"site_id": site_id}, live_context
-                )
-                assert delete_result.result.data["deleted"] is True
+            await cleanup_site(live_context, site_id)
 
 
 @pytest.mark.destructive
@@ -266,11 +319,198 @@ class TestDeployLifecycle:
                 },
                 live_context,
             )
+            assert deploy_result.type == ResultType.ACTION, getattr(deploy_result.result, "message", "")
             data = deploy_result.result.data
             assert "deploy" in data
             assert "deploy_url" in data
             assert data["deploy"]["id"]
 
         finally:
-            if site_id:
-                await netlify_integration.execute_action("delete_site", {"site_id": site_id}, live_context)
+            await cleanup_site(live_context, site_id)
+
+
+@pytest.mark.destructive
+class TestDeployFilePathNormalization:
+    """Deploying with an unslashed path must work and must actually serve the file.
+
+    Regression cover for the upload URL being built as ".../filesindex.html"
+    instead of ".../files/index.html", which made every deploy keyed on
+    "index.html" fail with HTTP 404.
+    """
+
+    async def test_deploy_succeeds_with_path_missing_leading_slash(self, live_context):
+        import time
+
+        site_name = f"autohive-noslash-test-{int(time.time())}"
+        site_id = None
+
+        try:
+            create_site_result = await netlify_integration.execute_action(
+                "create_site", {"name": site_name}, live_context
+            )
+            site_id = create_site_result.result.data["site"]["id"]
+            assert site_id
+
+            # "index.html", not "/index.html" — this is what used to 404.
+            deploy_result = await netlify_integration.execute_action(
+                "create_deploy",
+                {
+                    "site_id": site_id,
+                    "files": {"index.html": "<html><body><h1>No Leading Slash</h1></body></html>"},
+                },
+                live_context,
+            )
+
+            assert deploy_result.type == ResultType.ACTION, getattr(deploy_result.result, "message", "")
+            data = deploy_result.result.data
+            assert data["deploy"]["id"]
+            assert data["deploy_url"]
+
+        finally:
+            await cleanup_site(live_context, site_id)
+
+    async def test_deployed_file_is_actually_served(self, live_context):
+        """The uploaded content is retrievable — proves the file reached Netlify.
+
+        A deploy can report success while serving nothing if the declared
+        digest paths and the upload URL disagree, so assert on the live page.
+        """
+        import time
+
+        site_name = f"autohive-serve-test-{int(time.time())}"
+        marker = f"autohive-marker-{int(time.time())}"
+        site_id = None
+
+        try:
+            create_site_result = await netlify_integration.execute_action(
+                "create_site", {"name": site_name}, live_context
+            )
+            site_id = create_site_result.result.data["site"]["id"]
+
+            deploy_result = await netlify_integration.execute_action(
+                "create_deploy",
+                {"site_id": site_id, "files": {"index.html": f"<html><body><p>{marker}</p></body></html>"}},
+                live_context,
+            )
+            assert deploy_result.type == ResultType.ACTION, getattr(deploy_result.result, "message", "")
+
+            deploy_url = deploy_result.result.data["deploy_url"]
+            assert deploy_url
+
+            status, body = await fetch_deployed_page(deploy_url)
+            assert status == 200, f"{deploy_url} returned {status}"
+            assert marker in body, "deploy reported success but the file was not served"
+
+        finally:
+            await cleanup_site(live_context, site_id)
+
+    async def test_slashed_and_unslashed_paths_both_deploy(self, live_context):
+        """Both spellings of the same path are accepted, in one multi-file deploy."""
+        import time
+
+        site_name = f"autohive-mixed-test-{int(time.time())}"
+        site_id = None
+
+        try:
+            create_site_result = await netlify_integration.execute_action(
+                "create_site", {"name": site_name}, live_context
+            )
+            site_id = create_site_result.result.data["site"]["id"]
+
+            deploy_result = await netlify_integration.execute_action(
+                "create_deploy",
+                {
+                    "site_id": site_id,
+                    "files": {
+                        "index.html": "<html><body>root</body></html>",
+                        "/about.html": "<html><body>about</body></html>",
+                        "styles/main.css": "body { color: rebeccapurple; }",
+                    },
+                },
+                live_context,
+            )
+
+            assert deploy_result.type == ResultType.ACTION, getattr(deploy_result.result, "message", "")
+            assert deploy_result.result.data["deploy"]["id"]
+
+        finally:
+            await cleanup_site(live_context, site_id)
+
+
+@pytest.mark.destructive
+class TestDeployPathEscaping:
+    """Paths needing percent-encoding must still be served at their logical path.
+
+    The digest key is unescaped and the upload URL is escaped, so these prove
+    the two agree against the real API rather than only in unit assertions.
+    """
+
+    async def test_paths_needing_escaping_are_served(self, live_context):
+        import time
+
+        site_name = f"autohive-escape-test-{int(time.time())}"
+        marker = f"escape-marker-{int(time.time())}"
+        site_id = None
+
+        try:
+            create_site_result = await netlify_integration.execute_action(
+                "create_site", {"name": site_name}, live_context
+            )
+            site_id = create_site_result.result.data["site"]["id"]
+
+            deploy_result = await netlify_integration.execute_action(
+                "create_deploy",
+                {
+                    "site_id": site_id,
+                    "files": {
+                        "index.html": f"<html><body>{marker}</body></html>",
+                        "my page.html": f"<html><body>{marker}-space</body></html>",
+                        "assets/deep dir/style sheet.css": f"/* {marker}-nested */",
+                    },
+                },
+                live_context,
+            )
+
+            assert deploy_result.type == ResultType.ACTION, getattr(deploy_result.result, "message", "")
+            deploy_url = deploy_result.result.data["deploy_url"]
+            assert deploy_url
+
+            # The space-containing paths must resolve at their logical location.
+            status, body = await fetch_deployed_page(f"{deploy_url}/my%20page.html")
+            assert status == 200, f"escaped path returned {status}"
+            assert f"{marker}-space" in body
+
+            status, body = await fetch_deployed_page(f"{deploy_url}/assets/deep%20dir/style%20sheet.css")
+            assert status == 200, f"nested escaped path returned {status}"
+            assert f"{marker}-nested" in body
+
+        finally:
+            await cleanup_site(live_context, site_id)
+
+    async def test_unsafe_paths_are_rejected_without_creating_a_deploy(self, live_context):
+        """Validation happens before the deploy POST, so nothing is left behind."""
+        import time
+
+        site_name = f"autohive-reject-test-{int(time.time())}"
+        site_id = None
+
+        try:
+            create_site_result = await netlify_integration.execute_action(
+                "create_site", {"name": site_name}, live_context
+            )
+            site_id = create_site_result.result.data["site"]["id"]
+
+            for bad_path in ["../secret.txt", "assets/../index.html", "a?b.html", "a#b.html"]:
+                result = await netlify_integration.execute_action(
+                    "create_deploy",
+                    {"site_id": site_id, "files": {bad_path: "<html>nope</html>"}},
+                    live_context,
+                )
+                assert result.type == ResultType.ACTION_ERROR, f"{bad_path} should have been rejected"
+
+            # No deploy should have been created by any of the rejected calls.
+            deploys = await netlify_integration.execute_action("list_deploys", {"site_id": site_id}, live_context)
+            assert deploys.result.data["deploys"] == []
+
+        finally:
+            await cleanup_site(live_context, site_id)

@@ -1,7 +1,7 @@
 {
   "name": "Netlify",
   "display_name": "Netlify",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Integration with Netlify for managing sites, deployments, and hosting",
   "entry_point": "netlify.py",
   "auth": {
@@ -136,7 +136,7 @@
           },
           "files": {
             "type": "object",
-            "description": "Files to deploy (path: content mapping)"
+            "description": "Files to deploy, as a mapping of site-root-relative path to file content, e.g. {\"/index.html\": \"<html>...</html>\"}. A leading slash is optional and added if missing."
           }
         },
         "required": ["site_id", "files"]
