@@ -681,14 +681,61 @@ def test_encoded_path_survives_url_parsing_unchanged():
 
     This is the property the whole validation exists to guarantee: what we
     declare in the digest is what the PUT actually targets.
+
+    Parsed with yarl, which is what aiohttp uses, and aiohttp is what the SDK's
+    context.fetch sends requests with. yarl ships as an aiohttp dependency, so
+    this needs nothing beyond what the integration already requires.
     """
-    import httpx
+    from yarl import URL
 
     for raw in ["index.html", "my file.html", "café.html", "100%.html", "assets/css/main file.css"]:
         logical = normalize_deploy_path(raw)
-        url = httpx.URL(f"{NETLIFY_API_BASE_URL}/deploys/d1/files{encode_deploy_path(logical)}")
+        url = URL(f"{NETLIFY_API_BASE_URL}/deploys/d1/files{encode_deploy_path(logical)}")
+
+        # .path is the decoded form and must equal the path we declared.
         assert url.path == f"/api/v1/deploys/d1/files{logical}", raw
-        assert url.query == b""
+        # .raw_path is what actually goes on the wire.
+        assert url.raw_path == f"/api/v1/deploys/d1/files{encode_deploy_path(logical)}", raw
+        assert url.query_string == ""
+        assert url.fragment is None or url.fragment == ""
+
+
+@pytest.mark.parametrize(
+    "unsafe_path,damage",
+    [
+        ("/assets/../index.html", "/api/v1/deploys/d1/files/index.html"),
+        ("/../secret.txt", "/api/v1/deploys/d1/secret.txt"),
+    ],
+)
+def test_dot_segments_would_be_rewritten_by_the_url_parser(unsafe_path, damage):
+    """Why dot segments are rejected rather than passed through.
+
+    yarl resolves them before the request is sent, so the upload would land
+    somewhere other than the declared digest key, and "/.." escapes the files
+    endpoint altogether.
+    """
+    from yarl import URL
+
+    assert URL(f"{NETLIFY_API_BASE_URL}/deploys/d1/files{unsafe_path}").path == damage
+
+    with pytest.raises(ValueError):
+        normalize_deploy_path(unsafe_path)
+
+
+@pytest.mark.parametrize(
+    "unsafe_path,part",
+    [("/a?b.html", "query_string"), ("/a#b.html", "fragment")],
+)
+def test_delimiters_would_split_the_url(unsafe_path, part):
+    """Why ? and # are rejected: the parser treats them as delimiters."""
+    from yarl import URL
+
+    url = URL(f"{NETLIFY_API_BASE_URL}/deploys/d1/files{unsafe_path}")
+    assert url.path == "/api/v1/deploys/d1/files/a"
+    assert getattr(url, part) == "b.html"
+
+    with pytest.raises(ValueError):
+        normalize_deploy_path(unsafe_path)
 
 
 @pytest.mark.asyncio
