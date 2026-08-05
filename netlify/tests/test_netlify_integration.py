@@ -435,3 +435,82 @@ class TestDeployFilePathNormalization:
 
         finally:
             await cleanup_site(live_context, site_id)
+
+
+@pytest.mark.destructive
+class TestDeployPathEscaping:
+    """Paths needing percent-encoding must still be served at their logical path.
+
+    The digest key is unescaped and the upload URL is escaped, so these prove
+    the two agree against the real API rather than only in unit assertions.
+    """
+
+    async def test_paths_needing_escaping_are_served(self, live_context):
+        import time
+
+        site_name = f"autohive-escape-test-{int(time.time())}"
+        marker = f"escape-marker-{int(time.time())}"
+        site_id = None
+
+        try:
+            create_site_result = await netlify_integration.execute_action(
+                "create_site", {"name": site_name}, live_context
+            )
+            site_id = create_site_result.result.data["site"]["id"]
+
+            deploy_result = await netlify_integration.execute_action(
+                "create_deploy",
+                {
+                    "site_id": site_id,
+                    "files": {
+                        "index.html": f"<html><body>{marker}</body></html>",
+                        "my page.html": f"<html><body>{marker}-space</body></html>",
+                        "assets/deep dir/style sheet.css": f"/* {marker}-nested */",
+                    },
+                },
+                live_context,
+            )
+
+            assert deploy_result.type == ResultType.ACTION, getattr(deploy_result.result, "message", "")
+            deploy_url = deploy_result.result.data["deploy_url"]
+            assert deploy_url
+
+            # The space-containing paths must resolve at their logical location.
+            status, body = await fetch_deployed_page(f"{deploy_url}/my%20page.html")
+            assert status == 200, f"escaped path returned {status}"
+            assert f"{marker}-space" in body
+
+            status, body = await fetch_deployed_page(f"{deploy_url}/assets/deep%20dir/style%20sheet.css")
+            assert status == 200, f"nested escaped path returned {status}"
+            assert f"{marker}-nested" in body
+
+        finally:
+            await cleanup_site(live_context, site_id)
+
+    async def test_unsafe_paths_are_rejected_without_creating_a_deploy(self, live_context):
+        """Validation happens before the deploy POST, so nothing is left behind."""
+        import time
+
+        site_name = f"autohive-reject-test-{int(time.time())}"
+        site_id = None
+
+        try:
+            create_site_result = await netlify_integration.execute_action(
+                "create_site", {"name": site_name}, live_context
+            )
+            site_id = create_site_result.result.data["site"]["id"]
+
+            for bad_path in ["../secret.txt", "assets/../index.html", "a?b.html", "a#b.html"]:
+                result = await netlify_integration.execute_action(
+                    "create_deploy",
+                    {"site_id": site_id, "files": {bad_path: "<html>nope</html>"}},
+                    live_context,
+                )
+                assert result.type == ResultType.ACTION_ERROR, f"{bad_path} should have been rejected"
+
+            # No deploy should have been created by any of the rejected calls.
+            deploys = await netlify_integration.execute_action("list_deploys", {"site_id": site_id}, live_context)
+            assert deploys.result.data["deploys"] == []
+
+        finally:
+            await cleanup_site(live_context, site_id)

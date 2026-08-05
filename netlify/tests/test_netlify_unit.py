@@ -16,6 +16,13 @@ from autohive_integrations_sdk.integration import ResultType
 
 import netlify as netlify_mod  # noqa: E402
 
+# netlify_mod is the package; the handlers and helpers live in netlify/netlify.py.
+from netlify.netlify import (  # noqa: E402
+    NETLIFY_API_BASE_URL,
+    encode_deploy_path,
+    normalize_deploy_path,
+)
+
 netlify_integration = netlify_mod.netlify
 
 pytestmark = pytest.mark.unit
@@ -486,6 +493,154 @@ async def test_create_deploy_normalizes_leading_slash_consistently():
         return [c.args[0] if c.args else c.kwargs.get("url", "") for c in ctx.fetch.call_args_list]
 
     assert urls(slashed_ctx) == urls(plain_ctx)
+
+
+# =============================================================================
+# CREATE DEPLOY - PATH VALIDATION AND ESCAPING
+#
+# A path is used two ways: unescaped as a digest key, and escaped in the upload
+# URL. These cover the boundaries where the two would otherwise diverge.
+# =============================================================================
+
+
+def deploy_one(path, content="<html>Hi</html>"):
+    """Run create_deploy with a single file and return (result, ctx)."""
+    import hashlib
+
+    sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()
+    ctx = make_ctx_multi([{"id": "d1", "required": [sha1]}, None, {"id": "d1", "url": "https://d1.netlify.app"}])
+    coro = netlify_integration.execute_action("create_deploy", {"site_id": "s1", "files": {path: content}}, ctx)
+    return coro, ctx
+
+
+def request_urls(ctx):
+    return [c.args[0] if c.args else c.kwargs.get("url", "") for c in ctx.fetch.call_args_list]
+
+
+@pytest.mark.parametrize(
+    "path,reason",
+    [
+        ("a?b.html", "question mark starts a query string"),
+        ("a#b.html", "hash starts a fragment"),
+        ("a\\b.html", "backslash is an ambiguous separator"),
+        ("", "empty path"),
+        ("   ", "whitespace-only path"),
+        ("/", "slash-only path"),
+        ("assets/../index.html", "dot-dot segment is normalized away"),
+        ("../secret.txt", "dot-dot escapes the files endpoint"),
+        ("./index.html", "single-dot segment is normalized away"),
+        ("a//b.html", "empty path segment"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_create_deploy_rejects_unsafe_paths_before_creating_the_deploy(path, reason):
+    """Unsafe paths fail with no requests sent, so no half-built deploy is left."""
+    coro, ctx = deploy_one(path)
+    result = await coro
+
+    assert result.type == ResultType.ACTION_ERROR, f"expected rejection: {reason}"
+    ctx.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_deploy_dot_dot_would_have_escaped_the_files_endpoint():
+    """Regression: '/files' + '/../secret.txt' resolves outside the files route."""
+    coro, ctx = deploy_one("../secret.txt")
+    result = await coro
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert ".." in result.result.message
+    ctx.fetch.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "path,expected_key,expected_url_suffix",
+    [
+        ("my file.html", "/my file.html", "/files/my%20file.html"),
+        ("café.html", "/café.html", "/files/caf%C3%A9.html"),
+        ("100%.html", "/100%.html", "/files/100%25.html"),
+        ("a+b.html", "/a+b.html", "/files/a%2Bb.html"),
+        ("dir name/sub file.html", "/dir name/sub file.html", "/files/dir%20name/sub%20file.html"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_create_deploy_escapes_url_but_not_the_digest_key(path, expected_key, expected_url_suffix):
+    """The digest key stays logical; only the upload URL is percent-encoded."""
+    coro, ctx = deploy_one(path)
+    result = await coro
+
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", "")
+
+    digest_keys = list(ctx.fetch.call_args_list[0].kwargs["json"]["files"])
+    assert digest_keys == [expected_key]
+
+    upload_url = request_urls(ctx)[1]
+    assert upload_url.endswith(expected_url_suffix)
+
+
+@pytest.mark.asyncio
+async def test_create_deploy_preserves_slash_separators_when_escaping():
+    """Separators must survive encoding, or nested files land in the wrong place."""
+    coro, ctx = deploy_one("assets/css/main file.css")
+    await coro
+
+    upload_url = request_urls(ctx)[1]
+    assert upload_url.endswith("/files/assets/css/main%20file.css")
+    assert "%2F" not in upload_url
+
+
+# ---- normalize_deploy_path / encode_deploy_path directly ----
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("index.html", "/index.html"),
+        ("/index.html", "/index.html"),
+        ("///index.html", "/index.html"),
+        ("assets/css/main.css", "/assets/css/main.css"),
+        ("/assets/css/main.css", "/assets/css/main.css"),
+        ("my file.html", "/my file.html"),
+    ],
+)
+def test_normalize_deploy_path_accepts_valid_paths(raw, expected):
+    assert normalize_deploy_path(raw) == expected
+
+
+@pytest.mark.parametrize("raw", ["", "   ", "/", "//", "a?b", "a#b", "a\\b", "../x", "./x", "a/../b", "a//b", None, 5])
+def test_normalize_deploy_path_rejects_unsafe_paths(raw):
+    with pytest.raises(ValueError):
+        normalize_deploy_path(raw)
+
+
+@pytest.mark.parametrize(
+    "logical,expected",
+    [
+        ("/index.html", "/index.html"),
+        ("/my file.html", "/my%20file.html"),
+        ("/100%.html", "/100%25.html"),
+        ("/café.html", "/caf%C3%A9.html"),
+        ("/a/b/c.html", "/a/b/c.html"),
+        ("/a dir/b file.html", "/a%20dir/b%20file.html"),
+    ],
+)
+def test_encode_deploy_path(logical, expected):
+    assert encode_deploy_path(logical) == expected
+
+
+def test_encoded_path_survives_url_parsing_unchanged():
+    """The escaped URL must not be rewritten by the HTTP client.
+
+    This is the property the whole validation exists to guarantee: what we
+    declare in the digest is what the PUT actually targets.
+    """
+    import httpx
+
+    for raw in ["index.html", "my file.html", "café.html", "100%.html", "assets/css/main file.css"]:
+        logical = normalize_deploy_path(raw)
+        url = httpx.URL(f"{NETLIFY_API_BASE_URL}/deploys/d1/files{encode_deploy_path(logical)}")
+        assert url.path == f"/api/v1/deploys/d1/files{logical}", raw
+        assert url.query == b""
 
 
 @pytest.mark.asyncio
