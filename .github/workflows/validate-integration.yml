@@ -18,7 +18,7 @@ jobs:
 
       - name: Validate
         id: validate
-        uses: autohive-ai/autohive-integrations-tooling@fix/ci-output-and-behavior
+        uses: autohive-ai/autohive-integrations-tooling@v2
         with:
           base_ref: origin/${{ github.base_ref }}
           # Don't post directly: pull_request workflows triggered from forks
