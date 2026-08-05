@@ -109,6 +109,42 @@ class TestGetMessageHistory:
         assert result.type == ResultType.ACTION_ERROR
 
 
+class TestGuildAuthorizationFailsClosed:
+    """Without a guild in metadata there is nothing to authorize against.
+
+    Every action authenticates with Autohive's shared bot token, so proceeding
+    would let a workflow reach any channel that bot can see in any server.
+    """
+
+    @pytest.mark.parametrize(
+        "action,inputs",
+        [
+            ("get_message_history", {"channel": CHANNEL_ID}),
+            ("send_message", {"channel": CHANNEL_ID, "text": "hello"}),
+            ("add_reaction", {"channel": CHANNEL_ID, "message_id": MESSAGE_ID, "reaction": "👍"}),
+            ("remove_reaction", {"channel": CHANNEL_ID, "message_id": MESSAGE_ID, "reaction": "👍"}),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_missing_guild_returns_error(self, mock_context, action, inputs):
+        mock_context.metadata = {}
+
+        result = await discord.execute_action(action, inputs, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.parametrize("empty", [None, ""])
+    @pytest.mark.asyncio
+    async def test_empty_guild_returns_error(self, mock_context, empty):
+        mock_context.metadata = {"guild": empty}
+
+        result = await discord.execute_action("send_message", {"channel": CHANNEL_ID, "text": "hi"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+
 class TestSendMessage:
     @pytest.mark.asyncio
     async def test_sends_message(self, mock_context):

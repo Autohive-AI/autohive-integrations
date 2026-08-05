@@ -39,12 +39,22 @@ def _bot_headers() -> Dict[str, str]:
 
 
 async def _verify_channel_guild(channel_id: str, context: ExecutionContext):
+    """Reject any channel outside the guild this connection was authorized for.
+
+    Fails closed: without a guild in the connection metadata there is nothing to
+    authorize against, and because every action authenticates with Autohive's
+    shared bot token, proceeding would let a workflow reach any channel that bot
+    can see in any server.
+    """
+    allowed_guild = context.metadata.get("guild")
+    if not allowed_guild:
+        return ActionError(message="No guild ID found in metadata.")
+
     response = await context.fetch(
         f"{DISCORD_API_BASE}/channels/{channel_id}",
         headers=_bot_headers(),
     )
-    allowed_guild = context.metadata.get("guild")
-    if allowed_guild and response.data.get("guild_id") != allowed_guild:
+    if response.data.get("guild_id") != allowed_guild:
         return ActionError(message="Unauthorized: channel does not belong to the authorized guild.")
     return None
 
