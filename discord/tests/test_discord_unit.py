@@ -307,3 +307,112 @@ class TestRemoveReaction:
 
         call = mock_context.fetch.call_args_list[1]
         assert call.kwargs.get("method") == "DELETE"
+
+
+# =============================================================================
+# PATH SAFETY
+#
+# Every request uses Autohive's shared bot token, so _verify_channel_guild is
+# the only thing keeping a connection inside its own server. A caller-supplied
+# value that reaches a URL path can move the request to a different channel
+# after that check has already passed, which would cross the guild boundary
+# into another customer's server.
+# =============================================================================
+
+OTHER_CHANNEL = "999999999999999999"
+TRAVERSAL_MESSAGE_ID = f"../../{OTHER_CHANNEL}/messages/888888888888888888"
+
+
+class TestPathSafety:
+    def test_url_library_really_does_rewrite_the_path(self):
+        """The risk, pinned. Without this the validation looks like paranoia."""
+        from yarl import URL
+
+        crafted = URL(
+            f"https://discord.com/api/v10/channels/{CHANNEL_ID}/messages/{TRAVERSAL_MESSAGE_ID}/reactions/X/@me"
+        )
+        assert crafted.path == f"/api/v10/channels/{OTHER_CHANNEL}/messages/888888888888888888/reactions/X/@me"
+        assert CHANNEL_ID not in crafted.path
+
+    def test_snowflake_accepts_real_ids(self):
+        from discord.discord import _snowflake
+
+        for value in (GUILD_ID, CHANNEL_ID, MESSAGE_ID, "1" * 20):
+            assert _snowflake(value, "channel") == value
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            TRAVERSAL_MESSAGE_ID,
+            "../../../guilds/111111111111111111/members/222222222222222222",
+            "",
+            "   ",
+            "not-an-id",
+            "1234",  # too short to be a snowflake
+            "1" * 21,  # too long
+            "123456789012345678/../999",
+            None,
+            12345678901234567,  # int, not str
+        ],
+    )
+    def test_snowflake_rejects_everything_else(self, value):
+        from discord.discord import _snowflake
+
+        with pytest.raises(ValueError, match="must be a Discord ID"):
+            _snowflake(value, "message_id")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("action", ["add_reaction", "remove_reaction"])
+    async def test_reaction_refuses_a_traversal_message_id(self, action, mock_context):
+        """The guild check passes for the channel, then the path is rewritten."""
+        mock_context.fetch.side_effect = [
+            _channel_response(),
+            FetchResponse(status=204, headers={}, data=None),
+        ]
+
+        result = await discord.execute_action(
+            action,
+            {"channel": CHANNEL_ID, "message_id": TRAVERSAL_MESSAGE_ID, "reaction": "👍"},
+            mock_context,
+        )
+
+        assert result.type in (ResultType.VALIDATION_ERROR, ResultType.ACTION_ERROR)
+        sent = [str(c.args[0]) if c.args else "" for c in mock_context.fetch.call_args_list]
+        assert not any(OTHER_CHANNEL in url for url in sent), f"request escaped the guild: {sent}"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "action,inputs",
+        [
+            ("get_message_history", {"channel": "../guilds/999999999999999999"}),
+            ("send_message", {"channel": "../guilds/999999999999999999", "text": "hi"}),
+            ("add_reaction", {"channel": "../x", "message_id": MESSAGE_ID, "reaction": "👍"}),
+        ],
+    )
+    async def test_actions_refuse_a_traversal_channel(self, action, inputs, mock_context):
+        mock_context.fetch.side_effect = [_channel_response(), FetchResponse(status=200, headers={}, data={})]
+
+        result = await discord.execute_action(action, inputs, mock_context)
+
+        assert result.type in (ResultType.VALIDATION_ERROR, ResultType.ACTION_ERROR)
+
+    @pytest.mark.asyncio
+    async def test_reaction_emoji_cannot_escape_its_segment(self, mock_context):
+        """quote() keeps '/' unescaped by default, so safe='' is required."""
+        mock_context.fetch.side_effect = [
+            _channel_response(),
+            FetchResponse(status=204, headers={}, data=None),
+        ]
+
+        await discord.execute_action(
+            "add_reaction",
+            {
+                "channel": CHANNEL_ID,
+                "message_id": MESSAGE_ID,
+                "reaction": f"../../{OTHER_CHANNEL}/messages/777777777777777777",
+            },
+            mock_context,
+        )
+
+        sent = [str(c.args[0]) if c.args else "" for c in mock_context.fetch.call_args_list]
+        assert not any(OTHER_CHANNEL in url and "%2F" not in url for url in sent), f"emoji segment escaped: {sent}"
