@@ -220,6 +220,18 @@ class CreateDeployAction(ActionHandler):
                 normalized_path = normalize_deploy_path(path)
                 sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()  # nosec B324
 
+                # Distinct inputs can normalize to the same destination. Identical
+                # content is harmless, but differing content means one file would
+                # silently overwrite the other, with the winner decided by dict
+                # ordering, so refuse rather than deploy something arbitrary.
+                existing_sha1 = files_dict.get(normalized_path)
+                if existing_sha1 is not None and existing_sha1 != sha1:
+                    raise ValueError(
+                        f"Multiple files map to the deploy path '{normalized_path}' with different content. "
+                        "Paths are compared after normalization, so entries like 'index.html' and "
+                        "'/index.html' are the same destination. Remove or rename the duplicate."
+                    )
+
                 files_dict[normalized_path] = sha1
                 if sha1 not in hash_to_content:
                     hash_to_content[sha1] = content

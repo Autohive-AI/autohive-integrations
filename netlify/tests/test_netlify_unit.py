@@ -589,6 +589,54 @@ async def test_create_deploy_preserves_slash_separators_when_escaping():
     assert "%2F" not in upload_url
 
 
+@pytest.mark.asyncio
+async def test_create_deploy_rejects_paths_colliding_after_normalization():
+    """'index.html' and '/index.html' are one destination, not two."""
+    ctx = make_ctx_multi([{"id": "d1", "required": []}, {"id": "d1"}])
+    result = await netlify_integration.execute_action(
+        "create_deploy",
+        {"site_id": "s1", "files": {"index.html": "first", "/index.html": "second"}},
+        ctx,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "/index.html" in result.result.message
+    ctx.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_deploy_allows_colliding_paths_with_identical_content():
+    """A duplicate that resolves to the same bytes is harmless, so coalesce it."""
+    content = "<html>same</html>"
+    import hashlib
+
+    sha1 = hashlib.sha1(content.encode(), usedforsecurity=False).hexdigest()
+    ctx = make_ctx_multi([{"id": "d1", "required": [sha1]}, None, {"id": "d1", "url": "https://d1.netlify.app"}])
+
+    result = await netlify_integration.execute_action(
+        "create_deploy",
+        {"site_id": "s1", "files": {"index.html": content, "/index.html": content}},
+        ctx,
+    )
+
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", "")
+    assert list(ctx.fetch.call_args_list[0].kwargs["json"]["files"]) == ["/index.html"]
+
+
+@pytest.mark.asyncio
+async def test_create_deploy_collision_error_names_the_path():
+    """The message has to identify which destination conflicts."""
+    ctx = make_ctx_multi([{"id": "d1", "required": []}, {"id": "d1"}])
+    result = await netlify_integration.execute_action(
+        "create_deploy",
+        {"site_id": "s1", "files": {"a/b.html": "one", "/a/b.html": "two"}},
+        ctx,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "/a/b.html" in result.result.message
+
+
 # ---- normalize_deploy_path / encode_deploy_path directly ----
 
 
