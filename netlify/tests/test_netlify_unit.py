@@ -582,8 +582,9 @@ async def test_create_deploy_escapes_url_but_not_the_digest_key(path, expected_k
 async def test_create_deploy_preserves_slash_separators_when_escaping():
     """Separators must survive encoding, or nested files land in the wrong place."""
     coro, ctx = deploy_one("assets/css/main file.css")
-    await coro
+    result = await coro
 
+    assert result.type == ResultType.ACTION, getattr(result.result, "message", "")
     upload_url = request_urls(ctx)[1]
     assert upload_url.endswith("/files/assets/css/main%20file.css")
     assert "%2F" not in upload_url
