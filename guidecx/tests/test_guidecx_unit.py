@@ -25,9 +25,20 @@ from guidecx.guidecx import (  # noqa: E402
     time_record_body,
     placement_body,
     build_query,
+    path_id,
 )
 
 pytestmark = pytest.mark.unit
+
+# Path-bound IDs must be canonical UUIDs; the handlers reject anything else
+# because a non-UUID segment can rewrite the request path. Query-only and
+# response-payload IDs stay as short readable placeholders.
+PROJECT_ID = "11111111-1111-4111-8111-111111111111"
+TASK_ID = "22222222-2222-4222-8222-222222222222"
+CUSTOMER_ID = "33333333-3333-4333-8333-333333333333"
+MEMBER_ID = "44444444-4444-4444-8444-444444444444"
+WEBHOOK_ID = "55555555-5555-4555-8555-555555555555"
+MISSING_ID = "66666666-6666-4666-8666-666666666666"
 
 
 def ok(data, status=200):
@@ -179,6 +190,97 @@ class TestApiConfiguration:
         assert API_BASE_URL == "https://api.guidecx.com/api/v3"
 
 
+# ---- path-bound ID validation ----
+
+
+class TestPathId:
+    """Path segments must be canonical UUIDs.
+
+    A non-UUID value is not merely invalid: the URL library resolves dot
+    segments before the request is sent, so a crafted "id" rewrites the path
+    and reaches a different endpoint than the action intends.
+    """
+
+    def test_accepts_a_canonical_uuid(self):
+        assert path_id(PROJECT_ID, "project_id") == PROJECT_ID
+
+    def test_accepts_uppercase_hex(self):
+        assert path_id(PROJECT_ID.upper(), "project_id") == PROJECT_ID.upper()
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "p1",
+            "",
+            "   ",
+            "../projects/other",
+            "11111111-1111-4111-8111-111111111111/../../members",
+            "11111111-1111-4111-8111-11111111111",  # one digit short
+            "11111111111141118111111111111111",  # no hyphens
+            "gggggggg-1111-4111-8111-111111111111",  # non-hex
+            None,
+            42,
+        ],
+    )
+    def test_rejects_anything_else(self, value):
+        with pytest.raises(ValueError, match="must be a GUIDEcx UUID"):
+            path_id(value, "project_id")
+
+    def test_error_names_the_field(self):
+        with pytest.raises(ValueError, match="webhook_id"):
+            path_id("nope", "webhook_id")
+
+
+class TestPathTraversalIsRefused:
+    """The concrete attack: a crafted webhook_id reaching the members endpoint."""
+
+    TRAVERSAL = f"../projects/{PROJECT_ID}/members/{MEMBER_ID}"
+
+    def test_url_library_would_rewrite_the_path(self):
+        """Why this matters, pinned so the risk is not theoretical."""
+        from yarl import URL
+
+        rewritten = URL(f"{API_BASE_URL}/webhooks/{self.TRAVERSAL}").path
+        assert rewritten == f"/api/v3/projects/{PROJECT_ID}/members/{MEMBER_ID}"
+        assert "/webhooks/" not in rewritten
+
+    @pytest.mark.asyncio
+    async def test_delete_webhook_refuses_a_traversal_id(self, mock_context):
+        result = await guidecx.execute_action("delete_webhook", {"webhook_id": self.TRAVERSAL}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_handler_refuses_it_even_without_schema_validation(self, mock_context):
+        """The schema pattern is a second line of defence, not the only one."""
+        from guidecx.guidecx import DeleteWebhookAction
+
+        result = await DeleteWebhookAction().execute({"webhook_id": self.TRAVERSAL}, mock_context)
+
+        assert isinstance(result, ActionError)
+        assert "webhook_id" in result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "action,inputs",
+        [
+            ("get_customer", {"customer_id": TRAVERSAL}),
+            ("remove_project_member", {"project_id": TRAVERSAL, "member_id": MEMBER_ID}),
+            ("remove_project_member", {"project_id": PROJECT_ID, "member_id": TRAVERSAL}),
+            ("create_phase", {"project_id": TRAVERSAL, "name": "Phase"}),
+            ("add_task_note", {"task_id": TRAVERSAL, "note": "hi"}),
+            ("list_project_members", {"project_id": TRAVERSAL}),
+        ],
+    )
+    async def test_every_path_bound_action_refuses_traversal(self, action, inputs, mock_context):
+        result = await guidecx.execute_action(action, inputs, mock_context)
+
+        assert result.type in (ResultType.VALIDATION_ERROR, ResultType.ACTION_ERROR)
+        mock_context.fetch.assert_not_called()
+
+
 # ---- query string serialization ----
 
 
@@ -231,12 +333,12 @@ class TestQueryReachesTheUrl:
     @pytest.mark.asyncio
     async def test_get_project_sends_a_bare_id_filter(self, mock_context):
         """This is the call that returned HTTP 400 in production."""
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": PROJECT_ID}]})
 
-        await guidecx.execute_action("get_project", {"project_id": "p1"}, mock_context)
+        await guidecx.execute_action("get_project", {"project_id": PROJECT_ID}, mock_context)
 
         url = fetch_url(mock_context)
-        assert "id=p1" in url
+        assert f"id={PROJECT_ID}" in url
         assert "%5B" not in url
 
 
@@ -345,31 +447,31 @@ class TestListProjects:
 class TestGetProject:
     @pytest.mark.asyncio
     async def test_success_returns_single_project(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1", "name": "Acme"}], "metadata": {"total": 1}})
+        mock_context.fetch.return_value = ok({"data": [{"id": PROJECT_ID, "name": "Acme"}], "metadata": {"total": 1}})
 
-        result = await guidecx.execute_action("get_project", {"project_id": "p1"}, mock_context)
+        result = await guidecx.execute_action("get_project", {"project_id": PROJECT_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
-        assert result.result.data["project"]["id"] == "p1"
+        assert result.result.data["project"]["id"] == PROJECT_ID
 
     @pytest.mark.asyncio
     async def test_queries_search_endpoint_by_id(self, mock_context):
         # There is no GET /projects/{id}; the id filter on search is used instead.
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}], "metadata": {"total": 1}})
+        mock_context.fetch.return_value = ok({"data": [{"id": PROJECT_ID}], "metadata": {"total": 1}})
 
-        await guidecx.execute_action("get_project", {"project_id": "p1"}, mock_context)
+        await guidecx.execute_action("get_project", {"project_id": PROJECT_ID}, mock_context)
 
         assert fetch_path(mock_context).endswith("/projects")
-        assert fetch_params(mock_context) == {"id": ["p1"], "limit": ["1"]}
+        assert fetch_params(mock_context) == {"id": [PROJECT_ID], "limit": ["1"]}
 
     @pytest.mark.asyncio
     async def test_not_found_returns_error(self, mock_context):
         mock_context.fetch.return_value = ok({"data": [], "metadata": {"total": 0}})
 
-        result = await guidecx.execute_action("get_project", {"project_id": "nope"}, mock_context)
+        result = await guidecx.execute_action("get_project", {"project_id": MISSING_ID}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "nope" in result.result.message
+        assert MISSING_ID in result.result.message
 
 
 # ---- list_milestones ----
@@ -385,7 +487,7 @@ class TestListMilestones:
             }
         )
 
-        result = await guidecx.execute_action("list_milestones", {"project_id": "p1"}, mock_context)
+        result = await guidecx.execute_action("list_milestones", {"project_id": PROJECT_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
         assert result.result.data["milestones"][0]["name"] == "Kickoff"
@@ -395,10 +497,10 @@ class TestListMilestones:
     async def test_scopes_to_project(self, mock_context):
         mock_context.fetch.return_value = ok({"data": [], "metadata": {"total": 0}})
 
-        await guidecx.execute_action("list_milestones", {"project_id": "p1", "phase_id": "ph1"}, mock_context)
+        await guidecx.execute_action("list_milestones", {"project_id": PROJECT_ID, "phase_id": "ph1"}, mock_context)
 
         params = fetch_params(mock_context)
-        assert params["projectId"] == ["p1"]
+        assert params["projectId"] == [PROJECT_ID]
         assert params["phaseId"] == ["ph1"]
         assert fetch_path(mock_context).endswith("/milestones")
 
@@ -411,15 +513,15 @@ class TestListTasks:
     async def test_success_returns_tasks(self, mock_context):
         mock_context.fetch.return_value = ok(
             {
-                "data": [{"id": "t1", "name": "Send contract", "statusCategory": "NOT_STARTED"}],
+                "data": [{"id": TASK_ID, "name": "Send contract", "statusCategory": "NOT_STARTED"}],
                 "metadata": {"total": 1, "offset": 0, "limit": 50},
             }
         )
 
-        result = await guidecx.execute_action("list_tasks", {"project_id": "p1"}, mock_context)
+        result = await guidecx.execute_action("list_tasks", {"project_id": PROJECT_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
-        assert result.result.data["tasks"][0]["id"] == "t1"
+        assert result.result.data["tasks"][0]["id"] == TASK_ID
 
     @pytest.mark.asyncio
     async def test_sends_all_filters(self, mock_context):
@@ -428,7 +530,7 @@ class TestListTasks:
         await guidecx.execute_action(
             "list_tasks",
             {
-                "project_id": "p1",
+                "project_id": PROJECT_ID,
                 "milestone_id": "m1",
                 "assignee_id": "u1",
                 "status_category": ["STUCK"],
@@ -439,7 +541,7 @@ class TestListTasks:
         )
 
         params = fetch_params(mock_context)
-        assert params["projectId"] == ["p1"]
+        assert params["projectId"] == [PROJECT_ID]
         assert params["milestoneId"] == ["m1"]
         assert params["assigneeId"] == ["u1"]
         assert params["statusCategory"] == ["STUCK"]
@@ -462,10 +564,10 @@ class TestListTasks:
 class TestUpdateTask:
     @pytest.mark.asyncio
     async def test_success_returns_updated_task(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "t1", "status": "Complete"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": TASK_ID, "status": "Complete"}]})
 
         result = await guidecx.execute_action(
-            "update_task", {"project_id": "p1", "task_id": "t1", "status": "Complete"}, mock_context
+            "update_task", {"project_id": PROJECT_ID, "task_id": TASK_ID, "status": "Complete"}, mock_context
         )
 
         assert result.type == ResultType.ACTION
@@ -473,26 +575,26 @@ class TestUpdateTask:
 
     @pytest.mark.asyncio
     async def test_sends_project_scoped_patch(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "t1"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": TASK_ID}]})
 
         await guidecx.execute_action(
-            "update_task", {"project_id": "p1", "task_id": "t1", "status": "Complete"}, mock_context
+            "update_task", {"project_id": PROJECT_ID, "task_id": TASK_ID, "status": "Complete"}, mock_context
         )
 
-        assert fetch_path(mock_context).endswith("/projects/p1/tasks")
+        assert fetch_path(mock_context).endswith(f"/projects/{PROJECT_ID}/tasks")
         kwargs = fetch_kwargs(mock_context)
         assert kwargs["method"] == "PATCH"
-        assert kwargs["json"] == {"tasks": [{"id": "t1", "status": "Complete"}]}
+        assert kwargs["json"] == {"tasks": [{"id": TASK_ID, "status": "Complete"}]}
 
     @pytest.mark.asyncio
     async def test_maps_optional_fields_to_api_names(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "t1"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": TASK_ID}]})
 
         await guidecx.execute_action(
             "update_task",
             {
-                "project_id": "p1",
-                "task_id": "t1",
+                "project_id": PROJECT_ID,
+                "task_id": TASK_ID,
                 "end_date": "2026-09-01T00:00:00Z",
                 "assignee_id": "u1",
                 "priority": "HIGH",
@@ -507,7 +609,9 @@ class TestUpdateTask:
 
     @pytest.mark.asyncio
     async def test_no_fields_returns_error_without_calling_api(self, mock_context):
-        result = await guidecx.execute_action("update_task", {"project_id": "p1", "task_id": "t1"}, mock_context)
+        result = await guidecx.execute_action(
+            "update_task", {"project_id": PROJECT_ID, "task_id": TASK_ID}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "No update fields" in result.result.message
@@ -518,11 +622,11 @@ class TestUpdateTask:
         mock_context.fetch.return_value = ok({"data": []})
 
         result = await guidecx.execute_action(
-            "update_task", {"project_id": "p1", "task_id": "t1", "status": "Complete"}, mock_context
+            "update_task", {"project_id": PROJECT_ID, "task_id": TASK_ID, "status": "Complete"}, mock_context
         )
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "t1" in result.result.message
+        assert TASK_ID in result.result.message
 
 
 # ---- add_task_note ----
@@ -533,7 +637,7 @@ class TestAddTaskNote:
     async def test_success_returns_messages(self, mock_context):
         mock_context.fetch.return_value = ok({"data": [{"id": "msg1", "formattedContent": "Hello"}]})
 
-        result = await guidecx.execute_action("add_task_note", {"task_id": "t1", "content": "Hello"}, mock_context)
+        result = await guidecx.execute_action("add_task_note", {"task_id": TASK_ID, "content": "Hello"}, mock_context)
 
         assert result.type == ResultType.ACTION
         assert result.result.data["messages"][0]["id"] == "msg1"
@@ -542,9 +646,9 @@ class TestAddTaskNote:
     async def test_wraps_single_note_in_bulk_body(self, mock_context):
         mock_context.fetch.return_value = ok({"data": [{"id": "msg1"}]})
 
-        await guidecx.execute_action("add_task_note", {"task_id": "t1", "content": "Hello"}, mock_context)
+        await guidecx.execute_action("add_task_note", {"task_id": TASK_ID, "content": "Hello"}, mock_context)
 
-        assert fetch_path(mock_context).endswith("/tasks/t1/messages")
+        assert fetch_path(mock_context).endswith(f"/tasks/{TASK_ID}/messages")
         kwargs = fetch_kwargs(mock_context)
         assert kwargs["method"] == "POST"
         assert kwargs["json"] == {"messages": [{"formattedContent": "Hello", "internalOnly": False}]}
@@ -554,7 +658,7 @@ class TestAddTaskNote:
         mock_context.fetch.return_value = ok({"data": [{"id": "msg1"}]})
 
         await guidecx.execute_action(
-            "add_task_note", {"task_id": "t1", "content": "Internal", "internal_only": True}, mock_context
+            "add_task_note", {"task_id": TASK_ID, "content": "Internal", "internal_only": True}, mock_context
         )
 
         assert fetch_kwargs(mock_context)["json"]["messages"][0]["internalOnly"] is True
@@ -563,7 +667,7 @@ class TestAddTaskNote:
     async def test_error_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("HTTP 404: task not found")
 
-        result = await guidecx.execute_action("add_task_note", {"task_id": "x", "content": "y"}, mock_context)
+        result = await guidecx.execute_action("add_task_note", {"task_id": TASK_ID, "content": "y"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "not found" in result.result.message
@@ -575,22 +679,22 @@ class TestAddTaskNote:
 class TestGetCustomer:
     @pytest.mark.asyncio
     async def test_success_returns_customer(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": {"id": "c1", "name": "Acme", "domain": "acme.com"}})
+        mock_context.fetch.return_value = ok({"data": {"id": CUSTOMER_ID, "name": "Acme", "domain": "acme.com"}})
 
-        result = await guidecx.execute_action("get_customer", {"customer_id": "c1"}, mock_context)
+        result = await guidecx.execute_action("get_customer", {"customer_id": CUSTOMER_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
         assert result.result.data["customer"]["domain"] == "acme.com"
-        assert fetch_path(mock_context).endswith("/customers/c1")
+        assert fetch_path(mock_context).endswith(f"/customers/{CUSTOMER_ID}")
 
     @pytest.mark.asyncio
     async def test_missing_data_returns_error(self, mock_context):
         mock_context.fetch.return_value = ok({})
 
-        result = await guidecx.execute_action("get_customer", {"customer_id": "c1"}, mock_context)
+        result = await guidecx.execute_action("get_customer", {"customer_id": CUSTOMER_ID}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "c1" in result.result.message
+        assert CUSTOMER_ID in result.result.message
 
 
 # ---- config / code sync ----
@@ -642,13 +746,15 @@ class TestFirstRecord:
 
 class TestTimeRecordBody:
     def test_maps_required_fields_to_api_names(self):
-        body = time_record_body({"member_id": "m1", "date_of_work": "2026-08-03T00:00:00Z", "hours_worked": 1.5})
-        assert body == {"timeRecords": [{"memberId": "m1", "dateOfWork": "2026-08-03T00:00:00Z", "hoursWorked": 1.5}]}
+        body = time_record_body({"member_id": MEMBER_ID, "date_of_work": "2026-08-03T00:00:00Z", "hours_worked": 1.5})
+        assert body == {
+            "timeRecords": [{"memberId": MEMBER_ID, "dateOfWork": "2026-08-03T00:00:00Z", "hoursWorked": 1.5}]
+        }
 
     def test_includes_optional_fields_when_set(self):
         record = time_record_body(
             {
-                "member_id": "m1",
+                "member_id": MEMBER_ID,
                 "date_of_work": "2026-08-03T00:00:00Z",
                 "hours_worked": 2,
                 "comment": "worked",
@@ -661,7 +767,7 @@ class TestTimeRecordBody:
     def test_omits_optional_fields_when_blank(self):
         record = time_record_body(
             {
-                "member_id": "m1",
+                "member_id": MEMBER_ID,
                 "date_of_work": "2026-08-03T00:00:00Z",
                 "hours_worked": 2,
                 "comment": "",
@@ -685,18 +791,18 @@ class TestListPhases:
             }
         )
 
-        result = await guidecx.execute_action("list_phases", {"project_id": "p1"}, mock_context)
+        result = await guidecx.execute_action("list_phases", {"project_id": PROJECT_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
         assert result.result.data["phases"][0]["name"] == "Kickoff"
         assert fetch_path(mock_context).endswith("/phases")
-        assert fetch_params(mock_context)["projectId"] == ["p1"]
+        assert fetch_params(mock_context)["projectId"] == [PROJECT_ID]
 
     @pytest.mark.asyncio
     async def test_error_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("HTTP 500: boom")
 
-        result = await guidecx.execute_action("list_phases", {"project_id": "p1"}, mock_context)
+        result = await guidecx.execute_action("list_phases", {"project_id": PROJECT_ID}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "boom" in result.result.message
@@ -710,9 +816,9 @@ class TestListProjectMembers:
     async def test_uses_project_scoped_path(self, mock_context):
         mock_context.fetch.return_value = ok({"data": [], "metadata": {"total": 0}})
 
-        await guidecx.execute_action("list_project_members", {"project_id": "p1"}, mock_context)
+        await guidecx.execute_action("list_project_members", {"project_id": PROJECT_ID}, mock_context)
 
-        assert fetch_path(mock_context).endswith("/projects/p1/members")
+        assert fetch_path(mock_context).endswith(f"/projects/{PROJECT_ID}/members")
 
     @pytest.mark.asyncio
     async def test_sends_filters(self, mock_context):
@@ -720,7 +826,7 @@ class TestListProjectMembers:
 
         await guidecx.execute_action(
             "list_project_members",
-            {"project_id": "p1", "email": ["a@b.com"], "project_role": ["PROJECT_MANAGER"]},
+            {"project_id": PROJECT_ID, "email": ["a@b.com"], "project_role": ["PROJECT_MANAGER"]},
             mock_context,
         )
 
@@ -737,7 +843,7 @@ class TestListProjectMembers:
             }
         )
 
-        result = await guidecx.execute_action("list_project_members", {"project_id": "p1"}, mock_context)
+        result = await guidecx.execute_action("list_project_members", {"project_id": PROJECT_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
         assert result.result.data["members"][0]["projectRole"] == "PROJECT_MANAGER"
@@ -752,12 +858,12 @@ class TestRemoveProjectMember:
         mock_context.fetch.return_value = ok({})
 
         result = await guidecx.execute_action(
-            "remove_project_member", {"project_id": "p1", "member_id": "m1"}, mock_context
+            "remove_project_member", {"project_id": PROJECT_ID, "member_id": MEMBER_ID}, mock_context
         )
 
         assert result.type == ResultType.ACTION
-        assert result.result.data == {"removed": True, "member_id": "m1"}
-        assert fetch_path(mock_context).endswith("/projects/p1/members/m1")
+        assert result.result.data == {"removed": True, "member_id": MEMBER_ID}
+        assert fetch_path(mock_context).endswith(f"/projects/{PROJECT_ID}/members/{MEMBER_ID}")
         assert fetch_kwargs(mock_context)["method"] == "DELETE"
 
     @pytest.mark.asyncio
@@ -765,7 +871,7 @@ class TestRemoveProjectMember:
         mock_context.fetch.side_effect = Exception("HTTP 404: member not on project")
 
         result = await guidecx.execute_action(
-            "remove_project_member", {"project_id": "p1", "member_id": "nope"}, mock_context
+            "remove_project_member", {"project_id": PROJECT_ID, "member_id": MISSING_ID}, mock_context
         )
 
         assert result.type == ResultType.ACTION_ERROR
@@ -870,30 +976,30 @@ class TestUpsertWebhook:
     @pytest.mark.asyncio
     async def test_create_sends_camel_case_event_type(self, mock_context):
         # Request field is camelCase eventType; response field is snake_case.
-        mock_context.fetch.return_value = ok({"data": [{"id": "w1", "event_type": None}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": WEBHOOK_ID, "event_type": None}]})
 
         result = await guidecx.execute_action(
             "upsert_webhook", {"event_type": "task.updated", "url": "https://e.com/hook"}, mock_context
         )
 
         assert result.type == ResultType.ACTION
-        assert result.result.data["webhook"]["id"] == "w1"
+        assert result.result.data["webhook"]["id"] == WEBHOOK_ID
         kwargs = fetch_kwargs(mock_context)
         assert kwargs["method"] == "PATCH"
         assert kwargs["json"] == {"webhooks": [{"eventType": "task.updated", "url": "https://e.com/hook"}]}
 
     @pytest.mark.asyncio
     async def test_update_includes_id(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "w1"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": WEBHOOK_ID}]})
 
         await guidecx.execute_action(
             "upsert_webhook",
-            {"webhook_id": "w1", "event_type": "task.updated", "url": "https://e.com/hook", "description": "d"},
+            {"webhook_id": WEBHOOK_ID, "event_type": "task.updated", "url": "https://e.com/hook", "description": "d"},
             mock_context,
         )
 
         sent = fetch_kwargs(mock_context)["json"]["webhooks"][0]
-        assert sent["id"] == "w1"
+        assert sent["id"] == WEBHOOK_ID
         assert sent["description"] == "d"
 
     @pytest.mark.asyncio
@@ -924,18 +1030,18 @@ class TestDeleteWebhook:
     async def test_sends_delete(self, mock_context):
         mock_context.fetch.return_value = ok({})
 
-        result = await guidecx.execute_action("delete_webhook", {"webhook_id": "w1"}, mock_context)
+        result = await guidecx.execute_action("delete_webhook", {"webhook_id": WEBHOOK_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
-        assert result.result.data == {"deleted": True, "webhook_id": "w1"}
-        assert fetch_path(mock_context).endswith("/webhooks/w1")
+        assert result.result.data == {"deleted": True, "webhook_id": WEBHOOK_ID}
+        assert fetch_path(mock_context).endswith(f"/webhooks/{WEBHOOK_ID}")
         assert fetch_kwargs(mock_context)["method"] == "DELETE"
 
     @pytest.mark.asyncio
     async def test_error_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("HTTP 404: not found")
 
-        result = await guidecx.execute_action("delete_webhook", {"webhook_id": "nope"}, mock_context)
+        result = await guidecx.execute_action("delete_webhook", {"webhook_id": MISSING_ID}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
 
@@ -968,8 +1074,8 @@ class TestListTimeRecords:
         await guidecx.execute_action(
             "list_time_records",
             {
-                "project_id": "p1",
-                "task_id": "t1",
+                "project_id": PROJECT_ID,
+                "task_id": TASK_ID,
                 "member_id": ["m1"],
                 "time_category_id": ["c1"],
                 "worked_after": "2026-01-01T00:00:00Z",
@@ -979,8 +1085,8 @@ class TestListTimeRecords:
         )
 
         params = fetch_params(mock_context)
-        assert params["projectId"] == ["p1"]
-        assert params["taskId"] == ["t1"]
+        assert params["projectId"] == [PROJECT_ID]
+        assert params["taskId"] == [TASK_ID]
         assert params["memberId"] == ["m1"]
         assert params["timeCategoryId"] == ["c1"]
         assert params["workedAfter"] == ["2026-01-01T00:00:00Z"]
@@ -1004,16 +1110,16 @@ class TestLogTaskTime:
 
         result = await guidecx.execute_action(
             "log_task_time",
-            {"task_id": "t1", "member_id": "m1", "hours_worked": 0.5, "date_of_work": "2026-08-03T00:00:00Z"},
+            {"task_id": TASK_ID, "member_id": MEMBER_ID, "hours_worked": 0.5, "date_of_work": "2026-08-03T00:00:00Z"},
             mock_context,
         )
 
         assert result.type == ResultType.ACTION
         assert result.result.data["time_record"]["id"] == "tr1"
-        assert fetch_path(mock_context).endswith("/tasks/t1/time-records")
+        assert fetch_path(mock_context).endswith(f"/tasks/{TASK_ID}/time-records")
         kwargs = fetch_kwargs(mock_context)
         assert kwargs["method"] == "POST"
-        assert kwargs["json"]["timeRecords"][0]["memberId"] == "m1"
+        assert kwargs["json"]["timeRecords"][0]["memberId"] == MEMBER_ID
 
     @pytest.mark.asyncio
     async def test_empty_response_returns_error(self, mock_context):
@@ -1021,12 +1127,12 @@ class TestLogTaskTime:
 
         result = await guidecx.execute_action(
             "log_task_time",
-            {"task_id": "t1", "member_id": "m1", "hours_worked": 1, "date_of_work": "2026-08-03T00:00:00Z"},
+            {"task_id": TASK_ID, "member_id": MEMBER_ID, "hours_worked": 1, "date_of_work": "2026-08-03T00:00:00Z"},
             mock_context,
         )
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "t1" in result.result.message
+        assert TASK_ID in result.result.message
 
 
 class TestLogProjectTime:
@@ -1036,12 +1142,17 @@ class TestLogProjectTime:
 
         result = await guidecx.execute_action(
             "log_project_time",
-            {"project_id": "p1", "member_id": "m1", "hours_worked": 2, "date_of_work": "2026-08-03T00:00:00Z"},
+            {
+                "project_id": PROJECT_ID,
+                "member_id": MEMBER_ID,
+                "hours_worked": 2,
+                "date_of_work": "2026-08-03T00:00:00Z",
+            },
             mock_context,
         )
 
         assert result.type == ResultType.ACTION
-        assert fetch_path(mock_context).endswith("/projects/p1/time-records")
+        assert fetch_path(mock_context).endswith(f"/projects/{PROJECT_ID}/time-records")
         assert fetch_kwargs(mock_context)["json"]["timeRecords"][0]["hoursWorked"] == 2
 
     @pytest.mark.asyncio
@@ -1049,7 +1160,7 @@ class TestLogProjectTime:
         # member_id is required in the schema, so the SDK rejects the call.
         result = await guidecx.execute_action(
             "log_project_time",
-            {"project_id": "p1", "hours_worked": 2, "date_of_work": "2026-08-03T00:00:00Z"},
+            {"project_id": PROJECT_ID, "hours_worked": 2, "date_of_work": "2026-08-03T00:00:00Z"},
             mock_context,
         )
 
@@ -1080,12 +1191,12 @@ class TestPlacementBody:
 class TestCreateProject:
     @pytest.mark.asyncio
     async def test_minimal_create(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1", "name": "Acme"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": PROJECT_ID, "name": "Acme"}]})
 
         result = await guidecx.execute_action("create_project", {"name": "Acme"}, mock_context)
 
         assert result.type == ResultType.ACTION
-        assert result.result.data["project"]["id"] == "p1"
+        assert result.result.data["project"]["id"] == PROJECT_ID
         assert fetch_path(mock_context).endswith("/projects")
         kwargs = fetch_kwargs(mock_context)
         assert kwargs["method"] == "PATCH"
@@ -1093,18 +1204,18 @@ class TestCreateProject:
 
     @pytest.mark.asyncio
     async def test_existing_customer_is_referenced_by_id(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": PROJECT_ID}]})
 
         await guidecx.execute_action(
-            "create_project", {"name": "Acme", "customer_id": "c1", "customer_name": "ignored"}, mock_context
+            "create_project", {"name": "Acme", "customer_id": CUSTOMER_ID, "customer_name": "ignored"}, mock_context
         )
 
         sent = fetch_kwargs(mock_context)["json"]["projects"][0]
-        assert sent["customer"] == {"id": "c1"}
+        assert sent["customer"] == {"id": CUSTOMER_ID}
 
     @pytest.mark.asyncio
     async def test_inline_customer_is_created_from_name_and_domain(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": PROJECT_ID}]})
 
         await guidecx.execute_action(
             "create_project",
@@ -1138,14 +1249,14 @@ class TestCreateProject:
     @pytest.mark.asyncio
     async def test_customer_id_still_allows_a_stray_name(self, mock_context):
         """The pairing rule only applies when customer_id is absent."""
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": PROJECT_ID}]})
 
         result = await guidecx.execute_action(
-            "create_project", {"name": "Acme", "customer_id": "c1", "customer_name": "ignored"}, mock_context
+            "create_project", {"name": "Acme", "customer_id": CUSTOMER_ID, "customer_name": "ignored"}, mock_context
         )
 
         assert result.type == ResultType.ACTION
-        assert fetch_kwargs(mock_context)["json"]["projects"][0]["customer"] == {"id": "c1"}
+        assert fetch_kwargs(mock_context)["json"]["projects"][0]["customer"] == {"id": CUSTOMER_ID}
 
     @pytest.mark.asyncio
     async def test_handler_rejects_half_a_customer_even_if_schema_is_bypassed(self, mock_context):
@@ -1160,7 +1271,7 @@ class TestCreateProject:
 
     @pytest.mark.asyncio
     async def test_project_manager_becomes_internal_team_entry(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": PROJECT_ID}]})
 
         await guidecx.execute_action("create_project", {"name": "Acme", "project_manager_id": "m1"}, mock_context)
 
@@ -1169,7 +1280,9 @@ class TestCreateProject:
 
     @pytest.mark.asyncio
     async def test_customer_id_extracted_from_links(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1", "_links": {"customer": "/api/v3/customers/c9"}}]})
+        mock_context.fetch.return_value = ok(
+            {"data": [{"id": PROJECT_ID, "_links": {"customer": "/api/v3/customers/c9"}}]}
+        )
 
         result = await guidecx.execute_action("create_project", {"name": "Acme"}, mock_context)
 
@@ -1177,7 +1290,7 @@ class TestCreateProject:
 
     @pytest.mark.asyncio
     async def test_customer_id_is_none_without_a_link(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "p1", "_links": {}}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": PROJECT_ID, "_links": {}}]})
 
         result = await guidecx.execute_action("create_project", {"name": "Acme"}, mock_context)
 
@@ -1201,17 +1314,17 @@ class TestUpdateProject:
     async def test_sends_id_with_changed_fields(self, mock_context):
         # First fetch is the existence check, second is the upsert itself.
         mock_context.fetch.side_effect = [
-            ok({"data": [{"id": "p1"}]}),
-            ok({"data": [{"id": "p1", "name": "New"}]}),
+            ok({"data": [{"id": PROJECT_ID}]}),
+            ok({"data": [{"id": PROJECT_ID, "name": "New"}]}),
         ]
 
         result = await guidecx.execute_action(
-            "update_project", {"project_id": "p1", "name": "New", "cash_value": 100}, mock_context
+            "update_project", {"project_id": PROJECT_ID, "name": "New", "cash_value": 100}, mock_context
         )
 
         assert result.type == ResultType.ACTION
         sent = fetch_kwargs(mock_context, 1)["json"]["projects"][0]
-        assert sent["id"] == "p1"
+        assert sent["id"] == PROJECT_ID
         assert sent["name"] == "New"
         assert sent["cashValue"] == 100
 
@@ -1219,15 +1332,15 @@ class TestUpdateProject:
     async def test_checks_the_project_exists_before_upserting(self, mock_context):
         """The pre-flight lookup filters on the exact ID and is sent first."""
         mock_context.fetch.side_effect = [
-            ok({"data": [{"id": "p1"}]}),
-            ok({"data": [{"id": "p1", "name": "New"}]}),
+            ok({"data": [{"id": PROJECT_ID}]}),
+            ok({"data": [{"id": PROJECT_ID, "name": "New"}]}),
         ]
 
-        await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New"}, mock_context)
+        await guidecx.execute_action("update_project", {"project_id": PROJECT_ID, "name": "New"}, mock_context)
 
         assert mock_context.fetch.call_count == 2
         assert fetch_path(mock_context, 0).endswith("/projects")
-        assert fetch_params(mock_context, 0) == {"id": ["p1"], "limit": ["1"]}
+        assert fetch_params(mock_context, 0) == {"id": [PROJECT_ID], "limit": ["1"]}
         assert fetch_kwargs(mock_context, 1)["method"] == "PATCH"
 
     @pytest.mark.asyncio
@@ -1235,10 +1348,10 @@ class TestUpdateProject:
         """PATCH /projects is an upsert, so an unknown ID must not be sent."""
         mock_context.fetch.return_value = ok({"data": []})
 
-        result = await guidecx.execute_action("update_project", {"project_id": "nope", "name": "New"}, mock_context)
+        result = await guidecx.execute_action("update_project", {"project_id": MISSING_ID, "name": "New"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "nope" in result.result.message
+        assert MISSING_ID in result.result.message
         assert "upsert" in result.result.message
         # Only the lookup happened, no PATCH was sent.
         assert mock_context.fetch.call_count == 1
@@ -1249,14 +1362,14 @@ class TestUpdateProject:
         """A record whose ID differs is not a match, even though the API returned one."""
         mock_context.fetch.return_value = ok({"data": [{"id": "some-other-project"}]})
 
-        result = await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New"}, mock_context)
+        result = await guidecx.execute_action("update_project", {"project_id": PROJECT_ID, "name": "New"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
     async def test_no_fields_returns_error_without_calling_api(self, mock_context):
-        result = await guidecx.execute_action("update_project", {"project_id": "p1"}, mock_context)
+        result = await guidecx.execute_action("update_project", {"project_id": PROJECT_ID}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "No update fields" in result.result.message
@@ -1264,12 +1377,12 @@ class TestUpdateProject:
 
     @pytest.mark.asyncio
     async def test_empty_response_returns_error(self, mock_context):
-        mock_context.fetch.side_effect = [ok({"data": [{"id": "p1"}]}), ok({"data": []})]
+        mock_context.fetch.side_effect = [ok({"data": [{"id": PROJECT_ID}]}), ok({"data": []})]
 
-        result = await guidecx.execute_action("update_project", {"project_id": "p1", "name": "x"}, mock_context)
+        result = await guidecx.execute_action("update_project", {"project_id": PROJECT_ID, "name": "x"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "p1" in result.result.message
+        assert PROJECT_ID in result.result.message
 
 
 # ---- create_phase / create_milestone ----
@@ -1281,11 +1394,11 @@ class TestCreatePhase:
         mock_context.fetch.return_value = ok({"data": [{"id": "ph1", "name": "Phase"}]})
 
         result = await guidecx.execute_action(
-            "create_phase", {"project_id": "p1", "name": "Phase", "placement": "at_start"}, mock_context
+            "create_phase", {"project_id": PROJECT_ID, "name": "Phase", "placement": "at_start"}, mock_context
         )
 
         assert result.type == ResultType.ACTION
-        assert fetch_path(mock_context).endswith("/projects/p1/phases")
+        assert fetch_path(mock_context).endswith(f"/projects/{PROJECT_ID}/phases")
         assert fetch_kwargs(mock_context)["json"] == {
             "phases": [{"name": "Phase"}],
             "placement": {"atStart": True},
@@ -1302,7 +1415,7 @@ class TestCreatePhase:
         mock_context.fetch.return_value = ok({"data": [{"id": "ph1"}]})
 
         result = await guidecx.execute_action(
-            "create_phase", {"project_id": "p1", "name": "Phase", "description": "<p>d</p>"}, mock_context
+            "create_phase", {"project_id": PROJECT_ID, "name": "Phase", "description": "<p>d</p>"}, mock_context
         )
 
         assert result.type == ResultType.ACTION
@@ -1331,17 +1444,19 @@ class TestCreateMilestone:
         mock_context.fetch.return_value = ok({"data": [{"id": "m1", "name": "MS"}]})
 
         result = await guidecx.execute_action(
-            "create_milestone", {"project_id": "p1", "phase_id": "ph1", "name": "MS"}, mock_context
+            "create_milestone", {"project_id": PROJECT_ID, "phase_id": "ph1", "name": "MS"}, mock_context
         )
 
         assert result.type == ResultType.ACTION
-        assert fetch_path(mock_context).endswith("/projects/p1/milestones")
+        assert fetch_path(mock_context).endswith(f"/projects/{PROJECT_ID}/milestones")
         sent = fetch_kwargs(mock_context)["json"]["milestones"][0]
         assert sent == {"name": "MS", "phaseId": "ph1"}
 
     @pytest.mark.asyncio
     async def test_missing_phase_id_is_rejected(self, mock_context):
-        result = await guidecx.execute_action("create_milestone", {"project_id": "p1", "name": "MS"}, mock_context)
+        result = await guidecx.execute_action(
+            "create_milestone", {"project_id": PROJECT_ID, "name": "MS"}, mock_context
+        )
 
         assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
@@ -1357,23 +1472,23 @@ class TestCreateTask:
         mock_context.fetch.return_value = ok({"data": [{"id": "t1", "name": "T"}]})
 
         result = await guidecx.execute_action(
-            "create_task", {"project_id": "p1", "milestone_id": "m1", "name": "T"}, mock_context
+            "create_task", {"project_id": PROJECT_ID, "milestone_id": "m1", "name": "T"}, mock_context
         )
 
         assert result.type == ResultType.ACTION
-        assert fetch_path(mock_context).endswith("/projects/p1/tasks")
+        assert fetch_path(mock_context).endswith(f"/projects/{PROJECT_ID}/tasks")
         sent = fetch_kwargs(mock_context)["json"]["tasks"][0]
         assert sent["parentId"] == "m1"
         assert "milestone_id" not in sent
 
     @pytest.mark.asyncio
     async def test_maps_optional_fields(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "t1"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": TASK_ID}]})
 
         await guidecx.execute_action(
             "create_task",
             {
-                "project_id": "p1",
+                "project_id": PROJECT_ID,
                 "milestone_id": "m1",
                 "name": "T",
                 "description": "<p>d</p>",
@@ -1402,7 +1517,7 @@ class TestCreateTask:
 
     @pytest.mark.asyncio
     async def test_missing_milestone_id_is_rejected(self, mock_context):
-        result = await guidecx.execute_action("create_task", {"project_id": "p1", "name": "T"}, mock_context)
+        result = await guidecx.execute_action("create_task", {"project_id": PROJECT_ID, "name": "T"}, mock_context)
 
         assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
@@ -1411,7 +1526,7 @@ class TestCreateTask:
     async def test_invalid_priority_is_rejected(self, mock_context):
         result = await guidecx.execute_action(
             "create_task",
-            {"project_id": "p1", "milestone_id": "m1", "name": "T", "priority": "URGENT"},
+            {"project_id": PROJECT_ID, "milestone_id": "m1", "name": "T", "priority": "URGENT"},
             mock_context,
         )
 
@@ -1427,14 +1542,14 @@ class TestListDependencies:
         # /dependencies has no limit/offset and returns no metadata block.
         mock_context.fetch.return_value = ok({"data": [{"parentId": "a", "dependentId": "b"}]})
 
-        result = await guidecx.execute_action("list_dependencies", {"project_id": "p1"}, mock_context)
+        result = await guidecx.execute_action("list_dependencies", {"project_id": PROJECT_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["count"] == 1
         assert data["dependencies"][0]["parentId"] == "a"
         assert "has_more" not in data
-        assert fetch_params(mock_context) == {"projectId": ["p1"]}
+        assert fetch_params(mock_context) == {"projectId": [PROJECT_ID]}
 
     @pytest.mark.asyncio
     async def test_sends_id_filters(self, mock_context):
@@ -1530,28 +1645,28 @@ class TestClearTagsViaUpdateProject:
 
     @staticmethod
     def upsert_responses(upsert_data):
-        return [ok({"data": [{"id": "p1"}]}), ok({"data": upsert_data})]
+        return [ok({"data": [{"id": PROJECT_ID}]}), ok({"data": upsert_data})]
 
     @pytest.mark.asyncio
     async def test_empty_tags_are_sent_so_tags_can_be_cleared(self, mock_context):
         # Regression: prune() stripped `tags: []` out of the body, which made
         # clearing a project's tags impossible. The API honours an empty array.
-        mock_context.fetch.side_effect = self.upsert_responses([{"id": "p1", "tags": []}])
+        mock_context.fetch.side_effect = self.upsert_responses([{"id": PROJECT_ID, "tags": []}])
 
-        result = await guidecx.execute_action("update_project", {"project_id": "p1", "tags": []}, mock_context)
+        result = await guidecx.execute_action("update_project", {"project_id": PROJECT_ID, "tags": []}, mock_context)
 
         assert result.type == ResultType.ACTION
         sent = fetch_kwargs(mock_context, 1)["json"]["projects"][0]
         assert sent["tags"] == []
-        assert sent["id"] == "p1"
+        assert sent["id"] == PROJECT_ID
 
     @pytest.mark.asyncio
     async def test_empty_tags_alone_counts_as_an_update(self, mock_context):
         # Previously this fell through to "No update fields provided" because
         # the only field had been pruned away.
-        mock_context.fetch.side_effect = self.upsert_responses([{"id": "p1"}])
+        mock_context.fetch.side_effect = self.upsert_responses([{"id": PROJECT_ID}])
 
-        result = await guidecx.execute_action("update_project", {"project_id": "p1", "tags": []}, mock_context)
+        result = await guidecx.execute_action("update_project", {"project_id": PROJECT_ID, "tags": []}, mock_context)
 
         assert result.type == ResultType.ACTION
         assert fetch_kwargs(mock_context, 1)["method"] == "PATCH"
@@ -1559,9 +1674,11 @@ class TestClearTagsViaUpdateProject:
     @pytest.mark.asyncio
     async def test_clearing_tags_alongside_another_field(self, mock_context):
         # Previously the rename succeeded while the tags were silently retained.
-        mock_context.fetch.side_effect = self.upsert_responses([{"id": "p1"}])
+        mock_context.fetch.side_effect = self.upsert_responses([{"id": PROJECT_ID}])
 
-        await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New", "tags": []}, mock_context)
+        await guidecx.execute_action(
+            "update_project", {"project_id": PROJECT_ID, "name": "New", "tags": []}, mock_context
+        )
 
         sent = fetch_kwargs(mock_context, 1)["json"]["projects"][0]
         assert sent["name"] == "New"
@@ -1570,25 +1687,25 @@ class TestClearTagsViaUpdateProject:
     @pytest.mark.asyncio
     async def test_omitting_tags_leaves_them_out_of_the_body(self, mock_context):
         # Omitted means "leave untouched", which is distinct from clearing.
-        mock_context.fetch.side_effect = self.upsert_responses([{"id": "p1"}])
+        mock_context.fetch.side_effect = self.upsert_responses([{"id": PROJECT_ID}])
 
-        await guidecx.execute_action("update_project", {"project_id": "p1", "name": "New"}, mock_context)
+        await guidecx.execute_action("update_project", {"project_id": PROJECT_ID, "name": "New"}, mock_context)
 
         assert "tags" not in fetch_kwargs(mock_context, 1)["json"]["projects"][0]
 
     @pytest.mark.asyncio
     async def test_no_fields_still_errors(self, mock_context):
-        result = await guidecx.execute_action("update_project", {"project_id": "p1"}, mock_context)
+        result = await guidecx.execute_action("update_project", {"project_id": PROJECT_ID}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_empty_tags_on_create_task_are_preserved(self, mock_context):
-        mock_context.fetch.return_value = ok({"data": [{"id": "t1"}]})
+        mock_context.fetch.return_value = ok({"data": [{"id": TASK_ID}]})
 
         await guidecx.execute_action(
-            "create_task", {"project_id": "p1", "milestone_id": "m1", "name": "T", "tags": []}, mock_context
+            "create_task", {"project_id": PROJECT_ID, "milestone_id": "m1", "name": "T", "tags": []}, mock_context
         )
 
         assert fetch_kwargs(mock_context)["json"]["tasks"][0]["tags"] == []

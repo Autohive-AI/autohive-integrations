@@ -1,3 +1,4 @@
+import re
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 
@@ -84,6 +85,33 @@ def prune_body(fields: Dict[str, Any]) -> Dict[str, Any]:
     is a value the API accepts as a deliberate reset here.
     """
     return {key: value for key, value in fields.items() if value is not None and value != ""}
+
+
+# GUIDEcx resource IDs are canonical UUIDs. Anything else in a path segment is
+# not just invalid, it is dangerous: the URL library resolves dot segments
+# before sending, so an "id" of "../projects/PID/members/MID" turns
+#   DELETE /api/v3/webhooks/../projects/PID/members/MID
+# into
+#   DELETE /api/v3/projects/PID/members/MID
+# which crosses the action boundary into an entirely different endpoint.
+#
+# config.json carries the same pattern, but this check is the one that must
+# hold: the SDK validates with Draft7Validator, which enforces "pattern" but
+# ignores "format", and a handler should not depend on schema validation having
+# run at all.
+UUID_PATTERN = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+
+def path_id(value: Any, field: str) -> str:
+    """Return value if it is a canonical UUID, else raise ValueError.
+
+    Use for every caller-supplied value interpolated into a URL path.
+    """
+    if not isinstance(value, str) or not UUID_PATTERN.match(value):
+        raise ValueError(
+            f"'{field}' must be a GUIDEcx UUID (for example 3fa85f64-5717-4562-b3fc-2c963f66afa6), got '{value}'."
+        )
+    return value
 
 
 def build_query(params: Dict[str, Any]) -> str:
@@ -288,7 +316,7 @@ class UpdateTaskAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            project_id = inputs["project_id"]
+            project_id = path_id(inputs["project_id"], "project_id")
             task_id = inputs["task_id"]
 
             # Fields left out of the entry are not modified, so only the ones
@@ -336,7 +364,7 @@ class AddTaskNoteAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            task_id = inputs["task_id"]
+            task_id = path_id(inputs["task_id"], "task_id")
             content = inputs["content"]
             internal_only = bool(inputs.get("internal_only", False))
 
@@ -360,7 +388,7 @@ class GetCustomerAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            customer_id = inputs["customer_id"]
+            customer_id = path_id(inputs["customer_id"], "customer_id")
 
             body = await gcx_fetch(context, "GET", f"/customers/{customer_id}")
 
@@ -409,7 +437,7 @@ class ListProjectMembersAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            project_id = inputs["project_id"]
+            project_id = path_id(inputs["project_id"], "project_id")
             limit, offset = page_args(inputs)
             params = prune(
                 {
@@ -432,8 +460,8 @@ class RemoveProjectMemberAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            project_id = inputs["project_id"]
-            member_id = inputs["member_id"]
+            project_id = path_id(inputs["project_id"], "project_id")
+            member_id = path_id(inputs["member_id"], "member_id")
 
             # A successful delete returns an empty JSON object, so there is
             # nothing to unwrap: reaching this point without raising is success.
@@ -545,7 +573,7 @@ class DeleteWebhookAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            webhook_id = inputs["webhook_id"]
+            webhook_id = path_id(inputs["webhook_id"], "webhook_id")
 
             await gcx_fetch(context, "DELETE", f"/webhooks/{webhook_id}")
 
@@ -614,7 +642,7 @@ class LogTaskTimeAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            task_id = inputs["task_id"]
+            task_id = path_id(inputs["task_id"], "task_id")
 
             body = await gcx_fetch(
                 context,
@@ -640,7 +668,7 @@ class LogProjectTimeAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            project_id = inputs["project_id"]
+            project_id = path_id(inputs["project_id"], "project_id")
 
             body = await gcx_fetch(
                 context,
@@ -797,7 +825,7 @@ class CreatePhaseAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            project_id = inputs["project_id"]
+            project_id = path_id(inputs["project_id"], "project_id")
 
             # Phases have no description field. The spec's phaseUpsertPhaseInput
             # defines only id, name, templateId and position, unlike the
@@ -834,7 +862,7 @@ class CreateMilestoneAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            project_id = inputs["project_id"]
+            project_id = path_id(inputs["project_id"], "project_id")
             milestone = prune_body(
                 {
                     "name": inputs["name"],
@@ -866,7 +894,7 @@ class CreateTaskAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            project_id = inputs["project_id"]
+            project_id = path_id(inputs["project_id"], "project_id")
 
             # `parentId` must be a milestone: a task cannot hang directly off a
             # project, and omitting it fails with

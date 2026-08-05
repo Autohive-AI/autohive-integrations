@@ -111,6 +111,21 @@ would appear to save and then not exist. `create_phase` therefore does not expos
 `at_end`) to control ordering within the parent. The API also supports positional insertion, which is not exposed
 because it requires `sortOrder` values the caller would have to look up first.
 
+### Resource IDs and query filters
+
+Every ID that goes into a URL path is validated as a canonical UUID before the
+request is built. This is not cosmetic: the HTTP client resolves dot segments
+before sending, so an `id` of `../projects/<id>/members/<id>` would turn
+`DELETE /api/v3/webhooks/<id>` into `DELETE /api/v3/projects/<id>/members/<id>`
+and cross into a different endpoint. The check lives in the handlers, with a
+matching `pattern` in `config.json`; note that `"format": "uuid"` alone would do
+nothing, since the SDK validates with Draft 7, which ignores `format`.
+
+List filters are sent as repeated query parameters (`id=a&id=b`), which is what
+`collectionFormat: multi` in the spec requires. The integration builds its own
+query string rather than passing `params` to `context.fetch`, because the SDK
+JSON-encodes list values (`id=["a","b"]`) and GUIDEcx rejects that with HTTP 400.
+
 ### Updating projects
 
 GUIDEcx has no dedicated project-update endpoint. `PATCH /api/v3/projects` is a batch **upsert**: the spec states

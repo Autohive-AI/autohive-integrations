@@ -611,7 +611,8 @@
         "properties": {
           "project_id": {
             "type": "string",
-            "description": "The ID of the project the task belongs to."
+            "description": "The ID of the project the task belongs to.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "task_id": {
             "type": "string",
@@ -710,7 +711,8 @@
         "properties": {
           "task_id": {
             "type": "string",
-            "description": "The ID of the task to post the note to."
+            "description": "The ID of the task to post the note to.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "content": {
             "type": "string",
@@ -754,7 +756,8 @@
         "properties": {
           "customer_id": {
             "type": "string",
-            "description": "The ID of the customer to retrieve."
+            "description": "The ID of the customer to retrieve.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           }
         },
         "required": [
@@ -907,7 +910,8 @@
         "properties": {
           "project_id": {
             "type": "string",
-            "description": "The ID of the project whose team to list."
+            "description": "The ID of the project whose team to list.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "email": {
             "type": "array",
@@ -1056,11 +1060,13 @@
         "properties": {
           "project_id": {
             "type": "string",
-            "description": "The ID of the project to remove the member from."
+            "description": "The ID of the project to remove the member from.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "member_id": {
             "type": "string",
-            "description": "The ID of the member to remove."
+            "description": "The ID of the member to remove.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           }
         },
         "required": [
@@ -1538,7 +1544,8 @@
         "properties": {
           "webhook_id": {
             "type": "string",
-            "description": "The ID of the webhook to delete."
+            "description": "The ID of the webhook to delete.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           }
         },
         "required": [
@@ -1792,7 +1799,8 @@
         "properties": {
           "task_id": {
             "type": "string",
-            "description": "The ID of the task to log time against."
+            "description": "The ID of the task to log time against.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "member_id": {
             "type": "string",
@@ -1881,7 +1889,8 @@
         "properties": {
           "project_id": {
             "type": "string",
-            "description": "The ID of the project to log time against."
+            "description": "The ID of the project to log time against.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "member_id": {
             "type": "string",
@@ -2256,7 +2265,8 @@
         "properties": {
           "project_id": {
             "type": "string",
-            "description": "The ID of the project to add the phase to."
+            "description": "The ID of the project to add the phase to.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "name": {
             "type": "string",
@@ -2333,7 +2343,8 @@
         "properties": {
           "project_id": {
             "type": "string",
-            "description": "The ID of the project the milestone belongs to."
+            "description": "The ID of the project the milestone belongs to.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "phase_id": {
             "type": "string",
@@ -2440,7 +2451,8 @@
         "properties": {
           "project_id": {
             "type": "string",
-            "description": "The ID of the project the task belongs to."
+            "description": "The ID of the project the task belongs to.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "milestone_id": {
             "type": "string",
