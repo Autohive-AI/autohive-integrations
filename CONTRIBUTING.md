@@ -299,3 +299,27 @@ See the SDK's [Integration Structure Reference](https://github.com/autohive-ai/i
 8. **One integration per PR** — keep PRs focused
 
 All CI checks must pass before merge.
+
+## Deployment packages
+
+The `Package integrations for Autohive` workflow packages one, several, or all
+top-level integrations and publishes the ZIPs with an integrity manifest on a
+single GitHub Release. A release is a monorepo deployment batch, not an
+integration version tag: each manifest entry retains its own `config.json`
+version and stable source identity.
+
+The workflow only has GitHub `contents: write` permission. It does not contain
+an Autohive URL or deploy credential. Autohive must pull, verify, and deploy the
+assets from its authenticated Admin UI, and deployment never publishes a
+version to end users.
+
+Pull-request validation remains the quality gate. Release packaging deliberately
+uses HiveUp's `--skip-validate` mode so a later lint-rule change cannot prevent
+repackaging an integration that is already on the protected default branch;
+package structure and entry-point safety checks still run during the build.
+
+Source identity defaults to `config.json`'s `name`, so a folder-only rename is
+safe. Before intentionally changing `name`, add a `source_id` override for that
+folder in `.github/autohive-release.json` to preserve the old identity. The same
+file can request `zip`, `container`, or the default `preserve` package type;
+Autohive applies its own server-side conversion policy before deployment.
