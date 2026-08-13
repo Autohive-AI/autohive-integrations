@@ -39,7 +39,6 @@ jobs:
           repository: Autohive-AI/autohive-integrations-tooling
           ref: 2.5.0
           path: .hiveup-tooling
-          token: ${{ secrets.REPO_ACCESS_TOKEN }}
           persist-credentials: false
 
       - name: Set up Python
