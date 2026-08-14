@@ -11,12 +11,15 @@ import pytest
 
 @pytest.fixture
 def mock_context():
-    """Mock ExecutionContext pre-loaded with Windcave's flat custom-auth credentials."""
+    """Mock ExecutionContext pre-loaded with Windcave's wrapped custom-auth envelope."""
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {
-        "username": "test_user",
-        "api_key": "test_api_key",  # nosec B105
-        "use_test_environment": False,
+        "auth_type": "Custom",
+        "credentials": {
+            "username": "test_user",
+            "api_key": "test_api_key",  # nosec B105
+            "use_test_environment": False,
+        },
     }
     return ctx

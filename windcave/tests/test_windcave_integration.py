@@ -3,37 +3,27 @@ End-to-end integration tests for the Windcave integration.
 
 These tests call the real Windcave REST API against the UAT (test) environment
 and require valid UAT REST API credentials set via WINDCAVE_USERNAME and
-WINDCAVE_API_KEY (in .env or exported). Tests that run a direct transaction
-also require a stored card token set via WINDCAVE_TEST_CARD_ID — obtain one by
-completing a `store_card` session in the UAT environment.
+WINDCAVE_API_KEY (in .env or exported).
 
-Run the safe, read-only tests:
-    pytest windcave/tests/test_windcave_integration.py -m "integration and not destructive"
+This integration is read-only — it exposes a single `get_transaction` action —
+so none of these tests create, modify, or delete data, and there are no
+destructive tests here.
 
-Run destructive tests (creates real sessions/transactions in the UAT environment):
-    pytest windcave/tests/test_windcave_integration.py -m "integration and destructive"
+Run:
+    pytest windcave/tests/test_windcave_integration.py -m integration
 
 Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
-import os
-
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from windcave import windcave
 
 pytestmark = pytest.mark.integration
-
-TEST_CARD_ID = os.environ.get("WINDCAVE_TEST_CARD_ID", "")
-
-
-def require_card_id():
-    if not TEST_CARD_ID:
-        pytest.skip("WINDCAVE_TEST_CARD_ID not set — skipping tests that need a stored card token")
 
 
 @pytest.fixture
@@ -48,202 +38,60 @@ def live_context(env_credentials):
     async def real_fetch(url, *, method="GET", json=None, headers=None, **kwargs):
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=headers) as resp:
-                data = await resp.json(content_type=None)
+                try:
+                    data = await resp.json(content_type=None)
+                except Exception:
+                    data = await resp.text()
+                # Mirror the SDK contract: context.fetch() raises on non-2xx so the
+                # action's try/except surfaces an ActionError. Returning a FetchResponse
+                # for an error status would let an error body masquerade as success data.
+                if not resp.ok:
+                    raise HTTPError(resp.status, str(data), data)
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
-    ctx.auth = {"username": username, "api_key": api_key, "use_test_environment": True}
+    ctx.auth = {
+        "auth_type": "Custom",
+        "credentials": {"username": username, "api_key": api_key, "use_test_environment": True},
+    }
     return ctx
 
 
-# ---- Read-Only / Session Creation Tests ----
-
-
-class TestCreateSession:
-    async def test_creates_purchase_session(self, live_context):
-        result = await windcave.execute_action(
-            "create_session",
-            {
-                "type": "purchase",
-                "amount": 1.00,
-                "currency": "NZD",
-                "merchant_reference": f"AH-IT-{os.getpid()}",
-            },
-            live_context,
-        )
-
-        assert result.type == ResultType.ACTION
-        data = result.result.data
-        assert data["session_id"]
-        assert data["hpp_url"]
-        assert data["result"] is True
-
-    async def test_creates_validate_session_without_amount(self, live_context):
-        result = await windcave.execute_action(
-            "create_session",
-            {
-                "type": "validate",
-                "currency": "NZD",
-                "merchant_reference": f"AH-IT-VALIDATE-{os.getpid()}",
-            },
-            live_context,
-        )
-
-        assert result.type == ResultType.ACTION
-        assert result.result.data["session_id"]
-
-
-class TestGetSession:
-    async def test_fetches_session_just_created(self, live_context):
-        create_result = await windcave.execute_action(
-            "create_session",
-            {
-                "amount": 1.00,
-                "currency": "NZD",
-                "merchant_reference": f"AH-IT-GET-{os.getpid()}",
-            },
-            live_context,
-        )
-        session_id = create_result.result.data["session_id"]
-
-        result = await windcave.execute_action("get_session", {"session_id": session_id}, live_context)
-
-        assert result.type == ResultType.ACTION
-        data = result.result.data
-        assert data["session_id"] == session_id
-        assert "transactions" in data
-
-    async def test_nonexistent_session_returns_action_error(self, live_context):
-        result = await windcave.execute_action(
-            "get_session", {"session_id": "00000000-0000-0000-0000-000000000000"}, live_context
-        )
-
-        assert result.type == ResultType.ACTION_ERROR
-
-
-# ---- Direct Transaction Tests (require a stored card token) ----
-
-
-class TestCreateTransaction:
-    async def test_creates_purchase_transaction(self, live_context):
-        require_card_id()
-
-        result = await windcave.execute_action(
-            "create_transaction",
-            {
-                "amount": 1.00,
-                "currency": "NZD",
-                "merchant_reference": f"AH-IT-TXN-{os.getpid()}",
-                "card_id": TEST_CARD_ID,
-            },
-            live_context,
-        )
-
-        assert result.type == ResultType.ACTION
-        assert result.result.data["transaction_id"]
+# ---- Read-Only Transaction Tests ----
 
 
 class TestGetTransaction:
-    async def test_fetches_transaction_just_created(self, live_context):
-        require_card_id()
-
-        create_result = await windcave.execute_action(
-            "create_transaction",
-            {
-                "amount": 1.00,
-                "currency": "NZD",
-                "merchant_reference": f"AH-IT-TXN-GET-{os.getpid()}",
-                "card_id": TEST_CARD_ID,
-            },
-            live_context,
-        )
-        transaction_id = create_result.result.data["transaction_id"]
-
-        result = await windcave.execute_action("get_transaction", {"transaction_id": transaction_id}, live_context)
-
-        assert result.type == ResultType.ACTION
-        assert result.result.data["transaction_id"] == transaction_id
-
     async def test_nonexistent_transaction_returns_action_error(self, live_context):
+        # A well-formed but unused Windcave transaction id (16 hex chars). Using a
+        # UUID here instead would return 400 "Invalid transaction id" — a malformed
+        # input error — rather than exercising the 404 not-found path.
+        result = await windcave.execute_action("get_transaction", {"transaction_id": "0000001c00000000"}, live_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Transaction not found" in result.result.message
+
+    async def test_malformed_transaction_id_returns_action_error(self, live_context):
         result = await windcave.execute_action(
             "get_transaction", {"transaction_id": "00000000-0000-0000-0000-000000000000"}, live_context
         )
 
         assert result.type == ResultType.ACTION_ERROR
+        assert "Invalid transaction id" in result.result.message
 
+    async def test_fetches_known_transaction(self, live_context):
+        # Fetching a real transaction needs an ID from a transaction that already
+        # exists in the UAT account. This integration can no longer create one, so
+        # supply a known ID via WINDCAVE_TEST_TRANSACTION_ID to exercise the
+        # success path.
+        import os
 
-# ---- Destructive Tests (Write Operations) ----
-# These create, complete, refund, and void real transactions in the UAT environment.
-# Only run with: pytest -m "integration and destructive"
+        transaction_id = os.environ.get("WINDCAVE_TEST_TRANSACTION_ID", "")
+        if not transaction_id:
+            pytest.skip("WINDCAVE_TEST_TRANSACTION_ID not set — skipping success-path test")
 
-
-@pytest.mark.destructive
-class TestRefundTransaction:
-    async def test_refunds_a_purchase(self, live_context):
-        require_card_id()
-
-        purchase = await windcave.execute_action(
-            "create_transaction",
-            {
-                "amount": 1.00,
-                "currency": "NZD",
-                "merchant_reference": f"AH-IT-REFUND-{os.getpid()}",
-                "card_id": TEST_CARD_ID,
-            },
-            live_context,
-        )
-        transaction_id = purchase.result.data["transaction_id"]
-
-        result = await windcave.execute_action("refund_transaction", {"transaction_id": transaction_id}, live_context)
+        result = await windcave.execute_action("get_transaction", {"transaction_id": transaction_id}, live_context)
 
         assert result.type == ResultType.ACTION
-        assert result.result.data["transaction_id"]
-
-
-@pytest.mark.destructive
-class TestCompleteTransaction:
-    async def test_completes_an_auth(self, live_context):
-        require_card_id()
-
-        auth = await windcave.execute_action(
-            "create_transaction",
-            {
-                "type": "auth",
-                "amount": 1.00,
-                "currency": "NZD",
-                "merchant_reference": f"AH-IT-COMPLETE-{os.getpid()}",
-                "card_id": TEST_CARD_ID,
-            },
-            live_context,
-        )
-        transaction_id = auth.result.data["transaction_id"]
-
-        result = await windcave.execute_action("complete_transaction", {"transaction_id": transaction_id}, live_context)
-
-        assert result.type == ResultType.ACTION
-        assert result.result.data["transaction_id"]
-
-
-@pytest.mark.destructive
-class TestVoidTransaction:
-    async def test_voids_an_auth(self, live_context):
-        require_card_id()
-
-        auth = await windcave.execute_action(
-            "create_transaction",
-            {
-                "type": "auth",
-                "amount": 1.00,
-                "currency": "NZD",
-                "merchant_reference": f"AH-IT-VOID-{os.getpid()}",
-                "card_id": TEST_CARD_ID,
-            },
-            live_context,
-        )
-        transaction_id = auth.result.data["transaction_id"]
-
-        result = await windcave.execute_action("void_transaction", {"transaction_id": transaction_id}, live_context)
-
-        assert result.type == ResultType.ACTION
-        assert result.result.data["transaction_id"]
+        assert result.result.data["transaction_id"] == transaction_id
+        assert result.result.data["result"] is True
