@@ -11,6 +11,10 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 ## Integrations
 
+### 15Five
+
+[15five](15five): Connects to the 15Five Public API for performance management data. The integration is primarily read-only: 39 of its 44 actions retrieve users, groups, group types, departments, people attributes, objectives (OKRs) and key results, high fives, check-in reports/answers/questions, priorities, pulse scores, review cycles, 1-on-1s, vacations, and security audit events. The remaining 5 write actions cover everything 15Five's API supports creating — posting a High Five, creating a custom people attribute or setting an attribute value, and creating objectives or priorities. Supports custom authentication with a company subdomain and an API access token (sent as a Bearer token), generated under Settings -> Features -> Integrations -> Public API by a company admin. List actions mirror 15Five's page-number pagination, except `list_priorities`, which the API returns as a bare, unpaginated array. Ideal for performance management reporting, syncing objectives and check-ins with other systems, and recognition/engagement workflows.
+
 ### ActiveCampaign
 
 [active-campaign](active-campaign): ActiveCampaign is an email marketing and CRM platform used by marketing teams to send and manage EDM campaigns. The integration provides 7 actions covering email campaign performance metrics, contact management, contact activity history, and list segmentation. Campaign actions return derived open rate, click rate, and bounce rate calculated from raw send data, making it easy to track and compare performance across sends. Supports custom API key authentication. Ideal for EDM performance analysis, contact engagement tracking, audience segmentation, and marketing reporting workflows.
