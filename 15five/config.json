@@ -1,0 +1,1078 @@
+{
+    "name": "15Five",
+    "display_name": "15Five",
+    "version": "1.0.0",
+    "description": "15Five performance management integration covering users, groups, departments, people attributes, objectives (OKRs), check-ins, high fives, priorities, pulses, review cycles, 1-on-1s, vacations, and security audit events, via the 15Five Public API.",
+    "entry_point": "fifteenfive.py",
+    "auth": {
+        "type": "custom",
+        "title": "15Five API Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "subdomain": {
+                    "type": "string",
+                    "label": "Company Subdomain",
+                    "help_text": "The subdomain of your 15Five workspace, e.g. \"acme\" for https://acme.15five.com."
+                },
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Access Token",
+                    "help_text": "Generate under Settings -> Features -> Integrations -> Public API in 15Five. Sent as a Bearer token."
+                }
+            },
+            "required": ["subdomain", "api_key"]
+        }
+    },
+    "actions": {
+        "list_users": {
+            "display_name": "List Users",
+            "description": "List users in the 15Five company, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "email": {"type": "string", "description": "Filter users by email."},
+                    "employee_id": {"type": "string", "description": "Filter users by employee ID."},
+                    "first_name": {"type": "string", "description": "Filter users by first name."},
+                    "last_name": {"type": "string", "description": "Filter users by last name."},
+                    "location": {"type": "string", "description": "Filter users by location."},
+                    "is_active": {"type": "boolean", "description": "Filter users by active status."},
+                    "is_company_admin": {"type": "boolean", "description": "Filter users by company admin status."},
+                    "created_after": {"type": "string", "description": "Only users created on/after this date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)."},
+                    "created_before": {"type": "string", "description": "Only users created on/before this date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)."},
+                    "updated_after": {"type": "string", "description": "Only users updated on/after this date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)."},
+                    "updated_before": {"type": "string", "description": "Only users updated on/before this date (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)."},
+                    "order_by": {"type": "string", "description": "Field to sort by: id, create_ts, update_ts, email, or employee_id. Prefix with \"-\" to reverse order."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching users."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "users": {"type": "array", "description": "The list of users returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_user": {
+            "display_name": "Get User",
+            "description": "Retrieve a single 15Five user by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": "integer", "description": "The 15Five user ID to retrieve."}
+                },
+                "required": ["user_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "user": {"type": "object", "description": "The full user object returned by 15Five."}
+                }
+            }
+        },
+        "list_groups": {
+            "display_name": "List Groups",
+            "description": "List company groups (e.g. teams and departments), with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name__in": {"type": "array", "items": {"type": "string"}, "description": "Only include groups with one of these names."},
+                    "page": {"type": "integer", "description": "Results page number."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching groups."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "groups": {"type": "array", "description": "The list of groups returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_group": {
+            "display_name": "Get Group",
+            "description": "Retrieve a single company group by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "group_id": {"type": "integer", "description": "The 15Five group ID to retrieve."}
+                },
+                "required": ["group_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "group": {"type": "object", "description": "The full group object returned by 15Five."}
+                }
+            }
+        },
+        "list_group_types": {
+            "display_name": "List Group Types",
+            "description": "List company group types (e.g. \"Departments\", \"Teams\"), with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name_plural": {"type": "string", "description": "Only include group types with this plural name."},
+                    "page": {"type": "integer", "description": "Results page number."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching group types."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "group_types": {"type": "array", "description": "The list of group types returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_group_type": {
+            "display_name": "Get Group Type",
+            "description": "Retrieve a single company group type by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "group_type_id": {"type": "integer", "description": "The 15Five group type ID to retrieve."}
+                },
+                "required": ["group_type_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "group_type": {"type": "object", "description": "The full group type object returned by 15Five."}
+                }
+            }
+        },
+        "list_departments": {
+            "display_name": "List Departments",
+            "description": "List company departments, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Only include departments with this name."},
+                    "page": {"type": "integer", "description": "Results page number."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching departments."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "departments": {"type": "array", "description": "The list of departments returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_department": {
+            "display_name": "Get Department",
+            "description": "Retrieve a single company department by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "department_id": {"type": "integer", "description": "The 15Five department ID to retrieve."}
+                },
+                "required": ["department_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "department": {"type": "object", "description": "The full department object returned by 15Five."}
+                }
+            }
+        },
+        "get_feature_status": {
+            "display_name": "Get Feature Status",
+            "description": "Retrieve which optional 15Five features (e.g. Pulse, demographic attributes) are enabled for the company.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "feature_status": {"type": "object", "description": "The feature status object returned by 15Five."}
+                }
+            }
+        },
+        "list_attributes": {
+            "display_name": "List People Attributes",
+            "description": "List custom people attribute definitions, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {
+                        "type": "string",
+                        "enum": ["id", "name", "slug", "datatype", "create_ts", "update_ts"],
+                        "description": "Field to sort by. Prefix with \"-\" to reverse order."
+                    },
+                    "created_after": {"type": "string", "description": "Only attributes created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only attributes created on/before this date."},
+                    "updated_after": {"type": "string", "description": "Only attributes updated on/after this date."},
+                    "updated_before": {"type": "string", "description": "Only attributes updated on/before this date."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching attributes."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "attributes": {"type": "array", "description": "The list of people attribute definitions returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_attribute": {
+            "display_name": "Get People Attribute",
+            "description": "Retrieve a single custom people attribute definition by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "attribute_id": {"type": "integer", "description": "The 15Five people attribute ID to retrieve."}
+                },
+                "required": ["attribute_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "attribute": {"type": "object", "description": "The full people attribute object returned by 15Five."}
+                }
+            }
+        },
+        "create_attribute": {
+            "display_name": "Create People Attribute",
+            "description": "Create a new custom people attribute definition.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the people attribute."},
+                    "datatype": {"type": "string", "enum": ["text", "date"], "description": "Datatype for the people attribute."}
+                },
+                "required": ["name", "datatype"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "attribute": {"type": "object", "description": "The created people attribute object returned by 15Five."}
+                }
+            }
+        },
+        "list_attribute_values": {
+            "display_name": "List People Attribute Values",
+            "description": "List values set for custom people attributes, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {
+                        "type": "string",
+                        "enum": ["id", "create_ts", "update_ts"],
+                        "description": "Field to sort by. Prefix with \"-\" to reverse order."
+                    },
+                    "created_after": {"type": "string", "description": "Only attribute values created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only attribute values created on/before this date."},
+                    "updated_after": {"type": "string", "description": "Only attribute values updated on/after this date."},
+                    "updated_before": {"type": "string", "description": "Only attribute values updated on/before this date."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching attribute values."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "attribute_values": {"type": "array", "description": "The list of people attribute values returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_attribute_value": {
+            "display_name": "Get People Attribute Value",
+            "description": "Retrieve a single people attribute value by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "attribute_value_id": {"type": "integer", "description": "The 15Five people attribute value ID to retrieve."}
+                },
+                "required": ["attribute_value_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "attribute_value": {"type": "object", "description": "The full people attribute value object returned by 15Five."}
+                }
+            }
+        },
+        "create_attribute_value": {
+            "display_name": "Create People Attribute Value",
+            "description": "Set a value for a custom people attribute on a user.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Name of the people attribute to set a value for."},
+                    "value": {"type": "string", "description": "Value to set for the people attribute."},
+                    "user_id": {"type": "integer", "description": "User ID to set the value for. Defaults to the API key's owner if omitted."}
+                },
+                "required": ["name", "value"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "attribute_value": {"type": "object", "description": "The created people attribute value object returned by 15Five."}
+                }
+            }
+        },
+        "list_objectives": {
+            "display_name": "List Objectives",
+            "description": "List objectives (OKRs), with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": "integer", "description": "Only include person-specific objectives for this user ID."},
+                    "parent_id": {"type": "integer", "description": "Only include objectives whose parent has this ID."},
+                    "department_id": {"type": "integer", "description": "Only include objectives for this department ID."},
+                    "scope": {
+                        "type": "string",
+                        "enum": ["company-wide", "group-type", "individual", "self-development"],
+                        "description": "Only include objectives with this scope."
+                    },
+                    "state": {
+                        "type": "string",
+                        "enum": ["active", "future", "archived", "closed"],
+                        "description": "Only include objectives with this state."
+                    },
+                    "color": {
+                        "type": "string",
+                        "enum": ["green", "yellow", "red", "undefined"],
+                        "description": "Only include objectives with this current status color."
+                    },
+                    "start_after": {"type": "string", "description": "Only objectives with a start date on/after this date (YYYY-MM-DD)."},
+                    "end_before": {"type": "string", "description": "Only objectives with an end date on/before this date (YYYY-MM-DD)."},
+                    "created_after": {"type": "string", "description": "Only objectives created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only objectives created on/before this date."},
+                    "updated_after": {"type": "string", "description": "Only objectives updated on/after this date."},
+                    "updated_before": {"type": "string", "description": "Only objectives updated on/before this date."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {"type": "string", "description": "Field to sort by: id, end_ts, create_ts, update_ts, or sort_order. Prefix with \"-\" to reverse order. Defaults to \"end_ts,sort_order,id\"."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching objectives."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "objectives": {"type": "array", "description": "The list of objectives returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_objective": {
+            "display_name": "Get Objective",
+            "description": "Retrieve a single objective (OKR) by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "objective_id": {"type": "integer", "description": "The 15Five objective ID to retrieve."}
+                },
+                "required": ["objective_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "objective": {"type": "object", "description": "The full objective object returned by 15Five, including its nested key_results."}
+                }
+            }
+        },
+        "create_objectives": {
+            "display_name": "Create Objectives",
+            "description": "Create one or more objectives (OKRs) in a single request.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "objectives": {
+                        "type": "array",
+                        "description": "The objectives to create.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "description": {"type": "string", "description": "Objective's description."},
+                                "start_ts": {"type": "string", "description": "Objective's start date."},
+                                "end_ts": {"type": "string", "description": "Objective's end date."},
+                                "scope": {
+                                    "type": "string",
+                                    "enum": ["company-wide", "group-type", "individual", "self-development"],
+                                    "description": "Objective's scope."
+                                },
+                                "user_id": {"type": "integer", "description": "Objective's owner user ID."},
+                                "parent_id": {"type": "integer", "description": "Parent objective ID, if any."},
+                                "visibility": {"type": "string", "enum": ["public", "report", "custom"], "description": "Objective's visibility."},
+                                "tags": {"type": "array", "items": {"type": "string"}, "description": "Tags to apply to the objective."},
+                                "group_id": {"type": "integer", "description": "Associated group ID, for group-type scope."},
+                                "weight": {"type": "number", "description": "Objective's weight."},
+                                "key_results": {
+                                    "type": "array",
+                                    "description": "Key results to create alongside the objective.",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "description": {"type": "string", "description": "Key result's description."},
+                                            "type": {"type": "string", "enum": ["currency", "boolean", "number", "percent"], "description": "Type of key result."},
+                                            "start_value": {"type": "number", "description": "Start value."},
+                                            "target_value": {"type": "number", "description": "Target value."}
+                                        },
+                                        "required": ["description"]
+                                    }
+                                }
+                            },
+                            "required": ["description", "start_ts", "end_ts", "scope", "user_id"]
+                        }
+                    }
+                },
+                "required": ["objectives"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "objectives": {"type": "array", "description": "The created objective objects returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "list_objective_history": {
+            "display_name": "List Objective History",
+            "description": "List change history events across all objectives, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "created_after": {"type": "string", "description": "Only history created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only history created on/before this date."},
+                    "updated_after": {"type": "string", "description": "Only history updated on/after this date."},
+                    "updated_before": {"type": "string", "description": "Only history updated on/before this date."},
+                    "order_by": {
+                        "type": "string",
+                        "enum": ["create_ts", "update_ts", "-create_ts", "-update_ts"],
+                        "description": "Field to sort by."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching history events."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "history": {"type": "array", "description": "The list of objective history events returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_objective_history": {
+            "display_name": "Get Objective History",
+            "description": "Retrieve the change history for a single objective by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "objective_id": {"type": "integer", "description": "The 15Five objective ID to retrieve history for."},
+                    "created_after": {"type": "string", "description": "Only history created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only history created on/before this date."},
+                    "updated_after": {"type": "string", "description": "Only history updated on/after this date."},
+                    "updated_before": {"type": "string", "description": "Only history updated on/before this date."},
+                    "order_by": {
+                        "type": "string",
+                        "enum": ["create_ts", "update_ts", "-create_ts", "-update_ts"],
+                        "description": "Field to sort by."
+                    }
+                },
+                "required": ["objective_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "history": {"type": "array", "description": "The objective's change history events returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "list_key_results": {
+            "display_name": "List Key Results",
+            "description": "List the key results belonging to a single objective. 15Five does not expose a standalone key results list, so this reads them from the objective's own record.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "objective_id": {"type": "integer", "description": "The 15Five objective ID whose key results should be listed."}
+                },
+                "required": ["objective_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "key_results": {"type": "array", "description": "The objective's key results.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "list_high_fives": {
+            "display_name": "List High Fives",
+            "description": "List High Five peer recognition posts, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "report_id": {"type": "integer", "description": "Only include high fives within the check-in report with this ID."},
+                    "receiver_id": {"type": "integer", "description": "Only include high fives received by the user with this ID."},
+                    "created_on_start": {"type": "string", "description": "Only high fives created on/after this date time (YYYY-MM-DD HH:MM:SS)."},
+                    "created_on_end": {"type": "string", "description": "Only high fives created on/before this date time (YYYY-MM-DD HH:MM:SS)."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {"type": "string", "description": "Field to sort by: id, report, or create_ts. Prefix with \"-\" to reverse order. Defaults to \"create_ts\"."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching high fives."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "high_fives": {"type": "array", "description": "The list of high fives returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_high_five": {
+            "display_name": "Get High Five",
+            "description": "Retrieve a single High Five recognition post by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "high_five_id": {"type": "integer", "description": "The 15Five high five ID to retrieve."}
+                },
+                "required": ["high_five_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "high_five": {"type": "object", "description": "The full high five object returned by 15Five."}
+                }
+            }
+        },
+        "create_high_five": {
+            "display_name": "Create High Five",
+            "description": "Post a new High Five recognition. The text should include an @mention of the recipient(s) and/or their email(s).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "description": "The High Five's content, including @mentions of the recipient(s)."},
+                    "creator_id": {"type": "integer", "description": "The 15Five user ID of the person creating the High Five."}
+                },
+                "required": ["text", "creator_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "high_five": {"type": "object", "description": "The created high five object returned by 15Five."}
+                }
+            }
+        },
+        "list_reports": {
+            "display_name": "List Check-in Reports",
+            "description": "List weekly/periodic check-in reports, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": "integer", "description": "Only include check-ins submitted by this user ID."},
+                    "due_date_start": {"type": "string", "description": "Only check-ins with a due date on/after this date (YYYY-MM-DD)."},
+                    "due_date_end": {"type": "string", "description": "Only check-ins with a due date on/before this date (YYYY-MM-DD)."},
+                    "created_after": {"type": "string", "description": "Only check-ins created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only check-ins created on/before this date."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {"type": "string", "description": "Field to sort by: id, user, or due_date. Prefix with \"-\" to reverse order. Defaults to \"-id\"."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching check-ins."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "reports": {"type": "array", "description": "The list of check-in reports returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_report": {
+            "display_name": "Get Check-in Report",
+            "description": "Retrieve a single check-in report by ID, including its questions, answers, comments, and goals.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "report_id": {"type": "integer", "description": "The 15Five check-in report ID to retrieve."}
+                },
+                "required": ["report_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "report": {"type": "object", "description": "The full check-in report object returned by 15Five."}
+                }
+            }
+        },
+        "list_answers": {
+            "display_name": "List Check-in Answers",
+            "description": "List answers submitted to check-in questions, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "question_id": {"type": "integer", "description": "Only include answers for this question ID."},
+                    "user_id": {"type": "integer", "description": "Only include answers given by this user ID."},
+                    "created_on_start": {"type": "string", "description": "Only answers created on/after this date time (YYYY-MM-DD HH:MM:SS)."},
+                    "created_on_end": {"type": "string", "description": "Only answers created on/before this date time (YYYY-MM-DD HH:MM:SS)."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {"type": "string", "description": "Field to sort by: id, user, question, or create_ts. Prefix with \"-\" to reverse order. Defaults to \"create_ts\"."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching answers."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "answers": {"type": "array", "description": "The list of check-in answers returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_answer": {
+            "display_name": "Get Check-in Answer",
+            "description": "Retrieve a single check-in answer by ID, including its comments and goal status.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "answer_id": {"type": "integer", "description": "The 15Five answer ID to retrieve."}
+                },
+                "required": ["answer_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "answer": {"type": "object", "description": "The full answer object returned by 15Five."}
+                }
+            }
+        },
+        "list_questions": {
+            "display_name": "List Check-in Questions",
+            "description": "List check-in question templates, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": "integer", "description": "Only include person-specific questions for this user ID."},
+                    "group_id": {"type": "integer", "description": "Only include group-specific questions for this group ID."},
+                    "created_after": {"type": "string", "description": "Only questions created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only questions created on/before this date."},
+                    "updated_after": {"type": "string", "description": "Only questions updated on/after this date."},
+                    "updated_before": {"type": "string", "description": "Only questions updated on/before this date."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {"type": "string", "description": "Field to sort by. Defaults to \"id\". Prefix with \"-\" to reverse order."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching questions."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "questions": {"type": "array", "description": "The list of check-in questions returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_question": {
+            "display_name": "Get Check-in Question",
+            "description": "Retrieve a single check-in question template by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "question_id": {"type": "integer", "description": "The 15Five question ID to retrieve."}
+                },
+                "required": ["question_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "object", "description": "The full question object returned by 15Five."}
+                }
+            }
+        },
+        "list_priorities": {
+            "display_name": "List Priorities",
+            "description": "List check-in priorities, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user_id": {"type": "integer", "description": "Only include priorities for this user ID."},
+                    "manager_id": {"type": "integer", "description": "Only include priorities managed by this user ID."},
+                    "group_id": {"type": "integer", "description": "Only include priorities for users in this group ID."},
+                    "include_past_checkins": {"type": "boolean", "description": "Include priorities from past check-ins rather than just the current one."},
+                    "created_after": {"type": "string", "description": "Only priorities created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only priorities created on/before this date."},
+                    "updated_after": {"type": "string", "description": "Only priorities updated on/after this date."},
+                    "updated_before": {"type": "string", "description": "Only priorities updated on/before this date."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {
+                        "type": "string",
+                        "enum": ["id", "create_ts", "update_ts", "email", "employee_id"],
+                        "description": "Field to sort by. Prefix with \"-\" to reverse order."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "priorities": {"type": "array", "description": "The list of priorities returned by 15Five. This endpoint is not paginated.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "create_priorities": {
+            "display_name": "Create Priorities",
+            "description": "Create one or more check-in priorities in a single request.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "priorities": {
+                        "type": "array",
+                        "description": "The priorities to create.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "user_id": {"type": "integer", "description": "ID of the user for whom the priority will be created."},
+                                "text": {"type": "string", "description": "Priority's description."}
+                            },
+                            "required": ["user_id", "text"]
+                        }
+                    }
+                },
+                "required": ["priorities"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "priorities": {"type": "array", "description": "The created priority objects returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "list_pulses": {
+            "display_name": "List Pulse Scores",
+            "description": "List submitted employee Pulse (engagement) scores, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "report_id": {"type": "integer", "description": "Only include pulse values for this check-in report ID."},
+                    "user_id": {"type": "integer", "description": "Only include pulse values given by this user ID."},
+                    "created_on_start": {"type": "string", "description": "Only pulse values created on/after this date time (YYYY-MM-DD HH:MM:SS)."},
+                    "created_on_end": {"type": "string", "description": "Only pulse values created on/before this date time (YYYY-MM-DD HH:MM:SS)."},
+                    "created_after": {"type": "string", "description": "Only pulse values created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only pulse values created on/before this date."},
+                    "updated_after": {"type": "string", "description": "Only pulse values updated on/after this date."},
+                    "updated_before": {"type": "string", "description": "Only pulse values updated on/before this date."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {
+                        "type": "string",
+                        "enum": ["id", "create_ts", "update_ts"],
+                        "description": "Field to sort by. Prefix with \"-\" to reverse order."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching pulse values."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "pulses": {"type": "array", "description": "The list of pulse values returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_pulse": {
+            "display_name": "Get Pulse Score",
+            "description": "Retrieve a single Pulse score by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "pulse_id": {"type": "integer", "description": "The 15Five pulse ID to retrieve."}
+                },
+                "required": ["pulse_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "pulse": {"type": "object", "description": "The full pulse object returned by 15Five."}
+                }
+            }
+        },
+        "list_review_cycles": {
+            "display_name": "List Review Cycles",
+            "description": "List performance review cycles, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "created_on_start": {"type": "string", "description": "Only review cycles created on/after this date time (YYYY-MM-DD HH:MM:SS)."},
+                    "created_on_end": {"type": "string", "description": "Only review cycles created on/before this date time (YYYY-MM-DD HH:MM:SS)."},
+                    "started_on_start": {"type": "string", "description": "Only review cycles with an actual start date on/after this date time."},
+                    "started_on_end": {"type": "string", "description": "Only review cycles with an actual start date on/before this date time."},
+                    "ended_on_start": {"type": "string", "description": "Only review cycles with an end date on/after this date time."},
+                    "ended_on_end": {"type": "string", "description": "Only review cycles with an end date on/before this date time."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {"type": "string", "description": "Field to sort by. Defaults to \"id\". Prefix with \"-\" to reverse order."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching review cycles."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "review_cycles": {"type": "array", "description": "The list of review cycles returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_review_cycle": {
+            "display_name": "Get Review Cycle",
+            "description": "Retrieve a single performance review cycle by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "review_cycle_id": {"type": "integer", "description": "The 15Five review cycle ID to retrieve."}
+                },
+                "required": ["review_cycle_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "review_cycle": {"type": "object", "description": "The full review cycle object returned by 15Five."}
+                }
+            }
+        },
+        "list_review_cycle_participants": {
+            "display_name": "List Review Cycle Participants",
+            "description": "List the participants of a review cycle, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "review_cycle_id": {"type": "integer", "description": "The 15Five review cycle ID."},
+                    "user_id": {"type": "integer", "description": "Only include the participant with this user ID."},
+                    "group_id": {"type": "integer", "description": "Only include participants in this group ID."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {
+                        "type": "string",
+                        "enum": ["id", "create_ts", "update_ts", "hierarchy_update_ts"],
+                        "description": "Field to sort by. Prefix with \"-\" to reverse order."
+                    }
+                },
+                "required": ["review_cycle_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching participants."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "participants": {"type": "array", "description": "The list of review cycle participants returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "list_review_cycle_results_answers": {
+            "display_name": "List Review Cycle Question Answers",
+            "description": "Retrieve the questions and answers submitted within a review cycle, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "review_cycle_id": {"type": "integer", "description": "The 15Five review cycle ID."},
+                    "section_type": {"type": "string", "description": "Only include questions from this section type."},
+                    "participating_user_id": {"type": "integer", "description": "Only include questions for this participating user ID."},
+                    "manager_id": {"type": "integer", "description": "Only include questions for participants managed by this user ID."},
+                    "question_id": {"type": "integer", "description": "Only include this question ID."},
+                    "page": {"type": "integer", "description": "Results page number."}
+                },
+                "required": ["review_cycle_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching results."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "results": {"type": "object", "description": "The review cycle's questions and answers, grouped by participants/authors/questions as returned by 15Five."}
+                }
+            }
+        },
+        "list_review_cycle_results_performance_measurements": {
+            "display_name": "List Review Cycle Performance Measurements",
+            "description": "Retrieve the performance measurements calculated for a review cycle, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "review_cycle_id": {"type": "integer", "description": "The 15Five review cycle ID."},
+                    "user_id": {"type": "integer", "description": "Only include measurements for this user ID."},
+                    "manager_id": {"type": "integer", "description": "Only include measurements for participants managed by this user ID."},
+                    "group_id": {"type": "integer", "description": "Only include measurements for participants in this group ID."},
+                    "definition_type": {"type": "string", "description": "Only include measurements of this definition type."},
+                    "page": {"type": "integer", "description": "Results page number."}
+                },
+                "required": ["review_cycle_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching participants."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "performance_measurements": {"type": "array", "description": "The list of per-participant performance measurements returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "list_reviews": {
+            "display_name": "List Reviews",
+            "description": "List individual reviews (with their answers) within a review cycle, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "review_cycle_id": {"type": "integer", "description": "The 15Five review cycle ID."},
+                    "user_id": {"type": "integer", "description": "Only include reviews for this user ID."},
+                    "due_date_start": {"type": "string", "description": "Only reviews with a due date on/after this date (YYYY-MM-DD)."},
+                    "due_date_end": {"type": "string", "description": "Only reviews with a due date on/before this date (YYYY-MM-DD)."},
+                    "is_complete": {"type": "boolean", "description": "Filter by whether the review is complete."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {
+                        "type": "string",
+                        "enum": ["id", "create_ts", "update_ts", "hierarchy_update_ts"],
+                        "description": "Field to sort by. Prefix with \"-\" to reverse order."
+                    }
+                },
+                "required": ["review_cycle_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching reviews."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "reviews": {"type": "array", "description": "The list of reviews returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "list_one_on_ones": {
+            "display_name": "List 1-on-1s",
+            "description": "List 1-on-1 meetings, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["Manager-Reporter", "Non-Manager-Reporter"],
+                        "description": "Include only 1-on-1s between a manager and their direct reporter, or only those that are not."
+                    },
+                    "is_draft": {"type": "boolean", "description": "Filter by draft status."},
+                    "group_id": {"type": "integer", "description": "Only include 1-on-1s where a participant is a member of this group ID."},
+                    "user_id": {"type": "integer", "description": "Only include 1-on-1s where this user ID is a participant."},
+                    "created_on_start": {"type": "string", "description": "Only 1-on-1s created on/after this date time."},
+                    "created_on_end": {"type": "string", "description": "Only 1-on-1s created on/before this date time."},
+                    "scheduled_on_start": {"type": "string", "description": "Only 1-on-1s scheduled on/after this date time."},
+                    "scheduled_on_end": {"type": "string", "description": "Only 1-on-1s scheduled on/before this date time."},
+                    "page": {"type": "integer", "description": "Results page number."}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching 1-on-1s."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "one_on_ones": {"type": "array", "description": "The list of 1-on-1s returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "get_one_on_one": {
+            "display_name": "Get 1-on-1",
+            "description": "Retrieve a single 1-on-1 meeting by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "one_on_one_id": {"type": "integer", "description": "The 15Five 1-on-1 ID to retrieve."}
+                },
+                "required": ["one_on_one_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "one_on_one": {"type": "object", "description": "The full 1-on-1 object returned by 15Five."}
+                }
+            }
+        },
+        "list_vacations": {
+            "display_name": "List Vacations",
+            "description": "List recorded user vacations, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "user": {"type": "array", "items": {"type": "integer"}, "description": "Only include vacations for these user IDs."},
+                    "created_after": {"type": "string", "description": "Only vacations created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only vacations created on/before this date."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {
+                        "type": "string",
+                        "enum": ["id", "create_ts", "user", "start_dt", "end_dt"],
+                        "description": "Field to sort by. Prefix with \"-\" to reverse order."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching vacations."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "vacations": {"type": "array", "description": "The list of vacations returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        },
+        "list_security_audit": {
+            "display_name": "List Security Audit Events",
+            "description": "List security audit log events for the company, with optional filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "actor_id": {"type": "integer", "description": "Only include events performed by this user ID."},
+                    "created_after": {"type": "string", "description": "Only events created on/after this date."},
+                    "created_before": {"type": "string", "description": "Only events created on/before this date."},
+                    "page": {"type": "integer", "description": "Results page number."},
+                    "order_by": {
+                        "type": "string",
+                        "enum": ["id", "create_ts", "actor", "type"],
+                        "description": "Field to sort by. Prefix with \"-\" to reverse order."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "count": {"type": "integer", "description": "Total number of matching events."},
+                    "next": {"type": ["string", "null"], "description": "URL of the next page of results, if any."},
+                    "previous": {"type": ["string", "null"], "description": "URL of the previous page of results, if any."},
+                    "events": {"type": "array", "description": "The list of security audit events returned by 15Five.", "items": {"type": "object"}}
+                }
+            }
+        }
+    }
+}
