@@ -1,7 +1,7 @@
 {
     "name": "Gmail",
     "display_name": "Gmail",
-    "version": "2.1.0",
+    "version": "2.3.0",
     "description": "Send, read, and manage emails with labels and threads.",
     "entry_point": "gmail.py",
     "auth": {
@@ -45,6 +45,18 @@
                             "type": "string",
                             "description": "Email address to CC"
                         }
+                    },
+                    "bcc": {
+                        "type": "array",
+                        "description": "The email addresses to BCC in the reply",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address to BCC"
+                        }
+                    },
+                    "subject": {
+                        "type": "string",
+                        "description": "Optional subject for the reply. When omitted, the original thread's subject is reused with a \"Re: \" prefix added if it does not already have one."
                     },
                     "body": {
                         "type": "string",
@@ -346,6 +358,14 @@
                         "items": {
                             "type": "string",
                             "description": "Email address to CC"
+                        }
+                    },
+                    "bcc": {
+                        "type": "array",
+                        "description": "The email addresses to BCC",
+                        "items": {
+                            "type": "string",
+                            "description": "Email address to BCC"
                         }
                     },
                     "subject": {

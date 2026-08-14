@@ -1,7 +1,7 @@
 {
   "name": "GitLab",
   "display_name": "GitLab",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Integration with GitLab for accessing projects, issues, merge requests, branches, pipelines, repositories, and container registry",
   "entry_point": "gitlab.py",
   "auth": {
@@ -31,10 +31,6 @@
           "user": {
             "type": "object",
             "description": "User information including id, username, email, name, avatar_url"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -90,10 +86,6 @@
           "projects": {
             "type": "array",
             "description": "List of projects"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -113,7 +105,9 @@
             "description": "Include project statistics (commit count, storage size, etc.)"
           }
         },
-        "required": ["project_id"]
+        "required": [
+          "project_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -121,10 +115,6 @@
           "project": {
             "type": "object",
             "description": "Project details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -208,10 +198,6 @@
           "issues": {
             "type": "array",
             "description": "List of issues"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -231,7 +217,10 @@
             "description": "The internal ID of the issue (shown in the URL as #123)"
           }
         },
-        "required": ["project_id", "issue_iid"]
+        "required": [
+          "project_id",
+          "issue_iid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -239,10 +228,6 @@
           "issue": {
             "type": "object",
             "description": "Issue details including title, description, state, labels, assignees"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -338,10 +323,6 @@
           "merge_requests": {
             "type": "array",
             "description": "List of merge requests"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -369,7 +350,10 @@
             "description": "Include whether a rebase is in progress"
           }
         },
-        "required": ["project_id", "merge_request_iid"]
+        "required": [
+          "project_id",
+          "merge_request_iid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -377,10 +361,6 @@
           "merge_request": {
             "type": "object",
             "description": "Merge request details including source/target branches, state, approvals"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -400,7 +380,10 @@
             "description": "The internal ID of the merge request"
           }
         },
-        "required": ["project_id", "merge_request_iid"]
+        "required": [
+          "project_id",
+          "merge_request_iid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -408,10 +391,6 @@
           "changes": {
             "type": "array",
             "description": "List of file changes with diffs"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -439,7 +418,10 @@
             "description": "Page number for pagination"
           }
         },
-        "required": ["project_id", "merge_request_iid"]
+        "required": [
+          "project_id",
+          "merge_request_iid"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -447,10 +429,6 @@
           "commits": {
             "type": "array",
             "description": "List of commits in the merge request"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -482,7 +460,9 @@
             "description": "Page number for pagination"
           }
         },
-        "required": ["project_id"]
+        "required": [
+          "project_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -490,10 +470,6 @@
           "branches": {
             "type": "array",
             "description": "List of branches with name, commit info, and protection status"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -513,7 +489,10 @@
             "description": "Name of the branch"
           }
         },
-        "required": ["project_id", "branch"]
+        "required": [
+          "project_id",
+          "branch"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -521,10 +500,6 @@
           "branch": {
             "type": "object",
             "description": "Branch details including commit, protected status, and merge status"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -580,7 +555,9 @@
             "description": "Page number for pagination"
           }
         },
-        "required": ["project_id"]
+        "required": [
+          "project_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -588,10 +565,6 @@
           "commits": {
             "type": "array",
             "description": "List of commits with id, message, author, date"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -615,7 +588,10 @@
             "description": "Include commit stats (additions, deletions, total)"
           }
         },
-        "required": ["project_id", "sha"]
+        "required": [
+          "project_id",
+          "sha"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -623,10 +599,6 @@
           "commit": {
             "type": "object",
             "description": "Commit details including message, author, stats, parent_ids"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -654,7 +626,10 @@
             "description": "Page number for pagination"
           }
         },
-        "required": ["project_id", "sha"]
+        "required": [
+          "project_id",
+          "sha"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -662,10 +637,6 @@
           "diffs": {
             "type": "array",
             "description": "List of file diffs with old_path, new_path, diff content"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -725,7 +696,9 @@
             "description": "Page number for pagination"
           }
         },
-        "required": ["project_id"]
+        "required": [
+          "project_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -733,10 +706,6 @@
           "pipelines": {
             "type": "array",
             "description": "List of pipelines with id, status, ref, sha, created_at"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -756,7 +725,10 @@
             "description": "The ID of the pipeline"
           }
         },
-        "required": ["project_id", "pipeline_id"]
+        "required": [
+          "project_id",
+          "pipeline_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -764,10 +736,6 @@
           "pipeline": {
             "type": "object",
             "description": "Pipeline details including status, duration, coverage, user"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -803,7 +771,10 @@
             "description": "Page number for pagination"
           }
         },
-        "required": ["project_id", "pipeline_id"]
+        "required": [
+          "project_id",
+          "pipeline_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -811,10 +782,6 @@
           "jobs": {
             "type": "array",
             "description": "List of jobs with name, stage, status, duration"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -850,7 +817,9 @@
             "description": "Page number for pagination"
           }
         },
-        "required": ["project_id"]
+        "required": [
+          "project_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -858,10 +827,6 @@
           "tree": {
             "type": "array",
             "description": "List of files and directories with id, name, type, path, mode"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -885,7 +850,11 @@
             "description": "Branch name, tag, or commit SHA"
           }
         },
-        "required": ["project_id", "file_path", "ref"]
+        "required": [
+          "project_id",
+          "file_path",
+          "ref"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -893,10 +862,6 @@
           "file": {
             "type": "object",
             "description": "File metadata (file_name, file_path, size, encoding) and base64-encoded content"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -920,7 +885,11 @@
             "description": "Branch name, tag, or commit SHA"
           }
         },
-        "required": ["project_id", "file_path", "ref"]
+        "required": [
+          "project_id",
+          "file_path",
+          "ref"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -928,10 +897,6 @@
           "content": {
             "type": "string",
             "description": "Raw file content as text"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -959,7 +924,11 @@
             "description": "Compare directly (true) or via merge-base (false, default)"
           }
         },
-        "required": ["project_id", "from", "to"]
+        "required": [
+          "project_id",
+          "from",
+          "to"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -967,10 +936,6 @@
           "comparison": {
             "type": "object",
             "description": "Comparison result with commits array and diffs array"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -1002,7 +967,9 @@
             "description": "Page number for pagination"
           }
         },
-        "required": ["project_id"]
+        "required": [
+          "project_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -1010,10 +977,6 @@
           "repositories": {
             "type": "array",
             "description": "List of container registry repositories"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -1041,7 +1004,10 @@
             "description": "Include tags count in the response"
           }
         },
-        "required": ["project_id", "repository_id"]
+        "required": [
+          "project_id",
+          "repository_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -1049,10 +1015,6 @@
           "repository": {
             "type": "object",
             "description": "Container registry repository details"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -1080,7 +1042,10 @@
             "description": "Page number for pagination"
           }
         },
-        "required": ["project_id", "repository_id"]
+        "required": [
+          "project_id",
+          "repository_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -1088,10 +1053,6 @@
           "tags": {
             "type": "array",
             "description": "List of container image tags"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }
@@ -1115,7 +1076,11 @@
             "description": "Name of the tag (e.g., 'latest', 'v1.0.0')"
           }
         },
-        "required": ["project_id", "repository_id", "tag_name"]
+        "required": [
+          "project_id",
+          "repository_id",
+          "tag_name"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -1123,10 +1088,6 @@
           "tag": {
             "type": "object",
             "description": "Tag details including name, path, location, digest, created_at"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Operation success status"
           }
         }
       }

@@ -25,7 +25,14 @@ class TestGetRecentTickets:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"results": [{"id": "t-1", "properties": {"subject": "Issue A"}}]},
+            data={
+                "results": [
+                    {
+                        "id": "t-1",
+                        "properties": {"subject": "Issue A", "hubspot_owner_id": "owner-123"},
+                    }
+                ]
+            },
         )
 
         result = await hubspot.execute_action("get_recent_tickets", {}, mock_context)
@@ -33,6 +40,7 @@ class TestGetRecentTickets:
         data = result.result.data
         assert "tickets" in data
         assert data["tickets"]["results"][0]["id"] == "t-1"
+        assert data["tickets"]["results"][0]["properties"]["hubspot_owner_id"] == "owner-123"
 
         call_kwargs = mock_context.fetch.call_args
         assert call_kwargs.args[0] == "https://api.hubapi.com/crm/v3/objects/tickets/search"
@@ -103,6 +111,7 @@ class TestGetRecentTickets:
             "content",
             "hs_pipeline_stage",
             "hs_ticket_priority",
+            "hubspot_owner_id",
             "createdate",
         ]:
             assert expected in props

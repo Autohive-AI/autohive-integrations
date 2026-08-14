@@ -32,20 +32,13 @@ def ok(data):
 
 
 class TestGetHeaders:
-    def test_basic_auth_header_from_flat_auth(self):
+    def test_basic_auth_header_from_credentials(self):
         ctx = type("Ctx", (), {})()
-        ctx.auth = {"consumer_key": "key123", "consumer_secret": "secret456"}  # nosec B105
+        ctx.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": "secret456"}}  # nosec B105
         headers = _get_headers(ctx)
         expected = base64.b64encode(b"key123:secret456").decode()
         assert headers["Authorization"] == f"Basic {expected}"
         assert headers["Accept"] == "application/json"
-
-    def test_basic_auth_header_from_nested_credentials(self):
-        ctx = type("Ctx", (), {})()
-        ctx.auth = {"credentials": {"consumer_key": "k", "consumer_secret": "s"}}  # nosec B105
-        headers = _get_headers(ctx)
-        expected = base64.b64encode(b"k:s").decode()
-        assert headers["Authorization"] == f"Basic {expected}"
 
     def test_missing_credentials_raise(self):
         ctx = type("Ctx", (), {})()
@@ -55,15 +48,25 @@ class TestGetHeaders:
 
     def test_blank_credentials_raise(self):
         ctx = type("Ctx", (), {})()
-        ctx.auth = {"consumer_key": "key123", "consumer_secret": ""}  # nosec B105
+        ctx.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": ""}}  # nosec B105
         with pytest.raises(ValueError, match="Consumer Key and Consumer Secret are required"):
             _get_headers(ctx)
 
     @pytest.mark.asyncio
-    async def test_action_surfaces_missing_credential_error(self, mock_context):
+    async def test_action_surfaces_blank_credential_error(self, mock_context):
         # The runtime guard should reach the caller as a clear ActionError,
         # not an unauthenticated request.
-        mock_context.auth = {}
+        mock_context.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": ""}}  # nosec B105
+        result = await projectworks.execute_action("list_users", {}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Consumer Key and Consumer Secret are required" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_action_surfaces_missing_credential_error(self, mock_context):
+        # Missing credential keys are caught by the handler's runtime guard
+        # (the config declares no auth.fields.required).
+        mock_context.auth = {"auth_type": "Custom", "credentials": {}}
         result = await projectworks.execute_action("list_users", {}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "Consumer Key and Consumer Secret are required" in result.result.message

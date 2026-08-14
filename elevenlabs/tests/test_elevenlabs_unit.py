@@ -28,7 +28,7 @@ API_BASE = "https://api.elevenlabs.io/v1"
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"api_key": "test_key"}  # nosec B105
+    ctx.auth = {"auth_type": "Custom", "credentials": {"api_key": "test_key"}}  # nosec B105
     return ctx
 
 

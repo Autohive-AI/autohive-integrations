@@ -25,6 +25,7 @@ def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {
+        "auth_type": "Custom",
         "credentials": {
             "api_token": "test_api_token_123",  # nosec B105
         },
@@ -102,7 +103,7 @@ class TestCreateTimeEntry:
         assert "Connection refused" in result.result.message
 
     async def test_missing_api_token_returns_action_error(self, mock_context):
-        mock_context.auth = {"credentials": {"api_token": ""}}  # nosec B105
+        mock_context.auth = {"auth_type": "Custom", "credentials": {"api_token": ""}}  # nosec B105
 
         result = await toggl.execute_action(
             "create_time_entry",
@@ -114,7 +115,7 @@ class TestCreateTimeEntry:
         assert "api_token" in result.result.message
 
     async def test_missing_credentials_returns_action_error(self, mock_context):
-        mock_context.auth = {}
+        mock_context.auth = {"auth_type": "Custom", "credentials": {}}
 
         result = await toggl.execute_action(
             "create_time_entry",

@@ -174,6 +174,7 @@ async def test_list_users_with_search(mock_context):
 
 @pytest.mark.asyncio
 async def test_auth_token_missing(mock_context):
-    mock_context.auth = {}
+    mock_context.auth = {"auth_type": "Custom", "credentials": {}}
     result = await fergus.execute_action("list_jobs", {}, mock_context)
     assert result.type == ResultType.ACTION_ERROR
+    assert "Fergus Personal Access Token is required" in result.result.message

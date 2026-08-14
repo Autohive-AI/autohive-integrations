@@ -7,12 +7,166 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 import base64
+import re
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 import html2text
 import bleach
+from bleach.css_sanitizer import CSSSanitizer
 
 gmail = Integration.load()
+
+# CSS properties preserved inside inline ``style`` attributes on outgoing HTML
+# email.
+#
+# Inline styles are a deliberate part of this integration's contract: the
+# send_email / reply_to_thread / create_draft schemas tell callers never to use
+# <style> blocks and to style tags inline instead, because email clients
+# routinely strip stylesheet blocks. Bleach only keeps style values when it is
+# given a CSSSanitizer, so without this the schema asks for inline styles and
+# then silently discards every declaration.
+#
+# The allowlist is restricted to visual formatting. Deliberately excluded:
+#
+# - anything that takes a url() value (background, background-image,
+#   list-style-image, cursor, src): these fetch remote content, which leaks the
+#   recipient's IP and open-time to a third party and defeats an email client's
+#   image-blocking.
+# - position, z-index, top/right/bottom/left, float, clip, transform: overlay
+#   and off-canvas tricks used to hide or spoof content.
+# - behavior, expression, -moz-binding, filter: legacy script-execution vectors.
+# - opacity and visibility: used to conceal text from the reader while keeping
+#   it in the document.
+#
+# The property allowlist is the primary control, but it is not sufficient on its
+# own: bleach's CSSSanitizer filters by property *name* and never inspects the
+# value, so "background-color: url(...)" or "width: expression(...)" would pass
+# through on an allowlisted property. Those are invalid CSS for those properties
+# and renderers drop them, but that is a weak guarantee to rely on when the whole
+# point of this allowlist is to be conservative, so UNSAFE_CSS_VALUE_TOKENS
+# rejects the declaration outright.
+ALLOWED_CSS_PROPERTIES = [
+    # Text and font
+    "color",
+    "font",
+    "font-family",
+    "font-size",
+    "font-style",
+    "font-variant",
+    "font-weight",
+    "letter-spacing",
+    "line-height",
+    "text-align",
+    "text-decoration",
+    "text-indent",
+    "text-transform",
+    "vertical-align",
+    "white-space",
+    "word-break",
+    "word-wrap",
+    "direction",
+    # Background colour only, never background shorthand or images
+    "background-color",
+    # Box model
+    "margin",
+    "margin-top",
+    "margin-right",
+    "margin-bottom",
+    "margin-left",
+    "padding",
+    "padding-top",
+    "padding-right",
+    "padding-bottom",
+    "padding-left",
+    "width",
+    "height",
+    "max-width",
+    "min-width",
+    "max-height",
+    "min-height",
+    # Depth. Neither can fetch remote content nor conceal text, so both are safe
+    # to keep. Apple Mail and Gmail on the web render them; Outlook's Word
+    # engine ignores them, which degrades gracefully.
+    "box-shadow",
+    "text-shadow",
+    # Borders
+    "border",
+    "border-top",
+    "border-right",
+    "border-bottom",
+    "border-left",
+    "border-color",
+    "border-style",
+    "border-width",
+    "border-radius",
+    "border-collapse",
+    "border-spacing",
+    # Tables and layout primitives that email templates rely on
+    "display",
+    "table-layout",
+    "caption-side",
+    "empty-cells",
+    "list-style-type",
+    "list-style-position",
+    "overflow",
+    "overflow-x",
+    "overflow-y",
+]
+
+# Value-level tokens that make a declaration unsafe regardless of its property.
+# ``url(`` would fetch remote content; the rest are legacy script-execution
+# vectors. Matched case-insensitively against the whitespace-stripped value.
+UNSAFE_CSS_VALUE_TOKENS = ("url(", "expression(", "-moz-binding", "javascript:", "vbscript:")
+
+# <style> and <script> are raw-text elements: their contents are CSS or JS, not
+# prose. bleach.clean(strip=True) removes the tag but keeps the text inside it,
+# so a <style> block ends up printed in the email body as literal CSS. That is
+# inert, but it is a visible mess rather than a silent drop, and it is a likely
+# mistake: the action schemas tell callers never to use <style> blocks, which
+# means some will.
+#
+# Both are stripped whole, contents included, before bleach runs. Neither can
+# legally nest inside itself in HTML, so a non-greedy match to the first closing
+# tag is correct.
+RAW_TEXT_ELEMENT_RE = re.compile(r"<\s*(script|style)\b[^>]*>.*?<\s*/\s*\1\s*>", re.IGNORECASE | re.DOTALL)
+
+# An unterminated <style> or <script> swallows the rest of the document in a
+# real parser, so drop from the opening tag to the end rather than leaving the
+# contents behind.
+UNCLOSED_RAW_TEXT_ELEMENT_RE = re.compile(r"<\s*(script|style)\b[^>]*>.*\Z", re.IGNORECASE | re.DOTALL)
+
+
+def strip_raw_text_elements(html: str) -> str:
+    """Remove <style> and <script> elements along with their contents."""
+    cleaned = RAW_TEXT_ELEMENT_RE.sub("", html)
+    return UNCLOSED_RAW_TEXT_ELEMENT_RE.sub("", cleaned)
+
+
+class EmailCSSSanitizer(CSSSanitizer):
+    """CSS sanitizer that also rejects unsafe declaration *values*.
+
+    ``CSSSanitizer`` allowlists property names only, so a declaration such as
+    ``background-color: url(http://tracker/x)`` is preserved even though the
+    property allowlist was chosen specifically to keep remote fetches out. This
+    subclass drops any declaration whose value contains a token from
+    :data:`UNSAFE_CSS_VALUE_TOKENS`, leaving the rest of the style intact.
+    """
+
+    def sanitize_css(self, style: str) -> str:
+        cleaned = super().sanitize_css(style)
+        if not cleaned:
+            return cleaned
+
+        kept = []
+        for declaration in cleaned.split(";"):
+            if not declaration.strip():
+                continue
+            lowered = declaration.lower().replace(" ", "")
+            if any(token in lowered for token in UNSAFE_CSS_VALUE_TOKENS):
+                continue
+            kept.append(declaration.strip())
+
+        return "; ".join(kept) + ";" if kept else ""
 
 
 def build_date_clause(after: str = "", before: str = "") -> str:
@@ -118,12 +272,28 @@ def create_email_message(body: str, files: list = None, is_html: bool = False) -
 
         allowed_protocols = ["http", "https", "mailto"]
 
+        # Without a css_sanitizer, bleach warns (NoCssSanitizerWarning) and
+        # empties every style value, so the `style` attribute allowed above would
+        # survive with no declarations left in it.
+        # allowed_svg_properties must be cleared explicitly. CSSSanitizer keeps
+        # its own default SVG allowlist (fill, stroke, fill-opacity,
+        # stroke-opacity and four more) independently of allowed_css_properties,
+        # so leaving it at the default would let properties outside
+        # ALLOWED_CSS_PROPERTIES through. fill-opacity and stroke-opacity are
+        # content-hiding vectors of exactly the kind `opacity` is excluded for,
+        # and <svg> is not an allowed tag here anyway.
+        css_sanitizer = EmailCSSSanitizer(
+            allowed_css_properties=ALLOWED_CSS_PROPERTIES,
+            allowed_svg_properties=[],
+        )
+
         # Sanitize the HTML content
         sanitized_body = bleach.clean(
-            body,
+            strip_raw_text_elements(body),
             tags=allowed_tags,
             attributes=allowed_attributes,
             protocols=allowed_protocols,
+            css_sanitizer=css_sanitizer,
             strip=True,  # Remove disallowed tags entirely
         )
 
@@ -264,6 +434,9 @@ def build_raw_email(
     body_format = inputs.get("body_format", "text")
     is_html = body_format == "html"
     input_files = inputs.get("files", [])
+    # .get() not inputs["body"]: the sync check flags this per action, but this
+    # helper also serves create_draft, whose required list is empty, so a draft
+    # legitimately has no body.
     body = append_signature(inputs.get("body", ""), inputs.get("signature", ""), is_html)
     message = create_email_message(body, input_files, is_html)
 
@@ -276,6 +449,7 @@ def build_raw_email(
     recipients: List[str] = []
     if extra_to:
         recipients.extend(extra_to)
+    # Same reason as body above: `to` is required on send_email but not on create_draft.
     to_value = inputs.get("to")
     if to_value:
         if isinstance(to_value, list):
@@ -654,6 +828,8 @@ class ReadInbox(ActionHandler):
             user_id = inputs["user_id"]
 
             # Build query based on scope
+            # .get() with a default rather than inputs["scope"]: the default is the
+            # documented behaviour and dropping it to satisfy the sync check would lose it.
             scope = inputs.get("scope", "all")
 
             if scope == "unread":
@@ -666,8 +842,9 @@ class ReadInbox(ActionHandler):
             query = compose_messages_query(scope_clause, inputs)
 
             request_params = {"userId": user_id, "q": query}
-            if "pageToken" in inputs:
-                request_params["pageToken"] = inputs["pageToken"]
+            page_token = inputs.get("pageToken")
+            if page_token is not None:
+                request_params["pageToken"] = page_token
 
             # Get list of messages
             request = service.users().messages().list(**request_params)
@@ -717,8 +894,9 @@ class ReadAllMail(ActionHandler):
             request_params = {"userId": user_id, "includeSpamTrash": include_spam_trash}
             if query:
                 request_params["q"] = query
-            if "pageToken" in inputs:
-                request_params["pageToken"] = inputs["pageToken"]
+            page_token = inputs.get("pageToken")
+            if page_token is not None:
+                request_params["pageToken"] = page_token
 
             # Get list of messages
             request = service.users().messages().list(**request_params)
@@ -759,8 +937,9 @@ class ListLabels(ActionHandler):
             labels = result.get("labels", [])
 
             # Filter labels based on type if specified
-            if "label_type" in inputs:
-                label_type = inputs["label_type"].lower()
+            label_type = inputs.get("label_type")
+            if label_type is not None:
+                label_type = label_type.lower()
                 if label_type == "user":
                     labels = [label for label in labels if label.get("type") == "user"]
                 elif label_type == "system":
@@ -804,10 +983,12 @@ class ListEmailsByLabel(ActionHandler):
             # Build request parameters
             request_params = {"userId": user_id, "q": query}
 
-            if "pageToken" in inputs:
-                request_params["pageToken"] = inputs["pageToken"]
-            if "maxResults" in inputs:
-                request_params["maxResults"] = inputs["maxResults"]
+            page_token = inputs.get("pageToken")
+            if page_token is not None:
+                request_params["pageToken"] = page_token
+            max_results = inputs.get("maxResults")
+            if max_results is not None:
+                request_params["maxResults"] = max_results
 
             # Get list of messages
             request = service.users().messages().list(**request_params)
@@ -889,13 +1070,17 @@ class CreateLabel(ActionHandler):
                 "labelListVisibility": inputs.get("labelListVisibility", "labelShow"),
             }
 
-            # Add color if provided
-            if "textColor" in inputs or "backgroundColor" in inputs:
-                color = {}
-                if "textColor" in inputs:
-                    color["textColor"] = inputs["textColor"]
-                if "backgroundColor" in inputs:
-                    color["backgroundColor"] = inputs["backgroundColor"]
+            # Add color if provided. Built from the resolved values rather than
+            # from key presence, so an explicitly null colour does not produce an
+            # empty color object for Gmail to reject.
+            text_color = inputs.get("textColor")
+            background_color = inputs.get("backgroundColor")
+            color = {}
+            if text_color is not None:
+                color["textColor"] = text_color
+            if background_color is not None:
+                color["backgroundColor"] = background_color
+            if color:
                 label_body["color"] = color
 
             # Create the label using Gmail API
@@ -1145,17 +1330,21 @@ class ListDrafts(ActionHandler):
             # Build request parameters
             request_params = {"userId": user_id}
 
-            if "pageToken" in inputs:
-                request_params["pageToken"] = inputs["pageToken"]
+            page_token = inputs.get("pageToken")
+            if page_token is not None:
+                request_params["pageToken"] = page_token
 
-            if "maxResults" in inputs:
-                request_params["maxResults"] = inputs["maxResults"]
+            max_results = inputs.get("maxResults")
+            if max_results is not None:
+                request_params["maxResults"] = max_results
 
-            if "q" in inputs:
-                request_params["q"] = inputs["q"]
+            q = inputs.get("q")
+            if q is not None:
+                request_params["q"] = q
 
-            if "includeSpamTrash" in inputs:
-                request_params["includeSpamTrash"] = inputs["includeSpamTrash"]
+            include_spam_trash = inputs.get("includeSpamTrash")
+            if include_spam_trash is not None:
+                request_params["includeSpamTrash"] = include_spam_trash
 
             # Get list of drafts
             request = service.users().drafts().list(**request_params)

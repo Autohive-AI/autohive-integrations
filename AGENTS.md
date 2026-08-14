@@ -8,7 +8,9 @@ Do NOT guess the integration structure or conventions. Read the existing documen
 - **[Integration Structure Reference](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/integration_structure.md)** — directory layout, required files, `config.json` schema
 - **[Patterns](https://github.com/autohive-ai/integrations-sdk/blob/master/docs/manual/patterns.md)** — common patterns and best practices
 - **[Starter Template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template)** — copy this as the starting point for any new integration
+- **[Integration Engineering Charter](integration-engineering-charter.md)** — engineering principles, author commitment, and reviewer standard for integration PRs
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — PR process, local validation setup, and CI details for this repo
+- **[Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md)** — author commitment and review standard that must be completed for PRs
 - **[Tooling README](https://github.com/autohive-ai/autohive-integrations-tooling/blob/master/README.md)** — validation scripts and CI pipeline
 - **[Local Development](https://github.com/autohive-ai/autohive-integrations-tooling/blob/master/LOCAL_DEVELOPMENT.md)** — local development workflow and documentation map
 - **[Integration Checklist](https://github.com/autohive-ai/autohive-integrations-tooling/blob/master/INTEGRATION_CHECKLIST.md)** — manual review checklist

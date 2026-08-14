@@ -1,8 +1,8 @@
 {
     "name": "aws",
     "display_name": "Amazon Web Services",
-    "version": "2.0.0",
-    "description": "AWS security and monitoring integration for Security Hub, GuardDuty, CloudWatch, and CloudTrail",
+    "version": "2.1.0",
+    "description": "AWS security and monitoring integration for Security Hub, GuardDuty, Inspector, CloudWatch, and CloudTrail",
     "entry_point": "aws.py",
     "auth": {
         "type": "custom",
@@ -349,6 +349,90 @@
                     "success": {
                         "type": "boolean",
                         "description": "Whether the findings were successfully archived"
+                    }
+                }
+            }
+        },
+        "list_inspector_findings": {
+            "display_name": "List Inspector Findings",
+            "description": "List and filter vulnerability findings directly from Amazon Inspector (not via Security Hub, so no forwarding lag). Sorted by severity (highest first) and limited to ACTIVE findings by default, matching the Inspector console.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filter_criteria": {
+                        "type": "object",
+                        "description": "Amazon Inspector2 filterCriteria (e.g. resourceType, severity, findingType filters)"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Filter by finding status. Defaults to ACTIVE (matching the Inspector console). Use ALL to include CLOSED and SUPPRESSED findings too. Ignored if filter_criteria already sets findingStatus.",
+                        "enum": ["ACTIVE", "SUPPRESSED", "CLOSED", "ALL"],
+                        "default": "ACTIVE"
+                    },
+                    "last_hours": {
+                        "type": "integer",
+                        "description": "Shortcut filter: only return findings first observed (newly discovered) within the last N hours. Cannot be combined with next_token — use filter_criteria.firstObservedAt with an explicit range instead when paginating past the first page.",
+                        "minimum": 1
+                    },
+                    "sort_criteria": {
+                        "type": "object",
+                        "description": "Criteria for sorting results: 'field' (e.g. SEVERITY, FIRST_OBSERVED_AT, LAST_OBSERVED_AT) and 'sortOrder' (ASC/DESC). Defaults to sorting by SEVERITY DESC."
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "description": "Maximum number of findings to return (default: 50, max: 100)",
+                        "default": 50,
+                        "minimum": 1,
+                        "maximum": 100
+                    },
+                    "next_token": {
+                        "type": "string",
+                        "description": "Pagination token from a previous request"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "findings": {
+                        "type": "array",
+                        "description": "List of Amazon Inspector findings"
+                    },
+                    "next_token": {
+                        "type": ["string", "null"],
+                        "description": "Pagination token for the next page of results"
+                    }
+                }
+            }
+        },
+        "get_inspector_finding_details": {
+            "display_name": "Get Inspector Finding Details",
+            "description": "Get detailed information about one or more Amazon Inspector findings by ARN",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "finding_arns": {
+                        "type": "array",
+                        "description": "List of Inspector finding ARNs to retrieve details for (any length; batched internally in groups of 10)",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1
+                    }
+                },
+                "required": ["finding_arns"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "findings": {
+                        "type": "array",
+                        "description": "List of detailed Amazon Inspector findings"
+                    },
+                    "errors": {
+                        "type": "array",
+                        "description": "List of finding ARNs that could not be retrieved, with error details"
                     }
                 }
             }

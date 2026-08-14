@@ -10,6 +10,10 @@ from actions.guardduty import (  # noqa: F401
     GetGuardDutyFindingDetailsAction,
     ArchiveFindingsAction,
 )
+from actions.inspector import (  # noqa: F401
+    ListInspectorFindingsAction,
+    GetInspectorFindingDetailsAction,
+)
 from actions.cloudwatch import (  # noqa: F401
     ListMetricsAction,
     GetMetricDataAction,

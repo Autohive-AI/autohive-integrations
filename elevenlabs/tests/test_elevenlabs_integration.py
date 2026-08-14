@@ -44,7 +44,7 @@ def live_context():
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
-    ctx.auth = {"credentials": {"api_key": API_KEY}}
+    ctx.auth = {"auth_type": "Custom", "credentials": {"api_key": API_KEY}}
     return ctx
 
 

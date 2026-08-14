@@ -1,0 +1,684 @@
+{
+    "name": "Freshsales",
+    "display_name": "Freshsales",
+    "version": "1.0.0",
+    "description": "Freshsales CRM integration for managing contacts, accounts, deals, tasks, appointments, and notes",
+    "entry_point": "freshsales.py",
+    "auth": {
+        "type": "custom",
+        "title": "Freshsales API Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Key",
+                    "help_text": "Your Freshsales API key. Find it in Personal Settings > API Settings."
+                },
+                "bundle_alias": {
+                    "type": "string",
+                    "label": "Bundle Alias",
+                    "help_text": "Your Freshworks bundle alias — the 'yourcompany' in yourcompany.myfreshworks.com"
+                }
+            }
+        }
+    },
+    "actions": {
+        "list_views": {
+            "display_name": "List Views",
+            "description": "List the available list views (filters) for contacts, accounts, or deals. Freshsales lists records through views; pass a view id from here to list_contacts/list_accounts/list_deals to use a specific view.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity": {
+                        "type": "string",
+                        "enum": ["contacts", "accounts", "deals"],
+                        "description": "Which resource to fetch views for"
+                    }
+                },
+                "required": ["entity"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "views": {
+                        "type": "array",
+                        "items": {"type": "object"},
+                        "description": "Available views, each with id and name"
+                    },
+                    "total": {"type": "integer", "description": "Number of views"}
+                },
+                "required": ["views"]
+            }
+        },
+        "create_contact": {
+            "display_name": "Create Contact",
+            "description": "Create a new contact. Freshsales requires first_name or last_name, plus email or mobile_number.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first_name": {"type": "string", "description": "First name"},
+                    "last_name": {"type": "string", "description": "Last name"},
+                    "email": {"type": "string", "description": "Primary email address"},
+                    "mobile_number": {"type": "string", "description": "Mobile phone number"},
+                    "work_number": {"type": "string", "description": "Work phone number"},
+                    "job_title": {"type": "string", "description": "Job title"},
+                    "address": {"type": "string", "description": "Street address"},
+                    "city": {"type": "string", "description": "City"},
+                    "state": {"type": "string", "description": "State"},
+                    "zipcode": {"type": "string", "description": "Zip code"},
+                    "country": {"type": "string", "description": "Country"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the contact"},
+                    "sales_account_id": {"type": "integer", "description": "ID of the account to associate with"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "lead_source_id": {"type": "integer", "description": "ID of the lead source"},
+                    "medium": {"type": "string", "description": "Marketing medium the contact came from"},
+                    "keyword": {"type": "string", "description": "Keywords for the contact"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"contact": {"type": "object", "description": "The created contact record"}},
+                "required": ["contact"]
+            }
+        },
+        "get_contact": {
+            "display_name": "Get Contact",
+            "description": "Retrieve a contact by ID, optionally embedding related records.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "contact_id": {"type": "integer", "description": "Contact ID"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner,sales_accounts,deals,tasks,appointments,notes)"}
+                },
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"contact": {"type": "object", "description": "The contact record"}},
+                "required": ["contact"]
+            }
+        },
+        "update_contact": {
+            "display_name": "Update Contact",
+            "description": "Update fields on an existing contact. Only provided fields are changed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "contact_id": {"type": "integer", "description": "Contact ID"},
+                    "first_name": {"type": "string", "description": "First name"},
+                    "last_name": {"type": "string", "description": "Last name"},
+                    "email": {"type": "string", "description": "Primary email address"},
+                    "mobile_number": {"type": "string", "description": "Mobile phone number"},
+                    "work_number": {"type": "string", "description": "Work phone number"},
+                    "job_title": {"type": "string", "description": "Job title"},
+                    "address": {"type": "string", "description": "Street address"},
+                    "city": {"type": "string", "description": "City"},
+                    "state": {"type": "string", "description": "State"},
+                    "zipcode": {"type": "string", "description": "Zip code"},
+                    "country": {"type": "string", "description": "Country"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the contact"},
+                    "sales_account_id": {"type": "integer", "description": "ID of the account to associate with"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "lead_source_id": {"type": "integer", "description": "ID of the lead source"},
+                    "medium": {"type": "string", "description": "Marketing medium the contact came from"},
+                    "keyword": {"type": "string", "description": "Keywords for the contact"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"contact": {"type": "object", "description": "The updated contact record"}},
+                "required": ["contact"]
+            }
+        },
+        "delete_contact": {
+            "display_name": "Delete Contact",
+            "description": "Delete a contact by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"contact_id": {"type": "integer", "description": "Contact ID"}},
+                "required": ["contact_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "contact_id": {"type": "integer", "description": "ID of the deleted contact"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_contacts": {
+            "display_name": "List Contacts",
+            "description": "List contacts from a view. Omit view_id to use the 'All Contacts' view automatically (use list_views to discover other views). Returns 25 records per page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "view_id": {"type": "integer", "description": "View (filter) ID to list from; omit for the default 'All Contacts' view"},
+                    "page": {"type": "integer", "minimum": 1, "description": "Page number (default 1)"},
+                    "sort": {"type": "string", "description": "Field to sort by (e.g. created_at, updated_at)"},
+                    "sort_type": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner,sales_accounts)"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "contacts": {"type": "array", "items": {"type": "object"}, "description": "Contacts in the view page"},
+                    "meta": {"type": "object", "description": "Pagination metadata (total, total_pages)"}
+                },
+                "required": ["contacts"]
+            }
+        },
+        "create_account": {
+            "display_name": "Create Account",
+            "description": "Create a new sales account (organization). Name is required.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Account name"},
+                    "website": {"type": "string", "description": "Website URL"},
+                    "phone": {"type": "string", "description": "Phone number"},
+                    "address": {"type": "string", "description": "Street address"},
+                    "city": {"type": "string", "description": "City"},
+                    "state": {"type": "string", "description": "State"},
+                    "zipcode": {"type": "string", "description": "Zip code"},
+                    "country": {"type": "string", "description": "Country"},
+                    "industry_type_id": {"type": "integer", "description": "ID of the industry type"},
+                    "business_type_id": {"type": "integer", "description": "ID of the business type"},
+                    "number_of_employees": {"type": "integer", "description": "Employee count"},
+                    "annual_revenue": {"type": "number", "description": "Annual revenue"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the account"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "parent_sales_account_id": {"type": "integer", "description": "ID of the parent account"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"account": {"type": "object", "description": "The created account record"}},
+                "required": ["account"]
+            }
+        },
+        "get_account": {
+            "display_name": "Get Account",
+            "description": "Retrieve a sales account by ID, optionally embedding related records.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {"type": "integer", "description": "Account ID"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner,contacts,deals)"}
+                },
+                "required": ["account_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"account": {"type": "object", "description": "The account record"}},
+                "required": ["account"]
+            }
+        },
+        "update_account": {
+            "display_name": "Update Account",
+            "description": "Update fields on an existing sales account. Only provided fields are changed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "account_id": {"type": "integer", "description": "Account ID"},
+                    "name": {"type": "string", "description": "Account name"},
+                    "website": {"type": "string", "description": "Website URL"},
+                    "phone": {"type": "string", "description": "Phone number"},
+                    "address": {"type": "string", "description": "Street address"},
+                    "city": {"type": "string", "description": "City"},
+                    "state": {"type": "string", "description": "State"},
+                    "zipcode": {"type": "string", "description": "Zip code"},
+                    "country": {"type": "string", "description": "Country"},
+                    "industry_type_id": {"type": "integer", "description": "ID of the industry type"},
+                    "business_type_id": {"type": "integer", "description": "ID of the business type"},
+                    "number_of_employees": {"type": "integer", "description": "Employee count"},
+                    "annual_revenue": {"type": "number", "description": "Annual revenue"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the account"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "parent_sales_account_id": {"type": "integer", "description": "ID of the parent account"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": ["account_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"account": {"type": "object", "description": "The updated account record"}},
+                "required": ["account"]
+            }
+        },
+        "delete_account": {
+            "display_name": "Delete Account",
+            "description": "Delete a sales account by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"account_id": {"type": "integer", "description": "Account ID"}},
+                "required": ["account_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "account_id": {"type": "integer", "description": "ID of the deleted account"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_accounts": {
+            "display_name": "List Accounts",
+            "description": "List sales accounts from a view. Omit view_id to use the 'All Accounts' view automatically (use list_views to discover other views). Returns 25 records per page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "view_id": {"type": "integer", "description": "View (filter) ID to list from; omit for the default 'All Accounts' view"},
+                    "page": {"type": "integer", "minimum": 1, "description": "Page number (default 1)"},
+                    "sort": {"type": "string", "description": "Field to sort by (e.g. created_at, updated_at, last_contacted)"},
+                    "sort_type": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner)"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "accounts": {"type": "array", "items": {"type": "object"}, "description": "Accounts in the view page"},
+                    "meta": {"type": "object", "description": "Pagination metadata (total, total_pages)"}
+                },
+                "required": ["accounts"]
+            }
+        },
+        "create_deal": {
+            "display_name": "Create Deal",
+            "description": "Create a new deal. Name and amount are required.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string", "description": "Deal name"},
+                    "amount": {"type": "number", "description": "Deal value"},
+                    "sales_account_id": {"type": "integer", "description": "ID of the account the deal belongs to"},
+                    "deal_stage_id": {"type": "integer", "description": "ID of the deal stage"},
+                    "deal_pipeline_id": {"type": "integer", "description": "ID of the deal pipeline"},
+                    "deal_type_id": {"type": "integer", "description": "ID of the deal type"},
+                    "lead_source_id": {"type": "integer", "description": "ID of the lead source"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the deal"},
+                    "expected_close": {"type": "string", "description": "Expected close date (YYYY-MM-DD)"},
+                    "probability": {"type": "integer", "description": "Win probability (0-100)"},
+                    "currency_id": {"type": "integer", "description": "ID of the deal currency"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "campaign_id": {"type": "integer", "description": "ID of the campaign"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": ["name", "amount"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"deal": {"type": "object", "description": "The created deal record"}},
+                "required": ["deal"]
+            }
+        },
+        "get_deal": {
+            "display_name": "Get Deal",
+            "description": "Retrieve a deal by ID, optionally embedding related records.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "deal_id": {"type": "integer", "description": "Deal ID"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner,sales_account,contacts)"}
+                },
+                "required": ["deal_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"deal": {"type": "object", "description": "The deal record"}},
+                "required": ["deal"]
+            }
+        },
+        "update_deal": {
+            "display_name": "Update Deal",
+            "description": "Update fields on an existing deal (e.g. move stage, change amount). Only provided fields are changed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "deal_id": {"type": "integer", "description": "Deal ID"},
+                    "name": {"type": "string", "description": "Deal name"},
+                    "amount": {"type": "number", "description": "Deal value"},
+                    "sales_account_id": {"type": "integer", "description": "ID of the account the deal belongs to"},
+                    "deal_stage_id": {"type": "integer", "description": "ID of the deal stage"},
+                    "deal_pipeline_id": {"type": "integer", "description": "ID of the deal pipeline"},
+                    "deal_type_id": {"type": "integer", "description": "ID of the deal type"},
+                    "lead_source_id": {"type": "integer", "description": "ID of the lead source"},
+                    "owner_id": {"type": "integer", "description": "ID of the user who owns the deal"},
+                    "expected_close": {"type": "string", "description": "Expected close date (YYYY-MM-DD)"},
+                    "probability": {"type": "integer", "description": "Win probability (0-100)"},
+                    "currency_id": {"type": "integer", "description": "ID of the deal currency"},
+                    "territory_id": {"type": "integer", "description": "ID of the territory"},
+                    "campaign_id": {"type": "integer", "description": "ID of the campaign"},
+                    "custom_field": {"type": "object", "description": "Custom field key-value pairs"}
+                },
+                "required": ["deal_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"deal": {"type": "object", "description": "The updated deal record"}},
+                "required": ["deal"]
+            }
+        },
+        "delete_deal": {
+            "display_name": "Delete Deal",
+            "description": "Delete a deal by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"deal_id": {"type": "integer", "description": "Deal ID"}},
+                "required": ["deal_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "deal_id": {"type": "integer", "description": "ID of the deleted deal"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_deals": {
+            "display_name": "List Deals",
+            "description": "List deals from a view. Omit view_id to use the 'All Deals' view automatically (use list_views to discover other views, e.g. pipeline-specific ones). Returns 25 records per page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "view_id": {"type": "integer", "description": "View (filter) ID to list from; omit for the default 'All Deals' view"},
+                    "page": {"type": "integer", "minimum": 1, "description": "Page number (default 1)"},
+                    "sort": {"type": "string", "description": "Field to sort by (e.g. created_at, updated_at)"},
+                    "sort_type": {"type": "string", "enum": ["asc", "desc"], "description": "Sort direction"},
+                    "include": {"type": "string", "description": "Comma-separated related records to embed (e.g. owner,sales_account)"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "deals": {"type": "array", "items": {"type": "object"}, "description": "Deals in the view page"},
+                    "meta": {"type": "object", "description": "Pagination metadata (total, total_pages)"}
+                },
+                "required": ["deals"]
+            }
+        },
+        "create_task": {
+            "display_name": "Create Task",
+            "description": "Create a task attached to a contact, account, or deal.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Task title"},
+                    "description": {"type": "string", "description": "Task description"},
+                    "due_date": {"type": "string", "description": "Due date-time (ISO 8601, e.g. 2026-07-10T10:00:00Z)"},
+                    "owner_id": {"type": "integer", "description": "ID of the user the task is assigned to"},
+                    "targetable_type": {"type": "string", "enum": ["Contact", "SalesAccount", "Deal"], "description": "Type of record the task is attached to"},
+                    "targetable_id": {"type": "integer", "description": "ID of the record the task is attached to"}
+                },
+                "required": ["title", "due_date", "targetable_type", "targetable_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"task": {"type": "object", "description": "The created task record"}},
+                "required": ["task"]
+            }
+        },
+        "get_task": {
+            "display_name": "Get Task",
+            "description": "Retrieve a task by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"task_id": {"type": "integer", "description": "Task ID"}},
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"task": {"type": "object", "description": "The task record"}},
+                "required": ["task"]
+            }
+        },
+        "update_task": {
+            "display_name": "Update Task",
+            "description": "Update fields on an existing task. Set status to 1 to mark the task as done.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "integer", "description": "Task ID"},
+                    "title": {"type": "string", "description": "Task title"},
+                    "description": {"type": "string", "description": "Task description"},
+                    "due_date": {"type": "string", "description": "Due date-time (ISO 8601)"},
+                    "owner_id": {"type": "integer", "description": "ID of the user the task is assigned to"},
+                    "targetable_type": {"type": "string", "enum": ["Contact", "SalesAccount", "Deal"], "description": "Type of record the task is attached to"},
+                    "targetable_id": {"type": "integer", "description": "ID of the record the task is attached to"},
+                    "status": {"type": "integer", "description": "Task status: set 1 to mark as done"}
+                },
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"task": {"type": "object", "description": "The updated task record"}},
+                "required": ["task"]
+            }
+        },
+        "delete_task": {
+            "display_name": "Delete Task",
+            "description": "Delete a task by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"task_id": {"type": "integer", "description": "Task ID"}},
+                "required": ["task_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "task_id": {"type": "integer", "description": "ID of the deleted task"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_tasks": {
+            "display_name": "List Tasks",
+            "description": "List tasks filtered by status (open, due_today, due_tomorrow, overdue, completed). Defaults to open tasks.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filter": {
+                        "type": "string",
+                        "enum": ["open", "due_today", "due_tomorrow", "overdue", "completed"],
+                        "description": "Task status filter (default: open)"
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tasks": {"type": "array", "items": {"type": "object"}, "description": "Tasks matching the filter"}
+                },
+                "required": ["tasks"]
+            }
+        },
+        "create_appointment": {
+            "display_name": "Create Appointment",
+            "description": "Schedule an appointment attached to a contact, account, or deal.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "description": "Appointment title"},
+                    "description": {"type": "string", "description": "Appointment description"},
+                    "from_date": {"type": "string", "description": "Start date-time (ISO 8601, e.g. 2026-07-10T10:00:00Z)"},
+                    "end_date": {"type": "string", "description": "End date-time (ISO 8601)"},
+                    "time_zone": {"type": "string", "description": "Time zone name (e.g. Pacific/Auckland)"},
+                    "location": {"type": "string", "description": "Location or meeting link"},
+                    "is_allday": {"type": "boolean", "description": "Whether this is an all-day appointment"},
+                    "targetable_type": {"type": "string", "enum": ["Contact", "SalesAccount", "Deal"], "description": "Type of record the appointment is attached to"},
+                    "targetable_id": {"type": "integer", "description": "ID of the record the appointment is attached to"}
+                },
+                "required": ["title", "from_date", "end_date", "targetable_type", "targetable_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"appointment": {"type": "object", "description": "The created appointment record"}},
+                "required": ["appointment"]
+            }
+        },
+        "get_appointment": {
+            "display_name": "Get Appointment",
+            "description": "Retrieve an appointment by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"appointment_id": {"type": "integer", "description": "Appointment ID"}},
+                "required": ["appointment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"appointment": {"type": "object", "description": "The appointment record"}},
+                "required": ["appointment"]
+            }
+        },
+        "update_appointment": {
+            "display_name": "Update Appointment",
+            "description": "Update fields on an existing appointment. Only provided fields are changed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "appointment_id": {"type": "integer", "description": "Appointment ID"},
+                    "title": {"type": "string", "description": "Appointment title"},
+                    "description": {"type": "string", "description": "Appointment description"},
+                    "from_date": {"type": "string", "description": "Start date-time (ISO 8601)"},
+                    "end_date": {"type": "string", "description": "End date-time (ISO 8601)"},
+                    "time_zone": {"type": "string", "description": "Time zone name"},
+                    "location": {"type": "string", "description": "Location or meeting link"},
+                    "is_allday": {"type": "boolean", "description": "Whether this is an all-day appointment"},
+                    "targetable_type": {"type": "string", "enum": ["Contact", "SalesAccount", "Deal"], "description": "Type of record the appointment is attached to"},
+                    "targetable_id": {"type": "integer", "description": "ID of the record the appointment is attached to"}
+                },
+                "required": ["appointment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"appointment": {"type": "object", "description": "The updated appointment record"}},
+                "required": ["appointment"]
+            }
+        },
+        "delete_appointment": {
+            "display_name": "Delete Appointment",
+            "description": "Delete an appointment by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"appointment_id": {"type": "integer", "description": "Appointment ID"}},
+                "required": ["appointment_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "appointment_id": {"type": "integer", "description": "ID of the deleted appointment"}
+                },
+                "required": ["success"]
+            }
+        },
+        "list_appointments": {
+            "display_name": "List Appointments",
+            "description": "List appointments, optionally filtered by status (open or completed).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "filter": {"type": "string", "enum": ["open", "completed"], "description": "Status filter: 'open' for upcoming/incomplete, 'completed' for finished appointments; omit for all"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "appointments": {"type": "array", "items": {"type": "object"}, "description": "Appointments matching the filter"}
+                },
+                "required": ["appointments"]
+            }
+        },
+        "create_note": {
+            "display_name": "Create Note",
+            "description": "Attach a note to a contact, account, or deal.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "description": {"type": "string", "description": "Note content"},
+                    "targetable_type": {"type": "string", "enum": ["Contact", "SalesAccount", "Deal"], "description": "Type of record the note is attached to"},
+                    "targetable_id": {"type": "integer", "description": "ID of the record the note is attached to"}
+                },
+                "required": ["description", "targetable_type", "targetable_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"note": {"type": "object", "description": "The created note record"}},
+                "required": ["note"]
+            }
+        },
+        "update_note": {
+            "display_name": "Update Note",
+            "description": "Update the content of an existing note.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "note_id": {"type": "integer", "description": "Note ID"},
+                    "description": {"type": "string", "description": "New note content"}
+                },
+                "required": ["note_id", "description"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {"note": {"type": "object", "description": "The updated note record"}},
+                "required": ["note"]
+            }
+        },
+        "delete_note": {
+            "display_name": "Delete Note",
+            "description": "Delete a note by ID.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"note_id": {"type": "integer", "description": "Note ID"}},
+                "required": ["note_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean", "description": "Whether the deletion succeeded"},
+                    "note_id": {"type": "integer", "description": "ID of the deleted note"}
+                },
+                "required": ["success"]
+            }
+        },
+        "search": {
+            "display_name": "Search",
+            "description": "Search across contacts, accounts, and deals by name, email, or other text.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search text"},
+                    "include": {"type": "string", "description": "Comma-separated entity types to search: contact, sales_account, deal, user (default: contact,sales_account,deal)"},
+                    "per_page": {"type": "integer", "minimum": 1, "maximum": 100, "description": "Max results to return"}
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "results": {"type": "array", "items": {"type": "object"}, "description": "Matching records with their entity type"},
+                    "total": {"type": "integer", "description": "Number of results returned"}
+                },
+                "required": ["results"]
+            }
+        }
+    }
+}

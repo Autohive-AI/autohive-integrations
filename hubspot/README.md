@@ -556,7 +556,7 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `status` (optional): Filter by pipeline stage/status (1, 2, 3, 4)
   - `sort_property` (optional): Property to sort by (default: hs_lastmodifieddate)
   - `sort_direction` (optional): Sort direction ASC/DESC (default: DESC)
-- **Outputs:** Array of ticket records with subject, content, priority, and status information
+- **Outputs:** Array of ticket records with subject, content, priority, status, and assigned owner ID information
 
 #### Action: `get_ticket_conversation`
 - **Description:** Retrieve the complete conversation thread associated with a support ticket

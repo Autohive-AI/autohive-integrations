@@ -281,6 +281,7 @@ async def test_api_error_in_response(mock_context):
 
 @pytest.mark.asyncio
 async def test_missing_api_token(mock_context):
-    mock_context.auth = {}
+    mock_context.auth = {"auth_type": "Custom", "credentials": {}}
     result = await circle.execute_action("list_tags", {}, mock_context)
     assert result.type == ResultType.ACTION_ERROR
+    assert "Circle API token is required" in result.result.message

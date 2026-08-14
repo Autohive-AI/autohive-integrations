@@ -52,7 +52,7 @@ from trello.trello import (  # noqa: E402
 pytestmark = pytest.mark.unit
 
 
-AUTH = {"auth_type": "custom", "credentials": {"api_key": "k", "token": "t"}}  # nosec B105
+AUTH = {"auth_type": "Custom", "credentials": {"api_key": "k", "token": "t"}}  # nosec B105
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config.json")
 

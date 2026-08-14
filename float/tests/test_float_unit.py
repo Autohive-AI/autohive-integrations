@@ -22,7 +22,7 @@ float_integration = _mod.float
 
 pytestmark = pytest.mark.unit
 
-TEST_AUTH = {"credentials": {"api_key": "test_key"}}
+TEST_AUTH = {"auth_type": "Custom", "credentials": {"api_key": "test_key"}}
 
 
 def ok(data):

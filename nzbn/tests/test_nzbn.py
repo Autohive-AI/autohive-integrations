@@ -20,7 +20,7 @@ from context import nzbn
 from autohive_integrations_sdk import ExecutionContext
 
 
-TEST_AUTH = {"credentials": {}}
+TEST_AUTH = {"auth_type": "Custom", "credentials": {}}
 
 TEST_NZBN = "9429041525746"
 

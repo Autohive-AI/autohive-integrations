@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -1442,6 +1442,13 @@
                             "null"
                           ],
                           "description": "Ticket priority level"
+                        },
+                        "hubspot_owner_id": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "HubSpot owner ID assigned to the ticket"
                         },
                         "hs_ticket_category": {
                           "type": [

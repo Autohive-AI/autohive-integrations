@@ -55,7 +55,7 @@ def live_context():
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
-    ctx.auth = {"api_token": API_TOKEN}
+    ctx.auth = {"auth_type": "Custom", "credentials": {"api_token": API_TOKEN}}
     return ctx
 
 
@@ -326,7 +326,7 @@ class TestPosts:
                     f"https://public.missiveapp.com/v1/posts/{post_id}",
                     method="DELETE",
                     headers={
-                        "Authorization": f"Bearer {live_context.auth.get('api_token', '')}",
+                        "Authorization": f"Bearer {live_context.auth['credentials'].get('api_token', '')}",
                         "Content-Type": "application/json",
                     },
                 )
@@ -415,7 +415,7 @@ class TestContacts:
                 f"https://public.missiveapp.com/v1/contacts/{contact_id}",
                 method="DELETE",
                 headers={
-                    "Authorization": f"Bearer {live_context.auth.get('api_token', '')}",
+                    "Authorization": f"Bearer {live_context.auth['credentials'].get('api_token', '')}",
                     "Content-Type": "application/json",
                 },
             )

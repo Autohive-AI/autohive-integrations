@@ -55,19 +55,19 @@ pytestmark = [
 
 @pytest.fixture
 def live_context():
-    auth = {
+    credentials = {
         "aws_access_key_id": AWS_ACCESS_KEY_ID,
         "aws_secret_access_key": AWS_SECRET_ACCESS_KEY,
         "aws_region": AWS_REGION,
     }
     if AWS_SESSION_TOKEN:
-        auth["aws_session_token"] = AWS_SESSION_TOKEN
+        credentials["aws_session_token"] = AWS_SESSION_TOKEN
 
     class _Ctx:
         pass
 
     ctx = _Ctx()
-    ctx.auth = auth
+    ctx.auth = {"auth_type": "Custom", "credentials": credentials}
     return ctx
 
 
@@ -182,6 +182,35 @@ async def test_archive_findings(live_context):
         live_context,
     )
     assert result.type == ResultType.ACTION, result.result.message
+
+
+# ---- Inspector ----
+
+
+@pytest.mark.asyncio
+async def test_list_inspector_findings(live_context):
+    result = await aws.execute_action("list_inspector_findings", {"max_results": 5}, live_context)
+    assert result.type == ResultType.ACTION, result.result.message
+    assert "findings" in result.result.data
+
+
+@pytest.mark.asyncio
+async def test_list_inspector_findings_last_hours(live_context):
+    result = await aws.execute_action("list_inspector_findings", {"last_hours": 24, "max_results": 20}, live_context)
+    assert result.type == ResultType.ACTION, result.result.message
+    assert "findings" in result.result.data
+
+
+@pytest.mark.asyncio
+async def test_get_inspector_finding_details(live_context):
+    list_result = await aws.execute_action("list_inspector_findings", {"max_results": 1}, live_context)
+    findings = list_result.result.data.get("findings", [])
+    if not findings:
+        pytest.skip("No Inspector findings available")
+    finding_arn = findings[0]["findingArn"]
+    result = await aws.execute_action("get_inspector_finding_details", {"finding_arns": [finding_arn]}, live_context)
+    assert result.type == ResultType.ACTION, result.result.message
+    assert "findings" in result.result.data
 
 
 # ---- CloudWatch ----

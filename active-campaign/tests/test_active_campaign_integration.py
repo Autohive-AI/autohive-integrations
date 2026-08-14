@@ -49,7 +49,7 @@ def live_context(env_credentials, make_context):
                     data = await resp.text()
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
-    ctx = make_context(auth={"api_key": api_key, "api_url": api_url})
+    ctx = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": api_key, "api_url": api_url}})
     ctx.fetch.side_effect = real_fetch
     return ctx
 

@@ -1,7 +1,7 @@
 {
   "name": "Grammarly",
   "display_name": "Grammarly",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Grammarly integration for writing quality assessment, AI detection, plagiarism checking, and analytics. Includes Writing Score API, Analytics API, AI Detection API, and Plagiarism Detection API.",
   "entry_point": "grammarly.py",
   "auth": {
@@ -40,7 +40,10 @@
             "description": "The text content of the file to analyze"
           }
         },
-        "required": ["filename", "file_content"]
+        "required": [
+          "filename",
+          "file_content"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -48,17 +51,9 @@
           "score_request_id": {
             "type": "string",
             "description": "Unique identifier to retrieve the analysis results"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if the action failed"
           }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "get_writing_score_results": {
@@ -72,7 +67,9 @@
             "description": "The score request ID from create_writing_score_request"
           }
         },
-        "required": ["score_request_id"]
+        "required": [
+          "score_request_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -80,38 +77,49 @@
           "status": {
             "type": "string",
             "description": "Status of the scoring request: PENDING, COMPLETED, or FAILED",
-            "enum": ["PENDING", "COMPLETED", "FAILED"]
+            "enum": [
+              "PENDING",
+              "COMPLETED",
+              "FAILED"
+            ]
           },
           "general_score": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Overall writing quality score (null if status is PENDING or FAILED)"
           },
           "engagement": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Engagement score (null if status is PENDING or FAILED)"
           },
           "correctness": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Correctness score (null if status is PENDING or FAILED)"
           },
           "delivery": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Delivery score (null if status is PENDING or FAILED)"
           },
           "clarity": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Clarity score (null if status is PENDING or FAILED)"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if the action failed"
           }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "get_user_analytics": {
@@ -139,7 +147,10 @@
             "maximum": 400
           }
         },
-        "required": ["date_from", "date_to"]
+        "required": [
+          "date_from",
+          "date_to"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -151,7 +162,10 @@
               "type": "object",
               "properties": {
                 "id": {
-                  "type": ["string", "number"],
+                  "type": [
+                    "string",
+                    "number"
+                  ],
                   "description": "Unique user identifier"
                 },
                 "name": {
@@ -198,17 +212,9 @@
                 "description": "Number of items in current page"
               }
             }
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if the action failed"
           }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "analyze_ai_detection": {
@@ -226,7 +232,10 @@
             "description": "The text content of the file to analyze"
           }
         },
-        "required": ["filename", "file_content"]
+        "required": [
+          "filename",
+          "file_content"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -234,17 +243,9 @@
           "score_request_id": {
             "type": "string",
             "description": "Unique identifier to retrieve the analysis results"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if the action failed"
           }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "get_ai_detection_results": {
@@ -258,7 +259,9 @@
             "description": "The score request ID from create_ai_detection_request"
           }
         },
-        "required": ["score_request_id"]
+        "required": [
+          "score_request_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -266,30 +269,32 @@
           "status": {
             "type": "string",
             "description": "Status of the detection request: PENDING, COMPLETED, or FAILED",
-            "enum": ["PENDING", "COMPLETED", "FAILED"]
+            "enum": [
+              "PENDING",
+              "COMPLETED",
+              "FAILED"
+            ]
           },
           "average_confidence": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Confidence level of the AI detection (0-1 scale, null if status is PENDING or FAILED)"
           },
           "ai_generated_percentage": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Percentage of text that appears to be AI-generated (0-100, null if status is PENDING or FAILED)"
           },
           "updated_at": {
             "type": "string",
             "description": "Timestamp when the result was last updated"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if the action failed"
           }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "analyze_plagiarism_detection": {
@@ -307,7 +312,10 @@
             "description": "The text content of the file to analyze"
           }
         },
-        "required": ["filename", "file_content"]
+        "required": [
+          "filename",
+          "file_content"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -315,17 +323,9 @@
           "score_request_id": {
             "type": "string",
             "description": "Unique identifier to retrieve the analysis results"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if the action failed"
           }
         },
-        "required": ["result"]
+        "required": []
       }
     },
     "get_plagiarism_detection_results": {
@@ -339,7 +339,9 @@
             "description": "The score request ID from create_plagiarism_detection_request"
           }
         },
-        "required": ["score_request_id"]
+        "required": [
+          "score_request_id"
+        ]
       },
       "output_schema": {
         "type": "object",
@@ -347,30 +349,32 @@
           "status": {
             "type": "string",
             "description": "Status of the detection request: PENDING, COMPLETED, or FAILED",
-            "enum": ["PENDING", "COMPLETED", "FAILED"]
+            "enum": [
+              "PENDING",
+              "COMPLETED",
+              "FAILED"
+            ]
           },
           "originality_score": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Originality score (higher means more original, null if status is PENDING or FAILED)"
           },
           "plagiarism_percentage": {
-            "type": ["number", "null"],
+            "type": [
+              "number",
+              "null"
+            ],
             "description": "Percentage of text that appears to be plagiarized (0-100, null if status is PENDING or FAILED)"
           },
           "updated_at": {
             "type": "string",
             "description": "Timestamp when the result was last updated"
-          },
-          "result": {
-            "type": "boolean",
-            "description": "Whether the operation was successful"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message if the action failed"
           }
         },
-        "required": ["result"]
+        "required": []
       }
     }
   }

@@ -13,7 +13,7 @@ API_BASE = "https://coda.io/apis/v1"
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {"credentials": {"api_token": "test_token"}}  # nosec B105
+    ctx.auth = {"auth_type": "Custom", "credentials": {"api_token": "test_token"}}  # nosec B105
     return ctx
 
 

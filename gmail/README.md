@@ -95,6 +95,45 @@ When `body_format` is `"html"` on `send_email` / `reply_to_thread` / `create_dra
 - **Do not** include `<style>` blocks or `<script>` — they are stripped. Use inline `style="..."` attributes instead.
 - A plain-text version is generated automatically from the sanitised HTML and sent as the `text/plain` alternative.
 
+### `<style>` and `<script>` blocks
+
+Both elements are removed **with their contents** before sanitisation. `bleach.clean(strip=True)` removes a
+disallowed tag but keeps the text inside it, so a `<style>` block would otherwise be printed in the email body as
+literal CSS. An unterminated `<style>` drops everything after it, matching how a real parser treats a raw-text
+element.
+
+### Inline CSS policy
+
+Inline `style` declarations are preserved, but only against an allow-list of visual-formatting properties
+(`ALLOWED_CSS_PROPERTIES` in `gmail.py`): text and font, colour, `background-color`, the box model, borders,
+`box-shadow` and `text-shadow`, and the table and list primitives that email templates rely on.
+
+CSS animations are not supported and cannot be. `animation` requires an `@keyframes` rule and `transition`
+requires a state selector, and both need a CSS rule block; `<style>` is not an allowed tag, because email clients
+strip stylesheet blocks anyway. That is the reason the schemas ask for inline styles in the first place.
+
+Declarations outside that list are dropped, and the rest of the `style` attribute is kept. Notable exclusions and why:
+
+| Excluded | Reason |
+|---|---|
+| `background`, `background-image`, `list-style-image`, `cursor`, `border-image` | Take a `url()`, which fetches remote content and leaks the recipient's IP and open time, defeating the client's image blocking |
+| `position`, `z-index`, `top`/`right`/`bottom`/`left`, `float`, `clip`, `transform` | Overlay and off-canvas tricks used to hide or spoof content |
+| `opacity`, `visibility` | Conceal text from the reader while leaving it in the document |
+| `behavior`, `expression`, `-moz-binding`, `filter` | Legacy script-execution vectors |
+| `animation`, `transition`, `transform` | Need `@keyframes` or a selector, neither of which can exist in an inline `style` attribute, so they could never do anything |
+| `fill`, `stroke`, `fill-opacity`, `stroke-opacity` and the rest of bleach's default SVG set | Outside the allow-list; the opacity variants hide content, and `<svg>` is not an allowed tag |
+
+`CSSSanitizer` also keeps its own default SVG property allow-list independently of `allowed_css_properties`, so that is cleared explicitly (`allowed_svg_properties=[]`); otherwise eight SVG properties would survive despite not being listed below.
+
+A property allow-list alone is not enough, because bleach's `CSSSanitizer` matches property *names* and never
+inspects values: `background-color: url(...)` would otherwise survive on an allowed property. `EmailCSSSanitizer`
+therefore also rejects any declaration whose value contains `url(`, `expression(`, `-moz-binding`, `javascript:` or
+`vbscript:`.
+
+This needs the `css` extra (`bleach[css]`), which pulls in `tinycss2`. Without a CSS sanitiser bleach warns
+(`NoCssSanitizerWarning`) and silently empties every declaration, so allowing `style` without one means inline
+styling is advertised but never delivered.
+
 ## Requirements
 
 Pinned in [`requirements.txt`](requirements.txt):
