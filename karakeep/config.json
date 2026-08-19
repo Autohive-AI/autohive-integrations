@@ -1,0 +1,328 @@
+{
+    "name": "Karakeep",
+    "display_name": "Karakeep",
+    "version": "1.0.0",
+    "description": "Save bookmarks and manage tags in a self-hosted Karakeep instance.",
+    "entry_point": "karakeep.py",
+    "auth": {
+        "type": "custom",
+        "title": "Karakeep Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string",
+                    "format": "text",
+                    "label": "Karakeep URL",
+                    "help_text": "Self-hosted Karakeep URL, including host and port. Examples: http://localhost:3000, http://192.168.1.10:3000, https://karakeep.example.com. Do not add a trailing slash or /api/v1."
+                },
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Key",
+                    "help_text": "API key from your Karakeep instance (Settings \u2192 API Keys)"
+                }
+            }
+        }
+    },
+    "actions": {
+        "create_bookmark": {
+            "display_name": "Create Bookmark",
+            "description": "Create a URL bookmark, or return the existing one if this URL is already saved.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "URL to bookmark"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Optional title"
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "Optional note attached to the bookmark"
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "Optional summary"
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether to archive the bookmark on creation (default: false)"
+                    },
+                    "favourited": {
+                        "type": "boolean",
+                        "description": "Whether to favourite the bookmark on creation (default: false)"
+                    }
+                },
+                "required": ["url"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "bookmark_id": {
+                        "type": "string",
+                        "description": "The id of the created or existing bookmark"
+                    },
+                    "bookmark": {
+                        "type": "object",
+                        "description": "The full bookmark object returned by Karakeep"
+                    },
+                    "already_existed": {
+                        "type": "boolean",
+                        "description": "True when this URL was already saved"
+                    }
+                },
+                "required": ["bookmark_id", "already_existed"]
+            }
+        },
+        "attach_tags": {
+            "display_name": "Attach Tags to Bookmark",
+            "description": "Attach one or more tags to a bookmark. Missing tag names are created automatically.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "bookmark_id": {
+                        "type": "string",
+                        "description": "ID of the bookmark returned by create_bookmark"
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Tag names to attach"
+                    }
+                },
+                "required": ["bookmark_id", "tags"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "attached": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "IDs of the tags that were attached"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of tag names sent for attachment"
+                    }
+                }
+            }
+        },
+        "search_bookmarks": {
+            "display_name": "Search Bookmarks",
+            "description": "Full-text search over bookmarks.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search string"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results per page (default: 20, max: 100)"
+                    },
+                    "cursor": {
+                        "type": "string",
+                        "description": "Pagination cursor"
+                    }
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "bookmarks": {
+                        "type": "array",
+                        "description": "Matching bookmark objects"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of bookmarks returned in this page"
+                    },
+                    "next_cursor": {
+                        "type": ["string", "null"],
+                        "description": "Next page cursor, or null"
+                    }
+                }
+            }
+        },
+        "get_bookmark": {
+            "display_name": "Get Bookmark",
+            "description": "Retrieve a bookmark by id.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "bookmark_id": {
+                        "type": "string",
+                        "description": "The bookmark id to fetch"
+                    }
+                },
+                "required": ["bookmark_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "bookmark": {
+                        "type": "object",
+                        "description": "The bookmark object"
+                    }
+                }
+            }
+        },
+        "create_tag": {
+            "display_name": "Create Tag",
+            "description": "Create a tag by name.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Tag name"
+                    }
+                },
+                "required": ["name"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tag_id": {
+                        "type": "string",
+                        "description": "The created tag id"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Tag name as stored by Karakeep"
+                    },
+                    "tag": {
+                        "type": "object",
+                        "description": "The full tag object returned by Karakeep"
+                    }
+                },
+                "required": ["tag_id"]
+            }
+        },
+        "list_tags": {
+            "display_name": "List Tags",
+            "description": "List tags.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name_contains": {
+                        "type": "string",
+                        "description": "Optional substring filter"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of tags per page (default: 20, max: 1000)"
+                    },
+                    "cursor": {
+                        "type": "string",
+                        "description": "Pagination cursor"
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "description": "Tag objects"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of tags returned in this page"
+                    },
+                    "next_cursor": {
+                        "type": ["string", "null"],
+                        "description": "Next page cursor, or null"
+                    }
+                }
+            }
+        },
+        "list_bookmarks": {
+            "display_name": "List Bookmarks",
+            "description": "List bookmarks, optionally filtered by archived or favourited status.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "archived": {
+                        "type": "boolean",
+                        "description": "If set, only return bookmarks with this archived status"
+                    },
+                    "favourited": {
+                        "type": "boolean",
+                        "description": "If set, only return bookmarks with this favourited status"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of bookmarks per page (default: 20, max: 100)"
+                    },
+                    "cursor": {
+                        "type": "string",
+                        "description": "Pagination cursor"
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "bookmarks": {
+                        "type": "array",
+                        "description": "Bookmark objects"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of bookmarks returned in this page"
+                    },
+                    "next_cursor": {
+                        "type": ["string", "null"],
+                        "description": "Next page cursor, or null"
+                    }
+                }
+            }
+        },
+        "get_tag_bookmarks": {
+            "display_name": "Get Bookmarks With Tag",
+            "description": "List bookmarks that have a given tag.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "tag_id": {
+                        "type": "string",
+                        "description": "Tag id from list_tags or create_tag"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of bookmarks per page (default: 20, max: 100)"
+                    },
+                    "cursor": {
+                        "type": "string",
+                        "description": "Pagination cursor"
+                    }
+                },
+                "required": ["tag_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "bookmarks": {
+                        "type": "array",
+                        "description": "Bookmark objects that have this tag"
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of bookmarks returned in this page"
+                    },
+                    "next_cursor": {
+                        "type": ["string", "null"],
+                        "description": "Next page cursor, or null"
+                    }
+                }
+            }
+        }
+    }
+}
