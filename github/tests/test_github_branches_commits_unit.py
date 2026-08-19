@@ -398,3 +398,69 @@ class TestDiffBranchToBranch:
 
         url = mock_context.fetch.call_args.args[0]
         assert "compare/main...feature" in url
+
+
+# ---- Regression: null commit authors in branch comparison ----
+
+
+class TestDiffBranchToBranchNullAuthor:
+    """Deleted accounts and some bot commits come back with a null author."""
+
+    @pytest.mark.asyncio
+    async def test_null_author_does_not_crash(self, mock_context):
+        # Regression: diff_branch_to_branch indexed commit["commit"]["author"]["name"]
+        # directly — the same crash list_commits was fixed for in 2.4.0.
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "status": "ahead",
+                "ahead_by": 1,
+                "behind_by": 0,
+                "total_commits": 1,
+                "commits": [
+                    {
+                        "sha": "abc123",
+                        "html_url": "https://github.com/octocat/Hello-World/commit/abc123",
+                        "commit": {"author": None, "message": "Bot commit"},
+                    }
+                ],
+                "files": [],
+            },
+        )
+
+        result = await github.execute_action(
+            "diff_branch_to_branch",
+            {"owner": "octocat", "repo": "Hello-World", "base_branch": "main", "head_branch": "dev"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        commit = result.result.data["commits"][0]
+        assert commit["author"]["name"] is None
+        assert commit["author"]["email"] is None
+        assert commit["message"] == "Bot commit"
+
+    @pytest.mark.asyncio
+    async def test_missing_commit_object_does_not_crash(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "status": "ahead",
+                "ahead_by": 1,
+                "behind_by": 0,
+                "total_commits": 1,
+                "commits": [{"sha": "abc123"}],
+                "files": [],
+            },
+        )
+
+        result = await github.execute_action(
+            "diff_branch_to_branch",
+            {"owner": "octocat", "repo": "Hello-World", "base_branch": "main", "head_branch": "dev"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["commits"][0]["message"] is None

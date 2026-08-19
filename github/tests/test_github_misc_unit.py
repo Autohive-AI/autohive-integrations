@@ -588,3 +588,40 @@ class TestConnectedAccount:
 
         assert result.type == ResultType.CONNECTED_ACCOUNT
         assert result.result.username is None
+
+
+# ---- Regression: sparse rate-limit payloads ----
+
+
+class TestGetRateLimitSparsePayload:
+    """GitHub omits whole resource blocks depending on token type."""
+
+    @pytest.mark.asyncio
+    async def test_missing_graphql_block_does_not_crash(self, mock_context):
+        # Regression: the action used to index rate_limit["resources"]["graphql"]
+        # directly, raising KeyError for tokens where GitHub omits the block.
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "resources": {
+                    "core": {"limit": 5000, "remaining": 4999, "reset": 1, "used": 1},
+                    "search": {"limit": 30, "remaining": 30, "reset": 1, "used": 0},
+                }
+            },
+        )
+
+        result = await github.execute_action("get_rate_limit", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["core"]["limit"] == 5000
+        assert result.result.data["graphql"] is None
+
+    @pytest.mark.asyncio
+    async def test_missing_resources_key_does_not_crash(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
+
+        result = await github.execute_action("get_rate_limit", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["core"] is None
