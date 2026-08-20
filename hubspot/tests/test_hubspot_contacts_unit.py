@@ -582,13 +582,16 @@ class TestAddContactToList:
 
         assert "crm.lists.write" in config["auth"]["scopes"]
 
+    def test_config_allows_hubspot_to_omit_empty_result_arrays(self):
+        config_path = Path(__file__).parents[1] / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        result_schema = config["actions"]["add_contact_to_list"]["output_schema"]["properties"]["result"]
+
+        assert "required" not in result_schema
+
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_context):
-        api_result = {
-            "recordsIdsAdded": ["456"],
-            "recordIdsMissing": [],
-            "recordIdsRemoved": [],
-        }
+    async def test_accepts_success_response_with_omitted_empty_arrays(self, mock_context):
+        api_result = {"recordsIdsAdded": ["456"]}
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=api_result)
 
         result = await hubspot.execute_action(

@@ -97,7 +97,7 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Inputs:**
   - `list_id` (required): HubSpot list ID
   - `contact_id` (required): Contact ID to add to the list
-- **Outputs:** Record IDs added to the list, missing from the account, or removed by the membership update
+- **Outputs:** Record IDs added to the list, missing from the account, or removed by the membership update. HubSpot omits result arrays that have no values.
 - **Required scope:** `crm.lists.write`
 - **Limitation:** Dynamic lists calculate membership from filters and cannot be updated directly
 
