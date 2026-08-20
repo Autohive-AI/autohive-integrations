@@ -18,7 +18,7 @@ Key features include:
 - Intelligent pagination and rate limiting for large datasets
 - Comprehensive search and filtering capabilities
 - Real-time conversation management for customer support
-- Lists/segments management with member exports
+- Lists/segments management with member exports and static-list membership updates
 
 This integration interacts with HubSpot's CRM v3 API, v4 Associations API, Marketing v3 API (emails and campaigns), and Conversations API, providing robust error handling, UTC date formatting, and optimized performance for large-scale operations.
 
@@ -38,6 +38,7 @@ The integration automatically requests the following HubSpot permissions:
 - `crm.objects.deals.write` - Write access to deal records
 - `crm.objects.owners.read` - Read access to owner information
 - `crm.lists.read` - Read access to lists/segments and their memberships
+- `crm.lists.write` - Add contacts to manual or snapshot lists
 - `tickets` - Full access to support tickets
 - `sales-email-read` - Read access to sales email data
 - `oauth` - OAuth authentication
@@ -92,11 +93,13 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Outputs:** Array of matching contact objects
 
 #### Action: `add_contact_to_list`
-- **Description:** Add a contact to a specific HubSpot marketing list
+- **Description:** Add a contact to a manual or snapshot HubSpot list
 - **Inputs:**
   - `list_id` (required): HubSpot list ID
   - `contact_id` (required): Contact ID to add to the list
-- **Outputs:** Operation result with success status
+- **Outputs:** Record IDs added to the list, missing from the account, or removed by the membership update
+- **Required scope:** `crm.lists.write`
+- **Limitation:** Dynamic lists calculate membership from filters and cannot be updated directly
 
 #### Action: `get_recent_contacts`
 - **Description:** Retrieve recently created contacts sorted by creation date
@@ -994,9 +997,10 @@ The integration has the following dependencies:
 1. Discover available lists using `get_lists` with optional filtering by processing types
 2. Search for specific lists using `search_lists` with name queries
 3. Get detailed list information with `get_list` including filter definitions for dynamic lists
-4. Export list members with complete contact details using `get_list_members`
-5. For performance-critical operations, use `get_list_memberships` to get raw member IDs first
-6. Use pagination with appropriate limits to manage large lists (10K+ members)
+4. Add contacts to manual or snapshot lists using `add_contact_to_list`
+5. Export list members with complete contact details using `get_list_members`
+6. For performance-critical operations, use `get_list_memberships` to get raw member IDs first
+7. Use pagination with appropriate limits to manage large lists (10K+ members)
 
 ### Associations Discovery Workflow
 1. Get a contact by email using `get_contact`
@@ -1045,10 +1049,10 @@ The integration has the following dependencies:
 
 To run the tests included with the integration:
 
-1. Navigate to the integration's directory: `cd hubspot`
-2. Install dependencies: `pip install -r requirements.txt`
-3. Set up test environment with valid HubSpot test credentials
-4. Run the tests: `python tests/test_hubspot.py`
+1. From the repository root, install the test and integration dependencies
+2. Run mocked unit tests with `pytest hubspot/`
+3. For live tests, configure the HubSpot variables documented in `.env.example`
+4. Run the list-membership test with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k add_contact_to_static_list`
 
 The test suite includes:
 - Authentication and token management tests
@@ -1068,6 +1072,8 @@ The test suite includes:
 - All dates are returned in UTC format for consistency
 - Pagination is essential for pipelines with 100+ deals
 - Some properties may be read-only depending on your HubSpot subscription level
+- `add_contact_to_list` requires `crm.lists.write` and only supports manual or snapshot lists
+- Existing connections must be reauthorized after new OAuth scopes are introduced
 
 ## Performance Optimization
 

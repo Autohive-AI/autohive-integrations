@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "2.2.1",
+  "version": "3.0.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -18,6 +18,7 @@
       "crm.objects.deals.write",
       "crm.objects.owners.read",
       "crm.lists.read",
+      "crm.lists.write",
       "oauth",
       "tickets",
       "sales-email-read",
@@ -1274,7 +1275,7 @@
     },
     "add_contact_to_list": {
       "display_name": "Add Contact to List",
-      "description": "Add a contact to a HubSpot list using Lists API",
+      "description": "Add a contact to a manual or snapshot HubSpot list using the Lists API",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1297,17 +1298,35 @@
         "properties": {
           "result": {
             "type": "object",
-            "description": "Result of adding contact to list operation",
+            "description": "Record IDs added, missing, or removed by the list membership update",
             "properties": {
-              "success": {
-                "type": "boolean",
-                "description": "Whether the operation was successful"
+              "recordsIdsAdded": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Record IDs added to the list"
               },
-              "message": {
-                "type": "string",
-                "description": "Success or error message"
+              "recordIdsMissing": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Record IDs that do not exist in the HubSpot account"
+              },
+              "recordIdsRemoved": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Record IDs removed as part of the membership update"
               }
-            }
+            },
+            "required": [
+              "recordsIdsAdded",
+              "recordIdsMissing",
+              "recordIdsRemoved"
+            ]
           }
         },
         "required": [

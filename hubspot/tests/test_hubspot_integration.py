@@ -8,6 +8,9 @@ Read-only tests require specific object IDs set in environment variables:
     HUBSPOT_TEST_CONTACT_ID, HUBSPOT_TEST_COMPANY_ID, HUBSPOT_TEST_DEAL_ID,
     HUBSPOT_TEST_TICKET_ID, HUBSPOT_TEST_LIST_ID, HUBSPOT_TEST_OWNER_ID
 
+The add_contact_to_list test requires HUBSPOT_TEST_LIST_ID to identify a
+MANUAL or SNAPSHOT list and HUBSPOT_TEST_CONTACT_ID to identify its member.
+
 Tests that create, update, or delete data are marked @pytest.mark.destructive
 and excluded by default. Run them explicitly with:
     pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive"
@@ -476,6 +479,25 @@ class TestGetDealCallsAndMeetings:
 # ---- Destructive Tests (Write Operations) ----
 # These create, update, or delete real data in HubSpot.
 # Only run with: pytest -m "integration and destructive"
+
+
+@pytest.mark.destructive
+class TestAddContactToList:
+    async def test_add_contact_to_static_list(self, live_context):
+        require_contact_id()
+        require_list_id()
+
+        result = await hubspot.execute_action(
+            "add_contact_to_list",
+            {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
+            live_context,
+        )
+        api_result = result.result.data["result"]
+
+        assert "category" not in api_result
+        assert any(
+            key in api_result for key in ("recordIdsAdded", "recordsIdsAdded", "recordIdsMissing", "recordIdsRemoved")
+        )
 
 
 @pytest.mark.destructive
