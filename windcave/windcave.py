@@ -19,18 +19,10 @@ from autohive_integrations_sdk import (
 
 windcave = Integration.load()
 
-PRODUCTION_BASE_URL = "https://sec.windcave.com/api/v1"
-UAT_BASE_URL = "https://uat.windcave.com/api/v1"
+BASE_URL = "https://sec.windcave.com/api/v1"
 
 
 # ---- Helper Functions ----
-
-
-def get_base_url(context: ExecutionContext) -> str:
-    """Return the Windcave API base URL for the configured environment."""
-    if context.auth["credentials"].get("use_test_environment"):
-        return UAT_BASE_URL
-    return PRODUCTION_BASE_URL
 
 
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
@@ -73,7 +65,7 @@ class GetTransactionAction(ActionHandler):
             transaction_id = inputs["transaction_id"]
 
             response = await context.fetch(
-                f"{get_base_url(context)}/transactions/{transaction_id}",
+                f"{BASE_URL}/transactions/{transaction_id}",
                 method="GET",
                 headers=get_auth_headers(context),
             )

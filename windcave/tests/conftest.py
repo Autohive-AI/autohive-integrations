@@ -19,7 +19,6 @@ def mock_context():
         "credentials": {
             "username": "test_user",
             "api_key": "test_api_key",  # nosec B105
-            "use_test_environment": False,
         },
     }
     return ctx

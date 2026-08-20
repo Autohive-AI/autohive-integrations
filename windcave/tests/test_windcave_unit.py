@@ -8,7 +8,6 @@ from windcave import windcave
 from windcave.windcave import (
     extract_error_message,
     get_auth_headers,
-    get_base_url,
 )
 
 pytestmark = pytest.mark.unit
@@ -25,15 +24,6 @@ SAMPLE_TRANSACTION = {
 
 
 # ---- Helper Functions ----
-
-
-class TestGetBaseUrl:
-    def test_production_by_default(self, mock_context):
-        assert get_base_url(mock_context) == "https://sec.windcave.com/api/v1"
-
-    def test_uat_when_flag_set(self, mock_context):
-        mock_context.auth["credentials"]["use_test_environment"] = True
-        assert get_base_url(mock_context) == "https://uat.windcave.com/api/v1"
 
 
 class TestGetAuthHeaders:
@@ -80,7 +70,7 @@ class TestExtractErrorMessage:
 class TestCustomAuthValidation:
     @pytest.mark.asyncio
     async def test_missing_credentials_not_rejected_by_schema_validation(self, make_context):
-        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"use_test_environment": False}})
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {}})
         ctx.fetch = AsyncMock(side_effect=HTTPError(401, "Unauthorized", {"message": "Invalid credentials"}))
 
         result = await windcave.execute_action("get_transaction", {"transaction_id": "txn_1"}, ctx)

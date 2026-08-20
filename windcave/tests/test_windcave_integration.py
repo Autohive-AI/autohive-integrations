@@ -1,9 +1,9 @@
 """
 End-to-end integration tests for the Windcave integration.
 
-These tests call the real Windcave REST API against the UAT (test) environment
-and require valid UAT REST API credentials set via WINDCAVE_USERNAME and
-WINDCAVE_API_KEY (in .env or exported).
+These tests call the real Windcave REST API and require valid REST API
+credentials set via WINDCAVE_USERNAME and WINDCAVE_API_KEY (in .env or
+exported).
 
 This integration is read-only — it exposes a single `get_transaction` action —
 so none of these tests create, modify, or delete data, and there are no
@@ -53,7 +53,7 @@ def live_context(env_credentials):
     ctx.fetch = AsyncMock(side_effect=real_fetch)
     ctx.auth = {
         "auth_type": "Custom",
-        "credentials": {"username": username, "api_key": api_key, "use_test_environment": True},
+        "credentials": {"username": username, "api_key": api_key},
     }
     return ctx
 
@@ -81,7 +81,7 @@ class TestGetTransaction:
 
     async def test_fetches_known_transaction(self, live_context):
         # Fetching a real transaction needs an ID from a transaction that already
-        # exists in the UAT account. This integration can no longer create one, so
+        # exists in the account. This integration can no longer create one, so
         # supply a known ID via WINDCAVE_TEST_TRANSACTION_ID to exercise the
         # success path.
         import os

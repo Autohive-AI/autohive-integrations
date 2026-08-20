@@ -20,12 +20,6 @@
                     "format": "password",
                     "label": "REST API Key",
                     "help_text": "The REST API key provided by Windcave. Combined with the username for HTTP Basic Authentication."
-                },
-                "use_test_environment": {
-                    "type": "boolean",
-                    "label": "Use UAT/Test Environment",
-                    "help_text": "Enable to send requests to Windcave's UAT environment instead of production. Requires separate UAT credentials.",
-                    "default": false
                 }
             },
             "required": []

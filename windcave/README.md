@@ -18,14 +18,12 @@ This integration uses **Custom Authentication** with your Windcave REST API cred
 
 - **`username`**: The REST API username provided by Windcave for your merchant account.
 - **`api_key`**: The REST API key provided by Windcave. Combined with the username to form an HTTP Basic Authentication header.
-- **`use_test_environment`** (optional): Enable to send requests to Windcave's UAT environment instead of production. UAT requires separate credentials issued by Windcave.
 
 ### Setup Steps
 
-1. Contact Windcave (or your onboarding representative) to obtain REST API credentials for your merchant account — a username and API key for production, and optionally a separate set for UAT.
+1. Contact Windcave (or your onboarding representative) to obtain REST API credentials for your merchant account.
 2. Add the Windcave integration in Autohive.
 3. Enter the `username` and `api_key` fields.
-4. Toggle `use_test_environment` on if you're configuring against Windcave's UAT environment.
 
 ## Actions
 
@@ -35,6 +33,20 @@ Retrieve a transaction by ID.
 **Inputs:** `transaction_id` (required)
 
 **Outputs:** `transaction_id`, `authorised`, `settlement_date`, `amount_surcharge`, `transaction` (raw object), `result`
+
+## API information
+
+- Base URL: `https://sec.windcave.com/api/v1`
+- Auth header: `Authorization: Basic <base64(username:api_key)>` (HTTP Basic Authentication)
+- Endpoint used: `GET /transactions/{id}`
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `Transaction not found` | The `transaction_id` doesn't exist in this Windcave account. |
+| `Invalid transaction id` | The `transaction_id` isn't in the format Windcave expects (a well-formed ID looks like 16 hex characters, not a UUID). |
+| `401`/authentication errors on every call | `username`/`api_key` are wrong or have been revoked. |
 
 ## Testing
 
@@ -56,7 +68,7 @@ WINDCAVE_API_KEY=
 WINDCAVE_TEST_TRANSACTION_ID=
 ```
 
-`WINDCAVE_USERNAME` and `WINDCAVE_API_KEY` should be UAT credentials. `WINDCAVE_TEST_TRANSACTION_ID` is the ID of a transaction that already exists in the UAT account; the success-path test skips without it. This integration is read-only, so no test creates or modifies data and there are no destructive tests.
+`WINDCAVE_TEST_TRANSACTION_ID` is the ID of a transaction that already exists in the account; the success-path test skips without it. This integration is read-only, so no test creates or modifies data and there are no destructive tests.
 
 ```bash
 pytest windcave/tests/test_windcave_integration.py -m integration
