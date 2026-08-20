@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -1321,12 +1321,7 @@
                 },
                 "description": "Record IDs removed as part of the membership update"
               }
-            },
-            "required": [
-              "recordsIdsAdded",
-              "recordIdsMissing",
-              "recordIdsRemoved"
-            ]
+            }
           }
         },
         "required": [
