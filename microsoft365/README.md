@@ -6,7 +6,7 @@ Connects Autohive to Microsoft Copilot 365 services including Outlook, OneDrive,
 
 This integration provides comprehensive access to Microsoft Copilot 365 services, enabling agents to manage emails, calendar events, contacts, files, and SharePoint sites through a unified interface. It interacts with the Microsoft Graph API to deliver seamless integration with Outlook email, OneDrive file storage, Calendar management, SharePoint collaboration, and intelligent meeting scheduling.
 
-Key capabilities include sending and managing emails, creating and updating calendar events, intelligent meeting scheduling with attendee availability detection, room discovery and availability checking, uploading and accessing files, reading contact information, and accessing SharePoint sites and document libraries. Advanced features include HTML email content, file attachments, timezone-aware operations, folder management, PDF conversion for Office documents, multi-drive SharePoint document access, `findMeetingTimes` for smart scheduling suggestions, `getSchedule` for free/busy availability lookups, and a `fields` parameter on `list_emails` to limit response payload when scanning large inboxes.
+Key capabilities include sending and managing emails, creating and updating calendar events, intelligent meeting scheduling with attendee availability detection, room discovery and availability checking, binary-safe OneDrive uploads, reading contact information, and accessing SharePoint sites and document libraries. Advanced features include HTML email content, file attachments, timezone-aware operations, folder management, PDF conversion for Office documents, multi-drive SharePoint document access, `findMeetingTimes` for smart scheduling suggestions, `getSchedule` for free/busy availability lookups, and a `fields` parameter on `list_emails` to limit response payload when scanning large inboxes.
 
 ## Setup & Authentication
 
@@ -385,13 +385,18 @@ Requires `Schedule.Read.All` scope.
 
 ### `upload_file`
 
-Upload a file to OneDrive.
+Upload an attached or generated file to OneDrive without changing its format. PDF, DOCX, PPTX, image, spreadsheet, and other binary files are base64-decoded from the standard Autohive file object and uploaded as their original bytes. The Microsoft Graph simple-upload endpoint supports files up to 250 MB.
+
+[Microsoft Graph: upload or replace drive item content](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0)
 
 **Inputs:**
-- `filename` (required): Name of the file (e.g. `report.txt`, `notes.md`)
-- `content` (required): Text content of the file
-- `content_type` (optional): MIME type
+- `file` (required for binary uploads): Attached or generated Autohive file object. Its original filename, base64 content, and MIME type are preserved.
+- `filename` (required for text uploads; optional for files): Text filename or override for the attached file's name
+- `content` (required for text uploads): Legacy text content, UTF-8 encoded before upload
+- `content_type` (optional): MIME type override. Defaults to the file object's MIME type or `text/plain` for text.
 - `folder_path` (optional): Destination folder path in OneDrive (default: root)
+
+Provide either `file`, or both `filename` and `content`. When `file` is present, the binary file path is used and `content` is ignored.
 
 **Outputs:**
 - `id`: ID of the uploaded file

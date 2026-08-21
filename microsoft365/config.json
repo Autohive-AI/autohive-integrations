@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Copilot 365",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, Calendar, SharePoint, and intelligent meeting scheduling",
   "entry_point": "microsoft365.py",
   "auth": {
@@ -138,22 +138,26 @@
     },
     "upload_file": {
       "display_name": "Upload File to OneDrive",
-      "description": "Upload a file to OneDrive - provide filename, text content, and optional folder",
+      "description": "Upload an attached binary file or text content to OneDrive without changing its format",
       "input_schema": {
         "type": "object",
         "properties": {
+          "file": {
+            "type": "object",
+            "format": "file",
+            "description": "File to upload. Attach a generated or local file to preserve its original PDF, DOCX, PPTX, image, spreadsheet, or other binary format."
+          },
           "filename": {
             "type": "string",
-            "description": "Name of the file to create (e.g., 'test.txt', 'notes.md')"
+            "description": "Filename for text content, or an optional override for the attached file's name"
           },
           "content": {
             "type": "string",
-            "description": "Text content of the file (will be automatically encoded)"
+            "description": "Legacy text content to UTF-8 encode and upload. For PDF, DOCX, images, spreadsheets, and other binary formats, use file instead."
           },
           "content_type": {
             "type": "string",
-            "description": "MIME type of the file",
-            "default": "text/plain"
+            "description": "Optional MIME type override. Defaults to the attached file's MIME type or text/plain for text content."
           },
           "folder_path": {
             "type": "string",
@@ -161,9 +165,18 @@
             "default": "/"
           }
         },
-        "required": [
-          "filename",
-          "content"
+        "anyOf": [
+          {
+            "required": [
+              "file"
+            ]
+          },
+          {
+            "required": [
+              "filename",
+              "content"
+            ]
+          }
         ]
       },
       "output_schema": {

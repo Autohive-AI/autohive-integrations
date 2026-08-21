@@ -8,6 +8,7 @@ from autohive_integrations_sdk import (
 from typing import Dict, Any, List
 from datetime import datetime, timedelta, timezone
 import base64
+import binascii
 import urllib.parse
 import aiohttp
 
@@ -16,6 +17,7 @@ microsoft365 = Integration.load()
 
 # Microsoft Graph API Base URL
 GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
+MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
 
 
 def _check_response(response: Any, *required_keys: str) -> None:
@@ -38,6 +40,72 @@ async def _fetch_binary(url: str, token: str) -> bytes:
                 text = await resp.text()
                 raise ValueError(f"HTTP {resp.status}: {text}")
             return await resp.read()
+
+
+def _decode_file_content(file_obj: Dict[str, Any]) -> bytes:
+    """Decode the base64 content from a standard Autohive file object."""
+    content = file_obj.get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise ValueError("Attached file is missing base64 content")
+
+    content_cleaned = "".join(content.split())
+    padding_needed = len(content_cleaned) % 4
+    if padding_needed:
+        content_cleaned += "=" * (4 - padding_needed)
+
+    try:
+        file_content = base64.b64decode(content_cleaned, validate=True)
+    except (binascii.Error, ValueError, TypeError) as exc:
+        raise ValueError("Attached file content is not valid base64") from exc
+
+    if not file_content:
+        raise ValueError("Attached file decoded to empty content")
+    return file_content
+
+
+def _resolve_upload_file(inputs: Dict[str, Any]) -> tuple[str, bytes, str]:
+    """Resolve either an attached binary file or the legacy text-content input."""
+    file_obj = inputs.get("file")
+
+    if file_obj is not None:
+        if not isinstance(file_obj, dict):
+            raise ValueError("file must be an attached Autohive file object")
+        file_content = _decode_file_content(file_obj)
+        filename = inputs.get("filename") or file_obj.get("name")
+        content_type = (
+            inputs.get("content_type")
+            or file_obj.get("contentType")
+            or file_obj.get("content_type")
+            or "application/octet-stream"
+        )
+    else:
+        content = inputs.get("content")
+        if not isinstance(content, str):
+            raise ValueError("Provide an attached file, or provide filename and text content")
+        file_content = content.encode("utf-8")
+        filename = inputs.get("filename")
+        content_type = inputs.get("content_type") or "text/plain"
+
+    if not isinstance(filename, str) or not filename.strip():
+        raise ValueError("A filename is required")
+    if not isinstance(content_type, str) or not content_type.strip():
+        raise ValueError("content_type must be a non-empty string")
+    if len(file_content) > MAX_SIMPLE_UPLOAD_BYTES:
+        raise ValueError("File exceeds the Microsoft Graph simple-upload limit of 250 MB")
+
+    return filename.strip(), file_content, content_type.strip()
+
+
+def _build_onedrive_upload_url(folder_path: Any, filename: str) -> str:
+    """Build a Graph path URL with each folder and filename segment encoded safely."""
+    if not isinstance(folder_path, str):
+        raise ValueError("folder_path must be a string")
+
+    folder_segments = [segment for segment in folder_path.strip("/").split("/") if segment]
+    encoded_segments = [urllib.parse.quote(segment, safe="") for segment in folder_segments]
+    encoded_segments.append(urllib.parse.quote(filename, safe=""))
+    target_path = "/".join(encoded_segments)
+    return f"{GRAPH_API_BASE}/me/drive/root:/{target_path}:/content"
 
 
 # ---- Action Handlers ----
@@ -117,17 +185,8 @@ class CreateCalendarEventAction(ActionHandler):
 class UploadFileAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            filename = inputs["filename"]
-            content = inputs["content"]
-            content_type = inputs.get("content_type", "text/plain")
-            folder_path = inputs.get("folder_path", "/").strip("/")
-
-            file_content = content.encode("utf-8")
-
-            if folder_path:
-                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}/{filename}:/content"
-            else:
-                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{filename}:/content"
+            filename, file_content, content_type = _resolve_upload_file(inputs)
+            upload_url = _build_onedrive_upload_url(inputs.get("folder_path", "/"), filename)
 
             resp = await context.fetch(
                 upload_url,
