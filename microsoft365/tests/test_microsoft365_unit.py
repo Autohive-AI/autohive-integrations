@@ -125,7 +125,7 @@ async def test_upload_binary_pdf_preserves_bytes_and_mime_type(mock_context):
 
 
 @pytest.mark.asyncio
-async def test_upload_files_array_preserves_binary_without_text_content(mock_context):
+async def test_upload_files_array_takes_precedence_over_empty_text_content(mock_context):
     pdf_bytes = b"%PDF-1.7\n% files array \x00\xff content\n%%EOF\n"
     mock_context.fetch = make_fetch({"id": "pdf-array", "webUrl": "https://onedrive.com/array", "size": len(pdf_bytes)})
 
@@ -138,7 +138,8 @@ async def test_upload_files_array_preserves_binary_without_text_content(mock_con
                     "content": base64.b64encode(pdf_bytes).decode("ascii"),
                     "contentType": "application/pdf",
                 }
-            ]
+            ],
+            "content": "",
         },
         mock_context,
     )
