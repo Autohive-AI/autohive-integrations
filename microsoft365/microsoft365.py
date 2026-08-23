@@ -40,6 +40,35 @@ async def _fetch_binary(url: str, token: str) -> bytes:
             return await resp.read()
 
 
+async def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
+    """Resolve the raw bytes of a platform file object.
+
+    Small files arrive inline as base64 in 'content'; files at or above the platform's
+    size threshold arrive as a pre-signed 'url' instead, with no 'content' key at all.
+    """
+    if "content" in file_obj:
+        content_b64 = file_obj["content"] or ""
+        stripped = "".join(content_b64.split())
+        if not stripped:
+            raise ValueError("file 'content' is empty — the attached file has no data")
+        try:
+            # validate=True so malformed input fails loudly instead of silently uploading
+            # a file built from the characters that happened to decode.
+            return base64.b64decode(stripped, validate=True)
+        except Exception:
+            raise ValueError("file 'content' is not valid base64-encoded data")
+
+    url = file_obj.get("url")
+    if url:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with session.get(url) as resp:
+                if not resp.ok:
+                    raise ValueError(f"Failed to download file from url: HTTP {resp.status}")
+                return await resp.read()
+
+    raise ValueError("file object missing 'content' (base64) or 'url' — ensure a file is attached to the message")
+
+
 # ---- Action Handlers ----
 
 
@@ -117,17 +146,34 @@ class CreateCalendarEventAction(ActionHandler):
 class UploadFileAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            filename = inputs["filename"]
-            content = inputs["content"]
-            content_type = inputs.get("content_type", "text/plain")
-            folder_path = inputs.get("folder_path", "/").strip("/")
+            file_obj = inputs.get("file")
+            text_content = inputs.get("content")
+            folder_path = (inputs.get("folder_path") or "/").strip("/")
 
-            file_content = content.encode("utf-8")
-
-            if folder_path:
-                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}/{filename}:/content"
+            if file_obj:
+                # OneDrive/SharePoint stores the raw bytes, so the base64 the platform hands
+                # us (or the bytes behind the pre-signed URL for larger files) is decoded
+                # rather than re-encoded as text.
+                file_content = await _resolve_file_bytes(file_obj)
+                filename = inputs.get("filename") or file_obj.get("name")
+                content_type = inputs.get("content_type") or file_obj.get("contentType") or "application/octet-stream"
+            elif text_content is not None:
+                # Text path, kept for workflows written against the original schema.
+                file_content = text_content.encode("utf-8")
+                filename = inputs.get("filename")
+                content_type = inputs.get("content_type") or "text/plain"
             else:
-                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{filename}:/content"
+                raise ValueError("provide either 'file' (an attached or generated file) or 'content' with 'filename'")
+
+            if not filename:
+                raise ValueError("'filename' is required when uploading text content")
+
+            encoded_filename = urllib.parse.quote(filename, safe="")
+            if folder_path:
+                encoded_folder = urllib.parse.quote(folder_path, safe="/")
+                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_folder}/{encoded_filename}:/content"
+            else:
+                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_filename}:/content"
 
             resp = await context.fetch(
                 upload_url,

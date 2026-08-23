@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Copilot 365",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, Calendar, SharePoint, and intelligent meeting scheduling",
   "entry_point": "microsoft365.py",
   "auth": {
@@ -138,33 +138,50 @@
     },
     "upload_file": {
       "display_name": "Upload File to OneDrive",
-      "description": "Upload a file to OneDrive - provide filename, text content, and optional folder",
+      "description": "Upload a file to OneDrive - attach a file to upload it unchanged, or provide text content to create a new text file",
       "input_schema": {
         "type": "object",
         "properties": {
-          "filename": {
-            "type": "string",
-            "description": "Name of the file to create (e.g., 'test.txt', 'notes.md')"
+          "file": {
+            "type": "object",
+            "description": "The file to upload, preserving its original bytes. Use this for attached or generated files such as PDF, DOCX, XLSX, and images.",
+            "properties": {
+              "content": {
+                "type": "string",
+                "description": "Base64 encoded file content"
+              },
+              "name": {
+                "type": "string",
+                "description": "File name including extension"
+              },
+              "contentType": {
+                "type": "string",
+                "description": "MIME type of the file"
+              }
+            },
+            "required": [
+              "name",
+              "contentType"
+            ]
           },
           "content": {
             "type": "string",
-            "description": "Text content of the file (will be automatically encoded)"
+            "description": "Text content for a new text file. Use only when there is no file to attach; requires 'filename'."
+          },
+          "filename": {
+            "type": "string",
+            "description": "Name to save the file as in OneDrive. Optional when 'file' is given (defaults to the file's own name), required with 'content'."
           },
           "content_type": {
             "type": "string",
-            "description": "MIME type of the file",
-            "default": "text/plain"
+            "description": "Override the MIME type. Defaults to the file's own contentType, or text/plain for text content."
           },
           "folder_path": {
             "type": "string",
             "description": "Destination folder path in OneDrive (default: root)",
             "default": "/"
           }
-        },
-        "required": [
-          "filename",
-          "content"
-        ]
+        }
       },
       "output_schema": {
         "type": "object",

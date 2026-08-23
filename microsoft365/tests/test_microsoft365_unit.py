@@ -1,10 +1,11 @@
+import base64
 import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from autohive_integrations_sdk import FetchResponse, ResultType
 from microsoft365.microsoft365 import microsoft365
 
@@ -71,26 +72,195 @@ async def test_create_calendar_event_error(mock_context):
 # ---- upload_file ----
 
 
+def async_cm(value):
+    """Wrap a value in an async context manager, for patching aiohttp session/response objects."""
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=value)
+    cm.__aexit__ = AsyncMock(return_value=False)
+    return cm
+
+
+def make_file_input(content=b"hello", name="test.txt", content_type="text/plain"):
+    return {
+        "file": {
+            "content": base64.b64encode(content).decode("ascii"),
+            "name": name,
+            "contentType": content_type,
+        }
+    }
+
+
 @pytest.mark.asyncio
 async def test_upload_file(mock_context):
     mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": 100})
-    result = await microsoft365.execute_action(
-        "upload_file",
-        {"filename": "test.txt", "content": "hello"},
-        mock_context,
-    )
+    result = await microsoft365.execute_action("upload_file", make_file_input(), mock_context)
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["id"] == "file1"
+
+    _, kwargs = mock_context.fetch.call_args
+    assert kwargs["data"] == b"hello", "file must be uploaded as raw bytes, not base64"
+    assert kwargs["headers"]["Content-Type"] == "text/plain"
+
+
+@pytest.mark.asyncio
+async def test_upload_file_uses_folder_path_and_encodes_name(mock_context):
+    mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": 100})
+    inputs = make_file_input(name="my report.txt") | {"folder_path": "/Reports/2026"}
+    result = await microsoft365.execute_action("upload_file", inputs, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+
+    args, _ = mock_context.fetch.call_args
+    assert args[0].endswith("/me/drive/root:/Reports/2026/my%20report.txt:/content")
+
+
+@pytest.mark.asyncio
+async def test_upload_file_downloads_presigned_url(mock_context):
+    mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": 100})
+    inputs = {
+        "file": {
+            "url": "https://s3.example.com/large.pdf",
+            "name": "large.pdf",
+            "contentType": "application/pdf",
+            "sizeBytes": 5_000_000,
+        }
+    }
+    resp = MagicMock(ok=True)
+    resp.read = AsyncMock(return_value=b"%PDF-bytes")
+    session = MagicMock()
+    session.get = MagicMock(return_value=async_cm(resp))
+
+    with patch("microsoft365.microsoft365.aiohttp.ClientSession", return_value=async_cm(session)):
+        result = await microsoft365.execute_action("upload_file", inputs, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    _, kwargs = mock_context.fetch.call_args
+    assert kwargs["data"] == b"%PDF-bytes"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "name,content_type,payload",
+    [
+        ("report.pdf", "application/pdf", b"%PDF-1.7\r\n\x00\x01\x02\xff\xfe binary \x80 tail"),
+        (
+            "report.docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            b"PK\x03\x04\x14\x00\x06\x00\x08\x00\x00\x00!\x00\xde\xad\xbe\xef",
+        ),
+    ],
+)
+async def test_upload_file_preserves_binary_bytes(mock_context, name, content_type, payload):
+    """Bytes must survive the round trip untouched — the old UTF-8 encode corrupted them."""
+    mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": len(payload)})
+    result = await microsoft365.execute_action(
+        "upload_file",
+        make_file_input(content=payload, name=name, content_type=content_type),
+        mock_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+
+    _, kwargs = mock_context.fetch.call_args
+    assert kwargs["data"] == payload
+    assert kwargs["headers"]["Content-Type"] == content_type
+
+
+@pytest.mark.asyncio
+async def test_upload_file_overrides_name_and_content_type(mock_context):
+    mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": 100})
+    inputs = make_file_input() | {"filename": "renamed.md", "content_type": "text/markdown"}
+    result = await microsoft365.execute_action("upload_file", inputs, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+
+    args, kwargs = mock_context.fetch.call_args
+    assert args[0].endswith("/renamed.md:/content")
+    assert kwargs["headers"]["Content-Type"] == "text/markdown"
+
+
+@pytest.mark.asyncio
+async def test_upload_file_text_content_still_supported(mock_context):
+    """The original text-content workflow must keep working (issue #450)."""
+    mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": 5})
+    result = await microsoft365.execute_action(
+        "upload_file",
+        {"filename": "notes.md", "content": "# hello", "content_type": "text/markdown"},
+        mock_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+
+    _, kwargs = mock_context.fetch.call_args
+    assert kwargs["data"] == b"# hello"
+    assert kwargs["headers"]["Content-Type"] == "text/markdown"
+
+
+@pytest.mark.asyncio
+async def test_upload_file_text_content_defaults_to_plain_text(mock_context):
+    mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": 5})
+    result = await microsoft365.execute_action(
+        "upload_file",
+        {"filename": "notes.txt", "content": "hello"},
+        mock_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    _, kwargs = mock_context.fetch.call_args
+    assert kwargs["headers"]["Content-Type"] == "text/plain"
+
+
+@pytest.mark.asyncio
+async def test_upload_file_missing_content_and_url(mock_context):
+    mock_context.fetch = make_fetch({"id": "file1"})
+    result = await microsoft365.execute_action(
+        "upload_file",
+        {"file": {"name": "test.txt", "contentType": "text/plain"}},
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "content" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_upload_file_rejects_empty_content(mock_context):
+    mock_context.fetch = make_fetch({"id": "file1"})
+    result = await microsoft365.execute_action(
+        "upload_file",
+        {"file": {"content": "", "name": "test.txt", "contentType": "text/plain"}},
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "empty" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_upload_file_rejects_invalid_base64(mock_context):
+    mock_context.fetch = make_fetch({"id": "file1"})
+    result = await microsoft365.execute_action(
+        "upload_file",
+        {"file": {"content": "not!valid!base64!", "name": "test.txt", "contentType": "text/plain"}},
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "base64" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_upload_file_requires_file_or_content(mock_context):
+    mock_context.fetch = make_fetch({"id": "file1"})
+    result = await microsoft365.execute_action("upload_file", {"folder_path": "/Reports"}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "content" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_upload_file_text_content_requires_filename(mock_context):
+    mock_context.fetch = make_fetch({"id": "file1"})
+    result = await microsoft365.execute_action("upload_file", {"content": "hello"}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "filename" in result.result.message
 
 
 @pytest.mark.asyncio
 async def test_upload_file_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("upload failed"))
-    result = await microsoft365.execute_action(
-        "upload_file",
-        {"filename": "test.txt", "content": "hello"},
-        mock_context,
-    )
+    result = await microsoft365.execute_action("upload_file", make_file_input(), mock_context)
     assert result.type == ResultType.ACTION_ERROR
 
 
