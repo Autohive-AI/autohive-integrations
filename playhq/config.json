@@ -1,0 +1,628 @@
+{
+  "name": "PlayHQ",
+  "version": "1.0.0",
+  "display_name": "PlayHQ",
+  "description": "Access PlayHQ public sports data and private partner operations across organisations, seasons, teams, grades, games, profiles, webhooks, and referees.",
+  "entry_point": "playhq.py",
+  "supports_billing": false,
+  "auth": {
+    "type": "custom",
+    "title": "PlayHQ API credentials",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "client_id": {
+          "type": "string",
+          "label": "Client ID",
+          "help_text": "The PlayHQ Partner API client ID supplied under your formal PlayHQ partner agreement."
+        },
+        "client_secret": {
+          "type": "string",
+          "format": "password",
+          "label": "Client Secret",
+          "help_text": "The PlayHQ Partner API client secret supplied by PlayHQ."
+        },
+        "region": {
+          "type": "string",
+          "label": "Region",
+          "help_text": "PlayHQ production region for the connected partner account.",
+          "enum": ["anz", "europe", "canada"],
+          "default": "anz"
+        },
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "Public API Key",
+          "help_text": "Optional API key supplied by PlayHQ for public x-api-key endpoints. Required only for public-data actions."
+        },
+        "tenant": {
+          "type": "string",
+          "label": "Public API Tenant",
+          "help_text": "Optional PlayHQ tenant code such as bv, afl, or ca. Required only for public-data actions."
+        }
+      },
+      "required": []
+    }
+  },
+  "actions": {
+    "list_organisations": {
+      "display_name": "List Organisations",
+      "description": "List organisations accessible to the authenticated PlayHQ partner using cursor pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "description": "Cursor from metadata.nextCursor in a previous response."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum organisations to return.",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10
+          },
+          "type": {
+            "type": "string",
+            "description": "Organisation type filter.",
+            "enum": ["ALL", "CLUB", "ASSOCIATION", "ADMINISTRATIVE_BODY"],
+            "default": "ALL"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "organisations": {
+            "type": "array",
+            "description": "Organisations returned by PlayHQ."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Cursor pagination metadata."
+          }
+        },
+        "required": ["organisations", "metadata"]
+      }
+    },
+    "list_teams_for_organisation": {
+      "display_name": "List Teams for Organisation",
+      "description": "List teams beneath a specified association organisation using cursor pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organisation_id": {
+            "type": "string",
+            "description": "PlayHQ organisation UUID.",
+            "minLength": 1
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Cursor from metadata.nextCursor in a previous response."
+          }
+        },
+        "required": ["organisation_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "teams": {
+            "type": ["array", "object"],
+            "description": "Teams returned by PlayHQ."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Cursor pagination metadata."
+          }
+        },
+        "required": ["teams", "metadata"]
+      }
+    },
+    "list_games_for_organisation": {
+      "display_name": "List Games for Organisation",
+      "description": "List games for an organisation within an inclusive date range using cursor pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organisation_id": {
+            "type": "string",
+            "description": "PlayHQ organisation UUID.",
+            "minLength": 1
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Inclusive range start in YYYY-MM-DD format.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Inclusive range end in YYYY-MM-DD format; must be on or after start_date.",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Cursor from metadata.nextCursor in a previous response."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum games to return.",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10
+          },
+          "visibility": {
+            "type": "string",
+            "description": "Filter games by entity-hierarchy visibility.",
+            "enum": ["all", "visible", "hidden"],
+            "default": "all"
+          }
+        },
+        "required": ["organisation_id", "start_date", "end_date"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "games": {
+            "type": "array",
+            "description": "Games returned by PlayHQ."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Cursor pagination metadata."
+          }
+        },
+        "required": ["games", "metadata"]
+      }
+    },
+    "get_game_summary": {
+      "display_name": "Get Game Summary",
+      "description": "Get the private v2 game summary, including lineups and statistics where available.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "game_id": {
+            "type": "string",
+            "description": "PlayHQ game ID.",
+            "minLength": 1
+          }
+        },
+        "required": ["game_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "summary": {
+            "type": "object",
+            "description": "Private PlayHQ game summary."
+          }
+        },
+        "required": ["summary"]
+      }
+    },
+    "get_game_events": {
+      "display_name": "Get Game Events",
+      "description": "Get events captured by PlayHQ electronic scoring for a game; this endpoint does not currently support cricket.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "game_id": {
+            "type": "string",
+            "description": "PlayHQ game ID.",
+            "minLength": 1
+          }
+        },
+        "required": ["game_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "object",
+            "description": "Electronic-scoring events and related game data."
+          }
+        },
+        "required": ["events"]
+      }
+    },
+    "list_seasons_for_organisation": {
+      "display_name": "List Seasons for Organisation",
+      "description": "List competition seasons for an association organisation through the public API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organisation_id": {"type": "string", "description": "PlayHQ organisation ID.", "minLength": 1},
+          "cursor": {"type": "string", "description": "Cursor from metadata.nextCursor."}
+        },
+        "required": ["organisation_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"seasons": {"type": "array"}, "metadata": {"type": "object"}},
+        "required": ["seasons", "metadata"]
+      }
+    },
+    "list_teams_for_season": {
+      "display_name": "List Teams for Season",
+      "description": "List teams participating in a competition season through the public API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "season_id": {"type": "string", "description": "PlayHQ season ID.", "minLength": 1},
+          "cursor": {"type": "string", "description": "Cursor from metadata.nextCursor."}
+        },
+        "required": ["season_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"teams": {"type": "array"}, "metadata": {"type": "object"}},
+        "required": ["teams", "metadata"]
+      }
+    },
+    "list_grades_for_season": {
+      "display_name": "List Grades for Season",
+      "description": "List grades under a competition season through the public API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "season_id": {"type": "string", "description": "PlayHQ season ID.", "minLength": 1},
+          "cursor": {"type": "string", "description": "Cursor from metadata.nextCursor."}
+        },
+        "required": ["season_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"grades": {"type": "array"}, "metadata": {"type": "object"}},
+        "required": ["grades", "metadata"]
+      }
+    },
+    "get_team_fixture": {
+      "display_name": "Get Team Fixture",
+      "description": "Get fixture information for a team; PlayHQ does not currently support cricket for this endpoint.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string", "description": "PlayHQ team ID.", "minLength": 1},
+          "cursor": {"type": "string", "description": "Cursor from metadata.nextCursor."}
+        },
+        "required": ["team_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"games": {"type": "array"}, "metadata": {"type": "object"}},
+        "required": ["games", "metadata"]
+      }
+    },
+    "get_grade_fixture": {
+      "display_name": "Get Grade Fixture",
+      "description": "Get the current v2 fixture for a grade through the public API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {"grade_id": {"type": "string", "description": "PlayHQ grade ID.", "minLength": 1}},
+        "required": ["grade_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"fixture": {"type": "object"}},
+        "required": ["fixture"]
+      }
+    },
+    "get_grade_ladder": {
+      "display_name": "Get Grade Ladder",
+      "description": "Get the current v2 ladder for a grade through the public API.",
+      "input_schema": {
+        "type": "object",
+        "properties": {"grade_id": {"type": "string", "description": "PlayHQ grade ID.", "minLength": 1}},
+        "required": ["grade_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"ladder": {"type": ["array", "object"]}},
+        "required": ["ladder"]
+      }
+    },
+    "list_grade_player_statistics": {
+      "display_name": "List Grade Player Statistics",
+      "description": "List player statistics for a grade; PlayHQ does not currently support cricket for this endpoint.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "grade_id": {"type": "string", "description": "PlayHQ grade ID.", "minLength": 1},
+          "sort": {
+            "type": "string",
+            "description": "PlayHQ statistic type used to sort results.",
+            "enum": [
+              "10_POINT_SCORE",
+              "1_POINT_SCORE",
+              "2_POINT_SCORE",
+              "3_POINT_SCORE",
+              "6_POINT_SCORE",
+              "9_POINT_SCORE",
+              "APPEARANCE",
+              "BENCH_TECHNICAL_FOUL",
+              "BEST_PLAYER",
+              "DISQUALIFYING_FOUL",
+              "GOAL_COUNT",
+              "PERSONAL_FOUL",
+              "RED_CARD",
+              "TECHNICAL_FOUL",
+              "TOTAL_BEHINDS",
+              "TOTAL_FOULS",
+              "TOTAL_GOALS",
+              "TOTAL_SCORE",
+              "UNSPORTSMANLIKE_FOUL",
+              "YELLOW_CARD"
+            ]
+          },
+          "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 100},
+          "cursor": {"type": "string", "description": "Cursor from metadata.nextCursor."}
+        },
+        "required": ["grade_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"statistics": {"type": ["array", "object"]}, "metadata": {"type": "object"}},
+        "required": ["statistics", "metadata"]
+      }
+    },
+    "get_public_game_summary_v1": {
+      "display_name": "Get Public Game Summary V1",
+      "description": "Get the public v1 game summary used by territory-based sports such as AFL and basketball.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "game_id": {"type": "string", "description": "PlayHQ game ID.", "minLength": 1},
+          "cursor": {"type": "string", "description": "Cursor from metadata.nextCursor."}
+        },
+        "required": ["game_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"summary": {"type": "object"}},
+        "required": ["summary"]
+      }
+    },
+    "get_public_game_summary_v2": {
+      "display_name": "Get Public Game Summary V2",
+      "description": "Get the current public v2 game summary while respecting PlayHQ visibility settings.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "game_id": {"type": "string", "description": "PlayHQ game ID.", "minLength": 1},
+          "cursor": {"type": "string", "description": "Cursor from metadata.nextCursor."}
+        },
+        "required": ["game_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"summary": {"type": "object"}},
+        "required": ["summary"]
+      }
+    },
+    "get_private_game_summary_v1": {
+      "display_name": "Get Private Game Summary V1",
+      "description": "Get the organisation-scoped private v1 summary used by territory-based sports.",
+      "input_schema": {
+        "type": "object",
+        "properties": {"game_id": {"type": "string", "description": "PlayHQ game ID.", "minLength": 1}},
+        "required": ["game_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"summary": {"type": "object"}},
+        "required": ["summary"]
+      }
+    },
+    "set_game_live_streaming": {
+      "display_name": "Set Game Live Streaming",
+      "description": "Enable or disable live streaming for a private game. This changes PlayHQ game configuration.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "game_id": {"type": "string", "description": "PlayHQ game ID.", "minLength": 1},
+          "enabled": {"type": "boolean", "description": "Whether live streaming is enabled."}
+        },
+        "required": ["game_id", "enabled"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"result": {"type": "object"}},
+        "required": ["result"]
+      }
+    },
+    "get_game_signed_url": {
+      "display_name": "Get Game Signed URL",
+      "description": "Generate a time-limited signed URL for referee access to game resources.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "game_id": {"type": "string", "description": "PlayHQ game ID.", "minLength": 1},
+          "first_name": {"type": "string", "description": "Referee first name.", "minLength": 1},
+          "last_name": {"type": "string", "description": "Referee last name.", "minLength": 1},
+          "user_id": {"type": "string", "description": "Referee ID in the connected provider system.", "minLength": 1}
+        },
+        "required": ["game_id", "first_name", "last_name", "user_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"signed_url": {"type": ["string", "object"]}},
+        "required": ["signed_url"]
+      }
+    },
+    "list_games_for_organisation_on_date": {
+      "display_name": "List Games for Organisation on Date",
+      "description": "List private games for an organisation on one date using PlayHQ's v1 endpoint.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organisation_id": {"type": "string", "description": "PlayHQ organisation ID.", "minLength": 1},
+          "date": {"type": "string", "description": "Game date in YYYY-MM-DD format.", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+          "cursor": {"type": "string", "description": "Cursor from metadata.nextCursor."}
+        },
+        "required": ["organisation_id", "date"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"games": {"type": "array"}, "metadata": {"type": "object"}},
+        "required": ["games", "metadata"]
+      }
+    },
+    "list_profile_dependants": {
+      "display_name": "List Profile Dependants",
+      "description": "List tenant-visible dependants related to a private PlayHQ profile.",
+      "input_schema": {
+        "type": "object",
+        "properties": {"profile_id": {"type": "string", "description": "PlayHQ profile ID.", "minLength": 1}},
+        "required": ["profile_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"dependants": {"type": "array"}, "metadata": {"type": "object"}},
+        "required": ["dependants", "metadata"]
+      }
+    },
+    "get_profile_career_statistics": {
+      "display_name": "Get Profile Career Statistics",
+      "description": "Get private career statistics for a profile and optional participant role.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "profile_id": {"type": "string", "description": "PlayHQ profile ID.", "minLength": 1},
+          "role": {"type": "string", "enum": ["PLAYER", "COACH", "TEAM_MANAGER", "ASSISTANT_COACH", "VOLUNTEER", "OFFICIAL", "MEDICAL_OFFICER"]}
+        },
+        "required": ["profile_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"statistics": {"type": ["array", "object"]}},
+        "required": ["statistics"]
+      }
+    },
+    "list_profile_statistic_seasons": {
+      "display_name": "List Profile Statistic Seasons",
+      "description": "List seasons in which a private profile earned statistics.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "profile_id": {"type": "string", "description": "PlayHQ profile ID.", "minLength": 1},
+          "role": {"type": "string", "enum": ["PLAYER", "COACH", "TEAM_MANAGER", "ASSISTANT_COACH", "VOLUNTEER", "OFFICIAL", "MEDICAL_OFFICER"]}
+        },
+        "required": ["profile_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"seasons": {"type": "array"}, "metadata": {"type": "object"}},
+        "required": ["seasons", "metadata"]
+      }
+    },
+    "get_profile_season_statistics": {
+      "display_name": "Get Profile Season Statistics",
+      "description": "Get private statistics for a profile in one season.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "profile_id": {"type": "string", "description": "PlayHQ profile ID.", "minLength": 1},
+          "season_id": {"type": "string", "description": "PlayHQ season ID.", "minLength": 1},
+          "role": {"type": "string", "enum": ["PLAYER", "COACH", "TEAM_MANAGER", "ASSISTANT_COACH", "VOLUNTEER", "OFFICIAL", "MEDICAL_OFFICER"]}
+        },
+        "required": ["profile_id", "season_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"statistics": {"type": ["array", "object"]}},
+        "required": ["statistics"]
+      }
+    },
+    "list_webhook_filter_entity_ids": {
+      "display_name": "List Webhook Filter Entity IDs",
+      "description": "List IDs configured for an entity filter on a PlayHQ webhook subscription.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "subscriber_id": {"type": "string", "description": "Webhook subscriber UUID.", "minLength": 1},
+          "subscription_id": {"type": "string", "description": "Webhook subscription UUID.", "minLength": 1},
+          "entity": {"type": "string", "enum": ["GAME", "PLAYING_SURFACE", "ORGANISATION_ANCESTOR", "FULFILMENT_PROVIDER", "ADMIN_ROLE", "PARTICIPANT_ROLE"]}
+        },
+        "required": ["subscriber_id", "subscription_id", "entity"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"entity_ids": {"type": "array"}},
+        "required": ["entity_ids"]
+      }
+    },
+    "add_webhook_filter_entity_id": {
+      "display_name": "Add Webhook Filter Entity ID",
+      "description": "Add an ID to a PlayHQ webhook subscription filter. This changes event delivery.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "subscriber_id": {"type": "string", "description": "Webhook subscriber UUID.", "minLength": 1},
+          "subscription_id": {"type": "string", "description": "Webhook subscription UUID.", "minLength": 1},
+          "entity": {"type": "string", "enum": ["GAME", "PLAYING_SURFACE", "ORGANISATION_ANCESTOR", "FULFILMENT_PROVIDER", "ADMIN_ROLE", "PARTICIPANT_ROLE"]},
+          "entity_id": {"type": "string", "description": "Entity UUID to add.", "minLength": 1}
+        },
+        "required": ["subscriber_id", "subscription_id", "entity", "entity_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"result": {"type": "object"}},
+        "required": ["result"]
+      }
+    },
+    "remove_webhook_filter_entity_id": {
+      "display_name": "Remove Webhook Filter Entity ID",
+      "description": "Remove an ID from a PlayHQ webhook subscription filter. This changes event delivery.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "subscriber_id": {"type": "string", "description": "Webhook subscriber UUID.", "minLength": 1},
+          "subscription_id": {"type": "string", "description": "Webhook subscription UUID.", "minLength": 1},
+          "entity": {"type": "string", "enum": ["GAME", "PLAYING_SURFACE", "ORGANISATION_ANCESTOR", "FULFILMENT_PROVIDER", "ADMIN_ROLE", "PARTICIPANT_ROLE"]},
+          "entity_id": {"type": "string", "description": "Entity UUID to remove.", "minLength": 1}
+        },
+        "required": ["subscriber_id", "subscription_id", "entity", "entity_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"result": {"type": "object"}},
+        "required": ["result"]
+      }
+    },
+    "set_game_payment_contract": {
+      "display_name": "Set Game Payment Contract",
+      "description": "Activate or deactivate a game payment contract for an organisation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "organisation_id": {"type": "string", "description": "PlayHQ organisation ID.", "minLength": 1},
+          "status": {"type": "string", "enum": ["ACTIVE", "INACTIVE"]}
+        },
+        "required": ["organisation_id", "status"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"result": {"type": "object"}},
+        "required": ["result"]
+      }
+    },
+    "link_referee_profile": {
+      "display_name": "Link Referee Profile",
+      "description": "Create a one-time mapping between an external referee user and a PlayHQ profile.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "provider": {"type": "string", "description": "Provider or association name.", "minLength": 1},
+          "external_user_id": {"type": "string", "description": "Referee user ID in the provider system.", "minLength": 1},
+          "profile_id": {"type": "string", "description": "PlayHQ profile ID.", "minLength": 1}
+        },
+        "required": ["provider", "external_user_id", "profile_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"result": {"type": "object"}},
+        "required": ["result"]
+      }
+    }
+  }
+}

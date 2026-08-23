@@ -135,6 +135,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [perplexity](perplexity): Web search integration powered by Perplexity's AI search API. Search the web and get ranked, structured results with titles, URLs, snippets, and dates. Supports content depth control (quick, default, detailed extraction), geographic filtering by country, multi-query search (up to 5 queries per request), and configurable result limits (1-20). Requires a `PERPLEXITY_API_KEY` environment variable. Includes 1 action for web search. Ideal for real-time web research, competitive intelligence, content curation, and market research automation.
 
+### PlayHQ
+
+[playhq](playhq): Comprehensive PlayHQ integration covering all 27 non-deprecated callable REST endpoints currently documented by PlayHQ. Supports public API-key data and private partner-JWT operations across organisations, seasons, teams, grades, fixtures, ladders, statistics, games, profiles, webhook filters, payment contracts, and referee mappings. Supports Australia/New Zealand, Europe, and Canada production regions. Private actions require an approved PlayHQ partner agreement; public actions require a PlayHQ API key and tenant code.
+
 ### Facebook Pages
 
 [facebook](facebook): Comprehensive Facebook Pages integration for managing social media presence through the Graph API v21.0. Supports page discovery, full post lifecycle (create, retrieve, schedule, delete) with text, photo, video, and link content types, comment management (read, reply, hide/unhide, like/unlike, delete), and page/post-level analytics. Features scheduled posting (10 min to 75 days ahead) with ISO 8601 and Unix timestamp support. Uses a multi-file structure pattern for maintainability with separate action modules. Includes OAuth2 authentication with comprehensive page permissions. Tested.
