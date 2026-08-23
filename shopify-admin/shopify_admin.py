@@ -15,14 +15,15 @@ Supported Operations:
 - Shop: get info
 
 Authentication:
-- OAuth 2.0 with access token
+- Merchant-provided Shopify app client ID and secret
+- OAuth 2.0 client credentials grant
 - Header: X-Shopify-Access-Token
 
 Rate Limits:
 - GraphQL: 100 points/second (1,000 capacity)
 - REST: 40 requests/minute
 
-API Version: 2024-10
+API Version: 2026-07
 """
 
 from autohive_integrations_sdk import (
@@ -31,13 +32,30 @@ from autohive_integrations_sdk import (
     ActionHandler,
     ActionResult,
 )
+import re
 from typing import Dict, Any
 
 # Create the integration using the config.json
 shopify_admin = Integration.load()
 
 # Shopify API version
-API_VERSION = "2024-10"
+API_VERSION = "2026-07"
+SHOP_DOMAIN_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.myshopify\.com$", re.IGNORECASE)
+WEIGHT_UNIT_ALIASES = {
+    "G": "GRAMS",
+    "GRAM": "GRAMS",
+    "GRAMS": "GRAMS",
+    "KG": "KILOGRAMS",
+    "KILOGRAM": "KILOGRAMS",
+    "KILOGRAMS": "KILOGRAMS",
+    "LB": "POUNDS",
+    "LBS": "POUNDS",
+    "POUND": "POUNDS",
+    "POUNDS": "POUNDS",
+    "OZ": "OUNCES",
+    "OUNCE": "OUNCES",
+    "OUNCES": "OUNCES",
+}
 
 
 # ============================================================================
@@ -45,15 +63,23 @@ API_VERSION = "2024-10"
 # ============================================================================
 
 
-def get_shop_url(context: ExecutionContext) -> str:
-    """Extract the shop URL from the context credentials."""
+def get_credentials(context: ExecutionContext) -> Dict[str, Any]:
+    """Return custom auth fields in production or local-test form."""
     credentials = context.auth.get("credentials", {})
-    shop_url = credentials.get("shop_url", "")
-    if shop_url:
-        # Remove protocol if present
-        shop_url = shop_url.replace("https://", "").replace("http://", "")
-        # Remove trailing slash
-        shop_url = shop_url.rstrip("/")
+    return credentials if isinstance(credentials, dict) and credentials else context.auth
+
+
+def get_shop_url(context: ExecutionContext) -> str:
+    """Return and validate the store's permanent myshopify.com domain."""
+    shop_url = str(get_credentials(context).get("shop_url", "")).strip().lower()
+    if shop_url.startswith("https://"):
+        shop_url = shop_url[len("https://") :]
+    elif shop_url.startswith("http://"):
+        shop_url = shop_url[len("http://") :]
+    shop_url = shop_url.rstrip("/")
+
+    if not SHOP_DOMAIN_PATTERN.fullmatch(shop_url):
+        raise ValueError("Shop domain must use the format your-store.myshopify.com")
     return shop_url
 
 
@@ -63,9 +89,35 @@ def get_api_url(context: ExecutionContext, endpoint: str = "") -> str:
     return f"https://{shop_url}/admin/api/{API_VERSION}{endpoint}"
 
 
-def build_headers(context: ExecutionContext) -> Dict[str, str]:
-    """Build headers for Shopify API requests with OAuth token."""
-    access_token = context.auth["credentials"]["access_token"]
+async def get_access_token(context: ExecutionContext) -> str:
+    """Exchange the merchant's app credentials for a short-lived access token."""
+    credentials = get_credentials(context)
+    client_id = str(credentials.get("client_id", "")).strip()
+    client_secret = str(credentials.get("client_secret", "")).strip()
+    missing = [name for name, value in (("client_id", client_id), ("client_secret", client_secret)) if not value]
+    if missing:
+        raise ValueError(f"Missing Shopify credential: {', '.join(missing)}")
+
+    response = await context.fetch(
+        f"https://{get_shop_url(context)}/admin/oauth/access_token",
+        method="POST",
+        data={
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        content_type="application/x-www-form-urlencoded",
+    )
+    token_data = response.data if hasattr(response, "data") else response
+    access_token = token_data.get("access_token") if isinstance(token_data, dict) else None
+    if not access_token:
+        raise ValueError("Shopify did not return an access token")
+    return access_token
+
+
+async def build_headers(context: ExecutionContext) -> Dict[str, str]:
+    """Build Shopify API headers using a freshly acquired access token."""
+    access_token = await get_access_token(context)
     return {"X-Shopify-Access-Token": access_token, "Content-Type": "application/json"}
 
 
@@ -118,7 +170,7 @@ def from_gid(gid: str) -> str:
 async def execute_graphql(context: ExecutionContext, query: str, variables: dict = None) -> dict:
     """Execute a GraphQL query/mutation against Shopify Admin API."""
     url = get_graphql_url(context)
-    headers = build_headers(context)
+    headers = await build_headers(context)
 
     payload = {"query": query}
     if variables:
@@ -169,6 +221,24 @@ def build_product_query_filter(inputs: Dict[str, Any]) -> str:
     return " AND ".join(filters) if filters else None
 
 
+def transform_variant_response(graphql_variant: dict) -> dict:
+    """Transform a GraphQL product variant to the integration's response shape."""
+    inventory_item = graphql_variant.get("inventoryItem") or {}
+    measurement = inventory_item.get("measurement") or {}
+    weight = measurement.get("weight") or {}
+    return {
+        "id": from_gid(graphql_variant.get("id", "")),
+        "title": graphql_variant.get("title"),
+        "price": graphql_variant.get("price"),
+        "compare_at_price": graphql_variant.get("compareAtPrice"),
+        "sku": graphql_variant.get("sku"),
+        "barcode": graphql_variant.get("barcode"),
+        "inventory_quantity": graphql_variant.get("inventoryQuantity"),
+        "weight": weight.get("value"),
+        "weight_unit": weight.get("unit"),
+    }
+
+
 def transform_product_response(graphql_product: dict) -> dict:
     """Transform GraphQL product response to REST-compatible format."""
     if not graphql_product:
@@ -196,20 +266,7 @@ def transform_product_response(graphql_product: dict) -> dict:
     if variants_data and isinstance(variants_data[0], dict) and "node" in variants_data[0]:
         variants_data = [e["node"] for e in variants_data]
 
-    product["variants"] = [
-        {
-            "id": from_gid(v.get("id", "")),
-            "title": v.get("title"),
-            "price": v.get("price"),
-            "compare_at_price": v.get("compareAtPrice"),
-            "sku": v.get("sku"),
-            "barcode": v.get("barcode"),
-            "inventory_quantity": v.get("inventoryQuantity"),
-            "weight": v.get("weight"),
-            "weight_unit": v.get("weightUnit"),
-        }
-        for v in (variants_data or [])
-    ]
+    product["variants"] = [transform_variant_response(variant) for variant in (variants_data or [])]
 
     # Transform options
     options_data = graphql_product.get("options", [])
@@ -242,6 +299,147 @@ def transform_product_response(graphql_product: dict) -> dict:
     return product
 
 
+def normalize_weight_unit(value: str) -> str:
+    """Return a Shopify WeightUnit value, accepting common abbreviations."""
+    normalized = str(value or "GRAMS").strip().upper()
+    if normalized not in WEIGHT_UNIT_ALIASES:
+        valid_units = ", ".join(sorted({"GRAMS", "KILOGRAMS", "OUNCES", "POUNDS"}))
+        raise ValueError(f"Unsupported weight_unit '{value}'. Use one of: {valid_units}")
+    return WEIGHT_UNIT_ALIASES[normalized]
+
+
+def build_variant_option_values(variant: dict, product_options: list) -> list:
+    """Convert supported variant option formats to VariantOptionValueInput objects."""
+    option_values = variant.get("option_values", variant.get("optionValues"))
+    if isinstance(option_values, dict):
+        return [{"optionName": option_name, "name": name} for option_name, name in option_values.items()]
+
+    if option_values:
+        graphql_values = []
+        key_mapping = {
+            "option_name": "optionName",
+            "option_id": "optionId",
+            "linked_metafield_value": "linkedMetafieldValue",
+        }
+        allowed_fields = {"id", "name", "optionId", "optionName", "linkedMetafieldValue"}
+        for option_value in option_values:
+            if not isinstance(option_value, dict):
+                raise ValueError("Each variant option_values entry must be an object")
+            normalized_value = {key_mapping.get(key, key): value for key, value in option_value.items()}
+            graphql_value = {key: value for key, value in normalized_value.items() if key in allowed_fields}
+            if not graphql_value:
+                raise ValueError("Each variant option_values entry must identify an option and value")
+            graphql_values.append(graphql_value)
+        return graphql_values
+
+    graphql_values = []
+    for index, option in enumerate(product_options, start=1):
+        option_name = option.get("name") if isinstance(option, dict) else option
+        option_value = variant.get(f"option{index}")
+        if option_name and option_value is not None:
+            graphql_values.append({"optionName": option_name, "name": str(option_value)})
+    return graphql_values
+
+
+def build_product_variant_input(variant: dict, product_options: list) -> dict:
+    """Build a ProductVariantsBulkInput for Shopify Admin API 2026-07."""
+    if not isinstance(variant, dict):
+        raise ValueError("Each product variant must be an object")
+
+    graphql_variant = {}
+    if variant.get("price") is not None:
+        graphql_variant["price"] = str(variant["price"])
+    if variant.get("compare_at_price") is not None:
+        graphql_variant["compareAtPrice"] = str(variant["compare_at_price"])
+    if variant.get("barcode") is not None:
+        graphql_variant["barcode"] = variant["barcode"]
+
+    inventory_item = {}
+    if variant.get("sku") is not None:
+        inventory_item["sku"] = variant["sku"]
+    if variant.get("weight") is not None:
+        inventory_item["measurement"] = {
+            "weight": {
+                "value": float(variant["weight"]),
+                "unit": normalize_weight_unit(variant.get("weight_unit", "GRAMS")),
+            }
+        }
+    if inventory_item:
+        graphql_variant["inventoryItem"] = inventory_item
+
+    option_values = build_variant_option_values(variant, product_options)
+    if option_values:
+        graphql_variant["optionValues"] = option_values
+    return graphql_variant
+
+
+def format_graphql_user_errors(operation: str, user_errors: list) -> str:
+    """Format Shopify mutation user errors into an actionable exception message."""
+    messages = [f"{error.get('field', 'unknown')}: {error.get('message', 'error')}" for error in user_errors]
+    return f"{operation} failed: {'; '.join(messages)}"
+
+
+def build_fulfillment_order_payload(fulfillment_orders: list, location_id: str, requested_line_items: list) -> list:
+    """Map order line items to Shopify's fulfillment-order based request shape."""
+    eligible_orders = []
+    for fulfillment_order in fulfillment_orders:
+        supported_actions = fulfillment_order.get("supported_actions") or []
+        if str(fulfillment_order.get("assigned_location_id")) != str(location_id):
+            continue
+        if supported_actions and "create_fulfillment" not in supported_actions:
+            continue
+        eligible_orders.append(fulfillment_order)
+
+    if not eligible_orders:
+        raise ValueError(f"No fulfillable fulfillment orders were found at location {location_id}")
+
+    if not requested_line_items:
+        return [{"fulfillment_order_id": fulfillment_order["id"]} for fulfillment_order in eligible_orders]
+
+    requested_by_id = {}
+    for line_item in requested_line_items:
+        if not isinstance(line_item, dict) or line_item.get("id") is None:
+            raise ValueError("Each line_items entry must include an order line item id")
+        requested_by_id[str(line_item["id"])] = line_item
+
+    matched_ids = set()
+    line_items_by_fulfillment_order = []
+    for fulfillment_order in eligible_orders:
+        fulfillment_order_line_items = []
+        for fulfillment_order_line_item in fulfillment_order.get("line_items", []):
+            candidate_ids = {
+                str(fulfillment_order_line_item.get("id")),
+                str(fulfillment_order_line_item.get("line_item_id")),
+            }
+            requested_id = next((item_id for item_id in candidate_ids if item_id in requested_by_id), None)
+            if requested_id is None:
+                continue
+            requested = requested_by_id[requested_id]
+            quantity = requested.get("quantity", fulfillment_order_line_item.get("fulfillable_quantity"))
+            if quantity is None:
+                quantity = fulfillment_order_line_item.get("quantity")
+            fulfillment_order_line_items.append(
+                {
+                    "id": fulfillment_order_line_item["id"],
+                    "quantity": quantity,
+                }
+            )
+            matched_ids.add(requested_id)
+
+        if fulfillment_order_line_items:
+            line_items_by_fulfillment_order.append(
+                {
+                    "fulfillment_order_id": fulfillment_order["id"],
+                    "fulfillment_order_line_items": fulfillment_order_line_items,
+                }
+            )
+
+    unmatched_ids = set(requested_by_id) - matched_ids
+    if unmatched_ids:
+        raise ValueError(f"Line items not fulfillable at location {location_id}: {', '.join(sorted(unmatched_ids))}")
+    return line_items_by_fulfillment_order
+
+
 # GraphQL Queries and Mutations for Products
 PRODUCTS_QUERY = """
 query ListProducts($first: Int!, $after: String, $query: String) {
@@ -269,8 +467,14 @@ query ListProducts($first: Int!, $after: String, $query: String) {
             sku
             barcode
             inventoryQuantity
-            weight
-            weightUnit
+            inventoryItem {
+              measurement {
+                weight {
+                  value
+                  unit
+                }
+              }
+            }
           }
         }
         options {
@@ -319,8 +523,14 @@ query GetProduct($id: ID!) {
         sku
         barcode
         inventoryQuantity
-        weight
-        weightUnit
+        inventoryItem {
+          measurement {
+            weight {
+              value
+              unit
+            }
+          }
+        }
       }
     }
     options {
@@ -341,8 +551,8 @@ query GetProduct($id: ID!) {
 """
 
 PRODUCT_CREATE_MUTATION = """
-mutation ProductCreate($input: ProductInput!) {
-  productCreate(input: $input) {
+mutation ProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
     product {
       id
       title
@@ -386,8 +596,8 @@ mutation ProductCreate($input: ProductInput!) {
 """
 
 PRODUCT_UPDATE_MUTATION = """
-mutation ProductUpdate($input: ProductInput!) {
-  productUpdate(input: $input) {
+mutation ProductUpdate($product: ProductUpdateInput!) {
+  productUpdate(product: $product) {
     product {
       id
       title
@@ -430,6 +640,38 @@ mutation ProductUpdate($input: ProductInput!) {
 }
 """
 
+PRODUCT_VARIANTS_BULK_CREATE_MUTATION = """
+mutation ProductVariantsBulkCreate(
+  $productId: ID!
+  $variants: [ProductVariantsBulkInput!]!
+  $strategy: ProductVariantsBulkCreateStrategy
+) {
+  productVariantsBulkCreate(productId: $productId, variants: $variants, strategy: $strategy) {
+    productVariants {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+"""
+
+PRODUCT_VARIANTS_BULK_UPDATE_MUTATION = """
+mutation ProductVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkUpdate(productId: $productId, variants: $variants) {
+    productVariants {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+"""
+
 
 # ============================================================================
 # Customer Actions
@@ -443,7 +685,7 @@ class ListCustomersHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/customers.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             allowed_params = [
                 "limit",
@@ -474,13 +716,13 @@ class GetCustomerHandler(ActionHandler):
         try:
             customer_id = inputs["customer_id"]
             url = get_api_url(context, f"/customers/{customer_id}.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             response = await context.fetch(url, method="GET", headers=headers)
 
             return success_response(customer=response.get("customer", {}))
         except Exception as e:
-            return error_response(e, customer=None)
+            return error_response(e, customer={})
 
 
 @shopify_admin.action("search_customers")
@@ -490,7 +732,7 @@ class SearchCustomersHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/customers/search.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             params = {"query": inputs["query"]}
             if "limit" in inputs and inputs["limit"]:
@@ -513,7 +755,7 @@ class CreateCustomerHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/customers.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             customer_data = {}
             field_mapping = {
@@ -540,7 +782,7 @@ class CreateCustomerHandler(ActionHandler):
 
             return success_response(customer=response.get("customer", {}))
         except Exception as e:
-            return error_response(e, customer=None)
+            return error_response(e, customer={})
 
 
 @shopify_admin.action("update_customer")
@@ -551,7 +793,7 @@ class UpdateCustomerHandler(ActionHandler):
         try:
             customer_id = inputs["customer_id"]
             url = get_api_url(context, f"/customers/{customer_id}.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             customer_data = {}
             field_mapping = {
@@ -573,7 +815,7 @@ class UpdateCustomerHandler(ActionHandler):
 
             return success_response(customer=response.get("customer", {}))
         except Exception as e:
-            return error_response(e, customer=None)
+            return error_response(e, customer={})
 
 
 # ============================================================================
@@ -588,7 +830,7 @@ class ListOrdersHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/orders.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             allowed_params = [
                 "limit",
@@ -622,13 +864,13 @@ class GetOrderHandler(ActionHandler):
         try:
             order_id = inputs["order_id"]
             url = get_api_url(context, f"/orders/{order_id}.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             response = await context.fetch(url, method="GET", headers=headers)
 
             return success_response(order=response.get("order", {}))
         except Exception as e:
-            return error_response(e, order=None)
+            return error_response(e, order={})
 
 
 @shopify_admin.action("create_order")
@@ -638,7 +880,7 @@ class CreateOrderHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/orders.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             order_data = {"line_items": inputs["line_items"]}
 
@@ -667,7 +909,7 @@ class CreateOrderHandler(ActionHandler):
 
             return success_response(order=response.get("order", {}))
         except Exception as e:
-            return error_response(e, order=None)
+            return error_response(e, order={})
 
 
 @shopify_admin.action("cancel_order")
@@ -678,7 +920,7 @@ class CancelOrderHandler(ActionHandler):
         try:
             order_id = inputs["order_id"]
             url = get_api_url(context, f"/orders/{order_id}/cancel.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             cancel_data = {}
             if "reason" in inputs and inputs["reason"]:
@@ -692,7 +934,7 @@ class CancelOrderHandler(ActionHandler):
 
             return success_response(order=response.get("order", {}))
         except Exception as e:
-            return error_response(e, order=None)
+            return error_response(e, order={})
 
 
 # ============================================================================
@@ -730,12 +972,15 @@ class ListProductsHandler(ActionHandler):
 
             products = [transform_product_response(edge["node"]) for edge in edges]
 
-            return success_response(
-                products=products,
-                count=len(products),
-                hasNextPage=page_info.get("hasNextPage", False),
-                endCursor=page_info.get("endCursor"),
-            )
+            result_data = {
+                "products": products,
+                "count": len(products),
+                "hasNextPage": page_info.get("hasNextPage", False),
+            }
+            if page_info.get("endCursor") is not None:
+                result_data["endCursor"] = page_info["endCursor"]
+
+            return success_response(**result_data)
         except Exception as e:
             return error_response(e, products=[], count=0)
 
@@ -760,7 +1005,7 @@ class GetProductHandler(ActionHandler):
 
             return success_response(product=product)
         except Exception as e:
-            return error_response(e, product=None)
+            return error_response(e, product={})
 
 
 @shopify_admin.action("create_product")
@@ -771,6 +1016,8 @@ class CreateProductHandler(ActionHandler):
         try:
             # Build GraphQL input
             product_input = {"title": inputs["title"]}
+            variants = inputs.get("variants") or []
+            options = inputs.get("options") or []
 
             # Map REST field names to GraphQL field names
             if inputs.get("body_html"):
@@ -789,33 +1036,11 @@ class CreateProductHandler(ActionHandler):
                 # Convert to uppercase for GraphQL enum
                 product_input["status"] = inputs["status"].upper()
 
-            # Handle variants - GraphQL uses different structure
-            if inputs.get("variants"):
-                variants = inputs["variants"]
-                graphql_variants = []
-                for v in variants:
-                    gql_variant = {}
-                    if v.get("price"):
-                        gql_variant["price"] = str(v["price"])
-                    if v.get("sku"):
-                        gql_variant["sku"] = v["sku"]
-                    if v.get("barcode"):
-                        gql_variant["barcode"] = v["barcode"]
-                    if v.get("weight"):
-                        gql_variant["weight"] = v["weight"]
-                    if v.get("compare_at_price"):
-                        gql_variant["compareAtPrice"] = str(v["compare_at_price"])
-                    if gql_variant:
-                        graphql_variants.append(gql_variant)
-                if graphql_variants:
-                    product_input["variants"] = graphql_variants
-
             # Handle options - convert REST format to GraphQL productOptions format
             # REST format: [{"name": "Size", "values": ["S", "M"]}]
             # GraphQL format: [{name: "Size", values: [{name: "S"}, {name: "M"}]}]
             # Note: GraphQL uses 'productOptions' field, not 'options'
-            if inputs.get("options"):
-                options = inputs["options"]
+            if options:
                 graphql_options = []
                 for opt in options:
                     if isinstance(opt, dict) and "name" in opt:
@@ -836,7 +1061,12 @@ class CreateProductHandler(ActionHandler):
                 if graphql_options:
                     product_input["productOptions"] = graphql_options
 
-            variables = {"input": product_input}
+            graphql_variants = [build_product_variant_input(variant, options) for variant in variants]
+            has_option_values = [bool(variant.get("optionValues")) for variant in graphql_variants]
+            if len(graphql_variants) > 1 and not all(has_option_values):
+                raise ValueError("Each of multiple product variants must provide option_values")
+
+            variables = {"product": product_input}
 
             # Execute GraphQL mutation
             data = await execute_graphql(context, PRODUCT_CREATE_MUTATION, variables)
@@ -845,15 +1075,57 @@ class CreateProductHandler(ActionHandler):
             result = data.get("productCreate", {})
             user_errors = result.get("userErrors", [])
             if user_errors:
-                error_messages = [f"{e.get('field', 'unknown')}: {e.get('message', 'error')}" for e in user_errors]
-                raise Exception(f"Product creation failed: {'; '.join(error_messages)}")
+                raise Exception(format_graphql_user_errors("Product creation", user_errors))
+
+            graphql_product = result.get("product") or {}
+            product_id = graphql_product.get("id")
+            if not product_id:
+                raise Exception("Product creation failed: Shopify did not return a product ID")
+
+            if graphql_variants:
+                if len(graphql_variants) == 1 and not has_option_values[0]:
+                    standalone_variants = (graphql_product.get("variants") or {}).get("nodes", [])
+                    if not standalone_variants:
+                        raise Exception(
+                            f"Product {product_id} was created, but its standalone variant was not returned"
+                        )
+                    graphql_variants[0]["id"] = standalone_variants[0]["id"]
+                    variant_data = await execute_graphql(
+                        context,
+                        PRODUCT_VARIANTS_BULK_UPDATE_MUTATION,
+                        {"productId": product_id, "variants": graphql_variants},
+                    )
+                    variant_result = variant_data.get("productVariantsBulkUpdate", {})
+                    variant_operation = "Product variant update"
+                else:
+                    variant_data = await execute_graphql(
+                        context,
+                        PRODUCT_VARIANTS_BULK_CREATE_MUTATION,
+                        {
+                            "productId": product_id,
+                            "variants": graphql_variants,
+                            "strategy": "REMOVE_STANDALONE_VARIANT",
+                        },
+                    )
+                    variant_result = variant_data.get("productVariantsBulkCreate", {})
+                    variant_operation = "Product variant creation"
+
+                variant_errors = variant_result.get("userErrors", [])
+                if variant_errors:
+                    raise Exception(
+                        f"Product {product_id} was created, but "
+                        f"{format_graphql_user_errors(variant_operation, variant_errors).lower()}"
+                    )
+
+                product_data = await execute_graphql(context, PRODUCT_QUERY, {"id": product_id})
+                graphql_product = product_data.get("product") or {}
 
             # Transform response
-            product = transform_product_response(result.get("product", {}))
+            product = transform_product_response(graphql_product)
 
             return success_response(product=product)
         except Exception as e:
-            return error_response(e, product=None)
+            return error_response(e, product={})
 
 
 @shopify_admin.action("update_product")
@@ -888,7 +1160,7 @@ class UpdateProductHandler(ActionHandler):
                 # Convert to uppercase for GraphQL enum
                 product_input["status"] = inputs["status"].upper()
 
-            variables = {"input": product_input}
+            variables = {"product": product_input}
 
             # Execute GraphQL mutation
             data = await execute_graphql(context, PRODUCT_UPDATE_MUTATION, variables)
@@ -897,15 +1169,14 @@ class UpdateProductHandler(ActionHandler):
             result = data.get("productUpdate", {})
             user_errors = result.get("userErrors", [])
             if user_errors:
-                error_messages = [f"{e.get('field', 'unknown')}: {e.get('message', 'error')}" for e in user_errors]
-                raise Exception(f"Product update failed: {'; '.join(error_messages)}")
+                raise Exception(format_graphql_user_errors("Product update", user_errors))
 
             # Transform response
             product = transform_product_response(result.get("product", {}))
 
             return success_response(product=product)
         except Exception as e:
-            return error_response(e, product=None)
+            return error_response(e, product={})
 
 
 # ============================================================================
@@ -920,7 +1191,7 @@ class GetInventoryLevelsHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/inventory_levels.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             params = {}
             if "inventory_item_ids" in inputs and inputs["inventory_item_ids"]:
@@ -954,7 +1225,7 @@ class SetInventoryLevelHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/inventory_levels/set.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             payload = {
                 "location_id": inputs["location_id"],
@@ -966,7 +1237,7 @@ class SetInventoryLevelHandler(ActionHandler):
 
             return success_response(inventory_level=response.get("inventory_level", {}))
         except Exception as e:
-            return error_response(e, inventory_level=None)
+            return error_response(e, inventory_level={})
 
 
 # ============================================================================
@@ -981,7 +1252,7 @@ class ListLocationsHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/locations.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             response = await context.fetch(url, method="GET", headers=headers)
 
@@ -999,13 +1270,13 @@ class GetLocationHandler(ActionHandler):
         try:
             location_id = inputs["location_id"]
             url = get_api_url(context, f"/locations/{location_id}.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             response = await context.fetch(url, method="GET", headers=headers)
 
             return success_response(location=response.get("location", {}))
         except Exception as e:
-            return error_response(e, location=None)
+            return error_response(e, location={})
 
 
 # ============================================================================
@@ -1020,13 +1291,13 @@ class GetShopHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/shop.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             response = await context.fetch(url, method="GET", headers=headers)
 
             return success_response(shop=response.get("shop", {}))
         except Exception as e:
-            return error_response(e, shop=None)
+            return error_response(e, shop={})
 
 
 # ============================================================================
@@ -1041,7 +1312,7 @@ class ListDraftOrdersHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/draft_orders.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             allowed_params = ["limit", "since_id", "status"]
             params = build_query_params(inputs, allowed_params)
@@ -1064,7 +1335,7 @@ class CreateDraftOrderHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             url = get_api_url(context, "/draft_orders.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             draft_order_data = {"line_items": inputs["line_items"]}
 
@@ -1090,7 +1361,7 @@ class CreateDraftOrderHandler(ActionHandler):
 
             return success_response(draft_order=response.get("draft_order", {}))
         except Exception as e:
-            return error_response(e, draft_order=None)
+            return error_response(e, draft_order={})
 
 
 @shopify_admin.action("complete_draft_order")
@@ -1101,7 +1372,7 @@ class CompleteDraftOrderHandler(ActionHandler):
         try:
             draft_order_id = inputs["draft_order_id"]
             url = get_api_url(context, f"/draft_orders/{draft_order_id}/complete.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             params = {}
             if "payment_pending" in inputs:
@@ -1111,7 +1382,7 @@ class CompleteDraftOrderHandler(ActionHandler):
 
             return success_response(draft_order=response.get("draft_order", {}))
         except Exception as e:
-            return error_response(e, draft_order=None)
+            return error_response(e, draft_order={})
 
 
 @shopify_admin.action("delete_draft_order")
@@ -1122,7 +1393,7 @@ class DeleteDraftOrderHandler(ActionHandler):
         try:
             draft_order_id = inputs["draft_order_id"]
             url = get_api_url(context, f"/draft_orders/{draft_order_id}.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             await context.fetch(url, method="DELETE", headers=headers)
 
@@ -1144,7 +1415,7 @@ class ListFulfillmentsHandler(ActionHandler):
         try:
             order_id = inputs["order_id"]
             url = get_api_url(context, f"/orders/{order_id}/fulfillments.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             response = await context.fetch(url, method="GET", headers=headers)
 
@@ -1161,29 +1432,42 @@ class CreateFulfillmentHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             order_id = inputs["order_id"]
-            url = get_api_url(context, f"/orders/{order_id}/fulfillments.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
-            fulfillment_data = {"location_id": inputs["location_id"]}
+            fulfillment_orders_url = get_api_url(context, f"/orders/{order_id}/fulfillment_orders.json")
+            fulfillment_orders_response = await context.fetch(
+                fulfillment_orders_url,
+                method="GET",
+                headers=headers,
+            )
+            fulfillment_orders = fulfillment_orders_response.get("fulfillment_orders", [])
+            line_items_by_fulfillment_order = build_fulfillment_order_payload(
+                fulfillment_orders,
+                inputs["location_id"],
+                inputs.get("line_items") or [],
+            )
 
-            optional_fields = [
-                "tracking_number",
-                "tracking_company",
-                "tracking_url",
-                "notify_customer",
-                "line_items",
-            ]
-
-            for field in optional_fields:
-                if field in inputs and inputs[field] is not None:
-                    fulfillment_data[field] = inputs[field]
+            fulfillment_data = {
+                "line_items_by_fulfillment_order": line_items_by_fulfillment_order,
+                "notify_customer": inputs.get("notify_customer", True),
+            }
+            tracking_info = {}
+            if inputs.get("tracking_number"):
+                tracking_info["number"] = inputs["tracking_number"]
+            if inputs.get("tracking_company"):
+                tracking_info["company"] = inputs["tracking_company"]
+            if inputs.get("tracking_url"):
+                tracking_info["url"] = inputs["tracking_url"]
+            if tracking_info:
+                fulfillment_data["tracking_info"] = tracking_info
 
             payload = {"fulfillment": fulfillment_data}
+            url = get_api_url(context, "/fulfillments.json")
             response = await context.fetch(url, method="POST", json=payload, headers=headers)
 
             return success_response(fulfillment=response.get("fulfillment", {}))
         except Exception as e:
-            return error_response(e, fulfillment=None)
+            return error_response(e, fulfillment={})
 
 
 @shopify_admin.action("update_fulfillment_tracking")
@@ -1194,7 +1478,7 @@ class UpdateFulfillmentTrackingHandler(ActionHandler):
         try:
             fulfillment_id = inputs["fulfillment_id"]
             url = get_api_url(context, f"/fulfillments/{fulfillment_id}/update_tracking.json")
-            headers = build_headers(context)
+            headers = await build_headers(context)
 
             tracking_data = {}
             if "tracking_number" in inputs:
@@ -1215,4 +1499,4 @@ class UpdateFulfillmentTrackingHandler(ActionHandler):
 
             return success_response(fulfillment=response.get("fulfillment", {}))
         except Exception as e:
-            return error_response(e, fulfillment=None)
+            return error_response(e, fulfillment={})

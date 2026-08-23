@@ -1,27 +1,34 @@
 {
     "name": "Shopify Admin",
     "display_name": "Shopify Admin API",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Shopify Admin API integration for store management - customers, orders, products, inventory, locations, fulfillments, and draft orders",
     "entry_point": "shopify_admin.py",
     "auth": {
-        "type": "platform",
-        "provider": "Shopify Admin",
-        "scopes": [
-            "read_customers",
-            "write_customers",
-            "read_orders",
-            "write_orders",
-            "read_products",
-            "write_products",
-            "read_inventory",
-            "write_inventory",
-            "read_locations",
-            "read_fulfillments",
-            "write_fulfillments",
-            "read_draft_orders",
-            "write_draft_orders"
-        ]
+        "type": "custom",
+        "title": "Shopify App Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "shop_url": {
+                    "type": "string",
+                    "label": "Shop domain",
+                    "help_text": "Your permanent Shopify domain, for example your-store.myshopify.com."
+                },
+                "client_id": {
+                    "type": "string",
+                    "label": "Client ID",
+                    "help_text": "Copy the Client ID from your app's Settings page in the Shopify Dev Dashboard."
+                },
+                "client_secret": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Client secret",
+                    "help_text": "Copy the Client secret from your app's Settings page in the Shopify Dev Dashboard."
+                }
+            },
+            "required": []
+        }
     },
     "actions": {
         "list_customers": {
@@ -308,7 +315,7 @@
                     "product_type": {"type": "string", "description": "Product type", "label": "Product Type"},
                     "tags": {"type": "string", "description": "Comma-separated tags", "label": "Tags"},
                     "status": {"type": "string", "description": "Status", "label": "Status", "enum": ["active", "archived", "draft"], "default": "draft"},
-                    "variants": {"type": "array", "description": "Product variants with price, sku, barcode, weight", "label": "Variants"},
+                    "variants": {"type": "array", "description": "Product variants with price, compare_at_price, sku, barcode, weight, weight_unit, and option_values", "label": "Variants"},
                     "options": {"type": "array", "description": "Product options (e.g., Size, Color)", "label": "Options"}
                 },
                 "required": ["title"]
@@ -566,7 +573,7 @@
         },
         "create_fulfillment": {
             "display_name": "Create Fulfillment",
-            "description": "Create a fulfillment for an order",
+            "description": "Create a fulfillment for an order using Shopify fulfillment orders",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -576,7 +583,7 @@
                     "tracking_company": {"type": "string", "description": "Shipping company", "label": "Tracking Company"},
                     "tracking_url": {"type": "string", "description": "Tracking URL", "label": "Tracking URL"},
                     "notify_customer": {"type": "boolean", "description": "Notify customer", "label": "Notify Customer", "default": true},
-                    "line_items": {"type": "array", "description": "Line items to fulfill", "label": "Line Items"}
+                    "line_items": {"type": "array", "description": "Optional order line item IDs and quantities to fulfill; omit to fulfill everything assigned to the location", "label": "Line Items"}
                 },
                 "required": ["order_id", "location_id"]
             },

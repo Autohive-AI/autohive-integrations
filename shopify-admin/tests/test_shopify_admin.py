@@ -6,9 +6,9 @@ Real API integration testing against Shopify Admin API.
 Product operations use GraphQL Admin API (migrated from REST).
 
 Prerequisites:
-1. Shopify development store or Partner account
-2. Custom app with Admin API access token
-3. Required scopes configured
+1. Shopify store and Dev Dashboard app owned by the same organization
+2. App installed on the store with the required Admin API scopes
+3. Client ID and client secret from the app's Settings page
 
 Running Tests:
     cd shopify-admin/tests
@@ -39,20 +39,21 @@ async def execute_wrapper(action_name, inputs, context):
 # CONFIGURATION - Update with your credentials
 # =============================================================================
 AUTH = {
-    "auth_type": "PlatformOauth2",
+    "auth_type": "Custom",
     "credentials": {
-        "access_token": os.getenv("SHOPIFY_ADMIN_TOKEN", "<your-admin-api-access-token>"),
         "shop_url": os.getenv("SHOPIFY_STORE_URL", "your-store.myshopify.com"),
+        "client_id": os.getenv("SHOPIFY_CLIENT_ID", "<your-client-id>"),
+        "client_secret": os.getenv("SHOPIFY_CLIENT_SECRET", "<your-client-secret>"),
     },
 }
 
 # Test IDs - Replace with actual IDs from your store
 # Run safe tests first to discover valid IDs
-TEST_CUSTOMER_ID = os.getenv("TEST_CUSTOMER_ID", "<customer-id>")
-TEST_ORDER_ID = os.getenv("TEST_ORDER_ID", "<order-id>")
-TEST_PRODUCT_ID = os.getenv("TEST_PRODUCT_ID", "<product-id>")
-TEST_LOCATION_ID = os.getenv("TEST_LOCATION_ID", "<location-id>")
-TEST_INVENTORY_ITEM_ID = os.getenv("TEST_INVENTORY_ITEM_ID", "<inventory-item-id>")
+TEST_CUSTOMER_ID = os.getenv("SHOPIFY_ADMIN_TEST_CUSTOMER_ID", "<customer-id>")
+TEST_ORDER_ID = os.getenv("SHOPIFY_ADMIN_TEST_ORDER_ID", "<order-id>")
+TEST_PRODUCT_ID = os.getenv("SHOPIFY_ADMIN_TEST_PRODUCT_ID", "<product-id>")
+TEST_LOCATION_ID = os.getenv("SHOPIFY_ADMIN_TEST_LOCATION_ID", "<location-id>")
+TEST_INVENTORY_ITEM_ID = os.getenv("SHOPIFY_ADMIN_TEST_INVENTORY_ITEM_ID", "<inventory-item-id>")
 # =============================================================================
 
 

@@ -10,11 +10,29 @@ This integration provides access to the Shopify Admin API for managing customers
 - **Products**: GraphQL Admin API (migrated from REST - compliant with 2024-04 deprecation)
 - **Other resources**: REST Admin API
 
-**API Version:** 2024-10
+**API Version:** 2026-07
 
 ## Setup & Authentication
 
-This integration uses **Platform Authentication** with Shopify (Admin API).
+This integration uses **custom authentication** with credentials from a merchant-owned Shopify app. Autohive does not
+own or distribute the Shopify app and does not run a shared Shopify OAuth flow.
+
+Shopify's client credentials grant only works when the app was created by the same organization that owns the store.
+It cannot be used to connect an app owned by one organization to unrelated merchants' stores.
+
+### Shopify setup
+
+1. Sign in to the [Shopify Dev Dashboard](https://dev.shopify.com/dashboard) using the organization that owns the store.
+2. Create an app and configure the Admin API access scopes listed below.
+3. Release the app version and install the app on the store.
+4. Open the app's **Settings** page and copy its **Client ID** and **Client secret**.
+5. In Autohive, add the Shopify Admin integration and enter:
+   - **Shop domain** — the store's permanent domain, such as `your-store.myshopify.com`
+   - **Client ID** — the app's Client ID
+   - **Client secret** — the app's Client secret
+
+Autohive exchanges these credentials for a short-lived Shopify access token when an action runs. Shopify access tokens
+from this flow expire after 24 hours; no access token needs to be copied into Autohive.
 
 **Scopes Required:**
 - `read_customers`, `write_customers`
@@ -22,8 +40,22 @@ This integration uses **Platform Authentication** with Shopify (Admin API).
 - `read_products`, `write_products`
 - `read_inventory`, `write_inventory`
 - `read_locations`
-- `read_fulfillments`, `write_fulfillments`
+- `read_merchant_managed_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`
 - `read_draft_orders`, `write_draft_orders`
+
+### Troubleshooting order access
+
+If an order action returns `This action requires merchant approval for read_orders scope`, update the Shopify app rather
+than the Autohive integration:
+
+1. Add `read_orders` (and `write_orders` if needed) to a new app version in the Shopify Dev Dashboard.
+2. Release that version.
+3. Reinstall or update the app on the store and approve the new permissions. Scope changes aren't automatically granted
+   to existing installations.
+4. Retry the Autohive action. It will request a new access token containing the newly granted scopes.
+
+Order and customer resources are protected customer data. If access remains blocked on a production store, verify the
+app's protected customer data configuration in Shopify and request only the customer fields the workflow needs.
 
 ## Actions
 
@@ -73,7 +105,10 @@ Create a new product using GraphQL API.
 - `product_type` (string, optional): Product type
 - `tags` (string, optional): Comma-separated tags
 - `status` (string, optional): Status (`active`, `archived`, `draft`)
-- `variants` (array, optional): Product variants with `price`, `sku`, `barcode`, `weight`
+- `variants` (array, optional): Product variants with `price`, `compare_at_price`, `sku`, `barcode`, `weight`,
+  `weight_unit`, and `option_values`. A single variant without `option_values` updates Shopify's automatically created
+  standalone variant. Multiple variants must identify every option value, for example
+  `{"option_values": [{"option_name": "Size", "name": "Large"}]}`.
 - `options` (array, optional): Product options (e.g., Size, Color)
 
 **Outputs:**
@@ -182,7 +217,10 @@ Delete a draft order.
 List fulfillments for an order.
 
 #### `create_fulfillment`
-Create a fulfillment for an order.
+Create a fulfillment for an order using Shopify's fulfillment-order workflow. The action discovers fulfillment orders
+for the supplied `order_id`, selects those assigned to `location_id`, and submits them to the 2026-07 fulfillment
+endpoint. When `line_items` is omitted, all fulfillable items at that location are fulfilled. Otherwise, provide order
+line item IDs and quantities, for example `[{"id": "123", "quantity": 1}]`.
 
 #### `update_fulfillment_tracking`
 Update tracking information for a fulfillment.
@@ -245,7 +283,8 @@ To run the tests:
 
 1. Set environment variables:
    ```bash
-   export SHOPIFY_ADMIN_TOKEN="your-access-token"
+   export SHOPIFY_CLIENT_ID="your-client-id"
+   export SHOPIFY_CLIENT_SECRET="your-client-secret"
    export SHOPIFY_STORE_URL="your-store.myshopify.com"
    ```
 
@@ -272,3 +311,13 @@ As of April 2024, Shopify deprecated the REST Admin API `/products` and `/varian
 - Pagination uses cursor-based approach (`after` parameter) instead of `since_id`
 - Filtering uses GraphQL query syntax internally
 - Response format is backward-compatible with REST API structure
+- Product create and update use the 2026-07 `ProductCreateInput` and `ProductUpdateInput` contracts
+- Product variants use `productVariantsBulkCreate` or `productVariantsBulkUpdate`
+
+## Resources
+
+- [Create apps using the Shopify Dev Dashboard](https://shopify.dev/docs/apps/build/dev-dashboard/create-apps-using-dev-dashboard)
+- [Shopify client credentials grant](https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/client-credentials-grant)
+- [Shopify Admin API versioning](https://shopify.dev/docs/api/usage/versioning)
+- [Shopify product model](https://shopify.dev/docs/apps/build/product-merchandising/products-and-collections/add-data)
+- [Shopify fulfillment-order workflow](https://shopify.dev/docs/apps/build/orders-fulfillment/migrate-to-fulfillment-orders)
