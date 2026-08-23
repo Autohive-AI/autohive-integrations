@@ -80,8 +80,8 @@ def test_upload_file_schema_exposes_standard_file_input():
     input_schema = config["actions"]["upload_file"]["input_schema"]
 
     assert input_schema["properties"]["file"]["format"] == "file"
-    assert {"required": ["file"]} in input_schema["anyOf"]
-    assert {"required": ["filename", "content"]} in input_schema["anyOf"]
+    assert input_schema["properties"]["files"]["items"]["format"] == "file"
+    assert input_schema["required"] == []
 
 
 @pytest.mark.asyncio
@@ -122,6 +122,58 @@ async def test_upload_binary_pdf_preserves_bytes_and_mime_type(mock_context):
     assert call.args[0] == "https://graph.microsoft.com/v1.0/me/drive/root:/report.pdf:/content"
     assert call.kwargs["data"] == pdf_bytes
     assert call.kwargs["headers"] == {"Content-Type": "application/pdf"}
+
+
+@pytest.mark.asyncio
+async def test_upload_files_array_preserves_binary_without_text_content(mock_context):
+    pdf_bytes = b"%PDF-1.7\n% files array \x00\xff content\n%%EOF\n"
+    mock_context.fetch = make_fetch({"id": "pdf-array", "webUrl": "https://onedrive.com/array", "size": len(pdf_bytes)})
+
+    result = await microsoft365.execute_action(
+        "upload_file",
+        {
+            "files": [
+                {
+                    "name": "array-report.pdf",
+                    "content": base64.b64encode(pdf_bytes).decode("ascii"),
+                    "contentType": "application/pdf",
+                }
+            ]
+        },
+        mock_context,
+    )
+
+    assert result.type != ResultType.ACTION_ERROR
+    call = mock_context.fetch.call_args
+    assert call.args[0] == "https://graph.microsoft.com/v1.0/me/drive/root:/array-report.pdf:/content"
+    assert call.kwargs["data"] == pdf_bytes
+    assert call.kwargs["headers"] == {"Content-Type": "application/pdf"}
+
+
+@pytest.mark.asyncio
+async def test_upload_files_array_rejects_file_path_string(mock_context):
+    result = await microsoft365.execute_action(
+        "upload_file",
+        {"files": ["/outputs/tool-outputs/report.pdf"]},
+        mock_context,
+    )
+
+    assert result.type == ResultType.VALIDATION_ERROR
+    assert "not of type 'object'" in result.result["message"]
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upload_empty_files_array_without_text_content_returns_action_error(mock_context):
+    result = await microsoft365.execute_action(
+        "upload_file",
+        {"files": []},
+        mock_context,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Provide an attached file" in result.result.message
+    mock_context.fetch.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Copilot 365",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, Calendar, SharePoint, and intelligent meeting scheduling",
   "entry_point": "microsoft365.py",
   "auth": {
@@ -147,6 +147,14 @@
             "format": "file",
             "description": "File to upload. Attach a generated or local file to preserve its original PDF, DOCX, PPTX, image, spreadsheet, or other binary format."
           },
+          "files": {
+            "type": "array",
+            "description": "Attached or generated files supplied by Autohive. The first file is uploaded.",
+            "items": {
+              "type": "object",
+              "format": "file"
+            }
+          },
           "filename": {
             "type": "string",
             "description": "Filename for text content, or an optional override for the attached file's name"
@@ -165,19 +173,7 @@
             "default": "/"
           }
         },
-        "anyOf": [
-          {
-            "required": [
-              "file"
-            ]
-          },
-          {
-            "required": [
-              "filename",
-              "content"
-            ]
-          }
-        ]
+        "required": []
       },
       "output_schema": {
         "type": "object",

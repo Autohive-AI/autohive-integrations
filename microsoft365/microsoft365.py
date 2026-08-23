@@ -66,10 +66,21 @@ def _decode_file_content(file_obj: Dict[str, Any]) -> bytes:
 def _resolve_upload_file(inputs: Dict[str, Any]) -> tuple[str, bytes, str]:
     """Resolve either an attached binary file or the legacy text-content input."""
     file_obj = inputs.get("file")
+    files = inputs.get("files")
+
+    # The Autohive tool boundary may deliver an attachment as either the
+    # singular `file` input or the first entry in a `files` array. Support both
+    # established platform shapes and prefer the explicitly supplied singular
+    # object when both are present.
+    if file_obj is None and files is not None:
+        if not isinstance(files, list):
+            raise ValueError("files must be an array of attached Autohive file objects")
+        if files:
+            file_obj = files[0]
 
     if file_obj is not None:
         if not isinstance(file_obj, dict):
-            raise ValueError("file must be an attached Autohive file object")
+            raise ValueError("file entries must be attached Autohive file objects, not file path strings")
         file_content = _decode_file_content(file_obj)
         filename = inputs.get("filename") or file_obj.get("name")
         content_type = (
