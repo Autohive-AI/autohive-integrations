@@ -442,8 +442,8 @@ async def test_10_upload_file_live(live_context):
         "upload_file",
         {
             "file": {
-                "name": unique_name,
                 "content": base64.b64encode(pdf_bytes).decode("ascii"),
+                "name": unique_name,
                 "contentType": "application/pdf",
             },
             "folder_path": "/",

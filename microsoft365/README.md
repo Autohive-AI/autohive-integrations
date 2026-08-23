@@ -385,19 +385,18 @@ Requires `Schedule.Read.All` scope.
 
 ### `upload_file`
 
-Upload an attached or generated file to OneDrive without changing its format. PDF, DOCX, PPTX, image, spreadsheet, and other binary files are base64-decoded from the standard Autohive `file` or `files` input and uploaded as their original bytes. The Microsoft Graph simple-upload endpoint supports files up to 250 MB.
+Upload an attached or generated file to OneDrive without changing its format. The action uses Autohive's standard structured `file` input. The integration base64-decodes `file.content` and uploads the resulting bytes to Microsoft Graph, preserving PDF, DOCX, PPTX, image, spreadsheet, text, and other formats. The Microsoft Graph simple-upload endpoint supports files up to 250 MB.
 
 [Microsoft Graph: upload or replace drive item content](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0)
 
 **Inputs:**
-- `files` (recommended for binary uploads): Attached or generated Autohive file objects. The first file's original filename, base64 content, and MIME type are preserved.
-- `file` (also supported for binary uploads): A single attached or generated Autohive file object.
-- `filename` (required for text uploads; optional for files): Text filename or override for the attached file's name
-- `content` (required for text uploads): Legacy text content, UTF-8 encoded before upload
-- `content_type` (optional): MIME type override. Defaults to the file object's MIME type or `text/plain` for text.
+- `file` (required): Structured Autohive file object containing:
+  - `content`: Base64-encoded file content
+  - `name`: Original filename, including its extension
+  - `contentType`: MIME type
 - `folder_path` (optional): Destination folder path in OneDrive (default: root)
 
-Provide `files`, `file`, or both `filename` and `content`. When an attached file is present, its decoded bytes are used and legacy text `content` is ignored. Filesystem path strings are not uploadable file content.
+Autohive resolves the selected workspace file into this structured object before invoking the integration. Filesystem path strings and plain text substitutions are not treated as file content.
 
 **Outputs:**
 - `id`: ID of the uploaded file
@@ -607,7 +606,7 @@ List files and folders within a SharePoint document library or subfolder. Use wi
 
 ## Requirements
 
-- `autohive-integrations-sdk~=2.0.0`
+- `autohive-integrations-sdk~=2.0.1`
 - `aiohttp>=3.9.0`
 
 ## Usage Examples

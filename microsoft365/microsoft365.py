@@ -64,43 +64,19 @@ def _decode_file_content(file_obj: Dict[str, Any]) -> bytes:
 
 
 def _resolve_upload_file(inputs: Dict[str, Any]) -> tuple[str, bytes, str]:
-    """Resolve either an attached binary file or the legacy text-content input."""
+    """Decode a standard Autohive file object for Microsoft Graph upload."""
     file_obj = inputs.get("file")
-    files = inputs.get("files")
+    if not isinstance(file_obj, dict):
+        raise ValueError("file must be an attached Autohive file object")
 
-    # The Autohive tool boundary may deliver an attachment as either the
-    # singular `file` input or the first entry in a `files` array. Support both
-    # established platform shapes and prefer the explicitly supplied singular
-    # object when both are present.
-    if file_obj is None and files is not None:
-        if not isinstance(files, list):
-            raise ValueError("files must be an array of attached Autohive file objects")
-        if files:
-            file_obj = files[0]
-
-    if file_obj is not None:
-        if not isinstance(file_obj, dict):
-            raise ValueError("file entries must be attached Autohive file objects, not file path strings")
-        file_content = _decode_file_content(file_obj)
-        filename = inputs.get("filename") or file_obj.get("name")
-        content_type = (
-            inputs.get("content_type")
-            or file_obj.get("contentType")
-            or file_obj.get("content_type")
-            or "application/octet-stream"
-        )
-    else:
-        content = inputs.get("content")
-        if not isinstance(content, str):
-            raise ValueError("Provide an attached file, or provide filename and text content")
-        file_content = content.encode("utf-8")
-        filename = inputs.get("filename")
-        content_type = inputs.get("content_type") or "text/plain"
+    file_content = _decode_file_content(file_obj)
+    filename = file_obj.get("name")
+    content_type = file_obj.get("contentType")
 
     if not isinstance(filename, str) or not filename.strip():
-        raise ValueError("A filename is required")
+        raise ValueError("Attached file name is required")
     if not isinstance(content_type, str) or not content_type.strip():
-        raise ValueError("content_type must be a non-empty string")
+        raise ValueError("Attached file contentType must be a non-empty string")
     if len(file_content) > MAX_SIMPLE_UPLOAD_BYTES:
         raise ValueError("File exceeds the Microsoft Graph simple-upload limit of 250 MB")
 

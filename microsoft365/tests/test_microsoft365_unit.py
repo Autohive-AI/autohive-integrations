@@ -79,24 +79,32 @@ def test_upload_file_schema_exposes_standard_file_input():
     config = json.loads(config_path.read_text(encoding="utf-8"))
     input_schema = config["actions"]["upload_file"]["input_schema"]
 
-    assert input_schema["properties"]["file"]["format"] == "file"
-    assert input_schema["properties"]["files"]["items"]["format"] == "file"
-    assert input_schema["required"] == []
+    file_schema = input_schema["properties"]["file"]
+    assert list(file_schema["properties"]) == ["content", "name", "contentType"]
+    assert file_schema["required"] == ["content", "name", "contentType"]
+    assert input_schema["required"] == ["file"]
 
 
 @pytest.mark.asyncio
 async def test_upload_file(mock_context):
+    text_bytes = b"hello"
     mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": 100})
     result = await microsoft365.execute_action(
         "upload_file",
-        {"filename": "test.txt", "content": "hello"},
+        {
+            "file": {
+                "content": base64.b64encode(text_bytes).decode("ascii"),
+                "name": "test.txt",
+                "contentType": "text/plain",
+            }
+        },
         mock_context,
     )
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["id"] == "file1"
     call = mock_context.fetch.call_args
     assert call.args[0] == "https://graph.microsoft.com/v1.0/me/drive/root:/test.txt:/content"
-    assert call.kwargs["data"] == b"hello"
+    assert call.kwargs["data"] == text_bytes
     assert call.kwargs["headers"] == {"Content-Type": "text/plain"}
 
 
@@ -109,8 +117,8 @@ async def test_upload_binary_pdf_preserves_bytes_and_mime_type(mock_context):
         "upload_file",
         {
             "file": {
-                "name": "report.pdf",
                 "content": base64.b64encode(pdf_bytes).decode("ascii"),
+                "name": "report.pdf",
                 "contentType": "application/pdf",
             }
         },
@@ -125,59 +133,6 @@ async def test_upload_binary_pdf_preserves_bytes_and_mime_type(mock_context):
 
 
 @pytest.mark.asyncio
-async def test_upload_files_array_takes_precedence_over_empty_text_content(mock_context):
-    pdf_bytes = b"%PDF-1.7\n% files array \x00\xff content\n%%EOF\n"
-    mock_context.fetch = make_fetch({"id": "pdf-array", "webUrl": "https://onedrive.com/array", "size": len(pdf_bytes)})
-
-    result = await microsoft365.execute_action(
-        "upload_file",
-        {
-            "files": [
-                {
-                    "name": "array-report.pdf",
-                    "content": base64.b64encode(pdf_bytes).decode("ascii"),
-                    "contentType": "application/pdf",
-                }
-            ],
-            "content": "",
-        },
-        mock_context,
-    )
-
-    assert result.type != ResultType.ACTION_ERROR
-    call = mock_context.fetch.call_args
-    assert call.args[0] == "https://graph.microsoft.com/v1.0/me/drive/root:/array-report.pdf:/content"
-    assert call.kwargs["data"] == pdf_bytes
-    assert call.kwargs["headers"] == {"Content-Type": "application/pdf"}
-
-
-@pytest.mark.asyncio
-async def test_upload_files_array_rejects_file_path_string(mock_context):
-    result = await microsoft365.execute_action(
-        "upload_file",
-        {"files": ["/outputs/tool-outputs/report.pdf"]},
-        mock_context,
-    )
-
-    assert result.type == ResultType.VALIDATION_ERROR
-    assert "not of type 'object'" in result.result["message"]
-    mock_context.fetch.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_upload_empty_files_array_without_text_content_returns_action_error(mock_context):
-    result = await microsoft365.execute_action(
-        "upload_file",
-        {"files": []},
-        mock_context,
-    )
-
-    assert result.type == ResultType.ACTION_ERROR
-    assert "Provide an attached file" in result.result.message
-    mock_context.fetch.assert_not_called()
-
-
-@pytest.mark.asyncio
 async def test_upload_binary_docx_uses_file_metadata_and_encodes_path(mock_context):
     docx_bytes = b"PK\x03\x04\x00\x00autohive-docx-test"
     mock_context.fetch = make_fetch({"id": "docx1", "webUrl": "https://onedrive.com/docx", "size": len(docx_bytes)})
@@ -186,8 +141,8 @@ async def test_upload_binary_docx_uses_file_metadata_and_encodes_path(mock_conte
         "upload_file",
         {
             "file": {
-                "name": "Quarterly report.docx",
                 "content": base64.b64encode(docx_bytes).decode("ascii"),
+                "name": "Quarterly report.docx",
                 "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             },
             "folder_path": "/Generated Files/Reports/",
@@ -207,38 +162,10 @@ async def test_upload_binary_docx_uses_file_metadata_and_encodes_path(mock_conte
 
 
 @pytest.mark.asyncio
-async def test_upload_binary_file_allows_filename_and_mime_overrides(mock_context):
-    file_bytes = b"original bytes"
-    mock_context.fetch = make_fetch(
-        {"id": "override1", "webUrl": "https://onedrive.com/override", "size": len(file_bytes)}
-    )
-
-    result = await microsoft365.execute_action(
-        "upload_file",
-        {
-            "file": {
-                "name": "original.bin",
-                "content": base64.b64encode(file_bytes).decode("ascii"),
-                "contentType": "application/octet-stream",
-            },
-            "filename": "renamed.pdf",
-            "content_type": "application/pdf",
-        },
-        mock_context,
-    )
-
-    assert result.type != ResultType.ACTION_ERROR
-    call = mock_context.fetch.call_args
-    assert call.args[0] == "https://graph.microsoft.com/v1.0/me/drive/root:/renamed.pdf:/content"
-    assert call.kwargs["data"] == file_bytes
-    assert call.kwargs["headers"] == {"Content-Type": "application/pdf"}
-
-
-@pytest.mark.asyncio
 async def test_upload_binary_file_rejects_invalid_base64(mock_context):
     result = await microsoft365.execute_action(
         "upload_file",
-        {"file": {"name": "broken.pdf", "content": "not-valid-base64!", "contentType": "application/pdf"}},
+        {"file": {"content": "not-valid-base64!", "name": "broken.pdf", "contentType": "application/pdf"}},
         mock_context,
     )
 
@@ -255,8 +182,8 @@ async def test_upload_binary_file_rejects_missing_content(mock_context):
         mock_context,
     )
 
-    assert result.type == ResultType.ACTION_ERROR
-    assert "missing base64 content" in result.result.message
+    assert result.type == ResultType.VALIDATION_ERROR
+    assert "content" in result.result["message"]
     mock_context.fetch.assert_not_called()
 
 
@@ -265,7 +192,13 @@ async def test_upload_file_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("upload failed"))
     result = await microsoft365.execute_action(
         "upload_file",
-        {"filename": "test.txt", "content": "hello"},
+        {
+            "file": {
+                "content": base64.b64encode(b"hello").decode("ascii"),
+                "name": "test.txt",
+                "contentType": "text/plain",
+            }
+        },
         mock_context,
     )
     assert result.type == ResultType.ACTION_ERROR
