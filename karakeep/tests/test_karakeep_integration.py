@@ -1,5 +1,19 @@
+"""
+Live tests for the Karakeep integration.
+
+Requires KARAKEEP_BASE_URL (https:// only) and KARAKEEP_API_KEY (repo-root .env
+is loaded by the root conftest). Destructive tests create a real tag and bookmark.
+
+Read-only (default):
+    pytest karakeep/tests/test_karakeep_integration.py -m "integration and not destructive"
+
+Opt-in writes:
+    pytest karakeep/tests/test_karakeep_integration.py -m "integration and destructive"
+"""
+
 import os
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, ResultType
@@ -7,8 +21,8 @@ from karakeep.karakeep import karakeep
 
 pytestmark = pytest.mark.integration
 
-BASE_URL = os.getenv("KARAKEEP_BASE_URL", "")
-API_KEY = os.getenv("KARAKEEP_API_KEY", "")
+BASE_URL = os.getenv("KARAKEEP_BASE_URL", "").strip().rstrip("/")
+API_KEY = os.getenv("KARAKEEP_API_KEY", "").strip()
 
 skip_if_no_creds = pytest.mark.skipif(
     not BASE_URL or not API_KEY,
@@ -20,6 +34,12 @@ skip_if_no_creds = pytest.mark.skipif(
 def live_context(make_context):
     if not BASE_URL or not API_KEY:
         pytest.skip("KARAKEEP_BASE_URL and KARAKEEP_API_KEY required")
+    parsed = urlparse(BASE_URL)
+    if parsed.scheme != "https" or not parsed.netloc:
+        pytest.skip(
+            f"KARAKEEP_BASE_URL must be https:// (got {BASE_URL!r}). "
+            "Use https://cloud.karakeep.app or another HTTPS origin."
+        )
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, body=None, **kwargs):
         async with aiohttp.ClientSession() as session:
@@ -43,7 +63,7 @@ def live_context(make_context):
         auth={
             "auth_type": "Custom",
             "credentials": {
-                "base_url": BASE_URL.rstrip("/"),
+                "base_url": BASE_URL,
                 "api_key": API_KEY,
             },
         }
