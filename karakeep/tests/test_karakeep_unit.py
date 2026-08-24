@@ -291,9 +291,7 @@ async def test_search_bookmarks_semantic_mode(mock_context):
 @pytest.mark.asyncio
 async def test_search_bookmarks_include_content_false(mock_context):
     mock_context.fetch = AsyncMock(return_value=_fetch_result({"bookmarks": []}))
-    await karakeep.execute_action(
-        "search_bookmarks", {"query": "x", "include_content": False}, mock_context
-    )
+    await karakeep.execute_action("search_bookmarks", {"query": "x", "include_content": False}, mock_context)
     assert mock_context.fetch.call_args[1]["params"]["includeContent"] == "false"
 
 
@@ -459,9 +457,7 @@ async def test_get_tag_bookmarks(mock_context):
 @pytest.mark.asyncio
 async def test_get_tag_bookmarks_passes_cursor(mock_context):
     mock_context.fetch = AsyncMock(return_value=_fetch_result({"bookmarks": []}))
-    await karakeep.execute_action(
-        "get_tag_bookmarks", {"tag_id": "tag_1", "cursor": "next-page"}, mock_context
-    )
+    await karakeep.execute_action("get_tag_bookmarks", {"tag_id": "tag_1", "cursor": "next-page"}, mock_context)
     assert mock_context.fetch.call_args[1]["params"]["cursor"] == "next-page"
 
 
