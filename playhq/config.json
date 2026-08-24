@@ -13,11 +13,13 @@
       "properties": {
         "client_id": {
           "type": "string",
+          "minLength": 1,
           "label": "Client ID",
           "help_text": "The PlayHQ Partner API client ID supplied under your formal PlayHQ partner agreement."
         },
         "client_secret": {
           "type": "string",
+          "minLength": 1,
           "format": "password",
           "label": "Client Secret",
           "help_text": "The PlayHQ Partner API client secret supplied by PlayHQ."
@@ -31,12 +33,14 @@
         },
         "api_key": {
           "type": "string",
+          "minLength": 1,
           "format": "password",
           "label": "Public API Key",
           "help_text": "Optional API key supplied by PlayHQ for public x-api-key endpoints. Required only for public-data actions."
         },
         "tenant": {
           "type": "string",
+          "minLength": 1,
           "label": "Public API Tenant",
           "help_text": "Optional PlayHQ tenant code such as bv, afl, or ca. Required only for public-data actions."
         }
@@ -378,8 +382,8 @@
       },
       "output_schema": {
         "type": "object",
-        "properties": {"summary": {"type": "object"}},
-        "required": ["summary"]
+        "properties": {"summary": {"type": "object"}, "metadata": {"type": "object"}},
+        "required": ["summary", "metadata"]
       }
     },
     "get_public_game_summary_v2": {
@@ -395,8 +399,8 @@
       },
       "output_schema": {
         "type": "object",
-        "properties": {"summary": {"type": "object"}},
-        "required": ["summary"]
+        "properties": {"summary": {"type": "object"}, "metadata": {"type": "object"}},
+        "required": ["summary", "metadata"]
       }
     },
     "get_private_game_summary_v1": {

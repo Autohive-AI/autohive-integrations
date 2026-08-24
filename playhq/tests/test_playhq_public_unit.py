@@ -16,8 +16,6 @@ def public_context():
     context.auth = {
         "auth_type": "Custom",
         "credentials": {
-            "client_id": "partner-id",
-            "client_secret": "partner-secret",  # nosec B105
             "api_key": "public-api-key",  # nosec B105
             "tenant": "bv",
             "region": "anz",
@@ -132,6 +130,8 @@ async def test_public_action_contract_and_response(
 
     assert result.type == ResultType.ACTION
     assert result.result.data[output_key] == response_data
+    if action in {"get_public_game_summary_v1", "get_public_game_summary_v2"}:
+        assert result.result.data["metadata"] == {"hasMore": False}
     request = public_context.fetch.call_args
     assert request.args[0] == f"https://api.playhq.com{path}"
     assert request.kwargs["method"] == "GET"
@@ -184,3 +184,22 @@ async def test_grade_fixture_preserves_documented_root_object(public_context):
     result = await playhq.execute_action("get_grade_fixture", {"grade_id": "grade-1"}, public_context)
 
     assert result.result.data["fixture"] == fixture
+
+
+@pytest.mark.parametrize("action", ["get_public_game_summary_v1", "get_public_game_summary_v2"])
+async def test_public_summary_preserves_pagination_cursor(public_context, action):
+    public_context.fetch.return_value = FetchResponse(
+        status=200,
+        headers={},
+        data={
+            "data": {"id": "game-1"},
+            "metadata": {"hasMore": True, "nextCursor": "next-summary-page"},
+        },
+    )
+
+    result = await playhq.execute_action(action, {"game_id": "game-1"}, public_context)
+
+    assert result.result.data == {
+        "summary": {"id": "game-1"},
+        "metadata": {"hasMore": True, "nextCursor": "next-summary-page"},
+    }

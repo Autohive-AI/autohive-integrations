@@ -17,6 +17,8 @@ Configure:
 - **Public API Tenant** — Tenant code such as `bv`, `afl`, or `ca`; optional when only private actions are used.
 - **Region** — `anz` (Australia/New Zealand), `europe`, or `canada`.
 
+At least one complete credential pair is required when connecting an account: Client ID with Client Secret for private actions, or Public API Key with Public API Tenant for public actions. You may provide both pairs to use every action from one account.
+
 Private endpoints may return data that is hidden from PlayHQ's public site. Treat action output as private partner data and follow the data-use terms in your PlayHQ agreement.
 
 ## Actions
@@ -67,7 +69,7 @@ Deprecated PlayHQ endpoints are intentionally excluded when a current replacemen
 
 ## Pagination
 
-List actions return one page at a time. When `metadata.hasMore` is true, pass `metadata.nextCursor` as the next call's `cursor`.
+Paginated list and public game-summary actions return one page at a time. When `metadata.hasMore` is true, pass `metadata.nextCursor` as the next call's `cursor`.
 
 ## Testing
 

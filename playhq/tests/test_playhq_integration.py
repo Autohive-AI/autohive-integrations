@@ -151,6 +151,8 @@ async def test_public_endpoint_returns_documented_output(
     result = await playhq.execute_action(action, {input_key: resource_id}, public_live_context)
 
     assert output_key in result.result.data
+    if action in {"get_public_game_summary_v1", "get_public_game_summary_v2"}:
+        assert isinstance(result.result.data["metadata"], dict)
 
 
 # ---- Extended private read-only endpoints ----

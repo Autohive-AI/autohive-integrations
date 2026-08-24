@@ -373,7 +373,7 @@ class GetPublicGameSummaryV1Action(ActionHandler):
                 f"/v1/games/{path_identifier(inputs['game_id'])}/summary",
                 params={"cursor": inputs["cursor"]} if inputs.get("cursor") else {},
             )
-            return ActionResult(data=object_data(payload, "summary"))
+            return ActionResult(data=page_data(payload, "summary"))
         except Exception:
             return ActionError(message=REQUEST_FAILED_MESSAGE)
 
@@ -388,7 +388,7 @@ class GetPublicGameSummaryV2Action(ActionHandler):
                 f"/v2/games/{path_identifier(inputs['game_id'])}/summary",
                 params={"cursor": inputs["cursor"]} if inputs.get("cursor") else {},
             )
-            return ActionResult(data=object_data(payload, "summary"))
+            return ActionResult(data=page_data(payload, "summary"))
         except Exception:
             return ActionError(message=REQUEST_FAILED_MESSAGE)
 
