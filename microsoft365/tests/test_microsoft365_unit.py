@@ -113,28 +113,93 @@ async def test_upload_file_uses_folder_path_and_encodes_name(mock_context):
     assert args[0].endswith("/me/drive/root:/Reports/2026/my%20report.txt:/content")
 
 
+PRESIGNED_URL = (
+    "https://autohive-toolcall-files.s3.ap-southeast-2.amazonaws.com/abc/large.pdf"
+    "?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=deadbeef&X-Amz-Expires=600"
+)
+
+
+def make_url_file_input(url=PRESIGNED_URL, name="large.pdf", content_type="application/pdf"):
+    return {"file": {"url": url, "name": name, "contentType": content_type, "sizeBytes": 5_000_000}}
+
+
+def patch_download(payload=b"%PDF-bytes", headers=None, chunk_size=256 * 1024):
+    """Patch aiohttp.ClientSession so the pre-signed download yields `payload`."""
+    resp = MagicMock(ok=True)
+    resp.headers = headers if headers is not None else {"Content-Length": str(len(payload))}
+
+    async def iter_chunked(_n):
+        for i in range(0, max(len(payload), 1), chunk_size):
+            yield payload[i : i + chunk_size]
+
+    resp.content = MagicMock()
+    resp.content.iter_chunked = iter_chunked
+    session = MagicMock()
+    session.get = MagicMock(return_value=async_cm(resp))
+    return patch("microsoft365.microsoft365.aiohttp.ClientSession", return_value=async_cm(session)), session
+
+
 @pytest.mark.asyncio
 async def test_upload_file_downloads_presigned_url(mock_context):
     mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": 100})
-    inputs = {
-        "file": {
-            "url": "https://s3.example.com/large.pdf",
-            "name": "large.pdf",
-            "contentType": "application/pdf",
-            "sizeBytes": 5_000_000,
-        }
-    }
-    resp = MagicMock(ok=True)
-    resp.read = AsyncMock(return_value=b"%PDF-bytes")
-    session = MagicMock()
-    session.get = MagicMock(return_value=async_cm(resp))
-
-    with patch("microsoft365.microsoft365.aiohttp.ClientSession", return_value=async_cm(session)):
-        result = await microsoft365.execute_action("upload_file", inputs, mock_context)
+    patcher, session = patch_download(b"%PDF-bytes")
+    with patcher:
+        result = await microsoft365.execute_action("upload_file", make_url_file_input(), mock_context)
 
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     _, kwargs = mock_context.fetch.call_args
     assert kwargs["data"] == b"%PDF-bytes"
+    # A 30x must not be able to walk the request off the validated host.
+    assert session.get.call_args.kwargs["allow_redirects"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url,reason",
+    [
+        ("http://autohive.s3.amazonaws.com/f?X-Amz-Signature=x", "https"),
+        ("https://127.0.0.1/latest/meta-data?X-Amz-Signature=x", "platform storage"),
+        ("https://169.254.169.254/latest/meta-data?X-Amz-Signature=x", "platform storage"),
+        ("https://amazonaws.com.evil.example/f?X-Amz-Signature=x", "platform storage"),
+        ("https://autohive.s3.amazonaws.com/f", "pre-signed"),
+    ],
+)
+async def test_upload_file_rejects_untrusted_url(mock_context, url, reason):
+    """A tampered 'url' must not become an SSRF pivot or an unsigned fetch."""
+    mock_context.fetch = make_fetch({"id": "file1"})
+    patcher, _ = patch_download(b"should-never-be-read")
+    with patcher:
+        result = await microsoft365.execute_action("upload_file", make_url_file_input(url=url), mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert reason in result.result.message
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upload_file_rejects_oversized_declared_length(mock_context):
+    mock_context.fetch = make_fetch({"id": "file1"})
+    patcher, _ = patch_download(b"x", headers={"Content-Length": str(300 * 1024 * 1024)})
+    with patcher:
+        result = await microsoft365.execute_action("upload_file", make_url_file_input(), mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "upload limit" in result.result.message
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upload_file_rejects_oversized_stream_without_length(mock_context):
+    """A body with no Content-Length is abandoned at the cap rather than buffered whole."""
+    mock_context.fetch = make_fetch({"id": "file1"})
+    over = b"a" * (1024 * 1024)
+    patcher, _ = patch_download(over, headers={}, chunk_size=len(over))
+    with patch("microsoft365.microsoft365.MAX_UPLOAD_BYTES", 512 * 1024), patcher:
+        result = await microsoft365.execute_action("upload_file", make_url_file_input(), mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "upload limit" in result.result.message
+    mock_context.fetch.assert_not_called()
 
 
 @pytest.mark.asyncio

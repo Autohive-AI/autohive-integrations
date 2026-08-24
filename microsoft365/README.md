@@ -396,7 +396,7 @@ Accepts either an attached/generated file (uploaded byte-for-byte) or plain text
 - `content_type` (optional): Override the MIME type. Defaults to the file's `contentType`, or `text/plain` for text content.
 - `folder_path` (optional): Destination folder path in OneDrive (default: root)
 
-Empty and invalid base64 content are rejected with a clear error rather than uploading a corrupt file. Uses Graph's simple upload (`PUT .../content`), which supports files up to 250 MB.
+Empty and invalid base64 content are rejected with a clear error rather than uploading a corrupt file. When the file arrives as a pre-signed `url`, the download is restricted to signed HTTPS AWS storage URLs, does not follow redirects, and is capped at 250 MB. Uses Graph's simple upload (`PUT .../content`), which supports files up to 250 MB.
 
 **Outputs:**
 - `id`: ID of the uploaded file
