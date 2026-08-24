@@ -17,10 +17,6 @@ microsoft365 = Integration.load()
 # Microsoft Graph API Base URL
 GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 
-# Graph's simple upload (PUT .../content) tops out at 250MB, so a larger file cannot be
-# uploaded regardless. Rejecting it before buffering also bounds the integration's memory.
-MAX_UPLOAD_BYTES = 250 * 1024 * 1024
-
 
 def _check_response(response: Any, *required_keys: str) -> None:
     """Raise a descriptive exception if the Graph API returned an error response."""
@@ -44,73 +40,23 @@ async def _fetch_binary(url: str, token: str) -> bytes:
             return await resp.read()
 
 
-async def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
-    """Resolve the raw bytes of a platform file object.
+def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
+    """Decode the raw bytes of a platform file object.
 
-    Small files arrive inline as base64 in 'content'; files at or above the platform's
-    size threshold arrive as a pre-signed 'url' instead, with no 'content' key at all.
+    The platform's lambda_wrapper hydrates file inputs before the action runs: a file
+    delivered as a pre-signed URL is downloaded there and its bytes set as base64
+    'content', so by this point 'content' is the only shape an action sees.
     """
-    if "content" in file_obj:
-        content_b64 = file_obj["content"] or ""
-        stripped = "".join(content_b64.split())
-        if not stripped:
-            raise ValueError("file 'content' is empty — the attached file has no data")
-        try:
-            # validate=True so malformed input fails loudly instead of silently uploading
-            # a file built from the characters that happened to decode.
-            return base64.b64decode(stripped, validate=True)
-        except Exception:
-            raise ValueError("file 'content' is not valid base64-encoded data")
-
-    url = file_obj.get("url")
-    if url:
-        return await _download_platform_file(url)
-
-    raise ValueError("file object missing 'content' (base64) or 'url' — ensure a file is attached to the message")
-
-
-def _assert_platform_file_url(url: str) -> None:
-    """Reject anything that isn't an S3 pre-signed tool-call file URL.
-
-    The platform builds this URL itself (S3 `GetPreSignedURL`), so a value that isn't
-    HTTPS, isn't an AWS host, or carries no SigV4 signature did not come from the
-    platform. Refusing those keeps a tampered 'url' from turning the download into an
-    SSRF pivot against loopback or link-local services.
-    """
-    parsed = urllib.parse.urlparse(url)
-    host = (parsed.hostname or "").lower()
-    if parsed.scheme != "https":
-        raise ValueError("file 'url' must be an https URL")
-    if not (host == "amazonaws.com" or host.endswith(".amazonaws.com")):
-        raise ValueError("file 'url' is not a platform storage URL")
-    if "X-Amz-Signature" not in urllib.parse.parse_qs(parsed.query):
-        raise ValueError("file 'url' is not a pre-signed platform storage URL")
-
-
-async def _download_platform_file(url: str) -> bytes:
-    """Download a pre-signed platform file, bounded in size and without following redirects."""
-    _assert_platform_file_url(url)
-
-    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
-        # allow_redirects=False so a 30x cannot walk this request off the validated host.
-        async with session.get(url, allow_redirects=False) as resp:
-            if not resp.ok:
-                raise ValueError(f"Failed to download file from url: HTTP {resp.status}")
-
-            declared = resp.headers.get("Content-Length")
-            if declared and declared.isdigit() and int(declared) > MAX_UPLOAD_BYTES:
-                raise ValueError(f"File is larger than the {MAX_UPLOAD_BYTES} byte upload limit")
-
-            # Accumulate with a running cap rather than resp.read(), so an oversized or
-            # length-less body is abandoned instead of buffered whole.
-            chunks: List[bytes] = []
-            total = 0
-            async for chunk in resp.content.iter_chunked(256 * 1024):
-                total += len(chunk)
-                if total > MAX_UPLOAD_BYTES:
-                    raise ValueError(f"File is larger than the {MAX_UPLOAD_BYTES} byte upload limit")
-                chunks.append(chunk)
-            return b"".join(chunks)
+    content_b64 = file_obj.get("content") or ""
+    stripped = "".join(content_b64.split())
+    if not stripped:
+        raise ValueError("file 'content' is empty — ensure a file is attached to the message")
+    try:
+        # validate=True so malformed input fails loudly instead of silently uploading
+        # a file built from the characters that happened to decode.
+        return base64.b64decode(stripped, validate=True)
+    except Exception:
+        raise ValueError("file 'content' is not valid base64-encoded data")
 
 
 # ---- Action Handlers ----
@@ -198,7 +144,7 @@ class UploadFileAction(ActionHandler):
                 # OneDrive/SharePoint stores the raw bytes, so the base64 the platform hands
                 # us (or the bytes behind the pre-signed URL for larger files) is decoded
                 # rather than re-encoded as text.
-                file_content = await _resolve_file_bytes(file_obj)
+                file_content = _resolve_file_bytes(file_obj)
                 filename = inputs.get("filename") or file_obj.get("name")
                 content_type = inputs.get("content_type") or file_obj.get("contentType") or "application/octet-stream"
             elif text_content is not None:

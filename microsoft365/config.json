@@ -160,6 +160,7 @@
               }
             },
             "required": [
+              "content",
               "name",
               "contentType"
             ]
