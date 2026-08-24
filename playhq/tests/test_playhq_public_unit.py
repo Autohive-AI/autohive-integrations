@@ -115,6 +115,17 @@ class TestPublicCredentials:
         with pytest.raises(ValueError, match=missing):
             get_public_credentials(public_context)
 
+    async def test_public_action_defaults_to_anz_when_region_is_omitted(self, public_context):
+        public_context.auth["credentials"].pop("region")
+        public_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"data": [], "metadata": {}})
+
+        result = await playhq.execute_action(
+            "list_seasons_for_organisation", {"organisation_id": "org-1"}, public_context
+        )
+
+        assert result.type == ResultType.ACTION
+        assert public_context.fetch.call_args.args[0] == "https://api.playhq.com/v1/organisations/org-1/seasons"
+
 
 @pytest.mark.parametrize("action,inputs,path,params,response_data,output_key", PUBLIC_ACTION_CASES)
 async def test_public_action_contract_and_response(

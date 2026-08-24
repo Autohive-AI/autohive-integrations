@@ -47,7 +47,7 @@ Private endpoints may return data that is hidden from PlayHQ's public site. Trea
 - `get_public_game_summary_v1` — public v1 summary for territory-based sports.
 - `get_public_game_summary_v2` — public v2 summary.
 - `get_game_events` — private electronic-scoring events; not currently applicable to cricket.
-- `get_game_signed_url` — generates a time-limited referee resource URL.
+- `get_game_signed_url` — generates a time-limited referee resource URL and returns its expiry time.
 - `set_game_live_streaming` — enables or disables live streaming for a game.
 
 ### Profiles

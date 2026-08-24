@@ -51,7 +51,7 @@ PARTNER_ACTION_CASES = [
         "POST",
         "/partner/v1/games/game-1/get-signed-url",
         {"firstName": "Ari", "lastName": "Lee", "userId": "ref-1"},
-        {"url": "https://signed.example"},
+        {"signedUrl": "https://signed.example", "expiryTime": "2026-08-24T12:00:00Z"},
         "signed_url",
     ),
     (
@@ -173,7 +173,13 @@ async def test_extended_partner_action_contract_and_response(
     result = await playhq.execute_action(action, inputs, partner_context)
 
     assert result.type == ResultType.ACTION
-    assert result.result.data[output_key] == response_data
+    if action == "get_game_signed_url":
+        assert result.result.data == {
+            "signed_url": response_data["signedUrl"],
+            "expiry_time": response_data["expiryTime"],
+        }
+    else:
+        assert result.result.data[output_key] == response_data
     request = partner_context.fetch.call_args_list[1]
     assert request.args[0] == f"https://api.playhq.com{path}"
     assert request.kwargs["method"] == method
@@ -288,3 +294,24 @@ async def test_profile_season_statistics_preserves_complete_root_record(partner_
     )
 
     assert result.result.data["statistics"] == record
+
+
+@pytest.mark.parametrize(
+    "response_data",
+    [
+        "not-an-object",
+        {"expiryTime": "2026-08-24T12:00:00Z"},
+        {"signedUrl": "https://signed.example"},
+    ],
+)
+async def test_signed_url_rejects_malformed_provider_response(partner_context, response_data):
+    queue_partner_success(partner_context, response_data)
+
+    result = await playhq.execute_action(
+        "get_game_signed_url",
+        {"game_id": "game-1", "first_name": "Ari", "last_name": "Lee", "user_id": "ref-1"},
+        partner_context,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == REQUEST_FAILED_MESSAGE

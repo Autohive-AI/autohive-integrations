@@ -190,7 +190,8 @@ class TestExtendedPrivateGames:
             live_context,
         )
 
-        assert "signed_url" in result.result.data
+        assert result.result.data["signed_url"].startswith("https://")
+        assert result.result.data["expiry_time"]
 
 
 class TestPrivateProfiles:

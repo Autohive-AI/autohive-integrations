@@ -448,8 +448,19 @@
       },
       "output_schema": {
         "type": "object",
-        "properties": {"signed_url": {"type": ["string", "object"]}},
-        "required": ["signed_url"]
+        "properties": {
+          "signed_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Time-limited URL for accessing the PlayHQ game resource."
+          },
+          "expiry_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 time at which the signed URL expires."
+          }
+        },
+        "required": ["signed_url", "expiry_time"]
       }
     },
     "list_games_for_organisation_on_date": {

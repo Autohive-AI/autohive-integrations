@@ -437,7 +437,16 @@ class GetGameSignedUrlAction(ActionHandler):
                 method="POST",
                 json={"firstName": inputs["first_name"], "lastName": inputs["last_name"], "userId": inputs["user_id"]},
             )
-            return ActionResult(data={"signed_url": payload.get("data", payload)})
+            signed_url_data = payload.get("data", payload)
+            if not isinstance(signed_url_data, dict):
+                raise ValueError("PlayHQ signed URL response was not a JSON object")
+
+            signed_url = signed_url_data.get("signedUrl")
+            expiry_time = signed_url_data.get("expiryTime")
+            if not signed_url or not expiry_time:
+                raise ValueError("PlayHQ signed URL response was missing required fields")
+
+            return ActionResult(data={"signed_url": signed_url, "expiry_time": expiry_time})
         except Exception:
             return ActionError(message=REQUEST_FAILED_MESSAGE)
 

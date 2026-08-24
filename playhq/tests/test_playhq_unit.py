@@ -127,6 +127,15 @@ class TestCredentials:
 
         assert result.type == ResultType.ACTION
 
+    async def test_private_action_defaults_to_anz_when_region_is_omitted(self, mock_context):
+        mock_context.auth["credentials"].pop("region")
+        queue_success(mock_context, {"organisations": []})
+
+        result = await playhq.execute_action("list_organisations", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args_list[0].args[0] == "https://api.playhq.com/auth"
+
 
 class TestPlayHQClient:
     async def test_authentication_request_contract(self, mock_context):
