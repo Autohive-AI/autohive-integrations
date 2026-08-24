@@ -1,3 +1,4 @@
+import base64
 import os
 import sys
 import time
@@ -436,12 +437,15 @@ async def test_search_onedrive_files_live(live_context):
 @pytest.mark.asyncio
 async def test_10_upload_file_live(live_context):
     unique_name = f"autohive_integration_test_{int(time.time())}.txt"
+    content = base64.b64encode("Integration test file — safe to delete.".encode("utf-8")).decode("ascii")
     result = await microsoft365.execute_action(
         "upload_file",
         {
-            "filename": unique_name,
-            "content": "Integration test file — safe to delete.",
-            "content_type": "text/plain",
+            "file": {
+                "content": content,
+                "name": unique_name,
+                "contentType": "text/plain",
+            },
             "folder_path": "/",
         },
         live_context,

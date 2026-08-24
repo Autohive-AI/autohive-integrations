@@ -387,11 +387,16 @@ Requires `Schedule.Read.All` scope.
 
 Upload a file to OneDrive.
 
+Accepts either an attached/generated file (uploaded byte-for-byte) or plain text content (written to a new text file). Provide one of `file` or `content`.
+
 **Inputs:**
-- `filename` (required): Name of the file (e.g. `report.txt`, `notes.md`)
-- `content` (required): Text content of the file
-- `content_type` (optional): MIME type
+- `file`: Platform file object — `content` (base64), `name`, `contentType`. The base64 is decoded to raw bytes before upload, so PDF, DOCX, XLSX, and image files keep their original format. Large files are delivered to the platform's Lambda wrapper as a pre-signed URL and hydrated into `content` before the action runs, so the action only ever sees `content`.
+- `content`: Text content for a new text file. Requires `filename`. This is the original text workflow and still behaves as before.
+- `filename` (optional with `file`, required with `content`): Name to save as in OneDrive; defaults to the file's own name.
+- `content_type` (optional): Override the MIME type. Defaults to the file's `contentType`, or `text/plain` for text content.
 - `folder_path` (optional): Destination folder path in OneDrive (default: root)
+
+Empty and invalid base64 content are rejected with a clear error rather than uploading a corrupt file. Uses Graph's simple upload (`PUT .../content`), which supports files up to 250 MB.
 
 **Outputs:**
 - `id`: ID of the uploaded file
