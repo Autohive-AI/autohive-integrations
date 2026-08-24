@@ -44,8 +44,7 @@
           "label": "Public API Tenant",
           "help_text": "Optional PlayHQ tenant code such as bv, afl, or ca. Required only for public-data actions."
         }
-      },
-      "required": []
+      }
     }
   },
   "actions": {

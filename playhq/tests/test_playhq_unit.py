@@ -65,7 +65,7 @@ class TestCredentials:
         assert credentials["region"] == "canada"
 
     @pytest.mark.parametrize("missing", ["client_id", "client_secret"])
-    def test_rejects_missing_required_credentials(self, mock_context, missing):
+    def test_rejects_missing_private_credentials(self, mock_context, missing):
         mock_context.auth["credentials"].pop(missing)
 
         with pytest.raises(ValueError, match=missing):
@@ -83,23 +83,43 @@ class TestCredentials:
     @pytest.mark.parametrize(
         "credentials",
         [
-            {},
             {"client_id": "test-client-id"},
             {"client_secret": "test-client-secret"},  # nosec B105
             {"api_key": "test-api-key"},  # nosec B105
             {"tenant": "bv"},
-            {"client_id": "", "client_secret": "test-client-secret"},  # nosec B105
+            {"api_key": "test-api-key", "tenant": "bv"},  # nosec B105
         ],
     )
-    async def test_sdk_rejects_incomplete_credential_pairs(self, mock_context, credentials):
+    async def test_private_action_rejects_missing_private_credentials(self, mock_context, credentials):
         mock_context.auth = {"auth_type": "Custom", "credentials": credentials}
+
+        result = await playhq.execute_action("list_organisations", {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == REQUEST_FAILED_MESSAGE
+        mock_context.fetch.assert_not_awaited()
+
+    async def test_empty_auth_passes_schema_then_fails_action_credentials(self, mock_context):
+        mock_context.auth = {"auth_type": "Custom", "credentials": {}}
+
+        result = await playhq.execute_action("list_organisations", {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == REQUEST_FAILED_MESSAGE
+        mock_context.fetch.assert_not_awaited()
+
+    async def test_sdk_rejects_blank_credential_value(self, mock_context):
+        mock_context.auth = {
+            "auth_type": "Custom",
+            "credentials": {"client_id": "", "client_secret": "test-client-secret"},  # nosec B105
+        }
 
         result = await playhq.execute_action("list_organisations", {}, mock_context)
 
         assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_awaited()
 
-    async def test_sdk_accepts_both_complete_credential_pairs(self, mock_context):
+    async def test_private_action_accepts_both_complete_credential_pairs(self, mock_context):
         mock_context.auth["credentials"].update({"api_key": "test-api-key", "tenant": "bv"})  # nosec B105
         queue_success(mock_context, {"organisations": []})
 
