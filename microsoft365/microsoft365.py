@@ -8,6 +8,7 @@ from autohive_integrations_sdk import (
 from typing import Dict, Any, List
 from datetime import datetime, timedelta, timezone
 import base64
+import binascii
 import urllib.parse
 import aiohttp
 
@@ -16,6 +17,32 @@ microsoft365 = Integration.load()
 
 # Microsoft Graph API Base URL
 GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
+MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
+PDF_CONVERTIBLE_EXTENSIONS = {
+    ".doc",
+    ".docx",
+    ".dot",
+    ".dotm",
+    ".dotx",
+    ".eml",
+    ".epub",
+    ".html",
+    ".md",
+    ".msg",
+    ".odp",
+    ".ods",
+    ".odt",
+    ".pps",
+    ".ppsx",
+    ".ppt",
+    ".pptx",
+    ".rtf",
+    ".tif",
+    ".tiff",
+    ".xls",
+    ".xlsm",
+    ".xlsx",
+}
 
 
 def _check_response(response: Any, *required_keys: str) -> None:
@@ -30,8 +57,156 @@ def _check_response(response: Any, *required_keys: str) -> None:
             raise KeyError(f"Expected key '{key}' missing from response: {list(response.keys())}")
 
 
+def _check_fetch_success(fetch_response: Any) -> None:
+    """Validate a Graph operation whose successful response has no JSON body."""
+    status = getattr(fetch_response, "status", None)
+    response = getattr(fetch_response, "data", None)
+    if isinstance(response, dict) and "error" in response:
+        _check_response(response)
+    if isinstance(status, int) and not 200 <= status < 300:
+        raise ValueError(f"Microsoft Graph request failed with HTTP {status}")
+
+
+def _encode_path_segment(value: Any) -> str:
+    """Encode a Graph path segment without allowing slashes to change the resource path."""
+    if not isinstance(value, str) or not value:
+        raise ValueError("Microsoft Graph resource IDs and names must be non-empty strings")
+    return urllib.parse.quote(value, safe="")
+
+
+def _encode_drive_path(path: Any) -> str:
+    """Encode each segment of a OneDrive/SharePoint path while preserving separators."""
+    if not isinstance(path, str):
+        raise ValueError("folder_path must be a string")
+    return "/".join(_encode_path_segment(segment) for segment in path.strip("/").split("/") if segment)
+
+
+def _parse_datetime(value: Any, field_name: str) -> datetime:
+    """Parse an ISO 8601 datetime and normalize it to UTC."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} must be a non-empty ISO 8601 datetime")
+    candidate = value.strip()
+    if candidate.endswith("Z"):
+        candidate = f"{candidate[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(candidate)
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be a valid ISO 8601 datetime") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _graph_utc_datetime(value: Any, field_name: str) -> str:
+    """Return a Graph dateTimeTimeZone-compatible UTC value (without a Z suffix)."""
+    return _parse_datetime(value, field_name).isoformat(timespec="seconds").replace("+00:00", "")
+
+
+def _validate_datetime_range(start_value: Any, end_value: Any, start_name: str, end_name: str) -> tuple[str, str]:
+    start = _parse_datetime(start_value, start_name)
+    end = _parse_datetime(end_value, end_name)
+    if end <= start:
+        raise ValueError(f"{end_name} must be later than {start_name}")
+    return (
+        start.isoformat(timespec="seconds").replace("+00:00", "Z"),
+        end.isoformat(timespec="seconds").replace("+00:00", "Z"),
+    )
+
+
+async def _fetch_collection(
+    context: ExecutionContext,
+    url: str,
+    *,
+    params: Dict[str, Any] | None = None,
+    limit: int | None = None,
+) -> tuple[List[Dict[str, Any]], bool]:
+    """Follow Graph collection pagination up to an optional caller-visible limit."""
+    if limit is not None and (not isinstance(limit, int) or isinstance(limit, bool) or limit < 1):
+        raise ValueError("limit must be a positive integer")
+
+    items: List[Dict[str, Any]] = []
+    next_url: str | None = url
+    first_request = True
+
+    while next_url and (limit is None or len(items) < limit):
+        if first_request and params:
+            resp = await context.fetch(next_url, params=params)
+        else:
+            resp = await context.fetch(next_url)
+        first_request = False
+        response = resp.data
+        _check_response(response, "value")
+        page = response["value"]
+        if not isinstance(page, list):
+            raise ValueError("Microsoft Graph collection response 'value' must be an array")
+        items.extend(item for item in page if isinstance(item, dict))
+        next_url = response.get("@odata.nextLink")
+
+    was_truncated = limit is not None and len(items) > limit
+    if was_truncated:
+        items = items[:limit]
+    return items, bool(next_url) or was_truncated
+
+
+def _drive_item_mime_type(item: Dict[str, Any]) -> str:
+    file_facet = item.get("file")
+    return file_facet.get("mimeType", "") if isinstance(file_facet, dict) else ""
+
+
+def _drive_item_extension(name: str) -> str:
+    dot = name.rfind(".")
+    return name[dot:].lower() if dot >= 0 else ""
+
+
+async def _download_drive_item(
+    context: ExecutionContext,
+    metadata_url: str,
+    content_url: str,
+) -> tuple[Dict[str, str], Dict[str, Any]]:
+    """Read Graph driveItem metadata and return the original file or a documented PDF conversion."""
+    resp = await context.fetch(
+        metadata_url,
+        params={"$select": "id,name,size,file,webUrl"},
+    )
+    metadata = resp.data
+    _check_response(metadata, "id", "name", "size", "file")
+
+    name = metadata["name"]
+    if not isinstance(name, str) or not name:
+        raise ValueError("Microsoft Graph returned a drive item without a filename")
+
+    original_mime_type = _drive_item_mime_type(metadata) or "application/octet-stream"
+    extension = _drive_item_extension(name)
+    converted_to_pdf = extension in PDF_CONVERTIBLE_EXTENSIONS
+    download_url = f"{content_url}?format=pdf" if converted_to_pdf else content_url
+    token = context.auth.get("credentials", {}).get("access_token", "")
+    content_bytes = await _fetch_binary(download_url, token)
+    if metadata.get("size", 0) > 0 and not content_bytes:
+        raise ValueError("Microsoft Graph returned an empty download for a non-empty file")
+
+    content_type = "application/pdf" if converted_to_pdf else original_mime_type
+    output_name = f"{name.rsplit('.', 1)[0]}.pdf" if converted_to_pdf else name
+    return (
+        {
+            "content": base64.b64encode(content_bytes).decode("ascii"),
+            "name": output_name,
+            "contentType": content_type,
+        },
+        {
+            "id": metadata["id"],
+            "name": name,
+            "size": metadata["size"],
+            "mimeType": original_mime_type,
+            "webUrl": metadata.get("webUrl", ""),
+            "convertedToPdf": converted_to_pdf,
+        },
+    )
+
+
 async def _fetch_binary(url: str, token: str) -> bytes:
     """Fetch a binary /content endpoint directly, bypassing SDK text decoding."""
+    if not token:
+        raise ValueError("Microsoft 365 access token is unavailable for file download")
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
         async with session.get(url, headers={"Authorization": f"Bearer {token}"}) as resp:
             if not resp.ok:
@@ -55,7 +230,7 @@ def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
         # validate=True so malformed input fails loudly instead of silently uploading
         # a file built from the characters that happened to decode.
         return base64.b64decode(stripped, validate=True)
-    except Exception:
+    except (binascii.Error, ValueError, TypeError):
         raise ValueError("file 'content' is not valid base64-encoded data")
 
 
@@ -83,7 +258,8 @@ class SendEmailAction(ActionHandler):
 
             email_data = {"message": message, "saveToSentItems": True}
 
-            await context.fetch(f"{GRAPH_API_BASE}/me/sendMail", method="POST", json=email_data)
+            resp = await context.fetch(f"{GRAPH_API_BASE}/me/sendMail", method="POST", json=email_data)
+            _check_fetch_success(resp)
 
             return ActionResult(data={"sent": True}, cost_usd=0.0)
 
@@ -97,9 +273,10 @@ class CreateCalendarEventAction(ActionHandler):
         try:
             event_data = {
                 "subject": inputs["subject"],
-                "start": {"dateTime": inputs["start_time"], "timeZone": "UTC"},
-                "end": {"dateTime": inputs["end_time"], "timeZone": "UTC"},
+                "start": {"dateTime": _graph_utc_datetime(inputs["start_time"], "start_time"), "timeZone": "UTC"},
+                "end": {"dateTime": _graph_utc_datetime(inputs["end_time"], "end_time"), "timeZone": "UTC"},
             }
+            _validate_datetime_range(inputs["start_time"], inputs["end_time"], "start_time", "end_time")
 
             if inputs.get("location"):
                 event_data["location"] = {"displayName": inputs["location"]}
@@ -157,10 +334,12 @@ class UploadFileAction(ActionHandler):
 
             if not filename:
                 raise ValueError("'filename' is required when uploading text content")
+            if len(file_content) > MAX_SIMPLE_UPLOAD_BYTES:
+                raise ValueError("file exceeds the Microsoft Graph simple-upload limit of 250 MB")
 
             encoded_filename = urllib.parse.quote(filename, safe="")
             if folder_path:
-                encoded_folder = urllib.parse.quote(folder_path, safe="/")
+                encoded_folder = _encode_drive_path(folder_path)
                 upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_folder}/{encoded_filename}:/content"
             else:
                 upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_filename}:/content"
@@ -172,13 +351,13 @@ class UploadFileAction(ActionHandler):
                 headers={"Content-Type": content_type},
             )
             response = resp.data
-            _check_response(response, "id")
+            _check_response(response, "id", "webUrl", "size")
 
             return ActionResult(
                 data={
                     "id": response["id"],
-                    "webUrl": response.get("webUrl", ""),
-                    "size": response.get("size", 0),
+                    "webUrl": response["webUrl"],
+                    "size": response["size"],
                 },
                 cost_usd=0.0,
             )
@@ -195,7 +374,7 @@ class ListFilesAction(ActionHandler):
             limit = inputs.get("limit", 100)
 
             if folder_path:
-                api_url = f"{GRAPH_API_BASE}/me/drive/root:/{folder_path}:/children"
+                api_url = f"{GRAPH_API_BASE}/me/drive/root:/{_encode_drive_path(folder_path)}:/children"
             else:
                 api_url = f"{GRAPH_API_BASE}/me/drive/root/children"
 
@@ -204,11 +383,10 @@ class ListFilesAction(ActionHandler):
                 "$select": "id,name,size,lastModifiedDateTime,webUrl,folder",
             }
 
-            resp = await context.fetch(api_url, params=params)
-            response = resp.data
+            all_items, _ = await _fetch_collection(context, api_url, params=params, limit=limit)
 
             files = []
-            for item in response.get("value", []):
+            for item in all_items:
                 file_item = {
                     "id": item["id"],
                     "name": item["name"],
@@ -234,25 +412,31 @@ class UpdateCalendarEventAction(ActionHandler):
 
             event_data = {}
 
-            if inputs.get("subject"):
+            if "subject" in inputs:
                 event_data["subject"] = inputs["subject"]
 
-            if inputs.get("start_time"):
+            if "start_time" in inputs:
                 event_data["start"] = {
-                    "dateTime": inputs["start_time"],
+                    "dateTime": _graph_utc_datetime(inputs["start_time"], "start_time"),
                     "timeZone": "UTC",
                 }
 
-            if inputs.get("end_time"):
-                event_data["end"] = {"dateTime": inputs["end_time"], "timeZone": "UTC"}
+            if "end_time" in inputs:
+                event_data["end"] = {
+                    "dateTime": _graph_utc_datetime(inputs["end_time"], "end_time"),
+                    "timeZone": "UTC",
+                }
 
-            if inputs.get("location"):
+            if "start_time" in inputs and "end_time" in inputs:
+                _validate_datetime_range(inputs["start_time"], inputs["end_time"], "start_time", "end_time")
+
+            if "location" in inputs:
                 event_data["location"] = {"displayName": inputs["location"]}
 
-            if inputs.get("body"):
+            if "body" in inputs:
                 event_data["body"] = {"contentType": "Text", "content": inputs["body"]}
 
-            if inputs.get("attendees"):
+            if "attendees" in inputs:
                 event_data["attendees"] = [
                     {
                         "emailAddress": {"address": email, "name": email},
@@ -261,8 +445,11 @@ class UpdateCalendarEventAction(ActionHandler):
                     for email in inputs["attendees"]
                 ]
 
+            if not event_data:
+                raise ValueError("provide at least one event field to update")
+
             resp = await context.fetch(
-                f"{GRAPH_API_BASE}/me/events/{event_id}",
+                f"{GRAPH_API_BASE}/me/events/{_encode_path_segment(event_id)}",
                 method="PATCH",
                 json=event_data,
             )
@@ -285,9 +472,16 @@ class UpdateCalendarEventAction(ActionHandler):
 class ListCalendarEventsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
+            if inputs.get("end_datetime") and not inputs.get("start_datetime"):
+                raise ValueError("start_datetime is required when end_datetime is provided")
+            if inputs.get("end_date") and not inputs.get("start_date"):
+                raise ValueError("start_date is required when end_date is provided")
+
             if inputs.get("start_datetime"):
                 start_datetime = inputs.get("start_datetime")
-                end_datetime = inputs.get("end_datetime", start_datetime)
+                end_datetime = inputs.get("end_datetime") or (
+                    _parse_datetime(start_datetime, "start_datetime") + timedelta(days=1)
+                ).isoformat()
             elif inputs.get("start_date"):
                 start_date = inputs.get("start_date")
                 end_date = inputs.get("end_date", start_date)
@@ -301,26 +495,32 @@ class ListCalendarEventsAction(ActionHandler):
 
             limit = inputs.get("limit", 100)
 
+            start_datetime, end_datetime = _validate_datetime_range(
+                start_datetime, end_datetime, "start_datetime", "end_datetime"
+            )
+
             params = {
                 "$top": limit,
                 "$orderby": "start/dateTime",
                 "$select": "id,subject,start,end,location,bodyPreview,organizer,attendees,webLink,isAllDay",
+                "startDateTime": start_datetime,
+                "endDateTime": end_datetime,
             }
 
-            api_url = f"{GRAPH_API_BASE}/me/calendarView?startDateTime={start_datetime}&endDateTime={end_datetime}"
-
-            resp = await context.fetch(api_url, params=params)
-            response = resp.data
+            api_url = f"{GRAPH_API_BASE}/me/calendarView"
+            all_events, _ = await _fetch_collection(context, api_url, params=params, limit=limit)
 
             events = []
-            for event in response.get("value", []):
+            for event in all_events:
                 attendees = []
                 for attendee in event.get("attendees", []):
+                    email_address = attendee.get("emailAddress", {})
+                    status = attendee.get("status", {})
                     attendees.append(
                         {
-                            "email": attendee["emailAddress"]["address"],
-                            "name": attendee["emailAddress"]["name"],
-                            "response_status": attendee["status"]["response"],
+                            "email": email_address.get("address", ""),
+                            "name": email_address.get("name", ""),
+                            "response_status": status.get("response", "none"),
                         }
                     )
 
@@ -332,13 +532,13 @@ class ListCalendarEventsAction(ActionHandler):
                     {
                         "id": event["id"],
                         "subject": event.get("subject") or "",
-                        "start": event["start"],
-                        "end": event["end"],
+                        "start": event.get("start", {}),
+                        "end": event.get("end", {}),
                         "location": event.get("location", {}).get("displayName") or "",
                         "bodyPreview": event.get("bodyPreview") or "",
                         "organizer": organizer_email,
                         "attendees": attendees,
-                        "webLink": event["webLink"],
+                        "webLink": event.get("webLink", ""),
                         "isAllDay": event.get("isAllDay", False),
                     }
                 )
@@ -365,9 +565,16 @@ class ListEmailsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
+            if inputs.get("end_datetime") and not inputs.get("start_datetime"):
+                raise ValueError("start_datetime is required when end_datetime is provided")
+            if inputs.get("end_date") and not inputs.get("start_date"):
+                raise ValueError("start_date is required when end_date is provided")
+
             if inputs.get("start_datetime"):
                 start_datetime = inputs.get("start_datetime")
-                end_datetime = inputs.get("end_datetime", start_datetime)
+                end_datetime = inputs.get("end_datetime") or (
+                    _parse_datetime(start_datetime, "start_datetime") + timedelta(days=1)
+                ).isoformat()
             elif inputs.get("start_date"):
                 start_date = inputs.get("start_date")
                 end_date = inputs.get("end_date", start_date)
@@ -385,9 +592,16 @@ class ListEmailsAction(ActionHandler):
             requested_fields = inputs.get("fields")
             if requested_fields:
                 active_fields = {f for f in requested_fields if f in self._ALLOWED_FIELDS}
+                invalid_fields = sorted(set(requested_fields) - self._ALLOWED_FIELDS)
+                if invalid_fields:
+                    raise ValueError(f"Unsupported email fields: {', '.join(invalid_fields)}")
                 active_fields.add("id")
             else:
                 active_fields = self._ALLOWED_FIELDS
+
+            start_datetime, end_datetime = _validate_datetime_range(
+                start_datetime, end_datetime, "start_datetime", "end_datetime"
+            )
 
             params = {
                 "$top": limit,
@@ -396,19 +610,18 @@ class ListEmailsAction(ActionHandler):
                 "$filter": f"receivedDateTime ge {start_datetime} and receivedDateTime le {end_datetime}",
             }
 
-            api_url = f"{GRAPH_API_BASE}/me/mailFolders/{folder}/messages"
-            resp = await context.fetch(api_url, params=params)
-            response = resp.data
+            api_url = f"{GRAPH_API_BASE}/me/mailFolders/{_encode_path_segment(folder)}/messages"
+            all_emails, _ = await _fetch_collection(context, api_url, params=params, limit=limit)
 
             emails = []
-            for email in response.get("value", []):
+            for email in all_emails:
                 email_data: Dict[str, Any] = {"id": email["id"]}
                 if "subject" in active_fields:
                     email_data["subject"] = email.get("subject") or ""
                 if "sender" in active_fields:
-                    email_data["sender"] = email["sender"]
+                    email_data["sender"] = email.get("sender") or {}
                 if "receivedDateTime" in active_fields:
-                    email_data["receivedDateTime"] = email["receivedDateTime"]
+                    email_data["receivedDateTime"] = email.get("receivedDateTime", "")
                 if "bodyPreview" in active_fields:
                     email_data["bodyPreview"] = email.get("bodyPreview") or ""
                 if "body" in active_fields:
@@ -450,30 +663,32 @@ class ListEmailsFromContactAction(ActionHandler):
             requested_fields = inputs.get("fields")
             if requested_fields:
                 active_fields = {f for f in requested_fields if f in self._ALLOWED_FIELDS}
+                invalid_fields = sorted(set(requested_fields) - self._ALLOWED_FIELDS)
+                if invalid_fields:
+                    raise ValueError(f"Unsupported email fields: {', '.join(invalid_fields)}")
                 active_fields.add("id")
             else:
                 active_fields = self._ALLOWED_FIELDS
 
+            search_value = contact_email.replace("\\", "\\\\").replace('"', '\\"')
             params = {
                 "$top": limit,
-                "$orderby": "receivedDateTime desc",
                 "$select": ",".join(sorted(active_fields)),
-                "$filter": f"from/emailAddress/address eq '{contact_email.replace(chr(39), chr(39) * 2)}'",
+                "$search": f'"from:{search_value}"',
             }
 
-            api_url = f"{GRAPH_API_BASE}/me/mailFolders/{folder}/messages"
-            resp = await context.fetch(api_url, params=params)
-            response = resp.data
+            api_url = f"{GRAPH_API_BASE}/me/mailFolders/{_encode_path_segment(folder)}/messages"
+            all_emails, _ = await _fetch_collection(context, api_url, params=params, limit=limit)
 
             emails = []
-            for email in response.get("value", []):
+            for email in all_emails:
                 email_data: Dict[str, Any] = {"id": email["id"]}
                 if "subject" in active_fields:
                     email_data["subject"] = email.get("subject") or ""
                 if "sender" in active_fields:
-                    email_data["sender"] = email["sender"]
+                    email_data["sender"] = email.get("sender") or {}
                 if "receivedDateTime" in active_fields:
-                    email_data["receivedDateTime"] = email["receivedDateTime"]
+                    email_data["receivedDateTime"] = email.get("receivedDateTime", "")
                 if "bodyPreview" in active_fields:
                     email_data["bodyPreview"] = email.get("bodyPreview") or ""
                 if "body" in active_fields:
@@ -505,7 +720,7 @@ class MarkEmailReadAction(ActionHandler):
             update_data = {"isRead": is_read}
 
             resp = await context.fetch(
-                f"{GRAPH_API_BASE}/me/messages/{email_id}",
+                f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(email_id)}",
                 method="PATCH",
                 json=update_data,
             )
@@ -540,7 +755,7 @@ class ListMailFoldersAction(ActionHandler):
             folder_id = inputs.get("folder_id")
 
             if folder_id:
-                api_url = f"{GRAPH_API_BASE}/me/mailFolders/{folder_id}/childFolders"
+                api_url = f"{GRAPH_API_BASE}/me/mailFolders/{_encode_path_segment(folder_id)}/childFolders"
             else:
                 api_url = f"{GRAPH_API_BASE}/me/mailFolders"
 
@@ -551,19 +766,7 @@ class ListMailFoldersAction(ActionHandler):
             if include_hidden:
                 params["includeHiddenFolders"] = "true"
 
-            all_folder_items = []
-            next_url = api_url
-            is_first_request = True
-
-            while next_url:
-                if is_first_request:
-                    resp = await context.fetch(next_url, params=params)
-                    is_first_request = False
-                else:
-                    resp = await context.fetch(next_url)
-                response = resp.data
-                all_folder_items.extend(response.get("value", []))
-                next_url = response.get("@odata.nextLink")
+            all_folder_items, _ = await _fetch_collection(context, api_url, params=params)
 
             folders = []
             for folder in all_folder_items:
@@ -591,51 +794,47 @@ class ListMailFoldersAction(ActionHandler):
             return ActionError(message=str(e))
 
     async def _fetch_child_folders_recursive(
-        self, parent_folder_id: str, context: ExecutionContext, include_hidden: bool
+        self,
+        parent_folder_id: str,
+        context: ExecutionContext,
+        include_hidden: bool,
+        visited: set[str] | None = None,
     ) -> List[Dict[str, Any]]:
         """Recursively fetch all child folders under a parent folder."""
-        try:
-            api_url = f"{GRAPH_API_BASE}/me/mailFolders/{parent_folder_id}/childFolders"
-            params = {
-                "$select": "id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden"
-            }
-            if include_hidden:
-                params["includeHiddenFolders"] = "true"
-
-            all_folder_items = []
-            next_url = api_url
-            is_first_request = True
-
-            while next_url:
-                if is_first_request:
-                    resp = await context.fetch(next_url, params=params)
-                    is_first_request = False
-                else:
-                    resp = await context.fetch(next_url)
-                response = resp.data
-                all_folder_items.extend(response.get("value", []))
-                next_url = response.get("@odata.nextLink")
-
-            folders = []
-            for folder in all_folder_items:
-                folder_data = {
-                    "id": folder["id"],
-                    "displayName": folder.get("displayName", ""),
-                    "parentFolderId": folder.get("parentFolderId", ""),
-                    "childFolderCount": folder.get("childFolderCount", 0),
-                    "unreadItemCount": folder.get("unreadItemCount", 0),
-                    "totalItemCount": folder.get("totalItemCount", 0),
-                    "isHidden": folder.get("isHidden", False),
-                }
-                folders.append(folder_data)
-
-                if folder.get("childFolderCount", 0) > 0:
-                    child_folders = await self._fetch_child_folders_recursive(folder["id"], context, include_hidden)
-                    folders.extend(child_folders)
-
-            return folders
-        except Exception:
+        visited = visited or set()
+        if parent_folder_id in visited:
             return []
+        visited.add(parent_folder_id)
+
+        api_url = f"{GRAPH_API_BASE}/me/mailFolders/{_encode_path_segment(parent_folder_id)}/childFolders"
+        params = {"$select": "id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden"}
+        if include_hidden:
+            params["includeHiddenFolders"] = "true"
+
+        all_folder_items, _ = await _fetch_collection(context, api_url, params=params)
+        folders = []
+        for folder in all_folder_items:
+            folder_id = folder.get("id")
+            if not folder_id:
+                continue
+            folder_data = {
+                "id": folder_id,
+                "displayName": folder.get("displayName", ""),
+                "parentFolderId": folder.get("parentFolderId", ""),
+                "childFolderCount": folder.get("childFolderCount", 0),
+                "unreadItemCount": folder.get("unreadItemCount", 0),
+                "totalItemCount": folder.get("totalItemCount", 0),
+                "isHidden": folder.get("isHidden", False),
+            }
+            folders.append(folder_data)
+
+            if folder.get("childFolderCount", 0) > 0:
+                child_folders = await self._fetch_child_folders_recursive(
+                    folder_id, context, include_hidden, visited
+                )
+                folders.extend(child_folders)
+
+        return folders
 
 
 @microsoft365.action("get_mail_folder")
@@ -650,7 +849,7 @@ class GetMailFolderAction(ActionHandler):
         try:
             folder_id = inputs["folder_id"]
 
-            api_url = f"{GRAPH_API_BASE}/me/mailFolders/{folder_id}"
+            api_url = f"{GRAPH_API_BASE}/me/mailFolders/{_encode_path_segment(folder_id)}"
 
             params = {
                 "$select": "id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount,isHidden"
@@ -696,7 +895,7 @@ class MoveEmailAction(ActionHandler):
             move_data = {"destinationId": destination_folder_id}
 
             resp = await context.fetch(
-                f"{GRAPH_API_BASE}/me/messages/{email_id}/move",
+                f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(email_id)}/move",
                 method="POST",
                 json=move_data,
             )
@@ -724,7 +923,7 @@ class ReadEmailAction(ActionHandler):
             include_attachments = inputs.get("include_attachments", True)
 
             resp = await context.fetch(
-                f"{GRAPH_API_BASE}/me/messages/{email_id}",
+                f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(email_id)}",
                 params={"$select": "id,subject,sender,receivedDateTime,body,hasAttachments"},
             )
             email_response = resp.data
@@ -742,17 +941,17 @@ class ReadEmailAction(ActionHandler):
             attachments = []
 
             if include_attachments and email_details["hasAttachments"]:
-                resp2 = await context.fetch(f"{GRAPH_API_BASE}/me/messages/{email_id}/attachments")
-                attachments_response = resp2.data
+                attachment_url = f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(email_id)}/attachments"
+                attachment_items, _ = await _fetch_collection(context, attachment_url)
 
-                for attachment in attachments_response.get("value", []):
+                for attachment in attachment_items:
                     attachments.append(
                         {
                             "id": attachment["id"],
                             "name": attachment["name"],
                             "size": attachment.get("size", 0),
                             "contentType": attachment.get("contentType", "application/octet-stream"),
-                            "message": "Attachment metadata only. Content extraction not supported for this file type.",
+                            "message": "Attachment metadata only. Use download_email_attachment to retrieve content.",
                         }
                     )
 
@@ -785,19 +984,21 @@ class ReadContactsAction(ActionHandler):
                 ),
             }
 
-            resp = await context.fetch(api_url, params=params)
-            response = resp.data
-
-            all_contacts = response.get("value", [])
+            all_contacts, _ = await _fetch_collection(
+                context,
+                api_url,
+                params=params,
+                limit=None if search else limit,
+            )
             contacts = []
 
             for contact in all_contacts:
                 if search:
                     search_lower = search.lower()
-                    display_name = contact.get("displayName", "").lower()
-                    given_name = contact.get("givenName", "").lower()
-                    surname = contact.get("surname", "").lower()
-                    company = contact.get("companyName", "").lower()
+                    display_name = (contact.get("displayName") or "").lower()
+                    given_name = (contact.get("givenName") or "").lower()
+                    surname = (contact.get("surname") or "").lower()
+                    company = (contact.get("companyName") or "").lower()
 
                     if not (
                         search_lower in display_name
@@ -842,6 +1043,8 @@ class ReadContactsAction(ActionHandler):
                         "jobTitle": contact.get("jobTitle", ""),
                     }
                 )
+                if len(contacts) >= limit:
+                    break
 
             if search:
                 if contacts:
@@ -879,7 +1082,7 @@ class SearchOneDriveFilesAction(ActionHandler):
             search_query = inputs["query"]
             limit = inputs.get("limit", 10)
 
-            encoded_query = urllib.parse.quote(search_query)
+            encoded_query = urllib.parse.quote(search_query.replace("'", "''"), safe="")
 
             params = {
                 "$top": limit,
@@ -887,11 +1090,10 @@ class SearchOneDriveFilesAction(ActionHandler):
             }
 
             api_url = f"{GRAPH_API_BASE}/me/drive/root/search(q='{encoded_query}')"
-            resp = await context.fetch(api_url, params=params)
-            response = resp.data
+            all_items, _ = await _fetch_collection(context, api_url, params=params, limit=limit)
 
             files = []
-            for item in response.get("value", []):
+            for item in all_items:
                 file_item = {
                     "id": item["id"],
                     "name": item["name"],
@@ -919,104 +1121,13 @@ class ReadOneDriveFileContentAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             file_id = inputs["file_id"]
-
-            metadata_params = {"$select": "id,name,size,mimeType,file,webUrl"}
-            resp = await context.fetch(f"{GRAPH_API_BASE}/me/drive/items/{file_id}", params=metadata_params)
-            metadata_response = resp.data
-            _check_response(metadata_response, "id", "name")
-
-            file_name = metadata_response["name"]
-            file_size = metadata_response.get("size", 0)
-            mime_type = metadata_response.get("mimeType", "")
-            web_url = metadata_response.get("webUrl", "")
-
-            content = None
-            content_type = "application/octet-stream"
-            content_available = False
-            content_info = ""
-
-            try:
-                _token = context.auth.get("credentials", {}).get("access_token", "")
-                if any(ext in file_name.lower() for ext in [".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]):
-                    content_url = f"{GRAPH_API_BASE}/me/drive/items/{file_id}/content?format=pdf"
-                    content_bytes = await _fetch_binary(content_url, _token)
-                    content = base64.b64encode(content_bytes).decode("utf-8")
-                    content_type = "application/pdf"
-                    content_available = True
-                    content_info = "Office document converted to PDF and encoded for LLM processing"
-                elif file_name.lower().endswith(".pdf"):
-                    content_url = f"{GRAPH_API_BASE}/me/drive/items/{file_id}/content"
-                    content_bytes = await _fetch_binary(content_url, _token)
-                    content = base64.b64encode(content_bytes).decode("utf-8")
-                    content_type = "application/pdf"
-                    content_available = True
-                    content_info = "PDF content retrieved and encoded for LLM processing"
-                else:
-                    content_url = f"{GRAPH_API_BASE}/me/drive/items/{file_id}/content"
-                    content_bytes = await _fetch_binary(content_url, _token)
-                    content = base64.b64encode(content_bytes).decode("utf-8")
-                    content_type = mime_type or "text/plain"
-                    content_available = True
-                    content_info = "Text content retrieved and encoded successfully"
-
-            except Exception as content_error:
-                content = None
-                content_available = False
-                content_info = f"Content retrieval failed: {str(content_error)}"
-
-            if not mime_type:
-                if file_name.lower().endswith(".pdf"):
-                    mime_type = "application/pdf"
-                elif any(ext in file_name.lower() for ext in [".docx", ".doc"]):
-                    mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                elif any(ext in file_name.lower() for ext in [".xlsx", ".xls"]):
-                    mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                elif any(ext in file_name.lower() for ext in [".pptx", ".ppt"]):
-                    mime_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                else:
-                    mime_type = "application/octet-stream"
-
-            if content_available and content:
-                return ActionResult(
-                    data={
-                        "file": {
-                            "content": content,
-                            "name": file_name,
-                            "contentType": content_type,
-                        },
-                        "metadata": {
-                            "id": file_id,
-                            "name": file_name,
-                            "size": file_size,
-                            "mimeType": mime_type,
-                            "webUrl": web_url,
-                        },
-                    },
-                    cost_usd=0.0,
-                )
-            else:
-                fallback_content_type = mime_type
-                if file_name.lower().endswith(".pdf"):
-                    fallback_content_type = "application/pdf"
-
-                return ActionResult(
-                    data={
-                        "file": {
-                            "content": "",
-                            "name": file_name,
-                            "contentType": fallback_content_type,
-                        },
-                        "metadata": {
-                            "id": file_id,
-                            "name": file_name,
-                            "size": file_size,
-                            "mimeType": mime_type,
-                            "webUrl": web_url,
-                        },
-                        "content_error": content_info,
-                    },
-                    cost_usd=0.0,
-                )
+            encoded_file_id = _encode_path_segment(file_id)
+            file_data, metadata = await _download_drive_item(
+                context,
+                f"{GRAPH_API_BASE}/me/drive/items/{encoded_file_id}",
+                f"{GRAPH_API_BASE}/me/drive/items/{encoded_file_id}/content",
+            )
+            return ActionResult(data={"file": file_data, "metadata": metadata}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -1083,12 +1194,8 @@ class CreateDraftEmailAction(ActionHandler):
 
             resp = await context.fetch(f"{GRAPH_API_BASE}/me/messages", method="POST", json=message)
             response = resp.data
-
-            draft_id = response.get("id") if isinstance(response, dict) else None
-            if not draft_id:
-                error = response.get("error", {}) if isinstance(response, dict) else {}
-                msg = error.get("message") or f"Unexpected response: {response}"
-                return ActionError(message=msg)
+            _check_response(response, "id")
+            draft_id = response["id"]
 
             return ActionResult(
                 data={
@@ -1110,11 +1217,12 @@ class SendDraftEmailAction(ActionHandler):
         try:
             draft_id = inputs["draft_id"]
 
-            await context.fetch(
-                f"{GRAPH_API_BASE}/me/messages/{draft_id}/send",
+            resp = await context.fetch(
+                f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(draft_id)}/send",
                 method="POST",
                 headers={"Content-Length": "0"},
             )
+            _check_fetch_success(resp)
 
             return ActionResult(
                 data={"sent": True, "draft_id": draft_id},
@@ -1131,15 +1239,14 @@ class ReplyToEmailAction(ActionHandler):
         try:
             message_id = inputs["message_id"]
 
-            reply_data = {}
-            if inputs.get("comment"):
-                reply_data["comment"] = inputs["comment"]
+            reply_data = {"comment": inputs.get("comment", "")}
 
-            await context.fetch(
-                f"{GRAPH_API_BASE}/me/messages/{message_id}/reply",
+            resp = await context.fetch(
+                f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(message_id)}/reply",
                 method="POST",
                 json=reply_data,
             )
+            _check_fetch_success(resp)
 
             return ActionResult(
                 data={
@@ -1178,11 +1285,12 @@ class ForwardEmailAction(ActionHandler):
             if inputs.get("comment"):
                 forward_data["comment"] = inputs["comment"]
 
-            await context.fetch(
-                f"{GRAPH_API_BASE}/me/messages/{message_id}/forward",
+            resp = await context.fetch(
+                f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(message_id)}/forward",
                 method="POST",
                 json=forward_data,
             )
+            _check_fetch_success(resp)
 
             return ActionResult(
                 data={
@@ -1204,9 +1312,11 @@ class DownloadEmailAttachmentAction(ActionHandler):
             message_id = inputs["message_id"]
             attachment_id = inputs["attachment_id"]
             include_content = inputs.get("include_content", True)
+            encoded_message_id = _encode_path_segment(message_id)
+            encoded_attachment_id = _encode_path_segment(attachment_id)
 
             resp = await context.fetch(
-                f"{GRAPH_API_BASE}/me/messages/{message_id}/attachments/{attachment_id}",
+                f"{GRAPH_API_BASE}/me/messages/{encoded_message_id}/attachments/{encoded_attachment_id}",
                 method="GET",
             )
             attachment_response = resp.data
@@ -1218,66 +1328,44 @@ class DownloadEmailAttachmentAction(ActionHandler):
             size = attachment_response.get("size", 0)
             is_inline = attachment_response.get("isInline", False)
 
-            content = ""
-            content_available = False
-            content_error_msg = None
+            metadata = {
+                "id": attachment_id_val,
+                "name": attachment_name,
+                "size": size,
+                "contentType": content_type,
+                "message_id": message_id,
+                "is_inline": is_inline,
+            }
 
-            if include_content:
-                try:
-                    content_url = f"{GRAPH_API_BASE}/me/messages/{message_id}/attachments/{attachment_id}/$value"
-                    _token = context.auth.get("credentials", {}).get("access_token", "")
-                    content_bytes = await _fetch_binary(content_url, _token)
-                    content = base64.b64encode(content_bytes).decode("utf-8")
-                    content_available = True
+            if not include_content:
+                return ActionResult(data={"metadata": metadata}, cost_usd=0.0)
 
-                except Exception as content_error:
-                    if "contentBytes" in attachment_response:
-                        content = attachment_response["contentBytes"]
-                        content_available = True
-                    else:
-                        content = ""
-                        content_available = False
-                        content_error_msg = f"Content retrieval failed: {str(content_error)}"
-
-            if content_available and content:
-                return ActionResult(
-                    data={
-                        "file": {
-                            "content": content,
-                            "name": attachment_name,
-                            "contentType": content_type,
-                        },
-                        "metadata": {
-                            "id": attachment_id_val,
-                            "name": attachment_name,
-                            "size": size,
-                            "contentType": content_type,
-                            "message_id": message_id,
-                            "is_inline": is_inline,
-                        },
-                    },
-                    cost_usd=0.0,
+            try:
+                content_url = (
+                    f"{GRAPH_API_BASE}/me/messages/{encoded_message_id}/attachments/"
+                    f"{encoded_attachment_id}/$value"
                 )
-            else:
-                return ActionResult(
-                    data={
-                        "file": {
-                            "content": "",
-                            "name": attachment_name,
-                            "contentType": content_type,
-                        },
-                        "metadata": {
-                            "id": attachment_id_val,
-                            "name": attachment_name,
-                            "size": size,
-                            "contentType": content_type,
-                            "message_id": message_id,
-                            "is_inline": is_inline,
-                        },
-                        "content_error": content_error_msg or "Content not available",
+                token = context.auth.get("credentials", {}).get("access_token", "")
+                content_bytes = await _fetch_binary(content_url, token)
+                if size > 0 and not content_bytes:
+                    raise ValueError("Microsoft Graph returned empty attachment content for a non-empty attachment")
+                content = base64.b64encode(content_bytes).decode("ascii")
+            except Exception:
+                content = attachment_response.get("contentBytes")
+                if not isinstance(content, str) or (size > 0 and not content):
+                    raise
+
+            return ActionResult(
+                data={
+                    "file": {
+                        "content": content,
+                        "name": attachment_name,
+                        "contentType": content_type,
                     },
-                    cost_usd=0.0,
-                )
+                    "metadata": metadata,
+                },
+                cost_usd=0.0,
+            )
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -1296,6 +1384,14 @@ class SearchEmailsAction(ActionHandler):
                 "query": {"queryString": query},
                 "from": 0,
                 "size": min(limit, 1000),
+                "fields": [
+                    "id",
+                    "subject",
+                    "from",
+                    "receivedDateTime",
+                    "bodyPreview",
+                    "hasAttachments",
+                ],
             }
 
             if enable_top_results:
@@ -1307,6 +1403,7 @@ class SearchEmailsAction(ActionHandler):
                 json={"requests": [search_request]},
             )
             response = resp.data
+            _check_response(response, "value")
 
             messages = []
             total_results = 0
@@ -1322,12 +1419,7 @@ class SearchEmailsAction(ActionHandler):
                     for hit in hits_container.get("hits", []):
                         message_data = hit.get("resource", {})
 
-                        sender = {}
-                        if message_data.get("from"):
-                            sender = {
-                                "emailAddress": message_data["from"].get("emailAddress", {}),
-                                "name": message_data["from"].get("emailAddress", {}).get("name", ""),
-                            }
+                        sender = message_data.get("from") or {}
 
                         messages.append(
                             {
@@ -1358,17 +1450,22 @@ class SearchSharePointSitesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             search_query = inputs["query"]
+            limit = inputs.get("limit", 100)
 
             params = {"search": search_query}
 
             if inputs.get("order_by_created"):
                 params["$orderby"] = "createdDateTime desc"
 
-            resp = await context.fetch(f"{GRAPH_API_BASE}/sites", params=params)
-            response = resp.data
+            all_sites, _ = await _fetch_collection(
+                context,
+                f"{GRAPH_API_BASE}/sites",
+                params=params,
+                limit=limit,
+            )
 
             sites = []
-            for site in response.get("value", []):
+            for site in all_sites:
                 sites.append(
                     {
                         "id": site.get("id") or "",
@@ -1400,8 +1497,9 @@ class GetSharePointSiteDetailsAction(ActionHandler):
         try:
             site_id = inputs["site_id"]
 
-            resp = await context.fetch(f"{GRAPH_API_BASE}/sites/{site_id}")
+            resp = await context.fetch(f"{GRAPH_API_BASE}/sites/{_encode_path_segment(site_id)}")
             response = resp.data
+            _check_response(response, "id")
 
             site_details = {
                 "id": response.get("id") or "",
@@ -1430,8 +1528,8 @@ class ListSharePointLibrariesAction(ActionHandler):
             site_id = inputs["site_id"]
 
             params = {}
-            if inputs.get("limit"):
-                params["$top"] = inputs["limit"]
+            limit = inputs.get("limit", 100)
+            params["$top"] = limit
             if inputs.get("select_fields"):
                 valid_drive_fields = {
                     "id",
@@ -1449,16 +1547,29 @@ class ListSharePointLibrariesAction(ActionHandler):
                     "system",
                 }
                 requested_fields = [f.strip() for f in inputs["select_fields"].split(",")]
-                valid_fields = [f for f in requested_fields if f in valid_drive_fields]
+                invalid_fields = [f for f in requested_fields if f not in valid_drive_fields]
+                if invalid_fields:
+                    raise ValueError(f"Unsupported drive fields: {', '.join(invalid_fields)}")
+                core_fields = {
+                    "id",
+                    "name",
+                    "description",
+                    "driveType",
+                    "webUrl",
+                    "createdDateTime",
+                    "lastModifiedDateTime",
+                }
+                params["$select"] = ",".join(sorted(core_fields.union(requested_fields)))
 
-                if valid_fields:
-                    params["$select"] = ",".join(valid_fields)
-
-            resp = await context.fetch(f"{GRAPH_API_BASE}/sites/{site_id}/drives", params=params)
-            response = resp.data
+            all_drives, _ = await _fetch_collection(
+                context,
+                f"{GRAPH_API_BASE}/sites/{_encode_path_segment(site_id)}/drives",
+                params=params,
+                limit=limit,
+            )
 
             libraries = []
-            for drive in response.get("value", []):
+            for drive in all_drives:
                 library_data = {
                     "id": drive.get("id", ""),
                     "name": drive.get("name", ""),
@@ -1507,10 +1618,10 @@ class SearchSharePointDocumentsAction(ActionHandler):
             search_query = inputs["query"]
             limit = inputs.get("limit", 10)
 
-            resp = await context.fetch(f"{GRAPH_API_BASE}/sites/{site_id}/drives")
-            drives_response = resp.data
-
-            drives = drives_response.get("value", [])
+            drives, _ = await _fetch_collection(
+                context,
+                f"{GRAPH_API_BASE}/sites/{_encode_path_segment(site_id)}/drives",
+            )
             if not drives:
                 return ActionResult(
                     data={
@@ -1524,7 +1635,7 @@ class SearchSharePointDocumentsAction(ActionHandler):
                     cost_usd=0.0,
                 )
 
-            encoded_query = urllib.parse.quote(search_query)
+            encoded_query = urllib.parse.quote(search_query.replace("'", "''"), safe="")
             all_files = []
             drives_searched = 0
             search_errors = []
@@ -1539,11 +1650,18 @@ class SearchSharePointDocumentsAction(ActionHandler):
                         "$top": limit,
                         "$select": "id,name,size,lastModifiedDateTime,webUrl,folder,file",
                     }
-                    api_url = f"{GRAPH_API_BASE}/drives/{drive_id}/root/search(q='{encoded_query}')"
-                    resp2 = await context.fetch(api_url, params=params)
-                    drive_response = resp2.data
+                    api_url = (
+                        f"{GRAPH_API_BASE}/drives/{_encode_path_segment(drive_id)}"
+                        f"/root/search(q='{encoded_query}')"
+                    )
+                    drive_items, _ = await _fetch_collection(
+                        context,
+                        api_url,
+                        params=params,
+                        limit=limit - len(all_files),
+                    )
 
-                    for item in drive_response.get("value", []):
+                    for item in drive_items:
                         file_item = {
                             "id": item["id"],
                             "name": item["name"],
@@ -1572,6 +1690,9 @@ class SearchSharePointDocumentsAction(ActionHandler):
             if len(all_files) > limit:
                 all_files = all_files[:limit]
 
+            if search_errors and len(search_errors) == drives_searched:
+                raise ValueError("SharePoint document search failed for every library: " + "; ".join(search_errors))
+
             result = {
                 "site_id": site_id,
                 "query": search_query,
@@ -1598,122 +1719,20 @@ class ReadSharePointDocumentAction(ActionHandler):
             file_id = inputs["file_id"]
             drive_id = inputs.get("drive_id")
 
-            metadata_params = {"$select": "id,name,size,mimeType,file,webUrl"}
-
+            encoded_file_id = _encode_path_segment(file_id)
             if drive_id:
-                metadata_url = f"{GRAPH_API_BASE}/drives/{drive_id}/items/{file_id}"
+                encoded_drive_id = _encode_path_segment(drive_id)
+                metadata_url = f"{GRAPH_API_BASE}/drives/{encoded_drive_id}/items/{encoded_file_id}"
+                content_url = f"{metadata_url}/content"
             else:
-                metadata_url = f"{GRAPH_API_BASE}/sites/{site_id}/drive/items/{file_id}"
+                encoded_site_id = _encode_path_segment(site_id)
+                metadata_url = f"{GRAPH_API_BASE}/sites/{encoded_site_id}/drive/items/{encoded_file_id}"
+                content_url = f"{metadata_url}/content"
 
-            resp = await context.fetch(metadata_url, params=metadata_params)
-            metadata_response = resp.data
-            _check_response(metadata_response, "id", "name")
-
-            file_name = metadata_response["name"]
-            file_size = metadata_response.get("size", 0)
-            mime_type = metadata_response.get("mimeType", "")
-            web_url = metadata_response.get("webUrl", "")
-
-            content = None
-            content_type = "application/octet-stream"
-            content_available = False
-            content_info = ""
-
-            try:
-                _token = context.auth.get("credentials", {}).get("access_token", "")
-                if any(ext in file_name.lower() for ext in [".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls"]):
-                    if drive_id:
-                        content_url = f"{GRAPH_API_BASE}/drives/{drive_id}/items/{file_id}/content?format=pdf"
-                    else:
-                        content_url = f"{GRAPH_API_BASE}/sites/{site_id}/drive/items/{file_id}/content?format=pdf"
-                    content_bytes = await _fetch_binary(content_url, _token)
-                    content = base64.b64encode(content_bytes).decode("utf-8")
-                    content_type = "application/pdf"
-                    content_available = True
-                    content_info = "Office document converted to PDF and encoded for LLM processing"
-                elif file_name.lower().endswith(".pdf"):
-                    if drive_id:
-                        content_url = f"{GRAPH_API_BASE}/drives/{drive_id}/items/{file_id}/content"
-                    else:
-                        content_url = f"{GRAPH_API_BASE}/sites/{site_id}/drive/items/{file_id}/content"
-                    content_bytes = await _fetch_binary(content_url, _token)
-                    content = base64.b64encode(content_bytes).decode("utf-8")
-                    content_type = "application/pdf"
-                    content_available = True
-                    content_info = "PDF content retrieved and encoded for LLM processing"
-                else:
-                    if drive_id:
-                        content_url = f"{GRAPH_API_BASE}/drives/{drive_id}/items/{file_id}/content"
-                    else:
-                        content_url = f"{GRAPH_API_BASE}/sites/{site_id}/drive/items/{file_id}/content"
-                    content_bytes = await _fetch_binary(content_url, _token)
-                    content = base64.b64encode(content_bytes).decode("utf-8")
-                    content_type = mime_type or "text/plain"
-                    content_available = True
-                    content_info = "Text content retrieved and encoded successfully"
-
-            except Exception as content_error:
-                content = None
-                content_available = False
-                content_info = f"Content retrieval failed: {str(content_error)}"
-
-            if not mime_type:
-                if file_name.lower().endswith(".pdf"):
-                    mime_type = "application/pdf"
-                elif any(ext in file_name.lower() for ext in [".docx", ".doc"]):
-                    mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                elif any(ext in file_name.lower() for ext in [".xlsx", ".xls"]):
-                    mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                elif any(ext in file_name.lower() for ext in [".pptx", ".ppt"]):
-                    mime_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                else:
-                    mime_type = "application/octet-stream"
-
-            if content_available and content:
-                return ActionResult(
-                    data={
-                        "file": {
-                            "content": content,
-                            "name": file_name,
-                            "contentType": content_type,
-                        },
-                        "metadata": {
-                            "id": file_id,
-                            "name": file_name,
-                            "size": file_size,
-                            "mimeType": mime_type,
-                            "webUrl": web_url,
-                            "site_id": site_id,
-                            "drive_id": drive_id or "",
-                        },
-                    },
-                    cost_usd=0.0,
-                )
-            else:
-                fallback_content_type = mime_type
-                if file_name.lower().endswith(".pdf"):
-                    fallback_content_type = "application/pdf"
-
-                return ActionResult(
-                    data={
-                        "file": {
-                            "content": "",
-                            "name": file_name,
-                            "contentType": fallback_content_type,
-                        },
-                        "metadata": {
-                            "id": file_id,
-                            "name": file_name,
-                            "size": file_size,
-                            "mimeType": mime_type,
-                            "webUrl": web_url,
-                            "site_id": site_id,
-                            "drive_id": drive_id or "",
-                        },
-                        "content_error": content_info,
-                    },
-                    cost_usd=0.0,
-                )
+            file_data, metadata = await _download_drive_item(context, metadata_url, content_url)
+            metadata["site_id"] = site_id
+            metadata["drive_id"] = drive_id or ""
+            return ActionResult(data={"file": file_data, "metadata": metadata}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -1725,27 +1744,48 @@ class ListSharePointPagesAction(ActionHandler):
         try:
             site_id = inputs["site_id"]
 
-            params = {}
+            limit = inputs.get("limit", 100)
+            params = {"$top": limit}
 
-            if inputs.get("limit"):
-                params["$top"] = inputs["limit"]
             if inputs.get("order_by"):
-                params["$orderby"] = inputs["order_by"]
+                order_parts = inputs["order_by"].split()
+                allowed_order_fields = {"name", "title", "createdDateTime", "lastModifiedDateTime"}
+                if len(order_parts) not in (1, 2) or order_parts[0] not in allowed_order_fields:
+                    raise ValueError("order_by must use name, title, createdDateTime, or lastModifiedDateTime")
+                if len(order_parts) == 2 and order_parts[1].lower() not in {"asc", "desc"}:
+                    raise ValueError("order_by direction must be asc or desc")
+                params["$orderby"] = " ".join(order_parts)
             if inputs.get("select_fields"):
-                params["$select"] = inputs["select_fields"]
+                allowed_page_fields = {
+                    "id",
+                    "name",
+                    "webUrl",
+                    "title",
+                    "pageLayout",
+                    "createdDateTime",
+                    "lastModifiedDateTime",
+                    "createdBy",
+                    "lastModifiedBy",
+                }
+                requested_fields = [f.strip() for f in inputs["select_fields"].split(",")]
+                invalid_fields = [f for f in requested_fields if f not in allowed_page_fields]
+                if invalid_fields:
+                    raise ValueError(f"Unsupported site page fields: {', '.join(invalid_fields)}")
+                params["$select"] = ",".join(sorted(allowed_page_fields.union(requested_fields)))
             else:
                 params["$select"] = (
                     "id,name,webUrl,title,pageLayout,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy"
                 )
 
-            resp = await context.fetch(
-                f"{GRAPH_API_BASE}/sites/{site_id}/pages/microsoft.graph.sitePage",
+            all_pages, _ = await _fetch_collection(
+                context,
+                f"{GRAPH_API_BASE}/sites/{_encode_path_segment(site_id)}/pages/microsoft.graph.sitePage",
                 params=params,
+                limit=limit,
             )
-            response = resp.data
 
             pages = []
-            for page in response.get("value", []):
+            for page in all_pages:
                 page_data = {
                     "id": page.get("id", ""),
                     "name": page.get("name", ""),
@@ -1801,10 +1841,12 @@ class ReadSharePointPageContentAction(ActionHandler):
                 params["$expand"] = "canvasLayout"
 
             resp = await context.fetch(
-                f"{GRAPH_API_BASE}/sites/{site_id}/pages/{page_id}/microsoft.graph.sitePage",
+                f"{GRAPH_API_BASE}/sites/{_encode_path_segment(site_id)}/pages/"
+                f"{_encode_path_segment(page_id)}/microsoft.graph.sitePage",
                 params=params,
             )
             response = resp.data
+            _check_response(response, "id")
 
             page_data = {
                 "id": response.get("id", ""),
@@ -1843,11 +1885,15 @@ class ListSharePointSubsitesAction(ActionHandler):
             limit = inputs.get("limit", 50)
             params = {"$top": limit}
 
-            resp = await context.fetch(f"{GRAPH_API_BASE}/sites/{site_id}/sites", params=params)
-            response = resp.data
+            all_sites, has_more = await _fetch_collection(
+                context,
+                f"{GRAPH_API_BASE}/sites/{_encode_path_segment(site_id)}/sites",
+                params=params,
+                limit=limit,
+            )
 
             subsites = []
-            for site in response.get("value", []):
+            for site in all_sites:
                 subsites.append(
                     {
                         "id": site.get("id", ""),
@@ -1866,7 +1912,7 @@ class ListSharePointSubsitesAction(ActionHandler):
                     "site_id": site_id,
                     "subsites": subsites,
                     "total_subsites": len(subsites),
-                    "has_more": "@odata.nextLink" in response,
+                    "has_more": has_more,
                 },
                 cost_usd=0.0,
             )
@@ -1883,10 +1929,14 @@ class ListSharePointFolderContentsAction(ActionHandler):
             folder_id = inputs.get("folder_id")
             limit = inputs.get("limit", 50)
 
+            encoded_drive_id = _encode_path_segment(drive_id)
             if folder_id:
-                url = f"{GRAPH_API_BASE}/drives/{drive_id}/items/{folder_id}/children"
+                url = (
+                    f"{GRAPH_API_BASE}/drives/{encoded_drive_id}/items/"
+                    f"{_encode_path_segment(folder_id)}/children"
+                )
             else:
-                url = f"{GRAPH_API_BASE}/drives/{drive_id}/root/children"
+                url = f"{GRAPH_API_BASE}/drives/{encoded_drive_id}/root/children"
 
             params = {
                 "$top": limit,
@@ -1895,11 +1945,10 @@ class ListSharePointFolderContentsAction(ActionHandler):
                 ),
             }
 
-            resp = await context.fetch(url, params=params)
-            response = resp.data
+            all_items, has_more = await _fetch_collection(context, url, params=params, limit=limit)
 
             items = []
-            for item in response.get("value", []):
+            for item in all_items:
                 item_data = {
                     "id": item.get("id", ""),
                     "name": item.get("name", ""),
@@ -1931,7 +1980,7 @@ class ListSharePointFolderContentsAction(ActionHandler):
                     "folder_id": folder_id or "root",
                     "items": items,
                     "total_items": len(items),
-                    "has_more": "@odata.nextLink" in response,
+                    "has_more": has_more,
                 },
                 cost_usd=0.0,
             )
@@ -1953,35 +2002,34 @@ class FindMeetingTimesAction(ActionHandler):
             is_organizer_optional = inputs.get("is_organizer_optional", False)
             minimum_attendee_percentage = inputs.get("minimum_attendee_percentage", 100)
 
+            if not isinstance(duration_minutes, int) or isinstance(duration_minutes, bool) or duration_minutes < 1:
+                raise ValueError("duration_minutes must be a positive integer")
+            if not isinstance(max_candidates, int) or isinstance(max_candidates, bool) or max_candidates < 1:
+                raise ValueError("max_candidates must be an integer between 1 and 20")
+            if not isinstance(minimum_attendee_percentage, (int, float)) or isinstance(
+                minimum_attendee_percentage, bool
+            ):
+                raise ValueError("minimum_attendee_percentage must be a number between 0 and 100")
+            if not 0 <= minimum_attendee_percentage <= 100:
+                raise ValueError("minimum_attendee_percentage must be a number between 0 and 100")
+
             attendees = []
             for email in attendees_emails:
                 attendees.append({"type": "required", "emailAddress": {"address": email}})
 
-            start_dt = inputs.get("start_datetime")
-            end_dt = inputs.get("end_datetime")
-
-            if not start_dt:
-                start_parsed = datetime.now(timezone.utc)
-                start_dt = start_parsed.strftime("%Y-%m-%dT%H:%M:%SZ")
-            else:
-                clean_dt = start_dt.replace("Z", "")
-                if "." in clean_dt:
-                    base, frac = clean_dt.split(".")
-                    clean_dt = f"{base}.{frac[:6]}"
-                start_parsed = datetime.fromisoformat(clean_dt)
-
-            if not end_dt:
-                end_parsed = start_parsed + timedelta(days=7)
-                end_dt = end_parsed.strftime("%Y-%m-%dT%H:%M:%SZ")
-            else:
-                clean_dt = end_dt.replace("Z", "")
-                if "." in clean_dt:
-                    base, frac = clean_dt.split(".")
-                    clean_dt = f"{base}.{frac[:6]}"
-                datetime.fromisoformat(clean_dt)
+            start_value = inputs.get("start_datetime") or datetime.now(timezone.utc).isoformat()
+            start_parsed = _parse_datetime(start_value, "start_datetime")
+            end_value = inputs.get("end_datetime") or (start_parsed + timedelta(days=7)).isoformat()
+            start_dt, end_dt = _validate_datetime_range(
+                start_value,
+                end_value,
+                "start_datetime",
+                "end_datetime",
+            )
 
             time_constraint = {
-                "timeslots": [
+                "activityDomain": "work",
+                "timeSlots": [
                     {
                         "start": {
                             "dateTime": start_dt.replace("Z", ""),
@@ -1998,6 +2046,7 @@ class FindMeetingTimesAction(ActionHandler):
                 "maxCandidates": max_candidates,
                 "isOrganizerOptional": is_organizer_optional,
                 "minimumAttendeePercentage": minimum_attendee_percentage,
+                "returnSuggestionReasons": True,
             }
 
             body["timeConstraint"] = time_constraint
@@ -2017,6 +2066,7 @@ class FindMeetingTimesAction(ActionHandler):
 
             resp = await context.fetch(f"{GRAPH_API_BASE}/me/findMeetingTimes", method="POST", json=body)
             response = resp.data
+            _check_response(response, "meetingTimeSuggestions")
 
             suggestions = []
             for suggestion in response.get("meetingTimeSuggestions", []):
@@ -2051,6 +2101,7 @@ class FindMeetingTimesAction(ActionHandler):
                         "organizer_availability": suggestion.get("organizerAvailability", "unknown"),
                         "attendee_availability": attendee_avail,
                         "suggested_locations": locations,
+                        "suggestion_reason": suggestion.get("suggestionReason", ""),
                     }
                 )
 
@@ -2075,6 +2126,15 @@ class GetScheduleAction(ActionHandler):
             end_dt = inputs["end_datetime"]
             interval = inputs.get("availability_view_interval", 30)
 
+            if not isinstance(interval, int) or isinstance(interval, bool) or not 5 <= interval <= 1440:
+                raise ValueError("availability_view_interval must be an integer between 5 and 1440")
+            start_dt, end_dt = _validate_datetime_range(
+                start_dt,
+                end_dt,
+                "start_datetime",
+                "end_datetime",
+            )
+
             body = {
                 "schedules": schedules_list,
                 "startTime": {"dateTime": start_dt.replace("Z", ""), "timeZone": "UTC"},
@@ -2084,6 +2144,7 @@ class GetScheduleAction(ActionHandler):
 
             resp = await context.fetch(f"{GRAPH_API_BASE}/me/calendar/getSchedule", method="POST", json=body)
             response = resp.data
+            _check_response(response, "value")
 
             schedules = []
             for schedule in response.get("value", []):
@@ -2138,19 +2199,13 @@ class ListRoomsAction(ActionHandler):
             list_type = inputs.get("list_type", "rooms")
             limit = inputs.get("limit", 100)
 
+            if list_type not in {"rooms", "room_lists", "rooms_in_list"}:
+                raise ValueError("list_type must be rooms, room_lists, or rooms_in_list")
+
             if list_type == "room_lists":
                 url = f"{GRAPH_API_BASE}/places/microsoft.graph.roomList"
                 params = {"$top": limit}
-                all_items = []
-                next_url = url
-                is_first = True
-                while next_url and len(all_items) < limit:
-                    resp = await context.fetch(next_url, params=params if is_first else None)
-                    is_first = False
-                    response = resp.data
-                    all_items.extend(response.get("value", []))
-                    next_url = response.get("@odata.nextLink")
-                all_items = all_items[:limit]
+                all_items, _ = await _fetch_collection(context, url, params=params, limit=limit)
 
                 rooms = []
                 for room_list in all_items:
@@ -2167,18 +2222,12 @@ class ListRoomsAction(ActionHandler):
                 room_list_email = inputs.get("room_list_email")
                 if not room_list_email:
                     return ActionError(message="room_list_email is required when list_type is 'rooms_in_list'")
-                url = f"{GRAPH_API_BASE}/places/{room_list_email}/microsoft.graph.roomList/rooms"
+                url = (
+                    f"{GRAPH_API_BASE}/places/{_encode_path_segment(room_list_email)}"
+                    "/microsoft.graph.roomList/rooms"
+                )
                 params = {"$top": limit}
-                all_items = []
-                next_url = url
-                is_first = True
-                while next_url and len(all_items) < limit:
-                    resp = await context.fetch(next_url, params=params if is_first else None)
-                    is_first = False
-                    response = resp.data
-                    all_items.extend(response.get("value", []))
-                    next_url = response.get("@odata.nextLink")
-                all_items = all_items[:limit]
+                all_items, _ = await _fetch_collection(context, url, params=params, limit=limit)
 
                 rooms = []
                 for room in all_items:
@@ -2202,16 +2251,7 @@ class ListRoomsAction(ActionHandler):
             else:
                 url = f"{GRAPH_API_BASE}/places/microsoft.graph.room"
                 params = {"$top": limit}
-                all_items = []
-                next_url = url
-                is_first = True
-                while next_url and len(all_items) < limit:
-                    resp = await context.fetch(next_url, params=params if is_first else None)
-                    is_first = False
-                    response = resp.data
-                    all_items.extend(response.get("value", []))
-                    next_url = response.get("@odata.nextLink")
-                all_items = all_items[:limit]
+                all_items, _ = await _fetch_collection(context, url, params=params, limit=limit)
 
                 rooms = []
                 for room in all_items:
@@ -2248,6 +2288,12 @@ class CheckRoomAvailabilityAction(ActionHandler):
             room_emails = inputs["room_emails"]
             start_dt = inputs["start_datetime"]
             end_dt = inputs["end_datetime"]
+            start_dt, end_dt = _validate_datetime_range(
+                start_dt,
+                end_dt,
+                "start_datetime",
+                "end_datetime",
+            )
 
             body = {
                 "schedules": room_emails,
@@ -2258,6 +2304,7 @@ class CheckRoomAvailabilityAction(ActionHandler):
 
             resp = await context.fetch(f"{GRAPH_API_BASE}/me/calendar/getSchedule", method="POST", json=body)
             response = resp.data
+            _check_response(response, "value")
 
             rooms = []
             available_rooms = []
