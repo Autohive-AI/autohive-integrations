@@ -29,9 +29,10 @@ from autohive_integrations_sdk import ExecutionContext
 async def execute_wrapper(action_name, inputs, context):
     """Helper to execute action and unwrap IntegrationResult if needed."""
     result = await shopify_admin.execute_action(action_name, inputs, context)
-    # Support SDK 1.0.2 IntegrationResult
     if hasattr(result, "result") and hasattr(result.result, "data"):
         return result.result.data
+    if hasattr(result, "result") and hasattr(result.result, "message"):
+        return {"success": False, "message": result.result.message}
     return result
 
 

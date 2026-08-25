@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from autohive_integrations_sdk import FetchResponse, ResultType
 
 from shopify_admin import CreateFulfillmentHandler, build_fulfillment_order_payload, shopify_admin
 
@@ -11,9 +12,12 @@ pytestmark = pytest.mark.unit
 def fulfillment_context():
     context = MagicMock()
     context.auth = {
-        "shop_url": "example-store.myshopify.com",
-        "client_id": "test-client-id",
-        "client_secret": "test-client-secret",  # nosec B105
+        "auth_type": "Custom",
+        "credentials": {
+            "shop_url": "example-store.myshopify.com",
+            "client_id": "test-client-id",
+            "client_secret": "test-client-secret",  # nosec B105
+        },
     }
     context.fetch = AsyncMock()
     return context
@@ -75,9 +79,9 @@ def test_build_fulfillment_order_payload_rejects_unmatched_items():
 
 async def test_create_fulfillment_uses_2026_07_fulfillment_order_endpoint(fulfillment_context):
     fulfillment_context.fetch.side_effect = [
-        {"access_token": "test-access-token"},  # nosec B105
-        {"fulfillment_orders": fulfillment_orders_response()},
-        {"fulfillment": {"id": 1000, "status": "success"}},
+        FetchResponse(status=200, headers={}, data={"access_token": "test-access-token"}),  # nosec B105
+        FetchResponse(status=200, headers={}, data={"fulfillment_orders": fulfillment_orders_response()}),
+        FetchResponse(status=201, headers={}, data={"fulfillment": {"id": 1000, "status": "success"}}),
     ]
 
     result = await CreateFulfillmentHandler().execute(
@@ -119,9 +123,9 @@ async def test_create_fulfillment_uses_2026_07_fulfillment_order_endpoint(fulfil
     }
 
 
-async def test_create_fulfillment_error_response_matches_object_schema(fulfillment_context):
+async def test_create_fulfillment_error_returns_action_error(fulfillment_context):
     fulfillment_context.fetch.side_effect = [
-        {"access_token": "test-access-token"},  # nosec B105
+        FetchResponse(status=200, headers={}, data={"access_token": "test-access-token"}),  # nosec B105
         Exception("Shopify rejected the fulfillment"),
     ]
 
@@ -131,8 +135,5 @@ async def test_create_fulfillment_error_response_matches_object_schema(fulfillme
         fulfillment_context,
     )
 
-    assert result.result.data == {
-        "success": False,
-        "message": "Shopify rejected the fulfillment",
-        "fulfillment": {},
-    }
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == "Shopify rejected the fulfillment"

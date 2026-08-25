@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from autohive_integrations_sdk import ActionError, FetchResponse, ResultType
 
 from shopify_admin import (
     PRODUCTS_QUERY,
@@ -22,12 +23,19 @@ pytestmark = pytest.mark.unit
 def product_context():
     context = MagicMock()
     context.auth = {
-        "shop_url": "example-store.myshopify.com",
-        "client_id": "test-client-id",
-        "client_secret": "test-client-secret",  # nosec B105
+        "auth_type": "Custom",
+        "credentials": {
+            "shop_url": "example-store.myshopify.com",
+            "client_id": "test-client-id",
+            "client_secret": "test-client-secret",  # nosec B105
+        },
     }
     context.fetch = AsyncMock()
     return context
+
+
+def fetch_response(data, status=200):
+    return FetchResponse(status=status, headers={}, data=data)
 
 
 def test_product_queries_use_inventory_item_measurement_for_weight():
@@ -105,34 +113,36 @@ def test_transform_product_response_reads_inventory_item_weight():
 
 async def test_list_products_returns_weight_from_current_schema(product_context):
     product_context.fetch.side_effect = [
-        {"access_token": "test-access-token"},  # nosec B105
-        {
-            "data": {
-                "products": {
-                    "edges": [
-                        {
-                            "node": {
-                                "id": "gid://shopify/Product/100",
-                                "title": "Test product",
-                                "variants": {
-                                    "nodes": [
-                                        {
-                                            "id": "gid://shopify/ProductVariant/200",
-                                            "inventoryItem": {
-                                                "measurement": {
-                                                    "weight": {"value": 500.0, "unit": "GRAMS"},
-                                                }
-                                            },
-                                        }
-                                    ]
-                                },
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "products": {
+                        "edges": [
+                            {
+                                "node": {
+                                    "id": "gid://shopify/Product/100",
+                                    "title": "Test product",
+                                    "variants": {
+                                        "nodes": [
+                                            {
+                                                "id": "gid://shopify/ProductVariant/200",
+                                                "inventoryItem": {
+                                                    "measurement": {
+                                                        "weight": {"value": 500.0, "unit": "GRAMS"},
+                                                    }
+                                                },
+                                            }
+                                        ]
+                                    },
+                                }
                             }
-                        }
-                    ],
-                    "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        ],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
                 }
             }
-        },
+        ),
     ]
 
     result = await shopify_admin.execute_action("list_products", {"limit": 1}, product_context)
@@ -144,61 +154,66 @@ async def test_list_products_returns_weight_from_current_schema(product_context)
     assert "inventoryItem" in graphql_call.kwargs["json"]["query"]
 
 
-async def test_get_product_error_response_matches_object_schema(product_context):
+async def test_get_product_error_returns_action_error(product_context):
     product_context.fetch.side_effect = [
-        {"access_token": "test-access-token"},  # nosec B105
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
         Exception("GraphQL Error: invalid product query"),
     ]
 
     result = await shopify_admin.execute_action("get_product", {"product_id": "100"}, product_context)
 
-    assert result.result.data["success"] is False
-    assert result.result.data["product"] == {}
-    assert "GraphQL Error" in result.result.data["message"]
+    assert result.type == ResultType.ACTION_ERROR
+    assert "GraphQL Error" in result.result.message
 
 
 async def test_create_product_updates_the_standalone_variant(product_context):
     product_context.fetch.side_effect = [
-        {"access_token": "test-access-token"},  # nosec B105
-        {
-            "data": {
-                "productCreate": {
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "productCreate": {
+                        "product": {
+                            "id": "gid://shopify/Product/100",
+                            "title": "Test product",
+                            "variants": {"nodes": [{"id": "gid://shopify/ProductVariant/200"}]},
+                        },
+                        "userErrors": [],
+                    }
+                }
+            }
+        ),
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "productVariantsBulkUpdate": {
+                        "productVariants": [{"id": "gid://shopify/ProductVariant/200"}],
+                        "userErrors": [],
+                    }
+                }
+            }
+        ),
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
                     "product": {
                         "id": "gid://shopify/Product/100",
                         "title": "Test product",
-                        "variants": {"nodes": [{"id": "gid://shopify/ProductVariant/200"}]},
-                    },
-                    "userErrors": [],
+                        "variants": {
+                            "nodes": [
+                                {
+                                    "id": "gid://shopify/ProductVariant/200",
+                                    "price": "19.99",
+                                    "sku": "TEST-SKU",
+                                }
+                            ]
+                        },
+                    }
                 }
             }
-        },
-        {"access_token": "test-access-token"},  # nosec B105
-        {
-            "data": {
-                "productVariantsBulkUpdate": {
-                    "productVariants": [{"id": "gid://shopify/ProductVariant/200"}],
-                    "userErrors": [],
-                }
-            }
-        },
-        {"access_token": "test-access-token"},  # nosec B105
-        {
-            "data": {
-                "product": {
-                    "id": "gid://shopify/Product/100",
-                    "title": "Test product",
-                    "variants": {
-                        "nodes": [
-                            {
-                                "id": "gid://shopify/ProductVariant/200",
-                                "price": "19.99",
-                                "sku": "TEST-SKU",
-                            }
-                        ]
-                    },
-                }
-            }
-        },
+        ),
     ]
 
     result = await CreateProductHandler().execute(
@@ -231,46 +246,52 @@ async def test_create_product_updates_the_standalone_variant(product_context):
 
 async def test_create_product_bulk_creates_optioned_variants(product_context):
     product_context.fetch.side_effect = [
-        {"access_token": "test-access-token"},  # nosec B105
-        {
-            "data": {
-                "productCreate": {
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "productCreate": {
+                        "product": {
+                            "id": "gid://shopify/Product/100",
+                            "title": "Test shirt",
+                            "variants": {"nodes": [{"id": "gid://shopify/ProductVariant/200"}]},
+                        },
+                        "userErrors": [],
+                    }
+                }
+            }
+        ),
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "productVariantsBulkCreate": {
+                        "productVariants": [
+                            {"id": "gid://shopify/ProductVariant/201"},
+                            {"id": "gid://shopify/ProductVariant/202"},
+                        ],
+                        "userErrors": [],
+                    }
+                }
+            }
+        ),
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
                     "product": {
                         "id": "gid://shopify/Product/100",
                         "title": "Test shirt",
-                        "variants": {"nodes": [{"id": "gid://shopify/ProductVariant/200"}]},
-                    },
-                    "userErrors": [],
+                        "variants": {
+                            "nodes": [
+                                {"id": "gid://shopify/ProductVariant/201", "title": "Small", "price": "19.99"},
+                                {"id": "gid://shopify/ProductVariant/202", "title": "Large", "price": "21.99"},
+                            ]
+                        },
+                    }
                 }
             }
-        },
-        {"access_token": "test-access-token"},  # nosec B105
-        {
-            "data": {
-                "productVariantsBulkCreate": {
-                    "productVariants": [
-                        {"id": "gid://shopify/ProductVariant/201"},
-                        {"id": "gid://shopify/ProductVariant/202"},
-                    ],
-                    "userErrors": [],
-                }
-            }
-        },
-        {"access_token": "test-access-token"},  # nosec B105
-        {
-            "data": {
-                "product": {
-                    "id": "gid://shopify/Product/100",
-                    "title": "Test shirt",
-                    "variants": {
-                        "nodes": [
-                            {"id": "gid://shopify/ProductVariant/201", "title": "Small", "price": "19.99"},
-                            {"id": "gid://shopify/ProductVariant/202", "title": "Large", "price": "21.99"},
-                        ]
-                    },
-                }
-            }
-        },
+        ),
     ]
 
     result = await CreateProductHandler().execute(
@@ -317,6 +338,6 @@ async def test_create_product_rejects_ambiguous_variants_before_creating_product
         product_context,
     )
 
-    assert result.data["success"] is False
-    assert "must provide option_values" in result.data["message"]
+    assert isinstance(result, ActionError)
+    assert "must provide option_values" in result.message
     product_context.fetch.assert_not_awaited()
