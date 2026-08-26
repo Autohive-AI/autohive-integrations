@@ -1,0 +1,299 @@
+{
+  "name": "discord",
+  "display_name": "Discord",
+  "version": "2.0.0",
+  "entry_point": "discord.py",
+  "description": "Send messages, retrieve message history, and manage reactions.",
+  "auth": {
+    "type": "platform",
+    "provider": "discord",
+    "scopes": [
+      "bot"
+    ]
+  },
+  "actions": {
+    "list_channels": {
+      "display_name": "List Channels",
+      "description": "List all channels in a Discord server",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "channels": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Channel ID"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Channel name"
+                },
+                "type": {
+                  "type": "number",
+                  "description": "Channel type (0=text, 2=voice, 4=category, etc.)"
+                },
+                "position": {
+                  "type": "number",
+                  "description": "Channel position in the server"
+                },
+                "parent_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "ID of the parent category (if any)"
+                },
+                "guild_id": {
+                  "type": "string",
+                  "description": "ID of the guild this channel belongs to"
+                },
+                "flags": {
+                  "type": "number",
+                  "description": "Channel flags"
+                },
+                "nsfw": {
+                  "type": "boolean",
+                  "description": "Whether the channel is NSFW"
+                },
+                "topic": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Channel topic"
+                },
+                "rate_limit_per_user": {
+                  "type": "number",
+                  "description": "Rate limit per user in seconds"
+                },
+                "last_message_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "ID of the last message in the channel"
+                },
+                "last_pin_timestamp": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Timestamp of the last pinned message"
+                },
+                "permission_overwrites": {
+                  "type": "array",
+                  "description": "Permission overwrites for the channel",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "Role or user ID"
+                      },
+                      "type": {
+                        "type": "number",
+                        "description": "Permission overwrite type"
+                      },
+                      "allow": {
+                        "type": "string",
+                        "description": "Allowed permissions"
+                      },
+                      "deny": {
+                        "type": "string",
+                        "description": "Denied permissions"
+                      }
+                    }
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "type",
+                "position",
+                "guild_id",
+                "flags"
+              ]
+            },
+            "description": "List of channels in the server"
+          }
+        },
+        "required": [
+          "channels"
+        ]
+      }
+    },
+    "get_message_history": {
+      "display_name": "Get Message History",
+      "description": "Retrieve message history from a Discord channel",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "The ID of the Discord channel",
+            "pattern": "^[0-9]{17,20}$"
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of messages to retrieve (max 100)"
+          },
+          "before": {
+            "type": "string",
+            "description": "Get messages before this message ID"
+          }
+        },
+        "required": [
+          "channel"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "description": "List of messages retrieved from the channel"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Indicates if there are more messages that can be retrieved"
+          }
+        },
+        "required": [
+          "messages",
+          "has_more"
+        ]
+      }
+    },
+    "send_message": {
+      "display_name": "Send Message",
+      "description": "Send a message to a Discord channel",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "The ID of the Discord channel",
+            "pattern": "^[0-9]{17,20}$"
+          },
+          "text": {
+            "type": "string",
+            "description": "The text content of the message"
+          },
+          "reference_message_id": {
+            "type": "string",
+            "description": "Message ID to reply to"
+          }
+        },
+        "required": [
+          "channel",
+          "text"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "ID of the sent message"
+          },
+          "channel_id": {
+            "type": "string",
+            "description": "ID of the channel where the message was sent"
+          }
+        },
+        "required": [
+          "id",
+          "channel_id"
+        ]
+      }
+    },
+    "add_reaction": {
+      "display_name": "Add Reaction",
+      "description": "Add a reaction emoji to a message",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "The ID of the Discord channel",
+            "pattern": "^[0-9]{17,20}$"
+          },
+          "message_id": {
+            "type": "string",
+            "description": "The ID of the message to add a reaction to",
+            "pattern": "^[0-9]{17,20}$"
+          },
+          "reaction": {
+            "type": "string",
+            "description": "The emoji to react with: a Unicode emoji, a custom emoji as name:id, or a custom emoji ID from this server"
+          }
+        },
+        "required": [
+          "channel",
+          "message_id",
+          "reaction"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the reaction was successfully added"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    },
+    "remove_reaction": {
+      "display_name": "Remove Reaction",
+      "description": "Remove a reaction emoji from a message",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "channel": {
+            "type": "string",
+            "description": "The ID of the Discord channel",
+            "pattern": "^[0-9]{17,20}$"
+          },
+          "message_id": {
+            "type": "string",
+            "description": "The ID of the message to remove a reaction from",
+            "pattern": "^[0-9]{17,20}$"
+          },
+          "reaction": {
+            "type": "string",
+            "description": "The emoji to remove: a Unicode emoji, a custom emoji as name:id, or a custom emoji ID from this server"
+          }
+        },
+        "required": [
+          "channel",
+          "message_id",
+          "reaction"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the reaction was successfully removed"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    }
+  }
+}
