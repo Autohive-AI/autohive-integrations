@@ -383,6 +383,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [toggl](toggl): Time tracking integration with Toggl Track API for managing time entries and workspace data. Supports creating time entries with start/stop times, descriptions, project assignments, billable flags, and tags. Features API token authentication via HTTP Basic Auth. Ideal for automating time tracking workflows and logging billable hours.
 
+### Karakeep
+
+[karakeep](karakeep): [Karakeep](https://karakeep.app) integration for saving bookmarks and managing tags on Karakeep Cloud or a self-hosted instance. Supports creating bookmarks of type link, text, or asset (duplicate URLs return the existing bookmark with `already_existed`), attaching tags by name or id, creating and listing tags, listing bookmarks (including by tag), search (full-text, semantic, or hybrid), and fetching a bookmark by id. Custom authentication with an HTTPS instance URL (for example `https://cloud.karakeep.app`; `http://` is rejected) and an API key from the Karakeep app. Includes 8 actions.
+
 ## Template
 
 Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) in the SDK repo as the starting point for new integrations.
