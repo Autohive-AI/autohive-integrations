@@ -12,8 +12,8 @@ Opt-in writes:
 """
 
 import os
-from datetime import datetime, timezone
 from urllib.parse import quote, urlparse
+from uuid import uuid4
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, ResultType
@@ -77,30 +77,24 @@ def _assert_ok(result):
     return result.result.data
 
 
-async def _delete_bookmark(context, bookmark_id: str | None) -> None:
-    if not bookmark_id:
-        return
-    try:
-        await context.fetch(
-            f"{BASE_URL}/api/v1/bookmarks/{quote(bookmark_id, safe='')}",
-            method="DELETE",
-            headers={"Authorization": f"Bearer {API_KEY}"},
-        )
-    except Exception:  # nosec B110
-        pass
+async def _cleanup_resources(context, bookmark_id: str | None, tag_id: str | None) -> None:
+    failures = []
+    resources = (("bookmark", "bookmarks", bookmark_id), ("tag", "tags", tag_id))
 
+    for resource, path, resource_id in resources:
+        if not resource_id:
+            continue
+        try:
+            await context.fetch(
+                f"{BASE_URL}/api/v1/{path}/{quote(resource_id, safe='')}",
+                method="DELETE",
+                headers={"Authorization": f"Bearer {API_KEY}"},
+            )
+        except Exception as exc:
+            failures.append(f"{resource} {resource_id}: {exc}")
 
-async def _delete_tag(context, tag_id: str | None) -> None:
-    if not tag_id:
-        return
-    try:
-        await context.fetch(
-            f"{BASE_URL}/api/v1/tags/{quote(tag_id, safe='')}",
-            method="DELETE",
-            headers={"Authorization": f"Bearer {API_KEY}"},
-        )
-    except Exception:  # nosec B110
-        pass
+    if failures:
+        raise AssertionError("Karakeep integration-test cleanup failed: " + "; ".join(failures))
 
 
 @skip_if_no_creds
@@ -129,9 +123,9 @@ class TestReadOnly:
 class TestIngestLifecycle:
     @pytest.mark.asyncio
     async def test_create_tag_bookmark_attach_get_and_dedup(self, live_context):
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        test_url = f"https://example.com/autohive-karakeep-integration-{stamp}"
-        tag_name = f"autohive-itest-{stamp}"
+        run_id = uuid4().hex
+        test_url = f"https://example.com/autohive-karakeep-integration-{run_id}"
+        tag_name = f"autohive-itest-{run_id}"
         bookmark_id = None
         tag_id = None
 
@@ -152,15 +146,16 @@ class TestIngestLifecycle:
                     "create_bookmark",
                     {
                         "url": test_url,
-                        "title": f"Autohive integration test {stamp}",
+                        "title": f"Autohive integration test {run_id}",
                         "note": "Created by integration test",
                     },
                     live_context,
                 )
             )
-            bookmark_id = created["bookmark_id"]
-            assert bookmark_id
+            created_bookmark_id = created["bookmark_id"]
+            assert created_bookmark_id
             assert created["already_existed"] is False
+            bookmark_id = created_bookmark_id
 
             tagged = _assert_ok(
                 await karakeep.execute_action(
@@ -192,5 +187,4 @@ class TestIngestLifecycle:
             ids = [b.get("id") for b in by_tag.get("bookmarks") or []]
             assert bookmark_id in ids
         finally:
-            await _delete_bookmark(live_context, bookmark_id)
-            await _delete_tag(live_context, tag_id)
+            await _cleanup_resources(live_context, bookmark_id, tag_id)
