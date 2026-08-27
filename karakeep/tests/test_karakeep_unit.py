@@ -510,6 +510,26 @@ async def test_accepts_https_base_url(mock_context):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://host/api/v1",
+        "https://host/path",
+        "https://host?foo=bar",
+        "https://host#frag",
+        "https://user@host",
+    ],
+)
+async def test_rejects_non_origin_base_url(mock_context, base_url):
+    mock_context.auth = {
+        "auth_type": "Custom",
+        "credentials": {"base_url": base_url, "api_key": "test_api_key"},  # nosec B105
+    }
+    result = await karakeep.execute_action("list_tags", {}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_not_called()
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
     ("action", "inputs"),
     [
         ("create_bookmark", {"url": "https://example.com/a"}),

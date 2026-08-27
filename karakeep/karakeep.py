@@ -37,6 +37,12 @@ def get_base_url(context: ExecutionContext) -> str:
     parsed = urlparse(base_url)
     if parsed.scheme != "https" or not parsed.netloc:
         raise ValueError("base_url must be an https:// URL")
+    if parsed.username or parsed.password:
+        raise ValueError("base_url must be an origin only (no userinfo)")
+    if parsed.path not in ("", "/"):
+        raise ValueError("base_url must be an origin only (no path; do not include /api/v1)")
+    if parsed.query or parsed.fragment:
+        raise ValueError("base_url must be an origin only (no query string or fragment)")
     return base_url
 
 
