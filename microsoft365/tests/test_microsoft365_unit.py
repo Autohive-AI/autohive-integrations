@@ -304,7 +304,14 @@ async def test_list_files_follows_graph_pagination(mock_context):
     item2 = {"id": "f2", "name": "two.txt", "lastModifiedDateTime": "", "webUrl": "two"}
     mock_context.fetch = AsyncMock(
         side_effect=[
-            FetchResponse(status=200, headers={}, data={"value": [item1], "@odata.nextLink": "https://next"}),
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "value": [item1],
+                    "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=next",
+                },
+            ),
             FetchResponse(status=200, headers={}, data={"value": [item2]}),
         ]
     )
@@ -312,7 +319,53 @@ async def test_list_files_follows_graph_pagination(mock_context):
     assert result.type != ResultType.ACTION_ERROR
     assert [item["id"] for item in result.result.data["files"]] == ["f1", "f2"]
     assert mock_context.fetch.await_count == 2
-    assert mock_context.fetch.await_args_list[1].args[0] == "https://next"
+    assert (
+        mock_context.fetch.await_args_list[1].args[0]
+        == "https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=next"
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_files_rejects_next_link_outside_microsoft_graph(mock_context):
+    mock_context.fetch = make_fetch(
+        {
+            "value": [],
+            "@odata.nextLink": "https://attacker.example/collect-oauth-token",
+        }
+    )
+
+    result = await microsoft365.execute_action("list_files", {}, mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "unsafe or unexpected" in result.result.message
+    assert mock_context.fetch.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_list_files_rejects_repeated_next_link(mock_context):
+    repeated_url = "https://graph.microsoft.com/v1.0/me/drive/root/children?$skiptoken=same"
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=200, headers={}, data={"value": [], "@odata.nextLink": repeated_url}),
+            FetchResponse(status=200, headers={}, data={"value": [], "@odata.nextLink": repeated_url}),
+        ]
+    )
+
+    result = await microsoft365.execute_action("list_files", {}, mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "repeated" in result.result.message
+    assert mock_context.fetch.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_list_files_rejects_non_object_collection_items(mock_context):
+    mock_context.fetch = make_fetch({"value": [{"id": "valid"}, "not-an-object"]})
+
+    result = await microsoft365.execute_action("list_files", {}, mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "items must be objects" in result.result.message
 
 
 # ---- update_calendar_event ----
@@ -377,6 +430,35 @@ async def test_list_calendar_events(mock_context):
     result = await microsoft365.execute_action("list_calendar_events", {}, mock_context)
     assert result.type != ResultType.ACTION_ERROR
     assert len(result.result.data["events"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_calendar_events_accepts_nullable_graph_fields(mock_context):
+    mock_context.fetch = make_fetch(
+        {
+            "value": [
+                {
+                    "id": "e1",
+                    "subject": None,
+                    "start": None,
+                    "end": None,
+                    "location": None,
+                    "organizer": {"emailAddress": None},
+                    "attendees": [None, {"emailAddress": None, "status": None}],
+                }
+            ]
+        }
+    )
+
+    result = await microsoft365.execute_action("list_calendar_events", {}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    event = result.result.data["events"][0]
+    assert event["start"] == {}
+    assert event["end"] == {}
+    assert event["location"] == ""
+    assert event["organizer"] == ""
+    assert event["attendees"][0] == {"email": "", "name": "", "response_status": "none"}
 
 
 @pytest.mark.asyncio
@@ -702,6 +784,31 @@ async def test_read_contacts(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_read_contacts_accepts_nullable_collections(mock_context):
+    mock_context.fetch = make_fetch(
+        {
+            "value": [
+                {
+                    "id": "c1",
+                    "displayName": "No details",
+                    "emailAddresses": None,
+                    "businessPhones": None,
+                    "homePhones": None,
+                }
+            ]
+        }
+    )
+
+    result = await microsoft365.execute_action("read_contacts", {}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    contact = result.result.data["contacts"][0]
+    assert contact["emailAddresses"] == []
+    assert contact["businessPhones"] == []
+    assert contact["homePhones"] == []
+
+
+@pytest.mark.asyncio
 async def test_read_contacts_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("err"))
     result = await microsoft365.execute_action("read_contacts", {}, mock_context)
@@ -779,9 +886,7 @@ async def test_read_onedrive_office_file_uses_documented_pdf_conversion(mock_con
         "id": "f1",
         "name": "quarterly report.docx",
         "size": 500,
-        "file": {
-            "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        },
+        "file": {"mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
         "webUrl": "https://od.com/f1",
     }
     mock_context.fetch = make_fetch(metadata)
@@ -793,6 +898,27 @@ async def test_read_onedrive_office_file_uses_documented_pdf_conversion(mock_con
     assert result.result.data["file"]["name"] == "quarterly report.pdf"
     assert result.result.data["file"]["contentType"] == "application/pdf"
     assert result.result.data["metadata"]["convertedToPdf"] is True
+    assert binary_fetch.await_args.args[0].endswith("/content?format=pdf")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extension", ["markdown", "dwg", "loop", "whiteboard"])
+async def test_read_onedrive_uses_current_graph_pdf_conversion_extensions(mock_context, extension):
+    metadata = {
+        "id": "f1",
+        "name": f"convertible.{extension}",
+        "size": 20,
+        "file": {"mimeType": "application/octet-stream"},
+        "webUrl": "https://od.com/f1",
+    }
+    mock_context.fetch = make_fetch(metadata)
+    binary_fetch = AsyncMock(return_value=b"%PDF-1.7")
+
+    with patch("microsoft365.microsoft365._fetch_binary", new=binary_fetch):
+        result = await microsoft365.execute_action("read_onedrive_file_content", {"file_id": "f1"}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data["file"]["name"] == "convertible.pdf"
     assert binary_fetch.await_args.args[0].endswith("/content?format=pdf")
 
 
@@ -1007,6 +1133,17 @@ async def test_search_emails(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_search_emails_accepts_nullable_graph_collections(mock_context):
+    mock_context.fetch = make_fetch({"value": [{"hitsContainers": None}]})
+
+    result = await microsoft365.execute_action("search_emails", {"query": "test"}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data["messages"] == []
+    assert result.result.data["total_results"] == 0
+
+
+@pytest.mark.asyncio
 async def test_search_emails_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("err"))
     result = await microsoft365.execute_action("search_emails", {"query": "test"}, mock_context)
@@ -1097,6 +1234,18 @@ async def test_list_sharepoint_libraries(mock_context):
     result = await microsoft365.execute_action("list_sharepoint_libraries", {"site_id": "s1"}, mock_context)
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["total_libraries"] == 1
+
+
+@pytest.mark.asyncio
+async def test_list_sharepoint_libraries_accepts_nullable_owner_and_quota(mock_context):
+    mock_context.fetch = make_fetch({"value": [{"id": "d1", "name": "Documents", "owner": None, "quota": None}]})
+
+    result = await microsoft365.execute_action("list_sharepoint_libraries", {"site_id": "s1"}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    library = result.result.data["libraries"][0]
+    assert "owner" not in library
+    assert "quota" not in library
 
 
 @pytest.mark.asyncio
@@ -1229,6 +1378,20 @@ async def test_list_sharepoint_pages(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_list_sharepoint_pages_accepts_nullable_identities(mock_context):
+    mock_context.fetch = make_fetch(
+        {"value": [{"id": "p1", "name": "home.aspx", "createdBy": None, "lastModifiedBy": None}]}
+    )
+
+    result = await microsoft365.execute_action("list_sharepoint_pages", {"site_id": "s1"}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    page = result.result.data["pages"][0]
+    assert "created_by" not in page
+    assert "last_modified_by" not in page
+
+
+@pytest.mark.asyncio
 async def test_list_sharepoint_pages_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("err"))
     result = await microsoft365.execute_action("list_sharepoint_pages", {"site_id": "s1"}, mock_context)
@@ -1334,6 +1497,36 @@ async def test_list_sharepoint_folder_contents(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_list_sharepoint_folder_contents_accepts_nullable_facets(mock_context):
+    mock_context.fetch = make_fetch(
+        {
+            "value": [
+                {
+                    "id": "i1",
+                    "name": "unknown",
+                    "folder": None,
+                    "file": None,
+                    "createdBy": None,
+                    "lastModifiedBy": None,
+                }
+            ]
+        }
+    )
+
+    result = await microsoft365.execute_action(
+        "list_sharepoint_folder_contents",
+        {"drive_id": "d1"},
+        mock_context,
+    )
+
+    assert result.type != ResultType.ACTION_ERROR
+    item = result.result.data["items"][0]
+    assert item["is_folder"] is False
+    assert "child_count" not in item
+    assert "mime_type" not in item
+
+
+@pytest.mark.asyncio
 async def test_list_sharepoint_folder_contents_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("err"))
     result = await microsoft365.execute_action(
@@ -1380,6 +1573,34 @@ async def test_find_meeting_times(mock_context):
     assert kwargs["json"]["returnSuggestionReasons"] is True
 
 
+@pytest.mark.asyncio
+async def test_find_meeting_times_accepts_nullable_suggestion_details(mock_context):
+    mock_context.fetch = make_fetch(
+        {
+            "meetingTimeSuggestions": [
+                {
+                    "meetingTimeSlot": None,
+                    "attendeeAvailability": [{"attendee": {"emailAddress": None}}],
+                    "locations": None,
+                }
+            ]
+        }
+    )
+
+    result = await microsoft365.execute_action(
+        "find_meeting_times",
+        {"attendees": ["a@b.com"]},
+        mock_context,
+    )
+
+    assert result.type != ResultType.ACTION_ERROR
+    suggestion = result.result.data["meeting_time_suggestions"][0]
+    assert suggestion["start"] == ""
+    assert suggestion["end"] == ""
+    assert suggestion["attendee_availability"][0]["email"] == ""
+    assert suggestion["suggested_locations"] == []
+
+
 def test_find_meeting_times_declares_graph_permission_and_removes_shifts_scope():
     config = json.loads((Path(__file__).parents[1] / "config.json").read_text(encoding="utf-8"))
     assert config["version"] == "3.0.0"
@@ -1422,6 +1643,32 @@ async def test_get_schedule(mock_context):
     _, kwargs = mock_context.fetch.await_args
     assert kwargs["json"]["startTime"] == {"dateTime": "2026-06-15T09:00:00", "timeZone": "UTC"}
     assert kwargs["json"]["endTime"] == {"dateTime": "2026-06-15T17:00:00", "timeZone": "UTC"}
+
+
+@pytest.mark.asyncio
+async def test_get_schedule_accepts_nullable_nested_fields(mock_context):
+    mock_context.fetch = make_fetch(
+        {
+            "value": [
+                {
+                    "scheduleId": "a@b.com",
+                    "scheduleItems": None,
+                    "workingHours": {"timeZone": None},
+                }
+            ]
+        }
+    )
+
+    result = await microsoft365.execute_action(
+        "get_schedule",
+        {"schedules": ["a@b.com"], "start_datetime": "2026-06-15T09:00:00Z", "end_datetime": "2026-06-15T17:00:00Z"},
+        mock_context,
+    )
+
+    assert result.type != ResultType.ACTION_ERROR
+    schedule = result.result.data["schedules"][0]
+    assert schedule["schedule_items"] == []
+    assert schedule["working_hours"]["timezone"] == ""
 
 
 @pytest.mark.asyncio
@@ -1482,6 +1729,31 @@ async def test_list_rooms(mock_context):
     result = await microsoft365.execute_action("list_rooms", {}, mock_context)
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["total_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_list_rooms_omits_nullable_typed_properties(mock_context):
+    mock_context.fetch = make_fetch(
+        {
+            "value": [
+                {
+                    "id": "r1",
+                    "displayName": "Unconfigured room",
+                    "capacity": None,
+                    "floorNumber": None,
+                    "isWheelChairAccessible": None,
+                }
+            ]
+        }
+    )
+
+    result = await microsoft365.execute_action("list_rooms", {}, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    room = result.result.data["rooms"][0]
+    assert "capacity" not in room
+    assert "floor_number" not in room
+    assert "is_wheelchair_accessible" not in room
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 # Microsoft Graph API audit
 
-Audit date: 26 August 2026  
+Audit date: 27 August 2026
 Integration version: 3.0.0
 
 Every Microsoft 365 action was compared with the Microsoft Graph v1.0 documentation listed below. “Verified” means the existing HTTP method, resource path, and payload match the documented API. “Fixed” means this audit changed the implementation or public contract.
@@ -48,3 +48,11 @@ Every Microsoft 365 action was compared with the Microsoft Graph v1.0 documentat
 `Schedule.Read.All` was removed because it is a Microsoft Teams Shifts permission and does not authorize Outlook free/busy APIs. `Calendars.Read.Shared` was added because Microsoft documents it as the least-privileged delegated permission for `findMeetingTimes`. `Calendars.ReadWrite` remains in place for event management and `getSchedule`; `Place.Read.All` remains in place for room discovery.
 
 Because OAuth permissions changed, users upgrading from an earlier version must reconnect Microsoft 365 once after deployment.
+
+## Final hardening pass
+
+All 35 actions were rechecked after the endpoint audit. The shared collection helper now accepts pagination only from absolute `https://graph.microsoft.com/v1.0/` URLs, detects repeated next links, and rejects malformed collection items. This prevents the platform OAuth token from being attached to an unexpected pagination origin and avoids silent truncation or infinite pagination loops.
+
+Response mapping now accepts Microsoft Graph's documented nullable nested fields across mail, calendar, contacts, OneDrive, SharePoint, meeting suggestions, schedules, and rooms without emitting values that violate the public output schemas. The PDF-conversion extension list was also synchronized with the current Microsoft Graph conversion table.
+
+The unit suite contains 118 passing tests. Live tests require a non-expired delegated access token whose user has an Exchange Online mailbox and provisioned OneDrive; tenant provisioning failures such as `MailboxNotEnabledForRESTAPI` and `provisioningNotAllowed` are Microsoft account/license errors rather than action failures.

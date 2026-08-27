@@ -21,24 +21,38 @@ MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
 PDF_CONVERTIBLE_EXTENSIONS = {
     ".doc",
     ".docx",
+    ".dsn",
+    ".dwg",
     ".dot",
     ".dotm",
     ".dotx",
     ".eml",
     ".epub",
+    ".fluidframework",
+    ".form",
+    ".htm",
     ".html",
+    ".loop",
+    ".loot",
+    ".markdown",
     ".md",
     ".msg",
+    ".note",
     ".odp",
     ".ods",
     ".odt",
+    ".page",
     ".pps",
     ".ppsx",
     ".ppt",
     ".pptx",
+    ".pulse",
     ".rtf",
+    ".task",
     ".tif",
     ".tiff",
+    ".wbtx",
+    ".whiteboard",
     ".xls",
     ".xlsm",
     ".xlsx",
@@ -51,10 +65,58 @@ def _check_response(response: Any, *required_keys: str) -> None:
         raise ValueError(f"Unexpected response type: {type(response)}")
     if "error" in response:
         err = response["error"]
-        raise ValueError(err.get("message") or str(err))
+        message = err.get("message") if isinstance(err, dict) else None
+        raise ValueError(message or str(err))
     for key in required_keys:
         if key not in response:
             raise KeyError(f"Expected key '{key}' missing from response: {list(response.keys())}")
+
+
+def _optional_object(value: Any, field_name: str) -> Dict[str, Any]:
+    """Return an optional Graph object as a mapping, accepting documented nulls."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"Microsoft Graph field '{field_name}' must be an object or null")
+    return value
+
+
+def _optional_list(value: Any, field_name: str) -> List[Any]:
+    """Return an optional Graph array as a list, accepting documented nulls."""
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"Microsoft Graph field '{field_name}' must be an array or null")
+    return value
+
+
+def _room_result(room: Dict[str, Any]) -> Dict[str, Any]:
+    """Map a Graph room while omitting optional scalar properties returned as null."""
+    result = {
+        "id": room.get("id") or "",
+        "display_name": room.get("displayName") or "",
+        "email_address": room.get("emailAddress") or "",
+        "building": room.get("building") or "",
+        "floor_label": room.get("floorLabel") or "",
+        "audio_device_name": room.get("audioDeviceName") or "",
+        "video_device_name": room.get("videoDeviceName") or "",
+        "display_device_name": room.get("displayDeviceName") or "",
+        "phone": room.get("phone") or "",
+    }
+
+    capacity = room.get("capacity")
+    if isinstance(capacity, int) and not isinstance(capacity, bool):
+        result["capacity"] = capacity
+
+    floor_number = room.get("floorNumber")
+    if isinstance(floor_number, int) and not isinstance(floor_number, bool):
+        result["floor_number"] = floor_number
+
+    wheelchair_accessible = room.get("isWheelChairAccessible")
+    if isinstance(wheelchair_accessible, bool):
+        result["is_wheelchair_accessible"] = wheelchair_accessible
+
+    return result
 
 
 def _check_fetch_success(fetch_response: Any) -> None:
@@ -113,6 +175,31 @@ def _validate_datetime_range(start_value: Any, end_value: Any, start_name: str, 
     )
 
 
+def _validate_graph_next_link(value: Any) -> str | None:
+    """Accept only an absolute Microsoft Graph v1.0 pagination URL.
+
+    ``context.fetch`` adds the connection's OAuth token automatically. Graph's
+    documented ``@odata.nextLink`` must therefore never be allowed to redirect
+    a paginated action to another origin.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise ValueError("Microsoft Graph '@odata.nextLink' must be a non-empty URL")
+
+    parsed = urllib.parse.urlparse(value)
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "graph.microsoft.com"
+        or parsed.port is not None
+        or parsed.username is not None
+        or parsed.password is not None
+        or not parsed.path.startswith("/v1.0/")
+    ):
+        raise ValueError("Microsoft Graph returned an unsafe or unexpected '@odata.nextLink' URL")
+    return value
+
+
 async def _fetch_collection(
     context: ExecutionContext,
     url: str,
@@ -127,8 +214,13 @@ async def _fetch_collection(
     items: List[Dict[str, Any]] = []
     next_url: str | None = url
     first_request = True
+    requested_urls: set[str] = set()
 
     while next_url and (limit is None or len(items) < limit):
+        if next_url in requested_urls:
+            raise ValueError("Microsoft Graph pagination returned a repeated '@odata.nextLink' URL")
+        requested_urls.add(next_url)
+
         if first_request and params:
             resp = await context.fetch(next_url, params=params)
         else:
@@ -139,8 +231,10 @@ async def _fetch_collection(
         page = response["value"]
         if not isinstance(page, list):
             raise ValueError("Microsoft Graph collection response 'value' must be an array")
-        items.extend(item for item in page if isinstance(item, dict))
-        next_url = response.get("@odata.nextLink")
+        if any(not isinstance(item, dict) for item in page):
+            raise ValueError("Microsoft Graph collection response items must be objects")
+        items.extend(page)
+        next_url = _validate_graph_next_link(response.get("@odata.nextLink"))
 
     was_truncated = limit is not None and len(items) > limit
     if was_truncated:
@@ -390,11 +484,11 @@ class ListFilesAction(ActionHandler):
                 file_item = {
                     "id": item["id"],
                     "name": item["name"],
-                    "size": item.get("size", 0),
-                    "lastModifiedDateTime": item["lastModifiedDateTime"],
-                    "webUrl": item["webUrl"],
+                    "size": item.get("size") or 0,
+                    "lastModifiedDateTime": item.get("lastModifiedDateTime") or "",
+                    "webUrl": item.get("webUrl") or "",
                 }
-                if "folder" in item:
+                if isinstance(item.get("folder"), dict):
                     file_item["folder"] = item["folder"]
                 files.append(file_item)
 
@@ -413,28 +507,28 @@ class UpdateCalendarEventAction(ActionHandler):
             event_data = {}
 
             if "subject" in inputs:
-                event_data["subject"] = inputs["subject"]
+                event_data["subject"] = inputs.get("subject")
 
             if "start_time" in inputs:
                 event_data["start"] = {
-                    "dateTime": _graph_utc_datetime(inputs["start_time"], "start_time"),
+                    "dateTime": _graph_utc_datetime(inputs.get("start_time"), "start_time"),
                     "timeZone": "UTC",
                 }
 
             if "end_time" in inputs:
                 event_data["end"] = {
-                    "dateTime": _graph_utc_datetime(inputs["end_time"], "end_time"),
+                    "dateTime": _graph_utc_datetime(inputs.get("end_time"), "end_time"),
                     "timeZone": "UTC",
                 }
 
             if "start_time" in inputs and "end_time" in inputs:
-                _validate_datetime_range(inputs["start_time"], inputs["end_time"], "start_time", "end_time")
+                _validate_datetime_range(inputs.get("start_time"), inputs.get("end_time"), "start_time", "end_time")
 
             if "location" in inputs:
-                event_data["location"] = {"displayName": inputs["location"]}
+                event_data["location"] = {"displayName": inputs.get("location")}
 
             if "body" in inputs:
-                event_data["body"] = {"contentType": "Text", "content": inputs["body"]}
+                event_data["body"] = {"contentType": "Text", "content": inputs.get("body")}
 
             if "attendees" in inputs:
                 event_data["attendees"] = [
@@ -442,7 +536,7 @@ class UpdateCalendarEventAction(ActionHandler):
                         "emailAddress": {"address": email, "name": email},
                         "type": "required",
                     }
-                    for email in inputs["attendees"]
+                    for email in inputs.get("attendees", [])
                 ]
 
             if not event_data:
@@ -479,9 +573,10 @@ class ListCalendarEventsAction(ActionHandler):
 
             if inputs.get("start_datetime"):
                 start_datetime = inputs.get("start_datetime")
-                end_datetime = inputs.get("end_datetime") or (
-                    _parse_datetime(start_datetime, "start_datetime") + timedelta(days=1)
-                ).isoformat()
+                end_datetime = (
+                    inputs.get("end_datetime")
+                    or (_parse_datetime(start_datetime, "start_datetime") + timedelta(days=1)).isoformat()
+                )
             elif inputs.get("start_date"):
                 start_date = inputs.get("start_date")
                 end_date = inputs.get("end_date", start_date)
@@ -513,9 +608,10 @@ class ListCalendarEventsAction(ActionHandler):
             events = []
             for event in all_events:
                 attendees = []
-                for attendee in event.get("attendees", []):
-                    email_address = attendee.get("emailAddress", {})
-                    status = attendee.get("status", {})
+                for attendee in _optional_list(event.get("attendees"), "event.attendees"):
+                    attendee = _optional_object(attendee, "event.attendees[]")
+                    email_address = _optional_object(attendee.get("emailAddress"), "event.attendees[].emailAddress")
+                    status = _optional_object(attendee.get("status"), "event.attendees[].status")
                     attendees.append(
                         {
                             "email": email_address.get("address", ""),
@@ -524,22 +620,22 @@ class ListCalendarEventsAction(ActionHandler):
                         }
                     )
 
-                organizer_email = ""
-                if event.get("organizer") and event["organizer"].get("emailAddress"):
-                    organizer_email = event["organizer"]["emailAddress"]["address"]
+                organizer = _optional_object(event.get("organizer"), "event.organizer")
+                organizer_address = _optional_object(organizer.get("emailAddress"), "event.organizer.emailAddress")
+                location = _optional_object(event.get("location"), "event.location")
 
                 events.append(
                     {
                         "id": event["id"],
                         "subject": event.get("subject") or "",
-                        "start": event.get("start", {}),
-                        "end": event.get("end", {}),
-                        "location": event.get("location", {}).get("displayName") or "",
+                        "start": _optional_object(event.get("start"), "event.start"),
+                        "end": _optional_object(event.get("end"), "event.end"),
+                        "location": location.get("displayName") or "",
                         "bodyPreview": event.get("bodyPreview") or "",
-                        "organizer": organizer_email,
+                        "organizer": organizer_address.get("address") or "",
                         "attendees": attendees,
-                        "webLink": event.get("webLink", ""),
-                        "isAllDay": event.get("isAllDay", False),
+                        "webLink": event.get("webLink") or "",
+                        "isAllDay": event.get("isAllDay") is True,
                     }
                 )
 
@@ -572,9 +668,10 @@ class ListEmailsAction(ActionHandler):
 
             if inputs.get("start_datetime"):
                 start_datetime = inputs.get("start_datetime")
-                end_datetime = inputs.get("end_datetime") or (
-                    _parse_datetime(start_datetime, "start_datetime") + timedelta(days=1)
-                ).isoformat()
+                end_datetime = (
+                    inputs.get("end_datetime")
+                    or (_parse_datetime(start_datetime, "start_datetime") + timedelta(days=1)).isoformat()
+                )
             elif inputs.get("start_date"):
                 start_date = inputs.get("start_date")
                 end_date = inputs.get("end_date", start_date)
@@ -619,19 +716,19 @@ class ListEmailsAction(ActionHandler):
                 if "subject" in active_fields:
                     email_data["subject"] = email.get("subject") or ""
                 if "sender" in active_fields:
-                    email_data["sender"] = email.get("sender") or {}
+                    email_data["sender"] = _optional_object(email.get("sender"), "message.sender")
                 if "receivedDateTime" in active_fields:
-                    email_data["receivedDateTime"] = email.get("receivedDateTime", "")
+                    email_data["receivedDateTime"] = email.get("receivedDateTime") or ""
                 if "bodyPreview" in active_fields:
                     email_data["bodyPreview"] = email.get("bodyPreview") or ""
                 if "body" in active_fields:
-                    email_data["body"] = email.get("body", {})
+                    email_data["body"] = _optional_object(email.get("body"), "message.body")
                 if "hasAttachments" in active_fields:
-                    email_data["hasAttachments"] = email.get("hasAttachments", False)
+                    email_data["hasAttachments"] = email.get("hasAttachments") is True
                 if "isRead" in active_fields:
-                    email_data["isRead"] = email.get("isRead", False)
+                    email_data["isRead"] = email.get("isRead") is True
                 if "importance" in active_fields:
-                    email_data["importance"] = email.get("importance", "normal")
+                    email_data["importance"] = email.get("importance") or "normal"
                 emails.append(email_data)
 
             return ActionResult(data={"emails": emails}, cost_usd=0.0)
@@ -686,19 +783,19 @@ class ListEmailsFromContactAction(ActionHandler):
                 if "subject" in active_fields:
                     email_data["subject"] = email.get("subject") or ""
                 if "sender" in active_fields:
-                    email_data["sender"] = email.get("sender") or {}
+                    email_data["sender"] = _optional_object(email.get("sender"), "message.sender")
                 if "receivedDateTime" in active_fields:
-                    email_data["receivedDateTime"] = email.get("receivedDateTime", "")
+                    email_data["receivedDateTime"] = email.get("receivedDateTime") or ""
                 if "bodyPreview" in active_fields:
                     email_data["bodyPreview"] = email.get("bodyPreview") or ""
                 if "body" in active_fields:
-                    email_data["body"] = email.get("body", {})
+                    email_data["body"] = _optional_object(email.get("body"), "message.body")
                 if "hasAttachments" in active_fields:
-                    email_data["hasAttachments"] = email.get("hasAttachments", False)
+                    email_data["hasAttachments"] = email.get("hasAttachments") is True
                 if "isRead" in active_fields:
-                    email_data["isRead"] = email.get("isRead", False)
+                    email_data["isRead"] = email.get("isRead") is True
                 if "importance" in active_fields:
-                    email_data["importance"] = email.get("importance", "normal")
+                    email_data["importance"] = email.get("importance") or "normal"
                 emails.append(email_data)
 
             return ActionResult(
@@ -730,8 +827,8 @@ class MarkEmailReadAction(ActionHandler):
             return ActionResult(
                 data={
                     "id": response["id"],
-                    "isRead": response.get("isRead", is_read),
-                    "lastModifiedDateTime": response.get("lastModifiedDateTime", ""),
+                    "isRead": response.get("isRead") if isinstance(response.get("isRead"), bool) else is_read,
+                    "lastModifiedDateTime": response.get("lastModifiedDateTime") or "",
                 },
                 cost_usd=0.0,
             )
@@ -772,12 +869,12 @@ class ListMailFoldersAction(ActionHandler):
             for folder in all_folder_items:
                 folder_data = {
                     "id": folder["id"],
-                    "displayName": folder.get("displayName", ""),
-                    "parentFolderId": folder.get("parentFolderId", ""),
-                    "childFolderCount": folder.get("childFolderCount", 0),
-                    "unreadItemCount": folder.get("unreadItemCount", 0),
-                    "totalItemCount": folder.get("totalItemCount", 0),
-                    "isHidden": folder.get("isHidden", False),
+                    "displayName": folder.get("displayName") or "",
+                    "parentFolderId": folder.get("parentFolderId") or "",
+                    "childFolderCount": folder.get("childFolderCount") or 0,
+                    "unreadItemCount": folder.get("unreadItemCount") or 0,
+                    "totalItemCount": folder.get("totalItemCount") or 0,
+                    "isHidden": folder.get("isHidden") is True,
                 }
                 folders.append(folder_data)
 
@@ -819,19 +916,17 @@ class ListMailFoldersAction(ActionHandler):
                 continue
             folder_data = {
                 "id": folder_id,
-                "displayName": folder.get("displayName", ""),
-                "parentFolderId": folder.get("parentFolderId", ""),
-                "childFolderCount": folder.get("childFolderCount", 0),
-                "unreadItemCount": folder.get("unreadItemCount", 0),
-                "totalItemCount": folder.get("totalItemCount", 0),
-                "isHidden": folder.get("isHidden", False),
+                "displayName": folder.get("displayName") or "",
+                "parentFolderId": folder.get("parentFolderId") or "",
+                "childFolderCount": folder.get("childFolderCount") or 0,
+                "unreadItemCount": folder.get("unreadItemCount") or 0,
+                "totalItemCount": folder.get("totalItemCount") or 0,
+                "isHidden": folder.get("isHidden") is True,
             }
             folders.append(folder_data)
 
             if folder.get("childFolderCount", 0) > 0:
-                child_folders = await self._fetch_child_folders_recursive(
-                    folder_id, context, include_hidden, visited
-                )
+                child_folders = await self._fetch_child_folders_recursive(folder_id, context, include_hidden, visited)
                 folders.extend(child_folders)
 
         return folders
@@ -861,12 +956,12 @@ class GetMailFolderAction(ActionHandler):
 
             folder_data = {
                 "id": response["id"],
-                "displayName": response.get("displayName", ""),
-                "parentFolderId": response.get("parentFolderId", ""),
-                "childFolderCount": response.get("childFolderCount", 0),
-                "unreadItemCount": response.get("unreadItemCount", 0),
-                "totalItemCount": response.get("totalItemCount", 0),
-                "isHidden": response.get("isHidden", False),
+                "displayName": response.get("displayName") or "",
+                "parentFolderId": response.get("parentFolderId") or "",
+                "childFolderCount": response.get("childFolderCount") or 0,
+                "unreadItemCount": response.get("unreadItemCount") or 0,
+                "totalItemCount": response.get("totalItemCount") or 0,
+                "isHidden": response.get("isHidden") is True,
             }
 
             return ActionResult(data={"folder": folder_data}, cost_usd=0.0)
@@ -905,8 +1000,8 @@ class MoveEmailAction(ActionHandler):
             return ActionResult(
                 data={
                     "id": response["id"],
-                    "parentFolderId": response.get("parentFolderId", ""),
-                    "subject": response.get("subject", ""),
+                    "parentFolderId": response.get("parentFolderId") or "",
+                    "subject": response.get("subject") or "",
                 },
                 cost_usd=0.0,
             )
@@ -932,10 +1027,10 @@ class ReadEmailAction(ActionHandler):
             email_details = {
                 "id": email_response["id"],
                 "subject": email_response.get("subject") or "",
-                "sender": email_response.get("sender", {}),
-                "receivedDateTime": email_response.get("receivedDateTime", ""),
-                "body": email_response.get("body", {}),
-                "hasAttachments": email_response.get("hasAttachments", False),
+                "sender": _optional_object(email_response.get("sender"), "message.sender"),
+                "receivedDateTime": email_response.get("receivedDateTime") or "",
+                "body": _optional_object(email_response.get("body"), "message.body"),
+                "hasAttachments": email_response.get("hasAttachments") is True,
             }
 
             attachments = []
@@ -949,8 +1044,8 @@ class ReadEmailAction(ActionHandler):
                         {
                             "id": attachment["id"],
                             "name": attachment["name"],
-                            "size": attachment.get("size", 0),
-                            "contentType": attachment.get("contentType", "application/octet-stream"),
+                            "size": attachment.get("size") or 0,
+                            "contentType": attachment.get("contentType") or "application/octet-stream",
                             "message": "Attachment metadata only. Use download_email_attachment to retrieve content.",
                         }
                     )
@@ -1009,20 +1104,25 @@ class ReadContactsAction(ActionHandler):
                         continue
 
                 email_addresses = []
-                for email in contact.get("emailAddresses", []):
+                email_values = _optional_list(contact.get("emailAddresses"), "contact.emailAddresses")
+                for email in email_values:
+                    email = _optional_object(email, "contact.emailAddresses[]")
                     email_addresses.append(
                         {
-                            "address": email.get("address", ""),
-                            "name": email.get("name", ""),
+                            "address": email.get("address") or "",
+                            "name": email.get("name") or "",
                         }
                     )
 
                 phone_numbers = []
 
-                for phone in contact.get("businessPhones", []):
+                business_phones = _optional_list(contact.get("businessPhones"), "contact.businessPhones")
+                home_phones = _optional_list(contact.get("homePhones"), "contact.homePhones")
+
+                for phone in business_phones:
                     phone_numbers.append({"number": phone, "type": "business"})
 
-                for phone in contact.get("homePhones", []):
+                for phone in home_phones:
                     phone_numbers.append({"number": phone, "type": "home"})
 
                 mobile = contact.get("mobilePhone")
@@ -1031,16 +1131,16 @@ class ReadContactsAction(ActionHandler):
 
                 contacts.append(
                     {
-                        "id": contact.get("id", ""),
-                        "displayName": contact.get("displayName", ""),
-                        "givenName": contact.get("givenName", ""),
-                        "surname": contact.get("surname", ""),
+                        "id": contact.get("id") or "",
+                        "displayName": contact.get("displayName") or "",
+                        "givenName": contact.get("givenName") or "",
+                        "surname": contact.get("surname") or "",
                         "emailAddresses": email_addresses,
-                        "businessPhones": contact.get("businessPhones", []),
-                        "homePhones": contact.get("homePhones", []),
-                        "mobilePhone": contact.get("mobilePhone", ""),
-                        "companyName": contact.get("companyName", ""),
-                        "jobTitle": contact.get("jobTitle", ""),
+                        "businessPhones": business_phones,
+                        "homePhones": home_phones,
+                        "mobilePhone": contact.get("mobilePhone") or "",
+                        "companyName": contact.get("companyName") or "",
+                        "jobTitle": contact.get("jobTitle") or "",
                     }
                 )
                 if len(contacts) >= limit:
@@ -1097,13 +1197,13 @@ class SearchOneDriveFilesAction(ActionHandler):
                 file_item = {
                     "id": item["id"],
                     "name": item["name"],
-                    "size": item.get("size", 0),
-                    "lastModifiedDateTime": item["lastModifiedDateTime"],
-                    "webUrl": item["webUrl"],
+                    "size": item.get("size") or 0,
+                    "lastModifiedDateTime": item.get("lastModifiedDateTime") or "",
+                    "webUrl": item.get("webUrl") or "",
                 }
-                if "folder" in item:
+                if isinstance(item.get("folder"), dict):
                     file_item["folder"] = item["folder"]
-                if "file" in item:
+                if isinstance(item.get("file"), dict):
                     file_item["file"] = item["file"]
                 files.append(file_item)
 
@@ -1342,8 +1442,7 @@ class DownloadEmailAttachmentAction(ActionHandler):
 
             try:
                 content_url = (
-                    f"{GRAPH_API_BASE}/me/messages/{encoded_message_id}/attachments/"
-                    f"{encoded_attachment_id}/$value"
+                    f"{GRAPH_API_BASE}/me/messages/{encoded_message_id}/attachments/{encoded_attachment_id}/$value"
                 )
                 token = context.auth.get("credentials", {}).get("access_token", "")
                 content_bytes = await _fetch_binary(content_url, token)
@@ -1408,18 +1507,20 @@ class SearchEmailsAction(ActionHandler):
             messages = []
             total_results = 0
 
-            if response.get("value") and len(response["value"]) > 0:
-                search_result = response["value"][0]
-                hits = search_result.get("hitsContainers", [])
+            search_results = _optional_list(response.get("value"), "search.value")
+            if search_results:
+                search_result = _optional_object(search_results[0], "search.value[]")
+                hits = _optional_list(search_result.get("hitsContainers"), "search.hitsContainers")
 
                 if hits:
-                    hits_container = hits[0]
+                    hits_container = _optional_object(hits[0], "search.hitsContainers[]")
                     total_results = hits_container.get("total", 0)
 
-                    for hit in hits_container.get("hits", []):
-                        message_data = hit.get("resource", {})
+                    for hit in _optional_list(hits_container.get("hits"), "search.hits"):
+                        hit = _optional_object(hit, "search.hits[]")
+                        message_data = _optional_object(hit.get("resource"), "search.hits[].resource")
 
-                        sender = message_data.get("from") or {}
+                        sender = _optional_object(message_data.get("from"), "search.message.from")
 
                         messages.append(
                             {
@@ -1512,7 +1613,7 @@ class GetSharePointSiteDetailsAction(ActionHandler):
                 "is_personal_site": response.get("isPersonalSite", False),
             }
 
-            if "siteCollection" in response:
+            if isinstance(response.get("siteCollection"), dict):
                 site_details["site_collection"] = response["siteCollection"]
 
             return ActionResult(data={"site": site_details}, cost_usd=0.0)
@@ -1571,28 +1672,31 @@ class ListSharePointLibrariesAction(ActionHandler):
             libraries = []
             for drive in all_drives:
                 library_data = {
-                    "id": drive.get("id", ""),
-                    "name": drive.get("name", ""),
-                    "description": drive.get("description", ""),
-                    "drive_type": drive.get("driveType", ""),
-                    "web_url": drive.get("webUrl", ""),
-                    "created_datetime": drive.get("createdDateTime", ""),
-                    "last_modified_datetime": drive.get("lastModifiedDateTime", ""),
+                    "id": drive.get("id") or "",
+                    "name": drive.get("name") or "",
+                    "description": drive.get("description") or "",
+                    "drive_type": drive.get("driveType") or "",
+                    "web_url": drive.get("webUrl") or "",
+                    "created_datetime": drive.get("createdDateTime") or "",
+                    "last_modified_datetime": drive.get("lastModifiedDateTime") or "",
                 }
 
-                if "quota" in drive:
+                quota = _optional_object(drive.get("quota"), "drive.quota")
+                if quota:
                     library_data["quota"] = {
-                        "total": drive["quota"].get("total", 0),
-                        "remaining": drive["quota"].get("remaining", 0),
-                        "used": drive["quota"].get("used", 0),
-                        "deleted": drive["quota"].get("deleted", 0),
-                        "state": drive["quota"].get("state", ""),
+                        "total": quota.get("total") or 0,
+                        "remaining": quota.get("remaining") or 0,
+                        "used": quota.get("used") or 0,
+                        "deleted": quota.get("deleted") or 0,
+                        "state": quota.get("state") or "",
                     }
 
-                if "owner" in drive and "user" in drive["owner"]:
+                owner = _optional_object(drive.get("owner"), "drive.owner")
+                owner_user = _optional_object(owner.get("user"), "drive.owner.user")
+                if owner_user:
                     library_data["owner"] = {
-                        "display_name": drive["owner"]["user"].get("displayName", ""),
-                        "email": drive["owner"]["user"].get("email", ""),
+                        "display_name": owner_user.get("displayName") or "",
+                        "email": owner_user.get("email") or "",
                     }
 
                 libraries.append(library_data)
@@ -1651,8 +1755,7 @@ class SearchSharePointDocumentsAction(ActionHandler):
                         "$select": "id,name,size,lastModifiedDateTime,webUrl,folder,file",
                     }
                     api_url = (
-                        f"{GRAPH_API_BASE}/drives/{_encode_path_segment(drive_id)}"
-                        f"/root/search(q='{encoded_query}')"
+                        f"{GRAPH_API_BASE}/drives/{_encode_path_segment(drive_id)}/root/search(q='{encoded_query}')"
                     )
                     drive_items, _ = await _fetch_collection(
                         context,
@@ -1665,15 +1768,15 @@ class SearchSharePointDocumentsAction(ActionHandler):
                         file_item = {
                             "id": item["id"],
                             "name": item["name"],
-                            "size": item.get("size", 0),
-                            "lastModifiedDateTime": item["lastModifiedDateTime"],
-                            "webUrl": item["webUrl"],
+                            "size": item.get("size") or 0,
+                            "lastModifiedDateTime": item.get("lastModifiedDateTime") or "",
+                            "webUrl": item.get("webUrl") or "",
                             "drive_id": drive_id,
                             "drive_name": drive_name,
                         }
-                        if "folder" in item:
+                        if isinstance(item.get("folder"), dict):
                             file_item["folder"] = item["folder"]
-                        if "file" in item:
+                        if isinstance(item.get("file"), dict):
                             file_item["file"] = item["file"]
                         all_files.append(file_item)
 
@@ -1787,25 +1890,29 @@ class ListSharePointPagesAction(ActionHandler):
             pages = []
             for page in all_pages:
                 page_data = {
-                    "id": page.get("id", ""),
-                    "name": page.get("name", ""),
-                    "title": page.get("title", ""),
-                    "web_url": page.get("webUrl", ""),
-                    "page_layout": page.get("pageLayout", ""),
-                    "created_datetime": page.get("createdDateTime", ""),
-                    "last_modified_datetime": page.get("lastModifiedDateTime", ""),
+                    "id": page.get("id") or "",
+                    "name": page.get("name") or "",
+                    "title": page.get("title") or "",
+                    "web_url": page.get("webUrl") or "",
+                    "page_layout": page.get("pageLayout") or "",
+                    "created_datetime": page.get("createdDateTime") or "",
+                    "last_modified_datetime": page.get("lastModifiedDateTime") or "",
                 }
 
-                if "createdBy" in page and "user" in page["createdBy"]:
+                created_by = _optional_object(page.get("createdBy"), "sitePage.createdBy")
+                created_by_user = _optional_object(created_by.get("user"), "sitePage.createdBy.user")
+                if created_by_user:
                     page_data["created_by"] = {
-                        "display_name": page["createdBy"]["user"].get("displayName", ""),
-                        "email": page["createdBy"]["user"].get("email", ""),
+                        "display_name": created_by_user.get("displayName") or "",
+                        "email": created_by_user.get("email") or "",
                     }
 
-                if "lastModifiedBy" in page and "user" in page["lastModifiedBy"]:
+                modified_by = _optional_object(page.get("lastModifiedBy"), "sitePage.lastModifiedBy")
+                modified_by_user = _optional_object(modified_by.get("user"), "sitePage.lastModifiedBy.user")
+                if modified_by_user:
                     page_data["last_modified_by"] = {
-                        "display_name": page["lastModifiedBy"]["user"].get("displayName", ""),
-                        "email": page["lastModifiedBy"]["user"].get("email", ""),
+                        "display_name": modified_by_user.get("displayName") or "",
+                        "email": modified_by_user.get("email") or "",
                     }
 
                 pages.append(page_data)
@@ -1849,23 +1956,26 @@ class ReadSharePointPageContentAction(ActionHandler):
             _check_response(response, "id")
 
             page_data = {
-                "id": response.get("id", ""),
-                "name": response.get("name", ""),
-                "title": response.get("title", ""),
-                "web_url": response.get("webUrl", ""),
-                "page_layout": response.get("pageLayout", ""),
-                "created_datetime": response.get("createdDateTime", ""),
-                "last_modified_datetime": response.get("lastModifiedDateTime", ""),
+                "id": response.get("id") or "",
+                "name": response.get("name") or "",
+                "title": response.get("title") or "",
+                "web_url": response.get("webUrl") or "",
+                "page_layout": response.get("pageLayout") or "",
+                "created_datetime": response.get("createdDateTime") or "",
+                "last_modified_datetime": response.get("lastModifiedDateTime") or "",
             }
 
-            if "createdBy" in response and "user" in response["createdBy"]:
+            created_by = _optional_object(response.get("createdBy"), "sitePage.createdBy")
+            created_by_user = _optional_object(created_by.get("user"), "sitePage.createdBy.user")
+            if created_by_user:
                 page_data["created_by"] = {
-                    "display_name": response["createdBy"]["user"].get("displayName", ""),
-                    "email": response["createdBy"]["user"].get("email", ""),
+                    "display_name": created_by_user.get("displayName") or "",
+                    "email": created_by_user.get("email") or "",
                 }
 
-            if include_content and "canvasLayout" in response:
-                page_data["content"] = response["canvasLayout"]
+            canvas_layout = _optional_object(response.get("canvasLayout"), "sitePage.canvasLayout")
+            if include_content and canvas_layout:
+                page_data["content"] = canvas_layout
 
             return ActionResult(
                 data={"site_id": site_id, "page": page_data},
@@ -1896,14 +2006,14 @@ class ListSharePointSubsitesAction(ActionHandler):
             for site in all_sites:
                 subsites.append(
                     {
-                        "id": site.get("id", ""),
-                        "name": site.get("name", ""),
-                        "display_name": site.get("displayName", ""),
-                        "description": site.get("description", ""),
-                        "web_url": site.get("webUrl", ""),
-                        "created_datetime": site.get("createdDateTime", ""),
-                        "last_modified_datetime": site.get("lastModifiedDateTime", ""),
-                        "is_personal_site": site.get("isPersonalSite", False),
+                        "id": site.get("id") or "",
+                        "name": site.get("name") or "",
+                        "display_name": site.get("displayName") or "",
+                        "description": site.get("description") or "",
+                        "web_url": site.get("webUrl") or "",
+                        "created_datetime": site.get("createdDateTime") or "",
+                        "last_modified_datetime": site.get("lastModifiedDateTime") or "",
+                        "is_personal_site": site.get("isPersonalSite") is True,
                     }
                 )
 
@@ -1931,10 +2041,7 @@ class ListSharePointFolderContentsAction(ActionHandler):
 
             encoded_drive_id = _encode_path_segment(drive_id)
             if folder_id:
-                url = (
-                    f"{GRAPH_API_BASE}/drives/{encoded_drive_id}/items/"
-                    f"{_encode_path_segment(folder_id)}/children"
-                )
+                url = f"{GRAPH_API_BASE}/drives/{encoded_drive_id}/items/{_encode_path_segment(folder_id)}/children"
             else:
                 url = f"{GRAPH_API_BASE}/drives/{encoded_drive_id}/root/children"
 
@@ -1950,27 +2057,33 @@ class ListSharePointFolderContentsAction(ActionHandler):
             items = []
             for item in all_items:
                 item_data = {
-                    "id": item.get("id", ""),
-                    "name": item.get("name", ""),
-                    "web_url": item.get("webUrl", ""),
-                    "size": item.get("size", 0),
-                    "created_datetime": item.get("createdDateTime", ""),
-                    "last_modified_datetime": item.get("lastModifiedDateTime", ""),
-                    "is_folder": "folder" in item,
+                    "id": item.get("id") or "",
+                    "name": item.get("name") or "",
+                    "web_url": item.get("webUrl") or "",
+                    "size": item.get("size") or 0,
+                    "created_datetime": item.get("createdDateTime") or "",
+                    "last_modified_datetime": item.get("lastModifiedDateTime") or "",
+                    "is_folder": isinstance(item.get("folder"), dict),
                     "drive_id": drive_id,
                 }
 
-                if "folder" in item:
-                    item_data["child_count"] = item["folder"].get("childCount", 0)
+                folder = _optional_object(item.get("folder"), "driveItem.folder")
+                file_facet = _optional_object(item.get("file"), "driveItem.file")
+                if folder:
+                    item_data["child_count"] = folder.get("childCount") or 0
 
-                if "file" in item:
-                    item_data["mime_type"] = item["file"].get("mimeType", "")
+                if file_facet:
+                    item_data["mime_type"] = file_facet.get("mimeType") or ""
 
-                if "createdBy" in item and "user" in item.get("createdBy", {}):
-                    item_data["created_by"] = item["createdBy"]["user"].get("displayName", "")
+                created_by = _optional_object(item.get("createdBy"), "driveItem.createdBy")
+                created_by_user = _optional_object(created_by.get("user"), "driveItem.createdBy.user")
+                if created_by_user:
+                    item_data["created_by"] = created_by_user.get("displayName") or ""
 
-                if "lastModifiedBy" in item and "user" in item.get("lastModifiedBy", {}):
-                    item_data["last_modified_by"] = item["lastModifiedBy"]["user"].get("displayName", "")
+                modified_by = _optional_object(item.get("lastModifiedBy"), "driveItem.lastModifiedBy")
+                modified_by_user = _optional_object(modified_by.get("user"), "driveItem.lastModifiedBy.user")
+                if modified_by_user:
+                    item_data["last_modified_by"] = modified_by_user.get("displayName") or ""
 
                 items.append(item_data)
 
@@ -2037,7 +2150,7 @@ class FindMeetingTimesAction(ActionHandler):
                         },
                         "end": {"dateTime": end_dt.replace("Z", ""), "timeZone": "UTC"},
                     }
-                ]
+                ],
             }
 
             body = {
@@ -2069,39 +2182,46 @@ class FindMeetingTimesAction(ActionHandler):
             _check_response(response, "meetingTimeSuggestions")
 
             suggestions = []
-            for suggestion in response.get("meetingTimeSuggestions", []):
-                time_slot = suggestion.get("meetingTimeSlot", {})
-                start_info = time_slot.get("start", {})
-                end_info = time_slot.get("end", {})
+            for suggestion in _optional_list(response.get("meetingTimeSuggestions"), "meetingTimeSuggestions"):
+                suggestion = _optional_object(suggestion, "meetingTimeSuggestions[]")
+                time_slot = _optional_object(suggestion.get("meetingTimeSlot"), "meetingTimeSlot")
+                start_info = _optional_object(time_slot.get("start"), "meetingTimeSlot.start")
+                end_info = _optional_object(time_slot.get("end"), "meetingTimeSlot.end")
 
                 attendee_avail = []
-                for att in suggestion.get("attendeeAvailability", []):
-                    att_email = att.get("attendee", {}).get("emailAddress", {}).get("address", "")
+                for att in _optional_list(suggestion.get("attendeeAvailability"), "attendeeAvailability"):
+                    att = _optional_object(att, "attendeeAvailability[]")
+                    attendee = _optional_object(att.get("attendee"), "attendeeAvailability[].attendee")
+                    email_address = _optional_object(
+                        attendee.get("emailAddress"), "attendeeAvailability[].attendee.emailAddress"
+                    )
+                    att_email = email_address.get("address", "")
                     attendee_avail.append(
                         {
                             "email": att_email,
-                            "availability": att.get("availability", "unknown"),
+                            "availability": att.get("availability") or "unknown",
                         }
                     )
 
                 locations = []
-                for loc in suggestion.get("locations", []):
+                for loc in _optional_list(suggestion.get("locations"), "meetingTimeSuggestions[].locations"):
+                    loc = _optional_object(loc, "meetingTimeSuggestions[].locations[]")
                     locations.append(
                         {
-                            "displayName": loc.get("displayName", ""),
-                            "locationEmailAddress": loc.get("locationEmailAddress", ""),
+                            "displayName": loc.get("displayName") or "",
+                            "locationEmailAddress": loc.get("locationEmailAddress") or "",
                         }
                     )
 
                 suggestions.append(
                     {
-                        "start": start_info.get("dateTime", ""),
-                        "end": end_info.get("dateTime", ""),
-                        "confidence": suggestion.get("confidence", 0),
-                        "organizer_availability": suggestion.get("organizerAvailability", "unknown"),
+                        "start": start_info.get("dateTime") or "",
+                        "end": end_info.get("dateTime") or "",
+                        "confidence": suggestion.get("confidence") or 0,
+                        "organizer_availability": suggestion.get("organizerAvailability") or "unknown",
                         "attendee_availability": attendee_avail,
                         "suggested_locations": locations,
-                        "suggestion_reason": suggestion.get("suggestionReason", ""),
+                        "suggestion_reason": suggestion.get("suggestionReason") or "",
                     }
                 )
 
@@ -2147,42 +2267,46 @@ class GetScheduleAction(ActionHandler):
             _check_response(response, "value")
 
             schedules = []
-            for schedule in response.get("value", []):
+            for schedule in _optional_list(response.get("value"), "schedule.value"):
+                schedule = _optional_object(schedule, "schedule.value[]")
                 schedule_data = {
-                    "email": schedule.get("scheduleId", ""),
-                    "availability_view": schedule.get("availabilityView", ""),
+                    "email": schedule.get("scheduleId") or "",
+                    "availability_view": schedule.get("availabilityView") or "",
                 }
 
                 items = []
-                for item in schedule.get("scheduleItems", []):
-                    start_info = item.get("start", {})
-                    end_info = item.get("end", {})
+                for item in _optional_list(schedule.get("scheduleItems"), "schedule.scheduleItems"):
+                    item = _optional_object(item, "schedule.scheduleItems[]")
+                    start_info = _optional_object(item.get("start"), "scheduleItem.start")
+                    end_info = _optional_object(item.get("end"), "scheduleItem.end")
                     items.append(
                         {
-                            "status": item.get("status", "unknown"),
-                            "start": start_info.get("dateTime", ""),
-                            "end": end_info.get("dateTime", ""),
-                            "subject": item.get("subject", ""),
-                            "location": item.get("location", ""),
-                            "is_private": item.get("isPrivate", False),
+                            "status": item.get("status") or "unknown",
+                            "start": start_info.get("dateTime") or "",
+                            "end": end_info.get("dateTime") or "",
+                            "subject": item.get("subject") or "",
+                            "location": item.get("location") or "",
+                            "is_private": item.get("isPrivate") is True,
                         }
                     )
                 schedule_data["schedule_items"] = items
 
-                working_hours = schedule.get("workingHours", {})
+                working_hours = _optional_object(schedule.get("workingHours"), "schedule.workingHours")
                 if working_hours:
+                    timezone_data = _optional_object(working_hours.get("timeZone"), "schedule.workingHours.timeZone")
                     schedule_data["working_hours"] = {
-                        "start_time": working_hours.get("startTime", ""),
-                        "end_time": working_hours.get("endTime", ""),
-                        "days_of_week": working_hours.get("daysOfWeek", []),
-                        "timezone": working_hours.get("timeZone", {}).get("name", "")
-                        if isinstance(working_hours.get("timeZone"), dict)
-                        else working_hours.get("timeZone", ""),
+                        "start_time": working_hours.get("startTime") or "",
+                        "end_time": working_hours.get("endTime") or "",
+                        "days_of_week": _optional_list(
+                            working_hours.get("daysOfWeek"), "schedule.workingHours.daysOfWeek"
+                        ),
+                        "timezone": timezone_data.get("name") or "",
                     }
 
                 error_info = schedule.get("error", None)
                 if error_info:
-                    schedule_data["error"] = error_info.get("message", str(error_info))
+                    error_data = _optional_object(error_info, "schedule.error")
+                    schedule_data["error"] = error_data.get("message") or str(error_info)
 
                 schedules.append(schedule_data)
 
@@ -2211,10 +2335,10 @@ class ListRoomsAction(ActionHandler):
                 for room_list in all_items:
                     rooms.append(
                         {
-                            "id": room_list.get("id", ""),
-                            "display_name": room_list.get("displayName", ""),
-                            "email_address": room_list.get("emailAddress", ""),
-                            "phone": room_list.get("phone", ""),
+                            "id": room_list.get("id") or "",
+                            "display_name": room_list.get("displayName") or "",
+                            "email_address": room_list.get("emailAddress") or "",
+                            "phone": room_list.get("phone") or "",
                         }
                     )
 
@@ -2222,55 +2346,18 @@ class ListRoomsAction(ActionHandler):
                 room_list_email = inputs.get("room_list_email")
                 if not room_list_email:
                     return ActionError(message="room_list_email is required when list_type is 'rooms_in_list'")
-                url = (
-                    f"{GRAPH_API_BASE}/places/{_encode_path_segment(room_list_email)}"
-                    "/microsoft.graph.roomList/rooms"
-                )
+                url = f"{GRAPH_API_BASE}/places/{_encode_path_segment(room_list_email)}/microsoft.graph.roomList/rooms"
                 params = {"$top": limit}
                 all_items, _ = await _fetch_collection(context, url, params=params, limit=limit)
 
-                rooms = []
-                for room in all_items:
-                    rooms.append(
-                        {
-                            "id": room.get("id", ""),
-                            "display_name": room.get("displayName", ""),
-                            "email_address": room.get("emailAddress", ""),
-                            "capacity": room.get("capacity", None),
-                            "building": room.get("building", ""),
-                            "floor_number": room.get("floorNumber", None),
-                            "floor_label": room.get("floorLabel", ""),
-                            "is_wheelchair_accessible": room.get("isWheelChairAccessible", None),
-                            "audio_device_name": room.get("audioDeviceName", ""),
-                            "video_device_name": room.get("videoDeviceName", ""),
-                            "display_device_name": room.get("displayDeviceName", ""),
-                            "phone": room.get("phone", ""),
-                        }
-                    )
+                rooms = [_room_result(room) for room in all_items]
 
             else:
                 url = f"{GRAPH_API_BASE}/places/microsoft.graph.room"
                 params = {"$top": limit}
                 all_items, _ = await _fetch_collection(context, url, params=params, limit=limit)
 
-                rooms = []
-                for room in all_items:
-                    rooms.append(
-                        {
-                            "id": room.get("id", ""),
-                            "display_name": room.get("displayName", ""),
-                            "email_address": room.get("emailAddress", ""),
-                            "capacity": room.get("capacity", None),
-                            "building": room.get("building", ""),
-                            "floor_number": room.get("floorNumber", None),
-                            "floor_label": room.get("floorLabel", ""),
-                            "is_wheelchair_accessible": room.get("isWheelChairAccessible", None),
-                            "audio_device_name": room.get("audioDeviceName", ""),
-                            "video_device_name": room.get("videoDeviceName", ""),
-                            "display_device_name": room.get("displayDeviceName", ""),
-                            "phone": room.get("phone", ""),
-                        }
-                    )
+                rooms = [_room_result(room) for room in all_items]
 
             return ActionResult(
                 data={"rooms": rooms, "total_count": len(rooms)},
@@ -2310,13 +2397,15 @@ class CheckRoomAvailabilityAction(ActionHandler):
             available_rooms = []
             unavailable_rooms = []
 
-            for schedule in response.get("value", []):
-                email = schedule.get("scheduleId", "")
-                schedule_items = schedule.get("scheduleItems", [])
+            for schedule in _optional_list(response.get("value"), "schedule.value"):
+                schedule = _optional_object(schedule, "schedule.value[]")
+                email = schedule.get("scheduleId") or ""
+                schedule_items = _optional_list(schedule.get("scheduleItems"), "schedule.scheduleItems")
 
                 conflicts = []
                 for item in schedule_items:
-                    status = item.get("status", "")
+                    item = _optional_object(item, "schedule.scheduleItems[]")
+                    status = item.get("status") or ""
                     if status in (
                         "busy",
                         "tentative",
@@ -2324,14 +2413,14 @@ class CheckRoomAvailabilityAction(ActionHandler):
                         "workingElsewhere",
                         "unknown",
                     ):
-                        start_info = item.get("start", {})
-                        end_info = item.get("end", {})
+                        start_info = _optional_object(item.get("start"), "scheduleItem.start")
+                        end_info = _optional_object(item.get("end"), "scheduleItem.end")
                         conflicts.append(
                             {
                                 "status": status,
-                                "start": start_info.get("dateTime", ""),
-                                "end": end_info.get("dateTime", ""),
-                                "subject": item.get("subject", ""),
+                                "start": start_info.get("dateTime") or "",
+                                "end": end_info.get("dateTime") or "",
+                                "subject": item.get("subject") or "",
                             }
                         )
 
@@ -2345,7 +2434,8 @@ class CheckRoomAvailabilityAction(ActionHandler):
 
                 error_info = schedule.get("error", None)
                 if error_info:
-                    room_data["error"] = error_info.get("message", str(error_info))
+                    error_data = _optional_object(error_info, "schedule.error")
+                    room_data["error"] = error_data.get("message") or str(error_info)
                     room_data["is_available"] = False
 
                 rooms.append(room_data)
