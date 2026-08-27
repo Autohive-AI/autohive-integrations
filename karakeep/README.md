@@ -261,7 +261,7 @@ uv run --with-requirements requirements-test.txt --with-requirements karakeep/re
 
 # Include destructive tests (creates and modifies real data)
 uv run --with-requirements requirements-test.txt --with-requirements karakeep/requirements.txt \
-  pytest karakeep/tests/test_karakeep_integration.py -m integration
+  pytest karakeep/tests/test_karakeep_integration.py -m "integration and destructive"
 ```
 
 ## API Reference
