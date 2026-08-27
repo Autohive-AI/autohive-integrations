@@ -528,6 +528,7 @@ async def test_rejects_non_origin_base_url(mock_context, base_url):
     assert result.type == ResultType.ACTION_ERROR
     mock_context.fetch.assert_not_called()
 
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("action", "inputs"),
