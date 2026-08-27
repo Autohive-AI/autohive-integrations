@@ -13,7 +13,7 @@ Opt-in writes:
 
 import os
 from datetime import datetime, timezone
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, ResultType
@@ -77,6 +77,32 @@ def _assert_ok(result):
     return result.result.data
 
 
+async def _delete_bookmark(context, bookmark_id: str | None) -> None:
+    if not bookmark_id:
+        return
+    try:
+        await context.fetch(
+            f"{BASE_URL}/api/v1/bookmarks/{quote(bookmark_id, safe='')}",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {API_KEY}"},
+        )
+    except Exception:
+        pass
+
+
+async def _delete_tag(context, tag_id: str | None) -> None:
+    if not tag_id:
+        return
+    try:
+        await context.fetch(
+            f"{BASE_URL}/api/v1/tags/{quote(tag_id, safe='')}",
+            method="DELETE",
+            headers={"Authorization": f"Bearer {API_KEY}"},
+        )
+    except Exception:
+        pass
+
+
 @skip_if_no_creds
 class TestReadOnly:
     @pytest.mark.asyncio
@@ -106,56 +132,65 @@ class TestIngestLifecycle:
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         test_url = f"https://example.com/autohive-karakeep-integration-{stamp}"
         tag_name = f"autohive-itest-{stamp}"
+        bookmark_id = None
+        tag_id = None
 
-        tag = _assert_ok(await karakeep.execute_action("create_tag", {"name": tag_name}, live_context))
-        assert tag["tag_id"]
-        assert tag["name"]
+        try:
+            tag = _assert_ok(await karakeep.execute_action("create_tag", {"name": tag_name}, live_context))
+            tag_id = tag["tag_id"]
+            assert tag_id
+            assert tag["name"]
 
-        listed_tags = _assert_ok(
-            await karakeep.execute_action("list_tags", {"name_contains": tag_name, "limit": 20}, live_context)
-        )
-        listed_tag_ids = [t.get("id") for t in listed_tags.get("tags") or []]
-        assert tag["tag_id"] in listed_tag_ids
-
-        created = _assert_ok(
-            await karakeep.execute_action(
-                "create_bookmark",
-                {
-                    "url": test_url,
-                    "title": f"Autohive integration test {stamp}",
-                    "note": "Created by integration test",
-                },
-                live_context,
+            listed_tags = _assert_ok(
+                await karakeep.execute_action("list_tags", {"name_contains": tag_name, "limit": 20}, live_context)
             )
-        )
-        bookmark_id = created["bookmark_id"]
-        assert bookmark_id
-        assert created["already_existed"] is False
+            listed_tag_ids = [t.get("id") for t in listed_tags.get("tags") or []]
+            assert tag_id in listed_tag_ids
 
-        tagged = _assert_ok(
-            await karakeep.execute_action(
-                "attach_tags",
-                {"bookmark_id": bookmark_id, "tags": [tag_name, "source:autohive-integration-test"]},
-                live_context,
+            created = _assert_ok(
+                await karakeep.execute_action(
+                    "create_bookmark",
+                    {
+                        "url": test_url,
+                        "title": f"Autohive integration test {stamp}",
+                        "note": "Created by integration test",
+                    },
+                    live_context,
+                )
             )
-        )
-        assert tagged["count"] == 2
-        assert isinstance(tagged["attached"], list)
+            bookmark_id = created["bookmark_id"]
+            assert bookmark_id
+            assert created["already_existed"] is False
 
-        fetched = _assert_ok(await karakeep.execute_action("get_bookmark", {"bookmark_id": bookmark_id}, live_context))
-        bookmark = fetched["bookmark"]
-        assert bookmark.get("id") == bookmark_id
-
-        dup = _assert_ok(await karakeep.execute_action("create_bookmark", {"url": test_url}, live_context))
-        assert dup["bookmark_id"] == bookmark_id
-        assert dup["already_existed"] is True
-
-        by_tag = _assert_ok(
-            await karakeep.execute_action(
-                "get_tag_bookmarks",
-                {"tag_id": tag["tag_id"], "limit": 10},
-                live_context,
+            tagged = _assert_ok(
+                await karakeep.execute_action(
+                    "attach_tags",
+                    {"bookmark_id": bookmark_id, "tags": [tag_name]},
+                    live_context,
+                )
             )
-        )
-        ids = [b.get("id") for b in by_tag.get("bookmarks") or []]
-        assert bookmark_id in ids
+            assert tagged["count"] == 1
+            assert isinstance(tagged["attached"], list)
+
+            fetched = _assert_ok(
+                await karakeep.execute_action("get_bookmark", {"bookmark_id": bookmark_id}, live_context)
+            )
+            bookmark = fetched["bookmark"]
+            assert bookmark.get("id") == bookmark_id
+
+            dup = _assert_ok(await karakeep.execute_action("create_bookmark", {"url": test_url}, live_context))
+            assert dup["bookmark_id"] == bookmark_id
+            assert dup["already_existed"] is True
+
+            by_tag = _assert_ok(
+                await karakeep.execute_action(
+                    "get_tag_bookmarks",
+                    {"tag_id": tag_id, "limit": 10},
+                    live_context,
+                )
+            )
+            ids = [b.get("id") for b in by_tag.get("bookmarks") or []]
+            assert bookmark_id in ids
+        finally:
+            await _delete_bookmark(live_context, bookmark_id)
+            await _delete_tag(live_context, tag_id)
