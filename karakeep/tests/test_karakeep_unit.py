@@ -468,7 +468,7 @@ async def test_get_tag_bookmarks_passes_cursor(mock_context):
 async def test_missing_base_url(mock_context):
     mock_context.auth = {"auth_type": "Custom", "credentials": {"api_key": "k"}}
     result = await karakeep.execute_action("create_bookmark", {"url": "https://example.com/a"}, mock_context)
-    assert result.type == ResultType.ACTION_ERROR
+    assert result.type == ResultType.VALIDATION_ERROR
 
 
 @pytest.mark.asyncio
@@ -478,7 +478,7 @@ async def test_missing_api_key(mock_context):
         "credentials": {"base_url": "https://karakeep.test"},
     }
     result = await karakeep.execute_action("create_bookmark", {"url": "https://example.com/a"}, mock_context)
-    assert result.type == ResultType.ACTION_ERROR
+    assert result.type == ResultType.VALIDATION_ERROR
     mock_context.fetch.assert_not_called()
 
 

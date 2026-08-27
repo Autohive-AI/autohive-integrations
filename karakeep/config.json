@@ -22,7 +22,8 @@
                     "label": "API Key",
                     "help_text": "API key from your Karakeep instance (Settings \u2192 API Keys). When creating the key, grant scopes for bookmarks and tags (read + write). Do not grant admin scopes unless needed."
                 }
-            }
+            },
+            "required": ["base_url", "api_key"]
         }
     },
     "actions": {
