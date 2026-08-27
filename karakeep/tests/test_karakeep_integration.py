@@ -86,7 +86,7 @@ async def _delete_bookmark(context, bookmark_id: str | None) -> None:
             method="DELETE",
             headers={"Authorization": f"Bearer {API_KEY}"},
         )
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 
@@ -99,7 +99,7 @@ async def _delete_tag(context, tag_id: str | None) -> None:
             method="DELETE",
             headers={"Authorization": f"Bearer {API_KEY}"},
         )
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 
