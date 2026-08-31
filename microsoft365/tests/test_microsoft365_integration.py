@@ -1,3 +1,10 @@
+"""Live Microsoft Graph integration tests for all Microsoft 365 actions.
+
+Read-only tests require ``MICROSOFT365_ACCESS_TOKEN``. Tests marked
+``destructive`` create and clean up their own mail, calendar, or OneDrive data
+and must be explicitly selected with ``-m "integration and destructive"``.
+"""
+
 import base64
 import os
 import sys
@@ -16,6 +23,7 @@ CRED = os.getenv("MICROSOFT365_ACCESS_TOKEN", "")
 TEST_RECIPIENT = os.getenv("MICROSOFT365_TEST_RECIPIENT_EMAIL", "")
 TEST_ATTENDEE = os.getenv("MICROSOFT365_TEST_ATTENDEE_EMAIL", "")
 TEST_SCHEDULE_EMAIL = os.getenv("MICROSOFT365_TEST_SCHEDULE_EMAIL", "")
+TEST_SHAREPOINT_SITE_ID = os.getenv("MICROSOFT365_TEST_SHAREPOINT_SITE_ID", "")
 
 skip_if_no_creds = pytest.mark.skipif(not CRED, reason="MICROSOFT365_ACCESS_TOKEN required")
 skip_if_no_recipient = pytest.mark.skipif(not TEST_RECIPIENT, reason="MICROSOFT365_TEST_RECIPIENT_EMAIL required")
@@ -24,7 +32,7 @@ skip_if_no_schedule = pytest.mark.skipif(not TEST_SCHEDULE_EMAIL, reason="MICROS
 
 # Shared state for chained tests (create → use → delete).
 # Tests run in declaration order; dependent tests skip when a prior step failed.
-_state: dict = {}
+_state: dict = {"sharepoint_site_id": TEST_SHAREPOINT_SITE_ID} if TEST_SHAREPOINT_SITE_ID else {}
 
 
 @pytest.fixture
@@ -416,10 +424,11 @@ async def test_get_schedule_live(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_list_files_live(live_context):
-    result = await microsoft365.execute_action("list_files", {"folder_path": "/"}, live_context)
+    result = await microsoft365.execute_action("list_files", {"folder_path": "/", "limit": 5}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     data = result.result.data
     assert "files" in data
+    assert len(data["files"]) <= 5
     if data["files"]:
         _state["onedrive_file_id"] = data["files"][0]["id"]
 
@@ -436,15 +445,16 @@ async def test_search_onedrive_files_live(live_context):
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_10_upload_file_live(live_context):
-    unique_name = f"autohive_integration_test_{int(time.time())}.txt"
-    content = base64.b64encode("Integration test file — safe to delete.".encode("utf-8")).decode("ascii")
+    unique_name = f"autohive_integration_test_{int(time.time())}.bin"
+    binary_content = bytes(range(256)) * 4
+    content = base64.b64encode(binary_content).decode("ascii")
     result = await microsoft365.execute_action(
         "upload_file",
         {
             "file": {
                 "content": content,
                 "name": unique_name,
-                "contentType": "text/plain",
+                "contentType": "application/octet-stream",
             },
             "folder_path": "/",
         },
@@ -452,8 +462,10 @@ async def test_10_upload_file_live(live_context):
     )
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "id" in result.result.data
+    assert result.result.data["size"] == len(binary_content)
     _state["uploaded_file_id"] = result.result.data["id"]
     _state["uploaded_file_name"] = unique_name
+    _state["uploaded_file_content"] = binary_content
 
 
 @skip_if_no_creds
@@ -467,6 +479,10 @@ async def test_read_onedrive_file_content_live(live_context):
     assert "file" in result.result.data
     assert result.result.data["file"]["content"], "file content should be non-empty"
     assert "metadata" in result.result.data
+    if expected_content := _state.get("uploaded_file_content"):
+        actual_content = base64.b64decode(result.result.data["file"]["content"], validate=True)
+        assert actual_content == expected_content, "downloaded bytes should exactly match uploaded bytes"
+        assert result.result.data["metadata"]["size"] == len(expected_content)
 
 
 @skip_if_no_creds
@@ -482,6 +498,8 @@ async def test_11_delete_uploaded_file_live(live_context):
     )
     assert resp.status in (204, 200), f"File cleanup failed: {resp.status}"
     _state.pop("uploaded_file_id", None)
+    _state.pop("uploaded_file_name", None)
+    _state.pop("uploaded_file_content", None)
 
 
 # ============================================================
@@ -590,6 +608,23 @@ async def test_list_sharepoint_pages_live(live_context):
     assert "pages" in data
     if data["pages"]:
         _state["sharepoint_page_id"] = data["pages"][0]["id"]
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_sharepoint_pages_honors_projection_live(live_context):
+    site_id = _state.get("sharepoint_site_id")
+    if not site_id:
+        pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
+    result = await microsoft365.execute_action(
+        "list_sharepoint_pages",
+        {"site_id": site_id, "limit": 5, "select_fields": "id,title"},
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert len(result.result.data["pages"]) <= 5
+    _, kwargs = live_context.fetch.await_args
+    assert kwargs["params"]["$select"] == "id,title"
 
 
 @skip_if_no_creds

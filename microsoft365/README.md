@@ -744,6 +744,7 @@ export MICROSOFT365_ACCESS_TOKEN="<your-access-token>"
 export MICROSOFT365_TEST_RECIPIENT_EMAIL="you@example.com"   # required for send/draft/forward tests
 export MICROSOFT365_TEST_ATTENDEE_EMAIL="you@example.com"    # required for find_meeting_times
 export MICROSOFT365_TEST_SCHEDULE_EMAIL="you@tenant.onmicrosoft.com"  # required for get_schedule
+export MICROSOFT365_TEST_SHAREPOINT_SITE_ID="tenant.sharepoint.com,site-collection-id,site-id"  # optional stable test site
 python -m pytest tests/test_microsoft365_integration.py -v -m "integration"
 ```
 
