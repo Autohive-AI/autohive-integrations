@@ -5,7 +5,7 @@ from autohive_integrations_sdk import (
     ActionResult,
     ActionError,
 )
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Callable
 from datetime import datetime, timedelta, timezone
 import base64
 import binascii
@@ -206,8 +206,9 @@ async def _fetch_collection(
     *,
     params: Dict[str, Any] | None = None,
     limit: int | None = None,
+    item_filter: Callable[[Dict[str, Any]], bool] | None = None,
 ) -> tuple[List[Dict[str, Any]], bool]:
-    """Follow Graph collection pagination up to an optional caller-visible limit."""
+    """Follow Graph pagination up to a limit applied after optional filtering."""
     if limit is not None and (not isinstance(limit, int) or isinstance(limit, bool) or limit < 1):
         raise ValueError("limit must be a positive integer")
 
@@ -233,7 +234,8 @@ async def _fetch_collection(
             raise ValueError("Microsoft Graph collection response 'value' must be an array")
         if any(not isinstance(item, dict) for item in page):
             raise ValueError("Microsoft Graph collection response items must be objects")
-        items.extend(page)
+        accepted_page = [item for item in page if item_filter is None or item_filter(item)]
+        items.extend(accepted_page)
         next_url = _validate_graph_next_link(response.get("@odata.nextLink"))
 
     was_truncated = limit is not None and len(items) > limit
@@ -1651,16 +1653,7 @@ class ListSharePointLibrariesAction(ActionHandler):
                 invalid_fields = [f for f in requested_fields if f not in valid_drive_fields]
                 if invalid_fields:
                     raise ValueError(f"Unsupported drive fields: {', '.join(invalid_fields)}")
-                core_fields = {
-                    "id",
-                    "name",
-                    "description",
-                    "driveType",
-                    "webUrl",
-                    "createdDateTime",
-                    "lastModifiedDateTime",
-                }
-                params["$select"] = ",".join(sorted(core_fields.union(requested_fields)))
+                params["$select"] = ",".join(dict.fromkeys(requested_fields))
 
             all_drives, _ = await _fetch_collection(
                 context,
@@ -1762,14 +1755,10 @@ class SearchSharePointDocumentsAction(ActionHandler):
                         api_url,
                         params=params,
                         limit=limit - len(all_files),
+                        item_filter=lambda item: isinstance(item.get("file"), dict),
                     )
 
                     for item in drive_items:
-                        # Drive search returns folders as well as documents. This
-                        # action promises downloadable documents, so exclude items
-                        # that do not have Graph's file facet.
-                        if not isinstance(item.get("file"), dict):
-                            continue
                         file_item = {
                             "id": item["id"],
                             "name": item["name"],

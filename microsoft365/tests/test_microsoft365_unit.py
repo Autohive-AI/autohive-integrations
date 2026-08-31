@@ -1249,6 +1249,21 @@ async def test_list_sharepoint_libraries_accepts_nullable_owner_and_quota(mock_c
 
 
 @pytest.mark.asyncio
+async def test_list_sharepoint_libraries_honors_requested_projection(mock_context):
+    mock_context.fetch = make_fetch({"value": [{"id": "d1", "quota": {"total": 100}}]})
+
+    result = await microsoft365.execute_action(
+        "list_sharepoint_libraries",
+        {"site_id": "s1", "select_fields": "id,quota,id"},
+        mock_context,
+    )
+
+    assert result.type != ResultType.ACTION_ERROR
+    _, kwargs = mock_context.fetch.await_args
+    assert kwargs["params"]["$select"] == "id,quota"
+
+
+@pytest.mark.asyncio
 async def test_list_sharepoint_libraries_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("err"))
     result = await microsoft365.execute_action("list_sharepoint_libraries", {"site_id": "s1"}, mock_context)
@@ -1294,6 +1309,51 @@ async def test_search_sharepoint_documents(mock_context):
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["total_files"] == 1
     assert result.result.data["files"][0]["id"] == "f1"
+
+
+@pytest.mark.asyncio
+async def test_search_sharepoint_documents_applies_limit_after_filtering_folders(mock_context):
+    drives = {"value": [{"id": "d1", "name": "Docs"}]}
+    first_page = {
+        "value": [
+            {
+                "id": "folder1",
+                "name": "Reports",
+                "folder": {"childCount": 1},
+            }
+        ],
+        "@odata.nextLink": "https://graph.microsoft.com/v1.0/drives/d1/root/search(q='report')?$skiptoken=next",
+    }
+    second_page = {
+        "value": [
+            {
+                "id": "f1",
+                "name": "report.pdf",
+                "size": 100,
+                "lastModifiedDateTime": "2026-01-01",
+                "webUrl": "https://sp.com/f1",
+                "file": {"mimeType": "application/pdf"},
+            }
+        ]
+    }
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=200, headers={}, data=drives),
+            FetchResponse(status=200, headers={}, data=first_page),
+            FetchResponse(status=200, headers={}, data=second_page),
+        ]
+    )
+
+    result = await microsoft365.execute_action(
+        "search_sharepoint_documents",
+        {"site_id": "s1", "query": "report", "limit": 1},
+        mock_context,
+    )
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data["total_files"] == 1
+    assert result.result.data["files"][0]["id"] == "f1"
+    assert mock_context.fetch.await_count == 3
 
 
 @pytest.mark.asyncio
