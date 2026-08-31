@@ -302,11 +302,17 @@ All CI checks must pass before merge.
 
 ## Deployment packages
 
-The `Package integrations for Autohive` workflow packages one, several, or all
-top-level integrations and publishes the ZIPs with an integrity manifest on a
-single GitHub Release. A release is a monorepo deployment batch, not an
-integration version tag: each manifest entry retains its own `config.json`
-version and stable source identity.
+Every merge to `master` runs `Package integrations for Autohive`. The workflow
+compares `config.json` versions with the previous default-branch commit and
+creates a GitHub Release only when at least one integration is new or has a
+higher semantic version. The release contains only those changed integration
+ZIPs plus an integrity manifest. Manual workflow runs remain available for a
+selected or full snapshot repackage.
+
+A release is a monorepo deployment batch, not an integration version tag. Each
+manifest entry retains its own `config.json` version and repository folder
+path. Autohive stores a release cursor, pulls every later batch, and keeps the
+newest entry if the same repository path occurs in multiple releases.
 
 The workflow only has GitHub `contents: write` permission. It does not contain
 an Autohive URL or deploy credential. Autohive must pull, verify, and deploy the
@@ -318,8 +324,11 @@ uses HiveUp's `--skip-validate` mode so a later lint-rule change cannot prevent
 repackaging an integration that is already on the protected default branch;
 package structure and entry-point safety checks still run during the build.
 
-Source identity defaults to `config.json`'s `name`, so a folder-only rename is
-safe. Before intentionally changing `name`, add a `source_id` override for that
-folder in `.github/autohive-release.json` to preserve the old identity. The same
-file can request `zip`, `container`, or the default `preserve` package type;
-Autohive applies its own server-side conversion policy before deployment.
+The top-level integration folder is the repository identity; no separate source
+ID is maintained. A config-name change within the same folder is shown as a
+reviewed rename in Autohive Admin and deploys the next version to a newly named
+Lambda. Moving the folder requires a one-time reviewed rebind. Release
+configuration is only needed to request `zip`, `container`, or the default
+`preserve` package type; Autohive applies its server-side conversion policy
+before deployment. A reviewed folder move also creates a new Lambda for the
+existing Autohive backend.
