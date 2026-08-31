@@ -6,7 +6,16 @@ Connects Autohive to Power BI services for managing workspaces, datasets, report
 
 This integration provides comprehensive access to Power BI services, enabling users to manage and interact with Power BI workspaces, datasets, reports, and dashboards through a unified interface. It interacts with the Power BI REST API to deliver seamless integration with Power BI's analytics and reporting capabilities.
 
-Key capabilities include managing workspaces, refreshing datasets, cloning and exporting reports, querying data with DAX, and accessing dashboard tiles. The integration supports operations on both "My workspace" and specific workspaces, providing flexible access to Power BI content.
+Key capabilities include managing workspaces, refreshing datasets, cloning, importing, and exporting reports, querying data with DAX, and accessing dashboard tiles. The integration supports operations on both "My workspace" and specific workspaces, providing flexible access to Power BI content.
+
+## Report Creation Workflows
+
+The integration supports two server-side report creation workflows:
+
+1. **Create from an existing template:** use `clone_report`, optionally setting `target_dataset_id` to bind the copy to another compatible semantic model.
+2. **Publish a prepared report or data file:** use `import_powerbi_file` with a `.pbix`, `.rdl`, `.xlsx`, or `model.json` file, then poll `get_import_status` until the import is `Succeeded` or `Failed`.
+
+Power BI's standard REST API does not author arbitrary interactive pages and visuals from a natural-language prompt. Microsoft's server-side API for publishing editable report definitions is the Microsoft Fabric Create Report API, which accepts PBIR/PBIR-Legacy definition parts. That endpoint uses the separate Fabric API OAuth audience, so the existing Power BI connection cannot call it with the same access token. A complete "requirements to interactive dashboard" feature therefore also needs a PBIR generation layer and multi-resource OAuth support; this integration does not pretend that importing a source document alone creates a designed dashboard.
 
 ## Setup & Authentication
 
@@ -173,6 +182,40 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `embedUrl`: Embed URL for the cloned report
     *   `error`: Error message if operation failed
 
+### Action: `import_powerbi_file`
+
+*   **Description:** Publish a PBIX report, RDL paginated report, Excel workbook, or `model.json` dataflow file
+*   **Inputs:**
+    *   `file`: Attached or generated file with base64 `content`, `name`, and optional `contentType`
+    *   `workspace_id`: Destination workspace ID (optional, defaults to My workspace)
+    *   `display_name`: Optional imported content name; the source extension is appended when omitted
+    *   `name_conflict`: Optional conflict behavior. RDL supports `Abort` or `Overwrite`; `model.json` supports `Abort` or `GenerateUniqueName`
+    *   `skip_report`: Import only the semantic model (PBIX only)
+    *   `override_report_label`: Override an existing report sensitivity label when republishing
+    *   `override_model_label`: Override an existing semantic model sensitivity label when republishing
+    *   `subfolder_object_id`: Optional destination workspace subfolder object ID
+*   **Outputs:**
+    *   `result`: Boolean indicating success/failure
+    *   `import_id`: Import operation ID for status checks
+    *   `import_state`: Initial import state
+    *   `reports`: Reports returned for a synchronously completed import
+    *   `datasets`: Semantic models returned for a synchronously completed import
+    *   `error`: Error message if operation failed
+
+### Action: `get_import_status`
+
+*   **Description:** Check an import operation and return the created reports and semantic models
+*   **Inputs:**
+    *   `import_id`: Import operation ID returned by `import_powerbi_file`
+    *   `workspace_id`: The workspace used for the import (optional, defaults to My workspace)
+*   **Outputs:**
+    *   `result`: Boolean indicating success/failure
+    *   `import_state`: `Publishing`, `Succeeded`, or `Failed`
+    *   `reports`: Reports created by the import
+    *   `datasets`: Semantic models created by the import
+    *   `import_error`: Provider failure details when the import failed
+    *   `error`: Error message if the status request failed
+
 ### Action: `export_report`
 
 *   **Description:** Export a Power BI report to PDF, PPTX, or PNG format
@@ -335,20 +378,46 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
 }
 ```
 
+**Example 7: Import a generated PBIX file**
+
+Attach the file through Autohive's file input and run:
+
+```json
+{
+  "file": {
+    "content": "<base64 supplied by the platform>",
+    "name": "Quarterly Sales.pbix",
+    "contentType": "application/octet-stream"
+  },
+  "workspace_id": "f089354e-8366-4e18-aea3-4cb4a3a50b48",
+  "name_conflict": "CreateOrOverwrite"
+}
+```
+
+Use the returned `import_id` with `get_import_status`. Do not ask the model to paste a large file as base64; attach or generate the file so the platform hydrates the file input.
+
 ## Testing
 
-To run the tests:
+To run the mocked unit tests from the repository root:
 
-1.  Navigate to the integration's directory: `cd powerbi`
-2.  Install dependencies: `pip install -r requirements.txt -t dependencies`
-3.  Run the tests: `python tests/test_powerbi_integration.py`
-
-Note: Testing requires proper Power BI authentication credentials and may require mock data for certain test scenarios.
+```bash
+pytest powerbi/tests/test_powerbi_unit.py -m unit
+```
 
 ## Additional Notes
 
 - All workspace-related actions support both "My workspace" (default) and specific workspaces by providing the `workspace_id` parameter
 - Dataset refresh operations are asynchronous - use `get_refresh_history` to check the status
 - Report export operations are also asynchronous - use `get_export_status` to monitor progress
+- Report imports can be asynchronous - use `get_import_status` to monitor progress
 - DAX queries require appropriate permissions and the dataset must support query operations
 - The integration uses the Power BI REST API v1.0
+- Files between 1 GB and 10 GB require Power BI's Premium-capacity temporary upload workflow, which is not exposed by `import_powerbi_file`
+
+## Official API Documentation
+
+- [Post Import In Group](https://learn.microsoft.com/en-us/rest/api/power-bi/imports/post-import-in-group)
+- [Get Import In Group](https://learn.microsoft.com/en-us/rest/api/power-bi/imports/get-import-in-group)
+- [Clone Report In Group](https://learn.microsoft.com/en-us/rest/api/power-bi/reports/clone-report-in-group)
+- [Microsoft Fabric Create Report](https://learn.microsoft.com/en-us/rest/api/fabric/report/items/create-report)
+- [Microsoft Fabric report definition](https://learn.microsoft.com/en-us/rest/api/fabric/articles/item-management/definitions/report-definition)

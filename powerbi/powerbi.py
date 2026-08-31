@@ -1,11 +1,84 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler
+import base64
+import binascii
+from pathlib import PurePosixPath
 from typing import Dict, Any
+
+import aiohttp
+from autohive_integrations_sdk import ActionHandler, ExecutionContext, Integration
 
 # Create the integration using the config.json
 powerbi = Integration.load()
 
 # Power BI REST API Base URL
 POWERBI_API_BASE = "https://api.powerbi.com/v1.0/myorg"
+SUPPORTED_IMPORT_EXTENSIONS = {".json", ".pbix", ".rdl", ".xlsx"}
+IMPORT_CONTENT_TYPES = {
+    ".json": "application/json",
+    ".pbix": "application/octet-stream",
+    ".rdl": "application/xml",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+
+
+def _resolve_import_file(file_obj: Dict[str, Any], display_name: str = None):
+    """Validate a hydrated platform file and return its bytes and import metadata."""
+    source_name = PurePosixPath((file_obj.get("name") or "").replace("\\", "/")).name
+    if not source_name:
+        raise ValueError("file 'name' is required")
+    if "\r" in source_name or "\n" in source_name:
+        raise ValueError("file 'name' cannot contain line breaks")
+
+    extension = PurePosixPath(source_name).suffix.lower()
+    if extension not in SUPPORTED_IMPORT_EXTENSIONS:
+        supported = ", ".join(sorted(SUPPORTED_IMPORT_EXTENSIONS))
+        raise ValueError(f"unsupported Power BI import file type '{extension or 'none'}'; use one of: {supported}")
+
+    import_name = (display_name or source_name).strip()
+    if not import_name:
+        raise ValueError("display_name cannot be empty")
+    if "\r" in import_name or "\n" in import_name:
+        raise ValueError("display_name cannot contain line breaks")
+    if not PurePosixPath(import_name).suffix:
+        import_name = f"{import_name}{extension}"
+    elif PurePosixPath(import_name).suffix.lower() != extension:
+        raise ValueError("display_name must use the same file extension as the uploaded file")
+
+    content_b64 = file_obj.get("content") or ""
+    stripped_content = "".join(content_b64.split())
+    if not stripped_content:
+        raise ValueError("file 'content' is empty; attach a file before running the action")
+    try:
+        file_bytes = base64.b64decode(stripped_content, validate=True)
+    except (binascii.Error, TypeError, ValueError):
+        raise ValueError("file 'content' is not valid base64-encoded data")
+
+    content_type = IMPORT_CONTENT_TYPES[extension]
+    return source_name, import_name, extension, content_type, file_bytes
+
+
+def _validate_import_options(
+    extension: str,
+    import_name: str,
+    name_conflict: str,
+    skip_report: bool,
+    override_report_label: bool = None,
+    override_model_label: bool = None,
+):
+    """Enforce the provider restrictions that vary by imported file type."""
+    if extension == ".rdl" and name_conflict not in {"Abort", "Overwrite"}:
+        raise ValueError("RDL imports support only Abort or Overwrite for name_conflict")
+    if extension == ".json":
+        if import_name.lower() != "model.json":
+            raise ValueError("Power BI JSON imports must use the display name 'model.json'")
+        if name_conflict not in {"Abort", "GenerateUniqueName"}:
+            raise ValueError("model.json imports support only Abort or GenerateUniqueName for name_conflict")
+    elif name_conflict == "GenerateUniqueName":
+        raise ValueError("GenerateUniqueName is supported only for model.json imports")
+    if skip_report and extension != ".pbix":
+        raise ValueError("skip_report is supported only for PBIX imports")
+    if extension != ".pbix" and (override_report_label is not None or override_model_label is not None):
+        raise ValueError("sensitivity-label overrides are supported only for PBIX imports")
+
 
 # ---- Action Handlers ----
 
@@ -367,6 +440,119 @@ class CloneReportAction(ActionHandler):
 
         except Exception as e:
             return {"result": False, "error": str(e)}
+
+
+@powerbi.action("import_powerbi_file")
+class ImportPowerBIFileAction(ActionHandler):
+    """Publish a supported Power BI file to My workspace or a named workspace."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            workspace_id = inputs.get("workspace_id")
+            source_name, import_name, extension, content_type, file_bytes = _resolve_import_file(
+                inputs["file"], inputs.get("display_name")
+            )
+            default_name_conflict = "Abort" if extension in {".json", ".rdl"} else "Ignore"
+            name_conflict = inputs.get("name_conflict", default_name_conflict)
+            skip_report = inputs.get("skip_report", False)
+            _validate_import_options(
+                extension,
+                import_name,
+                name_conflict,
+                skip_report,
+                inputs.get("override_report_label"),
+                inputs.get("override_model_label"),
+            )
+
+            params = {
+                "datasetDisplayName": import_name,
+                "nameConflict": name_conflict,
+            }
+            if skip_report:
+                params["skipReport"] = True
+            if inputs.get("override_report_label") is not None:
+                params["overrideReportLabel"] = inputs["override_report_label"]
+            if inputs.get("override_model_label") is not None:
+                params["overrideModelLabel"] = inputs["override_model_label"]
+            if inputs.get("subfolder_object_id"):
+                params["subfolderObjectId"] = inputs["subfolder_object_id"]
+
+            if workspace_id:
+                url = f"{POWERBI_API_BASE}/groups/{workspace_id}/imports"
+            else:
+                url = f"{POWERBI_API_BASE}/imports"
+
+            form = aiohttp.FormData()
+            form.add_field("file", file_bytes, filename=source_name, content_type=content_type)
+            response = await context.fetch(url, method="POST", params=params, data=form, timeout=600)
+
+            import_id = response.get("id")
+            if not import_id:
+                raise ValueError("Power BI import response did not include an import ID")
+
+            return {
+                "import_id": import_id,
+                "import_state": response.get("importState", "Publishing"),
+                "name": response.get("name", import_name),
+                "reports": response.get("reports", []),
+                "datasets": response.get("datasets", []),
+                "result": True,
+            }
+
+        except Exception as e:
+            return {
+                "import_id": "",
+                "import_state": "Failed",
+                "name": "",
+                "reports": [],
+                "datasets": [],
+                "result": False,
+                "error": str(e),
+            }
+
+
+@powerbi.action("get_import_status")
+class GetImportStatusAction(ActionHandler):
+    """Return publishing state and created content for a Power BI import."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            import_id = inputs["import_id"]
+            workspace_id = inputs.get("workspace_id")
+
+            if workspace_id:
+                url = f"{POWERBI_API_BASE}/groups/{workspace_id}/imports/{import_id}"
+            else:
+                url = f"{POWERBI_API_BASE}/imports/{import_id}"
+
+            response = await context.fetch(url)
+
+            result = {
+                "import_id": response.get("id", import_id),
+                "import_state": response.get("importState", ""),
+                "name": response.get("name", ""),
+                "reports": response.get("reports", []),
+                "datasets": response.get("datasets", []),
+                "result": True,
+            }
+            if response.get("createdDateTime"):
+                result["created_date_time"] = response["createdDateTime"]
+            if response.get("updatedDateTime"):
+                result["updated_date_time"] = response["updatedDateTime"]
+            if response.get("error"):
+                result["import_error"] = response["error"]
+            return result
+
+        except Exception as e:
+            return {
+                "import_id": inputs.get("import_id", ""),
+                "import_state": "Failed",
+                "name": "",
+                "reports": [],
+                "datasets": [],
+                "result": False,
+                "error": str(e),
+            }
 
 
 @powerbi.action("export_report")
