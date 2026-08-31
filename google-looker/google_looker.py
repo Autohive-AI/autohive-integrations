@@ -5,15 +5,65 @@ from autohive_integrations_sdk import (
     ActionResult,
     ActionError,
 )
-from typing import Dict, Any, Optional
+from typing import Any, Dict
 
 import json
-import logging
-from datetime import datetime, timedelta
-
-logger = logging.getLogger(__name__)
+import time
+from urllib.parse import quote, urlsplit, urlunsplit
 
 google_looker = Integration.load()
+
+API_VERSION = "4.0"
+TOKEN_EXPIRY_SKEW_SECONDS = 60
+
+
+def _normalize_base_url(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("base_url must be a non-empty HTTPS URL")
+
+    parsed = urlsplit(value.strip())
+    if (
+        parsed.scheme.lower() != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in ("", "/")
+    ):
+        raise ValueError("base_url must be an HTTPS origin without credentials, a path, query, or fragment")
+
+    return urlunsplit(("https", parsed.netloc, "", "", ""))
+
+
+def _path_segment(value: Any, name: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{name} must be a non-empty string")
+    return quote(value, safe="")
+
+
+def _require_object(value: Any, operation: str) -> Dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"Looker returned an invalid response for {operation}: expected an object")
+    return value
+
+
+def _require_list(value: Any, operation: str) -> list[Dict[str, Any]]:
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise ValueError(f"Looker returned an invalid response for {operation}: expected an array of objects")
+    return value
+
+
+def _serialize_query_result(value: Any, operation: str) -> str:
+    if isinstance(value, (dict, list)):
+        return json.dumps(value)
+    if isinstance(value, str):
+        return value
+    raise ValueError(f"Looker returned an invalid response for {operation}: expected text or JSON")
+
+
+def _boolean_param(value: bool) -> str:
+    return "true" if value else "false"
 
 
 class LookerAPIHelper:
@@ -29,49 +79,58 @@ class LookerAPIHelper:
         self.client_id = client_id
         self.client_secret = client_secret
         self.access_token = None
-        self.token_expires_at = None
+        self.token_expires_at = 0.0
 
     async def _get_access_token(self) -> str:
-        if self.access_token and self.token_expires_at and datetime.now() < self.token_expires_at:
+        if self.access_token and time.monotonic() < self.token_expires_at:
             return self.access_token
 
         response = await self.context.fetch(
-            f"{self.base_url}/api/4.0/login",
+            f"{self.base_url}/api/{API_VERSION}/login",
             method="POST",
             data={"client_id": self.client_id, "client_secret": self.client_secret},
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
-        token_data = response.data
+        token_data = _require_object(response.data, "login")
         self.access_token = token_data.get("access_token")
-        if not self.access_token:
-            raise Exception("No access_token in authentication response")
+        if not isinstance(self.access_token, str) or not self.access_token:
+            raise ValueError("Looker login response did not include a valid access_token")
 
         expires_in = token_data.get("expires_in", 3600)
-        self.token_expires_at = datetime.now() + timedelta(seconds=expires_in - 60)
+        if isinstance(expires_in, bool):
+            raise ValueError("Looker login response included an invalid expires_in value")
+        try:
+            expires_in = int(expires_in)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Looker login response included an invalid expires_in value") from exc
+        if expires_in <= 0:
+            raise ValueError("Looker login response included an invalid expires_in value")
+        self.token_expires_at = time.monotonic() + max(0, expires_in - TOKEN_EXPIRY_SKEW_SECONDS)
         return self.access_token
 
     async def _get_headers(self) -> Dict[str, str]:
         token = await self._get_access_token()
-        return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        return {"Authorization": f"token {token}"}
 
     async def make_request(
         self,
         method: str,
         endpoint: str,
-        data: Optional[Dict] = None,
-        params: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
-        url = f"{self.base_url}/api/4.0{endpoint}"
+        data: Dict[str, Any] | None = None,
+        params: Dict[str, Any] | None = None,
+    ) -> Any:
+        url = f"{self.base_url}/api/{API_VERSION}{endpoint}"
         headers = await self._get_headers()
+        request_method = method.upper()
         response = await self.context.fetch(
             url,
-            method=method.upper(),
-            json=data if method.upper() in ["POST", "PUT"] else None,
+            method=request_method,
+            json=data if request_method in {"POST", "PUT", "PATCH"} else None,
             params=params or None,
             headers=headers,
         )
-        return response.data if response.data is not None else {}
+        return response.data
 
 
 def build_looker_helper(context: ExecutionContext) -> LookerAPIHelper:
@@ -91,6 +150,7 @@ def build_looker_helper(context: ExecutionContext) -> LookerAPIHelper:
         ]  # noqa: E501
         raise ValueError(f"Missing required configuration: {', '.join(missing)}")
 
+    base_url = _normalize_base_url(base_url)
     return LookerAPIHelper(context, base_url, client_id, client_secret)
 
 
@@ -103,12 +163,10 @@ class ListDashboards(ActionHandler):
             params = {}
             if inputs.get("fields") is not None:
                 params["fields"] = inputs.get("fields")
-            if inputs.get("page") is not None:
-                params["page"] = inputs.get("page")
-            if inputs.get("per_page") is not None:
-                params["per_page"] = inputs.get("per_page")
-
-            dashboards = await helper.make_request("GET", "/dashboards", params=params)
+            dashboards = _require_list(
+                await helper.make_request("GET", "/dashboards", params=params),
+                "list dashboards",
+            )
 
             return ActionResult(data={"dashboards": dashboards}, cost_usd=0)
 
@@ -121,13 +179,16 @@ class GetDashboard(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             helper = build_looker_helper(context)
-            dashboard_id = inputs["dashboard_id"]
+            dashboard_id = _path_segment(inputs["dashboard_id"], "dashboard_id")
 
             params = {}
             if inputs.get("fields") is not None:
                 params["fields"] = inputs.get("fields")
 
-            dashboard = await helper.make_request("GET", f"/dashboards/{dashboard_id}", params=params)
+            dashboard = _require_object(
+                await helper.make_request("GET", f"/dashboards/{dashboard_id}", params=params),
+                "get dashboard",
+            )
 
             return ActionResult(data={"dashboard": dashboard}, cost_usd=0)
 
@@ -153,24 +214,23 @@ class ExecuteLookMLQuery(ActionHandler):
             if inputs.get("limit") is not None:
                 query_data["limit"] = str(inputs.get("limit"))
 
-            query = await helper.make_request("POST", "/queries", data=query_data)
-            query_id = query.get("id")
-
-            if not query_id:
-                raise Exception("No query ID returned from query creation")
-
             result_format = inputs.get("result_format", "json")
-            params = {"result_format": result_format}
+            params = {}
             if inputs.get("apply_formatting") is not None:
-                params["apply_formatting"] = inputs.get("apply_formatting")
+                params["apply_formatting"] = _boolean_param(inputs["apply_formatting"])
             if inputs.get("apply_vis") is not None:
-                params["apply_vis"] = inputs.get("apply_vis")
+                params["apply_vis"] = _boolean_param(inputs["apply_vis"])
 
-            results = await helper.make_request("GET", f"/queries/{query_id}/run/{result_format}", params=params)
+            results = await helper.make_request(
+                "POST",
+                f"/queries/run/{_path_segment(result_format, 'result_format')}",
+                data=query_data,
+                params=params,
+            )
 
             return ActionResult(
                 data={
-                    "query_results": json.dumps(results) if isinstance(results, (dict, list)) else str(results),
+                    "query_results": _serialize_query_result(results, "execute LookML query"),
                 },
                 cost_usd=0,
             )
@@ -188,8 +248,17 @@ class ListModels(ActionHandler):
             params = {}
             if inputs.get("fields") is not None:
                 params["fields"] = inputs.get("fields")
+            for name in ("limit", "offset"):
+                if inputs.get(name) is not None:
+                    params[name] = inputs[name]
+            for name in ("exclude_empty", "exclude_hidden", "include_internal", "include_self_service"):
+                if inputs.get(name) is not None:
+                    params[name] = _boolean_param(inputs[name])
 
-            models = await helper.make_request("GET", "/lookml_models", params=params)
+            models = _require_list(
+                await helper.make_request("GET", "/lookml_models", params=params),
+                "list LookML models",
+            )
 
             return ActionResult(data={"models": models}, cost_usd=0)
 
@@ -202,13 +271,16 @@ class GetModel(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             helper = build_looker_helper(context)
-            model_name = inputs["model_name"]
+            model_name = _path_segment(inputs["model_name"], "model_name")
 
             params = {}
             if inputs.get("fields") is not None:
                 params["fields"] = inputs.get("fields")
 
-            model = await helper.make_request("GET", f"/lookml_models/{model_name}", params=params)
+            model = _require_object(
+                await helper.make_request("GET", f"/lookml_models/{model_name}", params=params),
+                "get LookML model",
+            )
 
             return ActionResult(data={"model": model}, cost_usd=0)
 
@@ -224,35 +296,42 @@ class ExecuteSQLQuery(ActionHandler):
 
             sql_query_data = {"sql": inputs["sql"]}
 
-            if inputs.get("connection_name") is not None:
-                sql_query_data["connection_name"] = inputs.get("connection_name")
-            elif inputs.get("model_name") is not None:
-                sql_query_data["model_name"] = inputs.get("model_name")
+            connection_name = inputs.get("connection_name")
+            model_name = inputs.get("model_name")
+            if bool(connection_name) == bool(model_name):
+                raise ValueError("Provide exactly one of 'connection_name' or 'model_name'")
+            if connection_name:
+                sql_query_data["connection_name"] = connection_name
             else:
-                raise ValueError("Either 'connection_name' or 'model_name' must be provided")
+                sql_query_data["model_name"] = model_name
 
             if inputs.get("vis_config") is not None:
                 sql_query_data["vis_config"] = inputs.get("vis_config")
-            if inputs.get("slug") is not None:
-                sql_query_data["slug"] = inputs.get("slug")
 
-            sql_query = await helper.make_request("POST", "/sql_queries", data=sql_query_data)
+            sql_query = _require_object(
+                await helper.make_request("POST", "/sql_queries", data=sql_query_data),
+                "create SQL Runner query",
+            )
 
             slug = sql_query.get("slug")
-            if not slug:
-                raise Exception("No slug returned from SQL query creation")
+            if not isinstance(slug, str) or not slug:
+                raise ValueError("Looker SQL query response did not include a valid slug")
 
             result_format = inputs.get("result_format", "json")
             params = {}
             if inputs.get("download") is not None:
                 params["download"] = inputs.get("download")
 
-            results = await helper.make_request("POST", f"/sql_queries/{slug}/run/{result_format}", params=params)
+            results = await helper.make_request(
+                "POST",
+                f"/sql_queries/{_path_segment(slug, 'slug')}/run/{_path_segment(result_format, 'result_format')}",
+                params=params,
+            )
 
             return ActionResult(
                 data={
                     "slug": slug,
-                    "query_results": json.dumps(results) if isinstance(results, (dict, list)) else str(results),
+                    "query_results": _serialize_query_result(results, "execute SQL Runner query"),
                 },
                 cost_usd=0,
             )
@@ -271,7 +350,10 @@ class ListConnections(ActionHandler):
             if inputs.get("fields") is not None:
                 params["fields"] = inputs.get("fields")
 
-            connections = await helper.make_request("GET", "/connections", params=params)
+            connections = _require_list(
+                await helper.make_request("GET", "/connections", params=params),
+                "list connections",
+            )
 
             return ActionResult(data={"connections": connections}, cost_usd=0)
 
