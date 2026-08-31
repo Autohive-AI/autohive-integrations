@@ -1,7 +1,7 @@
 {
     "name": "Google Looker",
-    "version": "2.0.0",
-    "description": "Looker integration with custom authentication",
+    "version": "3.0.0",
+    "description": "Access dashboards, LookML models, analytical queries, SQL Runner, and database connection metadata through the Looker API",
     "entry_point": "google_looker.py",
     "auth": {
         "type": "custom",
@@ -11,41 +11,42 @@
             "properties": {
                 "base_url": {
                     "type": "string",
+                    "minLength": 1,
                     "label": "Base URL",
                     "help_text": "Please enter your Looker instance base URL (e.g., https://your-company.looker.com)"
                 },
                 "client_id": {
                     "type": "string",
+                    "minLength": 1,
                     "label": "Client ID",
                     "help_text": "Please enter your Looker API client ID"
                 },
                 "client_secret": {
                     "type": "string",
+                    "minLength": 1,
                     "format": "password",
                     "label": "Client Secret",
                     "help_text": "Please enter your Looker API client secret"
                 }
-            }
+            },
+            "required": [
+                "base_url",
+                "client_id",
+                "client_secret"
+            ]
         }
     },
     "actions": {
         "list_dashboards": {
             "display_name": "List Dashboards",
-            "description": "Retrieve a list of all available dashboards in the Looker instance, including dashboard IDs, titles, and metadata",
+            "description": "Retrieve active dashboards visible to the connected Looker API user",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "fields": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "Comma-separated list of fields to return in the response"
-                    },
-                    "page": {
-                        "type": "integer",
-                        "description": "Page number of results to return (1-based)"
-                    },
-                    "per_page": {
-                        "type": "integer",
-                        "description": "Number of results to return per page"
                     }
                 },
                 "required": []
@@ -68,16 +69,18 @@
         },
         "get_dashboard": {
             "display_name": "Get Dashboard",
-            "description": "Retrieve detailed information about a specific dashboard including its elements, filters, and layout configuration",
+            "description": "Retrieve a dashboard visible to the connected Looker API user, optionally using a field projection",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "dashboard_id": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "The unique identifier of the dashboard to retrieve (obtained from list_dashboards action)"
                     },
                     "fields": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "Comma-separated list of fields to return"
                     }
                 },
@@ -90,7 +93,7 @@
                 "properties": {
                     "dashboard": {
                         "type": "object",
-                        "description": "Complete dashboard object containing title, description, elements, filters, layout, and other dashboard metadata"
+                        "description": "Dashboard object returned by Looker for the requested field projection"
                     }
                 },
                 "required": [
@@ -100,50 +103,76 @@
         },
         "execute_lookml_query": {
             "display_name": "Execute LookML Query",
-            "description": "Create and execute a LookML query against a specified model and explore, returning the query results directly",
+            "description": "Execute an inline LookML query against a specified model and Explore, returning the query results directly",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "model": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "The LookML model name (use list_models to find available models)"
                     },
                     "explore": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "The explore name within the specified model (represents a data table/view to query)"
                     },
                     "dimensions": {
                         "type": "array",
                         "description": "Dimensions",
                         "items": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 1
                         }
                     },
                     "measures": {
                         "type": "array",
                         "description": "Measures",
                         "items": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 1
                         }
                     },
                     "filters": {
                         "type": "object",
-                        "description": "Query filters as key-value pairs"
+                        "description": "Query filters as field-name to filter-expression pairs",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
                     },
                     "sorts": {
                         "type": "array",
                         "description": "Sort orders",
                         "items": {
-                            "type": "string"
+                            "type": "string",
+                            "minLength": 1
                         }
                     },
                     "limit": {
                         "type": "integer",
-                        "description": "Result limit"
+                        "description": "Maximum rows to return; use -1 for unlimited results",
+                        "anyOf": [
+                            {
+                                "const": -1
+                            },
+                            {
+                                "minimum": 1
+                            }
+                        ]
                     },
                     "result_format": {
                         "type": "string",
-                        "description": "Result format (json, csv, etc.)",
+                        "description": "Text or JSON result format supported by the Autohive fetch layer",
+                        "enum": [
+                            "json",
+                            "json_bi",
+                            "json_detail",
+                            "csv",
+                            "txt",
+                            "html",
+                            "md",
+                            "sql"
+                        ],
                         "default": "json"
                     },
                     "apply_formatting": {
@@ -175,13 +204,44 @@
         },
         "list_models": {
             "display_name": "List Models",
-            "description": "Retrieve a list of all available LookML models with their explores and dimensions/measures",
+            "description": "Retrieve LookML models visible to the connected API user, with server-side projection and pagination options",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "fields": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "Comma-separated list of fields to return"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of models to return",
+                        "minimum": 1
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of models to skip before returning results",
+                        "minimum": 0
+                    },
+                    "exclude_empty": {
+                        "type": "boolean",
+                        "description": "Exclude models that have no explores",
+                        "default": false
+                    },
+                    "exclude_hidden": {
+                        "type": "boolean",
+                        "description": "Exclude hidden explores from model results",
+                        "default": false
+                    },
+                    "include_internal": {
+                        "type": "boolean",
+                        "description": "Include built-in models such as System Activity",
+                        "default": false
+                    },
+                    "include_self_service": {
+                        "type": "boolean",
+                        "description": "Include self-service models",
+                        "default": false
                     }
                 },
                 "required": []
@@ -204,16 +264,18 @@
         },
         "get_model": {
             "display_name": "Get Model",
-            "description": "Retrieve detailed information about a specific LookML model including all its explores, dimensions, and measures",
+            "description": "Retrieve a LookML model visible to the connected API user, optionally using a field projection",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "model_name": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "Model name"
                     },
                     "fields": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "Comma-separated list of fields to return"
                     }
                 },
@@ -236,38 +298,56 @@
         },
         "execute_sql_query": {
             "display_name": "Execute SQL Query",
-            "description": "Create and execute a raw SQL query against a database connection, returning the query results directly",
+            "description": "Create and execute a SQL Runner query. SQL may modify database data or schema when the selected connection permits writes; use read-only database credentials for agent workflows.",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "sql": {
                         "type": "string",
-                        "description": "SQL query string"
+                        "description": "SQL statement to execute. Looker SQL Runner permits DDL and DML when the database credentials allow them.",
+                        "minLength": 1
                     },
                     "connection_name": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "The database connection name to execute the SQL against (use list_connections to find available connections)"
                     },
                     "model_name": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "Model name (alternative to connection_name)"
                     },
                     "vis_config": {
                         "type": "object",
                         "description": "Optional visualization configuration object"
                     },
-                    "slug": {
-                        "type": "string",
-                        "description": "Optional slug for the SQL query"
-                    },
                     "result_format": {
                         "type": "string",
-                        "description": "Format of result, options are: inline_json, json, json_detail, json_fe, json_bi, csv, html, md, txt, xlsx, gsxml, sql, odc, json_label",
+                        "description": "Text or JSON result format supported by the Autohive fetch layer",
+                        "enum": [
+                            "inline_json",
+                            "json",
+                            "json_detail",
+                            "json_fe",
+                            "json_bi",
+                            "csv",
+                            "html",
+                            "md",
+                            "txt",
+                            "gsxml",
+                            "sql",
+                            "json_label"
+                        ],
                         "default": "json"
                     },
                     "download": {
                         "type": "string",
-                        "description": "Set to true to make HTTP response behave as downloadable attachment instead of inline content"
+                        "description": "Whether Looker should set download-oriented response headers",
+                        "enum": [
+                            "true",
+                            "false"
+                        ],
+                        "default": "false"
                     }
                 },
                 "required": [
@@ -294,12 +374,13 @@
         },
         "list_connections": {
             "display_name": "List Connections",
-            "description": "Retrieve a list of all available database connections that can be used for SQL queries",
+            "description": "Retrieve database connection metadata visible to the connected Looker API user",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "fields": {
                         "type": "string",
+                        "minLength": 1,
                         "description": "Comma-separated list of fields to return"
                     }
                 },
