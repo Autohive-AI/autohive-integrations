@@ -456,12 +456,14 @@ Read and search contacts from Outlook.
 **Inputs:**
 - `limit` (optional): Maximum number of contacts
 - `search` (optional): Filter contacts by name or company (case-insensitive, partial match)
+- `max_scan` (optional): Maximum contacts to inspect during a search; also caps pagination to one page per 100 requested contacts (default: 1000, maximum: 10000)
 
 **Outputs:**
 - `contacts`: List of contact objects with detailed information
 - `message`: Description of the search results
 - `search_term`: The search term used (when searching)
 - `total_searched`: Total contacts searched through (when searching)
+- `search_truncated`: Whether the scan or page limit was reached before enough matches were found
 
 ---
 

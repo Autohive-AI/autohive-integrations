@@ -874,7 +874,59 @@ async def test_read_contacts_search_stops_after_matching_limit(mock_context):
     assert result.type != ResultType.ACTION_ERROR
     assert [contact["id"] for contact in result.result.data["contacts"]] == ["c2"]
     assert result.result.data["total_searched"] == 2
+    assert result.result.data["search_truncated"] is False
     assert mock_context.fetch.await_count == 2
+    assert mock_context.fetch.await_args_list[0].kwargs["params"]["$top"] == 100
+
+
+@pytest.mark.asyncio
+async def test_read_contacts_search_stops_at_scan_bound_and_reports_partial_results(mock_context):
+    mock_context.fetch = make_fetch(
+        {
+            "value": [
+                {"id": "c1", "displayName": "Unrelated Person"},
+                {"id": "c2", "displayName": "Another Person"},
+                {"id": "c3", "displayName": "Third Person"},
+            ],
+        }
+    )
+
+    result = await microsoft365.execute_action(
+        "read_contacts",
+        {"search": "missing", "limit": 1, "max_scan": 2},
+        mock_context,
+    )
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data["contacts"] == []
+    assert result.result.data["total_searched"] == 2
+    assert result.result.data["search_truncated"] is True
+    assert "results may be partial" in result.result.data["message"]
+    assert mock_context.fetch.await_count == 1
+    assert mock_context.fetch.await_args.kwargs["params"]["$top"] == 2
+
+
+@pytest.mark.asyncio
+async def test_read_contacts_search_stops_at_page_bound_when_graph_returns_short_pages(mock_context):
+    mock_context.fetch = make_fetch(
+        {
+            "value": [{"id": "c1", "displayName": "Unrelated Person"}],
+            "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/contacts?$skiptoken=unused",
+        }
+    )
+
+    result = await microsoft365.execute_action(
+        "read_contacts",
+        {"search": "missing", "limit": 1, "max_scan": 100},
+        mock_context,
+    )
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data["contacts"] == []
+    assert result.result.data["total_searched"] == 1
+    assert result.result.data["search_truncated"] is True
+    assert mock_context.fetch.await_count == 1
+    assert mock_context.fetch.await_args.kwargs["params"]["$top"] == 100
 
 
 @pytest.mark.asyncio

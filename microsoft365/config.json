@@ -966,6 +966,13 @@
           "search": {
             "type": "string",
             "description": "Search query to filter contacts by name or company (case-insensitive, partial matching)"
+          },
+          "max_scan": {
+            "type": "integer",
+            "description": "Maximum number of contacts to inspect while searching. Also bounds pagination to one page per 100 requested contacts; results may be partial when either bound is reached.",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000
           }
         }
       },
@@ -1051,6 +1058,10 @@
           "total_searched": {
             "type": "integer",
             "description": "Total number of contacts searched through (only present when searching)"
+          },
+          "search_truncated": {
+            "type": "boolean",
+            "description": "Whether the search stopped at its scan or page bound before finding the requested number of matches"
           },
           "total_contacts": {
             "type": "integer",

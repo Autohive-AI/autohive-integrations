@@ -18,6 +18,9 @@ microsoft365 = Integration.load()
 # Microsoft Graph API Base URL
 GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
+DEFAULT_CONTACT_SEARCH_SCAN_LIMIT = 1000
+MAX_CONTACT_SEARCH_SCAN_LIMIT = 10000
+CONTACT_SEARCH_PAGE_SIZE = 100
 PDF_CONVERTIBLE_EXTENSIONS = {
     ".doc",
     ".docx",
@@ -207,17 +210,31 @@ async def _fetch_collection(
     params: Dict[str, Any] | None = None,
     limit: int | None = None,
     item_filter: Callable[[Dict[str, Any]], bool] | None = None,
+    scan_limit: int | None = None,
+    page_limit: int | None = None,
 ) -> tuple[List[Dict[str, Any]], bool]:
-    """Follow Graph pagination up to a limit applied after optional filtering."""
+    """Follow Graph pagination with separate result and optional scan limits."""
     if limit is not None and (not isinstance(limit, int) or isinstance(limit, bool) or limit < 1):
         raise ValueError("limit must be a positive integer")
+    if scan_limit is not None and (not isinstance(scan_limit, int) or isinstance(scan_limit, bool) or scan_limit < 1):
+        raise ValueError("scan_limit must be a positive integer")
+    if page_limit is not None and (not isinstance(page_limit, int) or isinstance(page_limit, bool) or page_limit < 1):
+        raise ValueError("page_limit must be a positive integer")
 
     items: List[Dict[str, Any]] = []
     next_url: str | None = url
     first_request = True
     requested_urls: set[str] = set()
+    scanned_items = 0
+    fetched_pages = 0
+    scan_was_truncated = False
 
-    while next_url and (limit is None or len(items) < limit):
+    while (
+        next_url
+        and (limit is None or len(items) < limit)
+        and (scan_limit is None or scanned_items < scan_limit)
+        and (page_limit is None or fetched_pages < page_limit)
+    ):
         if next_url in requested_urls:
             raise ValueError("Microsoft Graph pagination returned a repeated '@odata.nextLink' URL")
         requested_urls.add(next_url)
@@ -227,6 +244,7 @@ async def _fetch_collection(
         else:
             resp = await context.fetch(next_url)
         first_request = False
+        fetched_pages += 1
         response = resp.data
         _check_response(response, "value")
         page = response["value"]
@@ -234,14 +252,31 @@ async def _fetch_collection(
             raise ValueError("Microsoft Graph collection response 'value' must be an array")
         if any(not isinstance(item, dict) for item in page):
             raise ValueError("Microsoft Graph collection response items must be objects")
-        accepted_page = [item for item in page if item_filter is None or item_filter(item)]
+
+        scanned_page = page
+        page_was_cut = False
+        if scan_limit is not None:
+            remaining_scan = scan_limit - scanned_items
+            if len(scanned_page) > remaining_scan:
+                scanned_page = scanned_page[:remaining_scan]
+                page_was_cut = True
+        scanned_items += len(scanned_page)
+
+        accepted_page = [item for item in scanned_page if item_filter is None or item_filter(item)]
         items.extend(accepted_page)
         next_url = _validate_graph_next_link(response.get("@odata.nextLink"))
+
+        if scan_limit is not None and scanned_items >= scan_limit:
+            scan_was_truncated = page_was_cut or bool(next_url)
+            break
+        if page_limit is not None and fetched_pages >= page_limit:
+            scan_was_truncated = bool(next_url)
+            break
 
     was_truncated = limit is not None and len(items) > limit
     if was_truncated:
         items = items[:limit]
-    return items, bool(next_url) or was_truncated
+    return items, bool(next_url) or was_truncated or scan_was_truncated
 
 
 def _drive_item_mime_type(item: Dict[str, Any]) -> str:
@@ -1070,6 +1105,7 @@ class ReadContactsAction(ActionHandler):
         try:
             limit = inputs.get("limit", 100)
             search = inputs.get("search")
+            max_scan = inputs.get("max_scan", DEFAULT_CONTACT_SEARCH_SCAN_LIMIT)
 
             api_url = f"{GRAPH_API_BASE}/me/contacts"
 
@@ -1084,6 +1120,13 @@ class ReadContactsAction(ActionHandler):
             total_searched = 0
             item_filter = None
             if search:
+                if (
+                    not isinstance(max_scan, int)
+                    or isinstance(max_scan, bool)
+                    or not 1 <= max_scan <= MAX_CONTACT_SEARCH_SCAN_LIMIT
+                ):
+                    raise ValueError(f"max_scan must be an integer between 1 and {MAX_CONTACT_SEARCH_SCAN_LIMIT}")
+                params["$top"] = min(CONTACT_SEARCH_PAGE_SIZE, max_scan)
                 search_lower = search.lower()
 
                 def matches_search(contact: Dict[str, Any]) -> bool:
@@ -1096,12 +1139,14 @@ class ReadContactsAction(ActionHandler):
 
                 item_filter = matches_search
 
-            all_contacts, _ = await _fetch_collection(
+            all_contacts, has_more = await _fetch_collection(
                 context,
                 api_url,
                 params=params,
                 limit=limit,
                 item_filter=item_filter,
+                scan_limit=max_scan if search else None,
+                page_limit=((max_scan + CONTACT_SEARCH_PAGE_SIZE - 1) // CONTACT_SEARCH_PAGE_SIZE if search else None),
             )
             contacts = []
 
@@ -1150,10 +1195,13 @@ class ReadContactsAction(ActionHandler):
                     break
 
             if search:
+                search_truncated = has_more and len(contacts) < limit
                 if contacts:
                     message = f"Found {len(contacts)} contact(s) matching '{search}'"
                 else:
                     message = f"No contacts found matching '{search}'"
+                if search_truncated:
+                    message += f" Search stopped after inspecting {total_searched} contacts, so results may be partial."
 
                 return ActionResult(
                     data={
@@ -1161,6 +1209,7 @@ class ReadContactsAction(ActionHandler):
                         "message": message,
                         "search_term": search,
                         "total_searched": total_searched,
+                        "search_truncated": search_truncated,
                     },
                     cost_usd=0.0,
                 )
