@@ -1874,7 +1874,7 @@ class ListSharePointPagesAction(ActionHandler):
                 invalid_fields = [f for f in requested_fields if f not in allowed_page_fields]
                 if invalid_fields:
                     raise ValueError(f"Unsupported site page fields: {', '.join(invalid_fields)}")
-                params["$select"] = ",".join(sorted(allowed_page_fields.union(requested_fields)))
+                params["$select"] = ",".join(dict.fromkeys(requested_fields))
             else:
                 params["$select"] = (
                     "id,name,webUrl,title,pageLayout,createdDateTime,lastModifiedDateTime,createdBy,lastModifiedBy"

@@ -1378,6 +1378,21 @@ async def test_list_sharepoint_pages(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_list_sharepoint_pages_honors_selected_fields(mock_context):
+    mock_context.fetch = make_fetch({"value": [{"id": "p1", "title": "Home"}]})
+
+    result = await microsoft365.execute_action(
+        "list_sharepoint_pages",
+        {"site_id": "s1", "select_fields": "id,title"},
+        mock_context,
+    )
+
+    assert result.type != ResultType.ACTION_ERROR
+    _, kwargs = mock_context.fetch.await_args
+    assert kwargs["params"]["$select"] == "id,title"
+
+
+@pytest.mark.asyncio
 async def test_list_sharepoint_pages_accepts_nullable_identities(mock_context):
     mock_context.fetch = make_fetch(
         {"value": [{"id": "p1", "name": "home.aspx", "createdBy": None, "lastModifiedBy": None}]}
