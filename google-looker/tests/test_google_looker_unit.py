@@ -58,6 +58,16 @@ def assert_action_error(result, message=None):
         assert message in result.result.message
 
 
+def test_action_input_schemas_avoid_unsupported_top_level_combinators():
+    with open(os.path.join(_parent, "config.json"), encoding="utf-8") as config_file:
+        config = json.load(config_file)
+
+    unsupported = {"oneOf", "allOf", "anyOf"}
+    for action_name, action in config["actions"].items():
+        found = unsupported.intersection(action["input_schema"])
+        assert not found, f"{action_name} uses unsupported top-level schema combinators: {sorted(found)}"
+
+
 class TestAuthentication:
     @pytest.mark.asyncio
     async def test_uses_form_login_and_looker_token_scheme(self, mock_context):
@@ -432,7 +442,8 @@ class TestExecuteSQLQuery:
     async def test_requires_exactly_one_connection_selector(self, mock_context, inputs):
         result = await google_looker.execute_action("execute_sql_query", inputs, mock_context)
 
-        assert result.type in {ResultType.VALIDATION_ERROR, ResultType.ACTION_ERROR}
+        assert result.type == ResultType.ACTION_ERROR
+        assert "exactly one" in result.result.message
 
     @pytest.mark.asyncio
     async def test_missing_sql_validation_error(self, mock_context):

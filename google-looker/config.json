@@ -352,28 +352,6 @@
                 },
                 "required": [
                     "sql"
-                ],
-                "oneOf": [
-                    {
-                        "required": [
-                            "connection_name"
-                        ],
-                        "not": {
-                            "required": [
-                                "model_name"
-                            ]
-                        }
-                    },
-                    {
-                        "required": [
-                            "model_name"
-                        ],
-                        "not": {
-                            "required": [
-                                "connection_name"
-                            ]
-                        }
-                    }
                 ]
             },
             "output_schema": {
