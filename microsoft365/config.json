@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Copilot 365",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, Calendar, SharePoint, and intelligent meeting scheduling",
   "entry_point": "microsoft365.py",
   "auth": {
@@ -12,9 +12,9 @@
       "Mail.Send",
       "Files.ReadWrite",
       "Calendars.ReadWrite",
+      "Calendars.Read.Shared",
       "Contacts.Read",
       "Sites.Read.All",
-      "Schedule.Read.All",
       "Place.Read.All"
     ]
   },
@@ -75,7 +75,9 @@
             "description": "True when the email was sent successfully"
           }
         },
-        "required": []
+        "required": [
+          "sent"
+        ]
       }
     },
     "create_calendar_event": {
@@ -221,6 +223,7 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of files to return",
+            "minimum": 1,
             "default": 100
           }
         }
@@ -347,11 +350,12 @@
           },
           "end_datetime": {
             "type": "string",
-            "description": "End datetime to filter events in UTC (ISO 8601 format, e.g., 2024-08-01T23:59:59Z). If not provided, defaults to start_datetime"
+            "description": "End datetime to filter events in UTC (ISO 8601 format, e.g., 2024-08-01T23:59:59Z). If omitted while start_datetime is set, defaults to 24 hours after the start."
           },
           "limit": {
             "type": "integer",
             "description": "Maximum number of events to return",
+            "minimum": 1,
             "default": 100
           }
         }
@@ -451,7 +455,7 @@
           },
           "end_datetime": {
             "type": "string",
-            "description": "End datetime to filter emails in UTC (ISO 8601 format, e.g., 2024-08-01T23:59:59Z). If not provided, defaults to start_datetime"
+            "description": "End datetime to filter emails in UTC (ISO 8601 format, e.g., 2024-08-01T23:59:59Z). If omitted while start_datetime is set, defaults to 24 hours after the start."
           },
           "folder": {
             "type": "string",
@@ -461,11 +465,12 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of emails to return",
+            "minimum": 1,
             "default": 50
           },
           "fields": {
             "type": "array",
-            "description": "Optional list of fields to return for each email. When omitted, all fields including body.content are returned. Use this to reduce context consumption \u00e2\u20ac\u201d e.g. [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"] for a lightweight metadata scan. Allowed values: id, subject, sender, receivedDateTime, bodyPreview, body, hasAttachments, isRead, importance.",
+            "description": "Optional list of fields to return for each email. When omitted, all fields including body.content are returned. For a lightweight metadata scan, use [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"]. Allowed values: id, subject, sender, receivedDateTime, bodyPreview, body, hasAttachments, isRead, importance.",
             "items": {
               "type": "string",
               "enum": [
@@ -539,7 +544,7 @@
     },
     "list_emails_from_contact": {
       "display_name": "List Emails from Contact",
-      "description": "List latest emails from a specific contact. Returns full body HTML by default \u00e2\u20ac\u201d use the fields parameter to limit response to metadata only (e.g. [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"]) when scanning a large inbox to avoid context window issues.",
+      "description": "List latest emails from a specific contact. Returns full body HTML by default; use the fields parameter to limit the response to metadata only when scanning a large inbox.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -550,6 +555,7 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of emails to return",
+            "minimum": 1,
             "default": 5
           },
           "folder": {
@@ -573,7 +579,7 @@
                 "importance"
               ]
             },
-            "description": "Optional list of fields to return for each email. When omitted, all fields including body.content are returned. Use to reduce context consumption \u00e2\u20ac\u201d e.g. [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"] for a lightweight metadata scan."
+            "description": "Optional list of fields to return for each email. When omitted, all fields including body.content are returned. For a lightweight metadata scan, use [\"id\", \"subject\", \"sender\", \"receivedDateTime\", \"hasAttachments\", \"bodyPreview\"]."
           }
         },
         "required": [
@@ -849,7 +855,11 @@
             "description": "Subject of the moved email"
           }
         },
-        "required": []
+        "required": [
+          "id",
+          "parentFolderId",
+          "subject"
+        ]
       }
     },
     "read_email": {
@@ -950,11 +960,19 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of contacts to return",
+            "minimum": 1,
             "default": 100
           },
           "search": {
             "type": "string",
             "description": "Search query to filter contacts by name or company (case-insensitive, partial matching)"
+          },
+          "max_scan": {
+            "type": "integer",
+            "description": "Maximum number of contacts to inspect while searching. Also bounds pagination to one page per 100 requested contacts; results may be partial when either bound is reached.",
+            "minimum": 1,
+            "maximum": 10000,
+            "default": 1000
           }
         }
       },
@@ -1041,6 +1059,10 @@
             "type": "integer",
             "description": "Total number of contacts searched through (only present when searching)"
           },
+          "search_truncated": {
+            "type": "boolean",
+            "description": "Whether the search stopped at its scan or page bound before finding the requested number of matches"
+          },
           "total_contacts": {
             "type": "integer",
             "description": "Total number of contacts retrieved (only present when not searching)"
@@ -1065,6 +1087,7 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of files to return",
+            "minimum": 1,
             "default": 10
           }
         },
@@ -1185,16 +1208,16 @@
               "webUrl": {
                 "type": "string",
                 "description": "Web URL to access the file"
+              },
+              "convertedToPdf": {
+                "type": "boolean",
+                "description": "Whether Microsoft Graph converted the original document to PDF"
               }
             },
             "required": [
               "id",
               "name"
             ]
-          },
-          "content_error": {
-            "type": "string",
-            "description": "Describes why content could not be retrieved (present only when content retrieval fails but metadata succeeded)"
           }
         },
         "required": [
@@ -1338,7 +1361,12 @@
             "description": "Whether this is a draft message"
           }
         },
-        "required": []
+        "required": [
+          "draft_id",
+          "subject",
+          "created_datetime",
+          "is_draft"
+        ]
       }
     },
     "send_draft_email": {
@@ -1369,7 +1397,8 @@
           }
         },
         "required": [
-          "draft_id"
+          "draft_id",
+          "sent"
         ]
       }
     },
@@ -1410,7 +1439,8 @@
         },
         "required": [
           "message_id",
-          "operation"
+          "operation",
+          "sent"
         ]
       }
     },
@@ -1477,7 +1507,8 @@
         },
         "required": [
           "message_id",
-          "operation"
+          "operation",
+          "sent"
         ]
       }
     },
@@ -1567,14 +1598,9 @@
               "message_id",
               "is_inline"
             ]
-          },
-          "content_error": {
-            "type": "string",
-            "description": "Describes why content could not be retrieved (present only when content retrieval fails but metadata succeeded)"
           }
         },
         "required": [
-          "file",
           "metadata"
         ]
       }
@@ -1593,6 +1619,7 @@
             "type": "integer",
             "description": "Maximum number of results to return",
             "default": 25,
+            "minimum": 1,
             "maximum": 1000
           },
           "enable_top_results": {
@@ -1671,6 +1698,12 @@
             "type": "boolean",
             "description": "Order results by creation date (newest first)",
             "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of matching sites to return",
+            "minimum": 1,
+            "default": 100
           }
         },
         "required": [
@@ -1811,7 +1844,9 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of libraries to return"
+            "description": "Maximum number of libraries to return",
+            "minimum": 1,
+            "default": 100
           },
           "select_fields": {
             "type": "string",
@@ -1895,6 +1930,7 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of documents to return",
+            "minimum": 1,
             "default": 10
           }
         },
@@ -2062,6 +2098,10 @@
               "drive_id": {
                 "type": "string",
                 "description": "The ID of the document library (drive) containing the file"
+              },
+              "convertedToPdf": {
+                "type": "boolean",
+                "description": "Whether Microsoft Graph converted the original document to PDF"
               }
             },
             "required": [
@@ -2069,10 +2109,6 @@
               "name",
               "site_id"
             ]
-          },
-          "content_error": {
-            "type": "string",
-            "description": "Describes why content could not be retrieved (present only when content retrieval fails but metadata succeeded)"
           }
         },
         "required": [
@@ -2093,7 +2129,9 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of pages to return"
+            "description": "Maximum number of pages to return",
+            "minimum": 1,
+            "default": 100
           },
           "order_by": {
             "type": "string",
@@ -2259,6 +2297,7 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of subsites to return",
+            "minimum": 1,
             "default": 50
           }
         },
@@ -2348,6 +2387,7 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of items to return (default: 50)",
+            "minimum": 1,
             "default": 50
           }
         },
@@ -2436,7 +2476,8 @@
           "drive_id",
           "folder_id",
           "items",
-          "total_items"
+          "total_items",
+          "has_more"
         ]
       }
     },
@@ -2449,6 +2490,7 @@
           "attendees": {
             "type": "array",
             "description": "List of attendee email addresses to check availability for",
+            "minItems": 1,
             "items": {
               "type": "string"
             }
@@ -2456,6 +2498,7 @@
           "duration_minutes": {
             "type": "integer",
             "description": "Duration of the meeting in minutes (default: 60)",
+            "minimum": 1,
             "default": 60
           },
           "start_datetime": {
@@ -2469,6 +2512,8 @@
           "max_candidates": {
             "type": "integer",
             "description": "Maximum number of meeting time suggestions to return (default: 10, max: 20)",
+            "minimum": 1,
+            "maximum": 20,
             "default": 10
           },
           "is_organizer_optional": {
@@ -2483,6 +2528,8 @@
           "minimum_attendee_percentage": {
             "type": "number",
             "description": "Minimum percentage of attendees that must be available (0-100, default: 100)",
+            "minimum": 0,
+            "maximum": 100,
             "default": 100
           }
         },
@@ -2548,6 +2595,10 @@
                       }
                     }
                   }
+                },
+                "suggestion_reason": {
+                  "type": "string",
+                  "description": "Microsoft Graph's explanation for suggesting this time"
                 }
               }
             }
@@ -2557,7 +2608,9 @@
             "description": "Reason why no suggestions were returned (if applicable)"
           }
         },
-        "required": []
+        "required": [
+          "meeting_time_suggestions"
+        ]
       }
     },
     "get_schedule": {
@@ -2569,6 +2622,7 @@
           "schedules": {
             "type": "array",
             "description": "List of email addresses (users or rooms) to retrieve availability for",
+            "minItems": 1,
             "items": {
               "type": "string"
             }
@@ -2584,7 +2638,9 @@
           "availability_view_interval": {
             "type": "integer",
             "description": "Time slot duration in minutes for the availability view string (default: 30, range: 5-1440)",
-            "default": 30
+            "default": 30,
+            "minimum": 5,
+            "maximum": 1440
           }
         },
         "required": [
@@ -2676,7 +2732,9 @@
             }
           }
         },
-        "required": []
+        "required": [
+          "schedules"
+        ]
       }
     },
     "list_rooms": {
@@ -2702,6 +2760,7 @@
           "limit": {
             "type": "integer",
             "description": "Maximum number of rooms to return (default: 100)",
+            "minimum": 1,
             "default": 100
           }
         }
@@ -2771,7 +2830,10 @@
             "description": "Total number of rooms/lists returned"
           }
         },
-        "required": []
+        "required": [
+          "rooms",
+          "total_count"
+        ]
       }
     },
     "check_room_availability": {
@@ -2783,6 +2845,7 @@
           "room_emails": {
             "type": "array",
             "description": "List of room email addresses to check availability for (get these from list_rooms action)",
+            "minItems": 1,
             "items": {
               "type": "string"
             }
@@ -2866,7 +2929,11 @@
             }
           }
         },
-        "required": []
+        "required": [
+          "rooms",
+          "available_rooms",
+          "unavailable_rooms"
+        ]
       }
     }
   },
