@@ -22,10 +22,14 @@ google_looker = _mod.google_looker
 
 pytestmark = pytest.mark.unit
 
+TEST_CLIENT_ID = "test_client_id"
+TEST_CLIENT_SECRET = "test_client_secret"  # nosec B105
+TEST_ACCESS_TOKEN = "mock_token_123"  # nosec B105
+
 AUTH_RESPONSE = FetchResponse(
     status=200,
     headers={},
-    data={"access_token": "mock_token_123", "expires_in": 3600},  # nosec B105
+    data={"access_token": TEST_ACCESS_TOKEN, "expires_in": 3600},
 )
 
 
@@ -37,8 +41,8 @@ def mock_context():
         "auth_type": "Custom",
         "credentials": {
             "base_url": "https://test-looker.looker.com",
-            "client_id": "test_client_id",
-            "client_secret": "test_client_secret",  # nosec B105
+            "client_id": TEST_CLIENT_ID,
+            "client_secret": TEST_CLIENT_SECRET,
         },
     }
     return context
@@ -66,7 +70,7 @@ class TestAuthentication:
         assert login_call.args[0] == "https://test-looker.looker.com/api/4.0/login"
         assert login_call.kwargs == {
             "method": "POST",
-            "data": {"client_id": "test_client_id", "client_secret": "test_client_secret"},
+            "data": {"client_id": TEST_CLIENT_ID, "client_secret": TEST_CLIENT_SECRET},
             "headers": {"Content-Type": "application/x-www-form-urlencoded"},
         }
         assert api_call.kwargs["headers"] == {"Authorization": "token mock_token_123"}
@@ -103,8 +107,8 @@ class TestAuthentication:
         "auth_data, message",
         [
             ({"expires_in": 3600}, "valid access_token"),
-            ({"access_token": "token", "expires_in": "never"}, "invalid expires_in"),
-            ({"access_token": "token", "expires_in": 0}, "invalid expires_in"),
+            ({"access_token": TEST_ACCESS_TOKEN, "expires_in": "never"}, "invalid expires_in"),
+            ({"access_token": TEST_ACCESS_TOKEN, "expires_in": 0}, "invalid expires_in"),
         ],
     )
     async def test_rejects_invalid_login_responses(self, mock_context, auth_data, message):

@@ -248,12 +248,18 @@ class ListModels(ActionHandler):
             params = {}
             if inputs.get("fields") is not None:
                 params["fields"] = inputs.get("fields")
-            for name in ("limit", "offset"):
-                if inputs.get(name) is not None:
-                    params[name] = inputs[name]
-            for name in ("exclude_empty", "exclude_hidden", "include_internal", "include_self_service"):
-                if inputs.get(name) is not None:
-                    params[name] = _boolean_param(inputs[name])
+            if inputs.get("limit") is not None:
+                params["limit"] = inputs["limit"]
+            if inputs.get("offset") is not None:
+                params["offset"] = inputs["offset"]
+            if inputs.get("exclude_empty") is not None:
+                params["exclude_empty"] = _boolean_param(inputs["exclude_empty"])
+            if inputs.get("exclude_hidden") is not None:
+                params["exclude_hidden"] = _boolean_param(inputs["exclude_hidden"])
+            if inputs.get("include_internal") is not None:
+                params["include_internal"] = _boolean_param(inputs["include_internal"])
+            if inputs.get("include_self_service") is not None:
+                params["include_self_service"] = _boolean_param(inputs["include_self_service"])
 
             models = _require_list(
                 await helper.make_request("GET", "/lookml_models", params=params),
