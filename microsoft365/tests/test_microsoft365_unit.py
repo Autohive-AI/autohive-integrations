@@ -10,12 +10,52 @@ import pytest
 from unittest.mock import AsyncMock, patch
 from autohive_integrations_sdk import FetchResponse, ResultType
 from microsoft365.microsoft365 import microsoft365
+from microsoft365.tests.test_microsoft365_integration import TEST_RUN_ID, _delete_test_messages
 
 pytestmark = pytest.mark.unit
 
 
 def make_fetch(data):
     return AsyncMock(return_value=FetchResponse(status=200, headers={}, data=data))
+
+
+# ---- live-test cleanup helpers ----
+
+
+@pytest.mark.asyncio
+async def test_delete_test_messages_filters_paginates_and_deletes(mock_context):
+    next_link = "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$skiptoken=next"
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "value": [{"id": "m1", "subject": f"[Autohive Integration Test {TEST_RUN_ID}] One"}],
+                    "@odata.nextLink": next_link,
+                },
+            ),
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"value": [{"id": "m2", "subject": f"RE: [Autohive Integration Test {TEST_RUN_ID}] Two"}]},
+            ),
+            FetchResponse(status=204, headers={}, data=None),
+            FetchResponse(status=204, headers={}, data=None),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+        ]
+    )
+
+    deleted = await _delete_test_messages(mock_context, retry_attempts=1, retry_delay=0)
+
+    assert deleted == 2
+    assert mock_context.fetch.await_args_list[0].kwargs["params"]["$search"] == f'"subject:{TEST_RUN_ID}"'
+    assert mock_context.fetch.await_args_list[1].args[0] == next_link
+    assert mock_context.fetch.await_args_list[1].kwargs["params"] is None
+    assert mock_context.fetch.await_args_list[2].kwargs["method"] == "DELETE"
+    assert mock_context.fetch.await_args_list[3].kwargs["method"] == "DELETE"
 
 
 # ---- send_email ----

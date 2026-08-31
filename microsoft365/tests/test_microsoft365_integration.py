@@ -12,13 +12,15 @@ import base64
 import os
 import sys
 import time
+from unittest.mock import AsyncMock, MagicMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 import aiohttp
 import pytest
-from autohive_integrations_sdk import FetchResponse, ResultType
-from microsoft365.microsoft365 import microsoft365
+import pytest_asyncio
+from autohive_integrations_sdk import ExecutionContext, FetchResponse, ResultType
+from microsoft365.microsoft365 import _validate_graph_next_link, microsoft365
 
 pytestmark = pytest.mark.integration
 
@@ -61,29 +63,56 @@ async def _wait_for_inbox_message(context, subject: str):
     return None
 
 
-async def _delete_test_messages(context):
+async def _delete_test_messages(context, *, retry_attempts: int = 15, retry_delay: float = 1.0):
+    """Delete this run's mail, retrying to catch asynchronously delivered messages."""
     deleted = 0
-    for folder_id in ("inbox", "sentitems", "drafts", "deleteditems"):
-        response = await context.fetch(
-            f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages",
-            params={"$top": 100, "$select": "id,subject"},
-        )
-        if response.status != 200 or not isinstance(response.data, dict):
-            continue
-        for message in response.data.get("value", []):
-            if TEST_RUN_ID not in (message.get("subject") or ""):
-                continue
-            delete_response = await context.fetch(
-                f"https://graph.microsoft.com/v1.0/me/messages/{message['id']}",
-                method="DELETE",
-            )
-            if delete_response.status in (200, 204):
-                deleted += 1
+    quiet_attempts = 0
+
+    for attempt in range(retry_attempts):
+        found_this_attempt = 0
+        for folder_id in ("inbox", "sentitems", "drafts", "deleteditems"):
+            next_url = f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages"
+            params = {
+                "$search": f'"subject:{TEST_RUN_ID}"',
+                "$top": 100,
+                "$select": "id,subject",
+            }
+            message_ids = []
+
+            while next_url:
+                response = await context.fetch(next_url, params=params)
+                params = None
+                if response.status != 200 or not isinstance(response.data, dict):
+                    raise AssertionError(f"Mail cleanup query failed for {folder_id}: HTTP {response.status}")
+
+                for message in response.data.get("value", []):
+                    if isinstance(message, dict) and TEST_RUN_ID in (message.get("subject") or ""):
+                        message_ids.append(message["id"])
+
+                next_url = _validate_graph_next_link(response.data.get("@odata.nextLink"))
+
+            for message_id in message_ids:
+                delete_response = await context.fetch(
+                    f"https://graph.microsoft.com/v1.0/me/messages/{message_id}",
+                    method="DELETE",
+                )
+                if delete_response.status in (200, 204, 404):
+                    found_this_attempt += 1
+                    deleted += 1
+                else:
+                    raise AssertionError(f"Mail cleanup delete failed with HTTP {delete_response.status}")
+
+        quiet_attempts = quiet_attempts + 1 if found_this_attempt == 0 else 0
+        if quiet_attempts >= 2 and attempt >= 4:
+            break
+        if attempt + 1 < retry_attempts:
+            await asyncio.sleep(retry_delay)
+
     return deleted
 
 
-@pytest.fixture
-def live_context(make_context):
+@pytest.fixture(scope="module")
+def live_context():
     async def real_fetch(url, *, method="GET", params=None, headers=None, json=None, body=None, **kwargs):
         # SDK may pass binary upload data as `data` kwarg rather than `body`
         payload = kwargs.get("data", body)
@@ -102,9 +131,19 @@ def live_context(make_context):
                     data = await resp.read()
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
-    ctx = make_context(auth={"auth_type": "PlatformOauth2", "credentials": {"access_token": CRED}})
+    ctx = MagicMock(spec=ExecutionContext)
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": CRED}}
+    ctx.fetch = AsyncMock()
     ctx.fetch.side_effect = real_fetch
     return ctx
+
+
+@pytest_asyncio.fixture(scope="module", loop_scope="module", autouse=True)
+async def cleanup_generated_mail(live_context):
+    """Always clean this run's generated mail, including after test failures."""
+    yield
+    if CRED and TEST_MAILBOX:
+        await _delete_test_messages(live_context)
 
 
 # ============================================================
@@ -330,14 +369,6 @@ async def test_move_email_live(live_context):
     )
     assert back.type != ResultType.ACTION_ERROR, f"Move-back cleanup failed: {back.result.message}"
     _state["test_email_id"] = back.result.data["id"]
-
-
-@skip_if_no_creds
-@pytest.mark.destructive
-@pytest.mark.asyncio
-async def test_cleanup_test_emails_live(live_context):
-    deleted = await _delete_test_messages(live_context)
-    assert deleted > 0, "no integration test messages were found for cleanup"
 
 
 # ============================================================
