@@ -50,7 +50,7 @@ def fulfillment_orders_response():
 def test_build_fulfillment_order_payload_fulfills_all_items_at_location():
     payload = build_fulfillment_order_payload(fulfillment_orders_response(), "300", [])
 
-    assert payload == [{"fulfillment_order_id": 900}]
+    assert payload == [{"fulfillmentOrderId": "gid://shopify/FulfillmentOrder/900"}]
 
 
 def test_build_fulfillment_order_payload_maps_order_line_item_ids():
@@ -62,8 +62,8 @@ def test_build_fulfillment_order_payload_maps_order_line_item_ids():
 
     assert payload == [
         {
-            "fulfillment_order_id": 900,
-            "fulfillment_order_line_items": [{"id": 901, "quantity": 1}],
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/900",
+            "fulfillmentOrderLineItems": [{"id": "gid://shopify/FulfillmentOrderLineItem/901", "quantity": 1}],
         }
     ]
 
@@ -77,11 +77,55 @@ def test_build_fulfillment_order_payload_rejects_unmatched_items():
         )
 
 
-async def test_create_fulfillment_uses_2026_07_fulfillment_order_endpoint(fulfillment_context):
+async def test_create_fulfillment_uses_graphql_fulfillment_order_workflow(fulfillment_context):
     fulfillment_context.fetch.side_effect = [
         FetchResponse(status=200, headers={}, data={"access_token": "test-access-token"}),  # nosec B105
-        FetchResponse(status=200, headers={}, data={"fulfillment_orders": fulfillment_orders_response()}),
-        FetchResponse(status=201, headers={}, data={"fulfillment": {"id": 1000, "status": "success"}}),
+        FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "data": {
+                    "order": {
+                        "fulfillmentOrders": {
+                            "nodes": [
+                                {
+                                    "id": "gid://shopify/FulfillmentOrder/900",
+                                    "assignedLocation": {"location": {"id": "gid://shopify/Location/300"}},
+                                    "supportedActions": [{"action": "CREATE_FULFILLMENT"}],
+                                    "lineItems": {
+                                        "nodes": [
+                                            {
+                                                "id": "gid://shopify/FulfillmentOrderLineItem/901",
+                                                "lineItem": {"id": "gid://shopify/LineItem/101"},
+                                                "totalQuantity": 2,
+                                                "remainingQuantity": 2,
+                                            }
+                                        ]
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+        ),
+        FetchResponse(status=200, headers={}, data={"access_token": "test-access-token"}),  # nosec B105
+        FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "data": {
+                    "fulfillmentCreate": {
+                        "fulfillment": {
+                            "id": "gid://shopify/Fulfillment/1000",
+                            "status": "SUCCESS",
+                            "trackingInfo": [],
+                        },
+                        "userErrors": [],
+                    }
+                }
+            },
+        ),
     ]
 
     result = await CreateFulfillmentHandler().execute(
@@ -98,27 +142,34 @@ async def test_create_fulfillment_uses_2026_07_fulfillment_order_endpoint(fulfil
 
     assert result.data == {
         "success": True,
-        "fulfillment": {"id": 1000, "status": "success"},
+        "fulfillment": {
+            "id": "1000",
+            "status": "success",
+            "created_at": None,
+            "updated_at": None,
+            "tracking_company": None,
+            "tracking_number": None,
+            "tracking_url": None,
+        },
     }
 
     fulfillment_orders_call = fulfillment_context.fetch.await_args_list[1]
-    assert fulfillment_orders_call.args[0] == (
-        "https://example-store.myshopify.com/admin/api/2026-07/orders/500/fulfillment_orders.json"
-    )
-    assert fulfillment_orders_call.kwargs["method"] == "GET"
+    assert fulfillment_orders_call.args[0] == ("https://example-store.myshopify.com/admin/api/2026-07/graphql.json")
+    assert fulfillment_orders_call.kwargs["method"] == "POST"
+    assert fulfillment_orders_call.kwargs["json"]["variables"] == {"id": "gid://shopify/Order/500"}
 
-    create_call = fulfillment_context.fetch.await_args_list[2]
-    assert create_call.args[0] == "https://example-store.myshopify.com/admin/api/2026-07/fulfillments.json"
-    assert create_call.kwargs["json"] == {
+    create_call = fulfillment_context.fetch.await_args_list[3]
+    assert create_call.args[0] == "https://example-store.myshopify.com/admin/api/2026-07/graphql.json"
+    assert create_call.kwargs["json"]["variables"] == {
         "fulfillment": {
-            "line_items_by_fulfillment_order": [
+            "lineItemsByFulfillmentOrder": [
                 {
-                    "fulfillment_order_id": 900,
-                    "fulfillment_order_line_items": [{"id": 901, "quantity": 1}],
+                    "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/900",
+                    "fulfillmentOrderLineItems": [{"id": "gid://shopify/FulfillmentOrderLineItem/901", "quantity": 1}],
                 }
             ],
-            "notify_customer": True,
-            "tracking_info": {"number": "TRACK-123", "company": "UPS"},
+            "notifyCustomer": True,
+            "trackingInfo": {"number": "TRACK-123", "company": "UPS"},
         }
     }
 

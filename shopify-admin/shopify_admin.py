@@ -2,7 +2,7 @@
 Shopify Admin API Integration
 =============================
 
-Provides access to Shopify's Admin API for store management operations.
+Provides access to Shopify's GraphQL Admin API for store management operations.
 
 Supported Operations:
 - Customers: list, get, search, create, update
@@ -21,7 +21,6 @@ Authentication:
 
 Rate Limits:
 - GraphQL: 100 points/second (1,000 capacity)
-- REST: 40 requests/minute
 
 API Version: 2026-07
 """
@@ -34,6 +33,7 @@ from autohive_integrations_sdk import (
     ActionResult,
 )
 import re
+from uuid import uuid4
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -84,12 +84,6 @@ def get_shop_url(context: ExecutionContext) -> str:
     return shop_url
 
 
-def get_api_url(context: ExecutionContext, endpoint: str = "") -> str:
-    """Build Shopify Admin API URL."""
-    shop_url = get_shop_url(context)
-    return f"https://{shop_url}/admin/api/{API_VERSION}{endpoint}"
-
-
 async def get_access_token(context: ExecutionContext) -> str:
     """Exchange the merchant's app credentials for a short-lived access token."""
     credentials = get_credentials(context)
@@ -120,15 +114,6 @@ async def build_headers(context: ExecutionContext) -> Dict[str, str]:
     """Build Shopify API headers using a freshly acquired access token."""
     access_token = await get_access_token(context)
     return {"X-Shopify-Access-Token": access_token, "Content-Type": "application/json"}
-
-
-def build_query_params(inputs: Dict[str, Any], allowed_params: list) -> Dict[str, Any]:
-    """Build query parameters from inputs, filtering only allowed params."""
-    params = {}
-    for param in allowed_params:
-        if param in inputs and inputs[param] is not None and inputs[param] != "":
-            params[param] = inputs[param]
-    return params
 
 
 def success_response(**kwargs) -> ActionResult:
@@ -179,6 +164,8 @@ async def execute_graphql(context: ExecutionContext, query: str, variables: dict
     response_data = response.data
 
     # Check for GraphQL errors
+    if not isinstance(response_data, dict):
+        raise Exception("Shopify returned an invalid GraphQL response")
     if "errors" in response_data:
         error_messages = [e.get("message", str(e)) for e in response_data["errors"]]
         raise Exception(f"GraphQL Error: {'; '.join(error_messages)}")
@@ -379,11 +366,190 @@ def format_graphql_user_errors(operation: str, user_errors: list) -> str:
     return f"{operation} failed: {'; '.join(messages)}"
 
 
+def raise_for_user_errors(operation: str, payload: dict, key: str = "userErrors") -> None:
+    """Raise one consistent exception for mutation-level Shopify errors."""
+    user_errors = payload.get(key) or []
+    if user_errors:
+        raise Exception(format_graphql_user_errors(operation, user_errors))
+
+
+def connection_nodes(connection: dict) -> list:
+    """Return nodes from either GraphQL connection representation."""
+    if isinstance(connection, list):
+        return connection
+    if not isinstance(connection, dict):
+        return []
+    nodes = connection.get("nodes")
+    if isinstance(nodes, list):
+        return nodes
+    return [edge.get("node", {}) for edge in connection.get("edges", []) if isinstance(edge, dict)]
+
+
+def comma_list(value: Any) -> list:
+    """Normalize comma-delimited or list inputs to a clean string list."""
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return [item.strip() for item in str(value or "").split(",") if item.strip()]
+
+
+def clamp_limit(value: Any, default: int = 50, maximum: int = 250) -> int:
+    """Normalize Shopify connection page sizes."""
+    return max(1, min(int(value or default), maximum))
+
+
+def graphql_address(address: dict) -> dict:
+    """Convert REST-style address keys to MailingAddressInput keys."""
+    if not isinstance(address, dict):
+        return {}
+    mapping = {
+        "first_name": "firstName",
+        "last_name": "lastName",
+        "country_code": "countryCode",
+        "province_code": "provinceCode",
+    }
+    allowed = {
+        "address1",
+        "address2",
+        "city",
+        "company",
+        "country",
+        "countryCode",
+        "firstName",
+        "lastName",
+        "phone",
+        "province",
+        "provinceCode",
+        "zip",
+    }
+    normalized = {mapping.get(key, key): value for key, value in address.items() if value is not None}
+    return {key: value for key, value in normalized.items() if key in allowed}
+
+
+def transform_address(address: dict) -> dict:
+    """Convert a GraphQL address to the established REST-style response."""
+    if not address:
+        return {}
+    return {
+        "id": from_gid(address.get("id", "")),
+        "first_name": address.get("firstName"),
+        "last_name": address.get("lastName"),
+        "company": address.get("company"),
+        "address1": address.get("address1"),
+        "address2": address.get("address2"),
+        "city": address.get("city"),
+        "province": address.get("province"),
+        "province_code": address.get("provinceCode"),
+        "country": address.get("country"),
+        "country_code": address.get("countryCodeV2"),
+        "zip": address.get("zip"),
+        "phone": address.get("phone"),
+    }
+
+
+def transform_customer_response(customer: dict) -> dict:
+    """Convert a GraphQL customer to the established response shape."""
+    if not customer:
+        return {}
+    addresses = [transform_address(address) for address in connection_nodes(customer.get("addressesV2", {}))]
+    default_email = customer.get("defaultEmailAddress") or {}
+    default_phone = customer.get("defaultPhoneNumber") or {}
+    return {
+        "id": from_gid(customer.get("id", "")),
+        "email": default_email.get("emailAddress"),
+        "first_name": customer.get("firstName"),
+        "last_name": customer.get("lastName"),
+        "phone": default_phone.get("phoneNumber"),
+        "verified_email": customer.get("verifiedEmail"),
+        "note": customer.get("note"),
+        "tags": ", ".join(customer.get("tags") or []),
+        "tax_exempt": customer.get("taxExempt"),
+        "created_at": customer.get("createdAt"),
+        "updated_at": customer.get("updatedAt"),
+        "default_address": transform_address(customer.get("defaultAddress") or {}),
+        "addresses": addresses,
+    }
+
+
+def money_amount(money_set: dict) -> str | None:
+    """Extract the shop-currency amount from a MoneyBag."""
+    return ((money_set or {}).get("shopMoney") or {}).get("amount")
+
+
+def transform_order_response(order: dict) -> dict:
+    """Convert a GraphQL order to a REST-compatible response."""
+    if not order:
+        return {}
+    line_items = []
+    for item in connection_nodes(order.get("lineItems", {})):
+        variant = item.get("variant") or {}
+        line_items.append(
+            {
+                "id": from_gid(item.get("id", "")),
+                "variant_id": from_gid(variant.get("id", "")),
+                "title": item.get("title"),
+                "quantity": item.get("quantity"),
+                "sku": item.get("sku"),
+                "price": money_amount(item.get("originalUnitPriceSet")),
+            }
+        )
+    return {
+        "id": from_gid(order.get("id", "")),
+        "name": order.get("name"),
+        "email": order.get("email"),
+        "created_at": order.get("createdAt"),
+        "updated_at": order.get("updatedAt"),
+        "cancelled_at": order.get("cancelledAt"),
+        "financial_status": (order.get("displayFinancialStatus") or "").lower(),
+        "fulfillment_status": (order.get("displayFulfillmentStatus") or "").lower(),
+        "note": order.get("note"),
+        "tags": ", ".join(order.get("tags") or []),
+        "total_price": money_amount(order.get("totalPriceSet")),
+        "currency": ((order.get("totalPriceSet") or {}).get("shopMoney") or {}).get("currencyCode"),
+        "shipping_address": transform_address(order.get("shippingAddress") or {}),
+        "billing_address": transform_address(order.get("billingAddress") or {}),
+        "line_items": line_items,
+    }
+
+
+def transform_location_response(location: dict) -> dict:
+    """Convert a GraphQL location to a REST-compatible response."""
+    if not location:
+        return {}
+    address = location.get("address") or {}
+    return {
+        "id": from_gid(location.get("id", "")),
+        "name": location.get("name"),
+        "active": location.get("isActive"),
+        "fulfills_online_orders": location.get("fulfillsOnlineOrders"),
+        "address1": address.get("address1"),
+        "address2": address.get("address2"),
+        "city": address.get("city"),
+        "province": address.get("province"),
+        "province_code": address.get("provinceCode"),
+        "country": address.get("country"),
+        "country_code": address.get("countryCode"),
+        "zip": address.get("zip"),
+        "phone": address.get("phone"),
+    }
+
+
+def transform_inventory_level_response(level: dict) -> dict:
+    """Convert a GraphQL inventory level to a REST-compatible response."""
+    quantities = {entry.get("name"): entry.get("quantity") for entry in level.get("quantities", [])}
+    return {
+        "id": from_gid(level.get("id", "")),
+        "inventory_item_id": from_gid((level.get("item") or {}).get("id", "")),
+        "location_id": from_gid((level.get("location") or {}).get("id", "")),
+        "available": quantities.get("available"),
+        "updated_at": level.get("updatedAt"),
+    }
+
+
 def build_fulfillment_order_payload(fulfillment_orders: list, location_id: str, requested_line_items: list) -> list:
     """Map order line items to Shopify's fulfillment-order based request shape."""
     eligible_orders = []
     for fulfillment_order in fulfillment_orders:
-        supported_actions = fulfillment_order.get("supported_actions") or []
+        supported_actions = [str(action).lower() for action in fulfillment_order.get("supported_actions", [])]
         if str(fulfillment_order.get("assigned_location_id")) != str(location_id):
             continue
         if supported_actions and "create_fulfillment" not in supported_actions:
@@ -394,7 +560,10 @@ def build_fulfillment_order_payload(fulfillment_orders: list, location_id: str, 
         raise ValueError(f"No fulfillable fulfillment orders were found at location {location_id}")
 
     if not requested_line_items:
-        return [{"fulfillment_order_id": fulfillment_order["id"]} for fulfillment_order in eligible_orders]
+        return [
+            {"fulfillmentOrderId": to_gid("FulfillmentOrder", fulfillment_order["id"])}
+            for fulfillment_order in eligible_orders
+        ]
 
     requested_by_id = {}
     for line_item in requested_line_items:
@@ -420,7 +589,7 @@ def build_fulfillment_order_payload(fulfillment_orders: list, location_id: str, 
                 quantity = fulfillment_order_line_item.get("quantity")
             fulfillment_order_line_items.append(
                 {
-                    "id": fulfillment_order_line_item["id"],
+                    "id": to_gid("FulfillmentOrderLineItem", fulfillment_order_line_item["id"]),
                     "quantity": quantity,
                 }
             )
@@ -429,8 +598,8 @@ def build_fulfillment_order_payload(fulfillment_orders: list, location_id: str, 
         if fulfillment_order_line_items:
             line_items_by_fulfillment_order.append(
                 {
-                    "fulfillment_order_id": fulfillment_order["id"],
-                    "fulfillment_order_line_items": fulfillment_order_line_items,
+                    "fulfillmentOrderId": to_gid("FulfillmentOrder", fulfillment_order["id"]),
+                    "fulfillmentOrderLineItems": fulfillment_order_line_items,
                 }
             )
 
@@ -672,6 +841,315 @@ mutation ProductVariantsBulkUpdate($productId: ID!, $variants: [ProductVariantsB
 }
 """
 
+CUSTOMER_FIELDS = """
+  id firstName lastName note tags taxExempt createdAt updatedAt verifiedEmail
+  defaultEmailAddress { emailAddress }
+  defaultPhoneNumber { phoneNumber }
+  defaultAddress {
+    id firstName lastName company address1 address2 city province provinceCode
+    country countryCodeV2 zip phone
+  }
+  addressesV2(first: 10) {
+    nodes {
+      id firstName lastName company address1 address2 city province provinceCode
+      country countryCodeV2 zip phone
+    }
+  }
+"""
+CUSTOMERS_QUERY = f"""
+query Customers($first: Int!, $query: String) {{
+  customers(first: $first, query: $query, sortKey: ID) {{ nodes {{ {CUSTOMER_FIELDS} }} }}
+}}
+"""
+CUSTOMER_QUERY = f"query Customer($id: ID!) {{ customer(id: $id) {{ {CUSTOMER_FIELDS} }} }}"
+CUSTOMER_CREATE_MUTATION = f"""
+mutation CustomerCreate($input: CustomerInput!) {{
+  customerCreate(input: $input) {{ customer {{ {CUSTOMER_FIELDS} }} userErrors {{ field message }} }}
+}}
+"""
+CUSTOMER_UPDATE_MUTATION = f"""
+mutation CustomerUpdate($input: CustomerInput!) {{
+  customerUpdate(input: $input) {{ customer {{ {CUSTOMER_FIELDS} }} userErrors {{ field message }} }}
+}}
+"""
+CUSTOMER_INVITE_MUTATION = """
+mutation CustomerInvite($customerId: ID!) {
+  customerSendAccountInviteEmail(customerId: $customerId) {
+    customer { id }
+    userErrors { field message }
+  }
+}
+"""
+
+ORDER_FIELDS = """
+  id name email createdAt updatedAt cancelledAt displayFinancialStatus displayFulfillmentStatus note tags
+  totalPriceSet { shopMoney { amount currencyCode } }
+  shippingAddress {
+    id firstName lastName company address1 address2 city province provinceCode
+    country countryCodeV2 zip phone
+  }
+  billingAddress {
+    id firstName lastName company address1 address2 city province provinceCode
+    country countryCodeV2 zip phone
+  }
+  lineItems(first: 100) {
+    nodes { id title quantity sku originalUnitPriceSet { shopMoney { amount currencyCode } } variant { id } }
+  }
+"""
+ORDERS_QUERY = f"""
+query Orders($first: Int!, $query: String) {{
+  orders(first: $first, query: $query, sortKey: ID) {{ nodes {{ {ORDER_FIELDS} }} }}
+}}
+"""
+ORDER_QUERY = f"query Order($id: ID!) {{ order(id: $id) {{ {ORDER_FIELDS} }} }}"
+ORDER_CREATE_MUTATION = f"""
+mutation OrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {{
+  orderCreate(order: $order, options: $options) {{ order {{ {ORDER_FIELDS} }} userErrors {{ field message }} }}
+}}
+"""
+ORDER_CANCEL_MUTATION = """
+mutation OrderCancel(
+  $orderId: ID!, $notifyCustomer: Boolean, $refundMethod: OrderCancelRefundMethodInput!,
+  $restock: Boolean!, $reason: OrderCancelReason!
+) {
+  orderCancel(
+    orderId: $orderId, notifyCustomer: $notifyCustomer, refundMethod: $refundMethod,
+    restock: $restock, reason: $reason
+  ) {
+    job { id done }
+    orderCancelUserErrors { field message code }
+  }
+}
+"""
+
+INVENTORY_ITEMS_QUERY = """
+query InventoryItems($ids: [ID!]!, $first: Int!) {
+  nodes(ids: $ids) {
+    ... on InventoryItem {
+      id
+      inventoryLevels(first: $first) {
+        nodes { id updatedAt item { id } location { id } quantities(names: ["available"]) { name quantity } }
+      }
+    }
+  }
+}
+"""
+LOCATION_INVENTORY_QUERY = """
+query LocationInventory($ids: [ID!]!, $first: Int!) {
+  nodes(ids: $ids) {
+    ... on Location {
+      id
+      inventoryLevels(first: $first) {
+        nodes { id updatedAt item { id } location { id } quantities(names: ["available"]) { name quantity } }
+      }
+    }
+  }
+}
+"""
+INVENTORY_SET_MUTATION = """
+mutation InventorySet($input: InventorySetQuantitiesInput!, $idempotencyKey: String!) {
+  inventorySetQuantities(input: $input) @idempotent(key: $idempotencyKey) {
+    inventoryAdjustmentGroup { changes { name quantityAfterChange } }
+    userErrors { field message code }
+  }
+}
+"""
+
+LOCATION_FIELDS = """
+  id name isActive fulfillsOnlineOrders
+  address { address1 address2 city province provinceCode country countryCode zip phone }
+"""
+LOCATIONS_QUERY = f"""
+query Locations($after: String) {{
+  locations(first: 250, after: $after) {{
+    nodes {{ {LOCATION_FIELDS} }}
+    pageInfo {{ hasNextPage endCursor }}
+  }}
+}}
+"""
+LOCATION_QUERY = f"query Location($id: ID!) {{ location(id: $id) {{ {LOCATION_FIELDS} }} }}"
+SHOP_QUERY = """
+query Shop {
+  shop {
+    id name email myshopifyDomain currencyCode ianaTimezone
+    primaryDomain { host url }
+    shopAddress { address1 address2 city province provinceCode country countryCodeV2 zip phone }
+  }
+}
+"""
+SHOP_CURRENCY_QUERY = "query ShopCurrency { shop { currencyCode } }"
+
+DRAFT_ORDER_FIELDS = """
+  id name email status invoiceUrl note2 tags createdAt updatedAt completedAt
+  customer { id }
+  order { id }
+  shippingAddress {
+    id firstName lastName company address1 address2 city province provinceCode
+    country countryCodeV2 zip phone
+  }
+  billingAddress {
+    id firstName lastName company address1 address2 city province provinceCode
+    country countryCodeV2 zip phone
+  }
+  lineItems(first: 100) {
+    nodes { id title quantity sku originalUnitPriceSet { shopMoney { amount currencyCode } } variant { id } }
+  }
+"""
+DRAFT_ORDERS_QUERY = f"""
+query DraftOrders($first: Int!, $query: String) {{
+  draftOrders(first: $first, query: $query, sortKey: ID) {{ nodes {{ {DRAFT_ORDER_FIELDS} }} }}
+}}
+"""
+DRAFT_CREATE_MUTATION = f"""
+mutation DraftCreate($input: DraftOrderInput!) {{
+  draftOrderCreate(input: $input) {{ draftOrder {{ {DRAFT_ORDER_FIELDS} }} userErrors {{ field message }} }}
+}}
+"""
+DRAFT_COMPLETE_MUTATION = f"""
+mutation DraftComplete($id: ID!, $paymentPending: Boolean) {{
+  draftOrderComplete(id: $id, paymentPending: $paymentPending) {{
+    draftOrder {{ {DRAFT_ORDER_FIELDS} }} userErrors {{ field message }}
+  }}
+}}
+"""
+DRAFT_DELETE_MUTATION = """
+mutation DraftDelete($input: DraftOrderDeleteInput!) {
+  draftOrderDelete(input: $input) { deletedId userErrors { field message } }
+}
+"""
+
+FULFILLMENT_FIELDS = """
+  id status createdAt updatedAt
+  trackingInfo { company number url }
+"""
+ORDER_FULFILLMENTS_QUERY = f"""
+query OrderFulfillments($id: ID!) {{
+  order(id: $id) {{ fulfillments(first: 250) {{ {FULFILLMENT_FIELDS} }} }}
+}}
+"""
+FULFILLMENT_ORDERS_QUERY = """
+query FulfillmentOrders($id: ID!) {
+  order(id: $id) {
+    fulfillmentOrders(first: 250) {
+      nodes {
+        id supportedActions { action }
+        assignedLocation { location { id } }
+        lineItems(first: 250) { nodes { id totalQuantity remainingQuantity lineItem { id } } }
+      }
+    }
+  }
+}
+"""
+FULFILLMENT_CREATE_MUTATION = f"""
+mutation FulfillmentCreate($fulfillment: FulfillmentInput!) {{
+  fulfillmentCreate(fulfillment: $fulfillment) {{
+    fulfillment {{ {FULFILLMENT_FIELDS} }}
+    userErrors {{ field message }}
+  }}
+}}
+"""
+FULFILLMENT_TRACKING_MUTATION = f"""
+mutation FulfillmentTracking($id: ID!, $input: FulfillmentTrackingInput!, $notify: Boolean) {{
+  fulfillmentTrackingInfoUpdate(fulfillmentId: $id, trackingInfoInput: $input, notifyCustomer: $notify) {{
+    fulfillment {{ {FULFILLMENT_FIELDS} }} userErrors {{ field message }}
+  }}
+}}
+"""
+
+
+def transform_draft_order_response(draft: dict) -> dict:
+    """Convert a GraphQL draft order to a REST-compatible response."""
+    if not draft:
+        return {}
+    line_items = []
+    for item in connection_nodes(draft.get("lineItems", {})):
+        line_items.append(
+            {
+                "id": from_gid(item.get("id", "")),
+                "variant_id": from_gid((item.get("variant") or {}).get("id", "")),
+                "title": item.get("title"),
+                "quantity": item.get("quantity"),
+                "sku": item.get("sku"),
+                "price": money_amount(item.get("originalUnitPriceSet")),
+            }
+        )
+    return {
+        "id": from_gid(draft.get("id", "")),
+        "name": draft.get("name"),
+        "email": draft.get("email"),
+        "status": (draft.get("status") or "").lower(),
+        "invoice_url": draft.get("invoiceUrl"),
+        "note": draft.get("note2"),
+        "tags": ", ".join(draft.get("tags") or []),
+        "created_at": draft.get("createdAt"),
+        "updated_at": draft.get("updatedAt"),
+        "completed_at": draft.get("completedAt"),
+        "customer": {"id": from_gid((draft.get("customer") or {}).get("id", ""))},
+        "order_id": from_gid((draft.get("order") or {}).get("id", "")),
+        "shipping_address": transform_address(draft.get("shippingAddress") or {}),
+        "billing_address": transform_address(draft.get("billingAddress") or {}),
+        "line_items": line_items,
+    }
+
+
+def transform_fulfillment_response(fulfillment: dict) -> dict:
+    """Convert a GraphQL fulfillment to a REST-compatible response."""
+    if not fulfillment:
+        return {}
+    tracking = (fulfillment.get("trackingInfo") or [{}])[0] or {}
+    return {
+        "id": from_gid(fulfillment.get("id", "")),
+        "status": (fulfillment.get("status") or "").lower(),
+        "created_at": fulfillment.get("createdAt"),
+        "updated_at": fulfillment.get("updatedAt"),
+        "tracking_company": tracking.get("company"),
+        "tracking_number": tracking.get("number"),
+        "tracking_url": tracking.get("url"),
+    }
+
+
+def graphql_order_line_items(line_items: list, currency_code: str | None = None) -> list:
+    """Convert existing REST-style line items to OrderCreateLineItemInput."""
+    result = []
+    for item in line_items:
+        if not isinstance(item, dict):
+            raise ValueError("Each line_items entry must be an object")
+        converted = {"quantity": int(item.get("quantity", 1))}
+        if item.get("variant_id") or item.get("variantId"):
+            converted["variantId"] = to_gid("ProductVariant", item.get("variant_id") or item["variantId"])
+        for field in ("title", "sku", "taxable", "requiresShipping"):
+            source = "requires_shipping" if field == "requiresShipping" else field
+            if item.get(source) is not None:
+                converted[field] = item[source]
+        if item.get("price") is not None:
+            if not currency_code:
+                raise ValueError("Shop currency is required for custom order line-item prices")
+            converted["priceSet"] = {"shopMoney": {"amount": item["price"], "currencyCode": currency_code}}
+        result.append(converted)
+    return result
+
+
+def graphql_draft_line_items(line_items: list, currency_code: str | None = None) -> list:
+    """Convert existing REST-style line items to DraftOrderLineItemInput."""
+    result = []
+    for item in line_items:
+        if not isinstance(item, dict):
+            raise ValueError("Each line_items entry must be an object")
+        converted = {"quantity": int(item.get("quantity", 1))}
+        if item.get("variant_id") or item.get("variantId"):
+            converted["variantId"] = to_gid("ProductVariant", item.get("variant_id") or item["variantId"])
+        if item.get("title") is not None:
+            converted["title"] = item["title"]
+        if item.get("price") is not None:
+            if not currency_code:
+                raise ValueError("Shop currency is required for custom draft-order line-item prices")
+            converted["originalUnitPriceWithCurrency"] = {
+                "amount": item["price"],
+                "currencyCode": currency_code,
+            }
+        result.append(converted)
+    return result
+
 
 # ============================================================================
 # Customer Actions
@@ -684,25 +1162,23 @@ class ListCustomersHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/customers.json")
-            headers = await build_headers(context)
-
-            allowed_params = [
-                "limit",
-                "since_id",
-                "created_at_min",
-                "created_at_max",
-                "updated_at_min",
-                "updated_at_max",
-            ]
-            params = build_query_params(inputs, allowed_params)
-
-            if "limit" not in params:
-                params["limit"] = 50
-
-            response = await context.fetch(url, method="GET", params=params, headers=headers)
-
-            customers = response.data.get("customers", [])
+            filters = []
+            mappings = {
+                "since_id": ("id", ">"),
+                "created_at_min": ("created_at", ">="),
+                "created_at_max": ("created_at", "<="),
+                "updated_at_min": ("updated_at", ">="),
+                "updated_at_max": ("updated_at", "<="),
+            }
+            for input_name, (field, operator) in mappings.items():
+                if inputs.get(input_name):
+                    filters.append(f"{field}:{operator}{escape_graphql_query_value(inputs[input_name])}")
+            data = await execute_graphql(
+                context,
+                CUSTOMERS_QUERY,
+                {"first": clamp_limit(inputs.get("limit")), "query": " AND ".join(filters) or None},
+            )
+            customers = [transform_customer_response(item) for item in connection_nodes(data.get("customers", {}))]
             return success_response(customers=customers, count=len(customers))
         except Exception as e:
             return error_response(e, customers=[], count=0)
@@ -714,13 +1190,11 @@ class GetCustomerHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            customer_id = inputs["customer_id"]
-            url = get_api_url(context, f"/customers/{customer_id}.json")
-            headers = await build_headers(context)
-
-            response = await context.fetch(url, method="GET", headers=headers)
-
-            return success_response(customer=response.data.get("customer", {}))
+            data = await execute_graphql(context, CUSTOMER_QUERY, {"id": to_gid("Customer", inputs["customer_id"])})
+            customer = data.get("customer")
+            if not customer:
+                raise ValueError(f"Customer {inputs['customer_id']} was not found")
+            return success_response(customer=transform_customer_response(customer))
         except Exception as e:
             return error_response(e, customer={})
 
@@ -731,18 +1205,12 @@ class SearchCustomersHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/customers/search.json")
-            headers = await build_headers(context)
-
-            params = {"query": inputs["query"]}
-            if "limit" in inputs and inputs["limit"]:
-                params["limit"] = inputs["limit"]
-            else:
-                params["limit"] = 50
-
-            response = await context.fetch(url, method="GET", params=params, headers=headers)
-
-            customers = response.data.get("customers", [])
+            data = await execute_graphql(
+                context,
+                CUSTOMERS_QUERY,
+                {"first": clamp_limit(inputs.get("limit")), "query": inputs["query"]},
+            )
+            customers = [transform_customer_response(item) for item in connection_nodes(data.get("customers", {}))]
             return success_response(customers=customers, count=len(customers))
         except Exception as e:
             return error_response(e, customers=[], count=0)
@@ -754,33 +1222,37 @@ class CreateCustomerHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/customers.json")
-            headers = await build_headers(context)
-
-            customer_data = {}
+            if inputs.get("verified_email") is False:
+                raise ValueError(
+                    "verified_email=false is not supported by Shopify GraphQL; email verification is managed by Shopify"
+                )
+            customer_input = {}
             field_mapping = {
                 "email": "email",
-                "first_name": "first_name",
-                "last_name": "last_name",
+                "first_name": "firstName",
+                "last_name": "lastName",
                 "phone": "phone",
-                "verified_email": "verified_email",
-                "send_email_welcome": "send_email_welcome",
                 "tags": "tags",
                 "note": "note",
-                "tax_exempt": "tax_exempt",
+                "tax_exempt": "taxExempt",
             }
-
             for input_field, api_field in field_mapping.items():
                 if input_field in inputs and inputs[input_field] is not None:
-                    customer_data[api_field] = inputs[input_field]
-
-            if "address" in inputs and inputs["address"]:
-                customer_data["addresses"] = [inputs["address"]]
-
-            payload = {"customer": customer_data}
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
-
-            return success_response(customer=response.data.get("customer", {}))
+                    customer_input[api_field] = inputs[input_field]
+            if customer_input.get("tags") is not None:
+                customer_input["tags"] = comma_list(customer_input["tags"])
+            if inputs.get("address"):
+                customer_input["addresses"] = [graphql_address(inputs["address"])]
+            data = await execute_graphql(context, CUSTOMER_CREATE_MUTATION, {"input": customer_input})
+            payload = data.get("customerCreate", {})
+            raise_for_user_errors("Customer creation", payload)
+            customer = payload.get("customer") or {}
+            if inputs.get("send_email_welcome") and customer.get("id"):
+                invite_data = await execute_graphql(context, CUSTOMER_INVITE_MUTATION, {"customerId": customer["id"]})
+                raise_for_user_errors(
+                    "Customer account invitation", invite_data.get("customerSendAccountInviteEmail", {})
+                )
+            return success_response(customer=transform_customer_response(customer))
         except Exception as e:
             return error_response(e, customer={})
 
@@ -791,29 +1263,25 @@ class UpdateCustomerHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            customer_id = inputs["customer_id"]
-            url = get_api_url(context, f"/customers/{customer_id}.json")
-            headers = await build_headers(context)
-
-            customer_data = {}
+            customer_input = {"id": to_gid("Customer", inputs["customer_id"])}
             field_mapping = {
                 "email": "email",
-                "first_name": "first_name",
-                "last_name": "last_name",
+                "first_name": "firstName",
+                "last_name": "lastName",
                 "phone": "phone",
                 "tags": "tags",
                 "note": "note",
-                "tax_exempt": "tax_exempt",
+                "tax_exempt": "taxExempt",
             }
-
             for input_field, api_field in field_mapping.items():
                 if input_field in inputs and inputs[input_field] is not None:
-                    customer_data[api_field] = inputs[input_field]
-
-            payload = {"customer": customer_data}
-            response = await context.fetch(url, method="PUT", json=payload, headers=headers)
-
-            return success_response(customer=response.data.get("customer", {}))
+                    customer_input[api_field] = inputs[input_field]
+            if customer_input.get("tags") is not None:
+                customer_input["tags"] = comma_list(customer_input["tags"])
+            data = await execute_graphql(context, CUSTOMER_UPDATE_MUTATION, {"input": customer_input})
+            payload = data.get("customerUpdate", {})
+            raise_for_user_errors("Customer update", payload)
+            return success_response(customer=transform_customer_response(payload.get("customer") or {}))
         except Exception as e:
             return error_response(e, customer={})
 
@@ -829,28 +1297,25 @@ class ListOrdersHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/orders.json")
-            headers = await build_headers(context)
-
-            allowed_params = [
-                "limit",
-                "status",
-                "financial_status",
-                "fulfillment_status",
-                "since_id",
-                "created_at_min",
-                "created_at_max",
-            ]
-            params = build_query_params(inputs, allowed_params)
-
-            if "limit" not in params:
-                params["limit"] = 50
-            if "status" not in params:
-                params["status"] = "any"
-
-            response = await context.fetch(url, method="GET", params=params, headers=headers)
-
-            orders = response.data.get("orders", [])
+            filters = []
+            if inputs.get("status") and inputs["status"] != "any":
+                filters.append(f"status:{inputs['status']}")
+            if inputs.get("financial_status") and inputs["financial_status"] != "any":
+                filters.append(f"financial_status:{inputs['financial_status']}")
+            if inputs.get("fulfillment_status") and inputs["fulfillment_status"] != "any":
+                filters.append(f"fulfillment_status:{inputs['fulfillment_status']}")
+            if inputs.get("since_id"):
+                filters.append(f"id:>{escape_graphql_query_value(inputs['since_id'])}")
+            if inputs.get("created_at_min"):
+                filters.append(f"created_at:>={escape_graphql_query_value(inputs['created_at_min'])}")
+            if inputs.get("created_at_max"):
+                filters.append(f"created_at:<={escape_graphql_query_value(inputs['created_at_max'])}")
+            data = await execute_graphql(
+                context,
+                ORDERS_QUERY,
+                {"first": clamp_limit(inputs.get("limit")), "query": " AND ".join(filters) or None},
+            )
+            orders = [transform_order_response(item) for item in connection_nodes(data.get("orders", {}))]
             return success_response(orders=orders, count=len(orders))
         except Exception as e:
             return error_response(e, orders=[], count=0)
@@ -862,13 +1327,11 @@ class GetOrderHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            order_id = inputs["order_id"]
-            url = get_api_url(context, f"/orders/{order_id}.json")
-            headers = await build_headers(context)
-
-            response = await context.fetch(url, method="GET", headers=headers)
-
-            return success_response(order=response.data.get("order", {}))
+            data = await execute_graphql(context, ORDER_QUERY, {"id": to_gid("Order", inputs["order_id"])})
+            order = data.get("order")
+            if not order:
+                raise ValueError(f"Order {inputs['order_id']} was not found")
+            return success_response(order=transform_order_response(order))
         except Exception as e:
             return error_response(e, order={})
 
@@ -879,35 +1342,39 @@ class CreateOrderHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/orders.json")
-            headers = await build_headers(context)
-
-            order_data = {"line_items": inputs["line_items"]}
-
-            optional_fields = [
-                "customer_id",
-                "email",
-                "financial_status",
-                "fulfillment_status",
-                "send_receipt",
-                "send_fulfillment_receipt",
-                "note",
-                "tags",
-                "shipping_address",
-                "billing_address",
-            ]
-
-            for field in optional_fields:
-                if field in inputs and inputs[field] is not None:
-                    if field == "customer_id":
-                        order_data["customer"] = {"id": inputs[field]}
-                    else:
-                        order_data[field] = inputs[field]
-
-            payload = {"order": order_data}
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
-
-            return success_response(order=response.data.get("order", {}))
+            currency_code = None
+            if any(isinstance(item, dict) and item.get("price") is not None for item in inputs["line_items"]):
+                currency_data = await execute_graphql(context, SHOP_CURRENCY_QUERY)
+                currency_code = (currency_data.get("shop") or {}).get("currencyCode")
+            order_input = {"lineItems": graphql_order_line_items(inputs["line_items"], currency_code)}
+            if inputs.get("customer_id"):
+                order_input["customer"] = {"toAssociate": {"id": to_gid("Customer", inputs["customer_id"])}}
+            mapping = {
+                "email": "email",
+                "financial_status": "financialStatus",
+                "fulfillment_status": "fulfillmentStatus",
+                "note": "note",
+            }
+            for source, target in mapping.items():
+                if inputs.get(source) is not None:
+                    order_input[target] = (
+                        str(inputs[source]).upper()
+                        if source in {"financial_status", "fulfillment_status"}
+                        else inputs[source]
+                    )
+            if inputs.get("tags") is not None:
+                order_input["tags"] = comma_list(inputs["tags"])
+            for source, target in (("shipping_address", "shippingAddress"), ("billing_address", "billingAddress")):
+                if inputs.get(source):
+                    order_input[target] = graphql_address(inputs[source])
+            options = {
+                "sendReceipt": inputs.get("send_receipt", False),
+                "sendFulfillmentReceipt": inputs.get("send_fulfillment_receipt", False),
+            }
+            data = await execute_graphql(context, ORDER_CREATE_MUTATION, {"order": order_input, "options": options})
+            payload = data.get("orderCreate", {})
+            raise_for_user_errors("Order creation", payload)
+            return success_response(order=transform_order_response(payload.get("order") or {}))
         except Exception as e:
             return error_response(e, order={})
 
@@ -918,21 +1385,22 @@ class CancelOrderHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            order_id = inputs["order_id"]
-            url = get_api_url(context, f"/orders/{order_id}/cancel.json")
-            headers = await build_headers(context)
-
-            cancel_data = {}
-            if "reason" in inputs and inputs["reason"]:
-                cancel_data["reason"] = inputs["reason"]
-            if "email" in inputs:
-                cancel_data["email"] = inputs["email"]
-            if "restock" in inputs:
-                cancel_data["restock"] = inputs["restock"]
-
-            response = await context.fetch(url, method="POST", json=cancel_data, headers=headers)
-
-            return success_response(order=response.data.get("order", {}))
+            order_gid = to_gid("Order", inputs["order_id"])
+            data = await execute_graphql(
+                context,
+                ORDER_CANCEL_MUTATION,
+                {
+                    "orderId": order_gid,
+                    "notifyCustomer": inputs.get("email", True),
+                    "refundMethod": {"originalPaymentMethodsRefund": True},
+                    "restock": inputs.get("restock", True),
+                    "reason": str(inputs.get("reason") or "other").upper(),
+                },
+            )
+            payload = data.get("orderCancel", {})
+            raise_for_user_errors("Order cancellation", payload, "orderCancelUserErrors")
+            order_data = await execute_graphql(context, ORDER_QUERY, {"id": order_gid})
+            return success_response(order=transform_order_response(order_data.get("order") or {}))
         except Exception as e:
             return error_response(e, order={})
 
@@ -1190,29 +1658,38 @@ class GetInventoryLevelsHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/inventory_levels.json")
-            headers = await build_headers(context)
-
-            params = {}
-            if "inventory_item_ids" in inputs and inputs["inventory_item_ids"]:
-                params["inventory_item_ids"] = inputs["inventory_item_ids"]
-            if "location_ids" in inputs and inputs["location_ids"]:
-                params["location_ids"] = inputs["location_ids"]
-            if "limit" in inputs and inputs["limit"]:
-                params["limit"] = inputs["limit"]
-            else:
-                params["limit"] = 50
-
-            if not params.get("inventory_item_ids") and not params.get("location_ids"):
+            item_ids = comma_list(inputs.get("inventory_item_ids"))
+            location_ids = comma_list(inputs.get("location_ids"))
+            if not item_ids and not location_ids:
                 return error_response(
                     "Either inventory_item_ids or location_ids is required",
                     inventory_levels=[],
                     count=0,
                 )
-
-            response = await context.fetch(url, method="GET", params=params, headers=headers)
-
-            inventory_levels = response.data.get("inventory_levels", [])
+            limit = clamp_limit(inputs.get("limit"))
+            if item_ids:
+                data = await execute_graphql(
+                    context,
+                    INVENTORY_ITEMS_QUERY,
+                    {"ids": [to_gid("InventoryItem", item_id) for item_id in item_ids], "first": limit},
+                )
+            else:
+                data = await execute_graphql(
+                    context,
+                    LOCATION_INVENTORY_QUERY,
+                    {"ids": [to_gid("Location", location_id) for location_id in location_ids], "first": limit},
+                )
+            requested_locations = set(location_ids)
+            levels = []
+            for node in data.get("nodes", []):
+                for level in connection_nodes((node or {}).get("inventoryLevels", {})):
+                    if (
+                        requested_locations
+                        and from_gid((level.get("location") or {}).get("id", "")) not in requested_locations
+                    ):
+                        continue
+                    levels.append(transform_inventory_level_response(level))
+            inventory_levels = levels[:limit]
             return success_response(inventory_levels=inventory_levels, count=len(inventory_levels))
         except Exception as e:
             return error_response(e, inventory_levels=[], count=0)
@@ -1224,18 +1701,39 @@ class SetInventoryLevelHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/inventory_levels/set.json")
-            headers = await build_headers(context)
-
-            payload = {
-                "location_id": inputs["location_id"],
-                "inventory_item_id": inputs["inventory_item_id"],
-                "available": inputs["available"],
+            inventory_item_id = to_gid("InventoryItem", inputs["inventory_item_id"])
+            location_id = to_gid("Location", inputs["location_id"])
+            variables = {
+                "input": {
+                    "name": "available",
+                    "reason": "correction",
+                    "referenceDocumentUri": f"autohive://shopify-admin/inventory/{uuid4()}",
+                    "quantities": [
+                        {
+                            "inventoryItemId": inventory_item_id,
+                            "locationId": location_id,
+                            "quantity": inputs["available"],
+                            "changeFromQuantity": None,
+                        }
+                    ],
+                },
+                "idempotencyKey": str(uuid4()),
             }
-
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
-
-            return success_response(inventory_level=response.data.get("inventory_level", {}))
+            data = await execute_graphql(context, INVENTORY_SET_MUTATION, variables)
+            payload = data.get("inventorySetQuantities", {})
+            raise_for_user_errors("Inventory update", payload)
+            changes = (payload.get("inventoryAdjustmentGroup") or {}).get("changes") or []
+            available = next(
+                (change.get("quantityAfterChange") for change in changes if change.get("name") == "available"),
+                inputs["available"],
+            )
+            return success_response(
+                inventory_level={
+                    "inventory_item_id": from_gid(inventory_item_id),
+                    "location_id": from_gid(location_id),
+                    "available": available,
+                }
+            )
         except Exception as e:
             return error_response(e, inventory_level={})
 
@@ -1251,12 +1749,18 @@ class ListLocationsHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/locations.json")
-            headers = await build_headers(context)
-
-            response = await context.fetch(url, method="GET", headers=headers)
-
-            locations = response.data.get("locations", [])
+            locations = []
+            after = None
+            while True:
+                data = await execute_graphql(context, LOCATIONS_QUERY, {"after": after})
+                connection = data.get("locations", {})
+                locations.extend(transform_location_response(item) for item in connection_nodes(connection))
+                page_info = connection.get("pageInfo") or {}
+                if not page_info.get("hasNextPage"):
+                    break
+                after = page_info.get("endCursor")
+                if not after:
+                    raise Exception("Shopify location pagination did not return an end cursor")
             return success_response(locations=locations, count=len(locations))
         except Exception as e:
             return error_response(e, locations=[], count=0)
@@ -1268,13 +1772,11 @@ class GetLocationHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            location_id = inputs["location_id"]
-            url = get_api_url(context, f"/locations/{location_id}.json")
-            headers = await build_headers(context)
-
-            response = await context.fetch(url, method="GET", headers=headers)
-
-            return success_response(location=response.data.get("location", {}))
+            data = await execute_graphql(context, LOCATION_QUERY, {"id": to_gid("Location", inputs["location_id"])})
+            location = data.get("location")
+            if not location:
+                raise ValueError(f"Location {inputs['location_id']} was not found")
+            return success_response(location=transform_location_response(location))
         except Exception as e:
             return error_response(e, location={})
 
@@ -1290,12 +1792,28 @@ class GetShopHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/shop.json")
-            headers = await build_headers(context)
-
-            response = await context.fetch(url, method="GET", headers=headers)
-
-            return success_response(shop=response.data.get("shop", {}))
+            data = await execute_graphql(context, SHOP_QUERY)
+            shop = data.get("shop") or {}
+            billing = shop.get("shopAddress") or {}
+            result = {
+                "id": from_gid(shop.get("id", "")),
+                "name": shop.get("name"),
+                "email": shop.get("email"),
+                "myshopify_domain": shop.get("myshopifyDomain"),
+                "domain": (shop.get("primaryDomain") or {}).get("host"),
+                "currency": shop.get("currencyCode"),
+                "iana_timezone": shop.get("ianaTimezone"),
+                "address1": billing.get("address1"),
+                "address2": billing.get("address2"),
+                "city": billing.get("city"),
+                "province": billing.get("province"),
+                "province_code": billing.get("provinceCode"),
+                "country": billing.get("country"),
+                "country_code": billing.get("countryCodeV2"),
+                "zip": billing.get("zip"),
+                "phone": billing.get("phone"),
+            }
+            return success_response(shop=result)
         except Exception as e:
             return error_response(e, shop={})
 
@@ -1311,18 +1829,19 @@ class ListDraftOrdersHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/draft_orders.json")
-            headers = await build_headers(context)
-
-            allowed_params = ["limit", "since_id", "status"]
-            params = build_query_params(inputs, allowed_params)
-
-            if "limit" not in params:
-                params["limit"] = 50
-
-            response = await context.fetch(url, method="GET", params=params, headers=headers)
-
-            draft_orders = response.data.get("draft_orders", [])
+            filters = []
+            if inputs.get("since_id"):
+                filters.append(f"id:>{escape_graphql_query_value(inputs['since_id'])}")
+            if inputs.get("status") and inputs["status"] != "any":
+                filters.append(f"status:{inputs['status']}")
+            data = await execute_graphql(
+                context,
+                DRAFT_ORDERS_QUERY,
+                {"first": clamp_limit(inputs.get("limit")), "query": " AND ".join(filters) or None},
+            )
+            draft_orders = [
+                transform_draft_order_response(item) for item in connection_nodes(data.get("draftOrders", {}))
+            ]
             return success_response(draft_orders=draft_orders, count=len(draft_orders))
         except Exception as e:
             return error_response(e, draft_orders=[], count=0)
@@ -1334,32 +1853,28 @@ class CreateDraftOrderHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            url = get_api_url(context, "/draft_orders.json")
-            headers = await build_headers(context)
-
-            draft_order_data = {"line_items": inputs["line_items"]}
-
-            optional_fields = [
-                "customer_id",
-                "email",
-                "note",
-                "tags",
-                "shipping_address",
-                "billing_address",
-                "use_customer_default_address",
-            ]
-
-            for field in optional_fields:
-                if field in inputs and inputs[field] is not None:
-                    if field == "customer_id":
-                        draft_order_data["customer"] = {"id": inputs[field]}
-                    else:
-                        draft_order_data[field] = inputs[field]
-
-            payload = {"draft_order": draft_order_data}
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
-
-            return success_response(draft_order=response.data.get("draft_order", {}))
+            currency_code = None
+            if any(isinstance(item, dict) and item.get("price") is not None for item in inputs["line_items"]):
+                currency_data = await execute_graphql(context, SHOP_CURRENCY_QUERY)
+                currency_code = (currency_data.get("shop") or {}).get("currencyCode")
+            draft_input = {"lineItems": graphql_draft_line_items(inputs["line_items"], currency_code)}
+            mapping = {"email": "email", "note": "note"}
+            for source, target in mapping.items():
+                if inputs.get(source) is not None:
+                    draft_input[target] = inputs[source]
+            if inputs.get("customer_id"):
+                draft_input["purchasingEntity"] = {"customerId": to_gid("Customer", inputs["customer_id"])}
+            if inputs.get("tags") is not None:
+                draft_input["tags"] = comma_list(inputs["tags"])
+            for source, target in (("shipping_address", "shippingAddress"), ("billing_address", "billingAddress")):
+                if inputs.get(source):
+                    draft_input[target] = graphql_address(inputs[source])
+            if inputs.get("use_customer_default_address") is not None:
+                draft_input["useCustomerDefaultAddress"] = inputs["use_customer_default_address"]
+            data = await execute_graphql(context, DRAFT_CREATE_MUTATION, {"input": draft_input})
+            payload = data.get("draftOrderCreate", {})
+            raise_for_user_errors("Draft order creation", payload)
+            return success_response(draft_order=transform_draft_order_response(payload.get("draftOrder") or {}))
         except Exception as e:
             return error_response(e, draft_order={})
 
@@ -1370,17 +1885,17 @@ class CompleteDraftOrderHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            draft_order_id = inputs["draft_order_id"]
-            url = get_api_url(context, f"/draft_orders/{draft_order_id}/complete.json")
-            headers = await build_headers(context)
-
-            params = {}
-            if "payment_pending" in inputs:
-                params["payment_pending"] = inputs["payment_pending"]
-
-            response = await context.fetch(url, method="PUT", params=params, headers=headers)
-
-            return success_response(draft_order=response.data.get("draft_order", {}))
+            data = await execute_graphql(
+                context,
+                DRAFT_COMPLETE_MUTATION,
+                {
+                    "id": to_gid("DraftOrder", inputs["draft_order_id"]),
+                    "paymentPending": inputs.get("payment_pending", False),
+                },
+            )
+            payload = data.get("draftOrderComplete", {})
+            raise_for_user_errors("Draft order completion", payload)
+            return success_response(draft_order=transform_draft_order_response(payload.get("draftOrder") or {}))
         except Exception as e:
             return error_response(e, draft_order={})
 
@@ -1392,11 +1907,15 @@ class DeleteDraftOrderHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             draft_order_id = inputs["draft_order_id"]
-            url = get_api_url(context, f"/draft_orders/{draft_order_id}.json")
-            headers = await build_headers(context)
-
-            await context.fetch(url, method="DELETE", headers=headers)
-
+            data = await execute_graphql(
+                context,
+                DRAFT_DELETE_MUTATION,
+                {"input": {"id": to_gid("DraftOrder", draft_order_id)}},
+            )
+            payload = data.get("draftOrderDelete", {})
+            raise_for_user_errors("Draft order deletion", payload)
+            if not payload.get("deletedId"):
+                raise Exception("Draft order deletion failed: Shopify did not return a deleted ID")
             return success_response(deleted=True, draft_order_id=draft_order_id)
         except Exception as e:
             return error_response(e, deleted=False)
@@ -1413,13 +1932,17 @@ class ListFulfillmentsHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            order_id = inputs["order_id"]
-            url = get_api_url(context, f"/orders/{order_id}/fulfillments.json")
-            headers = await build_headers(context)
-
-            response = await context.fetch(url, method="GET", headers=headers)
-
-            fulfillments = response.data.get("fulfillments", [])
+            data = await execute_graphql(
+                context,
+                ORDER_FULFILLMENTS_QUERY,
+                {"id": to_gid("Order", inputs["order_id"])},
+            )
+            order = data.get("order")
+            if not order:
+                raise ValueError(f"Order {inputs['order_id']} was not found")
+            fulfillments = [
+                transform_fulfillment_response(item) for item in connection_nodes(order.get("fulfillments", {}))
+            ]
             return success_response(fulfillments=fulfillments, count=len(fulfillments))
         except Exception as e:
             return error_response(e, fulfillments=[], count=0)
@@ -1431,25 +1954,42 @@ class CreateFulfillmentHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            order_id = inputs["order_id"]
-            headers = await build_headers(context)
-
-            fulfillment_orders_url = get_api_url(context, f"/orders/{order_id}/fulfillment_orders.json")
-            fulfillment_orders_response = await context.fetch(
-                fulfillment_orders_url,
-                method="GET",
-                headers=headers,
-            )
-            fulfillment_orders = fulfillment_orders_response.data.get("fulfillment_orders", [])
+            order_id = to_gid("Order", inputs["order_id"])
+            fulfillment_order_data = await execute_graphql(context, FULFILLMENT_ORDERS_QUERY, {"id": order_id})
+            order = fulfillment_order_data.get("order")
+            if not order:
+                raise ValueError(f"Order {inputs['order_id']} was not found")
+            fulfillment_orders = []
+            for fulfillment_order in connection_nodes(order.get("fulfillmentOrders", {})):
+                fulfillment_orders.append(
+                    {
+                        "id": from_gid(fulfillment_order.get("id", "")),
+                        "assigned_location_id": from_gid(
+                            (((fulfillment_order.get("assignedLocation") or {}).get("location") or {}).get("id", ""))
+                        ),
+                        "supported_actions": [
+                            action.get("action") if isinstance(action, dict) else action
+                            for action in fulfillment_order.get("supportedActions") or []
+                        ],
+                        "line_items": [
+                            {
+                                "id": from_gid(item.get("id", "")),
+                                "line_item_id": from_gid((item.get("lineItem") or {}).get("id", "")),
+                                "quantity": item.get("totalQuantity"),
+                                "fulfillable_quantity": item.get("remainingQuantity"),
+                            }
+                            for item in connection_nodes(fulfillment_order.get("lineItems", {}))
+                        ],
+                    }
+                )
             line_items_by_fulfillment_order = build_fulfillment_order_payload(
                 fulfillment_orders,
                 inputs["location_id"],
                 inputs.get("line_items") or [],
             )
-
-            fulfillment_data = {
-                "line_items_by_fulfillment_order": line_items_by_fulfillment_order,
-                "notify_customer": inputs.get("notify_customer", True),
+            fulfillment_input = {
+                "lineItemsByFulfillmentOrder": line_items_by_fulfillment_order,
+                "notifyCustomer": inputs.get("notify_customer", True),
             }
             tracking_info = {}
             if inputs.get("tracking_number"):
@@ -1459,13 +1999,11 @@ class CreateFulfillmentHandler(ActionHandler):
             if inputs.get("tracking_url"):
                 tracking_info["url"] = inputs["tracking_url"]
             if tracking_info:
-                fulfillment_data["tracking_info"] = tracking_info
-
-            payload = {"fulfillment": fulfillment_data}
-            url = get_api_url(context, "/fulfillments.json")
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
-
-            return success_response(fulfillment=response.data.get("fulfillment", {}))
+                fulfillment_input["trackingInfo"] = tracking_info
+            data = await execute_graphql(context, FULFILLMENT_CREATE_MUTATION, {"fulfillment": fulfillment_input})
+            payload = data.get("fulfillmentCreate", {})
+            raise_for_user_errors("Fulfillment creation", payload)
+            return success_response(fulfillment=transform_fulfillment_response(payload.get("fulfillment") or {}))
         except Exception as e:
             return error_response(e, fulfillment={})
 
@@ -1476,27 +2014,25 @@ class UpdateFulfillmentTrackingHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            fulfillment_id = inputs["fulfillment_id"]
-            url = get_api_url(context, f"/fulfillments/{fulfillment_id}/update_tracking.json")
-            headers = await build_headers(context)
-
             tracking_data = {}
-            if "tracking_number" in inputs:
-                tracking_data["number"] = inputs["tracking_number"]
-            if "tracking_company" in inputs:
-                tracking_data["company"] = inputs["tracking_company"]
-            if "tracking_url" in inputs:
-                tracking_data["url"] = inputs["tracking_url"]
+            if inputs.get("tracking_number") is not None:
+                tracking_data["number"] = inputs.get("tracking_number")
+            if inputs.get("tracking_company") is not None:
+                tracking_data["company"] = inputs.get("tracking_company")
+            if inputs.get("tracking_url") is not None:
+                tracking_data["url"] = inputs.get("tracking_url")
 
-            payload = {
-                "fulfillment": {
-                    "tracking_info": tracking_data,
-                    "notify_customer": inputs.get("notify_customer", False),
-                }
-            }
-
-            response = await context.fetch(url, method="POST", json=payload, headers=headers)
-
-            return success_response(fulfillment=response.data.get("fulfillment", {}))
+            data = await execute_graphql(
+                context,
+                FULFILLMENT_TRACKING_MUTATION,
+                {
+                    "id": to_gid("Fulfillment", inputs["fulfillment_id"]),
+                    "input": tracking_data,
+                    "notify": inputs.get("notify_customer", False),
+                },
+            )
+            payload = data.get("fulfillmentTrackingInfoUpdate", {})
+            raise_for_user_errors("Fulfillment tracking update", payload)
+            return success_response(fulfillment=transform_fulfillment_response(payload.get("fulfillment") or {}))
         except Exception as e:
             return error_response(e, fulfillment={})

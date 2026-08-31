@@ -110,7 +110,11 @@ async def test_build_headers_uses_exchanged_token(custom_auth_context):
 async def test_action_exchanges_credentials_before_admin_api_call(custom_auth_context):
     custom_auth_context.fetch.side_effect = [
         FetchResponse(status=200, headers={}, data={"access_token": "test-access-token"}),  # nosec B105
-        FetchResponse(status=200, headers={}, data={"customers": [{"id": 123}]}),
+        FetchResponse(
+            status=200,
+            headers={},
+            data={"data": {"customers": {"nodes": [{"id": "gid://shopify/Customer/123"}]}}},
+        ),
     ]
 
     result = await ListCustomersHandler().execute({"limit": 1}, custom_auth_context)
@@ -119,7 +123,9 @@ async def test_action_exchanges_credentials_before_admin_api_call(custom_auth_co
     assert result.data["count"] == 1
     assert custom_auth_context.fetch.await_count == 2
     admin_call = custom_auth_context.fetch.await_args_list[1]
-    assert admin_call.args[0] == "https://example-store.myshopify.com/admin/api/2026-07/customers.json"
+    assert admin_call.args[0] == "https://example-store.myshopify.com/admin/api/2026-07/graphql.json"
+    assert admin_call.kwargs["method"] == "POST"
+    assert admin_call.kwargs["json"]["variables"] == {"first": 1, "query": None}
     assert admin_call.kwargs["headers"]["X-Shopify-Access-Token"] == "test-access-token"
 
 
