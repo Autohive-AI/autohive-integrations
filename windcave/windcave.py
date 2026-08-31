@@ -19,7 +19,7 @@ from autohive_integrations_sdk import (
 
 windcave = Integration.load()
 
-BASE_URL = "https://sec.windcave.com/api/v1"
+BASE_URL = "https://uat.windcave.com/api/v1"
 
 
 # ---- Helper Functions ----
@@ -30,9 +30,14 @@ def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     Build authentication headers for Windcave REST API requests.
     Windcave uses HTTP Basic Authentication with the REST API username and API key.
     """
-    credentials = context.auth["credentials"]
-    username = credentials.get("username", "")
-    api_key = credentials.get("api_key", "")
+    credentials = context.auth.get("credentials", {})
+    username = credentials.get("username")
+    api_key = credentials.get("api_key")
+
+    if not isinstance(username, str) or not username.strip():
+        raise ValueError("Windcave REST API username is required")
+    if not isinstance(api_key, str) or not api_key.strip():
+        raise ValueError("Windcave REST API key is required")
 
     auth_bytes = f"{username}:{api_key}".encode("ascii")
     basic_auth = base64.b64encode(auth_bytes).decode("ascii")

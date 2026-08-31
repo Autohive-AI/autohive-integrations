@@ -10,7 +10,7 @@ so none of these tests create, modify, or delete data, and there are no
 destructive tests here.
 
 Run:
-    pytest windcave/tests/test_windcave_integration.py -m integration
+    pytest windcave/tests/test_windcave_integration.py -m "integration and not destructive"
 
 Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
@@ -35,9 +35,12 @@ def live_context(env_credentials):
 
     import aiohttp
 
+    response_statuses: list[int] = []
+
     async def real_fetch(url, *, method="GET", json=None, headers=None, **kwargs):
         async with aiohttp.ClientSession() as session:
             async with session.request(method, url, json=json, headers=headers) as resp:
+                response_statuses.append(resp.status)
                 try:
                     data = await resp.json(content_type=None)
                 except Exception:
@@ -51,6 +54,7 @@ def live_context(env_credentials):
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
+    ctx.response_statuses = response_statuses
     ctx.auth = {
         "auth_type": "Custom",
         "credentials": {"username": username, "api_key": api_key},
@@ -69,7 +73,9 @@ class TestGetTransaction:
         result = await windcave.execute_action("get_transaction", {"transaction_id": "0000001c00000000"}, live_context)
 
         assert result.type == ResultType.ACTION_ERROR
+        assert live_context.response_statuses == [404]
         assert "Transaction not found" in result.result.message
+        assert "Invalid username or key" not in result.result.message
 
     async def test_malformed_transaction_id_returns_action_error(self, live_context):
         result = await windcave.execute_action(
@@ -77,7 +83,9 @@ class TestGetTransaction:
         )
 
         assert result.type == ResultType.ACTION_ERROR
+        assert live_context.response_statuses == [400]
         assert "Invalid transaction id" in result.result.message
+        assert "Invalid username or key" not in result.result.message
 
     async def test_fetches_known_transaction(self, live_context):
         # Fetching a real transaction needs an ID from a transaction that already

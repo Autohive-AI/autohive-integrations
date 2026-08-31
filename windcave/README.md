@@ -36,7 +36,7 @@ Retrieve a transaction by ID.
 
 ## API information
 
-- Base URL: `https://sec.windcave.com/api/v1`
+- Base URL: `https://uat.windcave.com/api/v1` (Windcave UAT)
 - Auth header: `Authorization: Basic <base64(username:api_key)>` (HTTP Basic Authentication)
 - Endpoint used: `GET /transactions/{id}`
 
@@ -46,7 +46,10 @@ Retrieve a transaction by ID.
 |---|---|
 | `Transaction not found` | The `transaction_id` doesn't exist in this Windcave account. |
 | `Invalid transaction id` | The `transaction_id` isn't in the format Windcave expects (a well-formed ID looks like 16 hex characters, not a UUID). |
-| `401`/authentication errors on every call | `username`/`api_key` are wrong or have been revoked. |
+| Missing-credential validation error | Reconnect the integration and provide both the REST API `username` and `api_key`. |
+| `401`/authentication errors on every call | `username`/`api_key` are wrong, have been revoked, or belong to a non-UAT environment. |
+
+This integration currently targets Windcave UAT, so it requires UAT REST API credentials. Production credentials for `sec.windcave.com` will not authenticate against this endpoint.
 
 ## Testing
 
@@ -71,7 +74,7 @@ WINDCAVE_TEST_TRANSACTION_ID=
 `WINDCAVE_TEST_TRANSACTION_ID` is the ID of a transaction that already exists in the account; the success-path test skips without it. This integration is read-only, so no test creates or modifies data and there are no destructive tests.
 
 ```bash
-pytest windcave/tests/test_windcave_integration.py -m integration
+pytest windcave/tests/test_windcave_integration.py -m "integration and not destructive"
 ```
 
 ## Notes

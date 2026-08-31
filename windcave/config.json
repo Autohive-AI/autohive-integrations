@@ -22,7 +22,7 @@
                     "help_text": "The REST API key provided by Windcave. Combined with the username for HTTP Basic Authentication."
                 }
             },
-            "required": []
+            "required": ["username", "api_key"]
         }
     },
     "actions": {

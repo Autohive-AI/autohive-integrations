@@ -1,5 +1,3 @@
-from unittest.mock import AsyncMock
-
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
@@ -60,31 +58,31 @@ class TestExtractErrorMessage:
 
 
 # ---- Custom Auth Contract ----
-# config.json declares auth.fields with an empty `required` list, so the SDK does NOT
-# reject calls with missing username/api_key before the handler runs -- Windcave's own
-# API is responsible for rejecting bad credentials. The SDK does require the wrapped
-# envelope {"auth_type": ..., "credentials": {...}}, with the auth.fields values nested
-# under "credentials".
+# config.json requires username and api_key, and the header helper also rejects
+# missing or blank credentials before a request reaches Windcave.
 
 
 class TestCustomAuthValidation:
     @pytest.mark.asyncio
-    async def test_missing_credentials_not_rejected_by_schema_validation(self, make_context):
+    async def test_missing_credentials_rejected_by_schema_validation(self, make_context):
         ctx = make_context(auth={"auth_type": "Custom", "credentials": {}})
-        ctx.fetch = AsyncMock(side_effect=HTTPError(401, "Unauthorized", {"message": "Invalid credentials"}))
 
         result = await windcave.execute_action("get_transaction", {"transaction_id": "txn_1"}, ctx)
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert "Invalid credentials" in result.result.message
+        assert result.type == ResultType.VALIDATION_ERROR
+        ctx.fetch.assert_not_awaited()
 
-    def test_missing_credentials_build_basic_auth_from_empty_strings(self, make_context):
-        import base64
-
+    def test_missing_credentials_rejected_by_header_helper(self, make_context):
         ctx = make_context(auth={"auth_type": "Custom", "credentials": {}})
-        headers = get_auth_headers(ctx)
 
-        assert headers["Authorization"] == f"Basic {base64.b64encode(b':').decode('ascii')}"
+        with pytest.raises(ValueError, match="username is required"):
+            get_auth_headers(ctx)
+
+    def test_blank_api_key_rejected_by_header_helper(self, make_context):
+        ctx = make_context(auth={"auth_type": "Custom", "credentials": {"username": "test_user", "api_key": " "}})
+
+        with pytest.raises(ValueError, match="key is required"):
+            get_auth_headers(ctx)
 
     @pytest.mark.asyncio
     async def test_full_credentials_pass_validation(self, mock_context):
@@ -118,7 +116,7 @@ class TestGetTransaction:
         await windcave.execute_action("get_transaction", {"transaction_id": "txn_1"}, mock_context)
 
         call_args = mock_context.fetch.call_args
-        assert call_args.args[0] == "https://sec.windcave.com/api/v1/transactions/txn_1"
+        assert call_args.args[0] == "https://uat.windcave.com/api/v1/transactions/txn_1"
         assert call_args.kwargs["method"] == "GET"
 
     @pytest.mark.asyncio
