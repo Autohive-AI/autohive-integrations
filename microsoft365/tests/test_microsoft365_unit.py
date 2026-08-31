@@ -809,6 +809,35 @@ async def test_read_contacts_accepts_nullable_collections(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_read_contacts_search_stops_after_matching_limit(mock_context):
+    first_page = {
+        "value": [{"id": "c1", "displayName": "Unrelated Person"}],
+        "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/contacts?$skiptoken=next",
+    }
+    second_page = {
+        "value": [{"id": "c2", "displayName": "Ada Lovelace", "companyName": "Analytical Engines"}],
+        "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/contacts?$skiptoken=unused",
+    }
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=200, headers={}, data=first_page),
+            FetchResponse(status=200, headers={}, data=second_page),
+        ]
+    )
+
+    result = await microsoft365.execute_action(
+        "read_contacts",
+        {"search": "ada", "limit": 1},
+        mock_context,
+    )
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert [contact["id"] for contact in result.result.data["contacts"]] == ["c2"]
+    assert result.result.data["total_searched"] == 2
+    assert mock_context.fetch.await_count == 2
+
+
+@pytest.mark.asyncio
 async def test_read_contacts_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("err"))
     result = await microsoft365.execute_action("read_contacts", {}, mock_context)

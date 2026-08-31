@@ -3,6 +3,8 @@
 Read-only tests require ``MICROSOFT365_ACCESS_TOKEN``. Tests marked
 ``destructive`` create and clean up their own mail, calendar, or OneDrive data
 and must be explicitly selected with ``-m "integration and destructive"``.
+Mail tests require ``MICROSOFT365_TEST_MAILBOX_EMAIL`` to be the authenticated
+mailbox because they deliver to and clean up messages through ``/me``.
 """
 
 import asyncio
@@ -21,7 +23,7 @@ from microsoft365.microsoft365 import microsoft365
 pytestmark = pytest.mark.integration
 
 CRED = os.getenv("MICROSOFT365_ACCESS_TOKEN", "")
-TEST_RECIPIENT = os.getenv("MICROSOFT365_TEST_RECIPIENT_EMAIL", "")
+TEST_MAILBOX = os.getenv("MICROSOFT365_TEST_MAILBOX_EMAIL", "")
 TEST_ATTENDEE = os.getenv("MICROSOFT365_TEST_ATTENDEE_EMAIL", "")
 TEST_SCHEDULE_EMAIL = os.getenv("MICROSOFT365_TEST_SCHEDULE_EMAIL", "")
 TEST_SHAREPOINT_SITE_ID = os.getenv("MICROSOFT365_TEST_SHAREPOINT_SITE_ID", "")
@@ -31,7 +33,7 @@ TEST_DIRECT_SUBJECT = f"[Autohive Integration Test {TEST_RUN_ID}] Direct Send"
 TEST_ATTACHMENT_SUBJECT = f"[Autohive Integration Test {TEST_RUN_ID}] Attachment"
 
 skip_if_no_creds = pytest.mark.skipif(not CRED, reason="MICROSOFT365_ACCESS_TOKEN required")
-skip_if_no_recipient = pytest.mark.skipif(not TEST_RECIPIENT, reason="MICROSOFT365_TEST_RECIPIENT_EMAIL required")
+skip_if_no_mailbox = pytest.mark.skipif(not TEST_MAILBOX, reason="MICROSOFT365_TEST_MAILBOX_EMAIL required")
 skip_if_no_attendee = pytest.mark.skipif(not TEST_ATTENDEE, reason="MICROSOFT365_TEST_ATTENDEE_EMAIL required")
 skip_if_no_schedule = pytest.mark.skipif(not TEST_SCHEDULE_EMAIL, reason="MICROSOFT365_TEST_SCHEDULE_EMAIL required")
 
@@ -175,7 +177,7 @@ async def test_search_emails_live(live_context):
 
 
 @skip_if_no_creds
-@skip_if_no_recipient
+@skip_if_no_mailbox
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_01_create_draft_email_live(live_context):
@@ -185,7 +187,7 @@ async def test_01_create_draft_email_live(live_context):
             "subject": TEST_DRAFT_SUBJECT,
             "body": "This is an integration test draft. Safe to delete.",
             "body_type": "Text",
-            "to_recipients": [TEST_RECIPIENT],
+            "to_recipients": [TEST_MAILBOX],
         },
         live_context,
     )
@@ -221,14 +223,14 @@ async def test_03_send_draft_email_live(live_context):
 
 
 @skip_if_no_creds
-@skip_if_no_recipient
+@skip_if_no_mailbox
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_04_send_email_live(live_context):
     result = await microsoft365.execute_action(
         "send_email",
         {
-            "to": TEST_RECIPIENT,
+            "to": TEST_MAILBOX,
             "subject": TEST_DIRECT_SUBJECT,
             "body": "Integration test email — safe to delete.",
             "body_type": "Text",
@@ -256,7 +258,7 @@ async def test_05_reply_to_email_live(live_context):
 
 
 @skip_if_no_creds
-@skip_if_no_recipient
+@skip_if_no_mailbox
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_06_forward_email_live(live_context):
@@ -267,7 +269,7 @@ async def test_06_forward_email_live(live_context):
         "forward_email",
         {
             "message_id": email_id,
-            "to_recipients": [TEST_RECIPIENT],
+            "to_recipients": [TEST_MAILBOX],
             "comment": "Integration test forward — safe to ignore.",
         },
         live_context,
@@ -375,7 +377,7 @@ async def test_download_email_attachment_live(live_context):
 
 
 @skip_if_no_creds
-@skip_if_no_recipient
+@skip_if_no_mailbox
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_download_email_attachment_round_trip_live(live_context):
@@ -387,7 +389,7 @@ async def test_download_email_attachment_round_trip_live(live_context):
             "message": {
                 "subject": TEST_ATTACHMENT_SUBJECT,
                 "body": {"contentType": "Text", "content": "Attachment integration test."},
-                "toRecipients": [{"emailAddress": {"address": TEST_RECIPIENT}}],
+                "toRecipients": [{"emailAddress": {"address": TEST_MAILBOX}}],
                 "attachments": [
                     {
                         "@odata.type": "#microsoft.graph.fileAttachment",

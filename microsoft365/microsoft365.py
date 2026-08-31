@@ -1081,30 +1081,31 @@ class ReadContactsAction(ActionHandler):
                 ),
             }
 
+            total_searched = 0
+            item_filter = None
+            if search:
+                search_lower = search.lower()
+
+                def matches_search(contact: Dict[str, Any]) -> bool:
+                    nonlocal total_searched
+                    total_searched += 1
+                    return any(
+                        search_lower in (contact.get(field) or "").lower()
+                        for field in ("displayName", "givenName", "surname", "companyName")
+                    )
+
+                item_filter = matches_search
+
             all_contacts, _ = await _fetch_collection(
                 context,
                 api_url,
                 params=params,
-                limit=None if search else limit,
+                limit=limit,
+                item_filter=item_filter,
             )
             contacts = []
 
             for contact in all_contacts:
-                if search:
-                    search_lower = search.lower()
-                    display_name = (contact.get("displayName") or "").lower()
-                    given_name = (contact.get("givenName") or "").lower()
-                    surname = (contact.get("surname") or "").lower()
-                    company = (contact.get("companyName") or "").lower()
-
-                    if not (
-                        search_lower in display_name
-                        or search_lower in given_name
-                        or search_lower in surname
-                        or search_lower in company
-                    ):
-                        continue
-
                 email_addresses = []
                 email_values = _optional_list(contact.get("emailAddresses"), "contact.emailAddresses")
                 for email in email_values:
@@ -1159,7 +1160,7 @@ class ReadContactsAction(ActionHandler):
                         "contacts": contacts,
                         "message": message,
                         "search_term": search,
-                        "total_searched": len(all_contacts),
+                        "total_searched": total_searched,
                     },
                     cost_usd=0.0,
                 )

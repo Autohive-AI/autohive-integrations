@@ -735,17 +735,17 @@ export MICROSOFT365_ACCESS_TOKEN="<your-access-token>"
 python -m pytest tests/test_microsoft365_integration.py -v -m "integration and not destructive"
 ```
 
-Run all live integration tests including destructive ones (creates/sends/deletes real data):
+Run only the destructive live integration tests (creates/sends/deletes real data):
 
 > **Warning:** Destructive tests send real emails, create calendar events, and upload files to the authenticated account. Only run against a test account.
 
 ```bash
 export MICROSOFT365_ACCESS_TOKEN="<your-access-token>"
-export MICROSOFT365_TEST_RECIPIENT_EMAIL="you@example.com"   # required for send/draft/forward tests
+export MICROSOFT365_TEST_MAILBOX_EMAIL="you@example.com"    # authenticated mailbox; required for mail tests
 export MICROSOFT365_TEST_ATTENDEE_EMAIL="you@example.com"    # required for find_meeting_times
 export MICROSOFT365_TEST_SCHEDULE_EMAIL="you@tenant.onmicrosoft.com"  # required for get_schedule
 export MICROSOFT365_TEST_SHAREPOINT_SITE_ID="tenant.sharepoint.com,site-collection-id,site-id"  # optional stable test site
-python -m pytest tests/test_microsoft365_integration.py -v -m "integration"
+python -m pytest tests/test_microsoft365_integration.py -v -m "integration and destructive"
 ```
 
 Obtain an access token from the Microsoft Azure portal or through the Autohive platform OAuth flow.
