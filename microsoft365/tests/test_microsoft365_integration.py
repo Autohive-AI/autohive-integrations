@@ -570,6 +570,7 @@ async def test_search_sharepoint_documents_live(live_context):
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     data = result.result.data
     assert "files" in data
+    assert all("file" in item and "folder" not in item for item in data["files"])
     if data["files"]:
         _state["sharepoint_file_id"] = data["files"][0]["id"]
         _state["sharepoint_file_drive_id"] = data["files"][0].get("drive_id", "")

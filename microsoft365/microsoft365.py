@@ -1765,6 +1765,11 @@ class SearchSharePointDocumentsAction(ActionHandler):
                     )
 
                     for item in drive_items:
+                        # Drive search returns folders as well as documents. This
+                        # action promises downloadable documents, so exclude items
+                        # that do not have Graph's file facet.
+                        if not isinstance(item.get("file"), dict):
+                            continue
                         file_item = {
                             "id": item["id"],
                             "name": item["name"],
@@ -1776,8 +1781,7 @@ class SearchSharePointDocumentsAction(ActionHandler):
                         }
                         if isinstance(item.get("folder"), dict):
                             file_item["folder"] = item["folder"]
-                        if isinstance(item.get("file"), dict):
-                            file_item["file"] = item["file"]
+                        file_item["file"] = item["file"]
                         all_files.append(file_item)
 
                         if len(all_files) >= limit:

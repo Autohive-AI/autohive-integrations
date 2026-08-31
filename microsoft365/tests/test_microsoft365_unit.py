@@ -1264,12 +1264,20 @@ async def test_search_sharepoint_documents(mock_context):
     files = {
         "value": [
             {
+                "id": "folder1",
+                "name": "Reports",
+                "size": 0,
+                "folder": {"childCount": 1},
+                "webUrl": "https://sp.com/folder1",
+            },
+            {
                 "id": "f1",
                 "name": "report.pdf",
                 "size": 100,
                 "lastModifiedDateTime": "2026-01-01",
                 "webUrl": "https://sp.com/f1",
-            }
+                "file": {"mimeType": "application/pdf"},
+            },
         ]
     }
     mock_context.fetch = AsyncMock(
@@ -1285,6 +1293,7 @@ async def test_search_sharepoint_documents(mock_context):
     )
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["total_files"] == 1
+    assert result.result.data["files"][0]["id"] == "f1"
 
 
 @pytest.mark.asyncio
