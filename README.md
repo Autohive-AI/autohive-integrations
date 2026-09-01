@@ -385,7 +385,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Windcave
 
-[windcave](windcave): Read-only integration with the Windcave REST API for retrieving payment transaction details by ID. The single `get_transaction` action returns authorisation status, settlement date, surcharge, and the full card-redacted transaction record — useful for accounts and reconciliation workflows. Transactions must already exist in the merchant's Windcave account (created via the Windcave portal or another client); this integration never creates, captures, refunds, or voids payments, and never handles raw card data. Features HTTP Basic Authentication with a REST API username and key, and a configurable UAT/production environment toggle. Ideal for payment reconciliation and transaction status lookups in New Zealand, Australia, and the Pacific.
+[windcave](windcave): Read-only integration with the Windcave REST API for retrieving transactions and payment sessions by ID. Includes 2 actions: `get_transaction` returns authorisation status, settlement date, surcharge, and the full card-redacted transaction record for reconciliation workflows; `get_session` returns session details and payment attempts with every card object recursively redacted. Transactions and sessions must already exist in the merchant's Windcave account, and the integration never creates, captures, refunds, or voids payments. Uses HTTP Basic Authentication with a Windcave REST API username and key. Currently targets the Windcave UAT endpoint and therefore requires UAT credentials; production credentials are not supported. Ideal for payment reconciliation and status lookups in New Zealand, Australia, and the Pacific.
 
 ## Template
 
