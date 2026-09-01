@@ -77,15 +77,13 @@ class TestGetTransaction:
         assert "Transaction not found" in result.result.message
         assert "Invalid username or key" not in result.result.message
 
-    async def test_malformed_transaction_id_returns_action_error(self, live_context):
+    async def test_malformed_transaction_id_is_rejected_before_fetch(self, live_context):
         result = await windcave.execute_action(
             "get_transaction", {"transaction_id": "00000000-0000-0000-0000-000000000000"}, live_context
         )
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert live_context.response_statuses == [400]
-        assert "Invalid transaction id" in result.result.message
-        assert "Invalid username or key" not in result.result.message
+        assert result.type == ResultType.VALIDATION_ERROR
+        assert live_context.response_statuses == []
 
     async def test_fetches_known_transaction(self, live_context):
         # Fetching a real transaction needs an ID from a transaction that already

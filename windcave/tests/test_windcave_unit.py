@@ -11,14 +11,25 @@ from windcave.windcave import (
 
 pytestmark = pytest.mark.unit
 
+TRANSACTION_ID = "0000001c00000001"
+MISSING_TRANSACTION_ID = "0000001c00000002"
+
 SAMPLE_TRANSACTION = {
-    "id": "txn_1",
+    "id": TRANSACTION_ID,
     "authorised": True,
     "amount": "19.99",
     "currency": "NZD",
     "merchantReference": "ORDER-1",
     "settlementDate": "20260703",
     "amountSurcharge": "0.50",
+    "card": {
+        "id": "card_token_1",
+        "cardHolderName": "TEST CUSTOMER",
+        "cardNumber": "411111......1111",
+        "dateExpiryMonth": "12",
+        "dateExpiryYear": "30",
+        "type": "visa",
+    },
 }
 
 SAMPLE_SESSION = {
@@ -124,7 +135,7 @@ class TestCustomAuthValidation:
     async def test_missing_credentials_rejected_by_schema_validation(self, make_context):
         ctx = make_context(auth={"auth_type": "Custom", "credentials": {}})
 
-        result = await windcave.execute_action("get_transaction", {"transaction_id": "txn_1"}, ctx)
+        result = await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, ctx)
 
         assert result.type == ResultType.VALIDATION_ERROR
         ctx.fetch.assert_not_awaited()
@@ -145,7 +156,7 @@ class TestCustomAuthValidation:
     async def test_full_credentials_pass_validation(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
 
-        result = await windcave.execute_action("get_transaction", {"transaction_id": "txn_1"}, mock_context)
+        result = await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
 
@@ -158,29 +169,53 @@ class TestGetTransaction:
     async def test_happy_path(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
 
-        result = await windcave.execute_action("get_transaction", {"transaction_id": "txn_1"}, mock_context)
+        result = await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
-        assert result.result.data["transaction_id"] == "txn_1"
-        assert result.result.data["transaction"] == SAMPLE_TRANSACTION
+        assert result.result.data["transaction_id"] == TRANSACTION_ID
+        assert result.result.data["transaction"]["merchantReference"] == "ORDER-1"
         assert result.result.data["settlement_date"] == "20260703"
         assert result.result.data["amount_surcharge"] == "0.50"
+
+    @pytest.mark.asyncio
+    async def test_redacts_card_data_in_transaction(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
+
+        result = await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, mock_context)
+
+        transaction = result.result.data["transaction"]
+        assert transaction["card"]["id"] == "[REDACTED]"
+        assert transaction["card"]["cardHolderName"] == "[REDACTED]"
+        assert transaction["card"]["cardNumber"] == "[REDACTED]"
+        assert "411111" not in str(result.result.data)
+        assert "TEST CUSTOMER" not in str(result.result.data)
 
     @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
 
-        await windcave.execute_action("get_transaction", {"transaction_id": "txn_1"}, mock_context)
+        await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, mock_context)
 
         call_args = mock_context.fetch.call_args
-        assert call_args.args[0] == "https://uat.windcave.com/api/v1/transactions/txn_1"
+        assert call_args.args[0] == f"https://uat.windcave.com/api/v1/transactions/{TRANSACTION_ID}"
         assert call_args.kwargs["method"] == "GET"
+
+    @pytest.mark.asyncio
+    async def test_path_traversal_id_rejected_before_fetch(self, mock_context):
+        result = await windcave.execute_action(
+            "get_transaction", {"transaction_id": "../sessions/session_1"}, mock_context
+        )
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_http_error_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = HTTPError(404, "Not Found", {"message": "Transaction not found"})
 
-        result = await windcave.execute_action("get_transaction", {"transaction_id": "missing"}, mock_context)
+        result = await windcave.execute_action(
+            "get_transaction", {"transaction_id": MISSING_TRANSACTION_ID}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Transaction not found" in result.result.message

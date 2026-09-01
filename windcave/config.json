@@ -34,7 +34,10 @@
                 "properties": {
                     "transaction_id": {
                         "type": "string",
-                        "description": "The Windcave transaction ID to retrieve."
+                        "minLength": 16,
+                        "maxLength": 16,
+                        "pattern": "^[0-9A-Fa-f]{16}$",
+                        "description": "The 16-character hexadecimal Windcave transaction ID to retrieve."
                     }
                 },
                 "required": ["transaction_id"]
@@ -60,7 +63,7 @@
                     },
                     "transaction": {
                         "type": "object",
-                        "description": "The full raw transaction object returned by Windcave."
+                        "description": "The full transaction object returned by Windcave, with every card object recursively redacted."
                     },
                     "result": {
                         "type": "boolean",

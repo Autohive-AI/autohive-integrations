@@ -4,7 +4,7 @@ Connects Autohive to the [Windcave](https://www.windcave.com/) REST API to retri
 
 ## Description
 
-Windcave is a payment gateway used across New Zealand, Australia, and the Pacific. This integration is **read-only**: it retrieves individual transactions and payment sessions. Session responses include their payment attempts, but every `card` object is recursively redacted before data leaves the integration.
+Windcave is a payment gateway used across New Zealand, Australia, and the Pacific. This integration is **read-only**: it retrieves individual transactions and payment sessions. Every `card` object in transaction and session responses is recursively redacted before data leaves the integration.
 
 It does not create, capture, refund, or void payments, and it does not create Hosted Payment Page sessions. Transactions and sessions must already exist in your Windcave account.
 
@@ -32,7 +32,7 @@ Retrieve a transaction by ID.
 
 **Inputs:** `transaction_id` (required)
 
-**Outputs:** `transaction_id`, `authorised`, `settlement_date`, `amount_surcharge`, `transaction` (raw object), `result`
+**Outputs:** `transaction_id`, `authorised`, `settlement_date`, `amount_surcharge`, `transaction` (card-redacted object), `result`
 
 ### `get_session`
 Retrieve an existing payment session and all transaction attempts associated with it.
@@ -91,7 +91,7 @@ pytest windcave/tests/test_windcave_integration.py -m "integration and not destr
 
 ## Notes
 
-- This integration never accepts raw card numbers or CVCs. Card objects returned within session data retain their shape, but all contained values are recursively replaced with `[REDACTED]` before being returned.
+- This integration never accepts raw card numbers or CVCs. Card objects returned within transaction or session data retain their shape, but all contained values are recursively replaced with `[REDACTED]` before being returned.
 - `settlement_date` and `amount_surcharge` are read directly from Windcave's transaction data (`settlementDate`/`amountSurcharge`) and will be `null` until Windcave settles the transaction (typically the next business day).
 
 ### Reconciliation fields: what's available vs. not
@@ -101,7 +101,7 @@ For accounts/reconciliation use cases needing Settlement Date, Reference, Amount
 | Field | Available via this integration? |
 |---|---|
 | Settlement Date | ✅ `settlement_date` on `get_transaction` |
-| Reference | ✅ `merchantReference`, inside the raw `transaction` object |
-| Amount | ✅ `amount`, inside the raw `transaction` object |
+| Reference | ✅ `merchantReference`, inside the card-redacted `transaction` object |
+| Amount | ✅ `amount`, inside the card-redacted `transaction` object |
 | Amount Surcharge | ✅ `amount_surcharge` on `get_transaction` |
 | BillingId | ❌ Not available. `BillingId`/`DpsBillingId` is part of Windcave's **legacy** PxPay 2.0 / SOAP Web Service token-billing mechanism (`RecurringMode` + `EnableAddBillCard`), a different API generation from the REST API this integration is built on. Getting `BillingId` would require a separate, legacy-API-based integration. |

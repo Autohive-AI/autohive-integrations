@@ -93,14 +93,14 @@ class GetTransactionAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> Any:
         try:
-            transaction_id = inputs["transaction_id"]
+            transaction_id = quote(inputs["transaction_id"], safe="")
 
             response = await context.fetch(
                 f"{BASE_URL}/transactions/{transaction_id}",
                 method="GET",
                 headers=get_auth_headers(context),
             )
-            transaction = response.data or {}
+            transaction = redact_card_objects(response.data or {})
 
             return ActionResult(
                 data={
