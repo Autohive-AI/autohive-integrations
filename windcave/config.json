@@ -1,8 +1,8 @@
 {
     "name": "Windcave",
     "display_name": "Windcave",
-    "version": "1.0.0",
-    "description": "Windcave payment gateway integration for retrieving transaction details — including authorisation status, settlement date, and surcharge — by transaction ID via the Windcave REST API.",
+    "version": "1.1.0",
+    "description": "Read-only Windcave integration for retrieving transactions and payment sessions by ID via the Windcave REST API.",
     "entry_point": "windcave.py",
     "auth": {
         "type": "custom",
@@ -61,6 +61,67 @@
                     "transaction": {
                         "type": "object",
                         "description": "The full raw transaction object returned by Windcave."
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful."
+                    }
+                }
+            }
+        },
+        "get_session": {
+            "display_name": "Get Payment Session",
+            "description": "Retrieve a Windcave payment session by ID. Card objects are preserved with all values redacted.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The Windcave payment session ID to retrieve."
+                    }
+                },
+                "required": ["session_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": ["string", "null"],
+                        "description": "The Windcave session ID."
+                    },
+                    "state": {
+                        "type": ["string", "null"],
+                        "description": "The current session state."
+                    },
+                    "type": {
+                        "type": ["string", "null"],
+                        "description": "The payment operation type."
+                    },
+                    "amount": {
+                        "type": ["string", "number", "null"],
+                        "description": "The requested payment amount."
+                    },
+                    "currency": {
+                        "type": ["string", "null"],
+                        "description": "The payment currency as an ISO 4217 code."
+                    },
+                    "merchant_reference": {
+                        "type": ["string", "null"],
+                        "description": "The merchant reference associated with the session."
+                    },
+                    "expires": {
+                        "type": ["string", "null"],
+                        "description": "When the session expires or expired."
+                    },
+                    "transactions": {
+                        "type": "array",
+                        "items": {"type": "object"},
+                        "description": "Payment attempts in the session. Every card object is retained with all values redacted."
+                    },
+                    "session": {
+                        "type": "object",
+                        "description": "The full session response with every card object recursively redacted."
                     },
                     "result": {
                         "type": "boolean",

@@ -1,12 +1,12 @@
 # Windcave Integration for Autohive
 
-Connects Autohive to the [Windcave](https://www.windcave.com/) REST API to retrieve transaction details by ID.
+Connects Autohive to the [Windcave](https://www.windcave.com/) REST API to retrieve transaction and payment-session details by ID.
 
 ## Description
 
-Windcave is a payment gateway used across New Zealand, Australia, and the Pacific. This integration is **read-only**: it exposes a single action, `get_transaction`, which looks up an existing transaction and returns its authorisation status, settlement date, surcharge, and full raw record.
+Windcave is a payment gateway used across New Zealand, Australia, and the Pacific. This integration is **read-only**: it retrieves individual transactions and payment sessions. Session responses include their payment attempts, but every `card` object is recursively redacted before data leaves the integration.
 
-It does not create, capture, refund, or void payments, and it does not create Hosted Payment Page sessions. Transactions must already exist in your Windcave account — created via the Windcave portal or another client — and are referenced here by `transaction_id`.
+It does not create, capture, refund, or void payments, and it does not create Hosted Payment Page sessions. Transactions and sessions must already exist in your Windcave account.
 
 No raw card numbers ever pass through Autohive.
 
@@ -34,17 +34,29 @@ Retrieve a transaction by ID.
 
 **Outputs:** `transaction_id`, `authorised`, `settlement_date`, `amount_surcharge`, `transaction` (raw object), `result`
 
+### `get_session`
+Retrieve an existing payment session and all transaction attempts associated with it.
+
+**Inputs:** `session_id` (required)
+
+**Outputs:** `session_id`, `state`, `type`, `amount`, `currency`, `merchant_reference`, `expires`, `transactions`, `session`, `result`
+
+For security, all values inside every `card` object are replaced with `[REDACTED]`. The object and its keys remain present so workflows can detect that card data existed without receiving cardholder, token, card-number, expiry, or brand values.
+
 ## API information
 
 - Base URL: `https://uat.windcave.com/api/v1` (Windcave UAT)
 - Auth header: `Authorization: Basic <base64(username:api_key)>` (HTTP Basic Authentication)
-- Endpoint used: `GET /transactions/{id}`
+- Endpoints used:
+  - `GET /transactions/{id}`
+  - `GET /sessions/{id}`
 
 ## Troubleshooting
 
 | Symptom | Cause and fix |
 |---|---|
 | `Transaction not found` | The `transaction_id` doesn't exist in this Windcave account. |
+| `Session not found` | The `session_id` doesn't exist in this Windcave account or was created under different credentials. |
 | `Invalid transaction id` | The `transaction_id` isn't in the format Windcave expects (a well-formed ID looks like 16 hex characters, not a UUID). |
 | Missing-credential validation error | Reconnect the integration and provide both the REST API `username` and `api_key`. |
 | `401`/authentication errors on every call | `username`/`api_key` are wrong, have been revoked, or belong to a non-UAT environment. |
@@ -79,7 +91,7 @@ pytest windcave/tests/test_windcave_integration.py -m "integration and not destr
 
 ## Notes
 
-- This integration never accepts raw card numbers or CVCs — it only ever reads an existing transaction by ID.
+- This integration never accepts raw card numbers or CVCs. Card objects returned within session data retain their shape, but all contained values are recursively replaced with `[REDACTED]` before being returned.
 - `settlement_date` and `amount_surcharge` are read directly from Windcave's transaction data (`settlementDate`/`amountSurcharge`) and will be `null` until Windcave settles the transaction (typically the next business day).
 
 ### Reconciliation fields: what's available vs. not
