@@ -1,7 +1,7 @@
 import base64
 import binascii
 from pathlib import PurePosixPath
-from typing import Dict, Any
+from typing import Any
 
 import aiohttp
 from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, Integration
@@ -20,7 +20,7 @@ IMPORT_CONTENT_TYPES = {
 }
 
 
-def _resolve_import_file(file_obj: Dict[str, Any], display_name: str = None):
+def _resolve_import_file(file_obj: dict[str, Any], display_name: str | None = None):
     """Validate a hydrated platform file and return its bytes and import metadata."""
     source_name = PurePosixPath((file_obj.get("name") or "").replace("\\", "/")).name
     if not source_name:
@@ -61,8 +61,8 @@ def _validate_import_options(
     import_name: str,
     name_conflict: str,
     skip_report: bool,
-    override_report_label: bool = None,
-    override_model_label: bool = None,
+    override_report_label: bool | None = None,
+    override_model_label: bool | None = None,
 ):
     """Enforce the provider restrictions that vary by imported file type."""
     if extension == ".rdl" and name_conflict not in {"Abort", "Overwrite"}:
@@ -85,7 +85,7 @@ def _validate_import_options(
 
 @powerbi.action("list_workspaces")
 class ListWorkspacesAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             params = {}
 
@@ -109,7 +109,7 @@ class ListWorkspacesAction(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"workspaces": workspaces, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"workspaces": workspaces}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -117,13 +117,13 @@ class ListWorkspacesAction(ActionHandler):
 
 @powerbi.action("get_workspace")
 class GetWorkspaceAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             workspace_id = inputs["workspace_id"]
 
             response = await context.fetch(f"{POWERBI_API_BASE}/groups/{workspace_id}")
 
-            return ActionResult(data={"workspace": response.data, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"workspace": response.data}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -131,7 +131,7 @@ class GetWorkspaceAction(ActionHandler):
 
 @powerbi.action("list_datasets")
 class ListDatasetsAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             workspace_id = inputs.get("workspace_id")
 
@@ -156,7 +156,7 @@ class ListDatasetsAction(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"datasets": datasets, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"datasets": datasets}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -164,7 +164,7 @@ class ListDatasetsAction(ActionHandler):
 
 @powerbi.action("get_dataset")
 class GetDatasetAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             dataset_id = inputs["dataset_id"]
             workspace_id = inputs.get("workspace_id")
@@ -176,7 +176,7 @@ class GetDatasetAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return ActionResult(data={"dataset": response.data, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"dataset": response.data}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -184,7 +184,7 @@ class GetDatasetAction(ActionHandler):
 
 @powerbi.action("refresh_dataset")
 class RefreshDatasetAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             dataset_id = inputs["dataset_id"]
             workspace_id = inputs.get("workspace_id")
@@ -237,7 +237,6 @@ class RefreshDatasetAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "result": True,
                     "message": "Dataset refresh initiated successfully",
                     "request_id": request_id,
                 },
@@ -250,7 +249,7 @@ class RefreshDatasetAction(ActionHandler):
 
 @powerbi.action("get_refresh_history")
 class GetRefreshHistoryAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             dataset_id = inputs["dataset_id"]
             workspace_id = inputs.get("workspace_id")
@@ -277,7 +276,7 @@ class GetRefreshHistoryAction(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"refreshes": refreshes, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"refreshes": refreshes}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -285,7 +284,7 @@ class GetRefreshHistoryAction(ActionHandler):
 
 @powerbi.action("list_reports")
 class ListReportsAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             workspace_id = inputs.get("workspace_id")
 
@@ -308,7 +307,7 @@ class ListReportsAction(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"reports": reports, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"reports": reports}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -316,7 +315,7 @@ class ListReportsAction(ActionHandler):
 
 @powerbi.action("get_report")
 class GetReportAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             report_id = inputs["report_id"]
             workspace_id = inputs.get("workspace_id")
@@ -328,7 +327,7 @@ class GetReportAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return ActionResult(data={"report": response.data, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"report": response.data}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -336,7 +335,7 @@ class GetReportAction(ActionHandler):
 
 @powerbi.action("get_report_datasources")
 class GetReportDatasourcesAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             report_id = inputs["report_id"]
             workspace_id = inputs.get("workspace_id")
@@ -364,7 +363,7 @@ class GetReportDatasourcesAction(ActionHandler):
 
                 datasources.append(ds_data)
 
-            return ActionResult(data={"datasources": datasources, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"datasources": datasources}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -372,7 +371,7 @@ class GetReportDatasourcesAction(ActionHandler):
 
 @powerbi.action("refresh_report")
 class RefreshReportAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             report_id = inputs["report_id"]
             workspace_id = inputs.get("workspace_id")
@@ -403,7 +402,6 @@ class RefreshReportAction(ActionHandler):
 
             return ActionResult(
                 data={
-                    "result": True,
                     "message": f"Dataset refresh initiated successfully for report '{report_data.get('name')}'",
                     "dataset_id": dataset_id,
                 },
@@ -416,7 +414,7 @@ class RefreshReportAction(ActionHandler):
 
 @powerbi.action("clone_report")
 class CloneReportAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             report_id = inputs["report_id"]
             name = inputs["name"]
@@ -445,7 +443,6 @@ class CloneReportAction(ActionHandler):
                     "name": response.data.get("name"),
                     "webUrl": response.data.get("webUrl"),
                     "embedUrl": response.data.get("embedUrl"),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
@@ -458,7 +455,7 @@ class CloneReportAction(ActionHandler):
 class ImportPowerBIFileAction(ActionHandler):
     """Publish a supported Power BI file to My workspace or a named workspace."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             workspace_id = inputs.get("workspace_id")
             source_name, import_name, extension, content_type, file_bytes = _resolve_import_file(
@@ -510,7 +507,6 @@ class ImportPowerBIFileAction(ActionHandler):
                     "name": response_data.get("name", import_name),
                     "reports": response_data.get("reports", []),
                     "datasets": response_data.get("datasets", []),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
@@ -523,7 +519,7 @@ class ImportPowerBIFileAction(ActionHandler):
 class GetImportStatusAction(ActionHandler):
     """Return publishing state and created content for a Power BI import."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             import_id = inputs["import_id"]
             workspace_id = inputs.get("workspace_id")
@@ -542,7 +538,6 @@ class GetImportStatusAction(ActionHandler):
                 "name": response_data.get("name", ""),
                 "reports": response_data.get("reports", []),
                 "datasets": response_data.get("datasets", []),
-                "result": True,
             }
             if response_data.get("createdDateTime"):
                 result["created_date_time"] = response_data["createdDateTime"]
@@ -558,7 +553,7 @@ class GetImportStatusAction(ActionHandler):
 
 @powerbi.action("export_report")
 class ExportReportAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             report_id = inputs["report_id"]
             workspace_id = inputs.get("workspace_id")
@@ -576,7 +571,6 @@ class ExportReportAction(ActionHandler):
             return ActionResult(
                 data={
                     "export_id": response.data.get("id"),
-                    "result": True,
                     "message": "Export initiated successfully",
                 },
                 cost_usd=0.0,
@@ -588,7 +582,7 @@ class ExportReportAction(ActionHandler):
 
 @powerbi.action("get_export_status")
 class GetExportStatusAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             report_id = inputs["report_id"]
             export_id = inputs["export_id"]
@@ -605,7 +599,6 @@ class GetExportStatusAction(ActionHandler):
                 data={
                     "status": response.data.get("status"),
                     "percentComplete": response.data.get("percentComplete", 0),
-                    "result": True,
                 },
                 cost_usd=0.0,
             )
@@ -616,7 +609,7 @@ class GetExportStatusAction(ActionHandler):
 
 @powerbi.action("list_dashboards")
 class ListDashboardsAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             workspace_id = inputs.get("workspace_id")
 
@@ -638,7 +631,7 @@ class ListDashboardsAction(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"dashboards": dashboards, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"dashboards": dashboards}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -646,7 +639,7 @@ class ListDashboardsAction(ActionHandler):
 
 @powerbi.action("get_dashboard")
 class GetDashboardAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             dashboard_id = inputs["dashboard_id"]
             workspace_id = inputs.get("workspace_id")
@@ -658,7 +651,7 @@ class GetDashboardAction(ActionHandler):
 
             response = await context.fetch(url)
 
-            return ActionResult(data={"dashboard": response.data, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"dashboard": response.data}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -666,7 +659,7 @@ class GetDashboardAction(ActionHandler):
 
 @powerbi.action("get_dashboard_tiles")
 class GetDashboardTilesAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             dashboard_id = inputs["dashboard_id"]
             workspace_id = inputs.get("workspace_id")
@@ -690,7 +683,7 @@ class GetDashboardTilesAction(ActionHandler):
                     }
                 )
 
-            return ActionResult(data={"tiles": tiles, "result": True}, cost_usd=0.0)
+            return ActionResult(data={"tiles": tiles}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
@@ -698,7 +691,7 @@ class GetDashboardTilesAction(ActionHandler):
 
 @powerbi.action("execute_queries")
 class ExecuteQueriesAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             dataset_id = inputs["dataset_id"]
             workspace_id = inputs.get("workspace_id")
@@ -713,7 +706,7 @@ class ExecuteQueriesAction(ActionHandler):
 
             response = await context.fetch(url, method="POST", json=query_request)
 
-            return ActionResult(data={"results": response.data.get("results", []), "result": True}, cost_usd=0.0)
+            return ActionResult(data={"results": response.data.get("results", [])}, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))

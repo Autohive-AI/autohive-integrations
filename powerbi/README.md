@@ -37,6 +37,8 @@ Required Power BI API permissions:
 
 The integration uses platform-level OAuth2 authentication, so no manual configuration of authentication fields is required. Users simply need to authorize their Microsoft 365/Azure AD account through the Autohive platform.
 
+Successful actions return the fields documented below. Failures use the SDK's typed `ActionError` response and are not represented by `result` or `error` fields in action output data.
+
 ## Actions
 
 ### Action: `list_workspaces`
@@ -46,9 +48,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `filter`: Optional OData filter expression
     *   `top`: Maximum number of workspaces to return (default: 100)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `workspaces`: List of workspace objects with id, name, and properties
-    *   `error`: Error message if operation failed
 
 ### Action: `get_workspace`
 
@@ -56,9 +56,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
 *   **Inputs:**
     *   `workspace_id`: The workspace ID
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `workspace`: Workspace object with detailed information
-    *   `error`: Error message if operation failed
 
 ### Action: `list_datasets`
 
@@ -66,9 +64,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
 *   **Inputs:**
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `datasets`: List of dataset objects with id, name, and refresh properties
-    *   `error`: Error message if operation failed
 
 ### Action: `get_dataset`
 
@@ -77,9 +73,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `dataset_id`: The dataset ID
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `dataset`: Dataset object with detailed information
-    *   `error`: Error message if operation failed
 
 ### Action: `refresh_dataset`
 
@@ -97,10 +91,8 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `effective_date`: Override date for incremental refresh policy in ISO 8601 format (optional)
     *   `timeout`: Timeout in HH:MM:SS format, e.g., "05:00:00" for 5 hours (optional)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `message`: Success or error message
+    *   `message`: Success message
     *   `request_id`: The refresh request ID for tracking
-    *   `error`: Error message if operation failed
 *   **Notes:**
     *   Enhanced refresh (with parameters beyond `notify_option`) is not supported for Shared capacities
     *   For Shared capacities, maximum of 8 refresh requests per day
@@ -116,9 +108,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
     *   `top`: Maximum number of refresh records to return (default: 10)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `refreshes`: List of refresh records with status, start time, and end time
-    *   `error`: Error message if operation failed
 
 ### Action: `list_reports`
 
@@ -126,9 +116,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
 *   **Inputs:**
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `reports`: List of report objects with id, name, webUrl, and embedUrl
-    *   `error`: Error message if operation failed
 
 ### Action: `get_report`
 
@@ -137,9 +125,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `report_id`: The report ID
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `report`: Report object with detailed information
-    *   `error`: Error message if operation failed
 
 ### Action: `get_report_datasources`
 
@@ -148,9 +134,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `report_id`: The report ID
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `datasources`: List of data source objects with datasourceType, datasourceId, gatewayId, name, connectionString, and connectionDetails
-    *   `error`: Error message if operation failed
 
 ### Action: `refresh_report`
 
@@ -160,10 +144,8 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
     *   `notify_option`: Notification option - "NoNotification" or "MailOnFailure" (default: NoNotification)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
-    *   `message`: Success or error message
+    *   `message`: Success message
     *   `dataset_id`: The ID of the dataset that was refreshed
-    *   `error`: Error message if operation failed
 
 ### Action: `clone_report`
 
@@ -175,12 +157,10 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `target_workspace_id`: Target workspace ID (optional, defaults to source workspace)
     *   `target_dataset_id`: Target dataset ID for the cloned report (optional)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `id`: ID of the cloned report
     *   `name`: Name of the cloned report
     *   `webUrl`: Web URL to access the cloned report
     *   `embedUrl`: Embed URL for the cloned report
-    *   `error`: Error message if operation failed
 
 ### Action: `import_powerbi_file`
 
@@ -195,12 +175,10 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `override_model_label`: Override an existing semantic model sensitivity label when republishing
     *   `subfolder_object_id`: Optional destination workspace subfolder object ID
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `import_id`: Import operation ID for status checks
     *   `import_state`: Initial import state
     *   `reports`: Reports returned for a synchronously completed import
     *   `datasets`: Semantic models returned for a synchronously completed import
-    *   `error`: Error message if operation failed
 
 ### Action: `get_import_status`
 
@@ -209,12 +187,10 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `import_id`: Import operation ID returned by `import_powerbi_file`
     *   `workspace_id`: The workspace used for the import (optional, defaults to My workspace)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `import_state`: `Publishing`, `Succeeded`, or `Failed`
     *   `reports`: Reports created by the import
     *   `datasets`: Semantic models created by the import
     *   `import_error`: Provider failure details when the import failed
-    *   `error`: Error message if the status request failed
 
 ### Action: `export_report`
 
@@ -224,10 +200,8 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
     *   `format`: Export format - "PDF", "PPTX", or "PNG" (default: PDF)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `export_id`: ID of the export operation
-    *   `message`: Success or error message
-    *   `error`: Error message if operation failed
+    *   `message`: Success message
 
 ### Action: `get_export_status`
 
@@ -237,10 +211,8 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `export_id`: The export ID
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `status`: Export status (Running, Succeeded, Failed)
     *   `percentComplete`: Percentage of completion (0-100)
-    *   `error`: Error message if operation failed
 
 ### Action: `list_dashboards`
 
@@ -248,9 +220,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
 *   **Inputs:**
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `dashboards`: List of dashboard objects with id, displayName, and embedUrl
-    *   `error`: Error message if operation failed
 
 ### Action: `get_dashboard`
 
@@ -259,9 +229,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `dashboard_id`: The dashboard ID
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `dashboard`: Dashboard object with detailed information
-    *   `error`: Error message if operation failed
 
 ### Action: `get_dashboard_tiles`
 
@@ -270,9 +238,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `dashboard_id`: The dashboard ID
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `tiles`: List of tile objects with id, title, embedUrl, and related IDs
-    *   `error`: Error message if operation failed
 
 ### Action: `execute_queries`
 
@@ -282,9 +248,7 @@ The integration uses platform-level OAuth2 authentication, so no manual configur
     *   `workspace_id`: The workspace ID (optional, defaults to My workspace)
     *   `queries`: List of query objects, each containing a DAX query string
 *   **Outputs:**
-    *   `result`: Boolean indicating success/failure
     *   `results`: List of query result objects
-    *   `error`: Error message if operation failed
 
 ## Requirements
 
@@ -402,6 +366,12 @@ To run the mocked unit tests from the repository root:
 
 ```bash
 pytest powerbi/tests/test_powerbi_unit.py -m unit
+```
+
+For the read-only live checks, set `POWERBI_ACCESS_TOKEN` in the repository-root `.env` file and run:
+
+```bash
+pytest powerbi/tests/test_powerbi_integration.py -m integration -v
 ```
 
 ## Additional Notes

@@ -59,14 +59,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "workspaces",
-                    "result"
+                    "workspaces"
                 ]
             }
         },
@@ -91,14 +87,10 @@
                     "workspace": {
                         "type": "object",
                         "description": "Workspace details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "workspace",
-                    "result"
+                    "workspace"
                 ]
             }
         },
@@ -146,14 +138,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "datasets",
-                    "result"
+                    "datasets"
                 ]
             }
         },
@@ -182,14 +170,10 @@
                     "dataset": {
                         "type": "object",
                         "description": "Dataset details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dataset",
-                    "result"
+                    "dataset"
                 ]
             }
         },
@@ -285,9 +269,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     },
@@ -295,9 +276,7 @@
                         "type": "string"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "get_refresh_history": {
@@ -350,14 +329,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "refreshes",
-                    "result"
+                    "refreshes"
                 ]
             }
         },
@@ -399,14 +374,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "reports",
-                    "result"
+                    "reports"
                 ]
             }
         },
@@ -435,14 +406,10 @@
                     "report": {
                         "type": "object",
                         "description": "Report details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "report",
-                    "result"
+                    "report"
                 ]
             }
         },
@@ -495,14 +462,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "datasources",
-                    "result"
+                    "datasources"
                 ]
             }
         },
@@ -552,14 +515,9 @@
                     },
                     "embedUrl": {
                         "type": "string"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "refresh_report": {
@@ -593,9 +551,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     },
@@ -603,9 +558,7 @@
                         "type": "string"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "import_powerbi_file": {
@@ -704,12 +657,6 @@
                         "items": {
                             "type": "object"
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 },
                 "required": [
@@ -717,8 +664,7 @@
                     "import_state",
                     "name",
                     "reports",
-                    "datasets",
-                    "result"
+                    "datasets"
                 ]
             }
         },
@@ -774,12 +720,6 @@
                     "import_error": {
                         "type": "object",
                         "description": "Power BI import failure details when import_state is Failed"
-                    },
-                    "result": {
-                        "type": "boolean"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 },
                 "required": [
@@ -787,8 +727,7 @@
                     "import_state",
                     "name",
                     "reports",
-                    "datasets",
-                    "result"
+                    "datasets"
                 ]
             }
         },
@@ -827,16 +766,11 @@
                     "export_id": {
                         "type": "string"
                     },
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "get_export_status": {
@@ -871,14 +805,10 @@
                     },
                     "percentComplete": {
                         "type": "integer"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "status",
-                    "result"
+                    "status"
                 ]
             }
         },
@@ -917,14 +847,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dashboards",
-                    "result"
+                    "dashboards"
                 ]
             }
         },
@@ -953,14 +879,10 @@
                     "dashboard": {
                         "type": "object",
                         "description": "Dashboard details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dashboard",
-                    "result"
+                    "dashboard"
                 ]
             }
         },
@@ -1009,14 +931,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "tiles",
-                    "result"
+                    "tiles"
                 ]
             }
         },
@@ -1059,14 +977,10 @@
                     "results": {
                         "type": "array",
                         "description": "Query results"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "results",
-                    "result"
+                    "results"
                 ]
             }
         }

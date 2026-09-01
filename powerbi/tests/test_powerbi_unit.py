@@ -92,7 +92,6 @@ async def test_import_powerbi_file_uploads_binary_multipart_to_workspace(mock_co
         "name": "Quarterly Sales.pbix",
         "reports": [],
         "datasets": [],
-        "result": True,
     }
     call = mock_context.fetch.await_args
     assert call.args[0].endswith("/groups/workspace-1/imports")
@@ -124,7 +123,7 @@ async def test_import_powerbi_file_defaults_rdl_conflict_to_abort(mock_context):
         mock_context,
     )
 
-    assert result.result.data["result"] is True
+    assert result.type == ResultType.ACTION
     assert mock_context.fetch.await_args.kwargs["params"]["nameConflict"] == "Abort"
     assert mock_context.fetch.await_args.args[0].endswith("/imports")
     assert "/groups/" not in mock_context.fetch.await_args.args[0]
@@ -226,7 +225,7 @@ async def test_get_import_status_returns_created_reports_and_datasets(mock_conte
         mock_context,
     )
 
-    assert result.result.data["result"] is True
+    assert result.type == ResultType.ACTION
     assert result.result.data["import_state"] == "Succeeded"
     assert result.result.data["reports"][0]["id"] == "report-1"
     assert result.result.data["datasets"][0]["id"] == "dataset-1"
@@ -248,6 +247,6 @@ async def test_get_import_status_preserves_provider_failure_details(mock_context
 
     result = await powerbi.execute_action("get_import_status", {"import_id": "import-1"}, mock_context)
 
-    assert result.result.data["result"] is True
+    assert result.type == ResultType.ACTION
     assert result.result.data["import_state"] == "Failed"
     assert result.result.data["import_error"]["code"] == "ImportFailed"
