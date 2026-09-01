@@ -81,9 +81,10 @@ Integration tests call the real Windcave API and require credentials. Set these 
 WINDCAVE_USERNAME=
 WINDCAVE_API_KEY=
 WINDCAVE_TEST_TRANSACTION_ID=
+WINDCAVE_TEST_SESSION_ID=
 ```
 
-`WINDCAVE_TEST_TRANSACTION_ID` is the ID of a transaction that already exists in the account; the success-path test skips without it. This integration is read-only, so no test creates or modifies data and there are no destructive tests.
+`WINDCAVE_TEST_TRANSACTION_ID` is the ID of a transaction that already exists in the account. `WINDCAVE_TEST_SESSION_ID` is the ID of a session containing at least one payment attempt with card data, allowing the live test to verify recursive redaction. The corresponding success-path test skips when either optional ID is absent. This integration is read-only, so no test creates or modifies data and there are no destructive tests.
 
 ```bash
 pytest windcave/tests/test_windcave_integration.py -m "integration and not destructive"
