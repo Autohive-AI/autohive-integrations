@@ -1,5 +1,8 @@
-import pytest
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
 
@@ -573,9 +576,22 @@ class TestSearchContacts:
 
 
 class TestAddContactToList:
+    def test_config_requests_list_write_scope(self):
+        config_path = Path(__file__).parents[1] / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+
+        assert "crm.lists.write" in config["auth"]["scopes"]
+
+    def test_config_allows_hubspot_to_omit_empty_result_arrays(self):
+        config_path = Path(__file__).parents[1] / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        result_schema = config["actions"]["add_contact_to_list"]["output_schema"]["properties"]["result"]
+
+        assert "required" not in result_schema
+
     @pytest.mark.asyncio
-    async def test_happy_path(self, mock_context):
-        api_result = {"recordIdsAdded": ["456"], "recordIdsDisallowed": []}
+    async def test_accepts_success_response_with_omitted_empty_arrays(self, mock_context):
+        api_result = {"recordsIdsAdded": ["456"]}
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=api_result)
 
         result = await hubspot.execute_action(
@@ -585,7 +601,7 @@ class TestAddContactToList:
         )
 
         data = result.result.data
-        assert data["result"]["recordIdsAdded"] == ["456"]
+        assert data["result"]["recordsIdsAdded"] == ["456"]
         mock_context.fetch.assert_called_once()
         call_kwargs = mock_context.fetch.call_args
         assert call_kwargs.args[0] == "https://api.hubapi.com/crm/v3/lists/10/memberships/add"
@@ -596,7 +612,7 @@ class TestAddContactToList:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"recordIdsAdded": ["99"], "recordIdsDisallowed": []},
+            data={"recordsIdsAdded": ["99"], "recordIdsMissing": [], "recordIdsRemoved": []},
         )
 
         await hubspot.execute_action("add_contact_to_list", {"list_id": "42", "contact_id": "99"}, mock_context)
@@ -606,17 +622,17 @@ class TestAddContactToList:
         assert call_kwargs.kwargs["method"] == "PUT"
 
     @pytest.mark.asyncio
-    async def test_payload_contains_record_ids(self, mock_context):
+    async def test_payload_is_record_id_array(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"recordIdsAdded": ["77"], "recordIdsDisallowed": []},
+            data={"recordsIdsAdded": ["77"], "recordIdsMissing": [], "recordIdsRemoved": []},
         )
 
         await hubspot.execute_action("add_contact_to_list", {"list_id": "5", "contact_id": "77"}, mock_context)
 
         payload = mock_context.fetch.call_args.kwargs["json"]
-        assert payload["recordIds"] == ["77"]
+        assert payload == ["77"]
 
 
 # ---- GetRecentContacts ----
