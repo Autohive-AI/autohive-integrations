@@ -197,7 +197,7 @@ class TestGetTransaction:
         await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, mock_context)
 
         call_args = mock_context.fetch.call_args
-        assert call_args.args[0] == f"https://uat.windcave.com/api/v1/transactions/{TRANSACTION_ID}"
+        assert call_args.args[0] == f"https://sec.windcave.com/api/v1/transactions/{TRANSACTION_ID}"
         assert call_args.kwargs["method"] == "GET"
 
     @pytest.mark.asyncio
@@ -263,7 +263,7 @@ class TestGetSession:
         await windcave.execute_action("get_session", {"session_id": "session/1"}, mock_context)
 
         call_args = mock_context.fetch.call_args
-        assert call_args.args[0] == "https://uat.windcave.com/api/v1/sessions/session%2F1"
+        assert call_args.args[0] == "https://sec.windcave.com/api/v1/sessions/session%2F1"
         assert call_args.kwargs["method"] == "GET"
         assert call_args.kwargs["headers"]["Authorization"].startswith("Basic ")
 

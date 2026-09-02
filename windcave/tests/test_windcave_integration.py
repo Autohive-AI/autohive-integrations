@@ -1,9 +1,9 @@
 """
 End-to-end integration tests for the Windcave integration.
 
-These tests call the real Windcave REST API and require valid REST API
-credentials set via WINDCAVE_USERNAME and WINDCAVE_API_KEY (in .env or
-exported).
+These tests call the production Windcave REST API and require valid production
+REST API credentials set via WINDCAVE_USERNAME and WINDCAVE_API_KEY (in .env
+or exported).
 
 This integration is read-only, so none of these tests create, modify, or delete
 data, and there are no destructive tests here.

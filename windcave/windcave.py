@@ -21,7 +21,7 @@ from autohive_integrations_sdk import (
 
 windcave = Integration.load()
 
-BASE_URL = "https://uat.windcave.com/api/v1"
+BASE_URL = "https://sec.windcave.com/api/v1"
 REDACTED_VALUE = "[REDACTED]"
 
 

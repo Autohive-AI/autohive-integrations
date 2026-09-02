@@ -45,7 +45,7 @@ For security, all values inside every `card` object are replaced with `[REDACTED
 
 ## API information
 
-- Base URL: `https://uat.windcave.com/api/v1` (Windcave UAT)
+- Base URL: `https://sec.windcave.com/api/v1` (Windcave production)
 - Auth header: `Authorization: Basic <base64(username:api_key)>` (HTTP Basic Authentication)
 - Endpoints used:
   - `GET /transactions/{id}`
@@ -59,9 +59,9 @@ For security, all values inside every `card` object are replaced with `[REDACTED
 | `Session not found` | The `session_id` doesn't exist in this Windcave account or was created under different credentials. |
 | `Invalid transaction id` | The `transaction_id` isn't in the format Windcave expects (a well-formed ID looks like 16 hex characters, not a UUID). |
 | Missing-credential validation error | Reconnect the integration and provide both the REST API `username` and `api_key`. |
-| `401`/authentication errors on every call | `username`/`api_key` are wrong, have been revoked, or belong to a non-UAT environment. |
+| `401`/authentication errors on every call | `username`/`api_key` are wrong, have been revoked, or belong to a non-production environment. |
 
-This integration currently targets Windcave UAT, so it requires UAT REST API credentials. Production credentials for `sec.windcave.com` will not authenticate against this endpoint.
+This integration targets Windcave production and requires production REST API credentials. UAT credentials for `uat.windcave.com` will not authenticate against this endpoint.
 
 ## Testing
 
@@ -75,7 +75,7 @@ pytest windcave/tests/test_windcave_unit.py -v
 
 ### Integration Tests
 
-Integration tests call the real Windcave API and require credentials. Set these in your local `.env` (see the repository root `.env.example`):
+Integration tests call the production Windcave API and require production credentials. Set these in your local `.env` (see the repository root `.env.example`):
 
 ```bash
 WINDCAVE_USERNAME=
