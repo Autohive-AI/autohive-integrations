@@ -1,13 +1,7 @@
-"""
-Windcave — payment gateway integration for the Windcave REST API.
-
-Actions:
-- get_transaction: Retrieve a transaction by ID.
-- get_session: Retrieve a payment session by ID with card data redacted.
-"""
+"""Read-only Windcave REST API integration."""
 
 import base64
-from typing import Any, Dict
+from typing import Any
 from urllib.parse import quote
 
 from autohive_integrations_sdk import (
@@ -28,7 +22,7 @@ REDACTED_VALUE = "[REDACTED]"
 # ---- Helper Functions ----
 
 
-def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
+def get_auth_headers(context: ExecutionContext) -> dict[str, str]:
     """
     Build authentication headers for Windcave REST API requests.
     Windcave uses HTTP Basic Authentication with the REST API username and API key.
@@ -91,7 +85,7 @@ def redact_card_objects(value: Any) -> Any:
 class GetTransactionAction(ActionHandler):
     """Retrieve a Windcave transaction by ID."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> Any:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> Any:
         try:
             transaction_id = quote(inputs["transaction_id"], safe="")
 
@@ -109,7 +103,6 @@ class GetTransactionAction(ActionHandler):
                     "settlement_date": transaction.get("settlementDate"),
                     "amount_surcharge": transaction.get("amountSurcharge"),
                     "transaction": transaction,
-                    "result": True,
                 }
             )
         except HTTPError as e:
@@ -125,7 +118,7 @@ class GetTransactionAction(ActionHandler):
 class GetSessionAction(ActionHandler):
     """Retrieve a Windcave payment session by ID with card data redacted."""
 
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> Any:
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> Any:
         try:
             session_id = quote(inputs["session_id"], safe="")
 
@@ -147,7 +140,6 @@ class GetSessionAction(ActionHandler):
                     "expires": session.get("expires"),
                     "transactions": session.get("transactions") or [],
                     "session": session,
-                    "result": True,
                 }
             )
         except HTTPError as e:

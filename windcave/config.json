@@ -64,10 +64,6 @@
                     "transaction": {
                         "type": "object",
                         "description": "The full transaction object returned by Windcave, with every card object recursively redacted."
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful."
                     }
                 }
             }
@@ -125,10 +121,6 @@
                     "session": {
                         "type": "object",
                         "description": "The full session response with every card object recursively redacted."
-                    },
-                    "result": {
-                        "type": "boolean",
-                        "description": "Whether the operation was successful."
                     }
                 }
             }

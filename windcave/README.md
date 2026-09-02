@@ -32,14 +32,14 @@ Retrieve a transaction by ID.
 
 **Inputs:** `transaction_id` (required)
 
-**Outputs:** `transaction_id`, `authorised`, `settlement_date`, `amount_surcharge`, `transaction` (card-redacted object), `result`
+**Outputs:** `transaction_id`, `authorised`, `settlement_date`, `amount_surcharge`, `transaction` (card-redacted object)
 
 ### `get_session`
 Retrieve an existing payment session and all transaction attempts associated with it.
 
 **Inputs:** `session_id` (required)
 
-**Outputs:** `session_id`, `state`, `type`, `amount`, `currency`, `merchant_reference`, `expires`, `transactions`, `session`, `result`
+**Outputs:** `session_id`, `state`, `type`, `amount`, `currency`, `merchant_reference`, `expires`, `transactions`, `session`
 
 For security, all values inside every `card` object are replaced with `[REDACTED]`. The object and its keys remain present so workflows can detect that card data existed without receiving cardholder, token, card-number, expiry, or brand values.
 
@@ -93,7 +93,7 @@ pytest windcave/tests/test_windcave_integration.py -m "integration and not destr
 ## Notes
 
 - This integration never accepts raw card numbers or CVCs. Card objects returned within transaction or session data retain their shape, but all contained values are recursively replaced with `[REDACTED]` before being returned.
-- `settlement_date` and `amount_surcharge` are read directly from Windcave's transaction data (`settlementDate`/`amountSurcharge`) and will be `null` until Windcave settles the transaction (typically the next business day).
+- `settlement_date` and `amount_surcharge` are read directly from Windcave's transaction data (`settlementDate`/`amountSurcharge`). `settlement_date` may be `null` before settlement, while `amount_surcharge` may be `null` when no surcharge applies.
 
 ### Reconciliation fields: what's available vs. not
 
