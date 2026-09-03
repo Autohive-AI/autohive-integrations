@@ -387,6 +387,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [karakeep](karakeep): [Karakeep](https://karakeep.app) integration for saving bookmarks and managing tags on Karakeep Cloud or a self-hosted instance. Supports creating bookmarks of type link, text, or asset (duplicate URLs return the existing bookmark with `already_existed`), attaching tags by name or id, creating and listing tags, listing bookmarks (including by tag), search (full-text, semantic, or hybrid), and fetching a bookmark by id. Custom authentication with an HTTPS instance URL (for example `https://cloud.karakeep.app`; `http://` is rejected) and an API key from the Karakeep app. Includes 8 actions.
 
+### Windcave
+
+[windcave](windcave): Read-only integration with the Windcave REST API for retrieving transactions and payment sessions by ID. Includes 2 actions: `get_transaction` returns authorisation status, settlement date, surcharge, and the full card-redacted transaction record for reconciliation workflows; `get_session` returns session details and payment attempts with every card object recursively redacted. Transactions and sessions must already exist in the merchant's Windcave account, and the integration never creates, captures, refunds, or voids payments. Uses HTTP Basic Authentication with a Windcave REST API username and key. Targets the Windcave production endpoint and requires production credentials; UAT credentials are not supported. Ideal for payment reconciliation and status lookups in New Zealand, Australia, and the Pacific.
+
 ## Template
 
 Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) in the SDK repo as the starting point for new integrations.
