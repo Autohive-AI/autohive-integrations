@@ -1399,8 +1399,21 @@ class CancelOrderHandler(ActionHandler):
             )
             payload = data.get("orderCancel", {})
             raise_for_user_errors("Order cancellation", payload, "orderCancelUserErrors")
-            order_data = await execute_graphql(context, ORDER_QUERY, {"id": order_gid})
-            return success_response(order=transform_order_response(order_data.get("order") or {}))
+            job = payload.get("job") or {}
+            job_id = job.get("id")
+            if not job_id:
+                raise Exception("Order cancellation failed: Shopify did not return a cancellation job")
+
+            job_done = bool(job.get("done", False))
+            result = {
+                "cancellation_status": "completed" if job_done else "pending",
+                "job_id": job_id,
+                "job_done": job_done,
+            }
+            if job_done:
+                order_data = await execute_graphql(context, ORDER_QUERY, {"id": order_gid})
+                result["order"] = transform_order_response(order_data.get("order") or {})
+            return success_response(**result)
         except Exception as e:
             return error_response(e, order={})
 
@@ -1468,8 +1481,12 @@ class GetProductHandler(ActionHandler):
             # Execute GraphQL query
             data = await execute_graphql(context, PRODUCT_QUERY, variables)
 
+            graphql_product = data.get("product")
+            if not graphql_product:
+                raise ValueError(f"Product {product_id} was not found")
+
             # Transform response
-            product = transform_product_response(data.get("product", {}))
+            product = transform_product_response(graphql_product)
 
             return success_response(product=product)
         except Exception as e:
@@ -1610,21 +1627,21 @@ class UpdateProductHandler(ActionHandler):
             product_input = {"id": gid}
 
             # Map REST field names to GraphQL field names
-            if inputs.get("title"):
+            if "title" in inputs and inputs["title"] is not None:
                 product_input["title"] = inputs["title"]
-            if inputs.get("body_html"):
+            if "body_html" in inputs and inputs["body_html"] is not None:
                 product_input["descriptionHtml"] = inputs["body_html"]
-            if inputs.get("vendor"):
+            if "vendor" in inputs and inputs["vendor"] is not None:
                 product_input["vendor"] = inputs["vendor"]
-            if inputs.get("product_type"):
+            if "product_type" in inputs and inputs["product_type"] is not None:
                 product_input["productType"] = inputs["product_type"]
-            if inputs.get("tags"):
+            if "tags" in inputs and inputs["tags"] is not None:
                 # Convert comma-separated string to array if needed
                 tags = inputs["tags"]
                 if isinstance(tags, str):
                     tags = [t.strip() for t in tags.split(",") if t.strip()]
                 product_input["tags"] = tags
-            if inputs.get("status"):
+            if "status" in inputs and inputs["status"] is not None:
                 # Convert to uppercase for GraphQL enum
                 product_input["status"] = inputs["status"].upper()
 

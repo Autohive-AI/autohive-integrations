@@ -30,7 +30,9 @@ def test_config_uses_custom_auth_fields():
 
     assert config["auth"]["type"] == "custom"
     assert set(config["auth"]["fields"]["properties"]) == {"shop_url", "client_id", "client_secret"}
-    assert set(config["auth"]["fields"]["required"]) == {"shop_url", "client_id", "client_secret"}
+    # Keep fields optional in the connection schema because the deployed custom-auth
+    # form mishandles non-empty required arrays. Runtime helpers validate all fields.
+    assert config["auth"]["fields"]["required"] == []
     assert config["auth"]["fields"]["properties"]["client_secret"]["format"] == "password"
 
 

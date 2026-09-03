@@ -166,6 +166,58 @@ async def test_get_product_error_returns_action_error(product_context):
     assert "GraphQL Error" in result.result.message
 
 
+async def test_get_product_null_returns_not_found_error(product_context):
+    product_context.fetch.side_effect = [
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"data": {"product": None}}),
+    ]
+
+    result = await shopify_admin.execute_action("get_product", {"product_id": "100"}, product_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == "Product 100 was not found"
+
+
+async def test_update_product_sends_explicit_empty_fields(product_context):
+    product_context.fetch.side_effect = [
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "productUpdate": {
+                        "product": {"id": "gid://shopify/Product/100", "title": "Test product"},
+                        "userErrors": [],
+                    }
+                }
+            }
+        ),
+    ]
+
+    result = await shopify_admin.execute_action(
+        "update_product",
+        {
+            "product_id": "100",
+            "body_html": "",
+            "vendor": "",
+            "product_type": "",
+            "tags": "",
+        },
+        product_context,
+    )
+
+    assert result.type == ResultType.ACTION
+    graphql_call = product_context.fetch.await_args_list[1]
+    assert graphql_call.kwargs["json"]["variables"] == {
+        "product": {
+            "id": "gid://shopify/Product/100",
+            "descriptionHtml": "",
+            "vendor": "",
+            "productType": "",
+            "tags": [],
+        }
+    }
+
+
 async def test_create_product_updates_the_standalone_variant(product_context):
     product_context.fetch.side_effect = [
         fetch_response({"access_token": "test-access-token"}),  # nosec B105

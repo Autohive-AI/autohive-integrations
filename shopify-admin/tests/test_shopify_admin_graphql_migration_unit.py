@@ -9,7 +9,16 @@ pytestmark = pytest.mark.unit
 
 @pytest.fixture
 def context():
-    return MagicMock(name="ExecutionContext")
+    execution_context = MagicMock(name="ExecutionContext")
+    execution_context.auth = {
+        "auth_type": "Custom",
+        "credentials": {
+            "shop_url": "example-store.myshopify.com",
+            "client_id": "test-client-id",
+            "client_secret": "test-client-secret",  # nosec B105
+        },
+    }
+    return execution_context
 
 
 def graphql_mock(monkeypatch, *, return_value=None, side_effect=None):
@@ -187,20 +196,31 @@ async def test_custom_order_price_resolves_shop_currency(monkeypatch, context):
     assert money == {"shopMoney": {"amount": "25.00", "currencyCode": "NZD"}}
 
 
-async def test_cancel_order_uses_required_refund_method(monkeypatch, context):
+async def test_cancel_order_returns_pending_job_without_fetching_order(monkeypatch, context):
     graphql = graphql_mock(
         monkeypatch,
-        side_effect=[
-            {"orderCancel": {"job": {"id": "gid://shopify/Job/1"}, "orderCancelUserErrors": []}},
-            {"order": ORDER_NODE},
-        ],
+        return_value={
+            "orderCancel": {
+                "job": {"id": "gid://shopify/Job/1", "done": False},
+                "orderCancelUserErrors": [],
+            }
+        },
     )
 
-    result = await module.CancelOrderHandler().execute(
-        {"order_id": "2", "reason": "customer", "email": False, "restock": True}, context
+    integration_result = await module.shopify_admin.execute_action(
+        "cancel_order",
+        {"order_id": "2", "reason": "customer", "email": False, "restock": True},
+        context,
     )
+    result = integration_result.result
 
-    assert result.data["order"]["id"] == "2"
+    assert result.data == {
+        "success": True,
+        "cancellation_status": "pending",
+        "job_id": "gid://shopify/Job/1",
+        "job_done": False,
+    }
+    graphql.assert_awaited_once()
     assert graphql.await_args_list[0].args[2] == {
         "orderId": "gid://shopify/Order/2",
         "notifyCustomer": False,
@@ -208,6 +228,29 @@ async def test_cancel_order_uses_required_refund_method(monkeypatch, context):
         "restock": True,
         "reason": "CUSTOMER",
     }
+
+
+async def test_cancel_order_fetches_order_when_job_is_already_done(monkeypatch, context):
+    graphql = graphql_mock(
+        monkeypatch,
+        side_effect=[
+            {
+                "orderCancel": {
+                    "job": {"id": "gid://shopify/Job/1", "done": True},
+                    "orderCancelUserErrors": [],
+                }
+            },
+            {"order": ORDER_NODE},
+        ],
+    )
+
+    result = await module.CancelOrderHandler().execute({"order_id": "2"}, context)
+
+    assert result.data["cancellation_status"] == "completed"
+    assert result.data["job_done"] is True
+    assert result.data["order"]["id"] == "2"
+    assert graphql.await_args_list[1].args[1] == module.ORDER_QUERY
+    assert graphql.await_args_list[1].args[2] == {"id": "gid://shopify/Order/2"}
 
 
 async def test_get_inventory_levels_by_item_uses_nodes(monkeypatch, context):

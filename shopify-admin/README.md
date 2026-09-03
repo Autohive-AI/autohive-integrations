@@ -167,7 +167,9 @@ Get a single order by ID.
 Create a new order.
 
 #### `cancel_order`
-Cancel an existing order.
+Submit an asynchronous request to cancel an existing order. The response includes Shopify's cancellation `job_id`,
+`job_done`, and a `cancellation_status` of `pending` or `completed`. When Shopify completes the job immediately, the
+response also includes the updated order. The action does not poll pending jobs.
 
 ---
 
@@ -233,10 +235,7 @@ Update tracking information for a fulfillment.
 ### Example 1: List Products with Pagination (GraphQL)
 ```python
 # First page
-result = await shopify_admin.execute_action("list_products", {
-    "limit": 50,
-    "status": "active"
-}, context)
+result = await shopify_admin.execute_action("list_products", {"limit": 50, "status": "active"}, context)
 
 products = result.data["products"]
 has_more = result.data["hasNextPage"]
@@ -244,36 +243,39 @@ cursor = result.data["endCursor"]
 
 # Next page
 if has_more:
-    result = await shopify_admin.execute_action("list_products", {
-        "limit": 50,
-        "after": cursor
-    }, context)
+    result = await shopify_admin.execute_action("list_products", {"limit": 50, "after": cursor}, context)
 ```
 
 ### Example 2: Create a Product (GraphQL)
 ```python
-result = await shopify_admin.execute_action("create_product", {
-    "title": "New Product",
-    "body_html": "<p>Product description</p>",
-    "vendor": "My Brand",
-    "product_type": "Accessories",
-    "tags": "new,featured",
-    "status": "draft",
-    "variants": [
-        {"price": "29.99", "sku": "SKU-001"}
-    ]
-}, context)
+result = await shopify_admin.execute_action(
+    "create_product",
+    {
+        "title": "New Product",
+        "body_html": "<p>Product description</p>",
+        "vendor": "My Brand",
+        "product_type": "Accessories",
+        "tags": "new,featured",
+        "status": "draft",
+        "variants": [{"price": "29.99", "sku": "SKU-001"}],
+    },
+    context,
+)
 
 product_id = result.data["product"]["id"]
 ```
 
 ### Example 3: Update a Product (GraphQL)
 ```python
-result = await shopify_admin.execute_action("update_product", {
-    "product_id": "12345678",  # or "gid://shopify/Product/12345678"
-    "title": "Updated Product Name",
-    "status": "active"
-}, context)
+result = await shopify_admin.execute_action(
+    "update_product",
+    {
+        "product_id": "12345678",  # or "gid://shopify/Product/12345678"
+        "title": "Updated Product Name",
+        "status": "active",
+    },
+    context,
+)
 ```
 
 ## Testing
@@ -296,7 +298,10 @@ Run the read-only integration tests by default:
 pytest shopify-admin/tests/test_shopify_admin_integration.py -m "integration and not destructive"
 ```
 
-The destructive suite creates and then deletes a draft order. Run it deliberately against a test store:
+The destructive suite creates and cleans up customer, product-variant, and draft-order fixtures; it temporarily changes
+and restores inventory. It also irreversibly cancels and fulfills disposable orders configured through the
+`SHOPIFY_ADMIN_TEST_CANCEL_ORDER_ID`, `SHOPIFY_ADMIN_TEST_FULFILLMENT_ORDER_ID`, and
+`SHOPIFY_ADMIN_TEST_FULFILLMENT_LOCATION_ID` variables. Run it deliberately against a test store:
 
 ```bash
 pytest shopify-admin/tests/test_shopify_admin_integration.py -m "integration and destructive"

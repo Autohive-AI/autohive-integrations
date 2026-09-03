@@ -12,14 +12,33 @@ Run destructive tests deliberately:
 """
 
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
 
-from shopify_admin import shopify_admin
+from shopify_admin import execute_graphql, shopify_admin, to_gid
 
 pytestmark = pytest.mark.integration
+
+CUSTOMER_DELETE_MUTATION = """
+mutation CustomerDelete($input: CustomerDeleteInput!) {
+  customerDelete(input: $input) {
+    deletedCustomerId
+    userErrors { field message }
+  }
+}
+"""
+
+PRODUCT_DELETE_MUTATION = """
+mutation ProductDelete($input: ProductDeleteInput!) {
+  productDelete(input: $input) {
+    deletedProductId
+    userErrors { field message }
+  }
+}
+"""
 
 
 @pytest.fixture
@@ -91,6 +110,9 @@ def test_ids(env_credentials):
         "product": env_credentials("SHOPIFY_ADMIN_TEST_PRODUCT_ID"),
         "location": env_credentials("SHOPIFY_ADMIN_TEST_LOCATION_ID"),
         "inventory_item": env_credentials("SHOPIFY_ADMIN_TEST_INVENTORY_ITEM_ID"),
+        "cancel_order": env_credentials("SHOPIFY_ADMIN_TEST_CANCEL_ORDER_ID"),
+        "fulfillment_order": env_credentials("SHOPIFY_ADMIN_TEST_FULFILLMENT_ORDER_ID"),
+        "fulfillment_location": env_credentials("SHOPIFY_ADMIN_TEST_FULFILLMENT_LOCATION_ID"),
     }
 
 
@@ -111,6 +133,53 @@ async def first_resource_id(live_context, configured_id, list_action, collection
     if not resources:
         pytest.skip(f"No Shopify {collection_key.replace('_', ' ')} available")
     return resources[0]["id"]
+
+
+def require_test_id(test_ids, name, env_name):
+    """Return an explicitly configured ID required by an irreversible test."""
+    value = test_ids[name]
+    if not value:
+        pytest.skip(f"{env_name} is required for this destructive integration test")
+    return value
+
+
+async def delete_test_customer(live_context, customer_id):
+    """Delete a customer created by this test through Shopify GraphQL."""
+    data = await execute_graphql(
+        live_context,
+        CUSTOMER_DELETE_MUTATION,
+        {"input": {"id": to_gid("Customer", customer_id)}},
+    )
+    payload = data.get("customerDelete", {})
+    assert payload.get("userErrors") == []
+    assert payload.get("deletedCustomerId")
+
+
+async def delete_test_product(live_context, product_id):
+    """Delete a draft product created by this test through Shopify GraphQL."""
+    data = await execute_graphql(
+        live_context,
+        PRODUCT_DELETE_MUTATION,
+        {"input": {"id": to_gid("Product", product_id)}},
+    )
+    payload = data.get("productDelete", {})
+    assert payload.get("userErrors") == []
+    assert payload.get("deletedProductId")
+
+
+async def find_product_id_by_title(live_context, title):
+    """Find a partially created product so a failed lifecycle can still clean up."""
+    result = await shopify_admin.execute_action(
+        "list_products",
+        {"title": title, "limit": 10},
+        live_context,
+    )
+    if result.type != ResultType.ACTION:
+        return None
+    return next(
+        (product["id"] for product in result.result.data["products"] if product.get("title") == title),
+        None,
+    )
 
 
 # ---- Customer actions ----
@@ -292,3 +361,182 @@ class TestDraftOrderLifecycle:
                     )
                 )
                 assert delete_data["deleted"] is True
+
+
+@pytest.mark.destructive
+class TestCustomerLifecycle:
+    async def test_create_update_and_delete_customer(self, live_context):
+        customer_id = None
+        unique = uuid4().hex
+        try:
+            create_data = action_data(
+                await shopify_admin.execute_action(
+                    "create_customer",
+                    {
+                        "email": f"autohive-integration-{unique}@example.com",
+                        "first_name": "Autohive",
+                        "last_name": "Integration Test",
+                        "tags": "autohive,integration-test",
+                    },
+                    live_context,
+                )
+            )
+            customer_id = create_data["customer"]["id"]
+            assert customer_id
+
+            update_data = action_data(
+                await shopify_admin.execute_action(
+                    "update_customer",
+                    {
+                        "customer_id": customer_id,
+                        "note": f"Autohive integration test {unique}",
+                    },
+                    live_context,
+                )
+            )
+            assert update_data["customer"]["id"] == customer_id
+        finally:
+            if customer_id:
+                await delete_test_customer(live_context, customer_id)
+
+
+@pytest.mark.destructive
+class TestProductVariantLifecycle:
+    async def test_create_product_variants_and_delete_product(self, live_context):
+        product_id = None
+        product_title = f"Autohive integration test {uuid4().hex}"
+        try:
+            create_data = action_data(
+                await shopify_admin.execute_action(
+                    "create_product",
+                    {
+                        "title": product_title,
+                        "status": "draft",
+                        "options": [{"name": "Size", "values": ["Small", "Large"]}],
+                        "variants": [
+                            {"price": "1.00", "sku": f"AUTO-{uuid4().hex[:8]}-S", "option_values": {"Size": "Small"}},
+                            {"price": "2.00", "sku": f"AUTO-{uuid4().hex[:8]}-L", "option_values": {"Size": "Large"}},
+                        ],
+                    },
+                    live_context,
+                )
+            )
+            product = create_data["product"]
+            product_id = product["id"]
+            assert product_id
+            assert len(product["variants"]) == 2
+            assert all(variant["sku"].startswith("AUTO-") for variant in product["variants"])
+        finally:
+            if not product_id:
+                product_id = await find_product_id_by_title(live_context, product_title)
+            if product_id:
+                await delete_test_product(live_context, product_id)
+
+
+@pytest.mark.destructive
+class TestInventoryLifecycle:
+    async def test_set_inventory_level_and_restore_it(self, live_context, test_ids):
+        inventory_item_id = require_test_id(
+            test_ids,
+            "inventory_item",
+            "SHOPIFY_ADMIN_TEST_INVENTORY_ITEM_ID",
+        )
+        location_id = require_test_id(test_ids, "location", "SHOPIFY_ADMIN_TEST_LOCATION_ID")
+
+        levels_data = action_data(
+            await shopify_admin.execute_action(
+                "get_inventory_levels",
+                {"inventory_item_ids": inventory_item_id, "limit": 50},
+                live_context,
+            )
+        )
+        level = next(
+            (item for item in levels_data["inventory_levels"] if str(item["location_id"]) == str(location_id)),
+            None,
+        )
+        if not level or level["available"] is None:
+            pytest.skip("The configured inventory item is not stocked at the configured location")
+
+        original_available = level["available"]
+        changed = False
+        try:
+            updated_data = action_data(
+                await shopify_admin.execute_action(
+                    "set_inventory_level",
+                    {
+                        "inventory_item_id": inventory_item_id,
+                        "location_id": location_id,
+                        "available": original_available + 1,
+                    },
+                    live_context,
+                )
+            )
+            changed = True
+            assert updated_data["inventory_level"]["available"] == original_available + 1
+        finally:
+            if changed:
+                restored_data = action_data(
+                    await shopify_admin.execute_action(
+                        "set_inventory_level",
+                        {
+                            "inventory_item_id": inventory_item_id,
+                            "location_id": location_id,
+                            "available": original_available,
+                        },
+                        live_context,
+                    )
+                )
+                assert restored_data["inventory_level"]["available"] == original_available
+
+
+@pytest.mark.destructive
+class TestOrderCancellation:
+    async def test_cancel_order_returns_job_without_polling(self, live_context, test_ids):
+        order_id = require_test_id(
+            test_ids,
+            "cancel_order",
+            "SHOPIFY_ADMIN_TEST_CANCEL_ORDER_ID",
+        )
+
+        data = action_data(
+            await shopify_admin.execute_action(
+                "cancel_order",
+                {"order_id": order_id, "email": False, "restock": True, "reason": "other"},
+                live_context,
+            )
+        )
+
+        assert data["job_id"]
+        assert data["job_done"] is (data["cancellation_status"] == "completed")
+        assert data["cancellation_status"] in {"pending", "completed"}
+        assert live_context.fetch.await_count in {2, 4}
+
+
+@pytest.mark.destructive
+class TestFulfillmentCreation:
+    async def test_create_fulfillment_for_disposable_order(self, live_context, test_ids):
+        order_id = require_test_id(
+            test_ids,
+            "fulfillment_order",
+            "SHOPIFY_ADMIN_TEST_FULFILLMENT_ORDER_ID",
+        )
+        location_id = require_test_id(
+            test_ids,
+            "fulfillment_location",
+            "SHOPIFY_ADMIN_TEST_FULFILLMENT_LOCATION_ID",
+        )
+
+        data = action_data(
+            await shopify_admin.execute_action(
+                "create_fulfillment",
+                {
+                    "order_id": order_id,
+                    "location_id": location_id,
+                    "notify_customer": False,
+                },
+                live_context,
+            )
+        )
+
+        assert data["fulfillment"]["id"]
+        assert data["fulfillment"]["status"]

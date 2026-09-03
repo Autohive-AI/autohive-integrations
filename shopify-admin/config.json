@@ -233,7 +233,7 @@
         },
         "cancel_order": {
             "display_name": "Cancel Order",
-            "description": "Cancel an existing order",
+            "description": "Submit an asynchronous request to cancel an existing order",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -248,10 +248,13 @@
                 "type": "object",
                 "properties": {
                     "success": {"type": "boolean"},
+                    "cancellation_status": {"type": "string", "description": "Whether the cancellation is pending or completed", "enum": ["pending", "completed"]},
+                    "job_id": {"type": "string", "description": "Shopify cancellation job ID"},
+                    "job_done": {"type": "boolean", "description": "Whether Shopify completed the cancellation job immediately"},
                     "order": {"type": "object"},
                     "message": {"type": "string"}
                 },
-                "required": ["success"]
+                "required": ["success", "cancellation_status", "job_id", "job_done"]
             }
         },
         "list_products": {
