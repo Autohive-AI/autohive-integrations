@@ -33,6 +33,7 @@ from autohive_integrations_sdk import (
     ActionResult,
 )
 import re
+from time import monotonic
 from uuid import uuid4
 from typing import Dict, Any
 
@@ -42,6 +43,8 @@ shopify_admin = Integration.load()
 # Shopify API version
 API_VERSION = "2026-07"
 SHOP_DOMAIN_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.myshopify\.com$", re.IGNORECASE)
+TOKEN_EXPIRY_SKEW_SECONDS = 60
+AUTH_CACHE_ATTRIBUTE = "_shopify_admin_auth_cache"
 WEIGHT_UNIT_ALIASES = {
     "G": "GRAMS",
     "GRAM": "GRAMS",
@@ -85,7 +88,7 @@ def get_shop_url(context: ExecutionContext) -> str:
 
 
 async def get_access_token(context: ExecutionContext) -> str:
-    """Exchange the merchant's app credentials for a short-lived access token."""
+    """Return a cached access token or exchange the app credentials for one."""
     credentials = get_credentials(context)
     client_id = str(credentials.get("client_id", "")).strip()
     client_secret = str(credentials.get("client_secret", "")).strip()
@@ -93,8 +96,20 @@ async def get_access_token(context: ExecutionContext) -> str:
     if missing:
         raise ValueError(f"Missing Shopify credential: {', '.join(missing)}")
 
+    shop_url = get_shop_url(context)
+    credential_key = (shop_url, client_id, client_secret)
+    now = monotonic()
+    token_cache = context.__dict__.get(AUTH_CACHE_ATTRIBUTE)
+    if (
+        isinstance(token_cache, dict)
+        and token_cache.get("credential_key") == credential_key
+        and token_cache.get("expires_at", 0) > now
+        and token_cache.get("access_token")
+    ):
+        return token_cache["access_token"]
+
     response = await context.fetch(
-        f"https://{get_shop_url(context)}/admin/oauth/access_token",
+        f"https://{shop_url}/admin/oauth/access_token",
         method="POST",
         data={
             "grant_type": "client_credentials",
@@ -107,6 +122,22 @@ async def get_access_token(context: ExecutionContext) -> str:
     access_token = token_data.get("access_token") if isinstance(token_data, dict) else None
     if not access_token:
         raise ValueError("Shopify did not return an access token")
+
+    try:
+        expires_in = float(token_data.get("expires_in", 0))
+    except (TypeError, ValueError):
+        expires_in = 0
+    cache_lifetime = max(0, expires_in - TOKEN_EXPIRY_SKEW_SECONDS)
+    if cache_lifetime:
+        setattr(
+            context,
+            AUTH_CACHE_ATTRIBUTE,
+            {
+                "access_token": access_token,
+                "credential_key": credential_key,
+                "expires_at": now + cache_lifetime,
+            },
+        )
     return access_token
 
 
@@ -119,6 +150,19 @@ async def build_headers(context: ExecutionContext) -> Dict[str, str]:
 def success_response(**kwargs) -> ActionResult:
     """Build a standardized success response."""
     return ActionResult(data={"success": True, **kwargs}, cost_usd=0)
+
+
+def partial_success_response(message: str, **kwargs) -> ActionResult:
+    """Report a completed primary mutation followed by a secondary failure."""
+    return ActionResult(
+        data={
+            "success": False,
+            "partial_success": True,
+            "message": str(message),
+            **kwargs,
+        },
+        cost_usd=0,
+    )
 
 
 def error_response(message: str, **_kwargs) -> ActionError:
@@ -1247,12 +1291,24 @@ class CreateCustomerHandler(ActionHandler):
             payload = data.get("customerCreate", {})
             raise_for_user_errors("Customer creation", payload)
             customer = payload.get("customer") or {}
+            transformed_customer = transform_customer_response(customer)
             if inputs.get("send_email_welcome") and customer.get("id"):
-                invite_data = await execute_graphql(context, CUSTOMER_INVITE_MUTATION, {"customerId": customer["id"]})
-                raise_for_user_errors(
-                    "Customer account invitation", invite_data.get("customerSendAccountInviteEmail", {})
-                )
-            return success_response(customer=transform_customer_response(customer))
+                try:
+                    invite_data = await execute_graphql(
+                        context,
+                        CUSTOMER_INVITE_MUTATION,
+                        {"customerId": customer["id"]},
+                    )
+                    raise_for_user_errors(
+                        "Customer account invitation",
+                        invite_data.get("customerSendAccountInviteEmail", {}),
+                    )
+                except Exception as e:
+                    return partial_success_response(
+                        f"Customer was created, but the welcome email could not be sent: {e}",
+                        customer=transformed_customer,
+                    )
+            return success_response(customer=transformed_customer)
         except Exception as e:
             return error_response(e, customer={})
 
@@ -1411,8 +1467,13 @@ class CancelOrderHandler(ActionHandler):
                 "job_done": job_done,
             }
             if job_done:
-                order_data = await execute_graphql(context, ORDER_QUERY, {"id": order_gid})
-                result["order"] = transform_order_response(order_data.get("order") or {})
+                try:
+                    order_data = await execute_graphql(context, ORDER_QUERY, {"id": order_gid})
+                    result["order"] = transform_order_response(order_data.get("order") or {})
+                except Exception as e:
+                    result["message"] = (
+                        f"Order cancellation completed, but the updated order could not be retrieved: {e}"
+                    )
             return success_response(**result)
         except Exception as e:
             return error_response(e, order={})
@@ -1568,42 +1629,48 @@ class CreateProductHandler(ActionHandler):
                 raise Exception("Product creation failed: Shopify did not return a product ID")
 
             if graphql_variants:
-                if len(graphql_variants) == 1 and not has_option_values[0]:
-                    standalone_variants = (graphql_product.get("variants") or {}).get("nodes", [])
-                    if not standalone_variants:
-                        raise Exception(
-                            f"Product {product_id} was created, but its standalone variant was not returned"
+                try:
+                    if len(graphql_variants) == 1 and not has_option_values[0]:
+                        standalone_variants = (graphql_product.get("variants") or {}).get("nodes", [])
+                        if not standalone_variants:
+                            raise Exception("Shopify did not return the product's standalone variant")
+                        graphql_variants[0]["id"] = standalone_variants[0]["id"]
+                        variant_data = await execute_graphql(
+                            context,
+                            PRODUCT_VARIANTS_BULK_UPDATE_MUTATION,
+                            {"productId": product_id, "variants": graphql_variants},
                         )
-                    graphql_variants[0]["id"] = standalone_variants[0]["id"]
-                    variant_data = await execute_graphql(
-                        context,
-                        PRODUCT_VARIANTS_BULK_UPDATE_MUTATION,
-                        {"productId": product_id, "variants": graphql_variants},
-                    )
-                    variant_result = variant_data.get("productVariantsBulkUpdate", {})
-                    variant_operation = "Product variant update"
-                else:
-                    variant_data = await execute_graphql(
-                        context,
-                        PRODUCT_VARIANTS_BULK_CREATE_MUTATION,
-                        {
-                            "productId": product_id,
-                            "variants": graphql_variants,
-                            "strategy": "REMOVE_STANDALONE_VARIANT",
-                        },
-                    )
-                    variant_result = variant_data.get("productVariantsBulkCreate", {})
-                    variant_operation = "Product variant creation"
+                        variant_result = variant_data.get("productVariantsBulkUpdate", {})
+                        variant_operation = "Product variant update"
+                    else:
+                        variant_data = await execute_graphql(
+                            context,
+                            PRODUCT_VARIANTS_BULK_CREATE_MUTATION,
+                            {
+                                "productId": product_id,
+                                "variants": graphql_variants,
+                                "strategy": "REMOVE_STANDALONE_VARIANT",
+                            },
+                        )
+                        variant_result = variant_data.get("productVariantsBulkCreate", {})
+                        variant_operation = "Product variant creation"
 
-                variant_errors = variant_result.get("userErrors", [])
-                if variant_errors:
-                    raise Exception(
-                        f"Product {product_id} was created, but "
-                        f"{format_graphql_user_errors(variant_operation, variant_errors).lower()}"
-                    )
+                    variant_errors = variant_result.get("userErrors", [])
+                    if variant_errors:
+                        raise Exception(format_graphql_user_errors(variant_operation, variant_errors))
 
-                product_data = await execute_graphql(context, PRODUCT_QUERY, {"id": product_id})
-                graphql_product = product_data.get("product") or {}
+                    product_data = await execute_graphql(context, PRODUCT_QUERY, {"id": product_id})
+                    graphql_product = product_data.get("product") or {}
+                    if not graphql_product:
+                        raise Exception("Shopify did not return the product after variant setup")
+                except Exception as e:
+                    created_product = transform_product_response(graphql_product)
+                    if not created_product.get("id"):
+                        created_product["id"] = from_gid(product_id)
+                    return partial_success_response(
+                        f"Product {from_gid(product_id)} was created, but variant setup could not be completed: {e}",
+                        product=created_product,
+                    )
 
             # Transform response
             product = transform_product_response(graphql_product)

@@ -34,13 +34,17 @@ Autohive exchanges these credentials for a short-lived Shopify access token when
 from this flow expire after 24 hours; no access token needs to be copied into Autohive.
 
 **Scopes Required:**
-- `read_customers`, `write_customers`
-- `read_orders`, `write_orders`
-- `read_products`, `write_products`
-- `read_inventory`, `write_inventory`
+- `write_customers`
+- `write_orders`
+- `write_products`
+- `write_inventory`
 - `read_locations`
-- `read_merchant_managed_fulfillment_orders`, `write_merchant_managed_fulfillment_orders`
-- `read_draft_orders`, `write_draft_orders`
+- `write_merchant_managed_fulfillment_orders`
+- `write_draft_orders`
+
+Shopify write scopes include read access to the same resources, so separate read scopes aren't needed. Order actions can
+access only the most recent 60 days by default. Access to older orders requires Shopify approval for `read_all_orders`
+in addition to `write_orders`; request it only when the workflow genuinely needs older order history.
 
 ### Troubleshooting order access
 
@@ -97,6 +101,10 @@ Get a single product by ID using GraphQL API.
 #### `create_product`
 Create a new product using GraphQL API.
 
+If Shopify creates the product but variant setup or the final product refresh fails, the action returns the created
+product ID with `success: false`, `partial_success: true`, and an explanatory `message`. Check that product before
+retrying to avoid creating a duplicate.
+
 **Inputs:**
 - `title` (string, required): Product title
 - `body_html` (string, optional): Description HTML
@@ -149,6 +157,9 @@ Search customers by query string.
 
 #### `create_customer`
 Create a new customer.
+
+If the customer is created but a requested welcome email can't be sent, the action preserves the created customer in
+the response and returns `success: false`, `partial_success: true`, and an explanatory `message`.
 
 #### `update_customer`
 Update an existing customer.
@@ -237,9 +248,9 @@ Update tracking information for a fulfillment.
 # First page
 result = await shopify_admin.execute_action("list_products", {"limit": 50, "status": "active"}, context)
 
-products = result.data["products"]
-has_more = result.data["hasNextPage"]
-cursor = result.data["endCursor"]
+products = result.result.data["products"]
+has_more = result.result.data["hasNextPage"]
+cursor = result.result.data["endCursor"]
 
 # Next page
 if has_more:
@@ -262,7 +273,7 @@ result = await shopify_admin.execute_action(
     context,
 )
 
-product_id = result.data["product"]["id"]
+product_id = result.result.data["product"]["id"]
 ```
 
 ### Example 3: Update a Product (GraphQL)

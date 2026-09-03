@@ -381,6 +381,100 @@ async def test_create_product_bulk_creates_optioned_variants(product_context):
     }
 
 
+async def test_create_product_reports_partial_success_when_variant_setup_fails(product_context):
+    product_context.fetch.side_effect = [
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "productCreate": {
+                        "product": {
+                            "id": "gid://shopify/Product/100",
+                            "title": "Partially created product",
+                            "variants": {"nodes": [{"id": "gid://shopify/ProductVariant/200"}]},
+                        },
+                        "userErrors": [],
+                    }
+                }
+            }
+        ),
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "productVariantsBulkUpdate": {
+                        "productVariants": [],
+                        "userErrors": [{"field": ["variants", "0", "price"], "message": "Invalid price"}],
+                    }
+                }
+            }
+        ),
+    ]
+
+    integration_result = await shopify_admin.execute_action(
+        "create_product",
+        {
+            "title": "Partially created product",
+            "variants": [{"price": "invalid"}],
+        },
+        product_context,
+    )
+    result = integration_result.result
+
+    assert integration_result.type == ResultType.ACTION
+    assert result.data["success"] is False
+    assert result.data["partial_success"] is True
+    assert result.data["product"]["id"] == "100"
+    assert "Product 100 was created" in result.data["message"]
+    assert "Invalid price" in result.data["message"]
+
+
+async def test_create_product_reports_partial_success_when_refetch_fails(product_context):
+    product_context.fetch.side_effect = [
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "productCreate": {
+                        "product": {
+                            "id": "gid://shopify/Product/100",
+                            "title": "Created product",
+                            "variants": {"nodes": [{"id": "gid://shopify/ProductVariant/200"}]},
+                        },
+                        "userErrors": [],
+                    }
+                }
+            }
+        ),
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "productVariantsBulkUpdate": {
+                        "productVariants": [{"id": "gid://shopify/ProductVariant/200"}],
+                        "userErrors": [],
+                    }
+                }
+            }
+        ),
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        Exception("Product refetch unavailable"),
+    ]
+
+    result = await CreateProductHandler().execute(
+        {
+            "title": "Created product",
+            "variants": [{"price": "19.99"}],
+        },
+        product_context,
+    )
+
+    assert result.data["success"] is False
+    assert result.data["partial_success"] is True
+    assert result.data["product"]["id"] == "100"
+    assert "Product refetch unavailable" in result.data["message"]
+
+
 async def test_create_product_rejects_ambiguous_variants_before_creating_product(product_context):
     result = await CreateProductHandler().execute(
         {

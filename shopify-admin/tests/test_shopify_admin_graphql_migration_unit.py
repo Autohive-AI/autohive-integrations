@@ -116,6 +116,27 @@ async def test_create_customer_maps_input_and_invite(monkeypatch, context):
     assert graphql.await_args_list[1].args[2] == {"customerId": CUSTOMER_NODE["id"]}
 
 
+async def test_create_customer_preserves_customer_when_invite_fails(monkeypatch, context):
+    graphql_mock(
+        monkeypatch,
+        side_effect=[
+            {"customerCreate": {"customer": CUSTOMER_NODE, "userErrors": []}},
+            Exception("Invitation service unavailable"),
+        ],
+    )
+
+    result = await module.CreateCustomerHandler().execute(
+        {"email": "buyer@example.com", "send_email_welcome": True},
+        context,
+    )
+
+    assert result.data["success"] is False
+    assert result.data["partial_success"] is True
+    assert result.data["customer"]["id"] == "1"
+    assert "Customer was created" in result.data["message"]
+    assert "Invitation service unavailable" in result.data["message"]
+
+
 async def test_update_customer_maps_id_and_fields(monkeypatch, context):
     graphql = graphql_mock(monkeypatch, return_value={"customerUpdate": {"customer": CUSTOMER_NODE, "userErrors": []}})
 
@@ -251,6 +272,31 @@ async def test_cancel_order_fetches_order_when_job_is_already_done(monkeypatch, 
     assert result.data["order"]["id"] == "2"
     assert graphql.await_args_list[1].args[1] == module.ORDER_QUERY
     assert graphql.await_args_list[1].args[2] == {"id": "gid://shopify/Order/2"}
+
+
+async def test_cancel_order_stays_successful_when_completed_order_refetch_fails(monkeypatch, context):
+    graphql = graphql_mock(
+        monkeypatch,
+        side_effect=[
+            {
+                "orderCancel": {
+                    "job": {"id": "gid://shopify/Job/1", "done": True},
+                    "orderCancelUserErrors": [],
+                }
+            },
+            Exception("Order lookup unavailable"),
+        ],
+    )
+
+    result = await module.CancelOrderHandler().execute({"order_id": "2"}, context)
+
+    assert result.data["success"] is True
+    assert result.data["cancellation_status"] == "completed"
+    assert result.data["job_done"] is True
+    assert "order" not in result.data
+    assert "cancellation completed" in result.data["message"].lower()
+    assert "Order lookup unavailable" in result.data["message"]
+    assert graphql.await_count == 2
 
 
 async def test_get_inventory_levels_by_item_uses_nodes(monkeypatch, context):

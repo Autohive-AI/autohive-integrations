@@ -182,6 +182,19 @@ async def find_product_id_by_title(live_context, title):
     )
 
 
+async def cancel_test_order(live_context, order_id):
+    """Submit cancellation for an order created by a destructive test."""
+    data = action_data(
+        await shopify_admin.execute_action(
+            "cancel_order",
+            {"order_id": order_id, "email": False, "restock": True, "reason": "other"},
+            live_context,
+        )
+    )
+    assert data["job_id"]
+    assert data["cancellation_status"] in {"pending", "completed"}
+
+
 # ---- Customer actions ----
 
 
@@ -405,6 +418,7 @@ class TestProductVariantLifecycle:
     async def test_create_product_variants_and_delete_product(self, live_context):
         product_id = None
         product_title = f"Autohive integration test {uuid4().hex}"
+        updated_title = f"{product_title} updated"
         try:
             create_data = action_data(
                 await shopify_admin.execute_action(
@@ -426,11 +440,112 @@ class TestProductVariantLifecycle:
             assert product_id
             assert len(product["variants"]) == 2
             assert all(variant["sku"].startswith("AUTO-") for variant in product["variants"])
+
+            update_data = action_data(
+                await shopify_admin.execute_action(
+                    "update_product",
+                    {
+                        "product_id": product_id,
+                        "title": updated_title,
+                        "body_html": "<p>Updated by the Autohive Shopify Admin integration test</p>",
+                    },
+                    live_context,
+                )
+            )
+            assert update_data["product"]["id"] == product_id
+            assert update_data["product"]["title"] == updated_title
         finally:
             if not product_id:
                 product_id = await find_product_id_by_title(live_context, product_title)
             if product_id:
                 await delete_test_product(live_context, product_id)
+
+
+@pytest.mark.destructive
+class TestOrderCreation:
+    async def test_create_order_and_submit_cancellation(self, live_context):
+        order_id = None
+        try:
+            create_data = action_data(
+                await shopify_admin.execute_action(
+                    "create_order",
+                    {
+                        "line_items": [
+                            {
+                                "title": "Autohive integration test item",
+                                "price": "1.00",
+                                "quantity": 1,
+                            }
+                        ],
+                        "financial_status": "pending",
+                        "note": "Created by the Autohive Shopify Admin integration test",
+                        "tags": "autohive,integration-test",
+                        "send_receipt": False,
+                        "send_fulfillment_receipt": False,
+                    },
+                    live_context,
+                )
+            )
+            order = create_data["order"]
+            order_id = order["id"]
+            assert order_id
+            assert isinstance(order["line_items"], list)
+            assert order["line_items"]
+        finally:
+            if order_id:
+                await cancel_test_order(live_context, order_id)
+
+
+@pytest.mark.destructive
+class TestDraftOrderCompletion:
+    async def test_create_complete_and_cancel_draft_order(self, live_context):
+        draft_order_id = None
+        order_id = None
+        try:
+            create_data = action_data(
+                await shopify_admin.execute_action(
+                    "create_draft_order",
+                    {
+                        "line_items": [
+                            {
+                                "title": "Autohive completed draft integration test item",
+                                "price": "1.00",
+                                "quantity": 1,
+                            }
+                        ],
+                        "note": "Completed by the Autohive Shopify Admin integration test",
+                        "tags": "autohive,integration-test",
+                    },
+                    live_context,
+                )
+            )
+            draft_order_id = create_data["draft_order"]["id"]
+            assert draft_order_id
+
+            complete_data = action_data(
+                await shopify_admin.execute_action(
+                    "complete_draft_order",
+                    {"draft_order_id": draft_order_id, "payment_pending": True},
+                    live_context,
+                )
+            )
+            completed_draft = complete_data["draft_order"]
+            assert completed_draft["id"] == draft_order_id
+            assert completed_draft["completed_at"]
+            order_id = completed_draft["order_id"]
+            assert order_id
+        finally:
+            if order_id:
+                await cancel_test_order(live_context, order_id)
+            elif draft_order_id:
+                delete_data = action_data(
+                    await shopify_admin.execute_action(
+                        "delete_draft_order",
+                        {"draft_order_id": draft_order_id},
+                        live_context,
+                    )
+                )
+                assert delete_data["deleted"] is True
 
 
 @pytest.mark.destructive
@@ -519,7 +634,7 @@ class TestOrderCancellation:
 
 @pytest.mark.destructive
 class TestFulfillmentCreation:
-    async def test_create_fulfillment_for_disposable_order(self, live_context, test_ids):
+    async def test_create_fulfillment_and_update_tracking(self, live_context, test_ids):
         order_id = require_test_id(
             test_ids,
             "fulfillment_order",
@@ -545,3 +660,20 @@ class TestFulfillmentCreation:
 
         assert data["fulfillment"]["id"]
         assert data["fulfillment"]["status"]
+
+        tracking_number = f"AUTO-{uuid4().hex[:12]}"
+        update_data = action_data(
+            await shopify_admin.execute_action(
+                "update_fulfillment_tracking",
+                {
+                    "fulfillment_id": data["fulfillment"]["id"],
+                    "tracking_number": tracking_number,
+                    "tracking_url": f"https://example.com/tracking/{tracking_number}",
+                    "notify_customer": False,
+                },
+                live_context,
+            )
+        )
+        updated_fulfillment = update_data["fulfillment"]
+        assert updated_fulfillment["id"] == data["fulfillment"]["id"]
+        assert updated_fulfillment["tracking_number"] == tracking_number
