@@ -387,6 +387,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [karakeep](karakeep): [Karakeep](https://karakeep.app) integration for saving bookmarks and managing tags on Karakeep Cloud or a self-hosted instance. Supports creating bookmarks of type link, text, or asset (duplicate URLs return the existing bookmark with `already_existed`), attaching tags by name or id, creating and listing tags, listing bookmarks (including by tag), search (full-text, semantic, or hybrid), and fetching a bookmark by id. Custom authentication with an HTTPS instance URL (for example `https://cloud.karakeep.app`; `http://` is rejected) and an API key from the Karakeep app. Includes 8 actions.
 
+### OpenRouteService
+
+[openrouteservice](openrouteservice): Geocode addresses and create exact drive-time isochrone GeoJSON polygons through OpenRouteService. Uses an API-key connection, defaults address searches to New Zealand, flags low-confidence matches for human confirmation, and returns rate-limit retry guidance for spatial catchment workflows.
+
 ## Template
 
 Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) in the SDK repo as the starting point for new integrations.
@@ -394,7 +398,3 @@ Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/
 ## Testing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on running and writing unit tests.
-
-### OpenRouteService
-
-[openrouteservice](openrouteservice): Geocode addresses and create exact drive-time isochrone GeoJSON polygons through OpenRouteService. Uses an API-key connection, defaults address searches to New Zealand, flags low-confidence matches for human confirmation, and returns rate-limit retry guidance for spatial catchment workflows.

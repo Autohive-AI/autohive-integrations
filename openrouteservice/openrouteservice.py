@@ -23,6 +23,8 @@ def _api_key(context: ExecutionContext) -> str:
     """Return the configured API key without ever placing it in a URL."""
     credentials = (context.auth or {}).get("credentials", {})
     api_key = credentials.get("api_key", "") if isinstance(credentials, dict) else ""
+    if isinstance(api_key, str):
+        api_key = api_key.strip()
     if not api_key:
         raise ValueError("An OpenRouteService API key is required. Add one to this integration connection.")
     return api_key

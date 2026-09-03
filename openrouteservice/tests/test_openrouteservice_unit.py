@@ -1,7 +1,6 @@
 """Unit tests for OpenRouteService integration actions."""
 
-from unittest.mock import AsyncMock, MagicMock
-
+import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
@@ -9,19 +8,11 @@ from autohive_integrations_sdk.integration import ResultType
 from openrouteservice.openrouteservice import (
     GEOCODE_URL,
     ISOCHRONE_URL_TEMPLATE,
+    _match,
     openrouteservice,
 )
 
 pytestmark = pytest.mark.unit
-
-
-@pytest.fixture
-def mock_context():
-    context = MagicMock(name="ExecutionContext")
-    context.fetch = AsyncMock(name="fetch")
-    context.auth = {"auth_type": "Custom", "credentials": {"api_key": "test-key"}}  # nosec B105
-    return context
-
 
 GEOCODE_RESPONSE = {
     "type": "FeatureCollection",
@@ -56,6 +47,51 @@ ISOCHRONE_RESPONSE = {
     "metadata": {"service": "isochrones", "engine": {"graph_date": "2025-01-01"}},
 }
 
+ISOCHRONE_INPUTS = {"latitude": -36.8485, "longitude": 174.7633, "time_minutes": [10]}
+
+
+def _action_data(result):
+    assert result.type == ResultType.ACTION
+    return result.result.data
+
+
+class TestMatch:
+    def test_prefers_label_and_reads_lon_lat_order(self):
+        matched = _match(GEOCODE_RESPONSE["features"][0])
+
+        assert matched["address"] == "1 Queen Street, Auckland, New Zealand"
+        assert matched["longitude"] == 174.7633
+        assert matched["latitude"] == -36.8445
+        assert matched["is_low_confidence"] is False
+        assert matched["feature"] == GEOCODE_RESPONSE["features"][0]
+
+    def test_falls_back_to_name_when_label_is_missing(self):
+        matched = _match(
+            {
+                "geometry": {"coordinates": [174.76, -36.84]},
+                "properties": {"name": "Queen Street", "confidence": 0.9, "match_type": "exact"},
+            }
+        )
+
+        assert matched["address"] == "Queen Street"
+
+    def test_incomplete_coordinates_are_null(self):
+        matched = _match({"geometry": {"coordinates": [174.76]}, "properties": {"label": "Partial", "confidence": 1}})
+
+        assert matched["latitude"] is None
+        assert matched["longitude"] is None
+
+    def test_missing_confidence_is_low_confidence(self):
+        matched = _match(
+            {
+                "geometry": {"coordinates": [174.76, -36.84]},
+                "properties": {"label": "Somewhere", "match_type": "fallback"},
+            }
+        )
+
+        assert matched["confidence"] is None
+        assert matched["is_low_confidence"] is True
+
 
 class TestGeocodeAddress:
     async def test_geocodes_address_with_default_nz_boundary(self, mock_context):
@@ -65,14 +101,14 @@ class TestGeocodeAddress:
             "geocode_address", {"address": "1 Queen Street, Auckland"}, mock_context
         )
 
-        assert result.type == ResultType.ACTION
-        data = result.result.data
+        data = _action_data(result)
         assert data["found"] is True
         assert data["address"] == "1 Queen Street, Auckland, New Zealand"
         assert data["longitude"] == 174.7633
         assert data["latitude"] == -36.8445
         assert data["confidence"] == 0.95
         assert data["is_low_confidence"] is False
+        assert data["error_type"] is None
         assert len(data["matches"]) == 2
         assert data["matches"][0]["feature"] == GEOCODE_RESPONSE["features"][0]
         mock_context.fetch.assert_awaited_once_with(
@@ -97,8 +133,26 @@ class TestGeocodeAddress:
 
         result = await openrouteservice.execute_action("geocode_address", {"address": "Queen Street"}, mock_context)
 
-        assert result.result.data["is_low_confidence"] is True
-        assert result.result.data["message"] == "Confirm this match before downstream use."
+        data = _action_data(result)
+        assert data["is_low_confidence"] is True
+        assert data["message"] == "Confirm this match before downstream use."
+
+    async def test_flags_missing_confidence_as_low_confidence(self, mock_context):
+        response = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [174.76, -36.84]},
+                    "properties": {"label": "Somewhere", "match_type": "fallback"},
+                }
+            ],
+        }
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response)
+
+        result = await openrouteservice.execute_action("geocode_address", {"address": "Somewhere"}, mock_context)
+
+        assert _action_data(result)["is_low_confidence"] is True
 
     async def test_returns_found_false_when_provider_returns_no_features(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
@@ -109,9 +163,34 @@ class TestGeocodeAddress:
             "geocode_address", {"address": "not a real location"}, mock_context
         )
 
-        assert result.result.data["result"] is True
-        assert result.result.data["found"] is False
-        assert result.result.data["matches"] == []
+        data = _action_data(result)
+        assert data["result"] is True
+        assert data["found"] is False
+        assert data["matches"] == []
+        assert data["message"] == "No matching address was found."
+
+    async def test_skips_non_dict_features_and_handles_non_object_body(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"features": ["not-a-feature", GEOCODE_RESPONSE["features"][0], None]},
+        )
+        mixed = await openrouteservice.execute_action("geocode_address", {"address": "Queen Street"}, mock_context)
+        assert len(_action_data(mixed)["matches"]) == 1
+
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=["unexpected"])
+        empty = await openrouteservice.execute_action("geocode_address", {"address": "Queen Street"}, mock_context)
+        assert _action_data(empty)["found"] is False
+
+    async def test_rejects_invalid_geocode_inputs(self, mock_context):
+        missing = await openrouteservice.execute_action("geocode_address", {}, mock_context)
+        assert missing.type == ResultType.VALIDATION_ERROR
+
+        lowercase_country = await openrouteservice.execute_action(
+            "geocode_address", {"address": "Auckland", "country": "nz"}, mock_context
+        )
+        assert lowercase_country.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
 
 
 class TestGetIsochrone:
@@ -124,10 +203,12 @@ class TestGetIsochrone:
             mock_context,
         )
 
-        assert result.type == ResultType.ACTION
-        assert result.result.data["time_minutes"] == [10, 15, 30]
-        assert result.result.data["geojson"] is ISOCHRONE_RESPONSE
-        assert result.result.data["provider_metadata"] is ISOCHRONE_RESPONSE["metadata"]
+        data = _action_data(result)
+        assert data["time_minutes"] == [10, 15, 30]
+        assert data["profile"] == "driving-car"
+        assert data["geojson"] is ISOCHRONE_RESPONSE
+        assert data["provider_metadata"] is ISOCHRONE_RESPONSE["metadata"]
+        assert data["error_type"] is None
         mock_context.fetch.assert_awaited_once_with(
             ISOCHRONE_URL_TEMPLATE.format(profile="driving-car"),
             method="POST",
@@ -142,21 +223,37 @@ class TestGetIsochrone:
     async def test_rejects_non_geojson_provider_response(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"unexpected": "response"})
 
-        result = await openrouteservice.execute_action(
-            "get_isochrone", {"latitude": -36.8485, "longitude": 174.7633, "time_minutes": [10]}, mock_context
-        )
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
 
-        assert result.result.data["result"] is False
-        assert result.result.data["error_type"] == "invalid_request"
+        data = _action_data(result)
+        assert data["result"] is False
+        assert data["error_type"] == "invalid_request"
+
+    async def test_rejects_invalid_isochrone_inputs(self, mock_context):
+        cases = [
+            {"longitude": 174.76, "time_minutes": [10]},
+            {"latitude": -36.84, "longitude": 174.76, "time_minutes": []},
+            {"latitude": -36.84, "longitude": 174.76, "time_minutes": [0]},
+            {"latitude": 91, "longitude": 174.76, "time_minutes": [10]},
+            {"latitude": -36.84, "longitude": 174.76, "time_minutes": [10], "travel_mode": "cycling-regular"},
+        ]
+        for inputs in cases:
+            result = await openrouteservice.execute_action("get_isochrone", inputs, mock_context)
+            assert result.type == ResultType.VALIDATION_ERROR, inputs
+        mock_context.fetch.assert_not_called()
 
 
 class TestProviderErrors:
-    async def test_returns_retry_details_for_rate_limit(self, mock_context):
+    @pytest.mark.parametrize(
+        "action, inputs",
+        [("geocode_address", {"address": "Auckland"}), ("get_isochrone", ISOCHRONE_INPUTS)],
+    )
+    async def test_returns_retry_details_for_rate_limit(self, mock_context, action, inputs):
         mock_context.fetch.side_effect = RateLimitError(42, 429, "Rate limit exceeded")
 
-        result = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
+        result = await openrouteservice.execute_action(action, inputs, mock_context)
 
-        assert result.result.data == {
+        assert _action_data(result) == {
             "result": False,
             "error_type": "rate_limit",
             "retry_after_seconds": 42,
@@ -172,8 +269,22 @@ class TestProviderErrors:
 
         result = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
 
-        assert result.result.data["error_type"] == error_type
-        assert "test-key" not in result.result.data["message"]
+        data = _action_data(result)
+        assert data["error_type"] == error_type
+        assert "test-key" not in data["message"]
+
+    async def test_network_failures_return_generic_request_failed(self, mock_context):
+        mock_context.fetch.side_effect = aiohttp.ClientError("dns failed for api.openrouteservice.org")
+        client_error = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
+        client_data = _action_data(client_error)
+        assert client_data["error_type"] == "request_failed"
+        assert "dns failed" not in client_data["message"]
+
+        mock_context.fetch.side_effect = TimeoutError("timed out")
+        timeout = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+        timeout_data = _action_data(timeout)
+        assert timeout_data["error_type"] == "request_failed"
+        assert "timed out" not in timeout_data["message"]
 
     async def test_missing_api_key_does_not_start_request(self, mock_context):
         mock_context.auth = {"auth_type": "Custom", "credentials": {}}
@@ -181,4 +292,15 @@ class TestProviderErrors:
         result = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
 
         assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.parametrize("api_key", ["", "   "])
+    async def test_blank_api_key_does_not_start_request(self, mock_context, api_key):
+        mock_context.auth = {"auth_type": "Custom", "credentials": {"api_key": api_key}}  # nosec B105
+
+        result = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
+
+        data = _action_data(result)
+        assert data["result"] is False
+        assert data["error_type"] == "invalid_request"
         mock_context.fetch.assert_not_called()

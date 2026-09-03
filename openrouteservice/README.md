@@ -6,6 +6,8 @@ Geocode addresses and generate drive-time catchment polygons through the [OpenRo
 
 Create a free OpenRouteService API key at the [OpenRouteService developer portal](https://openrouteservice.org/dev/#/signup), then add it as the integration connection's **API Key**. The key is passed only in the `Authorization` header; it is never added to request URLs or returned in action output.
 
+Typical catchment workflow: call `geocode_address` for a place in New Zealand, confirm the match when `is_low_confidence` is true, then pass the returned coordinates to `get_isochrone` with the drive-time bands you need.
+
 ## Actions
 
 ### `geocode_address`
@@ -46,8 +48,16 @@ A free-tier rate limit is returned as `result: false`, `error_type: "rate_limit"
 
 ## Testing
 
+Unit tests (mocked, CI default):
+
 ```bash
 pytest openrouteservice/
 python ../autohive-integrations-tooling/scripts/validate_integration.py openrouteservice
 python ../autohive-integrations-tooling/scripts/check_code.py openrouteservice
+```
+
+Live API tests are read-only. They skip unless `OPENROUTESERVICE_API_KEY` is set (see the repo-root `.env.example`):
+
+```bash
+pytest openrouteservice/tests/test_openrouteservice_integration.py -m "integration and not destructive"
 ```
