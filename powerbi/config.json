@@ -1,7 +1,7 @@
 {
     "name": "Power BI",
-    "version": "1.0.0",
-    "description": "Power BI integration for managing workspaces, datasets, reports, and dashboards",
+    "version": "2.0.0",
+    "description": "Power BI integration for managing workspaces, datasets, reports, dashboards, and content imports",
     "entry_point": "powerbi.py",
     "auth": {
         "type": "platform",
@@ -12,8 +12,7 @@
             "Report.ReadWrite.All",
             "Dashboard.Read.All",
             "Workspace.ReadWrite.All",
-            "Content.Create",
-            "Tenant.ReadWrite.All"
+            "Content.Create"
         ]
     },
     "actions": {
@@ -60,14 +59,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "workspaces",
-                    "result"
+                    "workspaces"
                 ]
             }
         },
@@ -92,14 +87,10 @@
                     "workspace": {
                         "type": "object",
                         "description": "Workspace details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "workspace",
-                    "result"
+                    "workspace"
                 ]
             }
         },
@@ -147,14 +138,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "datasets",
-                    "result"
+                    "datasets"
                 ]
             }
         },
@@ -183,14 +170,10 @@
                     "dataset": {
                         "type": "object",
                         "description": "Dataset details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dataset",
-                    "result"
+                    "dataset"
                 ]
             }
         },
@@ -286,9 +269,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     },
@@ -296,9 +276,7 @@
                         "type": "string"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "get_refresh_history": {
@@ -351,14 +329,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "refreshes",
-                    "result"
+                    "refreshes"
                 ]
             }
         },
@@ -400,14 +374,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "reports",
-                    "result"
+                    "reports"
                 ]
             }
         },
@@ -436,14 +406,10 @@
                     "report": {
                         "type": "object",
                         "description": "Report details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "report",
-                    "result"
+                    "report"
                 ]
             }
         },
@@ -496,14 +462,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "datasources",
-                    "result"
+                    "datasources"
                 ]
             }
         },
@@ -553,14 +515,9 @@
                     },
                     "embedUrl": {
                         "type": "string"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "refresh_report": {
@@ -594,9 +551,6 @@
             "output_schema": {
                 "type": "object",
                 "properties": {
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     },
@@ -604,8 +558,176 @@
                         "type": "string"
                     }
                 },
+                "required": []
+            }
+        },
+        "import_powerbi_file": {
+            "display_name": "Import Power BI File",
+            "description": "Create Power BI content by publishing an attached PBIX, RDL, XLSX, or model.json file",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "file": {
+                        "type": "object",
+                        "description": "Attached or generated Power BI file. The platform supplies its bytes as base64 content.",
+                        "properties": {
+                            "content": {
+                                "type": "string",
+                                "description": "Base64-encoded file content"
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "File name including a supported extension: .pbix, .rdl, .xlsx, or .json"
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "MIME type supplied by the platform; the action uses the canonical type for the file extension"
+                            }
+                        },
+                        "required": [
+                            "content",
+                            "name"
+                        ]
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "Destination workspace ID (optional, defaults to My workspace)"
+                    },
+                    "display_name": {
+                        "type": "string",
+                        "description": "Power BI display name. The source extension is appended when omitted; JSON imports must use model.json."
+                    },
+                    "name_conflict": {
+                        "type": "string",
+                        "description": "Conflict behavior. Defaults to Abort for RDL/model.json and Ignore for PBIX/XLSX.",
+                        "enum": [
+                            "Ignore",
+                            "Abort",
+                            "Overwrite",
+                            "CreateOrOverwrite",
+                            "GenerateUniqueName"
+                        ]
+                    },
+                    "skip_report": {
+                        "type": "boolean",
+                        "description": "Import only the semantic model and skip the report. Supported only for PBIX files."
+                    },
+                    "override_report_label": {
+                        "type": "boolean",
+                        "description": "Whether to override an existing report sensitivity label when republishing a PBIX file"
+                    },
+                    "override_model_label": {
+                        "type": "boolean",
+                        "description": "Whether to override an existing semantic model sensitivity label when republishing a PBIX file"
+                    },
+                    "subfolder_object_id": {
+                        "type": "string",
+                        "description": "Optional destination workspace subfolder object ID"
+                    }
+                },
                 "required": [
-                    "result"
+                    "file"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "import_id": {
+                        "type": "string",
+                        "description": "Power BI import operation ID"
+                    },
+                    "import_state": {
+                        "type": "string",
+                        "description": "Import state, usually Publishing, Succeeded, or Failed"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Imported content name"
+                    },
+                    "reports": {
+                        "type": "array",
+                        "description": "Reports already available when Power BI completes the import synchronously",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "datasets": {
+                        "type": "array",
+                        "description": "Semantic models already available when Power BI completes the import synchronously",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "required": [
+                    "import_id",
+                    "import_state",
+                    "name",
+                    "reports",
+                    "datasets"
+                ]
+            }
+        },
+        "get_import_status": {
+            "display_name": "Get Power BI Import Status",
+            "description": "Check a Power BI import until publishing succeeds or fails and return any created reports and semantic models",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "import_id": {
+                        "type": "string",
+                        "description": "Import operation ID returned by import_powerbi_file"
+                    },
+                    "workspace_id": {
+                        "type": "string",
+                        "description": "Workspace ID used for the import (optional, defaults to My workspace)"
+                    }
+                },
+                "required": [
+                    "import_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "import_id": {
+                        "type": "string"
+                    },
+                    "import_state": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "created_date_time": {
+                        "type": "string"
+                    },
+                    "updated_date_time": {
+                        "type": "string"
+                    },
+                    "reports": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "datasets": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "import_error": {
+                        "type": "object",
+                        "description": "Power BI import failure details when import_state is Failed"
+                    }
+                },
+                "required": [
+                    "import_id",
+                    "import_state",
+                    "name",
+                    "reports",
+                    "datasets"
                 ]
             }
         },
@@ -644,16 +766,11 @@
                     "export_id": {
                         "type": "string"
                     },
-                    "result": {
-                        "type": "boolean"
-                    },
                     "message": {
                         "type": "string"
                     }
                 },
-                "required": [
-                    "result"
-                ]
+                "required": []
             }
         },
         "get_export_status": {
@@ -688,14 +805,10 @@
                     },
                     "percentComplete": {
                         "type": "integer"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "status",
-                    "result"
+                    "status"
                 ]
             }
         },
@@ -734,14 +847,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dashboards",
-                    "result"
+                    "dashboards"
                 ]
             }
         },
@@ -770,14 +879,10 @@
                     "dashboard": {
                         "type": "object",
                         "description": "Dashboard details"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "dashboard",
-                    "result"
+                    "dashboard"
                 ]
             }
         },
@@ -826,14 +931,10 @@
                                 }
                             }
                         }
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "tiles",
-                    "result"
+                    "tiles"
                 ]
             }
         },
@@ -876,14 +977,10 @@
                     "results": {
                         "type": "array",
                         "description": "Query results"
-                    },
-                    "result": {
-                        "type": "boolean"
                     }
                 },
                 "required": [
-                    "results",
-                    "result"
+                    "results"
                 ]
             }
         }
