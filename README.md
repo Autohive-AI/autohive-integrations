@@ -394,3 +394,7 @@ Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/
 ## Testing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on running and writing unit tests.
+
+### OpenRouteService
+
+[openrouteservice](openrouteservice): Geocode addresses and create exact drive-time isochrone GeoJSON polygons through OpenRouteService. Uses an API-key connection, defaults address searches to New Zealand, flags low-confidence matches for human confirmation, and returns rate-limit retry guidance for spatial catchment workflows.
