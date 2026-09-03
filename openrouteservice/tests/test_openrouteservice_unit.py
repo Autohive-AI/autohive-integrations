@@ -169,18 +169,34 @@ class TestGeocodeAddress:
         assert data["matches"] == []
         assert data["message"] == "No matching address was found."
 
-    async def test_skips_non_dict_features_and_handles_non_object_body(self, mock_context):
+    async def test_skips_non_dict_features_in_a_valid_collection(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"features": ["not-a-feature", GEOCODE_RESPONSE["features"][0], None]},
+            data={
+                "type": "FeatureCollection",
+                "features": ["not-a-feature", GEOCODE_RESPONSE["features"][0], None],
+            },
         )
-        mixed = await openrouteservice.execute_action("geocode_address", {"address": "Queen Street"}, mock_context)
-        assert len(_action_data(mixed)["matches"]) == 1
+        result = await openrouteservice.execute_action("geocode_address", {"address": "Queen Street"}, mock_context)
+        assert len(_action_data(result)["matches"]) == 1
 
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=["unexpected"])
-        empty = await openrouteservice.execute_action("geocode_address", {"address": "Queen Street"}, mock_context)
-        assert _action_data(empty)["found"] is False
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            ["unexpected"],
+            {"features": [GEOCODE_RESPONSE["features"][0]]},
+            {"type": "FeatureCollection", "features": "not-a-list"},
+        ],
+    )
+    async def test_rejects_malformed_geocode_response(self, mock_context, payload):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
+
+        result = await openrouteservice.execute_action("geocode_address", {"address": "Queen Street"}, mock_context)
+
+        data = _action_data(result)
+        assert data["result"] is False
+        assert data["error_type"] == "invalid_request"
 
     async def test_rejects_invalid_geocode_inputs(self, mock_context):
         missing = await openrouteservice.execute_action("geocode_address", {}, mock_context)

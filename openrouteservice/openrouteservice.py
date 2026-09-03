@@ -112,8 +112,11 @@ class GeocodeAddress(ActionHandler):
                 headers=_headers(context),
                 params={"text": inputs["address"], "boundary.country": inputs.get("country", "NZ")},
             )
-            data = response.data if isinstance(response.data, dict) else {}
-            matches = [_match(feature) for feature in data.get("features", []) if isinstance(feature, dict)]
+            data = response.data
+            features = data.get("features") if isinstance(data, dict) else None
+            if not isinstance(data, dict) or data.get("type") != "FeatureCollection" or not isinstance(features, list):
+                raise ValueError("OpenRouteService returned an unexpected geocode response.")
+            matches = [_match(feature) for feature in features if isinstance(feature, dict)]
             if not matches:
                 return ActionResult(
                     data={
