@@ -443,21 +443,24 @@ class TestInventoryLifecycle:
         )
         location_id = require_test_id(test_ids, "location", "SHOPIFY_ADMIN_TEST_LOCATION_ID")
 
-        levels_data = action_data(
-            await shopify_admin.execute_action(
-                "get_inventory_levels",
-                {"inventory_item_ids": inventory_item_id, "limit": 50},
-                live_context,
+        async def read_available():
+            levels_data = action_data(
+                await shopify_admin.execute_action(
+                    "get_inventory_levels",
+                    {"inventory_item_ids": inventory_item_id, "limit": 50},
+                    live_context,
+                )
             )
-        )
-        level = next(
-            (item for item in levels_data["inventory_levels"] if str(item["location_id"]) == str(location_id)),
-            None,
-        )
-        if not level or level["available"] is None:
+            level = next(
+                (item for item in levels_data["inventory_levels"] if str(item["location_id"]) == str(location_id)),
+                None,
+            )
+            return level["available"] if level else None
+
+        original_available = await read_available()
+        if original_available is None:
             pytest.skip("The configured inventory item is not stocked at the configured location")
 
-        original_available = level["available"]
         changed = False
         try:
             updated_data = action_data(
@@ -473,6 +476,7 @@ class TestInventoryLifecycle:
             )
             changed = True
             assert updated_data["inventory_level"]["available"] == original_available + 1
+            assert await read_available() == original_available + 1
         finally:
             if changed:
                 restored_data = action_data(
@@ -487,6 +491,7 @@ class TestInventoryLifecycle:
                     )
                 )
                 assert restored_data["inventory_level"]["available"] == original_available
+                assert await read_available() == original_available
 
 
 @pytest.mark.destructive

@@ -1742,8 +1742,10 @@ class SetInventoryLevelHandler(ActionHandler):
             changes = (payload.get("inventoryAdjustmentGroup") or {}).get("changes") or []
             available = next(
                 (change.get("quantityAfterChange") for change in changes if change.get("name") == "available"),
-                inputs["available"],
+                None,
             )
+            if available is None:
+                available = inputs["available"]
             return success_response(
                 inventory_level={
                     "inventory_item_id": from_gid(inventory_item_id),

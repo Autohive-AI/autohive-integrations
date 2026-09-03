@@ -301,6 +301,24 @@ async def test_set_inventory_level_is_idempotent(monkeypatch, context):
     assert "ignoreCompareQuantity" not in variables["input"]
 
 
+async def test_set_inventory_level_falls_back_when_shopify_omits_quantity_after_change(monkeypatch, context):
+    graphql_mock(
+        monkeypatch,
+        return_value={
+            "inventorySetQuantities": {
+                "inventoryAdjustmentGroup": {"changes": [{"name": "available", "quantityAfterChange": None}]},
+                "userErrors": [],
+            }
+        },
+    )
+
+    result = await module.SetInventoryLevelHandler().execute(
+        {"inventory_item_id": "8", "location_id": "6", "available": 12}, context
+    )
+
+    assert result.data["inventory_level"]["available"] == 12
+
+
 async def test_list_and_get_locations_use_graphql(monkeypatch, context):
     location = {"id": "gid://shopify/Location/6", "name": "Main", "isActive": True}
     graphql = graphql_mock(monkeypatch, side_effect=[{"locations": {"nodes": [location]}}, {"location": location}])
