@@ -80,7 +80,13 @@ async def test_list_customers_uses_graphql_filters(monkeypatch, context):
     )
 
     result = await module.ListCustomersHandler().execute(
-        {"limit": 10, "after": "previous-cursor", "since_id": "20", "created_at_min": "2026-01-01"},
+        {
+            "limit": 10,
+            "after": "previous-cursor",
+            "since_id": "20",
+            "created_at_min": "2026-01-01",
+            "created_at_max": "2026-01-31",
+        },
         context,
     )
 
@@ -94,7 +100,8 @@ async def test_list_customers_uses_graphql_filters(monkeypatch, context):
     assert variables["first"] == 10
     assert variables["after"] == "previous-cursor"
     assert 'id:>"20"' in variables["query"]
-    assert 'created_at:>="2026-01-01"' in variables["query"]
+    assert 'customer_date:>="2026-01-01"' in variables["query"]
+    assert 'customer_date:<="2026-01-31"' in variables["query"]
 
 
 async def test_get_and_search_customers_use_graphql(monkeypatch, context):

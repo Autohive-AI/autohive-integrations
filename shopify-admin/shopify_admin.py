@@ -1250,8 +1250,8 @@ class ListCustomersHandler(ActionHandler):
             filters = []
             mappings = {
                 "since_id": ("id", ">"),
-                "created_at_min": ("created_at", ">="),
-                "created_at_max": ("created_at", "<="),
+                "created_at_min": ("customer_date", ">="),
+                "created_at_max": ("customer_date", "<="),
                 "updated_at_min": ("updated_at", ">="),
                 "updated_at_max": ("updated_at", "<="),
             }

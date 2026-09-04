@@ -49,16 +49,18 @@ in addition to `write_orders`; request it only when the workflow genuinely needs
 ### Troubleshooting order access
 
 If an order action returns `This action requires merchant approval for read_orders scope`, update the Shopify app rather
-than the Autohive integration:
+than the Autohive integration. The documented `write_orders` scope already includes read access, so a separate
+`read_orders` scope isn't required:
 
-1. Add `read_orders` (and `write_orders` if needed) to a new app version in the Shopify Dev Dashboard.
+1. Verify that `write_orders` is configured in a new app version in the Shopify Dev Dashboard.
 2. Release that version.
 3. Reinstall or update the app on the store and approve the new permissions. Scope changes aren't automatically granted
    to existing installations.
 4. Retry the Autohive action. It will request a new access token containing the newly granted scopes.
 
-Order and customer resources are protected customer data. If access remains blocked on a production store, verify the
-app's protected customer data configuration in Shopify and request only the customer fields the workflow needs.
+Order and customer resources are protected customer data. If `write_orders` is present in the granted scopes but access
+remains blocked on a production store, verify the app's protected customer data configuration in Shopify and request
+only the customer fields the workflow needs.
 
 ## Actions
 
