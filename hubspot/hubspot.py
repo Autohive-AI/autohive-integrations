@@ -1033,7 +1033,8 @@ class AddContactToListActionHandler(ActionHandler):
         # Use v3 Lists API endpoint
         url = f"https://api.hubapi.com/crm/v3/lists/{list_id}/memberships/add"
 
-        payload = {"recordIds": [contact_id]}
+        # HubSpot expects the request body to be a JSON array of record IDs.
+        payload = [contact_id]
         response = await context.fetch(
             url,
             method="PUT",
