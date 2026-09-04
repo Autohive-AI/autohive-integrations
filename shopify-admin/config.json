@@ -1,27 +1,34 @@
 {
     "name": "Shopify Admin",
     "display_name": "Shopify Admin API",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Shopify Admin API integration for store management - customers, orders, products, inventory, locations, fulfillments, and draft orders",
     "entry_point": "shopify_admin.py",
     "auth": {
-        "type": "platform",
-        "provider": "Shopify Admin",
-        "scopes": [
-            "read_customers",
-            "write_customers",
-            "read_orders",
-            "write_orders",
-            "read_products",
-            "write_products",
-            "read_inventory",
-            "write_inventory",
-            "read_locations",
-            "read_fulfillments",
-            "write_fulfillments",
-            "read_draft_orders",
-            "write_draft_orders"
-        ]
+        "type": "custom",
+        "title": "Shopify App Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "shop_url": {
+                    "type": "string",
+                    "label": "Shop domain",
+                    "help_text": "Your permanent Shopify domain, for example your-store.myshopify.com."
+                },
+                "client_id": {
+                    "type": "string",
+                    "label": "Client ID",
+                    "help_text": "Copy the Client ID from your app's Settings page in the Shopify Dev Dashboard."
+                },
+                "client_secret": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Client secret",
+                    "help_text": "Copy the Client secret from your app's Settings page in the Shopify Dev Dashboard."
+                }
+            },
+            "required": []
+        }
     },
     "actions": {
         "list_customers": {
@@ -30,7 +37,8 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "limit": {"type": "integer", "description": "Maximum customers to return (max 250)", "label": "Limit", "default": 50},
+                    "limit": {"type": "integer", "description": "Customers per page (max 250)", "label": "Limit", "default": 50},
+                    "after": {"type": "string", "description": "Cursor for the next page (from endCursor)", "label": "After Cursor"},
                     "since_id": {"type": "string", "description": "Restrict results to after this ID", "label": "Since ID"},
                     "created_at_min": {"type": "string", "description": "Show customers created after date (ISO 8601)", "label": "Created After"},
                     "created_at_max": {"type": "string", "description": "Show customers created before date (ISO 8601)", "label": "Created Before"},
@@ -45,6 +53,8 @@
                     "success": {"type": "boolean"},
                     "customers": {"type": "array"},
                     "count": {"type": "integer"},
+                    "hasNextPage": {"type": "boolean", "description": "Whether more customers are available"},
+                    "endCursor": {"type": "string", "description": "Cursor for the next page"},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -77,7 +87,8 @@
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Search query", "label": "Query"},
-                    "limit": {"type": "integer", "description": "Maximum results", "label": "Limit", "default": 50}
+                    "limit": {"type": "integer", "description": "Customers per page (max 250)", "label": "Limit", "default": 50},
+                    "after": {"type": "string", "description": "Cursor for the next page (from endCursor)", "label": "After Cursor"}
                 },
                 "required": ["query"]
             },
@@ -87,6 +98,8 @@
                     "success": {"type": "boolean"},
                     "customers": {"type": "array"},
                     "count": {"type": "integer"},
+                    "hasNextPage": {"type": "boolean", "description": "Whether more matching customers are available"},
+                    "endCursor": {"type": "string", "description": "Cursor for the next page"},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -102,7 +115,7 @@
                     "first_name": {"type": "string", "description": "First name", "label": "First Name"},
                     "last_name": {"type": "string", "description": "Last name", "label": "Last Name"},
                     "phone": {"type": "string", "description": "Phone number", "label": "Phone"},
-                    "verified_email": {"type": "boolean", "description": "Email verified", "label": "Verified", "default": true},
+                    "verified_email": {"type": "boolean", "description": "Backward-compatible flag. Shopify manages email verification; false is not supported by GraphQL.", "label": "Verified", "default": true},
                     "send_email_welcome": {"type": "boolean", "description": "Send welcome email", "label": "Welcome Email", "default": false},
                     "tags": {"type": "string", "description": "Comma-separated tags", "label": "Tags"},
                     "note": {"type": "string", "description": "Note about customer", "label": "Note"},
@@ -115,6 +128,7 @@
                 "type": "object",
                 "properties": {
                     "success": {"type": "boolean"},
+                    "partial_success": {"type": "boolean", "description": "Whether the customer was created but a requested follow-up operation failed"},
                     "customer": {"type": "object"},
                     "message": {"type": "string"}
                 },
@@ -154,7 +168,8 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "limit": {"type": "integer", "description": "Maximum orders", "label": "Limit", "default": 50},
+                    "limit": {"type": "integer", "description": "Orders per page (max 250)", "label": "Limit", "default": 50},
+                    "after": {"type": "string", "description": "Cursor for the next page (from endCursor)", "label": "After Cursor"},
                     "status": {"type": "string", "description": "Order status", "label": "Status", "enum": ["open", "closed", "cancelled", "any"], "default": "any"},
                     "financial_status": {"type": "string", "description": "Financial status", "label": "Financial Status", "enum": ["authorized", "pending", "paid", "partially_paid", "refunded", "voided", "partially_refunded", "any"]},
                     "fulfillment_status": {"type": "string", "description": "Fulfillment status", "label": "Fulfillment Status", "enum": ["shipped", "partial", "unshipped", "unfulfilled", "any"]},
@@ -170,6 +185,8 @@
                     "success": {"type": "boolean"},
                     "orders": {"type": "array"},
                     "count": {"type": "integer"},
+                    "hasNextPage": {"type": "boolean", "description": "Whether more orders are available"},
+                    "endCursor": {"type": "string", "description": "Cursor for the next page"},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -205,7 +222,9 @@
                     "customer_id": {"type": "string", "description": "Customer ID", "label": "Customer ID"},
                     "email": {"type": "string", "format": "email", "description": "Customer email", "label": "Email"},
                     "financial_status": {"type": "string", "description": "Financial status", "label": "Financial Status", "enum": ["pending", "authorized", "partially_paid", "paid"], "default": "pending"},
+                    "fulfillment_status": {"type": "string", "description": "Fulfillment status", "label": "Fulfillment Status", "enum": ["fulfilled", "partial", "restocked"]},
                     "send_receipt": {"type": "boolean", "description": "Send receipt", "label": "Send Receipt", "default": false},
+                    "send_fulfillment_receipt": {"type": "boolean", "description": "Send fulfillment receipt", "label": "Send Fulfillment Receipt", "default": false},
                     "note": {"type": "string", "description": "Order note", "label": "Note"},
                     "tags": {"type": "string", "description": "Tags", "label": "Tags"},
                     "shipping_address": {"type": "object", "description": "Shipping address", "label": "Shipping Address"},
@@ -225,7 +244,7 @@
         },
         "cancel_order": {
             "display_name": "Cancel Order",
-            "description": "Cancel an existing order",
+            "description": "Submit an asynchronous request to cancel an existing order",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -240,10 +259,13 @@
                 "type": "object",
                 "properties": {
                     "success": {"type": "boolean"},
+                    "cancellation_status": {"type": "string", "description": "Whether the cancellation is pending or completed", "enum": ["pending", "completed"]},
+                    "job_id": {"type": "string", "description": "Shopify cancellation job ID"},
+                    "job_done": {"type": "boolean", "description": "Whether Shopify completed the cancellation job immediately"},
                     "order": {"type": "object"},
                     "message": {"type": "string"}
                 },
-                "required": ["success"]
+                "required": ["success", "cancellation_status", "job_id", "job_done"]
             }
         },
         "list_products": {
@@ -308,7 +330,7 @@
                     "product_type": {"type": "string", "description": "Product type", "label": "Product Type"},
                     "tags": {"type": "string", "description": "Comma-separated tags", "label": "Tags"},
                     "status": {"type": "string", "description": "Status", "label": "Status", "enum": ["active", "archived", "draft"], "default": "draft"},
-                    "variants": {"type": "array", "description": "Product variants with price, sku, barcode, weight", "label": "Variants"},
+                    "variants": {"type": "array", "description": "Product variants with price, compare_at_price, sku, barcode, weight, weight_unit, and option_values", "label": "Variants"},
                     "options": {"type": "array", "description": "Product options (e.g., Size, Color)", "label": "Options"}
                 },
                 "required": ["title"]
@@ -317,6 +339,7 @@
                 "type": "object",
                 "properties": {
                     "success": {"type": "boolean"},
+                    "partial_success": {"type": "boolean", "description": "Whether the product was created but variant setup did not complete"},
                     "product": {"type": "object"},
                     "message": {"type": "string"}
                 },
@@ -457,7 +480,8 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "limit": {"type": "integer", "description": "Maximum results", "label": "Limit", "default": 50},
+                    "limit": {"type": "integer", "description": "Draft orders per page (max 250)", "label": "Limit", "default": 50},
+                    "after": {"type": "string", "description": "Cursor for the next page (from endCursor)", "label": "After Cursor"},
                     "since_id": {"type": "string", "description": "After this ID", "label": "Since ID"},
                     "status": {"type": "string", "description": "Status filter", "label": "Status"}
                 },
@@ -469,6 +493,8 @@
                     "success": {"type": "boolean"},
                     "draft_orders": {"type": "array"},
                     "count": {"type": "integer"},
+                    "hasNextPage": {"type": "boolean", "description": "Whether more draft orders are available"},
+                    "endCursor": {"type": "string", "description": "Cursor for the next page"},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -566,7 +592,7 @@
         },
         "create_fulfillment": {
             "display_name": "Create Fulfillment",
-            "description": "Create a fulfillment for an order",
+            "description": "Create a fulfillment for an order using Shopify fulfillment orders",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -576,7 +602,7 @@
                     "tracking_company": {"type": "string", "description": "Shipping company", "label": "Tracking Company"},
                     "tracking_url": {"type": "string", "description": "Tracking URL", "label": "Tracking URL"},
                     "notify_customer": {"type": "boolean", "description": "Notify customer", "label": "Notify Customer", "default": true},
-                    "line_items": {"type": "array", "description": "Line items to fulfill", "label": "Line Items"}
+                    "line_items": {"type": "array", "description": "Optional order line item IDs and quantities to fulfill; omit to fulfill everything assigned to the location", "label": "Line Items"}
                 },
                 "required": ["order_id", "location_id"]
             },
