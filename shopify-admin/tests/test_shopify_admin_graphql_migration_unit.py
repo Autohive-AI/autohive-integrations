@@ -1,10 +1,14 @@
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 
 import shopify_admin as module
 
 pytestmark = pytest.mark.unit
+
+
+CLIENT_SECRET = uuid4().hex
 
 
 @pytest.fixture
@@ -15,7 +19,7 @@ def context():
         "credentials": {
             "shop_url": "example-store.myshopify.com",
             "client_id": "test-client-id",
-            "client_secret": "test-client-secret",  # nosec B105
+            "client_secret": CLIENT_SECRET,
         },
     }
     return execution_context

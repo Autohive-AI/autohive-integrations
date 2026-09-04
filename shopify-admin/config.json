@@ -222,6 +222,7 @@
                     "customer_id": {"type": "string", "description": "Customer ID", "label": "Customer ID"},
                     "email": {"type": "string", "format": "email", "description": "Customer email", "label": "Email"},
                     "financial_status": {"type": "string", "description": "Financial status", "label": "Financial Status", "enum": ["pending", "authorized", "partially_paid", "paid"], "default": "pending"},
+                    "fulfillment_status": {"type": "string", "description": "Fulfillment status", "label": "Fulfillment Status", "enum": ["fulfilled", "partial", "restocked"]},
                     "send_receipt": {"type": "boolean", "description": "Send receipt", "label": "Send Receipt", "default": false},
                     "send_fulfillment_receipt": {"type": "boolean", "description": "Send fulfillment receipt", "label": "Send Fulfillment Receipt", "default": false},
                     "note": {"type": "string", "description": "Order note", "label": "Note"},

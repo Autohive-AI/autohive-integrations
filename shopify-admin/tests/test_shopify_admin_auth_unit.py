@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
@@ -17,6 +18,14 @@ from shopify_admin import (
 pytestmark = pytest.mark.unit
 
 
+CLIENT_SECRET = uuid4().hex
+ACCESS_TOKEN = uuid4().hex
+FIRST_TOKEN = uuid4().hex
+REFRESHED_TOKEN = uuid4().hex
+SECOND_TOKEN = uuid4().hex
+MISSING_CREDENTIAL = str()
+
+
 @pytest.fixture
 def custom_auth_context():
     context = MagicMock()
@@ -25,7 +34,7 @@ def custom_auth_context():
         "credentials": {
             "shop_url": "example-store.myshopify.com",
             "client_id": "test-client-id",
-            "client_secret": "test-client-secret",  # nosec B105
+            "client_secret": CLIENT_SECRET,
         },
     }
     context.fetch = AsyncMock()
@@ -72,21 +81,21 @@ async def test_get_access_token_uses_client_credentials_grant(custom_auth_contex
         status=200,
         headers={},
         data={
-            "access_token": "test-access-token",  # nosec B105
+            "access_token": ACCESS_TOKEN,
             "expires_in": 86399,
         },
     )
 
     token = await get_access_token(custom_auth_context)
 
-    assert token == "test-access-token"  # nosec B105
+    assert token == ACCESS_TOKEN
     custom_auth_context.fetch.assert_awaited_once_with(
         "https://example-store.myshopify.com/admin/oauth/access_token",
         method="POST",
         data={
             "grant_type": "client_credentials",
             "client_id": "test-client-id",
-            "client_secret": "test-client-secret",  # nosec B105
+            "client_secret": CLIENT_SECRET,
         },
         content_type="application/x-www-form-urlencoded",
     )
@@ -96,13 +105,13 @@ async def test_get_access_token_reuses_cached_token(custom_auth_context):
     custom_auth_context.fetch.return_value = FetchResponse(
         status=200,
         headers={},
-        data={"access_token": "test-access-token", "expires_in": 86399},  # nosec B105
+        data={"access_token": ACCESS_TOKEN, "expires_in": 86399},
     )
 
     first_token = await get_access_token(custom_auth_context)
     second_token = await get_access_token(custom_auth_context)
 
-    assert first_token == second_token == "test-access-token"  # nosec B105
+    assert first_token == second_token == ACCESS_TOKEN
     custom_auth_context.fetch.assert_awaited_once()
 
 
@@ -113,20 +122,20 @@ async def test_get_access_token_refreshes_near_expiry(custom_auth_context, monke
         FetchResponse(
             status=200,
             headers={},
-            data={"access_token": "first-token", "expires_in": 120},  # nosec B105
+            data={"access_token": FIRST_TOKEN, "expires_in": 120},
         ),
         FetchResponse(
             status=200,
             headers={},
-            data={"access_token": "refreshed-token", "expires_in": 120},  # nosec B105
+            data={"access_token": REFRESHED_TOKEN, "expires_in": 120},
         ),
     ]
 
-    assert await get_access_token(custom_auth_context) == "first-token"  # nosec B105
+    assert await get_access_token(custom_auth_context) == FIRST_TOKEN
     current_time += 59
-    assert await get_access_token(custom_auth_context) == "first-token"  # nosec B105
+    assert await get_access_token(custom_auth_context) == FIRST_TOKEN
     current_time += 1
-    assert await get_access_token(custom_auth_context) == "refreshed-token"  # nosec B105
+    assert await get_access_token(custom_auth_context) == REFRESHED_TOKEN
     assert custom_auth_context.fetch.await_count == 2
 
 
@@ -135,18 +144,18 @@ async def test_get_access_token_does_not_reuse_cache_after_credentials_change(cu
         FetchResponse(
             status=200,
             headers={},
-            data={"access_token": "first-token", "expires_in": 86399},  # nosec B105
+            data={"access_token": FIRST_TOKEN, "expires_in": 86399},
         ),
         FetchResponse(
             status=200,
             headers={},
-            data={"access_token": "second-token", "expires_in": 86399},  # nosec B105
+            data={"access_token": SECOND_TOKEN, "expires_in": 86399},
         ),
     ]
 
-    assert await get_access_token(custom_auth_context) == "first-token"  # nosec B105
+    assert await get_access_token(custom_auth_context) == FIRST_TOKEN
     custom_auth_context.auth["credentials"]["client_id"] = "different-client-id"
-    assert await get_access_token(custom_auth_context) == "second-token"  # nosec B105
+    assert await get_access_token(custom_auth_context) == SECOND_TOKEN
     assert custom_auth_context.fetch.await_count == 2
 
 
@@ -155,7 +164,7 @@ async def test_multiple_graphql_requests_exchange_credentials_once(custom_auth_c
         FetchResponse(
             status=200,
             headers={},
-            data={"access_token": "test-access-token", "expires_in": 86399},  # nosec B105
+            data={"access_token": ACCESS_TOKEN, "expires_in": 86399},
         ),
         FetchResponse(status=200, headers={}, data={"data": {"shop": {"id": "gid://shopify/Shop/1"}}}),
         FetchResponse(status=200, headers={}, data={"data": {"shop": {"id": "gid://shopify/Shop/1"}}}),
@@ -172,7 +181,7 @@ async def test_multiple_graphql_requests_exchange_credentials_once(custom_auth_c
 
 
 async def test_get_access_token_rejects_missing_credentials(custom_auth_context):
-    custom_auth_context.auth["credentials"]["client_secret"] = ""  # nosec B105
+    custom_auth_context.auth["credentials"]["client_secret"] = MISSING_CREDENTIAL
 
     with pytest.raises(ValueError, match="client_secret"):
         await get_access_token(custom_auth_context)
@@ -184,20 +193,20 @@ async def test_build_headers_uses_exchanged_token(custom_auth_context):
     custom_auth_context.fetch.return_value = FetchResponse(
         status=200,
         headers={},
-        data={"access_token": "test-access-token"},  # nosec B105
+        data={"access_token": ACCESS_TOKEN},
     )
 
     headers = await build_headers(custom_auth_context)
 
     assert headers == {
-        "X-Shopify-Access-Token": "test-access-token",
+        "X-Shopify-Access-Token": ACCESS_TOKEN,
         "Content-Type": "application/json",
     }
 
 
 async def test_action_exchanges_credentials_before_admin_api_call(custom_auth_context):
     custom_auth_context.fetch.side_effect = [
-        FetchResponse(status=200, headers={}, data={"access_token": "test-access-token"}),  # nosec B105
+        FetchResponse(status=200, headers={}, data={"access_token": ACCESS_TOKEN}),
         FetchResponse(
             status=200,
             headers={},
@@ -214,12 +223,12 @@ async def test_action_exchanges_credentials_before_admin_api_call(custom_auth_co
     assert admin_call.args[0] == "https://example-store.myshopify.com/admin/api/2026-07/graphql.json"
     assert admin_call.kwargs["method"] == "POST"
     assert admin_call.kwargs["json"]["variables"] == {"first": 1, "query": None}
-    assert admin_call.kwargs["headers"]["X-Shopify-Access-Token"] == "test-access-token"
+    assert admin_call.kwargs["headers"]["X-Shopify-Access-Token"] == ACCESS_TOKEN
 
 
 async def test_create_customer_error_returns_action_error(custom_auth_context):
     custom_auth_context.fetch.side_effect = [
-        FetchResponse(status=200, headers={}, data={"access_token": "test-access-token"}),  # nosec B105
+        FetchResponse(status=200, headers={}, data={"access_token": ACCESS_TOKEN}),
         Exception("Shopify rejected the customer"),
     ]
 

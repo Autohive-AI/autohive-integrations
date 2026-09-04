@@ -1248,16 +1248,16 @@ class ListCustomersHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             filters = []
-            mappings = {
-                "since_id": ("id", ">"),
-                "created_at_min": ("customer_date", ">="),
-                "created_at_max": ("customer_date", "<="),
-                "updated_at_min": ("updated_at", ">="),
-                "updated_at_max": ("updated_at", "<="),
-            }
-            for input_name, (field, operator) in mappings.items():
-                if inputs.get(input_name):
-                    filters.append(f"{field}:{operator}{escape_graphql_query_value(inputs[input_name])}")
+            filter_values = (
+                (inputs.get("since_id"), "id", ">"),
+                (inputs.get("created_at_min"), "customer_date", ">="),
+                (inputs.get("created_at_max"), "customer_date", "<="),
+                (inputs.get("updated_at_min"), "updated_at", ">="),
+                (inputs.get("updated_at_max"), "updated_at", "<="),
+            )
+            for value, field, operator in filter_values:
+                if value:
+                    filters.append(f"{field}:{operator}{escape_graphql_query_value(value)}")
             variables = {"first": clamp_limit(inputs.get("limit")), "query": " AND ".join(filters) or None}
             if inputs.get("after") is not None:
                 variables["after"] = inputs["after"]
@@ -1335,19 +1335,16 @@ class CreateCustomerHandler(ActionHandler):
                 raise ValueError(
                     "verified_email=false is not supported by Shopify GraphQL; email verification is managed by Shopify"
                 )
-            customer_input = {}
-            field_mapping = {
-                "email": "email",
-                "first_name": "firstName",
-                "last_name": "lastName",
-                "phone": "phone",
-                "tags": "tags",
-                "note": "note",
-                "tax_exempt": "taxExempt",
+            customer_fields = {
+                "email": inputs.get("email"),
+                "firstName": inputs.get("first_name"),
+                "lastName": inputs.get("last_name"),
+                "phone": inputs.get("phone"),
+                "tags": inputs.get("tags"),
+                "note": inputs.get("note"),
+                "taxExempt": inputs.get("tax_exempt"),
             }
-            for input_field, api_field in field_mapping.items():
-                if input_field in inputs and inputs[input_field] is not None:
-                    customer_input[api_field] = inputs[input_field]
+            customer_input = {field: value for field, value in customer_fields.items() if value is not None}
             if customer_input.get("tags") is not None:
                 customer_input["tags"] = comma_list(customer_input["tags"])
             if inputs.get("address"):
@@ -1385,18 +1382,16 @@ class UpdateCustomerHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             customer_input = {"id": to_gid("Customer", inputs["customer_id"])}
-            field_mapping = {
-                "email": "email",
-                "first_name": "firstName",
-                "last_name": "lastName",
-                "phone": "phone",
-                "tags": "tags",
-                "note": "note",
-                "tax_exempt": "taxExempt",
+            customer_fields = {
+                "email": inputs.get("email"),
+                "firstName": inputs.get("first_name"),
+                "lastName": inputs.get("last_name"),
+                "phone": inputs.get("phone"),
+                "tags": inputs.get("tags"),
+                "note": inputs.get("note"),
+                "taxExempt": inputs.get("tax_exempt"),
             }
-            for input_field, api_field in field_mapping.items():
-                if input_field in inputs and inputs[input_field] is not None:
-                    customer_input[api_field] = inputs[input_field]
+            customer_input.update({field: value for field, value in customer_fields.items() if value is not None})
             if customer_input.get("tags") is not None:
                 customer_input["tags"] = comma_list(customer_input["tags"])
             data = await execute_graphql(context, CUSTOMER_UPDATE_MUTATION, {"input": customer_input})
@@ -1482,24 +1477,23 @@ class CreateOrderHandler(ActionHandler):
             order_input = {"lineItems": graphql_order_line_items(inputs["line_items"], currency_code)}
             if inputs.get("customer_id"):
                 order_input["customer"] = {"toAssociate": {"id": to_gid("Customer", inputs["customer_id"])}}
-            mapping = {
-                "email": "email",
-                "financial_status": "financialStatus",
-                "fulfillment_status": "fulfillmentStatus",
-                "note": "note",
+            order_fields = {
+                "email": inputs.get("email"),
+                "financialStatus": inputs.get("financial_status"),
+                "fulfillmentStatus": inputs.get("fulfillment_status"),
+                "note": inputs.get("note"),
             }
-            for source, target in mapping.items():
-                if inputs.get(source) is not None:
-                    order_input[target] = (
-                        str(inputs[source]).upper()
-                        if source in {"financial_status", "fulfillment_status"}
-                        else inputs[source]
-                    )
+            for target, value in order_fields.items():
+                if value is not None:
+                    order_input[target] = str(value).upper() if target.endswith("Status") else value
             if inputs.get("tags") is not None:
                 order_input["tags"] = comma_list(inputs["tags"])
-            for source, target in (("shipping_address", "shippingAddress"), ("billing_address", "billingAddress")):
-                if inputs.get(source):
-                    order_input[target] = graphql_address(inputs[source])
+            shipping_address = inputs.get("shipping_address")
+            if shipping_address:
+                order_input["shippingAddress"] = graphql_address(shipping_address)
+            billing_address = inputs.get("billing_address")
+            if billing_address:
+                order_input["billingAddress"] = graphql_address(billing_address)
             options = {
                 "sendReceipt": inputs.get("send_receipt", False),
                 "sendFulfillmentReceipt": inputs.get("send_fulfillment_receipt", False),
@@ -1769,23 +1763,28 @@ class UpdateProductHandler(ActionHandler):
             product_input = {"id": gid}
 
             # Map REST field names to GraphQL field names
-            if "title" in inputs and inputs["title"] is not None:
-                product_input["title"] = inputs["title"]
-            if "body_html" in inputs and inputs["body_html"] is not None:
-                product_input["descriptionHtml"] = inputs["body_html"]
-            if "vendor" in inputs and inputs["vendor"] is not None:
-                product_input["vendor"] = inputs["vendor"]
-            if "product_type" in inputs and inputs["product_type"] is not None:
-                product_input["productType"] = inputs["product_type"]
-            if "tags" in inputs and inputs["tags"] is not None:
+            title = inputs.get("title")
+            if title is not None:
+                product_input["title"] = title
+            body_html = inputs.get("body_html")
+            if body_html is not None:
+                product_input["descriptionHtml"] = body_html
+            vendor = inputs.get("vendor")
+            if vendor is not None:
+                product_input["vendor"] = vendor
+            product_type = inputs.get("product_type")
+            if product_type is not None:
+                product_input["productType"] = product_type
+            tags = inputs.get("tags")
+            if tags is not None:
                 # Convert comma-separated string to array if needed
-                tags = inputs["tags"]
                 if isinstance(tags, str):
                     tags = [t.strip() for t in tags.split(",") if t.strip()]
                 product_input["tags"] = tags
-            if "status" in inputs and inputs["status"] is not None:
+            status = inputs.get("status")
+            if status is not None:
                 # Convert to uppercase for GraphQL enum
-                product_input["status"] = inputs["status"].upper()
+                product_input["status"] = status.upper()
 
             variables = {"product": product_input}
 
@@ -2029,17 +2028,22 @@ class CreateDraftOrderHandler(ActionHandler):
                 currency_data = await execute_graphql(context, SHOP_CURRENCY_QUERY)
                 currency_code = (currency_data.get("shop") or {}).get("currencyCode")
             draft_input = {"lineItems": graphql_draft_line_items(inputs["line_items"], currency_code)}
-            mapping = {"email": "email", "note": "note"}
-            for source, target in mapping.items():
-                if inputs.get(source) is not None:
-                    draft_input[target] = inputs[source]
+            email = inputs.get("email")
+            if email is not None:
+                draft_input["email"] = email
+            note = inputs.get("note")
+            if note is not None:
+                draft_input["note"] = note
             if inputs.get("customer_id"):
                 draft_input["purchasingEntity"] = {"customerId": to_gid("Customer", inputs["customer_id"])}
             if inputs.get("tags") is not None:
                 draft_input["tags"] = comma_list(inputs["tags"])
-            for source, target in (("shipping_address", "shippingAddress"), ("billing_address", "billingAddress")):
-                if inputs.get(source):
-                    draft_input[target] = graphql_address(inputs[source])
+            shipping_address = inputs.get("shipping_address")
+            if shipping_address:
+                draft_input["shippingAddress"] = graphql_address(shipping_address)
+            billing_address = inputs.get("billing_address")
+            if billing_address:
+                draft_input["billingAddress"] = graphql_address(billing_address)
             if inputs.get("use_customer_default_address") is not None:
                 draft_input["useCustomerDefaultAddress"] = inputs["use_customer_default_address"]
             data = await execute_graphql(context, DRAFT_CREATE_MUTATION, {"input": draft_input})

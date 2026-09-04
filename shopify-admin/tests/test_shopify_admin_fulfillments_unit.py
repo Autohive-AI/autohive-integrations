@@ -1,4 +1,5 @@
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
@@ -6,6 +7,10 @@ from autohive_integrations_sdk import FetchResponse, ResultType
 from shopify_admin import CreateFulfillmentHandler, build_fulfillment_order_payload, shopify_admin
 
 pytestmark = pytest.mark.unit
+
+
+CLIENT_SECRET = uuid4().hex
+ACCESS_TOKEN = uuid4().hex
 
 
 @pytest.fixture
@@ -16,7 +21,7 @@ def fulfillment_context():
         "credentials": {
             "shop_url": "example-store.myshopify.com",
             "client_id": "test-client-id",
-            "client_secret": "test-client-secret",  # nosec B105
+            "client_secret": CLIENT_SECRET,
         },
     }
     context.fetch = AsyncMock()
@@ -79,7 +84,7 @@ def test_build_fulfillment_order_payload_rejects_unmatched_items():
 
 async def test_create_fulfillment_uses_graphql_fulfillment_order_workflow(fulfillment_context):
     fulfillment_context.fetch.side_effect = [
-        FetchResponse(status=200, headers={}, data={"access_token": "test-access-token"}),  # nosec B105
+        FetchResponse(status=200, headers={}, data={"access_token": ACCESS_TOKEN}),
         FetchResponse(
             status=200,
             headers={},
@@ -109,7 +114,7 @@ async def test_create_fulfillment_uses_graphql_fulfillment_order_workflow(fulfil
                 }
             },
         ),
-        FetchResponse(status=200, headers={}, data={"access_token": "test-access-token"}),  # nosec B105
+        FetchResponse(status=200, headers={}, data={"access_token": ACCESS_TOKEN}),
         FetchResponse(
             status=200,
             headers={},
@@ -176,7 +181,7 @@ async def test_create_fulfillment_uses_graphql_fulfillment_order_workflow(fulfil
 
 async def test_create_fulfillment_error_returns_action_error(fulfillment_context):
     fulfillment_context.fetch.side_effect = [
-        FetchResponse(status=200, headers={}, data={"access_token": "test-access-token"}),  # nosec B105
+        FetchResponse(status=200, headers={}, data={"access_token": ACCESS_TOKEN}),
         Exception("Shopify rejected the fulfillment"),
     ]
 

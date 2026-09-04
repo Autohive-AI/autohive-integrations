@@ -1,4 +1,5 @@
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from autohive_integrations_sdk import ActionError, FetchResponse, ResultType
@@ -20,6 +21,10 @@ from shopify_admin import (
 pytestmark = pytest.mark.unit
 
 
+CLIENT_SECRET = uuid4().hex
+ACCESS_TOKEN = uuid4().hex
+
+
 @pytest.fixture
 def product_context():
     context = MagicMock()
@@ -28,7 +33,7 @@ def product_context():
         "credentials": {
             "shop_url": "example-store.myshopify.com",
             "client_id": "test-client-id",
-            "client_secret": "test-client-secret",  # nosec B105
+            "client_secret": CLIENT_SECRET,
         },
     }
     context.fetch = AsyncMock()
@@ -145,7 +150,7 @@ def test_product_queries_expose_nested_connection_page_info():
 
 async def test_list_products_returns_weight_from_current_schema(product_context):
     product_context.fetch.side_effect = [
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -196,7 +201,7 @@ async def test_list_products_returns_weight_from_current_schema(product_context)
 )
 async def test_list_products_clamps_limit_boundaries(product_context, requested_limit, expected_limit):
     product_context.fetch.side_effect = [
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -218,7 +223,7 @@ async def test_list_products_clamps_limit_boundaries(product_context, requested_
 
 async def test_get_product_error_returns_action_error(product_context):
     product_context.fetch.side_effect = [
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         Exception("GraphQL Error: invalid product query"),
     ]
 
@@ -230,7 +235,7 @@ async def test_get_product_error_returns_action_error(product_context):
 
 async def test_get_product_null_returns_not_found_error(product_context):
     product_context.fetch.side_effect = [
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response({"data": {"product": None}}),
     ]
 
@@ -242,7 +247,7 @@ async def test_get_product_null_returns_not_found_error(product_context):
 
 async def test_update_product_sends_explicit_empty_fields(product_context):
     product_context.fetch.side_effect = [
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -282,7 +287,7 @@ async def test_update_product_sends_explicit_empty_fields(product_context):
 
 async def test_create_product_updates_the_standalone_variant(product_context):
     product_context.fetch.side_effect = [
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -297,7 +302,7 @@ async def test_create_product_updates_the_standalone_variant(product_context):
                 }
             }
         ),
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -308,7 +313,7 @@ async def test_create_product_updates_the_standalone_variant(product_context):
                 }
             }
         ),
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -360,7 +365,7 @@ async def test_create_product_updates_the_standalone_variant(product_context):
 
 async def test_create_product_bulk_creates_optioned_variants(product_context):
     product_context.fetch.side_effect = [
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -375,7 +380,7 @@ async def test_create_product_bulk_creates_optioned_variants(product_context):
                 }
             }
         ),
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -389,7 +394,7 @@ async def test_create_product_bulk_creates_optioned_variants(product_context):
                 }
             }
         ),
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -445,7 +450,7 @@ async def test_create_product_bulk_creates_optioned_variants(product_context):
 
 async def test_create_product_reports_partial_success_when_variant_setup_fails(product_context):
     product_context.fetch.side_effect = [
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -460,7 +465,7 @@ async def test_create_product_reports_partial_success_when_variant_setup_fails(p
                 }
             }
         ),
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -493,7 +498,7 @@ async def test_create_product_reports_partial_success_when_variant_setup_fails(p
 
 async def test_create_product_reports_partial_success_when_refetch_fails(product_context):
     product_context.fetch.side_effect = [
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -508,7 +513,7 @@ async def test_create_product_reports_partial_success_when_refetch_fails(product
                 }
             }
         ),
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         fetch_response(
             {
                 "data": {
@@ -519,7 +524,7 @@ async def test_create_product_reports_partial_success_when_refetch_fails(product
                 }
             }
         ),
-        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response({"access_token": ACCESS_TOKEN}),
         Exception("Product refetch unavailable"),
     ]
 
