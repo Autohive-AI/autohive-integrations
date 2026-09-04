@@ -11,6 +11,7 @@ from shopify_admin import (
     PRODUCT_VARIANTS_BULK_CREATE_MUTATION,
     PRODUCT_VARIANTS_BULK_UPDATE_MUTATION,
     CreateProductHandler,
+    build_product_query_filter,
     build_product_variant_input,
     shopify_admin,
     transform_product_response,
@@ -61,6 +62,23 @@ def test_product_mutations_use_2026_07_input_contracts():
     assert "productVariantsBulkUpdate" in PRODUCT_VARIANTS_BULK_UPDATE_MUTATION
 
 
+def test_build_product_query_filter_quotes_iso_date_bounds():
+    query = build_product_query_filter(
+        {
+            "created_at_min": "2026-01-02T03:04:05Z",
+            "created_at_max": "2026-02-03T04:05:06+12:00",
+        }
+    )
+
+    assert query == 'created_at:>"2026-01-02T03:04:05Z" AND created_at:<"2026-02-03T04:05:06+12:00"'
+
+
+def test_build_product_query_filter_escapes_special_characters_in_date_bounds():
+    query = build_product_query_filter({"created_at_min": '2026-01-02T03:04:05Z" OR status:active\\'})
+
+    assert query == 'created_at:>"2026-01-02T03:04:05Z\\" OR status:active\\\\"'
+
+
 def test_build_product_variant_input_uses_inventory_item_and_option_values():
     variant = build_product_variant_input(
         {
@@ -102,13 +120,27 @@ def test_transform_product_response_reads_inventory_item_weight():
                             }
                         },
                     }
-                ]
+                ],
+                "pageInfo": {"hasNextPage": True, "endCursor": "variant-cursor"},
+            },
+            "images": {
+                "nodes": [],
+                "pageInfo": {"hasNextPage": False, "endCursor": "image-cursor"},
             },
         }
     )
 
     assert product["variants"][0]["weight"] == 1.25
     assert product["variants"][0]["weight_unit"] == "KILOGRAMS"
+    assert product["variants_has_next_page"] is True
+    assert product["variants_end_cursor"] == "variant-cursor"
+    assert product["images_has_next_page"] is False
+    assert product["images_end_cursor"] == "image-cursor"
+
+
+def test_product_queries_expose_nested_connection_page_info():
+    for query in (PRODUCTS_QUERY, PRODUCT_QUERY, PRODUCT_CREATE_MUTATION, PRODUCT_UPDATE_MUTATION):
+        assert query.count("pageInfo { hasNextPage endCursor }") >= 2
 
 
 async def test_list_products_returns_weight_from_current_schema(product_context):
@@ -152,6 +184,36 @@ async def test_list_products_returns_weight_from_current_schema(product_context)
     assert data["products"][0]["variants"][0]["weight"] == 500.0
     graphql_call = product_context.fetch.await_args_list[1]
     assert "inventoryItem" in graphql_call.kwargs["json"]["query"]
+
+
+@pytest.mark.parametrize(
+    "requested_limit, expected_limit",
+    [
+        (0, 50),
+        (-1, 1),
+        (251, 250),
+    ],
+)
+async def test_list_products_clamps_limit_boundaries(product_context, requested_limit, expected_limit):
+    product_context.fetch.side_effect = [
+        fetch_response({"access_token": "test-access-token"}),  # nosec B105
+        fetch_response(
+            {
+                "data": {
+                    "products": {
+                        "edges": [],
+                        "pageInfo": {"hasNextPage": False, "endCursor": None},
+                    }
+                }
+            }
+        ),
+    ]
+
+    result = await shopify_admin.execute_action("list_products", {"limit": requested_limit}, product_context)
+
+    assert result.type == ResultType.ACTION
+    graphql_call = product_context.fetch.await_args_list[1]
+    assert graphql_call.kwargs["json"]["variables"]["first"] == expected_limit
 
 
 async def test_get_product_error_returns_action_error(product_context):

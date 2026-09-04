@@ -135,6 +135,26 @@ async def first_resource_id(live_context, configured_id, list_action, collection
     return resources[0]["id"]
 
 
+async def assert_cursor_pagination(live_context, action_name, collection_key, inputs=None):
+    """Fetch two one-item pages and verify the cursor advances without overlap."""
+    first_inputs = {**(inputs or {}), "limit": 1}
+    first_page = action_data(await shopify_admin.execute_action(action_name, first_inputs, live_context))
+
+    assert isinstance(first_page["hasNextPage"], bool)
+    if not first_page[collection_key]:
+        pytest.skip(f"No Shopify {collection_key.replace('_', ' ')} available")
+    if not first_page["hasNextPage"]:
+        pytest.skip(f"Cursor pagination requires at least two matching Shopify {collection_key.replace('_', ' ')}")
+
+    assert first_page.get("endCursor")
+    second_inputs = {**first_inputs, "after": first_page["endCursor"]}
+    second_page = action_data(await shopify_admin.execute_action(action_name, second_inputs, live_context))
+
+    assert isinstance(second_page["hasNextPage"], bool)
+    assert second_page["count"] == 1
+    assert second_page[collection_key][0]["id"] != first_page[collection_key][0]["id"]
+
+
 def require_test_id(test_ids, name, env_name):
     """Return an explicitly configured ID required by an irreversible test."""
     value = test_ids[name]
@@ -206,6 +226,9 @@ class TestCustomers:
         assert data["count"] == len(data["customers"])
         assert data["count"] <= 2
 
+    async def test_list_customers_cursor_pagination(self, live_context):
+        await assert_cursor_pagination(live_context, "list_customers", "customers")
+
     async def test_get_customer(self, live_context, test_ids):
         customer_id = await first_resource_id(live_context, test_ids["customer"], "list_customers", "customers")
         data = action_data(
@@ -227,6 +250,14 @@ class TestCustomers:
         assert isinstance(data["customers"], list)
         assert data["count"] == len(data["customers"])
 
+    async def test_search_customers_cursor_pagination(self, live_context):
+        await assert_cursor_pagination(
+            live_context,
+            "search_customers",
+            "customers",
+            {"query": "id:>0"},
+        )
+
 
 # ---- Order actions ----
 
@@ -238,6 +269,9 @@ class TestOrders:
         assert isinstance(data["orders"], list)
         assert data["count"] == len(data["orders"])
         assert data["count"] <= 2
+
+    async def test_list_orders_cursor_pagination(self, live_context):
+        await assert_cursor_pagination(live_context, "list_orders", "orders")
 
     async def test_get_order(self, live_context, test_ids):
         order_id = await first_resource_id(live_context, test_ids["order"], "list_orders", "orders")
@@ -325,6 +359,9 @@ class TestStoreOperations:
         assert isinstance(data["draft_orders"], list)
         assert data["count"] == len(data["draft_orders"])
         assert data["count"] <= 2
+
+    async def test_list_draft_orders_cursor_pagination(self, live_context):
+        await assert_cursor_pagination(live_context, "list_draft_orders", "draft_orders")
 
     async def test_list_fulfillments(self, live_context, test_ids):
         order_id = await first_resource_id(live_context, test_ids["order"], "list_orders", "orders")

@@ -149,11 +149,17 @@ Update an existing product using GraphQL API.
 #### `list_customers`
 List customers with optional filtering and pagination.
 
+Set `limit` to the page size (maximum 250). When `hasNextPage` is `true`, pass the returned `endCursor` as `after`
+with the same filters to retrieve the next page.
+
 #### `get_customer`
 Get a single customer by ID.
 
 #### `search_customers`
 Search customers by query string.
+
+Search results use the same `limit`, `after`, `hasNextPage`, and `endCursor` pagination contract as
+`list_customers`. Keep the search query unchanged while paging.
 
 #### `create_customer`
 Create a new customer.
@@ -170,6 +176,9 @@ Update an existing customer.
 
 #### `list_orders`
 List orders with optional filtering.
+
+Set `limit` to the page size (maximum 250). When `hasNextPage` is `true`, pass the returned `endCursor` as `after`
+with the same filters to retrieve the next page.
 
 #### `get_order`
 Get a single order by ID.
@@ -212,6 +221,9 @@ Get store information.
 #### `list_draft_orders`
 List draft orders.
 
+Set `limit` to the page size (maximum 250). When `hasNextPage` is `true`, pass the returned `endCursor` as `after`
+with the same filters to retrieve the next page.
+
 #### `create_draft_order`
 Create a new draft order.
 
@@ -234,8 +246,27 @@ for the supplied `order_id`, selects those assigned to `location_id`, and submit
 mutation. When `line_items` is omitted, all fulfillable items at that location are fulfilled. Otherwise, provide order
 line item IDs and quantities, for example `[{"id": "123", "quantity": 1}]`.
 
+With the documented `write_merchant_managed_fulfillment_orders` scope, this action can access only fulfillment orders
+assigned to merchant-managed locations. Fulfillment orders assigned to an app-managed or third-party fulfillment
+service aren't visible with that scope, so the action reports that no fulfillable fulfillment orders were found at the
+requested location.
+
 #### `update_fulfillment_tracking`
 Update tracking information for a fulfillment.
+
+### Nested collection limits
+
+Shopify returns nested GraphQL connections one page at a time. To prevent partial data from looking complete, nested
+objects include `<field>_has_next_page` and, when Shopify supplies one, `<field>_end_cursor` alongside the existing
+array. A `true` value means the array is only the first page.
+
+- Product responses include up to 100 variants and 20 images per product.
+- Customer responses include up to 10 addresses.
+- Order and draft-order responses include up to 100 line items.
+
+The corresponding metadata fields are `variants_has_next_page`, `variants_end_cursor`, `images_has_next_page`,
+`images_end_cursor`, `addresses_has_next_page`, `addresses_end_cursor`, `line_items_has_next_page`, and
+`line_items_end_cursor`.
 
 ## Requirements
 

@@ -37,7 +37,8 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "limit": {"type": "integer", "description": "Maximum customers to return (max 250)", "label": "Limit", "default": 50},
+                    "limit": {"type": "integer", "description": "Customers per page (max 250)", "label": "Limit", "default": 50},
+                    "after": {"type": "string", "description": "Cursor for the next page (from endCursor)", "label": "After Cursor"},
                     "since_id": {"type": "string", "description": "Restrict results to after this ID", "label": "Since ID"},
                     "created_at_min": {"type": "string", "description": "Show customers created after date (ISO 8601)", "label": "Created After"},
                     "created_at_max": {"type": "string", "description": "Show customers created before date (ISO 8601)", "label": "Created Before"},
@@ -52,6 +53,8 @@
                     "success": {"type": "boolean"},
                     "customers": {"type": "array"},
                     "count": {"type": "integer"},
+                    "hasNextPage": {"type": "boolean", "description": "Whether more customers are available"},
+                    "endCursor": {"type": "string", "description": "Cursor for the next page"},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -84,7 +87,8 @@
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Search query", "label": "Query"},
-                    "limit": {"type": "integer", "description": "Maximum results", "label": "Limit", "default": 50}
+                    "limit": {"type": "integer", "description": "Customers per page (max 250)", "label": "Limit", "default": 50},
+                    "after": {"type": "string", "description": "Cursor for the next page (from endCursor)", "label": "After Cursor"}
                 },
                 "required": ["query"]
             },
@@ -94,6 +98,8 @@
                     "success": {"type": "boolean"},
                     "customers": {"type": "array"},
                     "count": {"type": "integer"},
+                    "hasNextPage": {"type": "boolean", "description": "Whether more matching customers are available"},
+                    "endCursor": {"type": "string", "description": "Cursor for the next page"},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -162,7 +168,8 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "limit": {"type": "integer", "description": "Maximum orders", "label": "Limit", "default": 50},
+                    "limit": {"type": "integer", "description": "Orders per page (max 250)", "label": "Limit", "default": 50},
+                    "after": {"type": "string", "description": "Cursor for the next page (from endCursor)", "label": "After Cursor"},
                     "status": {"type": "string", "description": "Order status", "label": "Status", "enum": ["open", "closed", "cancelled", "any"], "default": "any"},
                     "financial_status": {"type": "string", "description": "Financial status", "label": "Financial Status", "enum": ["authorized", "pending", "paid", "partially_paid", "refunded", "voided", "partially_refunded", "any"]},
                     "fulfillment_status": {"type": "string", "description": "Fulfillment status", "label": "Fulfillment Status", "enum": ["shipped", "partial", "unshipped", "unfulfilled", "any"]},
@@ -178,6 +185,8 @@
                     "success": {"type": "boolean"},
                     "orders": {"type": "array"},
                     "count": {"type": "integer"},
+                    "hasNextPage": {"type": "boolean", "description": "Whether more orders are available"},
+                    "endCursor": {"type": "string", "description": "Cursor for the next page"},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -470,7 +479,8 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "limit": {"type": "integer", "description": "Maximum results", "label": "Limit", "default": 50},
+                    "limit": {"type": "integer", "description": "Draft orders per page (max 250)", "label": "Limit", "default": 50},
+                    "after": {"type": "string", "description": "Cursor for the next page (from endCursor)", "label": "After Cursor"},
                     "since_id": {"type": "string", "description": "After this ID", "label": "Since ID"},
                     "status": {"type": "string", "description": "Status filter", "label": "Status"}
                 },
@@ -482,6 +492,8 @@
                     "success": {"type": "boolean"},
                     "draft_orders": {"type": "array"},
                     "count": {"type": "integer"},
+                    "hasNextPage": {"type": "boolean", "description": "Whether more draft orders are available"},
+                    "endCursor": {"type": "string", "description": "Cursor for the next page"},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]

@@ -40,7 +40,8 @@ CUSTOMER_NODE = {
                 "city": "Auckland",
                 "countryCodeV2": "NZ",
             }
-        ]
+        ],
+        "pageInfo": {"hasNextPage": True, "endCursor": "address-cursor"},
     },
 }
 ORDER_NODE = {
@@ -49,7 +50,10 @@ ORDER_NODE = {
     "displayFinancialStatus": "PAID",
     "displayFulfillmentStatus": "UNFULFILLED",
     "tags": [],
-    "lineItems": {"nodes": []},
+    "lineItems": {
+        "nodes": [],
+        "pageInfo": {"hasNextPage": True, "endCursor": "order-line-cursor"},
+    },
 }
 DRAFT_NODE = {
     "id": "gid://shopify/DraftOrder/3",
@@ -57,35 +61,66 @@ DRAFT_NODE = {
     "status": "OPEN",
     "note2": "Call before delivery",
     "tags": [],
-    "lineItems": {"nodes": []},
+    "lineItems": {
+        "nodes": [],
+        "pageInfo": {"hasNextPage": True, "endCursor": "draft-line-cursor"},
+    },
 }
 
 
 async def test_list_customers_uses_graphql_filters(monkeypatch, context):
-    graphql = graphql_mock(monkeypatch, return_value={"customers": {"nodes": [CUSTOMER_NODE]}})
+    graphql = graphql_mock(
+        monkeypatch,
+        return_value={
+            "customers": {
+                "nodes": [CUSTOMER_NODE],
+                "pageInfo": {"hasNextPage": True, "endCursor": "customer-cursor"},
+            }
+        },
+    )
 
     result = await module.ListCustomersHandler().execute(
-        {"limit": 10, "since_id": "20", "created_at_min": "2026-01-01"}, context
+        {"limit": 10, "after": "previous-cursor", "since_id": "20", "created_at_min": "2026-01-01"},
+        context,
     )
 
     assert result.data["customers"][0]["id"] == "1"
     assert result.data["customers"][0]["addresses"][0]["city"] == "Auckland"
+    assert result.data["customers"][0]["addresses_has_next_page"] is True
+    assert result.data["customers"][0]["addresses_end_cursor"] == "address-cursor"
+    assert result.data["hasNextPage"] is True
+    assert result.data["endCursor"] == "customer-cursor"
     variables = graphql.await_args.args[2]
     assert variables["first"] == 10
+    assert variables["after"] == "previous-cursor"
     assert 'id:>"20"' in variables["query"]
     assert 'created_at:>="2026-01-01"' in variables["query"]
 
 
 async def test_get_and_search_customers_use_graphql(monkeypatch, context):
-    graphql = graphql_mock(monkeypatch, side_effect=[{"customer": CUSTOMER_NODE}, {"customers": {"nodes": []}}])
+    graphql = graphql_mock(
+        monkeypatch,
+        side_effect=[
+            {"customer": CUSTOMER_NODE},
+            {"customers": {"nodes": [], "pageInfo": {"hasNextPage": False, "endCursor": None}}},
+        ],
+    )
 
     result = await module.GetCustomerHandler().execute({"customer_id": "1"}, context)
-    search = await module.SearchCustomersHandler().execute({"query": "email:buyer@example.com"}, context)
+    search = await module.SearchCustomersHandler().execute(
+        {"query": "email:buyer@example.com", "after": "search-cursor"}, context
+    )
 
     assert result.data["customer"]["id"] == "1"
     assert search.data["count"] == 0
+    assert search.data["hasNextPage"] is False
+    assert "endCursor" not in search.data
     assert graphql.await_args_list[0].args[2] == {"id": "gid://shopify/Customer/1"}
-    assert graphql.await_args_list[1].args[2]["query"] == "email:buyer@example.com"
+    assert graphql.await_args_list[1].args[2] == {
+        "first": 50,
+        "after": "search-cursor",
+        "query": "email:buyer@example.com",
+    }
 
 
 async def test_create_customer_maps_input_and_invite(monkeypatch, context):
@@ -162,17 +197,29 @@ async def test_create_customer_rejects_unrepresentable_unverified_email(monkeypa
 
 
 async def test_list_and_get_orders_use_graphql(monkeypatch, context):
-    graphql = graphql_mock(monkeypatch, side_effect=[{"orders": {"nodes": [ORDER_NODE]}}, {"order": ORDER_NODE}])
+    graphql = graphql_mock(
+        monkeypatch,
+        side_effect=[
+            {"orders": {"nodes": [ORDER_NODE], "pageInfo": {"hasNextPage": True, "endCursor": "order-cursor"}}},
+            {"order": ORDER_NODE},
+        ],
+    )
 
     listed = await module.ListOrdersHandler().execute(
-        {"status": "open", "financial_status": "paid", "limit": 5}, context
+        {"status": "open", "financial_status": "paid", "limit": 5, "after": "previous-order-cursor"},
+        context,
     )
     fetched = await module.GetOrderHandler().execute({"order_id": "2"}, context)
 
     assert listed.data["orders"][0]["financial_status"] == "paid"
+    assert listed.data["orders"][0]["line_items_has_next_page"] is True
+    assert listed.data["orders"][0]["line_items_end_cursor"] == "order-line-cursor"
+    assert listed.data["hasNextPage"] is True
+    assert listed.data["endCursor"] == "order-cursor"
     assert fetched.data["order"]["id"] == "2"
     assert graphql.await_args_list[0].args[2] == {
         "first": 5,
+        "after": "previous-order-cursor",
         "query": "status:open AND financial_status:paid",
     }
     assert graphql.await_args_list[1].args[2] == {"id": "gid://shopify/Order/2"}
@@ -399,14 +446,29 @@ async def test_get_shop_uses_graphql(monkeypatch, context):
 
 
 async def test_list_draft_orders_uses_graphql_filters(monkeypatch, context):
-    graphql = graphql_mock(monkeypatch, return_value={"draftOrders": {"nodes": [DRAFT_NODE]}})
+    graphql = graphql_mock(
+        monkeypatch,
+        return_value={
+            "draftOrders": {
+                "nodes": [DRAFT_NODE],
+                "pageInfo": {"hasNextPage": True, "endCursor": "draft-order-cursor"},
+            }
+        },
+    )
 
-    result = await module.ListDraftOrdersHandler().execute({"limit": 4, "since_id": "2", "status": "open"}, context)
+    result = await module.ListDraftOrdersHandler().execute(
+        {"limit": 4, "after": "previous-draft-cursor", "since_id": "2", "status": "open"}, context
+    )
 
     assert result.data["draft_orders"][0]["id"] == "3"
     assert result.data["draft_orders"][0]["note"] == "Call before delivery"
+    assert result.data["draft_orders"][0]["line_items_has_next_page"] is True
+    assert result.data["draft_orders"][0]["line_items_end_cursor"] == "draft-line-cursor"
+    assert result.data["hasNextPage"] is True
+    assert result.data["endCursor"] == "draft-order-cursor"
     assert graphql.await_args.args[2] == {
         "first": 4,
+        "after": "previous-draft-cursor",
         "query": 'id:>"2" AND status:open',
     }
 
@@ -508,6 +570,13 @@ async def test_update_fulfillment_tracking_uses_graphql_input(monkeypatch, conte
 def test_queries_match_shopify_2026_07_collection_and_object_shapes():
     assert "addressesV2(first: 10)" in module.CUSTOMER_FIELDS
     assert "addresses(first: 10)" not in module.CUSTOMER_FIELDS
+    assert "pageInfo { hasNextPage endCursor }" in module.CUSTOMER_FIELDS
+    assert "pageInfo { hasNextPage endCursor }" in module.ORDER_FIELDS
+    assert "pageInfo { hasNextPage endCursor }" in module.DRAFT_ORDER_FIELDS
+    for query in (module.CUSTOMERS_QUERY, module.ORDERS_QUERY, module.DRAFT_ORDERS_QUERY):
+        assert "$after: String" in query
+        assert "after: $after" in query
+        assert "pageInfo { hasNextPage endCursor }" in query
     assert "note2" in module.DRAFT_ORDER_FIELDS
     assert " note " not in module.DRAFT_ORDER_FIELDS
     assert "supportedActions { action }" in module.FULFILLMENT_ORDERS_QUERY

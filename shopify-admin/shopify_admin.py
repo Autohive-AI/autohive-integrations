@@ -245,9 +245,9 @@ def build_product_query_filter(inputs: Dict[str, Any]) -> str:
     if inputs.get("status"):
         filters.append(f"status:{inputs['status']}")
     if inputs.get("created_at_min"):
-        filters.append(f"created_at:>{inputs['created_at_min']}")
+        filters.append(f"created_at:>{escape_graphql_query_value(inputs['created_at_min'])}")
     if inputs.get("created_at_max"):
-        filters.append(f"created_at:<{inputs['created_at_max']}")
+        filters.append(f"created_at:<{escape_graphql_query_value(inputs['created_at_max'])}")
 
     return " AND ".join(filters) if filters else None
 
@@ -291,13 +291,15 @@ def transform_product_response(graphql_product: dict) -> dict:
     }
 
     # Transform variants
-    variants_data = graphql_product.get("variants", {})
+    variants_connection = graphql_product.get("variants", {})
+    variants_data = variants_connection
     if isinstance(variants_data, dict):
         variants_data = variants_data.get("nodes", []) or variants_data.get("edges", [])
     if variants_data and isinstance(variants_data[0], dict) and "node" in variants_data[0]:
         variants_data = [e["node"] for e in variants_data]
 
     product["variants"] = [transform_variant_response(variant) for variant in (variants_data or [])]
+    add_connection_metadata(product, "variants", variants_connection)
 
     # Transform options
     options_data = graphql_product.get("options", [])
@@ -312,7 +314,8 @@ def transform_product_response(graphql_product: dict) -> dict:
     ]
 
     # Transform images
-    images_data = graphql_product.get("images", {})
+    images_connection = graphql_product.get("images", {})
+    images_data = images_connection
     if isinstance(images_data, dict):
         images_data = images_data.get("nodes", []) or images_data.get("edges", [])
     if images_data and isinstance(images_data[0], dict) and "node" in images_data[0]:
@@ -326,6 +329,7 @@ def transform_product_response(graphql_product: dict) -> dict:
         }
         for img in (images_data or [])
     ]
+    add_connection_metadata(product, "images", images_connection)
 
     return product
 
@@ -429,6 +433,17 @@ def connection_nodes(connection: dict) -> list:
     return [edge.get("node", {}) for edge in connection.get("edges", []) if isinstance(edge, dict)]
 
 
+def add_connection_metadata(result: dict, field_name: str, connection: dict) -> dict:
+    """Add explicit pagination metadata for a nested GraphQL connection."""
+    page_info = connection.get("pageInfo") if isinstance(connection, dict) else {}
+    if not isinstance(page_info, dict):
+        page_info = {}
+    result[f"{field_name}_has_next_page"] = bool(page_info.get("hasNextPage", False))
+    if page_info.get("endCursor") is not None:
+        result[f"{field_name}_end_cursor"] = page_info["endCursor"]
+    return result
+
+
 def comma_list(value: Any) -> list:
     """Normalize comma-delimited or list inputs to a clean string list."""
     if isinstance(value, list):
@@ -494,10 +509,11 @@ def transform_customer_response(customer: dict) -> dict:
     """Convert a GraphQL customer to the established response shape."""
     if not customer:
         return {}
-    addresses = [transform_address(address) for address in connection_nodes(customer.get("addressesV2", {}))]
+    addresses_connection = customer.get("addressesV2", {})
+    addresses = [transform_address(address) for address in connection_nodes(addresses_connection)]
     default_email = customer.get("defaultEmailAddress") or {}
     default_phone = customer.get("defaultPhoneNumber") or {}
-    return {
+    result = {
         "id": from_gid(customer.get("id", "")),
         "email": default_email.get("emailAddress"),
         "first_name": customer.get("firstName"),
@@ -512,6 +528,7 @@ def transform_customer_response(customer: dict) -> dict:
         "default_address": transform_address(customer.get("defaultAddress") or {}),
         "addresses": addresses,
     }
+    return add_connection_metadata(result, "addresses", addresses_connection)
 
 
 def money_amount(money_set: dict) -> str | None:
@@ -523,8 +540,9 @@ def transform_order_response(order: dict) -> dict:
     """Convert a GraphQL order to a REST-compatible response."""
     if not order:
         return {}
+    line_items_connection = order.get("lineItems", {})
     line_items = []
-    for item in connection_nodes(order.get("lineItems", {})):
+    for item in connection_nodes(line_items_connection):
         variant = item.get("variant") or {}
         line_items.append(
             {
@@ -536,7 +554,7 @@ def transform_order_response(order: dict) -> dict:
                 "price": money_amount(item.get("originalUnitPriceSet")),
             }
         )
-    return {
+    result = {
         "id": from_gid(order.get("id", "")),
         "name": order.get("name"),
         "email": order.get("email"),
@@ -553,6 +571,7 @@ def transform_order_response(order: dict) -> dict:
         "billing_address": transform_address(order.get("billingAddress") or {}),
         "line_items": line_items,
     }
+    return add_connection_metadata(result, "line_items", line_items_connection)
 
 
 def transform_location_response(location: dict) -> dict:
@@ -689,6 +708,7 @@ query ListProducts($first: Int!, $after: String, $query: String) {
               }
             }
           }
+          pageInfo { hasNextPage endCursor }
         }
         options {
           id
@@ -702,6 +722,7 @@ query ListProducts($first: Int!, $after: String, $query: String) {
             url
             altText
           }
+          pageInfo { hasNextPage endCursor }
         }
       }
     }
@@ -745,6 +766,7 @@ query GetProduct($id: ID!) {
           }
         }
       }
+      pageInfo { hasNextPage endCursor }
     }
     options {
       id
@@ -758,6 +780,7 @@ query GetProduct($id: ID!) {
         url
         altText
       }
+      pageInfo { hasNextPage endCursor }
     }
   }
 }
@@ -785,6 +808,7 @@ mutation ProductCreate($product: ProductCreateInput!) {
           sku
           inventoryQuantity
         }
+        pageInfo { hasNextPage endCursor }
       }
       options {
         id
@@ -798,6 +822,7 @@ mutation ProductCreate($product: ProductCreateInput!) {
           url
           altText
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
     userErrors {
@@ -830,6 +855,7 @@ mutation ProductUpdate($product: ProductUpdateInput!) {
           sku
           inventoryQuantity
         }
+        pageInfo { hasNextPage endCursor }
       }
       options {
         id
@@ -843,6 +869,7 @@ mutation ProductUpdate($product: ProductUpdateInput!) {
           url
           altText
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
     userErrors {
@@ -898,11 +925,15 @@ CUSTOMER_FIELDS = """
       id firstName lastName company address1 address2 city province provinceCode
       country countryCodeV2 zip phone
     }
+    pageInfo { hasNextPage endCursor }
   }
 """
 CUSTOMERS_QUERY = f"""
-query Customers($first: Int!, $query: String) {{
-  customers(first: $first, query: $query, sortKey: ID) {{ nodes {{ {CUSTOMER_FIELDS} }} }}
+query Customers($first: Int!, $after: String, $query: String) {{
+  customers(first: $first, after: $after, query: $query, sortKey: ID) {{
+    nodes {{ {CUSTOMER_FIELDS} }}
+    pageInfo {{ hasNextPage endCursor }}
+  }}
 }}
 """
 CUSTOMER_QUERY = f"query Customer($id: ID!) {{ customer(id: $id) {{ {CUSTOMER_FIELDS} }} }}"
@@ -938,11 +969,15 @@ ORDER_FIELDS = """
   }
   lineItems(first: 100) {
     nodes { id title quantity sku originalUnitPriceSet { shopMoney { amount currencyCode } } variant { id } }
+    pageInfo { hasNextPage endCursor }
   }
 """
 ORDERS_QUERY = f"""
-query Orders($first: Int!, $query: String) {{
-  orders(first: $first, query: $query, sortKey: ID) {{ nodes {{ {ORDER_FIELDS} }} }}
+query Orders($first: Int!, $after: String, $query: String) {{
+  orders(first: $first, after: $after, query: $query, sortKey: ID) {{
+    nodes {{ {ORDER_FIELDS} }}
+    pageInfo {{ hasNextPage endCursor }}
+  }}
 }}
 """
 ORDER_QUERY = f"query Order($id: ID!) {{ order(id: $id) {{ {ORDER_FIELDS} }} }}"
@@ -1037,11 +1072,15 @@ DRAFT_ORDER_FIELDS = """
   }
   lineItems(first: 100) {
     nodes { id title quantity sku originalUnitPriceSet { shopMoney { amount currencyCode } } variant { id } }
+    pageInfo { hasNextPage endCursor }
   }
 """
 DRAFT_ORDERS_QUERY = f"""
-query DraftOrders($first: Int!, $query: String) {{
-  draftOrders(first: $first, query: $query, sortKey: ID) {{ nodes {{ {DRAFT_ORDER_FIELDS} }} }}
+query DraftOrders($first: Int!, $after: String, $query: String) {{
+  draftOrders(first: $first, after: $after, query: $query, sortKey: ID) {{
+    nodes {{ {DRAFT_ORDER_FIELDS} }}
+    pageInfo {{ hasNextPage endCursor }}
+  }}
 }}
 """
 DRAFT_CREATE_MUTATION = f"""
@@ -1105,8 +1144,9 @@ def transform_draft_order_response(draft: dict) -> dict:
     """Convert a GraphQL draft order to a REST-compatible response."""
     if not draft:
         return {}
+    line_items_connection = draft.get("lineItems", {})
     line_items = []
-    for item in connection_nodes(draft.get("lineItems", {})):
+    for item in connection_nodes(line_items_connection):
         line_items.append(
             {
                 "id": from_gid(item.get("id", "")),
@@ -1117,7 +1157,7 @@ def transform_draft_order_response(draft: dict) -> dict:
                 "price": money_amount(item.get("originalUnitPriceSet")),
             }
         )
-    return {
+    result = {
         "id": from_gid(draft.get("id", "")),
         "name": draft.get("name"),
         "email": draft.get("email"),
@@ -1134,6 +1174,7 @@ def transform_draft_order_response(draft: dict) -> dict:
         "billing_address": transform_address(draft.get("billingAddress") or {}),
         "line_items": line_items,
     }
+    return add_connection_metadata(result, "line_items", line_items_connection)
 
 
 def transform_fulfillment_response(fulfillment: dict) -> dict:
@@ -1217,13 +1258,25 @@ class ListCustomersHandler(ActionHandler):
             for input_name, (field, operator) in mappings.items():
                 if inputs.get(input_name):
                     filters.append(f"{field}:{operator}{escape_graphql_query_value(inputs[input_name])}")
+            variables = {"first": clamp_limit(inputs.get("limit")), "query": " AND ".join(filters) or None}
+            if inputs.get("after") is not None:
+                variables["after"] = inputs["after"]
             data = await execute_graphql(
                 context,
                 CUSTOMERS_QUERY,
-                {"first": clamp_limit(inputs.get("limit")), "query": " AND ".join(filters) or None},
+                variables,
             )
-            customers = [transform_customer_response(item) for item in connection_nodes(data.get("customers", {}))]
-            return success_response(customers=customers, count=len(customers))
+            customers_connection = data.get("customers", {})
+            customers = [transform_customer_response(item) for item in connection_nodes(customers_connection)]
+            page_info = customers_connection.get("pageInfo", {})
+            result_data = {
+                "customers": customers,
+                "count": len(customers),
+                "hasNextPage": page_info.get("hasNextPage", False),
+            }
+            if page_info.get("endCursor") is not None:
+                result_data["endCursor"] = page_info["endCursor"]
+            return success_response(**result_data)
         except Exception as e:
             return error_response(e, customers=[], count=0)
 
@@ -1249,13 +1302,25 @@ class SearchCustomersHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
+            variables = {"first": clamp_limit(inputs.get("limit")), "query": inputs["query"]}
+            if inputs.get("after") is not None:
+                variables["after"] = inputs["after"]
             data = await execute_graphql(
                 context,
                 CUSTOMERS_QUERY,
-                {"first": clamp_limit(inputs.get("limit")), "query": inputs["query"]},
+                variables,
             )
-            customers = [transform_customer_response(item) for item in connection_nodes(data.get("customers", {}))]
-            return success_response(customers=customers, count=len(customers))
+            customers_connection = data.get("customers", {})
+            customers = [transform_customer_response(item) for item in connection_nodes(customers_connection)]
+            page_info = customers_connection.get("pageInfo", {})
+            result_data = {
+                "customers": customers,
+                "count": len(customers),
+                "hasNextPage": page_info.get("hasNextPage", False),
+            }
+            if page_info.get("endCursor") is not None:
+                result_data["endCursor"] = page_info["endCursor"]
+            return success_response(**result_data)
         except Exception as e:
             return error_response(e, customers=[], count=0)
 
@@ -1366,13 +1431,25 @@ class ListOrdersHandler(ActionHandler):
                 filters.append(f"created_at:>={escape_graphql_query_value(inputs['created_at_min'])}")
             if inputs.get("created_at_max"):
                 filters.append(f"created_at:<={escape_graphql_query_value(inputs['created_at_max'])}")
+            variables = {"first": clamp_limit(inputs.get("limit")), "query": " AND ".join(filters) or None}
+            if inputs.get("after") is not None:
+                variables["after"] = inputs["after"]
             data = await execute_graphql(
                 context,
                 ORDERS_QUERY,
-                {"first": clamp_limit(inputs.get("limit")), "query": " AND ".join(filters) or None},
+                variables,
             )
-            orders = [transform_order_response(item) for item in connection_nodes(data.get("orders", {}))]
-            return success_response(orders=orders, count=len(orders))
+            orders_connection = data.get("orders", {})
+            orders = [transform_order_response(item) for item in connection_nodes(orders_connection)]
+            page_info = orders_connection.get("pageInfo", {})
+            result_data = {
+                "orders": orders,
+                "count": len(orders),
+                "hasNextPage": page_info.get("hasNextPage", False),
+            }
+            if page_info.get("endCursor") is not None:
+                result_data["endCursor"] = page_info["endCursor"]
+            return success_response(**result_data)
         except Exception as e:
             return error_response(e, orders=[], count=0)
 
@@ -1491,9 +1568,7 @@ class ListProductsHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             # Build variables for GraphQL query
-            limit = inputs.get("limit", 50)
-            if limit > 250:
-                limit = 250  # GraphQL max is 250
+            limit = clamp_limit(inputs.get("limit"))
 
             variables = {
                 "first": limit,
@@ -1920,15 +1995,25 @@ class ListDraftOrdersHandler(ActionHandler):
                 filters.append(f"id:>{escape_graphql_query_value(inputs['since_id'])}")
             if inputs.get("status") and inputs["status"] != "any":
                 filters.append(f"status:{inputs['status']}")
+            variables = {"first": clamp_limit(inputs.get("limit")), "query": " AND ".join(filters) or None}
+            if inputs.get("after") is not None:
+                variables["after"] = inputs["after"]
             data = await execute_graphql(
                 context,
                 DRAFT_ORDERS_QUERY,
-                {"first": clamp_limit(inputs.get("limit")), "query": " AND ".join(filters) or None},
+                variables,
             )
-            draft_orders = [
-                transform_draft_order_response(item) for item in connection_nodes(data.get("draftOrders", {}))
-            ]
-            return success_response(draft_orders=draft_orders, count=len(draft_orders))
+            draft_orders_connection = data.get("draftOrders", {})
+            draft_orders = [transform_draft_order_response(item) for item in connection_nodes(draft_orders_connection)]
+            page_info = draft_orders_connection.get("pageInfo", {})
+            result_data = {
+                "draft_orders": draft_orders,
+                "count": len(draft_orders),
+                "hasNextPage": page_info.get("hasNextPage", False),
+            }
+            if page_info.get("endCursor") is not None:
+                result_data["endCursor"] = page_info["endCursor"]
+            return success_response(**result_data)
         except Exception as e:
             return error_response(e, draft_orders=[], count=0)
 
