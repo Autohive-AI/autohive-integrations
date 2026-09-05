@@ -243,6 +243,17 @@ class TestGetIsochrone:
             },
         )
 
+    async def test_parses_geojson_string_response(self, mock_context):
+        import json
+
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=json.dumps(ISOCHRONE_RESPONSE))
+
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+
+        data = _action_data(result)
+        assert data["result"] is True
+        assert data["geojson"] == ISOCHRONE_RESPONSE
+
     async def test_rejects_non_geojson_provider_response(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"unexpected": "response"})
 

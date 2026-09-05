@@ -38,7 +38,7 @@ Generates one or more drive-time bands in a single request through the current H
 
 **Outputs**
 
-- `geojson` — the **unaltered** GeoJSON FeatureCollection returned by OpenRouteService.
+- `geojson` — the **unaltered** GeoJSON FeatureCollection returned by OpenRouteService. The integration also parses a JSON-string response when the provider labels it `application/geo+json`.
 - `provider_metadata` — unaltered provider metadata when present.
 - `profile` and `time_minutes` — the routing profile and bands requested.
 

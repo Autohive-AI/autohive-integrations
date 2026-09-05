@@ -1,5 +1,6 @@
 """OpenRouteService geocoding and drive-time isochrone actions."""
 
+import json
 from typing import Any
 
 import aiohttp
@@ -199,6 +200,13 @@ class GetIsochrone(ActionHandler):
                 json=payload,
             )
             geojson = response.data
+            # The SDK parses application/json automatically, but some provider responses
+            # use application/geo+json and arrive as a JSON string instead.
+            if isinstance(geojson, str):
+                try:
+                    geojson = json.loads(geojson)
+                except json.JSONDecodeError:
+                    raise ValueError("OpenRouteService returned a non-JSON isochrone response.") from None
             if not isinstance(geojson, dict) or geojson.get("type") != "FeatureCollection":
                 raise ValueError("OpenRouteService returned an unexpected isochrone response.")
 
