@@ -1,0 +1,85 @@
+{
+  "name": "openrouteservice",
+  "version": "1.0.0",
+  "display_name": "OpenRouteService",
+  "description": "Geocode addresses and generate drive-time isochrone GeoJSON with OpenRouteService.",
+  "entry_point": "openrouteservice.py",
+  "supports_billing": false,
+  "auth": {
+    "type": "custom",
+    "title": "OpenRouteService API Key",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API Key",
+          "help_text": "Create a free API key at https://openrouteservice.org/dev/#/signup."
+        }
+      },
+      "required": ["api_key"]
+    }
+  },
+  "actions": {
+    "geocode_address": {
+      "display_name": "Geocode Address",
+      "description": "Find the best matching address or place. Defaults to New Zealand and flags matches below 0.8 confidence for human confirmation.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "address": {"type": "string", "description": "Address or place name to search for.", "minLength": 1},
+          "country": {"type": "string", "description": "ISO 3166-1 alpha-2 country filter. Defaults to NZ.", "default": "NZ", "pattern": "^[A-Z]{2}$"}
+        },
+        "required": ["address"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "found": {"type": "boolean"},
+          "address": {"type": ["string", "null"]},
+          "latitude": {"type": ["number", "null"]},
+          "longitude": {"type": ["number", "null"]},
+          "confidence": {"type": ["number", "null"]},
+          "match_type": {"type": ["string", "null"]},
+          "is_low_confidence": {"type": ["boolean", "null"], "description": "True when the best match confidence is below 0.8; confirm before using downstream."},
+          "matches": {"type": "array", "items": {"type": "object"}},
+          "geocoding": {"type": ["object", "null"]},
+          "error_type": {"type": ["string", "null"]},
+          "retry_after_seconds": {"type": ["integer", "null"]},
+          "message": {"type": ["string", "null"]}
+        },
+        "required": ["result"]
+      }
+    },
+    "get_isochrone": {
+      "display_name": "Get Isochrone",
+      "description": "Generate exact OpenRouteService GeoJSON drive-time polygons for a point and one or more minute bands.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "latitude": {"type": "number", "minimum": -90, "maximum": 90},
+          "longitude": {"type": "number", "minimum": -180, "maximum": 180},
+          "travel_mode": {"type": "string", "description": "Routing profile. v1 supports driving-car.", "enum": ["driving-car"], "default": "driving-car"},
+          "time_minutes": {"type": "array", "description": "One or more travel-time bands in whole minutes, for example [10, 15, 30].", "items": {"type": "integer", "minimum": 1}, "minItems": 1}
+        },
+        "required": ["latitude", "longitude", "time_minutes"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {"type": "boolean"},
+          "profile": {"type": ["string", "null"]},
+          "time_minutes": {"type": "array", "items": {"type": "integer"}},
+          "geojson": {"type": ["object", "null"], "description": "Unmodified GeoJSON returned by OpenRouteService."},
+          "provider_metadata": {"type": ["object", "null"], "description": "Unmodified metadata returned by OpenRouteService, when supplied."},
+          "error_type": {"type": ["string", "null"]},
+          "retry_after_seconds": {"type": ["integer", "null"]},
+          "message": {"type": ["string", "null"]}
+        },
+        "required": ["result"]
+      }
+    }
+  }
+}
