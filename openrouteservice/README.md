@@ -28,7 +28,7 @@ Finds an address or place and defaults the country boundary to `NZ`.
 
 ### `get_isochrone`
 
-Generates one or more drive-time bands in a single request.
+Generates one or more drive-time bands in a single request via the provider's GeoJSON endpoint.
 
 **Inputs**
 

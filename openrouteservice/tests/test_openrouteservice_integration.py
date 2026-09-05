@@ -13,6 +13,8 @@ Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
+from json import JSONDecodeError
+
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
@@ -34,18 +36,20 @@ def live_context(env_credentials, make_context):
         pytest.skip("OPENROUTESERVICE_API_KEY not set — skipping integration tests")
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
-        async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, json=json, headers=headers, params=params) as resp:
-                try:
-                    data = await resp.json(content_type=None)
-                except Exception:
-                    data = await resp.text()
-                if resp.status == 429:
-                    retry_after = int(resp.headers.get("Retry-After", 60))
-                    raise RateLimitError(retry_after, resp.status, "Rate limit exceeded", data)
-                if resp.status >= 400:
-                    raise HTTPError(resp.status, str(data), data)
-                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
+        async with (
+            aiohttp.ClientSession() as session,
+            session.request(method, url, json=json, headers=headers, params=params) as resp,
+        ):
+            try:
+                data = await resp.json(content_type=None)
+            except (JSONDecodeError, UnicodeDecodeError, aiohttp.ClientPayloadError):
+                data = await resp.text()
+            if resp.status == 429:
+                retry_after = int(resp.headers.get("Retry-After", 60))
+                raise RateLimitError(retry_after, resp.status, "Rate limit exceeded", data)
+            if resp.status >= 400:
+                raise HTTPError(resp.status, str(data), data)
+            return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     context = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": api_key}})
     context.fetch.side_effect = real_fetch

@@ -15,7 +15,9 @@ from autohive_integrations_sdk import (
 openrouteservice = Integration.load()
 
 GEOCODE_URL = "https://api.openrouteservice.org/geocode/search"
-ISOCHRONE_URL_TEMPLATE = "https://api.openrouteservice.org/v2/isochrones/{profile}"
+# The provider's isochrone API exposes GeoJSON at the explicit /geojson representation.
+# Calling the format-neutral path can result in HTTP 406 (Not Acceptable).
+ISOCHRONE_URL_TEMPLATE = "https://api.openrouteservice.org/v2/isochrones/{profile}/geojson"
 LOW_CONFIDENCE_THRESHOLD = 0.8
 
 

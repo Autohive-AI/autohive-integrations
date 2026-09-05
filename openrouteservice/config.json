@@ -1,6 +1,6 @@
 {
   "name": "openrouteservice",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "display_name": "OpenRouteService",
   "description": "Geocode addresses and generate drive-time isochrone GeoJSON with OpenRouteService.",
   "entry_point": "openrouteservice.py",

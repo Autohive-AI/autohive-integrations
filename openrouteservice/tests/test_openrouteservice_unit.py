@@ -210,6 +210,9 @@ class TestGeocodeAddress:
 
 
 class TestGetIsochrone:
+    def test_uses_explicit_geojson_provider_endpoint(self):
+        assert ISOCHRONE_URL_TEMPLATE == "https://api.openrouteservice.org/v2/isochrones/{profile}/geojson"
+
     async def test_requests_all_time_bands_once_and_returns_unmodified_geojson(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=ISOCHRONE_RESPONSE)
 
