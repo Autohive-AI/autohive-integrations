@@ -231,7 +231,11 @@ class TestGetIsochrone:
         mock_context.fetch.assert_awaited_once_with(
             ISOCHRONE_URL_TEMPLATE.format(profile="driving-car"),
             method="POST",
-            headers={"Authorization": "test-key", "Accept": "application/json"},
+            headers={
+                "Authorization": "test-key",
+                "Accept": "application/json, application/geo+json",
+                "Content-Type": "application/json; charset=utf-8",
+            },
             json={
                 "locations": [[174.7633, -36.8485]],
                 "range": [600, 900, 1800],
@@ -281,7 +285,13 @@ class TestProviderErrors:
 
     @pytest.mark.parametrize(
         ("status", "error_type"),
-        [(401, "authentication"), (403, "authorization"), (400, "invalid_request"), (500, "provider_error")],
+        [
+            (401, "authentication"),
+            (403, "authorization"),
+            (400, "invalid_request"),
+            (406, "not_acceptable"),
+            (500, "provider_error"),
+        ],
     )
     async def test_classifies_http_errors_without_echoing_provider_body(self, mock_context, status, error_type):
         mock_context.fetch.side_effect = HTTPError(status, "provider body containing test-key")

@@ -28,7 +28,7 @@ Finds an address or place and defaults the country boundary to `NZ`.
 
 ### `get_isochrone`
 
-Generates one or more drive-time bands in a single request through the current HeiGIT OpenRouteService API gateway.
+Generates one or more drive-time bands in a single request through the current HeiGIT OpenRouteService API gateway, requesting JSON or GeoJSON as documented by the API Playground.
 
 **Inputs**
 

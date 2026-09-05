@@ -36,6 +36,15 @@ def _headers(context: ExecutionContext) -> dict[str, str]:
     return {"Authorization": _api_key(context), "Accept": "application/json"}
 
 
+def _isochrone_headers(context: ExecutionContext) -> dict[str, str]:
+    """Return the media types shown by the current OpenRouteService API Playground."""
+    return {
+        "Authorization": _api_key(context),
+        "Accept": "application/json, application/geo+json",
+        "Content-Type": "application/json; charset=utf-8",
+    }
+
+
 def _provider_error(error: Exception) -> ActionResult:
     """Return safe, actionable provider errors without exposing request credentials."""
     if isinstance(error, RateLimitError):
@@ -59,6 +68,11 @@ def _provider_error(error: Exception) -> ActionResult:
         elif error.status == 400:
             message = "OpenRouteService rejected the request. Check the supplied coordinates or time bands."
             error_type = "invalid_request"
+        elif error.status == 406:
+            message = (
+                "OpenRouteService rejected the requested response format. Check the API endpoint and Accept header."
+            )
+            error_type = "not_acceptable"
         else:
             message = f"OpenRouteService returned HTTP {error.status}. Try again shortly."
             error_type = "provider_error"
@@ -181,7 +195,7 @@ class GetIsochrone(ActionHandler):
             response = await context.fetch(
                 ISOCHRONE_URL_TEMPLATE.format(profile=profile),
                 method="POST",
-                headers=_headers(context),
+                headers=_isochrone_headers(context),
                 json=payload,
             )
             geojson = response.data
