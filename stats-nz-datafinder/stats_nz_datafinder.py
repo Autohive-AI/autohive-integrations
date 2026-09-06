@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
+from urllib.parse import quote
+
+import aiohttp
 from defusedxml import ElementTree as DefusedET
 
 from autohive_integrations_sdk import (
@@ -19,7 +23,7 @@ from xml.etree import ElementTree as ET  # nosec B405: used only to construct XM
 stats_nz_datafinder = Integration.load()
 
 API_BASE_URL = "https://datafinder.stats.govt.nz/services/api/v1"
-WFS_URL = "https://datafinder.stats.govt.nz/services/wfs"
+WFS_REQUEST_TIMEOUT_SECONDS = 30
 _FILTER_NS = "http://www.opengis.net/ogc"
 _GML_NS = "http://www.opengis.net/gml"
 _OPERATORS = {
@@ -38,6 +42,38 @@ def _headers(context: ExecutionContext) -> dict[str, str]:
     if not isinstance(api_key, str) or not api_key.strip():
         raise ValueError("A Stats NZ Datafinder API key is required.")
     return {"Authorization": f"Key {api_key}"}
+
+
+class WfsRequestError(Exception):
+    """A WFS failure with a safe, status-only error payload."""
+
+    def __init__(self, status: int) -> None:
+        self.status = status
+        super().__init__(f"WFS request failed with HTTP {status}")
+
+
+def _wfs_url(context: ExecutionContext) -> str:
+    """Build Datafinder's documented key-in-path WFS URL without exposing the key."""
+    credentials = context.auth.get("credentials", {}) if context.auth else {}
+    api_key = credentials.get("api_key")
+    if not isinstance(api_key, str) or not api_key.strip():
+        raise ValueError("A Stats NZ Datafinder API key is required.")
+    return f"https://datafinder.stats.govt.nz/services;key={quote(api_key, safe='')}/wfs"
+
+
+async def _wfs_request(context: ExecutionContext, params: dict[str, Any]) -> Any:
+    """Call WFS without allowing its key-bearing URL into SDK error logging."""
+    try:
+        timeout = aiohttp.ClientTimeout(total=WFS_REQUEST_TIMEOUT_SECONDS)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(_wfs_url(context), params=params) as response:
+                if response.status >= 400:
+                    raise WfsRequestError(response.status)
+                if "application/json" in response.headers.get("Content-Type", ""):
+                    return await response.json()
+                return await response.text()
+    except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        raise WfsRequestError(503) from exc
 
 
 def _position(position: Any) -> str:
@@ -151,12 +187,12 @@ def _resolve_feature_type(layer_id: int, capability_document: Any) -> str:
     )
 
 
-def _provider_error(layer_id: int, error: HTTPError) -> ActionError:
-    if error.status == 401:
+def _provider_error(layer_id: int, status: int) -> ActionError:
+    if status == 401:
         return ActionError("Datafinder rejected the API key. Check the connected account.")
-    if error.status == 403:
+    if status == 403:
         return ActionError(f"The connected Datafinder API key is not permitted to query layer {layer_id}.")
-    if error.status == 400:
+    if status == 400:
         return ActionError(
             f"Datafinder rejected the WFS request for layer {layer_id}. "
             "Verify the layer is WFS-enabled and that the API key has Query Layer Data/WFS permission."
@@ -217,20 +253,18 @@ class QueryLayerByGeometryAction(ActionHandler):
             filter_xml = _build_filter(inputs["geometry"], inputs.get("attribute_filters"))
             metadata_response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=headers)
             metadata = _metadata_result(layer_id, metadata_response.data)
-            capabilities_response = await context.fetch(
-                WFS_URL,
-                headers=headers,
-                params={"service": "WFS", "version": "2.0.0", "request": "GetCapabilities"},
+            capabilities = await _wfs_request(
+                context,
+                {"service": "WFS", "version": "2.0.0", "request": "GetCapabilities"},
             )
-            feature_type = _resolve_feature_type(layer_id, capabilities_response.data)
+            feature_type = _resolve_feature_type(layer_id, capabilities)
             features: list[Any] = []
             matched: int | None = None
             pages = 0
             for page in range(max_pages):
-                response = await context.fetch(
-                    WFS_URL,
-                    headers=headers,
-                    params={
+                data = await _wfs_request(
+                    context,
+                    {
                         "service": "WFS",
                         "version": "2.0.0",
                         "request": "GetFeature",
@@ -242,7 +276,6 @@ class QueryLayerByGeometryAction(ActionHandler):
                         "startIndex": page * page_size,
                     },
                 )
-                data = response.data
                 if not isinstance(data, dict) or not isinstance(data.get("features"), list):
                     raise ValueError("Datafinder returned a malformed WFS feature response.")
                 features.extend(data["features"])
@@ -272,7 +305,9 @@ class QueryLayerByGeometryAction(ActionHandler):
         except ValueError as exc:
             return ActionError(message=str(exc))
         except HTTPError as exc:
-            return _provider_error(layer_id, exc)
+            return _provider_error(layer_id, exc.status)
+        except WfsRequestError as exc:
+            return _provider_error(layer_id, exc.status)
         except RateLimitError:
             return ActionError("Datafinder rate-limited this request. Please retry shortly.")
 

@@ -9,7 +9,7 @@ Create a Datafinder API key and connect it using the integration's **API key** f
 - query layer data through WFS;
 - read the relevant public layer details and catalogue entries.
 
-The integration sends `Authorization: Key <API_KEY>` only to `datafinder.stats.govt.nz`.
+The catalogue and layer-metadata API calls use `Authorization: Key <API_KEY>`. Datafinder WFS requires the documented key-in-path form (`/services;key=<API_KEY>/wfs`); the integration makes those WFS requests directly and never returns or logs a key-bearing URL.
 
 ## Actions
 
