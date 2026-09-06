@@ -1,0 +1,55 @@
+{
+  "name": "stats-nz-datafinder",
+  "version": "1.0.0",
+  "display_name": "Stats NZ Datafinder",
+  "description": "Queries Stats NZ Datafinder WFS layers and exposes layer metadata for geographic analysis.",
+  "entry_point": "stats_nz_datafinder.py",
+  "supports_billing": false,
+  "auth": {
+    "type": "custom",
+    "title": "Stats NZ Datafinder API key",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API key",
+          "help_text": "A Datafinder/Koordinates API key authorised to query layer data and read layer details."
+        }
+      },
+      "required": ["api_key"]
+    }
+  },
+  "actions": {
+    "query_layer_by_geometry": {
+      "display_name": "Query Layer by Geometry",
+      "description": "Returns GeoJSON features from a Stats NZ Datafinder layer that intersect a WGS84 Polygon or MultiPolygon.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "layer_id": {"type": "integer", "minimum": 1, "description": "Numeric Datafinder layer ID."},
+          "geometry": {"type": "object", "description": "RFC 7946 WGS84 Polygon or MultiPolygon geometry.", "properties": {"type": {"type": "string", "enum": ["Polygon", "MultiPolygon"]}, "coordinates": {"type": "array"}}, "required": ["type", "coordinates"], "additionalProperties": false},
+          "attribute_filters": {"type": "array", "description": "Optional filters combined with AND.", "items": {"type": "object", "properties": {"property": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"}, "operator": {"type": "string", "enum": ["eq", "neq", "lt", "lte", "gt", "gte"]}, "value": {"type": ["string", "number", "boolean"]}}, "required": ["property", "operator", "value"], "additionalProperties": false}},
+          "page_size": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 1000, "description": "Maximum features per WFS page."},
+          "max_pages": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10, "description": "Maximum WFS pages to retrieve."}
+        },
+        "required": ["layer_id", "geometry"],
+        "additionalProperties": false
+      },
+      "output_schema": {"type": "object", "properties": {"feature_collection": {"type": "object"}, "layer_id": {"type": "integer"}, "retrieved_pages": {"type": "integer"}, "truncated": {"type": "boolean"}, "data_vintage": {"type": ["string", "null"]}, "licence": {"type": ["string", "null"]}, "attribution": {"type": ["string", "null"]}}, "required": ["feature_collection", "layer_id", "retrieved_pages", "truncated", "data_vintage", "licence", "attribution"]}
+    },
+    "get_layer_metadata": {
+      "display_name": "Get Layer Metadata",
+      "description": "Returns citation-ready Stats NZ Datafinder layer metadata, including publication date and licence.",
+      "input_schema": {"type": "object", "properties": {"layer_id": {"type": "integer", "minimum": 1}}, "required": ["layer_id"], "additionalProperties": false},
+      "output_schema": {"type": "object", "properties": {"layer_id": {"type": "integer"}, "title": {"type": ["string", "null"]}, "description": {"type": ["string", "null"]}, "data_vintage": {"type": ["string", "null"]}, "licence": {"type": ["string", "null"]}, "attribution": {"type": ["string", "null"]}, "source_url": {"type": "string"}}, "required": ["layer_id", "title", "description", "data_vintage", "licence", "attribution", "source_url"]}
+    },
+    "search_layers": {
+      "display_name": "Search Layers",
+      "description": "Searches public vector layers in the Stats NZ Datafinder catalogue.",
+      "input_schema": {"type": "object", "properties": {"keyword": {"type": "string", "minLength": 1, "maxLength": 200}, "page": {"type": "integer", "minimum": 1, "default": 1}, "page_size": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}}, "required": ["keyword"], "additionalProperties": false},
+      "output_schema": {"type": "object", "properties": {"layers": {"type": "array", "items": {"type": "object"}}, "page": {"type": "integer"}, "page_size": {"type": "integer"}, "total": {"type": ["integer", "null"]}}, "required": ["layers", "page", "page_size", "total"]}
+    }
+  }
+}

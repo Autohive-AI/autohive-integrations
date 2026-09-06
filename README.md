@@ -11,6 +11,8 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 ## Integrations
 
+[stats-nz-datafinder](stats-nz-datafinder): Read-only access to Stats NZ Geographic Data Service layers through Datafinder’s Koordinates API and WFS services. Supports WGS84 polygon and multipolygon intersection queries returning full-precision GeoJSON features, citation-ready layer metadata (vintage, licence and attribution), and public vector-layer discovery. Uses a custom Datafinder API key.
+
 ### ActiveCampaign
 
 [active-campaign](active-campaign): ActiveCampaign is an email marketing and CRM platform used by marketing teams to send and manage EDM campaigns. The integration provides 7 actions covering email campaign performance metrics, contact management, contact activity history, and list segmentation. Campaign actions return derived open rate, click rate, and bounce rate calculated from raw send data, making it easy to track and compare performance across sends. Supports custom API key authentication. Ideal for EDM performance analysis, contact engagement tracking, audience segmentation, and marketing reporting workflows.
