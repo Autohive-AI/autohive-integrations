@@ -11,8 +11,6 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 ## Integrations
 
-[stats-nz-datafinder](stats-nz-datafinder): Read-only access to Stats NZ Geographic Data Service layers through Datafinder’s Koordinates API and WFS services. Supports WGS84 polygon and multipolygon intersection queries returning full-precision GeoJSON features, citation-ready layer metadata (vintage, licence and attribution), and public vector-layer discovery. Uses a custom Datafinder API key.
-
 ### ActiveCampaign
 
 [active-campaign](active-campaign): ActiveCampaign is an email marketing and CRM platform used by marketing teams to send and manage EDM campaigns. The integration provides 7 actions covering email campaign performance metrics, contact management, contact activity history, and list segmentation. Campaign actions return derived open rate, click rate, and bounce rate calculated from raw send data, making it easy to track and compare performance across sends. Supports custom API key authentication. Ideal for EDM performance analysis, contact engagement tracking, audience segmentation, and marketing reporting workflows.
@@ -355,6 +353,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 ### LINZ (Land Information New Zealand)
 
 [linz](linz): Integration with the LINZ Data Service (LDS) WFS API for reading New Zealand property, title, ownership and parcel data. Supports searching property titles (including owners) by owner name, title number, land district or status, looking up the owners of a single title, finding owner names that appear on more than one property title within a scoping filter (a name match rather than verified common ownership — LINZ exposes no cross-title owner identifier, so results are candidates for verification), searching primary parcels by appellation/title/intent/district, listing the layers an API key can query (doubling as a connection diagnostic), and running raw WFS queries against any LDS layer or table via CQL filters. Uses a per-user LINZ Data Service API key (custom auth); ownership data (layer-50805) additionally requires the account to accept the LINZ Licence for Personal Data. Includes 6 actions. Note: LINZ data does not classify properties as commercial vs residential — that lives in council/QV rating data. Ideal for property research, ownership research, and NZ land data workflows.
+
+### Stats NZ Datafinder
+
+[stats-nz-datafinder](stats-nz-datafinder): Read-only access to Stats NZ Geographic Data Service layers through Datafinder’s Koordinates API and WFS services. Supports WGS84 polygon and multipolygon intersection queries returning full-precision GeoJSON features, citation-ready layer metadata (vintage, licence and attribution), and public vector-layer discovery. Uses a custom Datafinder API key. Includes 3 actions. Ideal for catchment, census, and other NZ geographic analysis workflows.
 
 ### Code Analysis
 
