@@ -15,9 +15,9 @@ The catalogue and layer-metadata API calls use `Authorization: Key <API_KEY>`. D
 
 ### Query Layer by Geometry
 
-`query_layer_by_geometry` converts an RFC 7946 WGS84 `Polygon` or `MultiPolygon` into an OGC WFS `Intersects` filter and requests GeoJSON from Datafinder WFS. It returns the original feature geometries and properties without coordinate rounding, plus citation fields from the layer metadata.
+`query_layer_by_geometry` converts an RFC 7946 WGS84 `Polygon` or `MultiPolygon` into a GeoServer CQL `INTERSECTS` filter (`SRID=4326` EWKT) and requests GeoJSON from Datafinder WFS. It uses the layer's geometry field from metadata, defaulting to `Shape`. It returns the original feature geometries and properties without coordinate rounding, plus citation fields from the layer metadata.
 
-Optional `attribute_filters` support `eq`, `neq`, `lt`, `lte`, `gt`, and `gte`, combined with the geometry filter using `AND`. They are encoded as OGC Filter XML; property names are restricted to identifier characters to prevent filter injection.
+Optional `attribute_filters` support `eq`, `neq`, `lt`, `lte`, `gt`, and `gte`, combined with the geometry filter using `AND`. Property names are restricted to identifier characters to prevent filter injection. Datafinder's WFS 2.0 endpoint rejects OGC Filter XML `Intersects` requests (HTTP 400 / `NullPointerException`), so this action does not use that form.
 
 The action first calls WFS `GetCapabilities` on the layer-specific endpoint and uses the advertised feature type when present. If that document omits the layer (or uses a namespaced name such as `kx:layer-123`), the action still queries `layer-<id>` on the per-layer WFS endpoint rather than treating the omission as a key-permission failure. It then requests WFS 2.0 pages with `count` and `startIndex`, up to `page_size × max_pages` features. `truncated` is true when the WFS `numberMatched` count shows that the configured page cap stopped retrieval. Datafinder must expose WFS 2.0 pagination for the selected layer; validate this against a real connected account before production rollout.
 

@@ -72,6 +72,11 @@ async def test_query_collects_paginated_features_and_metadata(context):
     assert [feature["id"] for feature in result.data["feature_collection"]["features"]] == ["a", "b", "c"]
     assert result.data["data_vintage"] == "2023-01-01T00:00:00Z"
     assert result.data["licence"] == "CC BY 4.0"
+    get_feature = wfs_request.await_args_list[1].args[1]
+    assert get_feature["outputFormat"] == "json"
+    assert "filter" not in get_feature
+    assert get_feature["cql_filter"].startswith("INTERSECTS(Shape, SRID=4326;POLYGON((")
+    assert "174.7 -41.3" in get_feature["cql_filter"]
     assert wfs_request.await_args_list[2].args[1]["startIndex"] == 2
 
 
@@ -128,6 +133,35 @@ async def test_query_uses_advertised_namespaced_feature_type(context):
         )
     assert result.data["feature_collection"]["features"][0]["id"] == "a"
     assert wfs_request.await_args_list[1].args[1]["typeNames"] == "kx:layer-123"
+
+
+async def test_query_uses_metadata_geometry_field_and_attribute_cql(context):
+    context.fetch.return_value = Response({**METADATA, "data": {"geometry_field": "geom"}})
+    wfs_request = AsyncMock(
+        side_effect=[
+            CAPABILITIES,
+            {
+                "type": "FeatureCollection",
+                "numberMatched": 1,
+                "features": [{"type": "Feature", "id": "a", "geometry": None, "properties": {}}],
+            },
+        ]
+    )
+    with patch("stats_nz_datafinder._wfs_request", wfs_request):
+        result = await QueryLayerByGeometryAction().execute(
+            {
+                "layer_id": 123,
+                "geometry": GEOMETRY,
+                "attribute_filters": [{"property": "population", "operator": "gte", "value": 100}],
+                "page_size": 1,
+                "max_pages": 1,
+            },
+            context,
+        )
+    assert result.data["feature_collection"]["features"][0]["id"] == "a"
+    cql = wfs_request.await_args_list[1].args[1]["cql_filter"]
+    assert cql.startswith("INTERSECTS(geom, SRID=4326;POLYGON((")
+    assert " AND (population >= 100)" in cql
 
 
 def test_wfs_url_uses_layer_specific_key_in_path(context):

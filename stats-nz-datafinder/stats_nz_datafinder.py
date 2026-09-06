@@ -18,21 +18,18 @@ from autohive_integrations_sdk import (
     Integration,
     RateLimitError,
 )
-from xml.etree import ElementTree as ET  # nosec B405: used only to construct XML.
 
 stats_nz_datafinder = Integration.load()
 
 API_BASE_URL = "https://datafinder.stats.govt.nz/services/api/v1"
 WFS_REQUEST_TIMEOUT_SECONDS = 30
-_FILTER_NS = "http://www.opengis.net/ogc"
-_GML_NS = "http://www.opengis.net/gml"
-_OPERATORS = {
-    "eq": "PropertyIsEqualTo",
-    "neq": "PropertyIsNotEqualTo",
-    "lt": "PropertyIsLessThan",
-    "lte": "PropertyIsLessThanOrEqualTo",
-    "gt": "PropertyIsGreaterThan",
-    "gte": "PropertyIsGreaterThanOrEqualTo",
+_CQL_OPERATORS = {
+    "eq": "=",
+    "neq": "<>",
+    "lt": "<",
+    "lte": "<=",
+    "gt": ">",
+    "gte": ">=",
 }
 
 
@@ -76,7 +73,11 @@ async def _wfs_request(context: ExecutionContext, params: dict[str, Any], *, lay
         raise WfsRequestError(503) from exc
 
 
-def _position(position: Any) -> str:
+def _is_identifier(value: Any) -> bool:
+    return isinstance(value, str) and value.replace("_", "a").isalnum() and not value[0].isdigit()
+
+
+def _lon_lat(position: Any) -> tuple[float, float]:
     if not isinstance(position, list) or len(position) < 2:
         raise ValueError("Each GeoJSON position must contain longitude and latitude.")
     lon, lat = position[0], position[1]
@@ -89,80 +90,67 @@ def _position(position: Any) -> str:
         raise ValueError("GeoJSON longitude and latitude must be numbers.")
     if not -180 <= lon <= 180 or not -90 <= lat <= 90:
         raise ValueError("GeoJSON coordinates must be WGS84 longitude/latitude values.")
-    return f"{lon:.15g},{lat:.15g}"
+    return float(lon), float(lat)
 
 
-def _ring_element(parent: ET.Element, ring: Any) -> None:
+def _wkt_ring(ring: Any) -> str:
     if not isinstance(ring, list) or len(ring) < 4:
         raise ValueError("Each polygon ring must contain at least four positions.")
-    positions = [_position(point) for point in ring]
-    if positions[0] != positions[-1]:
+    points = [_lon_lat(point) for point in ring]
+    if points[0] != points[-1]:
         raise ValueError("Each polygon ring must be closed.")
-    linear_ring = ET.SubElement(parent, f"{{{_GML_NS}}}LinearRing")
-    ET.SubElement(linear_ring, f"{{{_GML_NS}}}coordinates").text = " ".join(positions)
+    return "(" + ", ".join(f"{lon:.15g} {lat:.15g}" for lon, lat in points) + ")"
 
 
-def _polygon_element(parent: ET.Element, polygon: Any) -> None:
+def _wkt_polygon(polygon: Any) -> str:
     if not isinstance(polygon, list) or not polygon:
         raise ValueError("Each polygon must contain an exterior ring.")
-    exterior = ET.SubElement(parent, f"{{{_GML_NS}}}outerBoundaryIs")
-    _ring_element(exterior, polygon[0])
-    for ring in polygon[1:]:
-        interior = ET.SubElement(parent, f"{{{_GML_NS}}}innerBoundaryIs")
-        _ring_element(interior, ring)
+    return "POLYGON(" + ", ".join(_wkt_ring(ring) for ring in polygon) + ")"
 
 
-def _build_filter(geometry: dict[str, Any], attribute_filters: list[dict[str, Any]] | None) -> str:
-    """Build an OGC Filter XML document without interpolating untrusted XML."""
-    feature_filter = ET.Element(f"{{{_FILTER_NS}}}Filter")
-    clauses: list[ET.Element] = []
-    spatial = ET.Element(f"{{{_FILTER_NS}}}Intersects")
-    ET.SubElement(spatial, f"{{{_FILTER_NS}}}PropertyName").text = "GEOMETRY"
+def _wkt_geometry(geometry: dict[str, Any]) -> str:
     geometry_type = geometry.get("type")
     coordinates = geometry.get("coordinates")
     if geometry_type == "Polygon":
-        gml_geometry = ET.SubElement(spatial, f"{{{_GML_NS}}}Polygon", {"srsName": "EPSG:4326"})
-        _polygon_element(gml_geometry, coordinates)
-    elif geometry_type == "MultiPolygon":
+        return _wkt_polygon(coordinates)
+    if geometry_type == "MultiPolygon":
         if not isinstance(coordinates, list) or not coordinates:
             raise ValueError("A MultiPolygon must contain at least one polygon.")
-        gml_geometry = ET.SubElement(spatial, f"{{{_GML_NS}}}MultiPolygon", {"srsName": "EPSG:4326"})
-        for polygon in coordinates:
-            member = ET.SubElement(gml_geometry, f"{{{_GML_NS}}}polygonMember")
-            _polygon_element(member, polygon)
-    else:
-        raise ValueError("geometry.type must be Polygon or MultiPolygon.")
-    clauses.append(spatial)
+        polygons = [_wkt_polygon(polygon).removeprefix("POLYGON") for polygon in coordinates]
+        return "MULTIPOLYGON(" + ", ".join(polygons) + ")"
+    raise ValueError("geometry.type must be Polygon or MultiPolygon.")
 
+
+def _cql_literal(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return f"{value:.15g}"
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def _geometry_field(metadata: Any) -> str:
+    data = metadata.get("data") if isinstance(metadata, dict) else None
+    field = data.get("geometry_field") if isinstance(data, dict) else None
+    return field if _is_identifier(field) else "Shape"
+
+
+def _build_cql_filter(wkt: str, attribute_filters: list[dict[str, Any]] | None, geometry_field: str) -> str:
+    """Build a GeoServer CQL Intersects filter from validated WKT and attribute clauses."""
+    spatial = f"INTERSECTS({geometry_field}, SRID=4326;{wkt})"
+    clauses: list[str] = []
     for item in attribute_filters or []:
         operator = item.get("operator")
         property_name = item.get("property")
         value = item.get("value")
-        if (
-            operator not in _OPERATORS
-            or not isinstance(property_name, str)
-            or not property_name.replace("_", "a").isalnum()
-            or property_name[0].isdigit()
-        ):
+        if operator not in _CQL_OPERATORS or not _is_identifier(property_name):
             raise ValueError("Each attribute filter needs a valid property and supported operator.")
         if isinstance(value, (dict, list)) or value is None:
             raise ValueError("Attribute filter values must be strings, numbers, or booleans.")
-        comparison = ET.Element(f"{{{_FILTER_NS}}}{_OPERATORS[operator]}")
-        ET.SubElement(comparison, f"{{{_FILTER_NS}}}PropertyName").text = property_name
-        ET.SubElement(comparison, f"{{{_FILTER_NS}}}Literal").text = (
-            str(value).lower() if isinstance(value, bool) else str(value)
-        )
-        clauses.append(comparison)
-
-    feature_filter.append(clauses[0] if len(clauses) == 1 else _and(clauses))
-    return ET.tostring(feature_filter, encoding="unicode")
-
-
-def _and(clauses: list[ET.Element]) -> ET.Element:
-    result = ET.Element(f"{{{_FILTER_NS}}}And")
-    for clause in clauses:
-        result.append(clause)
-    return result
+        clauses.append(f"{property_name} {_CQL_OPERATORS[operator]} {_cql_literal(value)}")
+    return spatial + "".join(f" AND ({clause})" for clause in clauses)
 
 
 def _local_feature_type_name(name: str) -> str:
@@ -194,7 +182,7 @@ def _provider_error(layer_id: int, status: int) -> ActionError:
     if status == 400:
         return ActionError(
             f"Datafinder rejected the WFS request for layer {layer_id}. "
-            "Verify the layer is WFS-enabled and that the API key has Query Layer Data/WFS permission."
+            "Check the geometry, attribute filters, and that the layer exposes WFS."
         )
     return ActionError("Datafinder could not complete the request. Please try again later.")
 
@@ -249,9 +237,12 @@ class QueryLayerByGeometryAction(ActionHandler):
         )
         try:
             headers = _headers(context)
-            filter_xml = _build_filter(inputs["geometry"], inputs.get("attribute_filters"))
+            wkt = _wkt_geometry(inputs["geometry"])
             metadata_response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=headers)
             metadata = _metadata_result(layer_id, metadata_response.data)
+            cql_filter = _build_cql_filter(
+                wkt, inputs.get("attribute_filters"), _geometry_field(metadata_response.data)
+            )
             capabilities = await _wfs_request(
                 context,
                 {"service": "WFS", "version": "2.0.0", "request": "GetCapabilities"},
@@ -269,9 +260,9 @@ class QueryLayerByGeometryAction(ActionHandler):
                         "version": "2.0.0",
                         "request": "GetFeature",
                         "typeNames": feature_type,
-                        "outputFormat": "application/json",
+                        "outputFormat": "json",
                         "srsName": "EPSG:4326",
-                        "filter": filter_xml,
+                        "cql_filter": cql_filter,
                         "count": page_size,
                         "startIndex": page * page_size,
                     },
