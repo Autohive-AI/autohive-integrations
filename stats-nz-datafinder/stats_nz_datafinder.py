@@ -52,21 +52,21 @@ class WfsRequestError(Exception):
         super().__init__(f"WFS request failed with HTTP {status}")
 
 
-def _wfs_url(context: ExecutionContext) -> str:
-    """Build Datafinder's documented key-in-path WFS URL without exposing the key."""
+def _wfs_url(context: ExecutionContext, layer_id: int) -> str:
+    """Build Datafinder's documented per-layer key-in-path WFS URL without exposing the key."""
     credentials = context.auth.get("credentials", {}) if context.auth else {}
     api_key = credentials.get("api_key")
     if not isinstance(api_key, str) or not api_key.strip():
         raise ValueError("A Stats NZ Datafinder API key is required.")
-    return f"https://datafinder.stats.govt.nz/services;key={quote(api_key, safe='')}/wfs"
+    return f"https://datafinder.stats.govt.nz/services;key={quote(api_key, safe='')}/wfs/layer-{layer_id}"
 
 
-async def _wfs_request(context: ExecutionContext, params: dict[str, Any]) -> Any:
+async def _wfs_request(context: ExecutionContext, params: dict[str, Any], *, layer_id: int) -> Any:
     """Call WFS without allowing its key-bearing URL into SDK error logging."""
     try:
         timeout = aiohttp.ClientTimeout(total=WFS_REQUEST_TIMEOUT_SECONDS)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(_wfs_url(context), params=params) as response:
+            async with session.get(_wfs_url(context, layer_id), params=params) as response:
                 if response.status >= 400:
                     raise WfsRequestError(response.status)
                 if "application/json" in response.headers.get("Content-Type", ""):
@@ -165,8 +165,13 @@ def _and(clauses: list[ET.Element]) -> ET.Element:
     return result
 
 
+def _local_feature_type_name(name: str) -> str:
+    return name.rsplit(":", 1)[-1]
+
+
 def _resolve_feature_type(layer_id: int, capability_document: Any) -> str:
-    """Return the advertised WFS feature type for a permitted Datafinder layer."""
+    """Return the advertised WFS feature type, falling back to layer-{id}."""
+    requested_name = f"layer-{layer_id}"
     if not isinstance(capability_document, str):
         raise ValueError("Datafinder returned an invalid WFS capabilities response.")
     try:
@@ -174,17 +179,11 @@ def _resolve_feature_type(layer_id: int, capability_document: Any) -> str:
     except DefusedET.ParseError as exc:
         raise ValueError("Datafinder returned malformed WFS capabilities.") from exc
 
-    requested_name = f"layer-{layer_id}"
-    feature_types = root.findall(".//{*}FeatureType")
-    for feature_type in feature_types:
+    for feature_type in root.findall(".//{*}FeatureType"):
         name = feature_type.findtext("{*}Name")
-        if name == requested_name or name == f":{requested_name}":
+        if isinstance(name, str) and _local_feature_type_name(name) == requested_name:
             return name
-
-    raise ValueError(
-        f"The connected Datafinder API key cannot query layer {layer_id} through WFS. "
-        "Enable its Query Layer Data/WFS permission or use a key that can access this layer."
-    )
+    return requested_name
 
 
 def _provider_error(layer_id: int, status: int) -> ActionError:
@@ -256,6 +255,7 @@ class QueryLayerByGeometryAction(ActionHandler):
             capabilities = await _wfs_request(
                 context,
                 {"service": "WFS", "version": "2.0.0", "request": "GetCapabilities"},
+                layer_id=layer_id,
             )
             feature_type = _resolve_feature_type(layer_id, capabilities)
             features: list[Any] = []
@@ -275,6 +275,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                         "count": page_size,
                         "startIndex": page * page_size,
                     },
+                    layer_id=layer_id,
                 )
                 if not isinstance(data, dict) or not isinstance(data.get("features"), list):
                     raise ValueError("Datafinder returned a malformed WFS feature response.")

@@ -9,7 +9,7 @@ Create a Datafinder API key and connect it using the integration's **API key** f
 - query layer data through WFS;
 - read the relevant public layer details and catalogue entries.
 
-The catalogue and layer-metadata API calls use `Authorization: Key <API_KEY>`. Datafinder WFS requires the documented key-in-path form (`/services;key=<API_KEY>/wfs`); the integration makes those WFS requests directly and never returns or logs a key-bearing URL.
+The catalogue and layer-metadata API calls use `Authorization: Key <API_KEY>`. Datafinder WFS requires the documented per-layer key-in-path form (`/services;key=<API_KEY>/wfs/layer-<id>`); the integration makes those WFS requests directly and never returns or logs a key-bearing URL. It does not use the site-wide `/wfs` capabilities document, which is too large to fetch reliably and often omits Census layers even when they are WFS-enabled.
 
 ## Actions
 
@@ -19,7 +19,7 @@ The catalogue and layer-metadata API calls use `Authorization: Key <API_KEY>`. D
 
 Optional `attribute_filters` support `eq`, `neq`, `lt`, `lte`, `gt`, and `gte`, combined with the geometry filter using `AND`. They are encoded as OGC Filter XML; property names are restricted to identifier characters to prevent filter injection.
 
-The action first calls WFS `GetCapabilities` with the connected API key and resolves the layer’s advertised feature type. If the layer is absent, it returns an actionable permission/configuration error rather than forwarding Datafinder’s raw XML response. It then requests WFS 2.0 pages with `count` and `startIndex`, up to `page_size × max_pages` features. `truncated` is true when the WFS `numberMatched` count shows that the configured page cap stopped retrieval. Datafinder must expose WFS 2.0 pagination for the selected layer; validate this against a real connected account before production rollout.
+The action first calls WFS `GetCapabilities` on the layer-specific endpoint and uses the advertised feature type when present. If that document omits the layer (or uses a namespaced name such as `kx:layer-123`), the action still queries `layer-<id>` on the per-layer WFS endpoint rather than treating the omission as a key-permission failure. It then requests WFS 2.0 pages with `count` and `startIndex`, up to `page_size × max_pages` features. `truncated` is true when the WFS `numberMatched` count shows that the configured page cap stopped retrieval. Datafinder must expose WFS 2.0 pagination for the selected layer; validate this against a real connected account before production rollout.
 
 Example input:
 

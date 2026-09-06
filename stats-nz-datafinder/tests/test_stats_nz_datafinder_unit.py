@@ -85,20 +85,54 @@ async def test_query_rejects_unclosed_geometry(context):
     assert context.fetch.await_count == 0
 
 
-async def test_query_reports_when_capabilities_do_not_expose_layer(context):
+async def test_query_falls_back_to_layer_id_when_site_wide_capabilities_omit_layer(context):
     context.fetch.return_value = Response(METADATA)
-    with patch(
-        "stats_nz_datafinder._wfs_request",
-        AsyncMock(return_value=CAPABILITIES.replace("layer-123", "layer-999")),
-    ):
-        result = await QueryLayerByGeometryAction().execute({"layer_id": 123, "geometry": GEOMETRY}, context)
-    assert "cannot query layer 123 through WFS" in result.message
-    assert "Query Layer Data/WFS permission" in result.message
+    wfs_request = AsyncMock(
+        side_effect=[
+            CAPABILITIES.replace("layer-123", "layer-999"),
+            {
+                "type": "FeatureCollection",
+                "numberMatched": 1,
+                "features": [{"type": "Feature", "id": "a", "geometry": None, "properties": {}}],
+            },
+        ]
+    )
+    with patch("stats_nz_datafinder._wfs_request", wfs_request):
+        result = await QueryLayerByGeometryAction().execute(
+            {"layer_id": 123, "geometry": GEOMETRY, "page_size": 1, "max_pages": 1},
+            context,
+        )
+    assert result.data["feature_collection"]["features"][0]["id"] == "a"
+    assert wfs_request.await_args_list[0].kwargs["layer_id"] == 123
+    assert wfs_request.await_args_list[1].kwargs["layer_id"] == 123
+    assert wfs_request.await_args_list[1].args[1]["typeNames"] == "layer-123"
 
 
-def test_wfs_url_encodes_key_in_documented_service_path(context):
+async def test_query_uses_advertised_namespaced_feature_type(context):
+    context.fetch.return_value = Response(METADATA)
+    capabilities = CAPABILITIES.replace("layer-123", "kx:layer-123")
+    wfs_request = AsyncMock(
+        side_effect=[
+            capabilities,
+            {
+                "type": "FeatureCollection",
+                "numberMatched": 1,
+                "features": [{"type": "Feature", "id": "a", "geometry": None, "properties": {}}],
+            },
+        ]
+    )
+    with patch("stats_nz_datafinder._wfs_request", wfs_request):
+        result = await QueryLayerByGeometryAction().execute(
+            {"layer_id": 123, "geometry": GEOMETRY, "page_size": 1, "max_pages": 1},
+            context,
+        )
+    assert result.data["feature_collection"]["features"][0]["id"] == "a"
+    assert wfs_request.await_args_list[1].args[1]["typeNames"] == "kx:layer-123"
+
+
+def test_wfs_url_uses_layer_specific_key_in_path(context):
     context.auth["credentials"]["api_key"] = "key with/slash"
-    assert _wfs_url(context).endswith("services;key=key%20with%2Fslash/wfs")
+    assert _wfs_url(context, 120897).endswith("services;key=key%20with%2Fslash/wfs/layer-120897")
 
 
 async def test_metadata_normalises_citation_fields(context):
