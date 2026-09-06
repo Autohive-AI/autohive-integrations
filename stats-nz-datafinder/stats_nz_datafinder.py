@@ -3,13 +3,16 @@
 from __future__ import annotations
 
 from typing import Any
+from defusedxml import ElementTree as DefusedET
 
 from autohive_integrations_sdk import (
     ActionError,
     ActionHandler,
     ActionResult,
     ExecutionContext,
+    HTTPError,
     Integration,
+    RateLimitError,
 )
 from xml.etree import ElementTree as ET  # nosec B405: used only to construct XML.
 
@@ -126,6 +129,41 @@ def _and(clauses: list[ET.Element]) -> ET.Element:
     return result
 
 
+def _resolve_feature_type(layer_id: int, capability_document: Any) -> str:
+    """Return the advertised WFS feature type for a permitted Datafinder layer."""
+    if not isinstance(capability_document, str):
+        raise ValueError("Datafinder returned an invalid WFS capabilities response.")
+    try:
+        root = DefusedET.fromstring(capability_document)
+    except DefusedET.ParseError as exc:
+        raise ValueError("Datafinder returned malformed WFS capabilities.") from exc
+
+    requested_name = f"layer-{layer_id}"
+    feature_types = root.findall(".//{*}FeatureType")
+    for feature_type in feature_types:
+        name = feature_type.findtext("{*}Name")
+        if name == requested_name or name == f":{requested_name}":
+            return name
+
+    raise ValueError(
+        f"The connected Datafinder API key cannot query layer {layer_id} through WFS. "
+        "Enable its Query Layer Data/WFS permission or use a key that can access this layer."
+    )
+
+
+def _provider_error(layer_id: int, error: HTTPError) -> ActionError:
+    if error.status == 401:
+        return ActionError("Datafinder rejected the API key. Check the connected account.")
+    if error.status == 403:
+        return ActionError(f"The connected Datafinder API key is not permitted to query layer {layer_id}.")
+    if error.status == 400:
+        return ActionError(
+            f"Datafinder rejected the WFS request for layer {layer_id}. "
+            "Verify the layer is WFS-enabled and that the API key has Query Layer Data/WFS permission."
+        )
+    return ActionError("Datafinder could not complete the request. Please try again later.")
+
+
 def _vintage(metadata: dict[str, Any]) -> str | None:
     for key in ("collected_at", "published_at", "first_published_at", "updated_at"):
         value = metadata.get(key)
@@ -176,9 +214,15 @@ class QueryLayerByGeometryAction(ActionHandler):
         )
         try:
             headers = _headers(context)
+            filter_xml = _build_filter(inputs["geometry"], inputs.get("attribute_filters"))
             metadata_response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=headers)
             metadata = _metadata_result(layer_id, metadata_response.data)
-            filter_xml = _build_filter(inputs["geometry"], inputs.get("attribute_filters"))
+            capabilities_response = await context.fetch(
+                WFS_URL,
+                headers=headers,
+                params={"service": "WFS", "version": "2.0.0", "request": "GetCapabilities"},
+            )
+            feature_type = _resolve_feature_type(layer_id, capabilities_response.data)
             features: list[Any] = []
             matched: int | None = None
             pages = 0
@@ -190,7 +234,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                         "service": "WFS",
                         "version": "2.0.0",
                         "request": "GetFeature",
-                        "typeNames": f"layer-{layer_id}",
+                        "typeNames": feature_type,
                         "outputFormat": "application/json",
                         "srsName": "EPSG:4326",
                         "filter": filter_xml,
@@ -227,6 +271,10 @@ class QueryLayerByGeometryAction(ActionHandler):
             )
         except ValueError as exc:
             return ActionError(message=str(exc))
+        except HTTPError as exc:
+            return _provider_error(layer_id, exc)
+        except RateLimitError:
+            return ActionError("Datafinder rate-limited this request. Please retry shortly.")
 
 
 @stats_nz_datafinder.action("search_layers")

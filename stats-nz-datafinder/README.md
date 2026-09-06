@@ -19,7 +19,7 @@ The integration sends `Authorization: Key <API_KEY>` only to `datafinder.stats.g
 
 Optional `attribute_filters` support `eq`, `neq`, `lt`, `lte`, `gt`, and `gte`, combined with the geometry filter using `AND`. They are encoded as OGC Filter XML; property names are restricted to identifier characters to prevent filter injection.
 
-The action requests WFS 2.0 pages with `count` and `startIndex`, up to `page_size × max_pages` features. `truncated` is true when the WFS `numberMatched` count shows that the configured page cap stopped retrieval. Datafinder must expose WFS 2.0 pagination for the selected layer; validate this against a real connected account before production rollout.
+The action first calls WFS `GetCapabilities` with the connected API key and resolves the layer’s advertised feature type. If the layer is absent, it returns an actionable permission/configuration error rather than forwarding Datafinder’s raw XML response. It then requests WFS 2.0 pages with `count` and `startIndex`, up to `page_size × max_pages` features. `truncated` is true when the WFS `numberMatched` count shows that the configured page cap stopped retrieval. Datafinder must expose WFS 2.0 pagination for the selected layer; validate this against a real connected account before production rollout.
 
 Example input:
 

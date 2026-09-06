@@ -28,6 +28,13 @@ GEOMETRY = {
     "type": "Polygon",
     "coordinates": [[[174.7, -41.3], [174.8, -41.3], [174.8, -41.2], [174.7, -41.3]]],
 }
+CAPABILITIES = """<?xml version="1.0"?>
+<wfs:WFS_Capabilities xmlns:wfs="http://www.opengis.net/wfs/2.0">
+  <wfs:FeatureTypeList>
+    <wfs:FeatureType><wfs:Name>layer-123</wfs:Name></wfs:FeatureType>
+  </wfs:FeatureTypeList>
+</wfs:WFS_Capabilities>"""
+
 METADATA = {
     "title": "Census SA2",
     "description": "Boundary data",
@@ -40,6 +47,7 @@ METADATA = {
 async def test_query_collects_paginated_features_and_metadata(context):
     context.fetch.side_effect = [
         Response(METADATA),
+        Response(CAPABILITIES),
         Response(
             {
                 "type": "FeatureCollection",
@@ -64,7 +72,7 @@ async def test_query_collects_paginated_features_and_metadata(context):
     assert [feature["id"] for feature in result.data["feature_collection"]["features"]] == ["a", "b", "c"]
     assert result.data["data_vintage"] == "2023-01-01T00:00:00Z"
     assert result.data["licence"] == "CC BY 4.0"
-    assert context.fetch.await_args_list[2].kwargs["params"]["startIndex"] == 2
+    assert context.fetch.await_args_list[3].kwargs["params"]["startIndex"] == 2
 
 
 async def test_query_rejects_unclosed_geometry(context):
@@ -75,7 +83,17 @@ async def test_query_rejects_unclosed_geometry(context):
     }
     result = await QueryLayerByGeometryAction().execute({"layer_id": 123, "geometry": bad_geometry}, context)
     assert result.message == "Each polygon ring must be closed."
-    assert context.fetch.await_count == 1
+    assert context.fetch.await_count == 0
+
+
+async def test_query_reports_when_capabilities_do_not_expose_layer(context):
+    context.fetch.side_effect = [
+        Response(METADATA),
+        Response(CAPABILITIES.replace("layer-123", "layer-999")),
+    ]
+    result = await QueryLayerByGeometryAction().execute({"layer_id": 123, "geometry": GEOMETRY}, context)
+    assert "cannot query layer 123 through WFS" in result.message
+    assert "Query Layer Data/WFS permission" in result.message
 
 
 async def test_metadata_normalises_citation_fields(context):
