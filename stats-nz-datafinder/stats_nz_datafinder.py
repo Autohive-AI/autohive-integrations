@@ -29,6 +29,9 @@ from urllib.parse import quote
 
 import aiohttp
 from defusedxml import ElementTree as DefusedET
+from pyproj import Geod
+from shapely import make_valid
+from shapely.geometry import shape
 
 from autohive_integrations_sdk import (
     ActionError,
@@ -46,6 +49,23 @@ API_BASE_URL = "https://datafinder.stats.govt.nz/services/api/v1"
 WFS_VERSION = "2.0.0"
 WFS_REQUEST_TIMEOUT_SECONDS = 30
 DEFAULT_GEOMETRY_FIELD = "Shape"
+DEFAULT_PAGE_SIZE = 50
+MAX_DESCRIPTION_CHARS = 400
+_GEOD = Geod(ellps="WGS84")
+POLYGON_NOTE = (
+    "overlap_fraction is the share of each feature's area inside the query polygon. "
+    "Multiply numeric attributes by it for area-weighted catchment estimates. "
+    "Geometry is omitted unless include_geometry is true."
+)
+POINT_NOTE = (
+    "Point queries return features that contain the point. overlap_fraction is 1.0 "
+    "for each returned feature — use the attributes as-is, do not area-weight a point."
+)
+ATTRIBUTE_NOTE = (
+    "No spatial clip was applied. overlap_fraction is 1.0. Results are whole features matching the attribute filters."
+)
+OVERLAP_NOTE = POLYGON_NOTE
+UNSCOPED_ERROR = "Provide geometry, bbox, or at least one attribute filter. Unscoped national scans are not supported."
 _UNEXPECTED_ERROR = (
     "The Stats NZ Datafinder integration hit an unexpected error handling this request. "
     "Check your inputs and try again."
@@ -297,6 +317,9 @@ def _wkt_polygon(polygon: Any) -> str:
 def _wkt_geometry(geometry: dict[str, Any]) -> str:
     geometry_type = geometry.get("type")
     coordinates = geometry.get("coordinates")
+    if geometry_type == "Point":
+        lon, lat = _lon_lat(coordinates)
+        return f"POINT({lon:.15g} {lat:.15g})"
     if geometry_type == "Polygon":
         return _wkt_polygon(coordinates)
     if geometry_type == "MultiPolygon":
@@ -304,7 +327,31 @@ def _wkt_geometry(geometry: dict[str, Any]) -> str:
             raise DatafinderError("A MultiPolygon must contain at least one polygon.")
         polygons = [_wkt_polygon(polygon).removeprefix("POLYGON") for polygon in coordinates]
         return "MULTIPOLYGON(" + ", ".join(polygons) + ")"
-    raise DatafinderError("geometry.type must be Polygon or MultiPolygon.")
+    raise DatafinderError("geometry.type must be Point, Polygon, or MultiPolygon.")
+
+
+def _parse_bbox(bbox: Any) -> tuple[float, float, float, float]:
+    if not isinstance(bbox, list) or len(bbox) != 4:
+        raise DatafinderError("bbox must be [west, south, east, north] in WGS84.")
+    values: list[float] = []
+    for value in bbox:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise DatafinderError("bbox values must be numbers.")
+        values.append(float(value))
+    west, south, east, north = values
+    if not (-180 <= west <= 180 and -180 <= east <= 180 and -90 <= south <= 90 and -90 <= north <= 90):
+        raise DatafinderError("bbox must be WGS84 [west, south, east, north].")
+    if west >= east or south >= north:
+        raise DatafinderError("bbox requires west < east and south < north.")
+    return west, south, east, north
+
+
+def _bbox_polygon(bbox: Any) -> dict[str, Any]:
+    west, south, east, north = _parse_bbox(bbox)
+    return {
+        "type": "Polygon",
+        "coordinates": [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+    }
 
 
 def _cql_literal(value: Any) -> str:
@@ -323,20 +370,70 @@ def _geometry_field(metadata: Any) -> str:
     return field if _is_identifier(field) else DEFAULT_GEOMETRY_FIELD
 
 
-def _build_cql_filter(wkt: str, attribute_filters: list[dict[str, Any]] | None, geometry_field: str) -> str:
-    """Build a GeoServer CQL Intersects filter from validated WKT and attribute clauses."""
-    spatial = f"INTERSECTS({geometry_field}, SRID=4326;{wkt})"
+def _like_pattern(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return _cql_literal("%" + escaped + "%")
+
+
+def _attribute_clauses(attribute_filters: list[dict[str, Any]] | None) -> list[str]:
     clauses: list[str] = []
     for item in attribute_filters or []:
         operator = item.get("operator")
         property_name = item.get("property")
         value = item.get("value")
-        if operator not in _CQL_OPERATORS or not _is_identifier(property_name):
+        if not _is_identifier(property_name):
+            raise DatafinderError("Each attribute filter needs a valid property and supported operator.")
+        if operator == "contains":
+            if not isinstance(value, str) or not value:
+                raise DatafinderError("contains filters require a non-empty string value.")
+            clauses.append(f"{property_name} ILIKE {_like_pattern(value)}")
+            continue
+        if operator not in _CQL_OPERATORS:
             raise DatafinderError("Each attribute filter needs a valid property and supported operator.")
         if isinstance(value, (dict, list)) or value is None:
             raise DatafinderError("Attribute filter values must be strings, numbers, or booleans.")
         clauses.append(f"{property_name} {_CQL_OPERATORS[operator]} {_cql_literal(value)}")
-    return spatial + "".join(f" AND ({clause})" for clause in clauses)
+    return clauses
+
+
+def _build_cql_filter(
+    spatial_wkt: str | None, attribute_filters: list[dict[str, Any]] | None, geometry_field: str
+) -> str:
+    """Build a GeoServer CQL filter from an optional spatial WKT and attribute clauses."""
+    clauses = _attribute_clauses(attribute_filters)
+    if spatial_wkt:
+        spatial = f"INTERSECTS({geometry_field}, SRID=4326;{spatial_wkt})"
+        return spatial + "".join(f" AND ({clause})" for clause in clauses)
+    if not clauses:
+        raise DatafinderError(UNSCOPED_ERROR)
+    return " AND ".join(f"({clause})" for clause in clauses)
+
+
+def _resolve_query_scope(inputs: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
+    """Return (spatial GeoJSON or None, query kind). Reject unconstrained scans."""
+    geometry = inputs.get("geometry")
+    bbox = inputs.get("bbox")
+    filters = inputs.get("attribute_filters") or []
+    if geometry and bbox:
+        raise DatafinderError("Provide geometry or bbox, not both.")
+    if bbox:
+        return _bbox_polygon(bbox), "bbox"
+    if geometry:
+        kind = geometry.get("type") if isinstance(geometry, dict) else None
+        if kind not in ("Point", "Polygon", "MultiPolygon"):
+            raise DatafinderError("geometry.type must be Point, Polygon, or MultiPolygon.")
+        return geometry, kind
+    if filters:
+        return None, "attribute"
+    raise DatafinderError(UNSCOPED_ERROR)
+
+
+def _result_note(query_kind: str) -> str:
+    if query_kind == "Point":
+        return POINT_NOTE
+    if query_kind == "attribute":
+        return ATTRIBUTE_NOTE
+    return POLYGON_NOTE
 
 
 def _local_feature_type_name(name: str) -> str:
@@ -373,6 +470,143 @@ def _total_matched(collection: dict[str, Any]) -> int | None:
 
 def _string_or_none(value: Any) -> str | None:
     return value if isinstance(value, str) and value.strip() else None
+
+
+def _short_description(value: Any, *, limit: int = MAX_DESCRIPTION_CHARS) -> str | None:
+    """Keep the first paragraph of a catalogue blurb, capped for agent context."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    paragraph = re.split(r"\n\s*\n", text, maxsplit=1)[0]
+    paragraph = re.sub(r"\s+", " ", paragraph).strip()
+    if len(paragraph) <= limit:
+        return paragraph
+    clipped = paragraph[:limit].rsplit(" ", 1)[0].rstrip(".,;:")
+    return clipped + "…"
+
+
+def _fields(metadata: Any) -> list[dict[str, str | None]]:
+    data = metadata.get("data") if isinstance(metadata, dict) else None
+    raw_fields = data.get("fields") if isinstance(data, dict) else None
+    geometry_field = _geometry_field(metadata)
+    if not isinstance(raw_fields, list):
+        return []
+    fields: list[dict[str, str | None]] = []
+    for item in raw_fields:
+        if not isinstance(item, dict):
+            continue
+        name = item.get("name")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        if item.get("type") == "geometry" or name == geometry_field:
+            continue
+        field: dict[str, str | None] = {
+            "name": name,
+            "type": item.get("type") if isinstance(item.get("type"), str) else None,
+        }
+        title = item.get("title") or item.get("label")
+        if isinstance(title, str) and title.strip():
+            field["title"] = title
+        fields.append(field)
+    return fields
+
+
+def _as_shapely(geometry: Any) -> Any | None:
+    if not isinstance(geometry, dict) or not geometry.get("type"):
+        return None
+    try:
+        geom = shape(geometry)
+    except (TypeError, ValueError):
+        return None
+    if geom.is_empty:
+        return None
+    if not geom.is_valid:
+        geom = make_valid(geom)
+    return geom if not geom.is_empty else None
+
+
+def _geodesic_area_m2(geom: Any) -> float:
+    if geom is None or geom.is_empty:
+        return 0.0
+    if geom.geom_type == "Polygon":
+        area, _perimeter = _GEOD.geometry_area_perimeter(geom)
+        return abs(area)
+    if geom.geom_type in ("MultiPolygon", "GeometryCollection"):
+        return sum(_geodesic_area_m2(part) for part in geom.geoms)
+    return 0.0
+
+
+def _overlap_stats(query_geom: Any, feature_geometry: Any) -> dict[str, float | None]:
+    """How much of the feature falls inside the query shape.
+
+    Polygon/bbox queries area-weight. Point queries and attribute-only queries
+    return overlap_fraction 1.0 so agents do not zero-out counts for a point.
+    """
+    empty = {"overlap_fraction": None, "overlap_area_sq_km": None, "feature_area_sq_km": None}
+    feature_geom = _as_shapely(feature_geometry)
+    if feature_geom is None:
+        if query_geom is None:
+            return {"overlap_fraction": 1.0, "overlap_area_sq_km": None, "feature_area_sq_km": None}
+        return empty
+    feature_area = _geodesic_area_m2(feature_geom)
+    feature_area_sq_km = round(feature_area / 1_000_000, 6) if feature_area else 0.0
+    if query_geom is None:
+        return {
+            "overlap_fraction": 1.0,
+            "overlap_area_sq_km": feature_area_sq_km,
+            "feature_area_sq_km": feature_area_sq_km,
+        }
+    if query_geom.geom_type in ("Point", "MultiPoint"):
+        intersects = bool(query_geom.intersects(feature_geom))
+        return {
+            "overlap_fraction": 1.0 if intersects else 0.0,
+            "overlap_area_sq_km": feature_area_sq_km if intersects else 0.0,
+            "feature_area_sq_km": feature_area_sq_km,
+        }
+    try:
+        intersection = query_geom.intersection(feature_geom)
+    except Exception:
+        return empty
+    overlap_area = _geodesic_area_m2(intersection)
+    if feature_area <= 0:
+        intersects = bool(query_geom.intersects(feature_geom))
+        return {
+            "overlap_fraction": 1.0 if intersects else 0.0,
+            "overlap_area_sq_km": 0.0,
+            "feature_area_sq_km": 0.0,
+        }
+    return {
+        "overlap_fraction": round(overlap_area / feature_area, 4),
+        "overlap_area_sq_km": round(overlap_area / 1_000_000, 6),
+        "feature_area_sq_km": feature_area_sq_km,
+    }
+
+
+def _search_layer(item: dict[str, Any]) -> dict[str, Any]:
+    capabilities = item.get("user_capabilities")
+    return {
+        "id": item.get("id"),
+        "title": item.get("title"),
+        "description": _short_description(item.get("description")),
+        "published_at": _string_or_none(item.get("published_at")) or _string_or_none(item.get("first_published_at")),
+        "queryable": isinstance(capabilities, list) and "can-spatial-query" in capabilities,
+    }
+
+
+def _record_from_feature(feature: Any, query_geom: Any, *, include_geometry: bool) -> dict[str, Any] | None:
+    if not isinstance(feature, dict):
+        return None
+    properties = feature.get("properties")
+    record: dict[str, Any] = {
+        "id": feature.get("id"),
+        **_overlap_stats(query_geom, feature.get("geometry")),
+        "properties": properties if isinstance(properties, dict) else {},
+    }
+    if include_geometry:
+        record["geometry"] = feature.get("geometry")
+    return record
 
 
 def _vintage(metadata: dict[str, Any]) -> str | None:
@@ -417,7 +651,8 @@ def _metadata_result(layer_id: int, data: Any) -> dict[str, Any]:
     return {
         "layer_id": layer_id,
         "title": _string_or_none(metadata.get("title")),
-        "description": metadata.get("description") if isinstance(metadata.get("description"), str) else None,
+        "description": _short_description(metadata.get("description")),
+        "fields": _fields(metadata),
         "data_vintage": _vintage(metadata),
         "licence": _licence(metadata),
         "attribution": _attribution(metadata),
@@ -464,14 +699,17 @@ class GetLayerMetadataAction(ActionHandler):
 class QueryLayerByGeometryAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
         layer_id = inputs["layer_id"]
-        page_size, max_pages = inputs.get("page_size", 1000), inputs.get("max_pages", 10)
+        page_size, max_pages = inputs.get("page_size", DEFAULT_PAGE_SIZE), inputs.get("max_pages", 10)
+        include_geometry = bool(inputs.get("include_geometry"))
         try:
             headers = _headers(context)
-            wkt = _wkt_geometry(inputs["geometry"])
+            spatial_geometry, query_kind = _resolve_query_scope(inputs)
+            spatial_wkt = _wkt_geometry(spatial_geometry) if spatial_geometry else None
+            query_geom = _as_shapely(spatial_geometry) if spatial_geometry else None
             metadata_response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=headers)
             metadata = _metadata_result(layer_id, metadata_response.data)
             cql_filter = _build_cql_filter(
-                wkt, inputs.get("attribute_filters"), _geometry_field(metadata_response.data)
+                spatial_wkt, inputs.get("attribute_filters"), _geometry_field(metadata_response.data)
             )
             capabilities = await _wfs_get_capabilities(context, layer_id)
             feature_type = _resolve_feature_type(layer_id, capabilities)
@@ -517,18 +755,23 @@ class QueryLayerByGeometryAction(ActionHandler):
                 truncated = bool(probe["features"])
             else:
                 truncated = False
+            records = [
+                record
+                for feature in features
+                if (record := _record_from_feature(feature, query_geom, include_geometry=include_geometry))
+            ]
             return ActionResult(
                 data={
-                    "feature_collection": {
-                        "type": "FeatureCollection",
-                        "features": features,
-                    },
+                    "records": records,
+                    "record_count": len(records),
                     "layer_id": layer_id,
                     "retrieved_pages": pages,
                     "truncated": truncated,
+                    "total_matched": matched,
                     "data_vintage": metadata["data_vintage"],
                     "licence": metadata["licence"],
                     "attribution": metadata["attribution"],
+                    "note": _result_note(query_kind),
                 }
             )
         except DatafinderError as exc:
@@ -557,13 +800,7 @@ class SearchLayersAction(ActionHandler):
             )
             items = response.data if isinstance(response.data, list) else []
             layers = [
-                {
-                    "id": item.get("id"),
-                    "title": item.get("title"),
-                    "description": item.get("description"),
-                }
-                for item in items
-                if isinstance(item, dict) and isinstance(item.get("id"), int)
+                _search_layer(item) for item in items if isinstance(item, dict) and isinstance(item.get("id"), int)
             ]
             total = None
             resource_range = response.headers.get("X-Resource-Range", "") if getattr(response, "headers", None) else ""

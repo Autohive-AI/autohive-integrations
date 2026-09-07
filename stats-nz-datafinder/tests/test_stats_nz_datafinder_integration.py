@@ -113,6 +113,9 @@ class TestGetLayerMetadata:
         assert "title" in data
         assert "licence" in data
         assert "attribution" in data
+        assert isinstance(data["fields"], list)
+        if data["description"]:
+            assert len(data["description"]) <= 400
 
     async def test_unknown_layer_errors(self, live_context):
         result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 99999999}, live_context)
@@ -131,8 +134,13 @@ class TestQueryLayerByGeometry:
             pytest.skip(f"Layer {layer_id} is not queryable over WFS: {result.result.message}")
         data = result.result.data
         assert data["layer_id"] == layer_id
-        assert data["feature_collection"]["type"] == "FeatureCollection"
-        assert isinstance(data["feature_collection"]["features"], list)
-        assert len(data["feature_collection"]["features"]) <= 5
+        assert isinstance(data["records"], list)
+        assert len(data["records"]) <= 5
+        assert data["record_count"] == len(data["records"])
         assert data["retrieved_pages"] >= 1
         assert "truncated" in data
+        if data["records"]:
+            record = data["records"][0]
+            assert "properties" in record
+            assert "geometry" not in record
+            assert "overlap_fraction" in record

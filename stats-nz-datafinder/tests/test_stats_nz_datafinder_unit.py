@@ -10,21 +10,28 @@ from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from stats_nz_datafinder import (
+    ATTRIBUTE_NOTE,
     DatafinderError,
+    OVERLAP_NOTE,
+    POINT_NOTE,
     _attribution,
     _build_cql_filter,
     _cql_literal,
+    _fields,
     _geometry_field,
     _get_api_key,
     _licence,
+    _overlap_stats,
     _redact,
     _resolve_feature_type,
+    _short_description,
     _total_matched,
     _vintage,
     _wfs_request,
     _wkt_geometry,
     _WfsResponse,
     stats_nz_datafinder,
+    _as_shapely,
     _wfs_url,
 )
 
@@ -60,10 +67,25 @@ def fetch_ok(data, headers=None):
     return FetchResponse(status=200, headers=headers or {}, data=data)
 
 
-def collection(*feature_ids, number_matched=None):
+def square(west: float, south: float, east: float, north: float) -> dict:
+    return {
+        "type": "Polygon",
+        "coordinates": [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+    }
+
+
+def collection(*feature_ids, number_matched=None, geometry=None, properties=None):
     payload = {
         "type": "FeatureCollection",
-        "features": [{"type": "Feature", "id": fid, "geometry": None, "properties": {}} for fid in feature_ids],
+        "features": [
+            {
+                "type": "Feature",
+                "id": fid,
+                "geometry": geometry,
+                "properties": {} if properties is None else properties,
+            }
+            for fid in feature_ids
+        ],
     }
     if number_matched is not None:
         payload["numberMatched"] = number_matched
@@ -121,6 +143,9 @@ class TestGetApiKey:
 
 
 class TestHelpers:
+    def test_wkt_point(self):
+        assert _wkt_geometry({"type": "Point", "coordinates": [174.774, -41.338]}) == "POINT(174.774 -41.338)"
+
     def test_wkt_polygon(self):
         wkt = _wkt_geometry(GEOMETRY)
         assert wkt.startswith("POLYGON((")
@@ -164,6 +189,19 @@ class TestHelpers:
         )
         assert cql.startswith("INTERSECTS(geom, SRID=4326;POLYGON((0 0")
         assert " AND (population >= 100)" in cql
+
+    def test_cql_contains_uses_ilike(self):
+        cql = _build_cql_filter(
+            None,
+            [{"property": "SA22023_V1_00_NAME", "operator": "contains", "value": "Island Bay"}],
+            "Shape",
+        )
+        assert cql == "(SA22023_V1_00_NAME ILIKE '%Island Bay%')"
+        assert "INTERSECTS" not in cql
+
+    def test_cql_rejects_unscoped(self):
+        with pytest.raises(DatafinderError, match="Unscoped national scans"):
+            _build_cql_filter(None, None, "Shape")
 
     def test_cql_rejects_non_identifier_property(self):
         with pytest.raises(DatafinderError, match="valid property"):
@@ -209,6 +247,56 @@ class TestHelpers:
         mock_context.auth["credentials"]["api_key"] = "key with/slash"  # nosec B105
         assert _wfs_url(mock_context, 120897).endswith("services;key=key%20with%2Fslash/wfs/layer-120897")
 
+    def test_short_description_keeps_first_paragraph(self):
+        long_blurb = "Dataset contains life-cycle age group counts by statistical area 2.\n\n" + ("Footnotes. " * 80)
+        short = _short_description(long_blurb)
+        assert short is not None
+        assert "life-cycle age group" in short
+        assert "Footnotes" not in short
+        assert len(short) <= 400
+
+    def test_fields_skip_geometry(self):
+        fields = _fields(
+            {
+                "data": {
+                    "geometry_field": "Shape",
+                    "fields": [
+                        {"name": "Shape", "type": "geometry"},
+                        {"name": "VAR_1_1", "type": "integer"},
+                        {"name": "SA22023_V1_00_NAME", "type": "string", "title": "SA2 name"},
+                    ],
+                }
+            }
+        )
+        assert fields == [
+            {"name": "VAR_1_1", "type": "integer"},
+            {"name": "SA22023_V1_00_NAME", "type": "string", "title": "SA2 name"},
+        ]
+
+    def test_overlap_identical_polygons_is_one(self):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        stats = _overlap_stats(_as_shapely(geom), geom)
+        assert stats["overlap_fraction"] == 1.0
+        assert stats["overlap_area_sq_km"] == stats["feature_area_sq_km"]
+        assert stats["feature_area_sq_km"] > 0
+
+    def test_overlap_half_coverage(self):
+        query = square(174.7, -41.3, 174.75, -41.2)
+        feature = square(174.7, -41.3, 174.8, -41.2)
+        stats = _overlap_stats(_as_shapely(query), feature)
+        assert stats["overlap_fraction"] == pytest.approx(0.5, abs=0.02)
+
+    def test_point_overlap_is_one_not_zero(self):
+        point = {"type": "Point", "coordinates": [174.75, -41.25]}
+        feature = square(174.7, -41.3, 174.8, -41.2)
+        stats = _overlap_stats(_as_shapely(point), feature)
+        assert stats["overlap_fraction"] == 1.0
+
+    def test_attribute_only_overlap_is_one(self):
+        feature = square(174.7, -41.3, 174.8, -41.2)
+        stats = _overlap_stats(None, feature)
+        assert stats["overlap_fraction"] == 1.0
+
 
 # =============================================================================
 # query_layer_by_geometry
@@ -227,10 +315,15 @@ class TestQueryLayerByGeometry:
         result = await _query(mock_context)
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert [feature["id"] for feature in data["feature_collection"]["features"]] == ["a", "b", "c"]
+        assert [record["id"] for record in data["records"]] == ["a", "b", "c"]
+        assert data["record_count"] == 3
+        assert "feature_collection" not in data
+        assert "geometry" not in data["records"][0]
         assert data["data_vintage"] == "2023-01-01T00:00:00Z"
         assert data["licence"] == "CC BY 4.0"
         assert data["truncated"] is False
+        assert data["total_matched"] == 3
+        assert data["note"] == OVERLAP_NOTE
         get_feature = mock_wfs.await_args_list[1].kwargs["params"]
         assert get_feature["outputFormat"] == "json"
         assert "filter" not in get_feature
@@ -291,6 +384,109 @@ class TestQueryLayerByGeometry:
         cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
         assert cql.startswith("INTERSECTS(geom, SRID=4326;POLYGON((")
         assert " AND (population >= 100)" in cql
+
+    @pytest.mark.asyncio
+    async def test_returns_overlap_and_omits_geometry_by_default(self, mock_context, mock_wfs):
+        query = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                collection(
+                    "island-bay",
+                    number_matched=1,
+                    geometry=query,
+                    properties={"SA22023_V1_00_NAME": "Island Bay East", "VAR_1_1": 1200},
+                )
+            ),
+        ]
+        result = await _query(mock_context, {"geometry": query, "page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION
+        record = result.result.data["records"][0]
+        assert record["properties"]["SA22023_V1_00_NAME"] == "Island Bay East"
+        assert record["overlap_fraction"] == 1.0
+        assert "geometry" not in record
+
+    @pytest.mark.asyncio
+    async def test_include_geometry_adds_rings(self, mock_context, mock_wfs):
+        query = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("island-bay", number_matched=1, geometry=query, properties={"VAR_1_1": 1200})),
+        ]
+        result = await _query(
+            mock_context, {"geometry": query, "page_size": 1, "max_pages": 1, "include_geometry": True}
+        )
+        assert result.result.data["records"][0]["geometry"]["type"] == "Polygon"
+
+    @pytest.mark.asyncio
+    async def test_point_query_does_not_area_weight(self, mock_context, mock_wfs):
+        feature = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("island-bay", number_matched=1, geometry=feature, properties={"VAR_1_1": 1200})),
+        ]
+        result = await _query(
+            mock_context,
+            {
+                "geometry": {"type": "Point", "coordinates": [174.75, -41.25]},
+                "page_size": 1,
+                "max_pages": 1,
+            },
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["records"][0]["overlap_fraction"] == 1.0
+        assert result.result.data["note"] == POINT_NOTE
+        cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
+        assert "POINT(174.75 -41.25)" in cql
+
+    @pytest.mark.asyncio
+    async def test_bbox_query(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=1))]
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": 123, "bbox": [174.7, -41.3, 174.8, -41.2], "page_size": 1, "max_pages": 1},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION
+        cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
+        assert cql.startswith("INTERSECTS(Shape, SRID=4326;POLYGON((")
+
+    @pytest.mark.asyncio
+    async def test_named_area_lookup_without_geometry(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("island-bay", number_matched=1, properties={"SA22023_V1_00_NAME": "Island Bay East"})),
+        ]
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {
+                "layer_id": 123,
+                "attribute_filters": [
+                    {"property": "SA22023_V1_00_NAME", "operator": "contains", "value": "Island Bay"}
+                ],
+                "page_size": 1,
+                "max_pages": 1,
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["records"][0]["overlap_fraction"] == 1.0
+        assert result.result.data["note"] == ATTRIBUTE_NOTE
+        cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
+        assert "ILIKE" in cql
+        assert "INTERSECTS" not in cql
+
+    @pytest.mark.asyncio
+    async def test_rejects_unscoped_query(self, mock_context):
+        result = await stats_nz_datafinder.execute_action("query_layer_by_geometry", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Unscoped national scans" in result.result.message
+        mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_truncated_when_match_count_exceeds_page_cap(self, mock_context, mock_wfs):
@@ -364,6 +560,26 @@ class TestGetLayerMetadata:
         url = mock_context.fetch.call_args.args[0]
         assert url == "https://datafinder.stats.govt.nz/services/api/v1/layers/123/"
         assert mock_context.fetch.call_args.kwargs["headers"]["Authorization"] == "Key test_api_key"
+        assert result.result.data["fields"] == []
+
+    @pytest.mark.asyncio
+    async def test_truncates_description_and_returns_fields(self, mock_context):
+        mock_context.fetch.return_value = fetch_ok(
+            {
+                **METADATA,
+                "description": "Age counts by SA2.\n\n" + ("Confidentiality footnotes. " * 60),
+                "data": {
+                    "geometry_field": "Shape",
+                    "fields": [
+                        {"name": "Shape", "type": "geometry"},
+                        {"name": "VAR_1_1", "type": "integer"},
+                    ],
+                },
+            }
+        )
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.result.data["description"] == "Age counts by SA2."
+        assert result.result.data["fields"] == [{"name": "VAR_1_1", "type": "integer"}]
 
     @pytest.mark.asyncio
     async def test_licence_object_from_live_api_shape(self, mock_context):
@@ -389,13 +605,29 @@ class TestSearchLayers:
     @pytest.mark.asyncio
     async def test_extracts_layers_and_total(self, mock_context):
         mock_context.fetch.return_value = fetch_ok(
-            [{"id": 123, "title": "Census SA2", "description": "test"}],
+            [
+                {
+                    "id": 123,
+                    "title": "Census SA2",
+                    "description": "test",
+                    "published_at": "2024-12-18T00:00:00Z",
+                    "user_capabilities": ["can-spatial-query", "can-export"],
+                }
+            ],
             headers={"X-Resource-Range": "0-20/44"},
         )
         result = await stats_nz_datafinder.execute_action("search_layers", {"keyword": "census"}, mock_context)
         assert result.type == ResultType.ACTION
         assert result.result.data == {
-            "layers": [{"id": 123, "title": "Census SA2", "description": "test"}],
+            "layers": [
+                {
+                    "id": 123,
+                    "title": "Census SA2",
+                    "description": "test",
+                    "published_at": "2024-12-18T00:00:00Z",
+                    "queryable": True,
+                }
+            ],
             "page": 1,
             "page_size": 20,
             "total": 44,

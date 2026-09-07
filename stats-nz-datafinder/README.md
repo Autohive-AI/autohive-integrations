@@ -16,9 +16,9 @@ Official documentation:
 
 | Action | What it does |
 |--------|--------------|
-| `query_layer_by_geometry` | Return GeoJSON features from a layer that intersect a WGS84 Polygon or MultiPolygon. |
-| `get_layer_metadata` | Return citation-ready layer metadata (vintage, licence, attribution). |
-| `search_layers` | Search public vector layers in the Datafinder catalogue. |
+| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, and/or attribute filters. Returns compact attribute records. Geometry omitted unless requested. |
+| `get_layer_metadata` | Return a short description, field list, vintage, licence, and attribution. |
+| `search_layers` | Search public vector layers. Compact cards: id, title, published_at, queryable. |
 
 ## Authentication
 
@@ -41,19 +41,34 @@ or transport error text is ever surfaced: it is used only to classify the
 failure. Unit tests assert that a sentinel API key is absent from transport
 errors, XML exception reports, non-2xx bodies, and the final `ActionError`.
 
-## Query Layer by Geometry
+## Query Layer
 
-`query_layer_by_geometry` converts an RFC 7946 WGS84 `Polygon` or `MultiPolygon`
-into a GeoServer CQL `INTERSECTS` filter (`SRID=4326` EWKT) and requests GeoJSON
-from Datafinder WFS. It uses the layer's geometry field from metadata, defaulting
-to `Shape`. It returns the original feature geometries and properties without
-coordinate rounding, plus citation fields from the layer metadata.
+`query_layer_by_geometry` queries a layer through WFS and returns **flat
+attribute records**, not a GeoJSON FeatureCollection. Full polygon rings are
+the main cause of agent context compaction; geometry is omitted unless
+`include_geometry` is true. Default `page_size` is 50.
 
-Optional `attribute_filters` support `eq`, `neq`, `lt`, `lte`, `gt`, and `gte`,
-combined with the geometry filter using `AND`. Property names are restricted to
-identifier characters to prevent filter injection. Datafinder's WFS 2.0 endpoint
-rejects OGC Filter XML `Intersects` requests (HTTP 400 / `NullPointerException`),
-so this action does not use that form.
+**How to scope a query** — at least one of these is required (unscoped
+national scans are rejected):
+
+| Input | When to use | `overlap_fraction` |
+|--------|-------------|--------------------|
+| `geometry` Polygon / MultiPolygon | Catchment / isochrone clip | Area of the feature inside the polygon |
+| `geometry` Point | "What SA2/meshblock is this school in?" | Always `1.0` — do **not** area-weight a point |
+| `bbox` `[west, south, east, north]` | Rough map window without building GeoJSON | Same as a polygon |
+| `attribute_filters` | Named-area lookup, e.g. SA2 name `contains` `"Island Bay"` | `1.0` (whole feature) |
+
+`contains` is a case-insensitive substring match (`ILIKE`). Other operators:
+`eq`, `neq`, `lt`, `lte`, `gt`, `gte`. Combine filters with a spatial clip
+using AND. Do not send `geometry` and `bbox` together.
+
+The `note` field on the result restates which weighting rule applied.
+`total_matched` is the WFS `numberMatched` count when the server reports it.
+
+It uses the layer's geometry field from metadata, defaulting to `Shape`.
+Spatial clips become GeoServer CQL `INTERSECTS` with `SRID=4326` EWKT.
+Datafinder's WFS 2.0 endpoint rejects OGC Filter XML `Intersects` requests
+(HTTP 400 / `NullPointerException`), so this action does not use that form.
 
 The action first calls WFS `GetCapabilities` on the layer-specific endpoint and
 uses the advertised feature type when present. If that document omits the layer
@@ -68,28 +83,33 @@ Example input:
 
 ```json
 {
-  "layer_id": 12345,
+  "layer_id": 119479,
   "geometry": {
     "type": "Polygon",
     "coordinates": [[[174.70, -41.30], [174.80, -41.30], [174.80, -41.20], [174.70, -41.30]]]
   },
-  "attribute_filters": [{"property": "population", "operator": "gte", "value": 100}],
-  "page_size": 500,
-  "max_pages": 10
+  "page_size": 50,
+  "max_pages": 1
 }
 ```
 
 ## Get Layer Metadata
 
-`get_layer_metadata` returns title, description, a best-available data-vintage
-date, licence, supplier/source attribution, and the canonical Datafinder API
-URL. Licence objects from the live API are normalised to their title string.
+`get_layer_metadata` returns title, a **short** description (first paragraph,
+capped), the non-geometry `fields` list (`name` / `type`, plus `title` when the
+API provides one), a best-available data-vintage date, licence, supplier/source
+attribution, and the canonical Datafinder API URL. Licence objects from the live
+API are normalised to their title string. Census layers often name columns
+`VAR_1_1`, `VAR_1_2`, … — the short description is the best in-payload hint for
+what those codes mean; lookup attachments are not fetched.
 
 ## Search Layers
 
-`search_layers` searches public vector layers in the Datafinder catalogue. It
-returns concise layer identifiers, titles, descriptions and, when the server
-provides it, the total matched count.
+`search_layers` searches public vector layers. The catalogue list payload has
+no field schema and usually no description, so the action returns compact
+cards: `id`, `title`, `published_at`, `queryable` (true when the key can
+spatial-query the layer), and a short description when the server sends one.
+Pick a `layer_id`, then call `get_layer_metadata` for fields.
 
 ## ⚠️ No retries, backoff or rate-limit handling on WFS
 
@@ -111,8 +131,8 @@ workflow.
 ## Limits and operational notes
 
 - WFS server-side limits and individual layer permissions apply.
-- Full geometry is returned as supplied by WFS. The integration intentionally
-  does not simplify or round response coordinates.
+- Geometry is omitted from query results unless `include_geometry` is true.
+  Overlap is computed from the WFS geometry and then dropped from the payload.
 - Metadata fields are provider-controlled. If a layer does not publish licence
   or attribution, those output fields are `null`.
 - Offset paging can shift if Datafinder republishes a layer between requests.
