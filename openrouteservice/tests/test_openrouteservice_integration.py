@@ -13,11 +13,8 @@ Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
-from json import JSONDecodeError
-
-import aiohttp
 import pytest
-from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
+from autohive_integrations_sdk import ExecutionContext
 from autohive_integrations_sdk.integration import ResultType
 
 from openrouteservice.openrouteservice import openrouteservice
@@ -30,37 +27,20 @@ AUCKLAND_LONGITUDE = 174.7633
 
 
 @pytest.fixture
-def live_context(env_credentials, make_context):
+async def live_context(env_credentials):
     api_key = env_credentials("OPENROUTESERVICE_API_KEY")
     if not api_key:
         pytest.skip("OPENROUTESERVICE_API_KEY not set — skipping integration tests")
 
-    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
-        async with (
-            aiohttp.ClientSession() as session,
-            session.request(method, url, json=json, headers=headers, params=params) as resp,
-        ):
-            try:
-                data = await resp.json(content_type=None)
-            except (JSONDecodeError, UnicodeDecodeError, aiohttp.ClientPayloadError):
-                data = await resp.text()
-            if resp.status == 429:
-                retry_after = int(resp.headers.get("Retry-After", 60))
-                raise RateLimitError(retry_after, resp.status, "Rate limit exceeded", data)
-            if resp.status >= 400:
-                raise HTTPError(resp.status, str(data), data)
-            return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
-
-    context = make_context(auth={"auth_type": "Custom", "credentials": {"api_key": api_key}})
-    context.fetch.side_effect = real_fetch
-    return context
+    async with ExecutionContext(auth={"auth_type": "Custom", "credentials": {"api_key": api_key}}) as context:
+        yield context
 
 
 def _require_provider_success(result):
     assert result.type == ResultType.ACTION, getattr(result.result, "message", result.result)
     data = result.result.data
-    if data.get("error_type") == "rate_limit":
-        pytest.skip(f"OpenRouteService rate-limited this request: {data.get('message')}")
+    if data.get("error_type") in {"rate_limit", "quota_exceeded", "quota_or_unauthorized"}:
+        pytest.skip(f"OpenRouteService limited this request: {data.get('message')}")
     assert data.get("result") is True, data.get("message")
     return data
 

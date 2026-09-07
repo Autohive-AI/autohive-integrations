@@ -21,6 +21,9 @@ GEOCODE_URL = "https://api.heigit.org/pelias/v1/search"
 # The endpoint returns a GeoJSON FeatureCollection for isochrone requests.
 ISOCHRONE_URL_TEMPLATE = "https://api.heigit.org/openrouteservice/v2/isochrones/{profile}"
 LOW_CONFIDENCE_THRESHOLD = 0.8
+# Isochrones are compute-heavy. The SDK default is 30s with 3 retries; a timeout
+# after the provider already billed the request would charge the daily quota again.
+ISOCHRONE_TIMEOUT_SECONDS = 90
 
 
 def _api_key(context: ExecutionContext) -> str:
@@ -47,6 +50,60 @@ def _isochrone_headers(context: ExecutionContext) -> dict[str, str]:
     }
 
 
+def _fetch_retry_count(context: ExecutionContext) -> int:
+    """Return max_retries so context.fetch does not retry this attempt."""
+    config = getattr(context, "config", None)
+    if isinstance(config, dict):
+        try:
+            return max(int(config.get("max_retries", 0) or 0), 0)
+        except (TypeError, ValueError):
+            return 0
+    return 0
+
+
+def _provider_body_text(error: HTTPError) -> str:
+    """Lowercased provider body for classification only — never returned to callers."""
+    parts = [str(error.message or "")]
+    data = error.response_data
+    if isinstance(data, dict):
+        nested = data.get("error")
+        if isinstance(nested, str):
+            parts.append(nested)
+        elif isinstance(nested, dict):
+            parts.append(json.dumps(nested))
+        message = data.get("message")
+        if isinstance(message, str):
+            parts.append(message)
+    elif isinstance(data, str):
+        parts.append(data)
+    return " ".join(parts).lower()
+
+
+def _classify_forbidden(error: HTTPError) -> tuple[str, str]:
+    """Distinguish HeiGIT daily quota (HTTP 403) from a true authorization denial."""
+    body = _provider_body_text(error)
+    if "quota" in body:
+        return (
+            "quota_exceeded",
+            (
+                "OpenRouteService daily quota is exhausted. Check the HeiGIT dashboard; "
+                "the 24-hour window resets from first use, not midnight."
+            ),
+        )
+    if "disallowed" in body or "unauthorized" in body or "invalid api key" in body or "invalid key" in body:
+        return (
+            "authorization",
+            "OpenRouteService denied access. Check the API key and that it is enabled for this service.",
+        )
+    return (
+        "quota_or_unauthorized",
+        (
+            "OpenRouteService returned HTTP 403. This is the daily quota limit or an unauthorized API key. "
+            "Check the HeiGIT dashboard before changing the connection."
+        ),
+    )
+
+
 def _provider_error(error: Exception) -> ActionResult:
     """Return safe, actionable provider errors without exposing request credentials."""
     if isinstance(error, RateLimitError):
@@ -65,11 +122,16 @@ def _provider_error(error: Exception) -> ActionResult:
             message = "OpenRouteService rejected the API key. Check the integration connection."
             error_type = "authentication"
         elif error.status == 403:
-            message = "OpenRouteService denied access to this endpoint or routing profile."
-            error_type = "authorization"
+            error_type, message = _classify_forbidden(error)
         elif error.status == 400:
             message = "OpenRouteService rejected the request. Check the supplied coordinates or time bands."
             error_type = "invalid_request"
+        elif error.status == 404:
+            message = (
+                "OpenRouteService found no result for this request. "
+                "Check the coordinates or address; retrying will not help."
+            )
+            error_type = "not_found"
         elif error.status == 406:
             message = (
                 "OpenRouteService rejected the requested response format. Check the API endpoint and Accept header."
@@ -104,13 +166,19 @@ def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _numeric_coordinate(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
 def _match(feature: dict[str, Any]) -> dict[str, Any]:
     properties = _as_dict(feature.get("properties"))
     geometry = _as_dict(feature.get("geometry"))
     coordinates = geometry.get("coordinates")
     if isinstance(coordinates, (list, tuple)) and len(coordinates) >= 2:
-        longitude = coordinates[0]
-        latitude = coordinates[1]
+        longitude = _numeric_coordinate(coordinates[0])
+        latitude = _numeric_coordinate(coordinates[1])
     else:
         longitude = None
         latitude = None
@@ -126,6 +194,10 @@ def _match(feature: dict[str, Any]) -> dict[str, Any]:
         "is_low_confidence": confidence is None or confidence < LOW_CONFIDENCE_THRESHOLD,
         "feature": feature,
     }
+
+
+def _has_point(match: dict[str, Any]) -> bool:
+    return match.get("latitude") is not None and match.get("longitude") is not None
 
 
 @openrouteservice.action("geocode_address")
@@ -144,7 +216,13 @@ class GeocodeAddress(ActionHandler):
             features = data.get("features") if isinstance(data, dict) else None
             if not isinstance(data, dict) or data.get("type") != "FeatureCollection" or not isinstance(features, list):
                 raise ValueError("OpenRouteService returned an unexpected geocode response.")
-            matches = [_match(feature) for feature in features if isinstance(feature, dict)]
+            matches = []
+            for feature in features:
+                if not isinstance(feature, dict):
+                    continue
+                match = _match(feature)
+                if _has_point(match):
+                    matches.append(match)
             if not matches:
                 return ActionResult(
                     data={
@@ -209,6 +287,8 @@ class GetIsochrone(ActionHandler):
                 method="POST",
                 headers=_isochrone_headers(context),
                 json=payload,
+                timeout=ISOCHRONE_TIMEOUT_SECONDS,
+                retry_count=_fetch_retry_count(context),
             )
             geojson = response.data
             # The SDK parses application/json automatically, but some provider responses

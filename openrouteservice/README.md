@@ -21,9 +21,9 @@ Finds an address or place through HeiGIT Pelias (`GET https://api.heigit.org/pel
 
 **Outputs**
 
-- Best match: `address`, `latitude`, `longitude`, `confidence`, and `match_type`.
+- Best match: `address`, `latitude`, `longitude`, `confidence`, and `match_type`. `found` is true only when at least one feature has numeric coordinates; features without a point are omitted from `matches`.
 - `is_low_confidence` — true when the provider score is lower than 0.8 (or absent); confirm these matches before using them downstream.
-- `matches` — all provider matches, retaining the original feature in each item.
+- `matches` — provider matches that include a point, retaining the original feature in each item.
 - `geocoding` — provider geocoding metadata.
 
 ### `get_isochrone`
@@ -44,7 +44,20 @@ Generates one or more drive-time bands in a single request through the current H
 
 ## Errors and rate limits
 
-Provider failures are returned as a successful action payload (`result: false`) rather than an SDK `ActionError`, so a calling skill can read `error_type` and `retry_after_seconds` and decide whether to retry. A free-tier rate limit uses `error_type: "rate_limit"` with `retry_after_seconds`. Authentication, authorization, invalid-request, and general provider failures are similarly classified without exposing API keys. Check `result` before using coordinates or GeoJSON.
+Provider failures are returned as a successful action payload (`result: false`) rather than an SDK `ActionError`, so a calling skill can read `error_type` and `retry_after_seconds` and decide whether to retry. Check `result` before using coordinates or GeoJSON. Credentials and provider error bodies are never returned.
+
+HeiGIT enforces **two** quotas per API key ([FAQ](https://giscience.github.io/openrouteservice/frequently-asked-questions)):
+
+| Limit | HTTP | `error_type` | What to do |
+| --- | --- | --- | --- |
+| Minutely (sliding 60s window) | 429 | `rate_limit` | Wait `retry_after_seconds` (from `Retry-After`, default 60) then retry. |
+| Daily (24h window from first request, not midnight) | 403 | `quota_exceeded` | Do **not** retry shortly. Check the [HeiGIT dashboard](https://openrouteservice.org/dev/#/home). |
+
+A 403 with no quota wording is `quota_or_unauthorized` (daily quota **or** a key that is not allowed). A 403 that only says access is disallowed is `authorization`. None of these mean the `driving-car` profile is missing.
+
+Other classifications: `authentication` (401), `invalid_request` (400), `not_found` (404 — no result; retrying will not help), `not_acceptable` (406), `provider_error` (other HTTP), `request_failed` (network/timeout after retries).
+
+`get_isochrone` uses a 90-second timeout and does not retry on timeout, so a slow compute that already counted against daily quota is not charged again. Driving-time bands are capped at 60 minutes and 10 intervals because that is the public isochrone limit.
 
 ## Testing
 

@@ -7,6 +7,7 @@ from autohive_integrations_sdk.integration import ResultType
 
 from openrouteservice.openrouteservice import (
     GEOCODE_URL,
+    ISOCHRONE_TIMEOUT_SECONDS,
     ISOCHRONE_URL_TEMPLATE,
     _match,
     openrouteservice,
@@ -213,6 +214,59 @@ class TestGeocodeAddress:
         result = await openrouteservice.execute_action("geocode_address", {"address": "Queen Street"}, mock_context)
         assert len(_action_data(result)["matches"]) == 1
 
+    async def test_features_without_coordinates_are_not_found(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "type": "FeatureCollection",
+                "geocoding": {"query": {"text": "Somewhere"}},
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {"coordinates": [174.76]},
+                        "properties": {"label": "Partial", "confidence": 1},
+                    },
+                    {"type": "Feature", "geometry": None, "properties": {"label": "Nowhere"}},
+                ],
+            },
+        )
+
+        result = await openrouteservice.execute_action("geocode_address", {"address": "Somewhere"}, mock_context)
+
+        data = _action_data(result)
+        assert data["result"] is True
+        assert data["found"] is False
+        assert data["latitude"] is None
+        assert data["longitude"] is None
+        assert data["matches"] == []
+        assert data["message"] == "No matching address was found."
+
+    async def test_skips_features_without_coordinates_when_a_point_exists(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": {"coordinates": [174.76]},
+                        "properties": {"label": "Partial", "confidence": 1},
+                    },
+                    GEOCODE_RESPONSE["features"][0],
+                ],
+            },
+        )
+
+        result = await openrouteservice.execute_action("geocode_address", {"address": "Queen Street"}, mock_context)
+
+        data = _action_data(result)
+        assert data["found"] is True
+        assert data["latitude"] == -36.8445
+        assert data["longitude"] == 174.7633
+        assert len(data["matches"]) == 1
+
     @pytest.mark.parametrize(
         "payload",
         [
@@ -276,6 +330,8 @@ class TestGetIsochrone:
                 "range": [600, 900, 1800],
                 "range_type": "time",
             },
+            timeout=ISOCHRONE_TIMEOUT_SECONDS,
+            retry_count=3,
         )
 
     async def test_parses_geojson_string_response(self, mock_context):
@@ -335,8 +391,8 @@ class TestProviderErrors:
         ("status", "error_type"),
         [
             (401, "authentication"),
-            (403, "authorization"),
             (400, "invalid_request"),
+            (404, "not_found"),
             (406, "not_acceptable"),
             (500, "provider_error"),
         ],
@@ -349,6 +405,55 @@ class TestProviderErrors:
         data = _action_data(result)
         assert data["error_type"] == error_type
         assert "test-key" not in data["message"]
+
+    async def test_403_quota_body_is_quota_exceeded(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(
+            403,
+            '{"error": "Daily quota reached or API key unauthorized"}',
+            {"error": "Daily quota reached or API key unauthorized"},
+        )
+
+        result = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
+
+        data = _action_data(result)
+        assert data["error_type"] == "quota_exceeded"
+        assert data["retry_after_seconds"] is None
+        assert "quota" in data["message"].lower()
+        assert "routing profile" not in data["message"].lower()
+
+    async def test_403_access_disallowed_is_authorization(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(
+            403,
+            '{"error": "Access to this API has been disallowed"}',
+            {"error": "Access to this API has been disallowed"},
+        )
+
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+
+        data = _action_data(result)
+        assert data["error_type"] == "authorization"
+        assert "routing profile" not in data["message"].lower()
+        assert "disallowed" not in data["message"].lower()
+
+    async def test_403_without_body_hints_is_not_a_profile_denial(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(403, "provider body containing test-key")
+
+        result = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
+
+        data = _action_data(result)
+        assert data["error_type"] == "quota_or_unauthorized"
+        assert "test-key" not in data["message"]
+        assert "routing profile" not in data["message"].lower()
+        assert "quota" in data["message"].lower()
+
+    async def test_404_is_not_found_not_retryable(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "not found")
+
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+
+        data = _action_data(result)
+        assert data["error_type"] == "not_found"
+        assert "try again shortly" not in data["message"].lower()
 
     async def test_network_failures_return_generic_request_failed(self, mock_context):
         mock_context.fetch.side_effect = aiohttp.ClientError("dns failed for api.openrouteservice.org")

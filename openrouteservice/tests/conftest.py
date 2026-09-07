@@ -13,4 +13,5 @@ def mock_context():
     context = MagicMock(name="ExecutionContext")
     context.fetch = AsyncMock(name="fetch")
     context.auth = {"auth_type": "Custom", "credentials": {"api_key": "test-key"}}  # nosec B105
+    context.config = {"max_retries": 3, "timeout": 30}
     return context

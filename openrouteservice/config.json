@@ -46,7 +46,10 @@
           "is_low_confidence": {"type": ["boolean", "null"], "description": "True when the best match confidence is below 0.8; confirm before using downstream."},
           "matches": {"type": "array", "items": {"type": "object"}},
           "geocoding": {"type": ["object", "null"]},
-          "error_type": {"type": ["string", "null"]},
+          "error_type": {
+            "type": ["string", "null"],
+            "description": "rate_limit, quota_exceeded, quota_or_unauthorized, authentication, authorization, invalid_request, not_found, not_acceptable, provider_error, or request_failed."
+          },
           "retry_after_seconds": {"type": ["integer", "null"]},
           "message": {"type": ["string", "null"]}
         },
@@ -74,7 +77,10 @@
           "time_minutes": {"type": "array", "items": {"type": "integer"}},
           "geojson": {"type": ["object", "null"], "description": "Unmodified GeoJSON returned by OpenRouteService."},
           "provider_metadata": {"type": ["object", "null"], "description": "Unmodified metadata returned by OpenRouteService, when supplied."},
-          "error_type": {"type": ["string", "null"]},
+          "error_type": {
+            "type": ["string", "null"],
+            "description": "rate_limit, quota_exceeded, quota_or_unauthorized, authentication, authorization, invalid_request, not_found, not_acceptable, provider_error, or request_failed."
+          },
           "retry_after_seconds": {"type": ["integer", "null"]},
           "message": {"type": ["string", "null"]}
         },
