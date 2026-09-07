@@ -2,8 +2,7 @@
 
 Read-only access to Stats NZ Geographic Data Service layers through
 [Datafinder](https://datafinder.stats.govt.nz/)'s Koordinates API and WFS
-services. The integration uses a workspace-level API key; the key is never
-returned by an action.
+services. Actions never return the API key.
 
 Official documentation:
 
@@ -22,7 +21,7 @@ Official documentation:
 
 ## Authentication
 
-This integration uses a **per-user Datafinder API key** (custom auth).
+A Stats NZ Datafinder API key is required. Actions never return the key.
 
 1. Sign in (or register) at [datafinder.stats.govt.nz](https://datafinder.stats.govt.nz/).
 2. Create an API key at <https://datafinder.stats.govt.nz/my/api/>.
@@ -55,7 +54,7 @@ national scans are rejected):
 |--------|-------------|--------------------|
 | `geometry` Polygon / MultiPolygon | Catchment / isochrone clip | Area of the feature inside the polygon |
 | `geometry` Point | "What SA2/meshblock is this school in?" | Always `1.0` — do **not** area-weight a point |
-| `bbox` `[west, south, east, north]` | Rough map window without building GeoJSON | Same as a polygon |
+| `bbox` `[west, south, east, north]` | Rough map window without building GeoJSON. Unwrapped longitudes (Datafinder east ≈ 184.5) and boxes that cross 180° are accepted | Same as a polygon |
 | `attribute_filters` | Named-area lookup, e.g. SA2 name `contains` `"Island Bay"` | `1.0` (whole feature) |
 
 `contains` is a case-insensitive substring match (`ILIKE`). Other operators:
@@ -67,8 +66,15 @@ using AND. Do not send `geometry` and `bbox` together.
 
 It uses the layer's geometry field from metadata, defaulting to `Shape`.
 Spatial clips become GeoServer CQL `INTERSECTS` with `SRID=4326` EWKT.
+GetFeature is POST form-encoded KVP so a large catchment `cql_filter` is not
+stuffed into a GET URL (which would 414). GetCapabilities stays GET.
 Datafinder's WFS 2.0 endpoint rejects OGC Filter XML `Intersects` requests
 (HTTP 400 / `NullPointerException`), so this action does not use that form.
+
+A bbox may use Datafinder-style unwrapped longitudes (the national extent uses
+east ≈ 184.5 for the Chatham Islands). After wrapping to WGS84, a box that
+crosses 180° is sent as a MultiPolygon clip. GeoJSON `geometry` coordinates
+must already be in [-180, 180] per RFC 7946.
 
 The action first calls WFS `GetCapabilities` on the layer-specific endpoint and
 uses the advertised feature type when present. If that document omits the layer
@@ -141,6 +147,8 @@ workflow.
   or attribution, those output fields are `null`.
 - Offset paging can shift if Datafinder republishes a layer between requests.
   Without a declared key, WFS also does not guarantee page order.
+- If a later WFS page fails after some records were retrieved, those records
+  are returned with `truncated` true rather than discarded.
 - All operations are read-only.
 
 ## Testing

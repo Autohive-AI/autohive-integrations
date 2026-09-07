@@ -356,7 +356,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Stats NZ Datafinder
 
-[stats-nz-datafinder](stats-nz-datafinder): Read-only access to Stats NZ Geographic Data Service layers through Datafinder’s Koordinates API and WFS services. Supports WGS84 polygon and multipolygon intersection queries returning full-precision GeoJSON features, citation-ready layer metadata (vintage, licence and attribution), and public vector-layer discovery. Uses a custom Datafinder API key. Includes 3 actions. Ideal for catchment, census, and other NZ geographic analysis workflows.
+[stats-nz-datafinder](stats-nz-datafinder): Read-only access to Stats NZ Geographic Data Service layers through Datafinder’s Koordinates API and WFS services. Supports scoped queries by WGS84 polygon, point, bbox, or attribute filter, returning compact attribute records (geometry omitted unless requested) with area-weighted overlap for polygon clips. Also returns citation-ready layer metadata (vintage, licence and attribution) and public vector-layer discovery. Uses a Datafinder API key. Includes 3 actions. Ideal for catchment, census, and other NZ geographic analysis workflows.
 
 ### Code Analysis
 

@@ -117,25 +117,39 @@ def _parse_wfs_body(text: str, content_type: str) -> Any:
     return text
 
 
-async def _wfs_request(context: ExecutionContext, *, params: dict[str, Any], layer_id: int) -> _WfsResponse:
-    """Issue a GET to the per-layer WFS endpoint with aiohttp directly.
+async def _wfs_request(
+    context: ExecutionContext, *, params: dict[str, Any], layer_id: int, method: str = "GET"
+) -> _WfsResponse:
+    """Issue a GET or POST to the per-layer WFS endpoint with aiohttp directly.
 
     Deliberately does not use ``context.fetch``: Datafinder puts the API key in
     the URL path, and the SDK's fetch logs the full URL on error. Transport
     failures are re-raised with a fixed message, never the underlying
     exception text (aiohttp builds that from the request URL).
+
+    GetFeature uses POST so a large CQL catchment is not packed into the query
+    string (GET URLs 414). GetCapabilities stays GET.
     """
     url = _wfs_url(context, layer_id)
     query = {key: str(value) for key, value in params.items() if value is not None}
     timeout = aiohttp.ClientTimeout(total=WFS_REQUEST_TIMEOUT_SECONDS)
+    method = method.upper()
 
     session = getattr(context, "_session", None)
     if not isinstance(session, aiohttp.ClientSession):
         session = aiohttp.ClientSession()
         context._session = session
 
+    request_kwargs: dict[str, Any] = {"timeout": timeout, "ssl": True}
+    if method == "POST":
+        request_kwargs["data"] = query
+        request = session.post
+    else:
+        request_kwargs["params"] = query
+        request = session.get
+
     try:
-        async with session.get(url, params=query, timeout=timeout, ssl=True) as response:
+        async with request(url, **request_kwargs) as response:
             text = await response.text()
             content_type = response.headers.get("Content-Type", "")
             return _WfsResponse(status=response.status, data=_parse_wfs_body(text, content_type))
@@ -229,7 +243,7 @@ async def _wfs_get_features(
     *,
     params: dict[str, Any],
 ) -> dict[str, Any]:
-    response = await _wfs_request(context, params=params, layer_id=layer_id)
+    response = await _wfs_request(context, params=params, layer_id=layer_id, method="POST")
     _check_wfs_response(response, layer_id=layer_id)
     data = response.data
     if not isinstance(data, dict) or not isinstance(data.get("features"), list):
@@ -268,6 +282,14 @@ def _http_action_error(exc: HTTPError, *, layer_id: int | None = None) -> Action
 
 def _is_identifier(value: Any) -> bool:
     return isinstance(value, str) and value.replace("_", "a").isalnum() and not value[0].isdigit()
+
+
+def _wrap_longitude(lon: float) -> float:
+    """Map a longitude onto (-180, 180], keeping +180 as +180."""
+    wrapped = (lon + 180.0) % 360.0 - 180.0
+    if wrapped == -180.0:
+        return 180.0 if lon > 0 else -180.0
+    return wrapped
 
 
 def _lon_lat(position: Any) -> tuple[float, float]:
@@ -318,6 +340,7 @@ def _wkt_geometry(geometry: dict[str, Any]) -> str:
 
 
 def _parse_bbox(bbox: Any) -> tuple[float, float, float, float]:
+    """Return wrapped [west, south, east, north]. west may be > east (antimeridian)."""
     if not isinstance(bbox, list) or len(bbox) != 4:
         raise DatafinderError("bbox must be [west, south, east, north] in WGS84.")
     values: list[float] = []
@@ -326,18 +349,31 @@ def _parse_bbox(bbox: Any) -> tuple[float, float, float, float]:
             raise DatafinderError("bbox values must be numbers.")
         values.append(float(value))
     west, south, east, north = values
-    if not (-180 <= west <= 180 and -180 <= east <= 180 and -90 <= south <= 90 and -90 <= north <= 90):
+    # Datafinder national extents use unwrapped east ≈ 184.5 (Chatham Islands).
+    if not (-360 <= west <= 360 and -360 <= east <= 360 and -90 <= south <= 90 and -90 <= north <= 90):
         raise DatafinderError("bbox must be WGS84 [west, south, east, north].")
-    if west >= east or south >= north:
-        raise DatafinderError("bbox requires west < east and south < north.")
+    if south >= north:
+        raise DatafinderError("bbox requires south < north.")
+    west, east = _wrap_longitude(west), _wrap_longitude(east)
+    if west == east:
+        raise DatafinderError("bbox requires a non-zero longitude span.")
     return west, south, east, north
 
 
 def _bbox_polygon(bbox: Any) -> dict[str, Any]:
     west, south, east, north = _parse_bbox(bbox)
+    if west < east:
+        return {
+            "type": "Polygon",
+            "coordinates": [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+        }
+    # Crosses 180°: split so GeoJSON rings stay in [-180, 180].
     return {
-        "type": "Polygon",
-        "coordinates": [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+        "type": "MultiPolygon",
+        "coordinates": [
+            [[[west, south], [180, south], [180, north], [west, north], [west, south]]],
+            [[[-180, south], [east, south], [east, north], [-180, north], [-180, south]]],
+        ],
     }
 
 
@@ -762,18 +798,25 @@ class QueryLayerByGeometryAction(ActionHandler):
             matched: int | None = None
             pages = 0
             last_page_full = False
+            truncated = False
             for page in range(max_pages):
-                data = await _wfs_get_features(
-                    context,
-                    layer_id,
-                    params=_feature_params(
-                        feature_type=feature_type,
-                        cql_filter=cql_filter,
-                        page_size=page_size,
-                        start_index=page * page_size,
-                        sort_by=sort_by,
-                    ),
-                )
+                try:
+                    data = await _wfs_get_features(
+                        context,
+                        layer_id,
+                        params=_feature_params(
+                            feature_type=feature_type,
+                            cql_filter=cql_filter,
+                            page_size=page_size,
+                            start_index=page * page_size,
+                            sort_by=sort_by,
+                        ),
+                    )
+                except DatafinderError:
+                    if not features:
+                        raise
+                    truncated = True
+                    break
                 page_features = data["features"]
                 features.extend(page_features)
                 features = _unique_features(features)
@@ -786,23 +829,28 @@ class QueryLayerByGeometryAction(ActionHandler):
                     break
                 if matched is None and not last_page_full:
                     break
-            if matched is not None:
-                truncated = len(features) < matched
-            elif pages >= max_pages and last_page_full:
-                probe = await _wfs_get_features(
-                    context,
-                    layer_id,
-                    params=_feature_params(
-                        feature_type=feature_type,
-                        cql_filter=cql_filter,
-                        page_size=1,
-                        start_index=pages * page_size,
-                        sort_by=sort_by,
-                    ),
-                )
-                truncated = len(_unique_features(features + probe["features"])) > len(features)
-            else:
-                truncated = False
+            if not truncated:
+                if matched is not None:
+                    truncated = len(features) < matched
+                elif pages >= max_pages and last_page_full:
+                    try:
+                        probe = await _wfs_get_features(
+                            context,
+                            layer_id,
+                            params=_feature_params(
+                                feature_type=feature_type,
+                                cql_filter=cql_filter,
+                                page_size=1,
+                                start_index=pages * page_size,
+                                sort_by=sort_by,
+                            ),
+                        )
+                    except DatafinderError:
+                        truncated = True
+                    else:
+                        truncated = len(_unique_features(features + probe["features"])) > len(features)
+                else:
+                    truncated = False
             records = [
                 record
                 for feature in features

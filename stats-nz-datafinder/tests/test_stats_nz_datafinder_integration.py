@@ -144,3 +144,9 @@ class TestQueryLayerByGeometry:
             assert "properties" in record
             assert "geometry" not in record
             assert "overlap_fraction" in record
+            frac = record["overlap_fraction"]
+            if frac is not None:
+                assert 0.0 <= frac <= 1.0
+            area = record["feature_area_sq_km"]
+            if area is not None:
+                assert area >= 0

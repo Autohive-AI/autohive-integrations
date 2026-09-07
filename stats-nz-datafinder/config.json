@@ -51,7 +51,7 @@
           },
           "bbox": {
             "type": "array",
-            "description": "WGS84 bounding box [west, south, east, north]. Alternative to geometry; do not send both.",
+            "description": "WGS84 bounding box [west, south, east, north]. Alternative to geometry; do not send both. Longitudes outside [-180, 180] (e.g. Datafinder east=184.5) are wrapped; a box that crosses 180° is split.",
             "minItems": 4,
             "maxItems": 4,
             "items": { "type": "number" }

@@ -12,6 +12,7 @@ from stats_nz_datafinder import (
     DatafinderError,
     _as_shapely,
     _attribution,
+    _bbox_polygon,
     _build_cql_filter,
     _cql_literal,
     _fields,
@@ -19,6 +20,7 @@ from stats_nz_datafinder import (
     _get_api_key,
     _licence,
     _overlap_stats,
+    _parse_bbox,
     _redact,
     _resolve_feature_type,
     _short_description,
@@ -170,6 +172,33 @@ class TestHelpers:
                     "coordinates": [[[200, -41.3], [174.8, -41.3], [174.8, -41.2], [200, -41.3]]],
                 }
             )
+
+    def test_bbox_unwraps_datafinder_national_extent(self):
+        west, south, east, north = _parse_bbox([166.1, -47.8, 184.5, -34.0])
+        assert west == pytest.approx(166.1)
+        assert east == pytest.approx(-175.5)
+        assert south == pytest.approx(-47.8)
+        assert north == pytest.approx(-34.0)
+        geometry = _bbox_polygon([166.1, -47.8, 184.5, -34.0])
+        assert geometry["type"] == "MultiPolygon"
+        assert _wkt_geometry(geometry).startswith("MULTIPOLYGON(")
+
+    def test_bbox_antimeridian_west_greater_than_east(self):
+        geometry = _bbox_polygon([170.0, -48.0, -170.0, -34.0])
+        assert geometry["type"] == "MultiPolygon"
+        west, _south, east, _north = _parse_bbox([170.0, -48.0, -170.0, -34.0])
+        assert west == pytest.approx(170.0)
+        assert east == pytest.approx(-170.0)
+
+    def test_bbox_simple_window_stays_polygon(self):
+        geometry = _bbox_polygon([174.7, -41.3, 174.8, -41.2])
+        assert geometry["type"] == "Polygon"
+
+    def test_bbox_rejects_zero_span_and_inverted_lat(self):
+        with pytest.raises(DatafinderError, match="south < north"):
+            _parse_bbox([174.7, -41.2, 174.8, -41.2])
+        with pytest.raises(DatafinderError, match="non-zero longitude"):
+            _parse_bbox([174.7, -41.3, 174.7, -41.2])
 
     def test_cql_literal_escapes_quotes(self):
         assert _cql_literal("O'Brien") == "'O''Brien'"
@@ -372,11 +401,15 @@ class TestQueryLayerByGeometry:
         assert data["total_matched"] == 3
         assert "note" not in data
         get_feature = mock_wfs.await_args_list[1].kwargs["params"]
+        assert mock_wfs.await_args_list[0].kwargs.get("method") in (None, "GET")
+        assert mock_wfs.await_args_list[1].kwargs["method"] == "POST"
         assert get_feature["outputFormat"] == "json"
+        assert get_feature["srsName"] == "EPSG:4326"
         assert "filter" not in get_feature
         assert get_feature["cql_filter"].startswith("INTERSECTS(Shape, SRID=4326;POLYGON((")
         assert "sortBy" not in get_feature
         assert mock_wfs.await_args_list[2].kwargs["params"]["startIndex"] == 2
+        assert mock_wfs.await_args_list[2].kwargs["method"] == "POST"
 
     @pytest.mark.asyncio
     async def test_rejects_unclosed_geometry(self, mock_context):
@@ -507,6 +540,25 @@ class TestQueryLayerByGeometry:
         assert cql.startswith("INTERSECTS(Shape, SRID=4326;POLYGON((")
 
     @pytest.mark.asyncio
+    async def test_unwrapped_national_bbox_uses_multipolygon_cql(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=1))]
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {
+                "layer_id": 123,
+                "bbox": [166.1, -47.8, 184.5, -34.0],
+                "page_size": 1,
+                "max_pages": 1,
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION
+        cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
+        assert "MULTIPOLYGON" in cql
+        assert mock_wfs.await_args_list[1].kwargs["method"] == "POST"
+
+    @pytest.mark.asyncio
     async def test_named_area_lookup_without_geometry(self, mock_context, mock_wfs):
         mock_context.fetch.return_value = fetch_ok(METADATA)
         mock_wfs.side_effect = [
@@ -598,6 +650,44 @@ class TestQueryLayerByGeometry:
         assert result.type == ResultType.ACTION
         assert [record["id"] for record in result.result.data["records"]] == ["a", "b", "c"]
         assert result.result.data["record_count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_later_page_failure_returns_partial_truncated(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", "b", number_matched=4)),
+            DatafinderError("Datafinder WFS request timed out."),
+        ]
+        result = await _query(mock_context, {"page_size": 2, "max_pages": 5})
+        assert result.type == ResultType.ACTION
+        assert [record["id"] for record in result.result.data["records"]] == ["a", "b"]
+        assert result.result.data["truncated"] is True
+        assert result.result.data["retrieved_pages"] == 1
+
+    @pytest.mark.asyncio
+    async def test_first_page_failure_is_still_an_error(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            DatafinderError("Datafinder WFS request timed out."),
+        ]
+        result = await _query(mock_context, {"page_size": 2, "max_pages": 5})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "timed out" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_probe_failure_keeps_page_and_marks_truncated(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", number_matched="unknown")),
+            DatafinderError("Datafinder WFS request timed out."),
+        ]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION
+        assert [record["id"] for record in result.result.data["records"]] == ["a"]
+        assert result.result.data["truncated"] is True
 
     @pytest.mark.asyncio
     async def test_http_error_on_metadata_is_mapped(self, mock_context, mock_wfs):
@@ -790,7 +880,11 @@ class _FakeSession:
         self.calls = []
 
     def get(self, url, params=None, **kwargs):
-        self.calls.append((url, params, kwargs))
+        self.calls.append(("GET", url, params, kwargs))
+        return _RaisingCtx(self._error) if self._error is not None else self._resp
+
+    def post(self, url, data=None, params=None, **kwargs):
+        self.calls.append(("POST", url, data, kwargs))
         return _RaisingCtx(self._error) if self._error is not None else self._resp
 
     async def close(self):  # pragma: no cover - not exercised
@@ -829,10 +923,35 @@ class TestWfsRequestDirect:
 
         assert result.status == 200
         assert result.data == {"features": []}
-        url, params, _ = session.calls[0]
+        method, url, params, _ = session.calls[0]
+        assert method == "GET"
         assert f"services;key={SENTINEL_KEY}/wfs/layer-123" in url
         assert SENTINEL_KEY not in json.dumps(params)
         assert params["cql_filter"] == "a = 'b'"
+
+    @pytest.mark.asyncio
+    async def test_get_feature_post_puts_cql_in_body_not_query(self, monkeypatch):
+        import stats_nz_datafinder as module
+
+        session = _FakeSession(resp=_FakeResp(text=json.dumps({"features": []})))
+        monkeypatch.setattr(module.aiohttp, "ClientSession", _FakeSession)
+        ctx = _key_context(session)
+        cql = "INTERSECTS(Shape, SRID=4326;POLYGON((" + ", ".join(["174.7 -41.3"] * 80) + ")))"
+
+        result = await _wfs_request(
+            ctx,
+            params={"service": "WFS", "request": "GetFeature", "cql_filter": cql},
+            layer_id=123,
+            method="POST",
+        )
+
+        assert result.status == 200
+        method, url, data, _ = session.calls[0]
+        assert method == "POST"
+        assert f"services;key={SENTINEL_KEY}/wfs/layer-123" in url
+        assert "cql_filter" not in url
+        assert data["cql_filter"] == cql
+        assert SENTINEL_KEY not in json.dumps(data)
 
     @pytest.mark.asyncio
     async def test_xml_body_returned_as_string(self, monkeypatch):
