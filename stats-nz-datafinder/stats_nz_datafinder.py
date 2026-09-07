@@ -52,19 +52,6 @@ DEFAULT_GEOMETRY_FIELD = "Shape"
 DEFAULT_PAGE_SIZE = 50
 MAX_DESCRIPTION_CHARS = 400
 _GEOD = Geod(ellps="WGS84")
-POLYGON_NOTE = (
-    "overlap_fraction is the share of each feature's area inside the query polygon. "
-    "Multiply numeric attributes by it for area-weighted catchment estimates. "
-    "Geometry is omitted unless include_geometry is true."
-)
-POINT_NOTE = (
-    "Point queries return features that contain the point. overlap_fraction is 1.0 "
-    "for each returned feature — use the attributes as-is, do not area-weight a point."
-)
-ATTRIBUTE_NOTE = (
-    "No spatial clip was applied. overlap_fraction is 1.0. Results are whole features matching the attribute filters."
-)
-OVERLAP_NOTE = POLYGON_NOTE
 UNSCOPED_ERROR = "Provide geometry, bbox, or at least one attribute filter. Unscoped national scans are not supported."
 _UNEXPECTED_ERROR = (
     "The Stats NZ Datafinder integration hit an unexpected error handling this request. "
@@ -428,14 +415,6 @@ def _resolve_query_scope(inputs: dict[str, Any]) -> tuple[dict[str, Any] | None,
     raise DatafinderError(UNSCOPED_ERROR)
 
 
-def _result_note(query_kind: str) -> str:
-    if query_kind == "Point":
-        return POINT_NOTE
-    if query_kind == "attribute":
-        return ATTRIBUTE_NOTE
-    return POLYGON_NOTE
-
-
 def _local_feature_type_name(name: str) -> str:
     return name.rsplit(":", 1)[-1]
 
@@ -705,7 +684,7 @@ class QueryLayerByGeometryAction(ActionHandler):
         include_geometry = bool(inputs.get("include_geometry"))
         try:
             headers = _headers(context)
-            spatial_geometry, query_kind = _resolve_query_scope(inputs)
+            spatial_geometry, _ = _resolve_query_scope(inputs)
             spatial_wkt = _wkt_geometry(spatial_geometry) if spatial_geometry else None
             query_geom = _as_shapely(spatial_geometry) if spatial_geometry else None
             metadata_response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=headers)
@@ -773,7 +752,6 @@ class QueryLayerByGeometryAction(ActionHandler):
                     "data_vintage": metadata["data_vintage"],
                     "licence": metadata["licence"],
                     "attribution": metadata["attribution"],
-                    "note": _result_note(query_kind),
                 }
             )
         except DatafinderError as exc:

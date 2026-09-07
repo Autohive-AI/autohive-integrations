@@ -8,12 +8,9 @@ import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
-
 from stats_nz_datafinder import (
-    ATTRIBUTE_NOTE,
     DatafinderError,
-    OVERLAP_NOTE,
-    POINT_NOTE,
+    _as_shapely,
     _attribution,
     _build_cql_filter,
     _cql_literal,
@@ -28,11 +25,10 @@ from stats_nz_datafinder import (
     _total_matched,
     _vintage,
     _wfs_request,
-    _wkt_geometry,
-    _WfsResponse,
-    stats_nz_datafinder,
-    _as_shapely,
     _wfs_url,
+    _WfsResponse,
+    _wkt_geometry,
+    stats_nz_datafinder,
 )
 
 pytestmark = pytest.mark.unit
@@ -325,7 +321,7 @@ class TestQueryLayerByGeometry:
         assert data["licence"] == "CC BY 4.0"
         assert data["truncated"] is False
         assert data["total_matched"] == 3
-        assert data["note"] == OVERLAP_NOTE
+        assert "note" not in data
         get_feature = mock_wfs.await_args_list[1].kwargs["params"]
         assert get_feature["outputFormat"] == "json"
         assert "filter" not in get_feature
@@ -443,7 +439,7 @@ class TestQueryLayerByGeometry:
         assert record["overlap_fraction"] == 1.0
         assert record["overlap_area_sq_km"] is None
         assert record["feature_area_sq_km"] > 0
-        assert result.result.data["note"] == POINT_NOTE
+        assert "note" not in result.result.data
         cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
         assert "POINT(174.75 -41.25)" in cql
 
@@ -481,7 +477,7 @@ class TestQueryLayerByGeometry:
         )
         assert result.type == ResultType.ACTION
         assert result.result.data["records"][0]["overlap_fraction"] == 1.0
-        assert result.result.data["note"] == ATTRIBUTE_NOTE
+        assert "note" not in result.result.data
         cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
         assert "ILIKE" in cql
         assert "INTERSECTS" not in cql

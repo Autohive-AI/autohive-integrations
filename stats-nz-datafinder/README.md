@@ -62,7 +62,7 @@ national scans are rejected):
 `eq`, `neq`, `lt`, `lte`, `gt`, `gte`. Combine filters with a spatial clip
 using AND. Do not send `geometry` and `bbox` together.
 
-The `note` field on the result restates which weighting rule applied.
+`overlap_fraction` is an area share of the feature, not a population share.
 `total_matched` is the WFS `numberMatched` count when the server reports it.
 
 It uses the layer's geometry field from metadata, defaulting to `Shape`.

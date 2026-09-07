@@ -111,7 +111,10 @@
               "type": "object",
               "properties": {
                 "id": {},
-                "overlap_fraction": { "type": ["number", "null"] },
+                "overlap_fraction": {
+                  "type": ["number", "null"],
+                  "description": "Share of the feature's polygon inside the query shape. This is an area share, not a population share. 1.0 for point and attribute-only queries."
+                },
                 "overlap_area_sq_km": { "type": ["number", "null"] },
                 "feature_area_sq_km": { "type": ["number", "null"] },
                 "properties": { "type": "object" },
@@ -132,8 +135,7 @@
           },
           "data_vintage": { "type": ["string", "null"] },
           "licence": { "type": ["string", "null"] },
-          "attribution": { "type": ["string", "null"] },
-          "note": { "type": "string" }
+          "attribution": { "type": ["string", "null"] }
         },
         "required": [
           "records",
@@ -144,8 +146,7 @@
           "total_matched",
           "data_vintage",
           "licence",
-          "attribution",
-          "note"
+          "attribution"
         ]
       }
     },
