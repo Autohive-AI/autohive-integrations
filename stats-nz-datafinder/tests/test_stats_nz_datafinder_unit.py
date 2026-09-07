@@ -22,6 +22,7 @@ from stats_nz_datafinder import (
     _redact,
     _resolve_feature_type,
     _short_description,
+    _stable_sort_field,
     _total_matched,
     _vintage,
     _wfs_request,
@@ -212,6 +213,54 @@ class TestHelpers:
         assert _geometry_field({"data": {"geometry_field": "geom"}}) == "geom"
         assert _geometry_field({"data": {"geometry_field": "1bad"}}) == "Shape"
 
+    def test_stable_sort_field_prefers_primary_key(self):
+        assert (
+            _stable_sort_field(
+                {
+                    "data": {
+                        "primary_key_fields": ["feature_key"],
+                        "fields": [
+                            {"name": "SA22023_V1_00", "type": "string"},
+                            {"name": "feature_key", "type": "integer"},
+                        ],
+                    }
+                }
+            )
+            == "feature_key"
+        )
+
+    def test_stable_sort_field_uses_id_then_geography_code(self):
+        assert _stable_sort_field({}) is None
+        assert _stable_sort_field({"data": {"fields": [{"name": "VAR_1_1", "type": "integer"}]}}) is None
+        assert (
+            _stable_sort_field(
+                {
+                    "data": {
+                        "fields": [
+                            {"name": "Shape", "type": "geometry"},
+                            {"name": "SA22023_V1_00", "type": "string"},
+                            {"name": "VAR_1_1", "type": "integer"},
+                        ]
+                    }
+                }
+            )
+            == "SA22023_V1_00"
+        )
+        assert (
+            _stable_sort_field(
+                {
+                    "data": {
+                        "fields": [
+                            {"name": "id", "type": "integer"},
+                            {"name": "SA22023_V1_00", "type": "string"},
+                        ]
+                    }
+                }
+            )
+            == "id"
+        )
+        assert _stable_sort_field({"data": {"primary_key_fields": ["Shape"], "geometry_field": "Shape"}}) is None
+
     def test_licence_from_object_title(self):
         assert _licence({"license": {"title": "Creative Commons Attribution 4.0 International"}}) == (
             "Creative Commons Attribution 4.0 International"
@@ -326,6 +375,7 @@ class TestQueryLayerByGeometry:
         assert get_feature["outputFormat"] == "json"
         assert "filter" not in get_feature
         assert get_feature["cql_filter"].startswith("INTERSECTS(Shape, SRID=4326;POLYGON((")
+        assert "sortBy" not in get_feature
         assert mock_wfs.await_args_list[2].kwargs["params"]["startIndex"] == 2
 
     @pytest.mark.asyncio
@@ -510,6 +560,44 @@ class TestQueryLayerByGeometry:
         probe = mock_wfs.await_args_list[2].kwargs["params"]
         assert probe["startIndex"] == 1
         assert probe["count"] == 1
+        assert "sortBy" not in probe
+
+    @pytest.mark.asyncio
+    async def test_pages_and_probe_share_geography_code_sort(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(
+            {
+                **METADATA,
+                "data": {
+                    "fields": [
+                        {"name": "Shape", "type": "geometry"},
+                        {"name": "SA22023_V1_00", "type": "string"},
+                        {"name": "VAR_1_1", "type": "integer"},
+                    ]
+                },
+            }
+        )
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", number_matched="unknown")),
+            ok(collection("b")),
+        ]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1})
+        assert result.result.data["truncated"] is True
+        for call in mock_wfs.await_args_list[1:]:
+            assert call.kwargs["params"]["sortBy"] == "SA22023_V1_00"
+
+    @pytest.mark.asyncio
+    async def test_drops_duplicate_feature_ids_across_pages(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", "b", number_matched=3)),
+            ok(collection("b", "c", number_matched=3)),
+        ]
+        result = await _query(mock_context)
+        assert result.type == ResultType.ACTION
+        assert [record["id"] for record in result.result.data["records"]] == ["a", "b", "c"]
+        assert result.result.data["record_count"] == 3
 
     @pytest.mark.asyncio
     async def test_http_error_on_metadata_is_mapped(self, mock_context, mock_wfs):

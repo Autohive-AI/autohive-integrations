@@ -28,11 +28,6 @@ from typing import Any, NamedTuple
 from urllib.parse import quote
 
 import aiohttp
-from defusedxml import ElementTree as DefusedET
-from pyproj import Geod
-from shapely import make_valid
-from shapely.geometry import shape
-
 from autohive_integrations_sdk import (
     ActionError,
     ActionHandler,
@@ -42,6 +37,10 @@ from autohive_integrations_sdk import (
     Integration,
     RateLimitError,
 )
+from defusedxml import ElementTree as DefusedET
+from pyproj import Geod
+from shapely import make_valid
+from shapely.geometry import shape
 
 stats_nz_datafinder = Integration.load()
 
@@ -66,6 +65,7 @@ _CQL_OPERATORS = {
     "gte": ">=",
 }
 _KEY_IN_TEXT = re.compile(r"(services;key=)[^/\s\"']+", re.IGNORECASE)
+_GEOGRAPHY_CODE = re.compile(r"^[A-Za-z][A-Za-z0-9]*_V\d+_00$")
 
 
 class DatafinderError(Exception):
@@ -492,6 +492,65 @@ def _fields(metadata: Any) -> list[dict[str, str | None]]:
     return fields
 
 
+def _stable_sort_field(metadata: Any) -> str | None:
+    """Return a unique-enough property for WFS startIndex paging, or None.
+
+    sortBy=id is not safe: Datafinder geographic layers typically have no ``id``
+    attribute and an empty ``primary_key_fields`` list. A missing field is HTTP 400.
+    """
+    data = metadata.get("data") if isinstance(metadata, dict) else None
+    if not isinstance(data, dict):
+        return None
+    geometry_field = _geometry_field(metadata)
+    raw_pk = data.get("primary_key_fields")
+    pk_names: list[str] = []
+    if isinstance(raw_pk, str) and raw_pk.strip():
+        pk_names = [raw_pk]
+    elif isinstance(raw_pk, list):
+        pk_names = [name for name in raw_pk if isinstance(name, str)]
+    for name in pk_names:
+        if _is_identifier(name) and name != geometry_field:
+            return name
+
+    names: list[str] = []
+    raw_fields = data.get("fields")
+    if isinstance(raw_fields, list):
+        for item in raw_fields:
+            if not isinstance(item, dict):
+                continue
+            name = item.get("name")
+            if not _is_identifier(name) or item.get("type") == "geometry" or name == geometry_field:
+                continue
+            names.append(name)
+    for name in names:
+        if name.lower() == "id":
+            return name
+    for name in names:
+        if _GEOGRAPHY_CODE.fullmatch(name):
+            return name
+    return None
+
+
+def _unique_features(features: list[Any]) -> list[Any]:
+    seen: set[Any] = set()
+    unique: list[Any] = []
+    for feature in features:
+        fid = feature.get("id") if isinstance(feature, dict) else None
+        if fid is None or isinstance(fid, bool):
+            unique.append(feature)
+            continue
+        try:
+            duplicate = fid in seen
+        except TypeError:
+            unique.append(feature)
+            continue
+        if duplicate:
+            continue
+        seen.add(fid)
+        unique.append(feature)
+    return unique
+
+
 def _as_shapely(geometry: Any) -> Any | None:
     if not isinstance(geometry, dict) or not geometry.get("type"):
         return None
@@ -647,8 +706,9 @@ def _feature_params(
     cql_filter: str,
     page_size: int,
     start_index: int,
+    sort_by: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    params: dict[str, Any] = {
         "service": "WFS",
         "version": WFS_VERSION,
         "request": "GetFeature",
@@ -659,6 +719,9 @@ def _feature_params(
         "count": page_size,
         "startIndex": start_index,
     }
+    if sort_by:
+        params["sortBy"] = sort_by
+    return params
 
 
 @stats_nz_datafinder.action("get_layer_metadata")
@@ -694,6 +757,7 @@ class QueryLayerByGeometryAction(ActionHandler):
             )
             capabilities = await _wfs_get_capabilities(context, layer_id)
             feature_type = _resolve_feature_type(layer_id, capabilities)
+            sort_by = _stable_sort_field(metadata_response.data)
             features: list[Any] = []
             matched: int | None = None
             pages = 0
@@ -707,10 +771,12 @@ class QueryLayerByGeometryAction(ActionHandler):
                         cql_filter=cql_filter,
                         page_size=page_size,
                         start_index=page * page_size,
+                        sort_by=sort_by,
                     ),
                 )
                 page_features = data["features"]
                 features.extend(page_features)
+                features = _unique_features(features)
                 pages += 1
                 last_page_full = len(page_features) >= page_size
                 page_matched = _total_matched(data)
@@ -730,10 +796,11 @@ class QueryLayerByGeometryAction(ActionHandler):
                         feature_type=feature_type,
                         cql_filter=cql_filter,
                         page_size=1,
-                        start_index=len(features),
+                        start_index=pages * page_size,
+                        sort_by=sort_by,
                     ),
                 )
-                truncated = bool(probe["features"])
+                truncated = len(_unique_features(features + probe["features"])) > len(features)
             else:
                 truncated = False
             records = [

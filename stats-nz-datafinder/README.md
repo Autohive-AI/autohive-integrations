@@ -75,9 +75,13 @@ uses the advertised feature type when present. If that document omits the layer
 (or uses a namespaced name such as `kx:layer-123`), the action still queries
 `layer-<id>` on the per-layer WFS endpoint rather than treating the omission as
 a key-permission failure. It then requests WFS 2.0 pages with `count` and
-`startIndex`, up to `page_size × max_pages` features. `truncated` is true when
-the WFS `numberMatched` count (or a one-feature probe, when the total is
-unknown) shows that the configured page cap stopped retrieval.
+`startIndex`, up to `page_size × max_pages` features. When metadata exposes a
+usable key (`primary_key_fields`, `id`, or a Stats NZ geography code such as
+`SA22023_V1_00`), each page and the truncation probe send the same `sortBy` so
+`startIndex` windows do not skip or repeat rows. Duplicate feature ids across
+pages are dropped. If the layer has no such field, pages are unordered.
+`truncated` is true when the WFS `numberMatched` count (or a one-feature probe,
+when the total is unknown) shows that the configured page cap stopped retrieval.
 
 Example input:
 
@@ -136,6 +140,7 @@ workflow.
 - Metadata fields are provider-controlled. If a layer does not publish licence
   or attribution, those output fields are `null`.
 - Offset paging can shift if Datafinder republishes a layer between requests.
+  Without a declared key, WFS also does not guarantee page order.
 - All operations are read-only.
 
 ## Testing
