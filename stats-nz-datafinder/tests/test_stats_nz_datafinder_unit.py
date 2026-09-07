@@ -291,6 +291,8 @@ class TestHelpers:
         feature = square(174.7, -41.3, 174.8, -41.2)
         stats = _overlap_stats(_as_shapely(point), feature)
         assert stats["overlap_fraction"] == 1.0
+        assert stats["overlap_area_sq_km"] is None
+        assert stats["feature_area_sq_km"] > 0
 
     def test_attribute_only_overlap_is_one(self):
         feature = square(174.7, -41.3, 174.8, -41.2)
@@ -437,7 +439,10 @@ class TestQueryLayerByGeometry:
             },
         )
         assert result.type == ResultType.ACTION
-        assert result.result.data["records"][0]["overlap_fraction"] == 1.0
+        record = result.result.data["records"][0]
+        assert record["overlap_fraction"] == 1.0
+        assert record["overlap_area_sq_km"] is None
+        assert record["feature_area_sq_km"] > 0
         assert result.result.data["note"] == POINT_NOTE
         cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
         assert "POINT(174.75 -41.25)" in cql
@@ -636,6 +641,17 @@ class TestSearchLayers:
         assert params["q"] == "census"
         assert params["kind"] == "vector"
         assert params["public"] == "true"
+
+    @pytest.mark.asyncio
+    async def test_malformed_resource_range_leaves_total_none(self, mock_context):
+        mock_context.fetch.return_value = fetch_ok(
+            [{"id": 123, "title": "Census SA2"}],
+            headers={"X-Resource-Range": "0-20/unknown"},
+        )
+        result = await stats_nz_datafinder.execute_action("search_layers", {"keyword": "census"}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["total"] is None
+        assert result.result.data["layers"][0]["id"] == 123
 
     @pytest.mark.asyncio
     async def test_rate_limit(self, mock_context):

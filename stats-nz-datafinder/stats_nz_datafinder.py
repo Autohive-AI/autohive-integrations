@@ -543,6 +543,8 @@ def _overlap_stats(query_geom: Any, feature_geometry: Any) -> dict[str, float | 
 
     Polygon/bbox queries area-weight. Point queries and attribute-only queries
     return overlap_fraction 1.0 so agents do not zero-out counts for a point.
+    Point queries leave overlap_area_sq_km as None: a point has no intersection
+    area, and 0.0 would reintroduce the zero-out this path exists to avoid.
     """
     empty = {"overlap_fraction": None, "overlap_area_sq_km": None, "feature_area_sq_km": None}
     feature_geom = _as_shapely(feature_geometry)
@@ -562,7 +564,7 @@ def _overlap_stats(query_geom: Any, feature_geometry: Any) -> dict[str, float | 
         intersects = bool(query_geom.intersects(feature_geom))
         return {
             "overlap_fraction": 1.0 if intersects else 0.0,
-            "overlap_area_sq_km": feature_area_sq_km if intersects else 0.0,
+            "overlap_area_sq_km": None,
             "feature_area_sq_km": feature_area_sq_km,
         }
     try:
@@ -805,10 +807,9 @@ class SearchLayersAction(ActionHandler):
             total = None
             resource_range = response.headers.get("X-Resource-Range", "") if getattr(response, "headers", None) else ""
             if "/" in resource_range:
-                try:
-                    total = int(resource_range.rsplit("/", 1)[1])
-                except ValueError:
-                    pass
+                suffix = resource_range.rsplit("/", 1)[1]
+                if suffix.isdigit():
+                    total = int(suffix)
             return ActionResult(
                 data={
                     "layers": layers,
