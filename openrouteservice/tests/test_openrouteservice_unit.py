@@ -92,6 +92,38 @@ class TestMatch:
         assert matched["confidence"] is None
         assert matched["is_low_confidence"] is True
 
+    def test_null_properties_geometry_and_coordinates_do_not_raise(self):
+        matched = _match({"properties": None, "geometry": None})
+
+        assert matched["address"] is None
+        assert matched["latitude"] is None
+        assert matched["longitude"] is None
+        assert matched["confidence"] is None
+        assert matched["is_low_confidence"] is True
+
+    def test_null_coordinates_are_treated_as_incomplete(self):
+        matched = _match(
+            {
+                "geometry": {"type": "Point", "coordinates": None},
+                "properties": {"label": "No point", "confidence": 1},
+            }
+        )
+
+        assert matched["address"] == "No point"
+        assert matched["latitude"] is None
+        assert matched["longitude"] is None
+
+    def test_non_numeric_confidence_is_low_confidence(self):
+        matched = _match(
+            {
+                "geometry": {"coordinates": [174.76, -36.84]},
+                "properties": {"label": "Somewhere", "confidence": "high"},
+            }
+        )
+
+        assert matched["confidence"] is None
+        assert matched["is_low_confidence"] is True
+
 
 class TestGeocodeAddress:
     async def test_geocodes_address_with_default_nz_boundary(self, mock_context):
@@ -208,6 +240,9 @@ class TestGeocodeAddress:
         assert lowercase_country.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
 
+    def test_uses_heigit_pelias_geocode_endpoint(self):
+        assert GEOCODE_URL == "https://api.heigit.org/pelias/v1/search"
+
 
 class TestGetIsochrone:
     def test_uses_explicit_geojson_provider_endpoint(self):
@@ -270,6 +305,8 @@ class TestGetIsochrone:
             {"latitude": -36.84, "longitude": 174.76, "time_minutes": [0]},
             {"latitude": 91, "longitude": 174.76, "time_minutes": [10]},
             {"latitude": -36.84, "longitude": 174.76, "time_minutes": [10], "travel_mode": "cycling-regular"},
+            {"latitude": -36.84, "longitude": 174.76, "time_minutes": [61]},
+            {"latitude": -36.84, "longitude": 174.76, "time_minutes": list(range(1, 12))},
         ]
         for inputs in cases:
             result = await openrouteservice.execute_action("get_isochrone", inputs, mock_context)

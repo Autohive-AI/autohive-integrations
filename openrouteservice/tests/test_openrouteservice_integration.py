@@ -61,8 +61,6 @@ def _require_provider_success(result):
     data = result.result.data
     if data.get("error_type") == "rate_limit":
         pytest.skip(f"OpenRouteService rate-limited this request: {data.get('message')}")
-    if data.get("error_type") == "authorization":
-        pytest.skip(f"OpenRouteService denied this endpoint for the configured key: {data.get('message')}")
     assert data.get("result") is True, data.get("message")
     return data
 

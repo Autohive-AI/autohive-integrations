@@ -12,7 +12,7 @@ Typical catchment workflow: call `geocode_address` for a place in New Zealand, c
 
 ### `geocode_address`
 
-Finds an address or place and defaults the country boundary to `NZ`.
+Finds an address or place through HeiGIT Pelias (`GET https://api.heigit.org/pelias/v1/search`) and defaults the country boundary to `NZ`.
 
 **Inputs**
 
@@ -33,7 +33,7 @@ Generates one or more drive-time bands in a single request through the current H
 **Inputs**
 
 - `latitude`, `longitude` (number, required) — origin point in WGS84 coordinates.
-- `time_minutes` (integer array, required) — one or more travel-time bands, for example `[10, 15, 30]`.
+- `time_minutes` (integer array, required) — one to ten driving-time bands in whole minutes from 1 to 60, for example `[10, 15, 30]`. OpenRouteService rejects longer driving ranges and more than 10 intervals.
 - `travel_mode` (optional) — v1 supports `driving-car` only.
 
 **Outputs**
@@ -44,7 +44,7 @@ Generates one or more drive-time bands in a single request through the current H
 
 ## Errors and rate limits
 
-A free-tier rate limit is returned as `result: false`, `error_type: "rate_limit"`, and `retry_after_seconds`, allowing a calling skill to ask the user to retry later. Authentication, authorization, invalid-request, and general provider failures are similarly classified without exposing API keys.
+Provider failures are returned as a successful action payload (`result: false`) rather than an SDK `ActionError`, so a calling skill can read `error_type` and `retry_after_seconds` and decide whether to retry. A free-tier rate limit uses `error_type: "rate_limit"` with `retry_after_seconds`. Authentication, authorization, invalid-request, and general provider failures are similarly classified without exposing API keys. Check `result` before using coordinates or GeoJSON.
 
 ## Testing
 

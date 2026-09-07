@@ -15,7 +15,8 @@ from autohive_integrations_sdk import (
 
 openrouteservice = Integration.load()
 
-GEOCODE_URL = "https://api.openrouteservice.org/geocode/search"
+# api.openrouteservice.org is deprecated; HeiGIT documents geocode as Pelias v1.
+GEOCODE_URL = "https://api.heigit.org/pelias/v1/search"
 # The current OpenRouteService API Playground uses HeiGIT's OpenRouteService gateway.
 # The endpoint returns a GeoJSON FeatureCollection for isochrone requests.
 ISOCHRONE_URL_TEMPLATE = "https://api.heigit.org/openrouteservice/v2/isochrones/{profile}"
@@ -99,13 +100,23 @@ def _provider_error(error: Exception) -> ActionResult:
     )
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
 def _match(feature: dict[str, Any]) -> dict[str, Any]:
-    properties = feature.get("properties", {})
-    geometry = feature.get("geometry", {})
-    coordinates = geometry.get("coordinates", [])
-    longitude = coordinates[0] if len(coordinates) >= 2 else None
-    latitude = coordinates[1] if len(coordinates) >= 2 else None
+    properties = _as_dict(feature.get("properties"))
+    geometry = _as_dict(feature.get("geometry"))
+    coordinates = geometry.get("coordinates")
+    if isinstance(coordinates, (list, tuple)) and len(coordinates) >= 2:
+        longitude = coordinates[0]
+        latitude = coordinates[1]
+    else:
+        longitude = None
+        latitude = None
     confidence = properties.get("confidence")
+    if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):
+        confidence = None
     return {
         "address": properties.get("label") or properties.get("name"),
         "latitude": latitude,

@@ -62,7 +62,7 @@
           "latitude": {"type": "number", "minimum": -90, "maximum": 90},
           "longitude": {"type": "number", "minimum": -180, "maximum": 180},
           "travel_mode": {"type": "string", "description": "Routing profile. v1 supports driving-car.", "enum": ["driving-car"], "default": "driving-car"},
-          "time_minutes": {"type": "array", "description": "One or more travel-time bands in whole minutes, for example [10, 15, 30].", "items": {"type": "integer", "minimum": 1}, "minItems": 1}
+          "time_minutes": {"type": "array", "description": "One to ten driving-time bands in whole minutes (1-60), for example [10, 15, 30].", "items": {"type": "integer", "minimum": 1, "maximum": 60}, "minItems": 1, "maxItems": 10}
         },
         "required": ["latitude", "longitude", "time_minutes"]
       },
