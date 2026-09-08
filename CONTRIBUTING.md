@@ -309,6 +309,10 @@ higher semantic version. The release contains only those changed integration
 ZIPs plus an integrity manifest. Manual workflow runs remain available for a
 selected or full snapshot repackage.
 
+Runtime dependency changes, including SDK updates in `requirements.txt`, alter
+the deployable ZIP and therefore require a matching `config.json` version bump.
+Documentation-only and test-only changes do not require a release version bump.
+
 A release is a monorepo deployment batch, not an integration version tag. Each
 manifest entry retains its own `config.json` version and repository folder
 path. Autohive stores a release cursor, pulls every later batch, and keeps the
