@@ -22,6 +22,8 @@ from stats_nz_datafinder import (
     _overlap_stats,
     _parse_bbox,
     _redact,
+    _requested_attribute_names,
+    _coded_fields_omitted_count,
     _resolve_feature_type,
     _short_description,
     _stable_sort_field,
@@ -570,7 +572,7 @@ class TestQueryLayerByGeometry:
                 collection(
                     "island-bay",
                     number_matched=1,
-                    properties={"SA22023_V1_00_NAME": "Island Bay East", "VAR_1_1": 1200, "VAR_1_2": 30},
+                    properties={"SA22023_V1_00_NAME": "Island Bay East", "VAR_1_1": 1200},
                 )
             ),
         ]
@@ -584,6 +586,36 @@ class TestQueryLayerByGeometry:
         }
         assert result.result.data["coded_fields_omitted"] == 1
         assert mock_wfs.await_args_list[1].kwargs["params"]["propertyName"] == "Shape,SA22023_V1_00_NAME,VAR_1_1"
+
+    def test_coded_omitted_count_uses_schema_not_row_keys(self):
+        metadata = {
+            "data": {
+                "fields": [
+                    {"name": "SA22023_V1_00_NAME", "type": "string"},
+                    {"name": "VAR_1_1", "type": "integer"},
+                    {"name": "VAR_1_2", "type": "integer"},
+                ]
+            }
+        }
+        assert (
+            _coded_fields_omitted_count(metadata, fields=["SA22023_V1_00_NAME", "VAR_1_1"], include_coded_fields=False)
+            == 1
+        )
+        assert _coded_fields_omitted_count(metadata, fields=["NAME", "VAR_9_9"], include_coded_fields=False) == 2
+        assert _coded_fields_omitted_count(metadata, fields=None, include_coded_fields=False) == 2
+        assert _coded_fields_omitted_count(metadata, fields=None, include_coded_fields=True) == 0
+
+    @pytest.mark.asyncio
+    async def test_empty_fields_list_is_rejected(self, mock_context):
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": 123, "geometry": GEOMETRY, "fields": []},
+            mock_context,
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+        with pytest.raises(DatafinderError, match="at least one property name"):
+            _requested_attribute_names({}, fields=[], include_coded_fields=False)
 
     @pytest.mark.asyncio
     async def test_default_query_asks_wfs_for_non_coded_fields(self, mock_context, mock_wfs):
@@ -942,6 +974,16 @@ class TestGetLayerMetadata:
         result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
         assert result.type == ResultType.ACTION
         assert result.result.data["attachments"] == []
+
+    @pytest.mark.asyncio
+    async def test_attachment_rate_limit_is_surfaced(self, mock_context):
+        mock_context.fetch.side_effect = [
+            fetch_ok({**METADATA, "attachments": "https://example.test/attachments/"}),
+            RateLimitError(60, 429, "slow down", None),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "rate-limited" in result.result.message
 
     @pytest.mark.asyncio
     async def test_licence_object_from_live_api_shape(self, mock_context):

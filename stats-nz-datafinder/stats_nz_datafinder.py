@@ -550,7 +550,7 @@ def _requested_attribute_names(
 ) -> list[str] | None:
     """Attribute names to keep. None means 'schema unknown — do not constrain WFS'."""
     schema_names = [field["name"] for field in _fields(metadata) if _is_identifier(field.get("name"))]
-    if fields:
+    if fields is not None:
         requested = [name for name in fields if _is_identifier(name)]
         if len(requested) != len(fields):
             raise DatafinderError("Each fields entry must be a valid property name.")
@@ -571,7 +571,7 @@ def _project_properties(
     if not isinstance(properties, dict):
         return {}, 0
     coded_keys = [key for key in properties if _is_coded_field(key)]
-    if fields:
+    if fields is not None:
         allowed = {name for name in fields if _is_identifier(name)}
         kept = {key: value for key, value in properties.items() if key in allowed}
     elif include_coded_fields:
@@ -580,6 +580,21 @@ def _project_properties(
         kept = {key: value for key, value in properties.items() if not _is_coded_field(key)}
     omitted = sum(1 for key in coded_keys if key not in kept)
     return kept, omitted
+
+
+def _coded_fields_omitted_count(metadata: Any, *, fields: list[str] | None, include_coded_fields: bool) -> int:
+    """How many schema VAR_* columns are not in the query output."""
+    coded_in_schema = sum(1 for field in _fields(metadata) if _is_coded_field(field.get("name")))
+    if include_coded_fields and fields is None:
+        return 0
+    if fields is not None:
+        requested = {name for name in fields if _is_identifier(name)}
+        return sum(
+            1
+            for field in _fields(metadata)
+            if _is_coded_field(field.get("name")) and field["name"] not in requested
+        )
+    return coded_in_schema
 
 
 def _stable_sort_field(metadata: Any) -> str | None:
@@ -827,8 +842,10 @@ async def _layer_attachments(context: ExecutionContext, metadata: Any) -> list[d
         return []
     try:
         response = await context.fetch(url, headers=_headers(context))
-    except HTTPError:
-        return []
+    except HTTPError as exc:
+        if not isinstance(exc, RateLimitError) and getattr(exc, "status", None) == 404:
+            return []
+        raise
     return _attachment_items(response.data)
 
 
@@ -985,7 +1002,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                 else:
                     truncated = False
             records: list[dict[str, Any]] = []
-            coded_fields_omitted = 0
+            row_omitted = 0
             for feature in features:
                 projected = _record_from_feature(
                     feature,
@@ -998,10 +1015,14 @@ class QueryLayerByGeometryAction(ActionHandler):
                     continue
                 record, omitted = projected
                 records.append(record)
-                if omitted > coded_fields_omitted:
-                    coded_fields_omitted = omitted
-            if not fields and not include_coded_fields and metadata["coded_field_count"]:
-                coded_fields_omitted = metadata["coded_field_count"]
+                if omitted > row_omitted:
+                    row_omitted = omitted
+            coded_fields_omitted = max(
+                _coded_fields_omitted_count(
+                    metadata_response.data, fields=fields, include_coded_fields=include_coded_fields
+                ),
+                row_omitted,
+            )
             return ActionResult(
                 data={
                     "records": records,

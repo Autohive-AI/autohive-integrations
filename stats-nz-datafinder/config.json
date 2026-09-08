@@ -80,7 +80,8 @@
           },
           "fields": {
             "type": "array",
-            "description": "Attribute names to return. Use after get_layer_metadata. If omitted, VAR_* census codes are dropped and coded_fields_omitted reports how many.",
+            "minItems": 1,
+            "description": "Attribute names to return. Use after get_layer_metadata. If omitted, VAR_* census codes are dropped and coded_fields_omitted reports how many. An empty list is rejected.",
             "items": {
               "type": "string",
               "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
