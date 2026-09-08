@@ -433,7 +433,24 @@ class TestProviderErrors:
         assert data["error_type"] == error_type
         assert "test-key" not in data["message"]
 
-    async def test_403_quota_body_is_quota_exceeded(self, mock_context):
+    async def test_403_quota_only_body_is_quota_exceeded(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(
+            403,
+            '{"error": "Daily quota reached"}',
+            {"error": "Daily quota reached"},
+        )
+
+        result = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
+
+        data = _action_data(result)
+        assert data["error_type"] == "quota_exceeded"
+        assert data["retry_after_seconds"] is None
+        assert "exhausted" in data["message"].lower()
+        assert "routing profile" not in data["message"].lower()
+        assert "daily quota reached" not in data["message"].lower()
+        assert "test-key" not in data["message"]
+
+    async def test_403_combined_quota_and_unauthorized_stays_ambiguous(self, mock_context):
         mock_context.fetch.side_effect = HTTPError(
             403,
             '{"error": "Daily quota reached or API key unauthorized"}',
@@ -443,10 +460,14 @@ class TestProviderErrors:
         result = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
 
         data = _action_data(result)
-        assert data["error_type"] == "quota_exceeded"
+        message = data["message"].lower()
+        assert data["error_type"] == "quota_or_unauthorized"
         assert data["retry_after_seconds"] is None
-        assert "quota" in data["message"].lower()
-        assert "routing profile" not in data["message"].lower()
+        assert "exhausted" not in message
+        assert "unauthorized" in message
+        assert "daily quota reached or api key unauthorized" not in message
+        assert "routing profile" not in message
+        assert "test-key" not in data["message"]
 
     async def test_403_access_disallowed_is_authorization(self, mock_context):
         mock_context.fetch.side_effect = HTTPError(

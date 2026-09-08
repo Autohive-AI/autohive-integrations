@@ -79,10 +79,16 @@ def _provider_body_text(error: HTTPError) -> str:
     return " ".join(parts).lower()
 
 
+def _mentions_authorization(body: str) -> bool:
+    return "disallowed" in body or "unauthorized" in body or "invalid api key" in body or "invalid key" in body
+
+
 def _classify_forbidden(error: HTTPError) -> tuple[str, str]:
-    """Distinguish HeiGIT daily quota (HTTP 403) from a true authorization denial."""
+    """Classify HeiGIT HTTP 403. Staff document 403 as daily quota or an unauthorized key."""
     body = _provider_body_text(error)
-    if "quota" in body:
+    mentions_quota = "quota" in body
+    mentions_auth = _mentions_authorization(body)
+    if mentions_quota and not mentions_auth:
         return (
             "quota_exceeded",
             (
@@ -90,7 +96,7 @@ def _classify_forbidden(error: HTTPError) -> tuple[str, str]:
                 "the 24-hour window resets from first use, not midnight."
             ),
         )
-    if "disallowed" in body or "unauthorized" in body or "invalid api key" in body or "invalid key" in body:
+    if mentions_auth and not mentions_quota:
         return (
             "authorization",
             "OpenRouteService denied access. Check the API key and that it is enabled for this service.",

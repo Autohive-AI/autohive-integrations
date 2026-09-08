@@ -51,9 +51,9 @@ HeiGIT enforces **two** quotas per API key ([FAQ](https://giscience.github.io/op
 | Limit | HTTP | `error_type` | What to do |
 | --- | --- | --- | --- |
 | Minutely (sliding 60s window) | 429 | `rate_limit` | Wait `retry_after_seconds` (from `Retry-After`, default 60) then retry. |
-| Daily (24h window from first request, not midnight) | 403 | `quota_exceeded` | Do **not** retry shortly. Check the [HeiGIT dashboard](https://openrouteservice.org/dev/#/home). |
+| Daily (24h window from first request, not midnight) | 403 | `quota_exceeded` (quota wording only) or `quota_or_unauthorized` (combined/empty 403) | Do **not** retry shortly. Check the [HeiGIT dashboard](https://openrouteservice.org/dev/#/home). If the type is `quota_or_unauthorized`, also check the API key. |
 
-A 403 with no quota wording is `quota_or_unauthorized` (daily quota **or** a key that is not allowed). A 403 that only says access is disallowed is `authorization`. None of these mean the `driving-car` profile is missing.
+A 403 is `quota_exceeded` only when the body mentions quota and not an unauthorized key. HeiGIT’s combined wording (`Daily quota reached or API key unauthorized`) is `quota_or_unauthorized` — staff document 403 as either daily quota or a key that is not allowed, and the body does not distinguish them. A 403 that only says access is disallowed is `authorization`. None of these mean the `driving-car` profile is missing.
 
 Other classifications: `authentication` (401), `invalid_request` (400), `not_found` (404 — no result; retrying will not help), `not_acceptable` (406), `provider_error` (other HTTP), `request_failed` (network/timeout after retries).
 
