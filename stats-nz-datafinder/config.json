@@ -113,7 +113,7 @@
                 "id": {},
                 "overlap_fraction": {
                   "type": ["number", "null"],
-                  "description": "Share of the feature's polygon inside the query shape. This is an area share, not a population share. 1.0 for point and attribute-only queries."
+                  "description": "Share of the feature's polygon inside the query shape. This is an area share, not a population share. 1.0 for point and attribute-only queries. Null for line/point features (no area to share)."
                 },
                 "overlap_area_sq_km": { "type": ["number", "null"] },
                 "feature_area_sq_km": { "type": ["number", "null"] },

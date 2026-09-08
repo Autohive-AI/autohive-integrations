@@ -62,6 +62,8 @@ national scans are rejected):
 using AND. Do not send `geometry` and `bbox` together.
 
 `overlap_fraction` is an area share of the feature, not a population share.
+It is `null` for line or point features under a polygon/bbox clip — those have
+no area, so a 1.0 on any intersection would overstate overlap.
 `total_matched` is the WFS `numberMatched` count when the server reports it.
 
 It uses the layer's geometry field from metadata, defaulting to `Shape`.
@@ -82,9 +84,9 @@ uses the advertised feature type when present. If that document omits the layer
 `layer-<id>` on the per-layer WFS endpoint rather than treating the omission as
 a key-permission failure. It then requests WFS 2.0 pages with `count` and
 `startIndex`, up to `page_size × max_pages` features. When metadata exposes a
-usable key (`primary_key_fields`, `id`, or a Stats NZ geography code such as
-`SA22023_V1_00`), each page and the truncation probe send the same `sortBy` so
-`startIndex` windows do not skip or repeat rows. Duplicate feature ids across
+usable key (`primary_key_fields` including composite keys, `id`, or a Stats NZ
+geography code such as `SA22023_V1_00`), each page and the truncation probe send
+the same `sortBy` so `startIndex` windows do not skip or repeat rows. Duplicate feature ids across
 pages are dropped. If the layer has no such field, pages are unordered.
 `truncated` is true when the WFS `numberMatched` count (or a one-feature probe,
 when the total is unknown) shows that the configured page cap stopped retrieval.

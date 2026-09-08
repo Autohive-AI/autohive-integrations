@@ -258,6 +258,24 @@ class TestHelpers:
             == "feature_key"
         )
 
+    def test_stable_sort_field_joins_composite_primary_key(self):
+        assert (
+            _stable_sort_field(
+                {
+                    "data": {
+                        "geometry_field": "Shape",
+                        "primary_key_fields": ["owner_id", "title_no", "Shape"],
+                        "fields": [
+                            {"name": "Shape", "type": "geometry"},
+                            {"name": "owner_id", "type": "integer"},
+                            {"name": "title_no", "type": "string"},
+                        ],
+                    }
+                }
+            )
+            == "owner_id,title_no"
+        )
+
     def test_stable_sort_field_uses_id_then_geography_code(self):
         assert _stable_sort_field({}) is None
         assert _stable_sort_field({"data": {"fields": [{"name": "VAR_1_1", "type": "integer"}]}}) is None
@@ -372,6 +390,17 @@ class TestHelpers:
         feature = square(174.7, -41.3, 174.8, -41.2)
         stats = _overlap_stats(None, feature)
         assert stats["overlap_fraction"] == 1.0
+
+    def test_line_feature_under_polygon_clip_has_no_area_share(self):
+        query = square(174.7, -41.3, 174.8, -41.2)
+        line = {
+            "type": "LineString",
+            "coordinates": [[174.6, -41.25], [174.75, -41.25], [174.9, -41.25]],
+        }
+        stats = _overlap_stats(_as_shapely(query), line)
+        assert stats["overlap_fraction"] is None
+        assert stats["overlap_area_sq_km"] is None
+        assert stats["feature_area_sq_km"] == 0.0
 
 
 # =============================================================================
@@ -637,6 +666,27 @@ class TestQueryLayerByGeometry:
         assert result.result.data["truncated"] is True
         for call in mock_wfs.await_args_list[1:]:
             assert call.kwargs["params"]["sortBy"] == "SA22023_V1_00"
+
+    @pytest.mark.asyncio
+    async def test_pages_sort_by_composite_primary_key(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(
+            {
+                **METADATA,
+                "data": {
+                    "geometry_field": "Shape",
+                    "primary_key_fields": ["owner_id", "title_no"],
+                    "fields": [
+                        {"name": "Shape", "type": "geometry"},
+                        {"name": "owner_id", "type": "integer"},
+                        {"name": "title_no", "type": "string"},
+                    ],
+                },
+            }
+        )
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=1))]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION
+        assert mock_wfs.await_args_list[1].kwargs["params"]["sortBy"] == "owner_id,title_no"
 
     @pytest.mark.asyncio
     async def test_drops_duplicate_feature_ids_across_pages(self, mock_context, mock_wfs):

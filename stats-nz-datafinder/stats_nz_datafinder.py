@@ -529,10 +529,12 @@ def _fields(metadata: Any) -> list[dict[str, str | None]]:
 
 
 def _stable_sort_field(metadata: Any) -> str | None:
-    """Return a unique-enough property for WFS startIndex paging, or None.
+    """Return a WFS sortBy value for startIndex paging, or None.
 
-    sortBy=id is not safe: Datafinder geographic layers typically have no ``id``
-    attribute and an empty ``primary_key_fields`` list. A missing field is HTTP 400.
+    Composite primary keys become a comma-separated list so the full key orders
+    the page, not only the first column. sortBy=id is not a safe default:
+    Datafinder geographic layers typically have no ``id`` attribute and an empty
+    ``primary_key_fields`` list. A missing field is HTTP 400.
     """
     data = metadata.get("data") if isinstance(metadata, dict) else None
     if not isinstance(data, dict):
@@ -544,9 +546,9 @@ def _stable_sort_field(metadata: Any) -> str | None:
         pk_names = [raw_pk]
     elif isinstance(raw_pk, list):
         pk_names = [name for name in raw_pk if isinstance(name, str)]
-    for name in pk_names:
-        if _is_identifier(name) and name != geometry_field:
-            return name
+    pk_sort = [name for name in pk_names if _is_identifier(name) and name != geometry_field]
+    if pk_sort:
+        return ",".join(pk_sort)
 
     names: list[str] = []
     raw_fields = data.get("fields")
@@ -615,8 +617,10 @@ def _geodesic_area_m2(geom: Any) -> float:
 def _overlap_stats(query_geom: Any, feature_geometry: Any) -> dict[str, float | None]:
     """How much of the feature falls inside the query shape.
 
-    Polygon/bbox queries area-weight. Point queries and attribute-only queries
-    return overlap_fraction 1.0 so agents do not zero-out counts for a point.
+    Polygon/bbox queries area-weight polygon features. Line/point features have
+    no area, so overlap_fraction is left unset rather than reported as 1.0 for
+    any intersection. Point queries and attribute-only queries return
+    overlap_fraction 1.0 so agents do not zero-out counts for a point.
     Point queries leave overlap_area_sq_km as None: a point has no intersection
     area, and 0.0 would reintroduce the zero-out this path exists to avoid.
     """
@@ -641,18 +645,17 @@ def _overlap_stats(query_geom: Any, feature_geometry: Any) -> dict[str, float | 
             "overlap_area_sq_km": None,
             "feature_area_sq_km": feature_area_sq_km,
         }
+    if feature_area <= 0:
+        return {
+            "overlap_fraction": None,
+            "overlap_area_sq_km": None,
+            "feature_area_sq_km": 0.0,
+        }
     try:
         intersection = query_geom.intersection(feature_geom)
     except Exception:
         return empty
     overlap_area = _geodesic_area_m2(intersection)
-    if feature_area <= 0:
-        intersects = bool(query_geom.intersects(feature_geom))
-        return {
-            "overlap_fraction": 1.0 if intersects else 0.0,
-            "overlap_area_sq_km": 0.0,
-            "feature_area_sq_km": 0.0,
-        }
     return {
         "overlap_fraction": round(overlap_area / feature_area, 4),
         "overlap_area_sq_km": round(overlap_area / 1_000_000, 6),
