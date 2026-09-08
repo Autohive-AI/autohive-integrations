@@ -10,13 +10,15 @@ and no provider or transport error text is surfaced: it is used only to
 classify a failure. REST catalogue/metadata calls use ``context.fetch``
 with ``Authorization: Key <KEY>`` because that URL does not contain the key.
 
-TRADE-OFF — no retries or rate-limit handling on WFS:
------------------------------------------------------
+TRADE-OFF — no retries or backoff on WFS:
+-----------------------------------------
 Bypassing ``context.fetch`` also means forgoing the SDK client's request
 resilience. This version implements none of its own: one attempt per WFS
-request, no exponential backoff, no ``Retry-After`` handling, and a fixed
-``WFS_REQUEST_TIMEOUT_SECONDS`` timeout. Retrying is the caller's
-responsibility. See README.
+request, no exponential backoff, and a fixed ``WFS_REQUEST_TIMEOUT_SECONDS``
+timeout. HTTP 429 is mapped to the same retry hint as REST ``RateLimitError``,
+but ``Retry-After`` is not parsed. Retrying is the caller's responsibility.
+WFS calls set ``allow_redirects=False`` so a 301/302 cannot drop a POST
+``cql_filter`` or follow a key-bearing URL off-origin. See README.
 """
 
 from __future__ import annotations
@@ -40,6 +42,8 @@ from autohive_integrations_sdk import (
 from defusedxml import ElementTree as DefusedET
 from pyproj import Geod
 from shapely import make_valid
+from shapely.affinity import translate
+from shapely.errors import ShapelyError
 from shapely.geometry import shape
 
 stats_nz_datafinder = Integration.load()
@@ -166,7 +170,14 @@ async def _wfs_request(
         session = aiohttp.ClientSession()
         context._session = session
 
-    request_kwargs: dict[str, Any] = {"timeout": timeout, "ssl": True}
+    request_kwargs: dict[str, Any] = {
+        "timeout": timeout,
+        "ssl": True,
+        # POST GetFeature puts cql_filter in the body. aiohttp turns 301/302
+        # POST into GET with an empty body, which would un-scope the query.
+        # The path also carries the API key — do not follow Location.
+        "allow_redirects": False,
+    }
     if method == "POST":
         request_kwargs["data"] = query
         request = session.post
@@ -248,6 +259,8 @@ def _check_wfs_response(response: _WfsResponse, *, layer_id: int) -> None:
             f"Datafinder rejected the WFS request for layer {layer_id}. "
             "Check the geometry, attribute filters, and that the layer exposes WFS."
         )
+    if status == 429:
+        raise DatafinderError("Datafinder rate-limited this request. Please retry shortly.")
     raise DatafinderError("Datafinder could not complete the request. Please try again later.")
 
 
@@ -318,7 +331,7 @@ def _wrap_longitude(lon: float) -> float:
     return wrapped
 
 
-def _lon_lat(position: Any) -> tuple[float, float]:
+def _lon_lat(position: Any, *, allow_unwrapped: bool = False) -> tuple[float, float]:
     if not isinstance(position, list) or len(position) < 2:
         raise DatafinderError("Each GeoJSON position must contain longitude and latitude.")
     lon, lat = position[0], position[1]
@@ -329,44 +342,48 @@ def _lon_lat(position: Any) -> tuple[float, float]:
         or not isinstance(lat, (int, float))
     ):
         raise DatafinderError("GeoJSON longitude and latitude must be numbers.")
-    if not -180 <= lon <= 180 or not -90 <= lat <= 90:
+    lon_ok = -360 <= lon <= 360 if allow_unwrapped else -180 <= lon <= 180
+    if not lon_ok or not -90 <= lat <= 90:
         raise DatafinderError("GeoJSON coordinates must be WGS84 longitude/latitude values.")
     return float(lon), float(lat)
 
 
-def _wkt_ring(ring: Any) -> str:
+def _wkt_ring(ring: Any, *, allow_unwrapped: bool = False) -> str:
     if not isinstance(ring, list) or len(ring) < 4:
         raise DatafinderError("Each polygon ring must contain at least four positions.")
-    points = [_lon_lat(point) for point in ring]
+    points = [_lon_lat(point, allow_unwrapped=allow_unwrapped) for point in ring]
     if points[0] != points[-1]:
         raise DatafinderError("Each polygon ring must be closed.")
     return "(" + ", ".join(f"{lon:.15g} {lat:.15g}" for lon, lat in points) + ")"
 
 
-def _wkt_polygon(polygon: Any) -> str:
+def _wkt_polygon(polygon: Any, *, allow_unwrapped: bool = False) -> str:
     if not isinstance(polygon, list) or not polygon:
         raise DatafinderError("Each polygon must contain an exterior ring.")
-    return "POLYGON(" + ", ".join(_wkt_ring(ring) for ring in polygon) + ")"
+    rings = [_wkt_ring(ring, allow_unwrapped=allow_unwrapped) for ring in polygon]
+    return "POLYGON(" + ", ".join(rings) + ")"
 
 
-def _wkt_geometry(geometry: dict[str, Any]) -> str:
+def _wkt_geometry(geometry: dict[str, Any], *, allow_unwrapped: bool = False) -> str:
     geometry_type = geometry.get("type")
     coordinates = geometry.get("coordinates")
     if geometry_type == "Point":
-        lon, lat = _lon_lat(coordinates)
+        lon, lat = _lon_lat(coordinates, allow_unwrapped=allow_unwrapped)
         return f"POINT({lon:.15g} {lat:.15g})"
     if geometry_type == "Polygon":
-        return _wkt_polygon(coordinates)
+        return _wkt_polygon(coordinates, allow_unwrapped=allow_unwrapped)
     if geometry_type == "MultiPolygon":
         if not isinstance(coordinates, list) or not coordinates:
             raise DatafinderError("A MultiPolygon must contain at least one polygon.")
-        polygons = [_wkt_polygon(polygon).removeprefix("POLYGON") for polygon in coordinates]
+        polygons = [
+            _wkt_polygon(polygon, allow_unwrapped=allow_unwrapped).removeprefix("POLYGON") for polygon in coordinates
+        ]
         return "MULTIPOLYGON(" + ", ".join(polygons) + ")"
     raise DatafinderError("geometry.type must be Point, Polygon, or MultiPolygon.")
 
 
-def _parse_bbox(bbox: Any) -> tuple[float, float, float, float]:
-    """Return wrapped [west, south, east, north]. west may be > east (antimeridian)."""
+def _bbox_raw(bbox: Any) -> tuple[float, float, float, float]:
+    """Validate bbox and return the original [west, south, east, north] values."""
     if not isinstance(bbox, list) or len(bbox) != 4:
         raise DatafinderError("bbox must be [west, south, east, north] in WGS84.")
     values: list[float] = []
@@ -380,19 +397,28 @@ def _parse_bbox(bbox: Any) -> tuple[float, float, float, float]:
         raise DatafinderError("bbox must be WGS84 [west, south, east, north].")
     if south >= north:
         raise DatafinderError("bbox requires south < north.")
-    west, east = _wrap_longitude(west), _wrap_longitude(east)
-    if west == east:
+    if _wrap_longitude(west) == _wrap_longitude(east):
         raise DatafinderError("bbox requires a non-zero longitude span.")
     return west, south, east, north
+
+
+def _parse_bbox(bbox: Any) -> tuple[float, float, float, float]:
+    """Return wrapped [west, south, east, north]. west may be > east (antimeridian)."""
+    west, south, east, north = _bbox_raw(bbox)
+    return _wrap_longitude(west), south, _wrap_longitude(east), north
+
+
+def _bbox_rectangle(west: float, south: float, east: float, north: float) -> dict[str, Any]:
+    return {
+        "type": "Polygon",
+        "coordinates": [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+    }
 
 
 def _bbox_polygon(bbox: Any) -> dict[str, Any]:
     west, south, east, north = _parse_bbox(bbox)
     if west < east:
-        return {
-            "type": "Polygon",
-            "coordinates": [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
-        }
+        return _bbox_rectangle(west, south, east, north)
     # Crosses 180°: split so GeoJSON rings stay in [-180, 180].
     return {
         "type": "MultiPolygon",
@@ -401,6 +427,72 @@ def _bbox_polygon(bbox: Any) -> dict[str, Any]:
             [[[-180, south], [east, south], [east, north], [-180, north], [-180, south]]],
         ],
     }
+
+
+def _unwrapped_bbox_polygon(bbox: Any) -> dict[str, Any] | None:
+    """Rectangle in the caller's longitude domain, or None if wrapping did not change it.
+
+    Datafinder layers may store Chatham Islands at lon ≈ 184. A CQL clip that
+    only uses wrapped rings (east ≈ -175.5) misses those features. When the
+    input uses unwrapped longitudes or already crosses 180°, also send this
+    eastward rectangle so INTERSECTS matches native unwrapped coordinates.
+    """
+    west, south, east, north = _bbox_raw(bbox)
+    wrapped_west, wrapped_east = _wrap_longitude(west), _wrap_longitude(east)
+    if -180 <= west <= 180 and -180 <= east <= 180 and west < east:
+        return None
+    east_u = east + 360.0 if east < west else east
+    if east_u <= west or east_u - west >= 360.0:
+        return None
+    if wrapped_west == west and wrapped_east == east_u:
+        return None
+    return _bbox_rectangle(west, south, east_u, north)
+
+
+def _shift_coords(coords: Any, delta: float) -> Any:
+    if isinstance(coords, list) and coords and isinstance(coords[0], (int, float)) and not isinstance(coords[0], bool):
+        return [float(coords[0]) + delta, *coords[1:]]
+    if isinstance(coords, list):
+        return [_shift_coords(item, delta) for item in coords]
+    return coords
+
+
+def _shift_geojson_longitudes(geometry: dict[str, Any], delta: float) -> dict[str, Any]:
+    return {"type": geometry["type"], "coordinates": _shift_coords(geometry.get("coordinates"), delta)}
+
+
+def _geojson_has_negative_longitude(geometry: dict[str, Any]) -> bool:
+    stack: list[Any] = [geometry.get("coordinates")]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, list) and item and isinstance(item[0], (int, float)) and not isinstance(item[0], bool):
+            if float(item[0]) < 0:
+                return True
+            continue
+        if isinstance(item, list):
+            stack.extend(item)
+    return False
+
+
+def _cql_spatial_wkts(spatial_geometry: dict[str, Any] | None, inputs: dict[str, Any]) -> list[str]:
+    """WKT clips for CQL INTERSECTS, covering wrapped and unwrapped storage."""
+    if not spatial_geometry:
+        return []
+    wkts: list[str] = []
+
+    def add(geometry: dict[str, Any], *, allow_unwrapped: bool = False) -> None:
+        wkt = _wkt_geometry(geometry, allow_unwrapped=allow_unwrapped)
+        if wkt not in wkts:
+            wkts.append(wkt)
+
+    add(spatial_geometry)
+    if inputs.get("bbox"):
+        extra = _unwrapped_bbox_polygon(inputs["bbox"])
+        if extra is not None:
+            add(extra, allow_unwrapped=True)
+    elif _geojson_has_negative_longitude(spatial_geometry):
+        add(_shift_geojson_longitudes(spatial_geometry, 360.0), allow_unwrapped=True)
+    return wkts
 
 
 def _cql_literal(value: Any) -> str:
@@ -456,12 +548,17 @@ def _attribute_clauses(attribute_filters: list[dict[str, Any]] | None) -> list[s
 
 
 def _build_cql_filter(
-    spatial_wkt: str | None, attribute_filters: list[dict[str, Any]] | None, geometry_field: str
+    spatial_wkt: str | list[str] | None, attribute_filters: list[dict[str, Any]] | None, geometry_field: str
 ) -> str:
-    """Build a GeoServer CQL filter from an optional spatial WKT and attribute clauses."""
+    """Build a GeoServer CQL filter from optional spatial WKT clip(s) and attribute clauses."""
     clauses = _attribute_clauses(attribute_filters)
-    if spatial_wkt:
-        spatial = f"INTERSECTS({geometry_field}, SRID=4326;{spatial_wkt})"
+    if isinstance(spatial_wkt, str):
+        spatial_wkts = [spatial_wkt] if spatial_wkt else []
+    else:
+        spatial_wkts = [wkt for wkt in (spatial_wkt or []) if wkt]
+    if spatial_wkts:
+        parts = [f"INTERSECTS({geometry_field}, SRID=4326;{wkt})" for wkt in spatial_wkts]
+        spatial = parts[0] if len(parts) == 1 else "(" + " OR ".join(parts) + ")"
         return spatial + "".join(f" AND ({clause})" for clause in clauses)
     if not clauses:
         raise DatafinderError(UNSCOPED_ERROR)
@@ -706,6 +803,65 @@ def _geodesic_area_m2(geom: Any) -> float:
     return 0.0
 
 
+def _longitude_shifted_copies(geom: Any):
+    """Yield geom and ±360° longitude copies so wrapped and unwrapped rings match."""
+    yield geom
+    yield translate(geom, xoff=360.0)
+    yield translate(geom, xoff=-360.0)
+
+
+def _safe_intersection(query_geom: Any, feature_geom: Any) -> Any:
+    """Intersect two geometries, repairing once. Raise if GEOS still fails."""
+    try:
+        return query_geom.intersection(feature_geom)
+    except ShapelyError:
+        repaired_query = make_valid(query_geom)
+        repaired_feature = make_valid(feature_geom)
+        try:
+            return repaired_query.intersection(repaired_feature)
+        except ShapelyError as exc:
+            raise DatafinderError("Could not compute overlap for a returned feature.") from exc
+
+
+def _overlap_pair(
+    query_geom: Any, feature_geom: Any, feature_area: float, feature_area_sq_km: float
+) -> dict[str, float | None]:
+    if query_geom.geom_type in ("Point", "MultiPoint"):
+        try:
+            intersects = bool(query_geom.intersects(feature_geom))
+        except ShapelyError:
+            repaired_query = make_valid(query_geom)
+            repaired_feature = make_valid(feature_geom)
+            try:
+                intersects = bool(repaired_query.intersects(repaired_feature))
+            except ShapelyError as exc:
+                raise DatafinderError("Could not compute overlap for a returned feature.") from exc
+        return {
+            "overlap_fraction": 1.0 if intersects else 0.0,
+            "overlap_area_sq_km": None,
+            "feature_area_sq_km": feature_area_sq_km,
+        }
+    if feature_area <= 0:
+        return {
+            "overlap_fraction": None,
+            "overlap_area_sq_km": None,
+            "feature_area_sq_km": 0.0,
+        }
+    intersection = _safe_intersection(query_geom, feature_geom)
+    if intersection is None or intersection.is_empty:
+        return {
+            "overlap_fraction": 0.0,
+            "overlap_area_sq_km": 0.0,
+            "feature_area_sq_km": feature_area_sq_km,
+        }
+    overlap_area = _geodesic_area_m2(intersection)
+    return {
+        "overlap_fraction": round(overlap_area / feature_area, 4),
+        "overlap_area_sq_km": round(overlap_area / 1_000_000, 6),
+        "feature_area_sq_km": feature_area_sq_km,
+    }
+
+
 def _overlap_stats(query_geom: Any, feature_geometry: Any) -> dict[str, float | None]:
     """How much of the feature falls inside the query shape.
 
@@ -715,6 +871,8 @@ def _overlap_stats(query_geom: Any, feature_geometry: Any) -> dict[str, float | 
     overlap_fraction 1.0 so agents do not zero-out counts for a point.
     Point queries leave overlap_area_sq_km as None: a point has no intersection
     area, and 0.0 would reintroduce the zero-out this path exists to avoid.
+    Feature rings stored at lon ≈ 184 are compared after a ±360° shift so they
+    still overlap a wrapped WGS84 query.
     """
     empty = {"overlap_fraction": None, "overlap_area_sq_km": None, "feature_area_sq_km": None}
     feature_geom = _as_shapely(feature_geometry)
@@ -730,29 +888,19 @@ def _overlap_stats(query_geom: Any, feature_geometry: Any) -> dict[str, float | 
             "overlap_area_sq_km": feature_area_sq_km,
             "feature_area_sq_km": feature_area_sq_km,
         }
-    if query_geom.geom_type in ("Point", "MultiPoint"):
-        intersects = bool(query_geom.intersects(feature_geom))
-        return {
-            "overlap_fraction": 1.0 if intersects else 0.0,
-            "overlap_area_sq_km": None,
-            "feature_area_sq_km": feature_area_sq_km,
-        }
-    if feature_area <= 0:
-        return {
-            "overlap_fraction": None,
-            "overlap_area_sq_km": None,
-            "feature_area_sq_km": 0.0,
-        }
-    try:
-        intersection = query_geom.intersection(feature_geom)
-    except Exception:
-        return empty
-    overlap_area = _geodesic_area_m2(intersection)
-    return {
-        "overlap_fraction": round(overlap_area / feature_area, 4),
-        "overlap_area_sq_km": round(overlap_area / 1_000_000, 6),
-        "feature_area_sq_km": feature_area_sq_km,
-    }
+    best: dict[str, float | None] | None = None
+    for shifted in _longitude_shifted_copies(feature_geom):
+        stats = _overlap_pair(query_geom, shifted, feature_area, feature_area_sq_km)
+        if best is None:
+            best = stats
+            continue
+        best_frac = best.get("overlap_fraction")
+        frac = stats.get("overlap_fraction")
+        if frac is not None and (best_frac is None or frac > best_frac):
+            best = stats
+        if best.get("overlap_fraction") == 1.0:
+            break
+    return best or empty
 
 
 def _search_layer(item: dict[str, Any]) -> dict[str, Any]:
@@ -827,11 +975,13 @@ def _attribution(metadata: dict[str, Any]) -> str | None:
 
 
 def _page_url(metadata: dict[str, Any], layer_id: int) -> str:
-    return (
-        _string_or_none(metadata.get("url_html"))
-        or _string_or_none(metadata.get("url_canonical"))
-        or f"https://datafinder.stats.govt.nz/layer/{layer_id}/"
-    )
+    for key in ("url_html", "url_canonical"):
+        value = metadata.get(key)
+        if isinstance(value, str):
+            trusted = _trusted_datafinder_url(value)
+            if trusted:
+                return trusted
+    return f"https://datafinder.stats.govt.nz/layer/{layer_id}/"
 
 
 def _attachment_items(payload: Any) -> list[dict[str, str]]:
@@ -845,7 +995,7 @@ def _attachment_items(payload: Any) -> list[dict[str, str]]:
             or _string_or_none(item.get("name"))
             or _string_or_none(item.get("filename"))
         )
-        url = _string_or_none(item.get("url")) or _string_or_none(item.get("file"))
+        url = _trusted_datafinder_url(_string_or_none(item.get("url")) or _string_or_none(item.get("file")) or "")
         if not name and not url:
             continue
         attachment: dict[str, str] = {}
@@ -955,7 +1105,7 @@ class QueryLayerByGeometryAction(ActionHandler):
         try:
             headers = _headers(context)
             spatial_geometry, _ = _resolve_query_scope(inputs)
-            spatial_wkt = _wkt_geometry(spatial_geometry) if spatial_geometry else None
+            spatial_wkts = _cql_spatial_wkts(spatial_geometry, inputs)
             query_geom = _as_shapely(spatial_geometry) if spatial_geometry else None
             metadata_response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=headers)
             metadata = _metadata_result(layer_id, metadata_response.data)
@@ -964,7 +1114,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                 metadata_response.data, fields=fields, include_coded_fields=include_coded_fields
             )
             property_names = None if attribute_names is None else [geometry_field, *attribute_names]
-            cql_filter = _build_cql_filter(spatial_wkt, inputs.get("attribute_filters"), geometry_field)
+            cql_filter = _build_cql_filter(spatial_wkts, inputs.get("attribute_filters"), geometry_field)
             capabilities = await _wfs_get_capabilities(context, layer_id)
             feature_type = _resolve_feature_type(layer_id, capabilities)
             sort_by = _stable_sort_field(metadata_response.data)

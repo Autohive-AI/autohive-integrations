@@ -9,6 +9,7 @@ import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
+from shapely.errors import ShapelyError
 from stats_nz_datafinder import (
     DatafinderError,
     _as_shapely,
@@ -17,6 +18,7 @@ from stats_nz_datafinder import (
     _build_cql_filter,
     _coded_fields_omitted_count,
     _cql_literal,
+    _cql_spatial_wkts,
     _fields,
     _geometry_field,
     _get_api_key,
@@ -26,10 +28,12 @@ from stats_nz_datafinder import (
     _redact,
     _requested_attribute_names,
     _resolve_feature_type,
+    _safe_intersection,
     _short_description,
     _stable_sort_field,
     _total_matched,
     _trusted_datafinder_url,
+    _unwrapped_bbox_polygon,
     _vintage,
     _wfs_request,
     _wfs_url,
@@ -198,6 +202,32 @@ class TestHelpers:
     def test_bbox_simple_window_stays_polygon(self):
         geometry = _bbox_polygon([174.7, -41.3, 174.8, -41.2])
         assert geometry["type"] == "Polygon"
+        assert _unwrapped_bbox_polygon([174.7, -41.3, 174.8, -41.2]) is None
+
+    def test_unwrapped_bbox_keeps_datafinder_east(self):
+        geometry = _unwrapped_bbox_polygon([166.1, -47.8, 184.5, -34.0])
+        assert geometry is not None
+        assert geometry["type"] == "Polygon"
+        lons = [point[0] for point in geometry["coordinates"][0]]
+        assert 184.5 in lons
+        assert max(lons) == pytest.approx(184.5)
+
+    def test_cql_spatial_wkts_or_wrapped_and_unwrapped_national_bbox(self):
+        wrapped = _bbox_polygon([166.1, -47.8, 184.5, -34.0])
+        wkts = _cql_spatial_wkts(wrapped, {"bbox": [166.1, -47.8, 184.5, -34.0]})
+        assert len(wkts) == 2
+        assert any("MULTIPOLYGON" in wkt for wkt in wkts)
+        assert any("184.5" in wkt for wkt in wkts)
+
+    def test_cql_spatial_wkts_shifts_negative_point(self):
+        point = {"type": "Point", "coordinates": [-176.0, -44.0]}
+        wkts = _cql_spatial_wkts(point, {"geometry": point})
+        assert wkts == ["POINT(-176 -44)", "POINT(184 -44)"]
+
+    def test_cql_spatial_wkts_leaves_wellington_point_unshifted(self):
+        point = {"type": "Point", "coordinates": [174.75, -41.25]}
+        wkts = _cql_spatial_wkts(point, {"geometry": point})
+        assert wkts == ["POINT(174.75 -41.25)"]
 
     def test_bbox_rejects_zero_span_and_inverted_lat(self):
         with pytest.raises(DatafinderError, match="south < north"):
@@ -415,6 +445,31 @@ class TestHelpers:
         assert stats["overlap_fraction"] is None
         assert stats["overlap_area_sq_km"] is None
         assert stats["feature_area_sq_km"] == 0.0
+
+    def test_overlap_unwrapped_chatham_feature_against_national_bbox(self):
+        query = _bbox_polygon([166.1, -47.8, 184.5, -34.0])
+        feature = square(183.5, -44.5, 184.5, -43.5)
+        stats = _overlap_stats(_as_shapely(query), feature)
+        assert stats["overlap_fraction"] == 1.0
+        assert stats["overlap_area_sq_km"] == stats["feature_area_sq_km"]
+        assert stats["feature_area_sq_km"] > 0
+
+    def test_overlap_wrapped_chatham_feature_against_national_bbox(self):
+        query = _bbox_polygon([166.1, -47.8, 184.5, -34.0])
+        feature = square(-176.5, -44.5, -175.6, -43.5)
+        stats = _overlap_stats(_as_shapely(query), feature)
+        assert stats["overlap_fraction"] == 1.0
+
+    def test_safe_intersection_raises_after_retry(self, monkeypatch):
+        import stats_nz_datafinder as module
+
+        class Boom:
+            def intersection(self, _other):
+                raise ShapelyError("boom")
+
+        monkeypatch.setattr(module, "make_valid", lambda geom: geom)
+        with pytest.raises(DatafinderError, match="Could not compute overlap"):
+            _safe_intersection(Boom(), Boom())
 
 
 # =============================================================================
@@ -756,7 +811,27 @@ class TestQueryLayerByGeometry:
         assert result.type == ResultType.ACTION
         cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
         assert "MULTIPOLYGON" in cql
+        assert "184.5" in cql
+        assert " OR " in cql
         assert mock_wfs.await_args_list[1].kwargs["method"] == "POST"
+
+    @pytest.mark.asyncio
+    async def test_chatham_point_cql_includes_unwrapped_longitude(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=1))]
+        result = await _query(
+            mock_context,
+            {
+                "geometry": {"type": "Point", "coordinates": [-176.0, -44.0]},
+                "page_size": 1,
+                "max_pages": 1,
+            },
+        )
+        assert result.type == ResultType.ACTION
+        cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
+        assert "POINT(-176 -44)" in cql
+        assert "POINT(184 -44)" in cql
+        assert " OR " in cql
 
     @pytest.mark.asyncio
     async def test_named_area_lookup_without_geometry(self, mock_context, mock_wfs):
@@ -942,6 +1017,18 @@ class TestQueryLayerByGeometry:
         assert "rejected the WFS request" in result.result.message
 
     @pytest.mark.asyncio
+    async def test_wfs_429_is_rate_limit_error(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok({"message": "slow down"}, status=429),
+        ]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "rate-limited" in result.result.message
+        assert SENTINEL_KEY not in result.result.message
+
+    @pytest.mark.asyncio
     async def test_unexpected_exception_text_is_not_echoed(self, mock_context, mock_wfs):
         mock_context.fetch.return_value = fetch_ok(METADATA)
         mock_wfs.side_effect = Exception(
@@ -1038,15 +1125,30 @@ class TestGetLayerMetadata:
                     "attachments": DATAFINDER_ATTACHMENTS_URL,
                 }
             ),
-            fetch_ok([{"title": "Variable lookup", "url": "https://example.test/lookup.csv"}]),
+            fetch_ok(
+                [
+                    {"title": "Variable lookup", "url": "https://datafinder.stats.govt.nz/files/lookup.csv"},
+                    {"title": "Off-origin dump", "url": "https://example.test/lookup.csv"},
+                ]
+            ),
         ]
         result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
         assert result.type == ResultType.ACTION
         assert result.result.data["page_url"] == "https://datafinder.stats.govt.nz/layer/123-census/"
         assert result.result.data["attachments"] == [
-            {"name": "Variable lookup", "url": "https://example.test/lookup.csv"}
+            {"name": "Variable lookup", "url": "https://datafinder.stats.govt.nz/files/lookup.csv"},
+            {"name": "Off-origin dump"},
         ]
         assert mock_context.fetch.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_off_origin_page_url_falls_back_to_catalogue(self, mock_context):
+        mock_context.fetch.return_value = fetch_ok(
+            {**METADATA, "url_html": "https://example.test/phish", "url_canonical": "javascript:alert(1)"}
+        )
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["page_url"] == "https://datafinder.stats.govt.nz/layer/123/"
 
     @pytest.mark.asyncio
     async def test_missing_attachments_leave_empty_list(self, mock_context):
@@ -1255,11 +1357,13 @@ class TestWfsRequestDirect:
 
         assert result.status == 200
         assert result.data == {"features": []}
-        method, url, params, _ = session.calls[0]
+        method, url, params, kwargs = session.calls[0]
         assert method == "GET"
         assert f"services;key={SENTINEL_KEY}/wfs/layer-123" in url
         assert SENTINEL_KEY not in json.dumps(params)
         assert params["cql_filter"] == "a = 'b'"
+        assert kwargs["allow_redirects"] is False
+        assert kwargs["ssl"] is True
 
     @pytest.mark.asyncio
     async def test_get_feature_post_puts_cql_in_body_not_query(self, monkeypatch):
@@ -1278,12 +1382,13 @@ class TestWfsRequestDirect:
         )
 
         assert result.status == 200
-        method, url, data, _ = session.calls[0]
+        method, url, data, kwargs = session.calls[0]
         assert method == "POST"
         assert f"services;key={SENTINEL_KEY}/wfs/layer-123" in url
         assert "cql_filter" not in url
         assert data["cql_filter"] == cql
         assert SENTINEL_KEY not in json.dumps(data)
+        assert kwargs["allow_redirects"] is False
 
     @pytest.mark.asyncio
     async def test_xml_body_returned_as_string(self, monkeypatch):

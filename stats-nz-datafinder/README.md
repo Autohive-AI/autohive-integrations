@@ -66,7 +66,7 @@ national scans are rejected):
 |--------|-------------|--------------------|
 | `geometry` Polygon / MultiPolygon | Catchment / isochrone clip | Area of the feature inside the polygon |
 | `geometry` Point | "What SA2/meshblock is this school in?" | Always `1.0` — do **not** area-weight a point |
-| `bbox` `[west, south, east, north]` | Rough map window without building GeoJSON. Unwrapped longitudes (Datafinder east ≈ 184.5) and boxes that cross 180° are accepted | Same as a polygon |
+| `bbox` `[west, south, east, north]` | Rough map window without building GeoJSON. Unwrapped longitudes (Datafinder east ≈ 184.5) and boxes that cross 180° are accepted. CQL matches both wrapped and unwrapped layer coordinates so Chatham Islands are not dropped | Same as a polygon |
 | `attribute_filters` | Named-area lookup. Use `ieq` for an exact SA2/SA1 name | `1.0` (whole feature) |
 
 `ieq` is a case-insensitive exact match. `contains` is a substring match
@@ -89,8 +89,12 @@ Datafinder's WFS 2.0 endpoint rejects OGC Filter XML `Intersects` requests
 
 A bbox may use Datafinder-style unwrapped longitudes (the national extent uses
 east ≈ 184.5 for the Chatham Islands). After wrapping to WGS84, a box that
-crosses 180° is sent as a MultiPolygon clip. GeoJSON `geometry` coordinates
-must already be in [-180, 180] per RFC 7946.
+crosses 180° is sent as a MultiPolygon clip **and** as the original unwrapped
+rectangle, combined with OR, so INTERSECTS matches layers that store Chatham
+at lon ≈ 184 as well as layers that wrap to ≈ -176. GeoJSON `geometry`
+coordinates must already be in [-180, 180] per RFC 7946; a clip that uses a
+negative longitude also sends a +360° copy for the same reason. Overlap is
+computed against ±360° copies of each feature ring.
 
 The action first calls WFS `GetCapabilities` on the layer-specific endpoint and
 uses the advertised feature type when present. If that document omits the layer
@@ -134,7 +138,10 @@ data-vintage date, licence, supplier/source
 attribution, and the canonical Datafinder API URL. Licence objects from the live
 API are normalised to their title string. Census layers often name columns
 `VAR_1_1`, `VAR_1_2`, … — `attachments` lists lookup/codebook files when present.
-Field titles are included only when the layer schema provides them.
+`page_url` and attachment file URLs are returned only when they are HTTPS on
+`datafinder.stats.govt.nz`; off-origin catalogue or file links are dropped
+(the attachment name is kept). Field titles are included only when the layer
+schema provides them.
 
 ## Search Layers
 
@@ -153,8 +160,12 @@ SDK client's request-resilience behaviour:
 
 - **No automatic retries.** Every WFS call makes a single attempt.
 - **No exponential backoff.**
-- **No `Retry-After` / rate-limit semantics** on WFS. A `429` is returned as a
-  generic WFS error.
+- **No `Retry-After` parsing** on WFS. A `429` is returned with the same
+  retry hint as REST `RateLimitError` (`Datafinder rate-limited this request.
+  Please retry shortly.`) but the caller must retry.
+- **Redirects are not followed.** A 301/302 would otherwise turn POST
+  GetFeature into a GET with no `cql_filter` (an unscoped page) and could
+  follow a key-bearing URL.
 - **A fixed 30s per-request timeout.**
 
 REST catalogue/metadata calls still go through `context.fetch` and therefore
@@ -164,6 +175,8 @@ workflow.
 ## Limits and operational notes
 
 - WFS server-side limits and individual layer permissions apply.
+- Overlap uses `shapely` and `pyproj` (GEOS/PROJ wheels). Install from
+  `requirements.txt` on a platform that provides those wheels.
 - Geometry is omitted from query results unless `include_geometry` is true.
   Overlap is computed from the WFS geometry and then dropped from the payload.
 - Census `VAR_*` columns are omitted from query records unless listed in
