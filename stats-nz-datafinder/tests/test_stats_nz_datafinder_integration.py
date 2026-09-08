@@ -110,10 +110,13 @@ class TestGetLayerMetadata:
         data = result.result.data
         assert data["layer_id"] == layer_id
         assert data["source_url"].endswith(f"/layers/{layer_id}/")
+        assert data["page_url"].startswith("https://datafinder.stats.govt.nz/")
         assert "title" in data
         assert "licence" in data
         assert "attribution" in data
         assert isinstance(data["fields"], list)
+        assert isinstance(data["coded_field_count"], int)
+        assert isinstance(data["attachments"], list)
         if data["description"]:
             assert len(data["description"]) <= 400
 
@@ -144,6 +147,7 @@ class TestQueryLayerByGeometry:
             assert "properties" in record
             assert "geometry" not in record
             assert "overlap_fraction" in record
+            assert "coded_fields_omitted" in data
             frac = record["overlap_fraction"]
             if frac is not None:
                 assert 0.0 <= frac <= 1.0

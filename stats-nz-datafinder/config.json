@@ -25,7 +25,7 @@
   "actions": {
     "query_layer_by_geometry": {
       "display_name": "Query Layer",
-      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (area-weighted overlap), a Point (containing feature, no area-weighting), a bbox, and/or attribute filters. Geometry is omitted unless include_geometry is true. Unscoped national scans are rejected.",
+      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (area-weighted overlap), a Point (containing feature, no area-weighting), a bbox, and/or attribute filters. Census VAR_* columns are omitted unless listed in fields or include_coded_fields is true. Use ieq (not contains) for an exact area name. Geometry is omitted unless include_geometry is true. Unscoped national scans are rejected.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -58,7 +58,7 @@
           },
           "attribute_filters": {
             "type": "array",
-            "description": "Optional filters combined with AND. Use contains for case-insensitive name fragments (e.g. SA2 name). Sufficient on their own when looking up a named area.",
+            "description": "Optional filters combined with AND. Use ieq for an exact area name (case-insensitive). contains is a substring match — 'Wellington Central' also matches 'Mount Wellington Central'. Sufficient on their own when looking up a named area.",
             "items": {
               "type": "object",
               "properties": {
@@ -68,7 +68,7 @@
                 },
                 "operator": {
                   "type": "string",
-                  "enum": ["eq", "neq", "lt", "lte", "gt", "gte", "contains"]
+                  "enum": ["eq", "neq", "lt", "lte", "gt", "gte", "ieq", "contains"]
                 },
                 "value": {
                   "type": ["string", "number", "boolean"]
@@ -78,15 +78,28 @@
               "additionalProperties": false
             }
           },
+          "fields": {
+            "type": "array",
+            "description": "Attribute names to return. Use after get_layer_metadata. If omitted, VAR_* census codes are dropped and coded_fields_omitted reports how many.",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          },
+          "include_coded_fields": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true and fields is omitted, return VAR_* census columns. Default false — those columns are the main cause of agent context compaction."
+          },
           "include_geometry": {
             "type": "boolean",
             "default": false,
-            "description": "If true, include each feature's GeoJSON geometry. Default false — geometry is the main cause of agent context compaction."
+            "description": "If true, include each feature's GeoJSON geometry. Default false."
           },
           "page_size": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 1000,
+            "maximum": 200,
             "default": 50,
             "description": "Maximum features per WFS page."
           },
@@ -133,6 +146,10 @@
             "type": ["integer", "null"],
             "description": "WFS numberMatched when the server reports it."
           },
+          "coded_fields_omitted": {
+            "type": "integer",
+            "description": "Count of VAR_* census columns not returned. Pass those names in fields to retrieve them."
+          },
           "data_vintage": { "type": ["string", "null"] },
           "licence": { "type": ["string", "null"] },
           "attribution": { "type": ["string", "null"] }
@@ -144,6 +161,7 @@
           "retrieved_pages",
           "truncated",
           "total_matched",
+          "coded_fields_omitted",
           "data_vintage",
           "licence",
           "attribution"
@@ -152,7 +170,7 @@
     },
     "get_layer_metadata": {
       "display_name": "Get Layer Metadata",
-      "description": "Returns citation-ready Stats NZ Datafinder layer metadata, a short description, and the layer field list (name and type).",
+      "description": "Returns citation-ready Stats NZ Datafinder layer metadata, a short description, the layer field list, coded_field_count for Census VAR_* columns, the catalogue page URL, and attachment links (lookups/codebooks when present).",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -176,30 +194,53 @@
           },
           "fields": {
             "type": "array",
-            "description": "Non-geometry fields from the layer schema. Titles are included when the API provides them.",
+            "description": "Non-geometry fields from the layer schema. Titles are included when the API provides them. coded is true for Census VAR_* columns.",
             "items": {
               "type": "object",
               "properties": {
                 "name": { "type": "string" },
                 "type": { "type": ["string", "null"] },
-                "title": { "type": "string" }
+                "title": { "type": "string" },
+                "coded": { "type": "boolean" }
               }
             }
+          },
+          "coded_field_count": {
+            "type": "integer",
+            "description": "Number of VAR_* census columns. Query with fields to retrieve specific ones."
           },
           "data_vintage": { "type": ["string", "null"] },
           "licence": { "type": ["string", "null"] },
           "attribution": { "type": ["string", "null"] },
-          "source_url": { "type": "string" }
+          "page_url": {
+            "type": "string",
+            "description": "Catalogue page for the layer (not the API JSON URL)."
+          },
+          "source_url": { "type": "string" },
+          "attachments": {
+            "type": "array",
+            "description": "Lookup/codebook files when Datafinder publishes them.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "url": { "type": "string" }
+              }
+            }
+          }
         },
         "required": [
           "layer_id",
           "title",
           "description",
           "fields",
+          "coded_field_count",
           "data_vintage",
           "licence",
           "attribution",
-          "source_url"
+          "page_url",
+          "source_url",
+          "attachments"
         ]
       }
     },

@@ -66,6 +66,7 @@ _CQL_OPERATORS = {
 }
 _KEY_IN_TEXT = re.compile(r"(services;key=)[^/\s\"']+", re.IGNORECASE)
 _GEOGRAPHY_CODE = re.compile(r"^[A-Za-z][A-Za-z0-9]*_V\d+_00$")
+_CODED_FIELD = re.compile(r"^VAR_\d+_\d+$", re.IGNORECASE)
 
 
 class DatafinderError(Exception):
@@ -398,6 +399,11 @@ def _like_pattern(value: str) -> str:
     return _cql_literal("%" + escaped + "%")
 
 
+def _ilike_exact(value: str) -> str:
+    escaped = value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return _cql_literal(escaped)
+
+
 def _attribute_clauses(attribute_filters: list[dict[str, Any]] | None) -> list[str]:
     clauses: list[str] = []
     for item in attribute_filters or []:
@@ -410,6 +416,11 @@ def _attribute_clauses(attribute_filters: list[dict[str, Any]] | None) -> list[s
             if not isinstance(value, str) or not value:
                 raise DatafinderError("contains filters require a non-empty string value.")
             clauses.append(f"{property_name} ILIKE {_like_pattern(value)}")
+            continue
+        if operator == "ieq":
+            if not isinstance(value, str) or not value:
+                raise DatafinderError("ieq filters require a non-empty string value.")
+            clauses.append(f"{property_name} ILIKE {_ilike_exact(value)}")
             continue
         if operator not in _CQL_OPERATORS:
             raise DatafinderError("Each attribute filter needs a valid property and supported operator.")
@@ -502,13 +513,13 @@ def _short_description(value: Any, *, limit: int = MAX_DESCRIPTION_CHARS) -> str
     return clipped + "…"
 
 
-def _fields(metadata: Any) -> list[dict[str, str | None]]:
+def _fields(metadata: Any) -> list[dict[str, Any]]:
     data = metadata.get("data") if isinstance(metadata, dict) else None
     raw_fields = data.get("fields") if isinstance(data, dict) else None
     geometry_field = _geometry_field(metadata)
     if not isinstance(raw_fields, list):
         return []
-    fields: list[dict[str, str | None]] = []
+    fields: list[dict[str, Any]] = []
     for item in raw_fields:
         if not isinstance(item, dict):
             continue
@@ -517,15 +528,58 @@ def _fields(metadata: Any) -> list[dict[str, str | None]]:
             continue
         if item.get("type") == "geometry" or name == geometry_field:
             continue
-        field: dict[str, str | None] = {
+        field: dict[str, Any] = {
             "name": name,
             "type": item.get("type") if isinstance(item.get("type"), str) else None,
         }
         title = item.get("title") or item.get("label")
         if isinstance(title, str) and title.strip():
             field["title"] = title
+        if _CODED_FIELD.fullmatch(name):
+            field["coded"] = True
         fields.append(field)
     return fields
+
+
+def _is_coded_field(name: Any) -> bool:
+    return isinstance(name, str) and bool(_CODED_FIELD.fullmatch(name))
+
+
+def _requested_attribute_names(
+    metadata: Any, *, fields: list[Any] | None, include_coded_fields: bool
+) -> list[str] | None:
+    """Attribute names to keep. None means 'schema unknown — do not constrain WFS'."""
+    schema_names = [field["name"] for field in _fields(metadata) if _is_identifier(field.get("name"))]
+    if fields:
+        requested = [name for name in fields if _is_identifier(name)]
+        if len(requested) != len(fields):
+            raise DatafinderError("Each fields entry must be a valid property name.")
+        if not requested:
+            raise DatafinderError("fields must contain at least one property name.")
+        return requested
+    if not schema_names:
+        return None
+    if include_coded_fields:
+        return schema_names
+    return [name for name in schema_names if not _is_coded_field(name)]
+
+
+def _project_properties(
+    properties: Any, *, fields: list[str] | None, include_coded_fields: bool
+) -> tuple[dict[str, Any], int]:
+    """Return (projected properties, count of VAR_* keys omitted)."""
+    if not isinstance(properties, dict):
+        return {}, 0
+    coded_keys = [key for key in properties if _is_coded_field(key)]
+    if fields:
+        allowed = {name for name in fields if _is_identifier(name)}
+        kept = {key: value for key, value in properties.items() if key in allowed}
+    elif include_coded_fields:
+        kept = dict(properties)
+    else:
+        kept = {key: value for key, value in properties.items() if not _is_coded_field(key)}
+    omitted = sum(1 for key in coded_keys if key not in kept)
+    return kept, omitted
 
 
 def _stable_sort_field(metadata: Any) -> str | None:
@@ -674,18 +728,27 @@ def _search_layer(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _record_from_feature(feature: Any, query_geom: Any, *, include_geometry: bool) -> dict[str, Any] | None:
+def _record_from_feature(
+    feature: Any,
+    query_geom: Any,
+    *,
+    include_geometry: bool,
+    fields: list[str] | None = None,
+    include_coded_fields: bool = False,
+) -> tuple[dict[str, Any], int] | None:
     if not isinstance(feature, dict):
         return None
-    properties = feature.get("properties")
+    properties, omitted = _project_properties(
+        feature.get("properties"), fields=fields, include_coded_fields=include_coded_fields
+    )
     record: dict[str, Any] = {
         "id": feature.get("id"),
         **_overlap_stats(query_geom, feature.get("geometry")),
-        "properties": properties if isinstance(properties, dict) else {},
+        "properties": properties,
     }
     if include_geometry:
         record["geometry"] = feature.get("geometry")
-    return record
+    return record, omitted
 
 
 def _vintage(metadata: dict[str, Any]) -> str | None:
@@ -725,17 +788,65 @@ def _attribution(metadata: dict[str, Any]) -> str | None:
     return None
 
 
-def _metadata_result(layer_id: int, data: Any) -> dict[str, Any]:
+def _page_url(metadata: dict[str, Any], layer_id: int) -> str:
+    return (
+        _string_or_none(metadata.get("url_html"))
+        or _string_or_none(metadata.get("url_canonical"))
+        or f"https://datafinder.stats.govt.nz/layer/{layer_id}/"
+    )
+
+
+def _attachment_items(payload: Any) -> list[dict[str, str]]:
+    items = payload if isinstance(payload, list) else []
+    attachments: list[dict[str, str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = (
+            _string_or_none(item.get("title"))
+            or _string_or_none(item.get("name"))
+            or _string_or_none(item.get("filename"))
+        )
+        url = _string_or_none(item.get("url")) or _string_or_none(item.get("file"))
+        if not name and not url:
+            continue
+        attachment: dict[str, str] = {}
+        if name:
+            attachment["name"] = name
+        if url:
+            attachment["url"] = url
+        attachments.append(attachment)
+        if len(attachments) >= 20:
+            break
+    return attachments
+
+
+async def _layer_attachments(context: ExecutionContext, metadata: Any) -> list[dict[str, str]]:
+    url = metadata.get("attachments") if isinstance(metadata, dict) else None
+    if not isinstance(url, str) or not url.strip():
+        return []
+    try:
+        response = await context.fetch(url, headers=_headers(context))
+    except HTTPError:
+        return []
+    return _attachment_items(response.data)
+
+
+def _metadata_result(layer_id: int, data: Any, *, attachments: list[dict[str, str]] | None = None) -> dict[str, Any]:
     metadata = data if isinstance(data, dict) else {}
+    fields = _fields(metadata)
     return {
         "layer_id": layer_id,
         "title": _string_or_none(metadata.get("title")),
         "description": _short_description(metadata.get("description")),
-        "fields": _fields(metadata),
+        "fields": fields,
+        "coded_field_count": sum(1 for field in fields if field.get("coded")),
         "data_vintage": _vintage(metadata),
         "licence": _licence(metadata),
         "attribution": _attribution(metadata),
+        "page_url": _page_url(metadata, layer_id),
         "source_url": f"{API_BASE_URL}/layers/{layer_id}/",
+        "attachments": attachments or [],
     }
 
 
@@ -746,6 +857,7 @@ def _feature_params(
     page_size: int,
     start_index: int,
     sort_by: str | None = None,
+    property_names: list[str] | None = None,
 ) -> dict[str, Any]:
     params: dict[str, Any] = {
         "service": "WFS",
@@ -760,6 +872,16 @@ def _feature_params(
     }
     if sort_by:
         params["sortBy"] = sort_by
+    if property_names:
+        seen: set[str] = set()
+        ordered: list[str] = []
+        for name in property_names:
+            if name in seen or not _is_identifier(name):
+                continue
+            seen.add(name)
+            ordered.append(name)
+        if ordered:
+            params["propertyName"] = ",".join(ordered)
     return params
 
 
@@ -769,7 +891,8 @@ class GetLayerMetadataAction(ActionHandler):
         layer_id = inputs["layer_id"]
         try:
             response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=_headers(context))
-            return ActionResult(data=_metadata_result(layer_id, response.data))
+            attachments = await _layer_attachments(context, response.data)
+            return ActionResult(data=_metadata_result(layer_id, response.data, attachments=attachments))
         except DatafinderError as exc:
             return ActionError(message=_redact(exc))
         except HTTPError as exc:
@@ -784,6 +907,8 @@ class QueryLayerByGeometryAction(ActionHandler):
         layer_id = inputs["layer_id"]
         page_size, max_pages = inputs.get("page_size", DEFAULT_PAGE_SIZE), inputs.get("max_pages", 10)
         include_geometry = bool(inputs.get("include_geometry"))
+        include_coded_fields = bool(inputs.get("include_coded_fields"))
+        fields = inputs.get("fields")
         try:
             headers = _headers(context)
             spatial_geometry, _ = _resolve_query_scope(inputs)
@@ -791,9 +916,12 @@ class QueryLayerByGeometryAction(ActionHandler):
             query_geom = _as_shapely(spatial_geometry) if spatial_geometry else None
             metadata_response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=headers)
             metadata = _metadata_result(layer_id, metadata_response.data)
-            cql_filter = _build_cql_filter(
-                spatial_wkt, inputs.get("attribute_filters"), _geometry_field(metadata_response.data)
+            geometry_field = _geometry_field(metadata_response.data)
+            attribute_names = _requested_attribute_names(
+                metadata_response.data, fields=fields, include_coded_fields=include_coded_fields
             )
+            property_names = None if attribute_names is None else [geometry_field, *attribute_names]
+            cql_filter = _build_cql_filter(spatial_wkt, inputs.get("attribute_filters"), geometry_field)
             capabilities = await _wfs_get_capabilities(context, layer_id)
             feature_type = _resolve_feature_type(layer_id, capabilities)
             sort_by = _stable_sort_field(metadata_response.data)
@@ -813,6 +941,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                             page_size=page_size,
                             start_index=page * page_size,
                             sort_by=sort_by,
+                            property_names=property_names,
                         ),
                     )
                 except DatafinderError:
@@ -846,6 +975,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                                 page_size=1,
                                 start_index=pages * page_size,
                                 sort_by=sort_by,
+                                property_names=property_names,
                             ),
                         )
                     except DatafinderError:
@@ -854,11 +984,24 @@ class QueryLayerByGeometryAction(ActionHandler):
                         truncated = len(_unique_features(features + probe["features"])) > len(features)
                 else:
                     truncated = False
-            records = [
-                record
-                for feature in features
-                if (record := _record_from_feature(feature, query_geom, include_geometry=include_geometry))
-            ]
+            records: list[dict[str, Any]] = []
+            coded_fields_omitted = 0
+            for feature in features:
+                projected = _record_from_feature(
+                    feature,
+                    query_geom,
+                    include_geometry=include_geometry,
+                    fields=fields,
+                    include_coded_fields=include_coded_fields,
+                )
+                if projected is None:
+                    continue
+                record, omitted = projected
+                records.append(record)
+                if omitted > coded_fields_omitted:
+                    coded_fields_omitted = omitted
+            if not fields and not include_coded_fields and metadata["coded_field_count"]:
+                coded_fields_omitted = metadata["coded_field_count"]
             return ActionResult(
                 data={
                     "records": records,
@@ -867,6 +1010,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                     "retrieved_pages": pages,
                     "truncated": truncated,
                     "total_matched": matched,
+                    "coded_fields_omitted": coded_fields_omitted,
                     "data_vintage": metadata["data_vintage"],
                     "licence": metadata["licence"],
                     "attribution": metadata["attribution"],

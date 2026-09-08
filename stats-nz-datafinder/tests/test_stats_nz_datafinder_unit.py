@@ -225,6 +225,15 @@ class TestHelpers:
         assert cql == "(SA22023_V1_00_NAME ILIKE '%Island Bay%')"
         assert "INTERSECTS" not in cql
 
+    def test_cql_ieq_is_exact_case_insensitive(self):
+        cql = _build_cql_filter(
+            None,
+            [{"property": "SA22023_V1_00_NAME", "operator": "ieq", "value": "Wellington Central"}],
+            "Shape",
+        )
+        assert cql == "(SA22023_V1_00_NAME ILIKE 'Wellington Central')"
+        assert "%" not in cql
+
     def test_cql_rejects_unscoped(self):
         with pytest.raises(DatafinderError, match="Unscoped national scans"):
             _build_cql_filter(None, None, "Shape")
@@ -361,7 +370,7 @@ class TestHelpers:
             }
         )
         assert fields == [
-            {"name": "VAR_1_1", "type": "integer"},
+            {"name": "VAR_1_1", "type": "integer", "coded": True},
             {"name": "SA22023_V1_00_NAME", "type": "string", "title": "SA2 name"},
         ]
 
@@ -428,6 +437,7 @@ class TestQueryLayerByGeometry:
         assert data["licence"] == "CC BY 4.0"
         assert data["truncated"] is False
         assert data["total_matched"] == 3
+        assert data["coded_fields_omitted"] == 0
         assert "note" not in data
         get_feature = mock_wfs.await_args_list[1].kwargs["params"]
         assert mock_wfs.await_args_list[0].kwargs.get("method") in (None, "GET")
@@ -496,6 +506,26 @@ class TestQueryLayerByGeometry:
         assert " AND (population >= 100)" in cql
 
     @pytest.mark.asyncio
+    async def test_named_area_ieq_is_not_a_substring(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=1))]
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {
+                "layer_id": 123,
+                "attribute_filters": [
+                    {"property": "SA22023_V1_00_NAME", "operator": "ieq", "value": "Wellington Central"}
+                ],
+                "page_size": 1,
+                "max_pages": 1,
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION
+        cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
+        assert cql == "(SA22023_V1_00_NAME ILIKE 'Wellington Central')"
+
+    @pytest.mark.asyncio
     async def test_returns_overlap_and_omits_geometry_by_default(self, mock_context, mock_wfs):
         query = square(174.7, -41.3, 174.8, -41.2)
         mock_context.fetch.return_value = fetch_ok(METADATA)
@@ -514,8 +544,67 @@ class TestQueryLayerByGeometry:
         assert result.type == ResultType.ACTION
         record = result.result.data["records"][0]
         assert record["properties"]["SA22023_V1_00_NAME"] == "Island Bay East"
+        assert "VAR_1_1" not in record["properties"]
+        assert result.result.data["coded_fields_omitted"] == 1
         assert record["overlap_fraction"] == 1.0
         assert "geometry" not in record
+
+    @pytest.mark.asyncio
+    async def test_fields_allowlist_keeps_coded_columns(self, mock_context, mock_wfs):
+        census_meta = {
+            **METADATA,
+            "data": {
+                "geometry_field": "Shape",
+                "fields": [
+                    {"name": "Shape", "type": "geometry"},
+                    {"name": "SA22023_V1_00_NAME", "type": "string"},
+                    {"name": "VAR_1_1", "type": "integer"},
+                    {"name": "VAR_1_2", "type": "integer"},
+                ],
+            },
+        }
+        mock_context.fetch.return_value = fetch_ok(census_meta)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                collection(
+                    "island-bay",
+                    number_matched=1,
+                    properties={"SA22023_V1_00_NAME": "Island Bay East", "VAR_1_1": 1200, "VAR_1_2": 30},
+                )
+            ),
+        ]
+        result = await _query(
+            mock_context, {"page_size": 1, "max_pages": 1, "fields": ["SA22023_V1_00_NAME", "VAR_1_1"]}
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["records"][0]["properties"] == {
+            "SA22023_V1_00_NAME": "Island Bay East",
+            "VAR_1_1": 1200,
+        }
+        assert result.result.data["coded_fields_omitted"] == 1
+        assert mock_wfs.await_args_list[1].kwargs["params"]["propertyName"] == "Shape,SA22023_V1_00_NAME,VAR_1_1"
+
+    @pytest.mark.asyncio
+    async def test_default_query_asks_wfs_for_non_coded_fields(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(
+            {
+                **METADATA,
+                "data": {
+                    "geometry_field": "Shape",
+                    "fields": [
+                        {"name": "Shape", "type": "geometry"},
+                        {"name": "SA22023_V1_00_NAME", "type": "string"},
+                        {"name": "VAR_1_1", "type": "integer"},
+                    ],
+                },
+            }
+        )
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=1))]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION
+        assert result.result.data["coded_fields_omitted"] == 1
+        assert mock_wfs.await_args_list[1].kwargs["params"]["propertyName"] == "Shape,SA22023_V1_00_NAME"
 
     @pytest.mark.asyncio
     async def test_include_geometry_adds_rings(self, mock_context, mock_wfs):
@@ -612,6 +701,16 @@ class TestQueryLayerByGeometry:
         cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
         assert "ILIKE" in cql
         assert "INTERSECTS" not in cql
+
+    @pytest.mark.asyncio
+    async def test_page_size_above_cap_is_validation_error(self, mock_context):
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": 123, "geometry": GEOMETRY, "page_size": 1000},
+            mock_context,
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_rejects_unscoped_query(self, mock_context):
@@ -786,6 +885,9 @@ class TestGetLayerMetadata:
         assert result.type == ResultType.ACTION
         assert result.result.data["attribution"] == "Stats NZ"
         assert result.result.data["source_url"].endswith("/layers/123/")
+        assert result.result.data["page_url"] == "https://datafinder.stats.govt.nz/layer/123/"
+        assert result.result.data["coded_field_count"] == 0
+        assert result.result.data["attachments"] == []
         url = mock_context.fetch.call_args.args[0]
         assert url == "https://datafinder.stats.govt.nz/services/api/v1/layers/123/"
         assert mock_context.fetch.call_args.kwargs["headers"]["Authorization"] == "Key test_api_key"
@@ -808,7 +910,38 @@ class TestGetLayerMetadata:
         )
         result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
         assert result.result.data["description"] == "Age counts by SA2."
-        assert result.result.data["fields"] == [{"name": "VAR_1_1", "type": "integer"}]
+        assert result.result.data["fields"] == [{"name": "VAR_1_1", "type": "integer", "coded": True}]
+        assert result.result.data["coded_field_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_includes_page_url_and_attachments(self, mock_context):
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "url_html": "https://datafinder.stats.govt.nz/layer/123-census/",
+                    "attachments": "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/",
+                }
+            ),
+            fetch_ok([{"title": "Variable lookup", "url": "https://example.test/lookup.csv"}]),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["page_url"] == "https://datafinder.stats.govt.nz/layer/123-census/"
+        assert result.result.data["attachments"] == [
+            {"name": "Variable lookup", "url": "https://example.test/lookup.csv"}
+        ]
+        assert mock_context.fetch.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_missing_attachments_leave_empty_list(self, mock_context):
+        mock_context.fetch.side_effect = [
+            fetch_ok({**METADATA, "attachments": "https://example.test/attachments/"}),
+            HTTPError(404, "missing"),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["attachments"] == []
 
     @pytest.mark.asyncio
     async def test_licence_object_from_live_api_shape(self, mock_context):

@@ -15,8 +15,8 @@ Official documentation:
 
 | Action | What it does |
 |--------|--------------|
-| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, and/or attribute filters. Returns compact attribute records. Geometry omitted unless requested. |
-| `get_layer_metadata` | Return a short description, field list, vintage, licence, and attribution. |
+| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. |
+| `get_layer_metadata` | Return a short description, field list (`coded` flags `VAR_*` columns), catalogue page URL, and attachment links. |
 | `search_layers` | Search public vector layers. Compact cards: id, title, published_at, queryable. |
 
 ## Authentication
@@ -43,9 +43,21 @@ errors, XML exception reports, non-2xx bodies, and the final `ActionError`.
 ## Query Layer
 
 `query_layer_by_geometry` queries a layer through WFS and returns **flat
-attribute records**, not a GeoJSON FeatureCollection. Full polygon rings are
-the main cause of agent context compaction; geometry is omitted unless
-`include_geometry` is true. Default `page_size` is 50.
+attribute records**, not a GeoJSON FeatureCollection. Geometry is omitted
+unless `include_geometry` is true. Census `VAR_*` columns are omitted unless
+you pass `fields` (preferred) or `include_coded_fields`. Default `page_size`
+is 50 (maximum 200).
+
+**Suggested agent sequence**
+
+1. `search_layers` to pick a `layer_id` (prefer a named geography such as SA2
+   over “totals by topic” dumps when you only need a few measures).
+2. `get_layer_metadata` for field names. `coded_field_count` is the number of
+   `VAR_*` columns; `page_url` is the catalogue page; `attachments` lists
+   lookup/codebook files when Datafinder publishes them.
+3. `query_layer_by_geometry` with a scope **and** `fields` set to the columns
+   you will actually use (geography code/name plus the `VAR_*` measures).
+4. Named-area lookup uses `ieq` on the name field, not `contains`.
 
 **How to scope a query** — at least one of these is required (unscoped
 national scans are rejected):
@@ -55,11 +67,13 @@ national scans are rejected):
 | `geometry` Polygon / MultiPolygon | Catchment / isochrone clip | Area of the feature inside the polygon |
 | `geometry` Point | "What SA2/meshblock is this school in?" | Always `1.0` — do **not** area-weight a point |
 | `bbox` `[west, south, east, north]` | Rough map window without building GeoJSON. Unwrapped longitudes (Datafinder east ≈ 184.5) and boxes that cross 180° are accepted | Same as a polygon |
-| `attribute_filters` | Named-area lookup, e.g. SA2 name `contains` `"Island Bay"` | `1.0` (whole feature) |
+| `attribute_filters` | Named-area lookup. Use `ieq` for an exact SA2/SA1 name | `1.0` (whole feature) |
 
-`contains` is a case-insensitive substring match (`ILIKE`). Other operators:
-`eq`, `neq`, `lt`, `lte`, `gt`, `gte`. Combine filters with a spatial clip
-using AND. Do not send `geometry` and `bbox` together.
+`ieq` is a case-insensitive exact match. `contains` is a substring match
+(`ILIKE %value%`) — `contains` `"Wellington Central"` also matches
+**Mount Wellington Central**. Other operators: `eq`, `neq`, `lt`, `lte`,
+`gt`, `gte`. Combine filters with a spatial clip using AND. Do not send
+`geometry` and `bbox` together.
 
 `overlap_fraction` is an area share of the feature, not a population share.
 It is `null` for line or point features under a polygon/bbox clip — those have
@@ -100,20 +114,27 @@ Example input:
     "type": "Polygon",
     "coordinates": [[[174.70, -41.30], [174.80, -41.30], [174.80, -41.20], [174.70, -41.30]]]
   },
+  "fields": ["SA22023_V1_00", "SA22023_V1_00_NAME", "VAR_1_1"],
   "page_size": 50,
   "max_pages": 1
 }
 ```
 
+`coded_fields_omitted` is the number of `VAR_*` columns not returned. Pass those
+names in `fields` on a follow-up query if you need them.
+
 ## Get Layer Metadata
 
 `get_layer_metadata` returns title, a **short** description (first paragraph,
 capped), the non-geometry `fields` list (`name` / `type`, plus `title` when the
-API provides one), a best-available data-vintage date, licence, supplier/source
+API provides one; `coded` is true for Census `VAR_*` columns),
+`coded_field_count`, `page_url` (the catalogue page, not the API JSON),
+attachment links when Datafinder publishes a lookup/codebook, a best-available
+data-vintage date, licence, supplier/source
 attribution, and the canonical Datafinder API URL. Licence objects from the live
 API are normalised to their title string. Census layers often name columns
-`VAR_1_1`, `VAR_1_2`, … — the short description is the best in-payload hint for
-what those codes mean; lookup attachments are not fetched.
+`VAR_1_1`, `VAR_1_2`, … — `attachments` lists lookup/codebook files when present.
+Field titles are included only when the layer schema provides them.
 
 ## Search Layers
 
@@ -145,6 +166,9 @@ workflow.
 - WFS server-side limits and individual layer permissions apply.
 - Geometry is omitted from query results unless `include_geometry` is true.
   Overlap is computed from the WFS geometry and then dropped from the payload.
+- Census `VAR_*` columns are omitted from query records unless listed in
+  `fields` or `include_coded_fields` is true. `coded_fields_omitted` reports
+  how many were dropped.
 - Metadata fields are provider-controlled. If a layer does not publish licence
   or attribution, those output fields are `null`.
 - Offset paging can shift if Datafinder republishes a layer between requests.
