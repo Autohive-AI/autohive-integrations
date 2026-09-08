@@ -18,6 +18,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -59,13 +60,31 @@ jobs:
         id: selection
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_BEFORE: ${{ github.event.before }}
           MANUAL_SELECTION: ${{ inputs.integrations }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "push" ]]; then
-            previous_commit_sha="$EVENT_BEFORE"
+            # A concurrency group can replace an older pending run when several
+            # merges land quickly. Compare with the newest successful push run
+            # that is an ancestor of this commit so the surviving run packages
+            # every version bump that an intermediate cancelled run would have
+            # handled.
+            previous_commit_sha=""
+            while IFS= read -r candidate_sha; do
+              if [[ -n "$candidate_sha" && "$candidate_sha" != "$GITHUB_SHA" ]] && \
+                 git merge-base --is-ancestor "$candidate_sha" "$GITHUB_SHA"; then
+                previous_commit_sha="$candidate_sha"
+                break
+              fi
+            done < <(
+              gh api \
+                "repos/$GITHUB_REPOSITORY/actions/workflows/package-and-release.yml/runs?branch=$GITHUB_REF_NAME&event=push&status=success&per_page=100" \
+                --jq '.workflow_runs[].head_sha'
+            )
+            previous_commit_sha="${previous_commit_sha:-$EVENT_BEFORE}"
             release_kind="incremental"
             hiveup release-changes \
               --repository-root . \
