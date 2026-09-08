@@ -3,6 +3,7 @@
 import asyncio
 import json
 from unittest.mock import MagicMock
+from urllib.parse import urlparse
 
 import aiohttp
 import pytest
@@ -14,6 +15,7 @@ from stats_nz_datafinder import (
     _attribution,
     _bbox_polygon,
     _build_cql_filter,
+    _coded_fields_omitted_count,
     _cql_literal,
     _fields,
     _geometry_field,
@@ -23,11 +25,11 @@ from stats_nz_datafinder import (
     _parse_bbox,
     _redact,
     _requested_attribute_names,
-    _coded_fields_omitted_count,
     _resolve_feature_type,
     _short_description,
     _stable_sort_field,
     _total_matched,
+    _trusted_datafinder_url,
     _vintage,
     _wfs_request,
     _wfs_url,
@@ -58,6 +60,7 @@ METADATA = {
     "license": "CC BY 4.0",
     "supplier_reference": "Stats NZ",
 }
+DATAFINDER_ATTACHMENTS_URL = "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/"
 
 
 def ok(data, status=200):
@@ -956,6 +959,39 @@ class TestQueryLayerByGeometry:
 # =============================================================================
 
 
+class TestTrustedDatafinderUrl:
+    @pytest.mark.parametrize(
+        "url",
+        [
+            DATAFINDER_ATTACHMENTS_URL,
+            DATAFINDER_ATTACHMENTS_URL.upper().replace("HTTPS", "https", 1),
+            "/services/api/v1/layers/123/versions/1/attachments/",
+            "layers/123/versions/1/attachments/",
+        ],
+    )
+    def test_accepts_datafinder_https_and_relative_paths(self, url):
+        trusted = _trusted_datafinder_url(url)
+        assert trusted is not None
+        parsed = urlparse(trusted)
+        assert parsed.scheme == "https"
+        assert parsed.hostname == "datafinder.stats.govt.nz"
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://example.test/attachments/",
+            "http://datafinder.stats.govt.nz/services/api/v1/layers/123/attachments/",
+            "//example.test/attachments/",
+            "https://datafinder.stats.govt.nz.evil.test/attachments/",
+            "https://datafinder.stats.govt.nz:8443/attachments/",
+            "",
+            "   ",
+        ],
+    )
+    def test_rejects_off_origin_and_non_https(self, url):
+        assert _trusted_datafinder_url(url) is None
+
+
 class TestGetLayerMetadata:
     @pytest.mark.asyncio
     async def test_normalises_citation_fields(self, mock_context):
@@ -999,7 +1035,7 @@ class TestGetLayerMetadata:
                 {
                     **METADATA,
                     "url_html": "https://datafinder.stats.govt.nz/layer/123-census/",
-                    "attachments": "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/",
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
                 }
             ),
             fetch_ok([{"title": "Variable lookup", "url": "https://example.test/lookup.csv"}]),
@@ -1015,7 +1051,7 @@ class TestGetLayerMetadata:
     @pytest.mark.asyncio
     async def test_missing_attachments_leave_empty_list(self, mock_context):
         mock_context.fetch.side_effect = [
-            fetch_ok({**METADATA, "attachments": "https://example.test/attachments/"}),
+            fetch_ok({**METADATA, "attachments": DATAFINDER_ATTACHMENTS_URL}),
             HTTPError(404, "missing"),
         ]
         result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
@@ -1025,12 +1061,36 @@ class TestGetLayerMetadata:
     @pytest.mark.asyncio
     async def test_attachment_rate_limit_is_surfaced(self, mock_context):
         mock_context.fetch.side_effect = [
-            fetch_ok({**METADATA, "attachments": "https://example.test/attachments/"}),
+            fetch_ok({**METADATA, "attachments": DATAFINDER_ATTACHMENTS_URL}),
             RateLimitError(60, 429, "slow down", None),
         ]
         result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "rate-limited" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_cross_origin_attachments_url_is_not_fetched(self, mock_context):
+        mock_context.fetch.return_value = fetch_ok({**METADATA, "attachments": "https://example.test/attachments/"})
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["attachments"] == []
+        assert mock_context.fetch.await_count == 1
+        assert mock_context.fetch.await_args.args[0].endswith("/layers/123/")
+
+    @pytest.mark.asyncio
+    async def test_relative_attachments_url_is_fetched_on_datafinder_origin(self, mock_context):
+        mock_context.fetch.side_effect = [
+            fetch_ok({**METADATA, "attachments": "/services/api/v1/layers/123/versions/1/attachments/"}),
+            fetch_ok([{"title": "Codebook", "url": "https://datafinder.stats.govt.nz/files/codebook.csv"}]),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["attachments"] == [
+            {"name": "Codebook", "url": "https://datafinder.stats.govt.nz/files/codebook.csv"}
+        ]
+        assert mock_context.fetch.await_count == 2
+        assert mock_context.fetch.await_args_list[1].args[0] == DATAFINDER_ATTACHMENTS_URL
+        assert mock_context.fetch.await_args_list[1].kwargs["headers"]["Authorization"] == "Key test_api_key"
 
     @pytest.mark.asyncio
     async def test_licence_object_from_live_api_shape(self, mock_context):

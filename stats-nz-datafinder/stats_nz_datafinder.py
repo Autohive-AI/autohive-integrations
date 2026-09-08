@@ -25,7 +25,7 @@ import asyncio
 import json
 import re
 from typing import Any, NamedTuple
-from urllib.parse import quote
+from urllib.parse import quote, urljoin, urlparse
 
 import aiohttp
 from autohive_integrations_sdk import (
@@ -45,6 +45,7 @@ from shapely.geometry import shape
 stats_nz_datafinder = Integration.load()
 
 API_BASE_URL = "https://datafinder.stats.govt.nz/services/api/v1"
+_DATAFINDER_HOST = "datafinder.stats.govt.nz"
 WFS_VERSION = "2.0.0"
 WFS_REQUEST_TIMEOUT_SECONDS = 30
 DEFAULT_GEOMETRY_FIELD = "Shape"
@@ -101,6 +102,30 @@ def _get_api_key(context: ExecutionContext) -> str:
 
 def _headers(context: ExecutionContext) -> dict[str, str]:
     return {"Authorization": f"Key {_get_api_key(context)}"}
+
+
+def _trusted_datafinder_url(url: str) -> str | None:
+    """Return ``url`` only if it is HTTPS on the Datafinder host.
+
+    Relative paths are resolved against ``API_BASE_URL``. Scheme-relative
+    hosts (``//example.test/...``) are rejected so ``urljoin`` cannot
+    retarget the request. Metadata-supplied attachment URLs are untrusted;
+    the API key must not be sent off-origin.
+    """
+    candidate = url.strip()
+    if not candidate:
+        return None
+    parsed = urlparse(candidate)
+    if not parsed.scheme:
+        if parsed.netloc:
+            return None
+        candidate = urljoin(f"{API_BASE_URL}/", candidate)
+        parsed = urlparse(candidate)
+    if parsed.scheme != "https" or parsed.hostname != _DATAFINDER_HOST:
+        return None
+    if parsed.port not in (None, 443):
+        return None
+    return candidate
 
 
 def _wfs_url(context: ExecutionContext, layer_id: int) -> str:
@@ -836,10 +861,13 @@ def _attachment_items(payload: Any) -> list[dict[str, str]]:
 
 async def _layer_attachments(context: ExecutionContext, metadata: Any) -> list[dict[str, str]]:
     url = metadata.get("attachments") if isinstance(metadata, dict) else None
-    if not isinstance(url, str) or not url.strip():
+    if not isinstance(url, str):
+        return []
+    trusted = _trusted_datafinder_url(url)
+    if not trusted:
         return []
     try:
-        response = await context.fetch(url, headers=_headers(context))
+        response = await context.fetch(trusted, headers=_headers(context))
     except HTTPError as exc:
         if not isinstance(exc, RateLimitError) and getattr(exc, "status", None) == 404:
             return []
