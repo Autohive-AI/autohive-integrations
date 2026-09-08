@@ -590,9 +590,7 @@ def _coded_fields_omitted_count(metadata: Any, *, fields: list[str] | None, incl
     if fields is not None:
         requested = {name for name in fields if _is_identifier(name)}
         return sum(
-            1
-            for field in _fields(metadata)
-            if _is_coded_field(field.get("name")) and field["name"] not in requested
+            1 for field in _fields(metadata) if _is_coded_field(field.get("name")) and field["name"] not in requested
         )
     return coded_in_schema
 
