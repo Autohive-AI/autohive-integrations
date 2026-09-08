@@ -449,8 +449,55 @@ class TestQueryLayerByGeometry:
         assert "filter" not in get_feature
         assert get_feature["cql_filter"].startswith("INTERSECTS(Shape, SRID=4326;POLYGON((")
         assert "sortBy" not in get_feature
-        assert mock_wfs.await_args_list[2].kwargs["params"]["startIndex"] == 2
+        assert mock_wfs.await_args_list[2].kwargs["params"]["startIndex"] == 1
         assert mock_wfs.await_args_list[2].kwargs["method"] == "POST"
+
+    @pytest.mark.asyncio
+    async def test_short_page_advances_by_rows_returned(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", "b", number_matched=4)),
+            ok(collection("c", "d", number_matched=4)),
+        ]
+        result = await _query(mock_context, {"page_size": 50, "max_pages": 5})
+        assert result.type == ResultType.ACTION
+        assert [record["id"] for record in result.result.data["records"]] == ["a", "b", "c", "d"]
+        assert mock_wfs.await_args_list[1].kwargs["params"]["startIndex"] == 0
+        assert mock_wfs.await_args_list[2].kwargs["params"]["startIndex"] == 2
+        assert result.result.data["truncated"] is False
+
+    @pytest.mark.asyncio
+    async def test_unknown_match_short_page_then_empty_is_complete(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", "b", number_matched="unknown")),
+            ok(collection(number_matched=2)),
+        ]
+        result = await _query(mock_context, {"page_size": 50, "max_pages": 5})
+        assert result.type == ResultType.ACTION
+        assert [record["id"] for record in result.result.data["records"]] == ["a", "b"]
+        assert mock_wfs.await_args_list[2].kwargs["params"]["startIndex"] == 2
+        assert len(mock_wfs.await_args_list) == 3
+        assert result.result.data["truncated"] is False
+        assert result.result.data["total_matched"] == 2
+
+    @pytest.mark.asyncio
+    async def test_unknown_match_short_page_at_cap_probes_from_cursor(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", "b", number_matched="unknown")),
+            ok(collection("c")),
+        ]
+        result = await _query(mock_context, {"page_size": 50, "max_pages": 1})
+        assert result.type == ResultType.ACTION
+        assert [record["id"] for record in result.result.data["records"]] == ["a", "b"]
+        probe = mock_wfs.await_args_list[2].kwargs["params"]
+        assert probe["startIndex"] == 2
+        assert probe["count"] == 1
+        assert result.result.data["truncated"] is True
 
     @pytest.mark.asyncio
     async def test_rejects_unclosed_geometry(self, mock_context):

@@ -172,7 +172,9 @@ workflow.
 - Metadata fields are provider-controlled. If a layer does not publish licence
   or attribution, those output fields are `null`.
 - Offset paging can shift if Datafinder republishes a layer between requests.
-  Without a declared key, WFS also does not guarantee page order.
+  Without a declared key, WFS also does not guarantee page order. The next
+  `startIndex` is the number of features already returned, not `page × page_size`,
+  so a short server page does not skip rows.
 - If a later WFS page fails after some records were retrieved, those records
   are returned with `truncated` true rather than discarded.
 - All operations are read-only.

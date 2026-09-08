@@ -943,9 +943,9 @@ class QueryLayerByGeometryAction(ActionHandler):
             features: list[Any] = []
             matched: int | None = None
             pages = 0
-            last_page_full = False
+            start_index = 0
             truncated = False
-            for page in range(max_pages):
+            for _ in range(max_pages):
                 try:
                     data = await _wfs_get_features(
                         context,
@@ -954,7 +954,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                             feature_type=feature_type,
                             cql_filter=cql_filter,
                             page_size=page_size,
-                            start_index=page * page_size,
+                            start_index=start_index,
                             sort_by=sort_by,
                             property_names=property_names,
                         ),
@@ -965,21 +965,21 @@ class QueryLayerByGeometryAction(ActionHandler):
                     truncated = True
                     break
                 page_features = data["features"]
-                features.extend(page_features)
-                features = _unique_features(features)
-                pages += 1
-                last_page_full = len(page_features) >= page_size
                 page_matched = _total_matched(data)
                 if page_matched is not None:
                     matched = page_matched
-                if not page_features or (matched is not None and len(features) >= matched):
+                if not page_features:
                     break
-                if matched is None and not last_page_full:
+                features.extend(page_features)
+                features = _unique_features(features)
+                pages += 1
+                start_index += len(page_features)
+                if matched is not None and len(features) >= matched:
                     break
             if not truncated:
                 if matched is not None:
                     truncated = len(features) < matched
-                elif pages >= max_pages and last_page_full:
+                elif pages >= max_pages:
                     try:
                         probe = await _wfs_get_features(
                             context,
@@ -988,7 +988,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                                 feature_type=feature_type,
                                 cql_filter=cql_filter,
                                 page_size=1,
-                                start_index=pages * page_size,
+                                start_index=start_index,
                                 sort_by=sort_by,
                                 property_names=property_names,
                             ),

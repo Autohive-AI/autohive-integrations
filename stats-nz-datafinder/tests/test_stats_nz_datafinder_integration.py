@@ -82,9 +82,14 @@ async def _layer_id(live_context) -> int:
     )
     assert result.type == ResultType.ACTION, result.result
     layers = result.result.data["layers"]
-    if not layers:
-        pytest.skip("No public vector layers returned for keyword 'census'")
-    return layers[0]["id"]
+    queryable = [
+        layer
+        for layer in layers
+        if isinstance(layer, dict) and layer.get("queryable") and isinstance(layer.get("id"), int)
+    ]
+    if not queryable:
+        pytest.skip("No queryable public vector layers returned for keyword 'census'")
+    return queryable[0]["id"]
 
 
 class TestSearchLayers:
@@ -133,14 +138,13 @@ class TestQueryLayerByGeometry:
             {"layer_id": layer_id, "geometry": WELLINGTON, "page_size": 5, "max_pages": 1},
             live_context,
         )
-        if result.type == ResultType.ACTION_ERROR:
-            pytest.skip(f"Layer {layer_id} is not queryable over WFS: {result.result.message}")
+        assert result.type == ResultType.ACTION, result.result
         data = result.result.data
         assert data["layer_id"] == layer_id
         assert isinstance(data["records"], list)
         assert len(data["records"]) <= 5
         assert data["record_count"] == len(data["records"])
-        assert data["retrieved_pages"] >= 1
+        assert data["retrieved_pages"] == (1 if data["records"] else 0)
         assert "truncated" in data
         if data["records"]:
             record = data["records"][0]
