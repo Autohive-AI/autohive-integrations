@@ -39,7 +39,7 @@ async def live_context(env_credentials):
 def _require_provider_success(result):
     assert result.type == ResultType.ACTION, getattr(result.result, "message", result.result)
     data = result.result.data
-    if data.get("error_type") in {"rate_limit", "quota_exceeded", "quota_or_unauthorized"}:
+    if data.get("error_type") in {"rate_limit", "quota_exceeded"}:
         pytest.skip(f"OpenRouteService limited this request: {data.get('message')}")
     assert data.get("result") is True, data.get("message")
     return data

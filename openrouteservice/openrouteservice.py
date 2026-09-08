@@ -298,7 +298,11 @@ class GetIsochrone(ActionHandler):
                     geojson = json.loads(geojson)
                 except json.JSONDecodeError:
                     raise ValueError("OpenRouteService returned a non-JSON isochrone response.") from None
-            if not isinstance(geojson, dict) or geojson.get("type") != "FeatureCollection":
+            if (
+                not isinstance(geojson, dict)
+                or geojson.get("type") != "FeatureCollection"
+                or not isinstance(geojson.get("features"), list)
+            ):
                 raise ValueError("OpenRouteService returned an unexpected isochrone response.")
 
             return ActionResult(

@@ -354,6 +354,33 @@ class TestGetIsochrone:
         assert data["result"] is False
         assert data["error_type"] == "invalid_request"
 
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"type": "FeatureCollection"},
+            {"type": "FeatureCollection", "features": "not-a-list"},
+            {"type": "FeatureCollection", "features": None},
+        ],
+    )
+    async def test_rejects_feature_collection_without_feature_array(self, mock_context, payload):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
+
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+
+        data = _action_data(result)
+        assert data["result"] is False
+        assert data["error_type"] == "invalid_request"
+
+    async def test_empty_feature_array_is_still_success(self, mock_context):
+        payload = {"type": "FeatureCollection", "features": [], "metadata": {"service": "isochrones"}}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
+
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+
+        data = _action_data(result)
+        assert data["result"] is True
+        assert data["geojson"] == payload
+
     async def test_rejects_invalid_isochrone_inputs(self, mock_context):
         cases = [
             {"longitude": 174.76, "time_minutes": [10]},
