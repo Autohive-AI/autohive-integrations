@@ -15,6 +15,11 @@ from autohive_integrations_sdk import (
 
 openrouteservice = Integration.load()
 
+
+class ProviderResponseError(Exception):
+    """Raised when a 2xx OpenRouteService body is not the expected GeoJSON shape."""
+
+
 # api.openrouteservice.org is deprecated; HeiGIT documents geocode as Pelias v1.
 GEOCODE_URL = "https://api.heigit.org/pelias/v1/search"
 # The current OpenRouteService API Playground uses HeiGIT's OpenRouteService gateway.
@@ -151,6 +156,17 @@ def _provider_error(error: Exception) -> ActionResult:
             cost_usd=0.0,
         )
 
+    if isinstance(error, ProviderResponseError):
+        return ActionResult(
+            data={
+                "result": False,
+                "error_type": "provider_error",
+                "retry_after_seconds": None,
+                "message": str(error),
+            },
+            cost_usd=0.0,
+        )
+
     if isinstance(error, ValueError):
         return ActionResult(
             data={"result": False, "error_type": "invalid_request", "retry_after_seconds": None, "message": str(error)},
@@ -221,7 +237,7 @@ class GeocodeAddress(ActionHandler):
             data = response.data
             features = data.get("features") if isinstance(data, dict) else None
             if not isinstance(data, dict) or data.get("type") != "FeatureCollection" or not isinstance(features, list):
-                raise ValueError("OpenRouteService returned an unexpected geocode response.")
+                raise ProviderResponseError("OpenRouteService returned an unexpected geocode response.")
             matches = []
             for feature in features:
                 if not isinstance(feature, dict):
@@ -268,7 +284,14 @@ class GeocodeAddress(ActionHandler):
                 },
                 cost_usd=0.0,
             )
-        except (RateLimitError, HTTPError, ValueError, aiohttp.ClientError, TimeoutError) as error:
+        except (
+            RateLimitError,
+            HTTPError,
+            ProviderResponseError,
+            ValueError,
+            aiohttp.ClientError,
+            TimeoutError,
+        ) as error:
             return _provider_error(error)
 
 
@@ -303,13 +326,13 @@ class GetIsochrone(ActionHandler):
                 try:
                     geojson = json.loads(geojson)
                 except json.JSONDecodeError:
-                    raise ValueError("OpenRouteService returned a non-JSON isochrone response.") from None
+                    raise ProviderResponseError("OpenRouteService returned a non-JSON isochrone response.") from None
             if (
                 not isinstance(geojson, dict)
                 or geojson.get("type") != "FeatureCollection"
                 or not isinstance(geojson.get("features"), list)
             ):
-                raise ValueError("OpenRouteService returned an unexpected isochrone response.")
+                raise ProviderResponseError("OpenRouteService returned an unexpected isochrone response.")
 
             return ActionResult(
                 data={
@@ -324,5 +347,12 @@ class GetIsochrone(ActionHandler):
                 },
                 cost_usd=0.0,
             )
-        except (RateLimitError, HTTPError, ValueError, aiohttp.ClientError, TimeoutError) as error:
+        except (
+            RateLimitError,
+            HTTPError,
+            ProviderResponseError,
+            ValueError,
+            aiohttp.ClientError,
+            TimeoutError,
+        ) as error:
             return _provider_error(error)

@@ -282,7 +282,9 @@ class TestGeocodeAddress:
 
         data = _action_data(result)
         assert data["result"] is False
-        assert data["error_type"] == "invalid_request"
+        assert data["error_type"] == "provider_error"
+        assert "coordinates" not in data["message"].lower()
+        assert "time bands" not in data["message"].lower()
 
     async def test_rejects_invalid_geocode_inputs(self, mock_context):
         missing = await openrouteservice.execute_action("geocode_address", {}, mock_context)
@@ -352,7 +354,9 @@ class TestGetIsochrone:
 
         data = _action_data(result)
         assert data["result"] is False
-        assert data["error_type"] == "invalid_request"
+        assert data["error_type"] == "provider_error"
+        assert "coordinates" not in data["message"].lower()
+        assert "time bands" not in data["message"].lower()
 
     @pytest.mark.parametrize(
         "payload",
@@ -369,7 +373,19 @@ class TestGetIsochrone:
 
         data = _action_data(result)
         assert data["result"] is False
-        assert data["error_type"] == "invalid_request"
+        assert data["error_type"] == "provider_error"
+        assert "coordinates" not in data["message"].lower()
+        assert "time bands" not in data["message"].lower()
+
+    async def test_rejects_non_json_isochrone_string(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data="<html>not json</html>")
+
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+
+        data = _action_data(result)
+        assert data["result"] is False
+        assert data["error_type"] == "provider_error"
+        assert "<html>" not in data["message"]
 
     async def test_empty_feature_array_is_still_success(self, mock_context):
         payload = {"type": "FeatureCollection", "features": [], "metadata": {"service": "isochrones"}}

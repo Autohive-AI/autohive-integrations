@@ -55,7 +55,7 @@ HeiGIT enforces **two** quotas per API key ([FAQ](https://giscience.github.io/op
 
 A 403 is `quota_exceeded` only when the body mentions quota and not an unauthorized key. HeiGIT’s combined wording (`Daily quota reached or API key unauthorized`) is `quota_or_unauthorized` — staff document 403 as either daily quota or a key that is not allowed, and the body does not distinguish them. A 403 that only says access is disallowed is `authorization`. None of these mean the `driving-car` profile is missing.
 
-Other classifications: `authentication` (401), `invalid_request` (400), `not_found` (404 — no result; retrying will not help), `not_acceptable` (406), `provider_error` (other HTTP), `request_failed` (network/timeout after retries).
+Other classifications: `authentication` (401), `invalid_request` (400, or a blank API key / empty time bands), `not_found` (404 — no result; retrying will not help), `not_acceptable` (406), `provider_error` (other HTTP, or a 2xx body that is not the expected GeoJSON), `request_failed` (network/timeout after retries).
 
 `get_isochrone` uses a 90-second timeout and does not retry on timeout, so a slow compute that already counted against daily quota is not charged again. Driving-time bands are capped at 60 minutes and 10 intervals because that is the public isochrone limit.
 
