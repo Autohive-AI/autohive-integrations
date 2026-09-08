@@ -311,8 +311,9 @@ remain available for a selected or full snapshot repackage.
 
 If several merges arrive while packaging is already running, GitHub may replace
 an older pending workflow run. The next surviving push run compares against the
-newest successful ancestral push run, so it catches every still-unreleased
-version bump in the skipped commit range rather than losing an integration.
+newest successful ancestral push run across paginated workflow history, so it
+catches every still-unreleased version bump in the skipped commit range after
+either a short burst or a long broken-workflow period.
 Both pull-request validation and release packaging use the immutable HiveUp
 `2.5.0` tag, so the tooling release must exist before this workflow change is
 merged.

@@ -80,6 +80,7 @@ jobs:
               fi
             done < <(
               gh api \
+                --paginate \
                 "repos/$GITHUB_REPOSITORY/actions/workflows/package-and-release.yml/runs?branch=$GITHUB_REF_NAME&event=push&status=success&per_page=100" \
                 --jq '.workflow_runs[].head_sha'
             )
