@@ -681,6 +681,21 @@ class TestRemoveContactFromList:
         assert call_kwargs.kwargs["json"] == ["99"]
         assert call_kwargs.kwargs["headers"] == {"Content-Type": "application/json"}
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "inputs",
+        [
+            {"list_id": "../other-list", "contact_id": "99"},
+            {"list_id": "42", "contact_id": "not-a-contact-id"},
+        ],
+    )
+    async def test_rejects_non_numeric_ids_before_http(self, mock_context, inputs):
+        result = await hubspot.execute_action("remove_contact_from_list", inputs, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        assert result.result["source"] == "input"
+        mock_context.fetch.assert_not_called()
+
 
 # ---- GetRecentContacts ----
 

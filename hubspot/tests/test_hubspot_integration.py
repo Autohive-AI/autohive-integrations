@@ -111,6 +111,15 @@ def require_owner_id():
         pytest.skip("HUBSPOT_TEST_OWNER_ID not set")
 
 
+async def contact_is_in_test_list(context):
+    """Return whether the configured contact currently belongs to the configured list."""
+    response = await context.fetch(
+        f"https://api.hubapi.com/crm/lists/2026-03/records/0-1/{TEST_CONTACT_ID}/memberships",
+        method="GET",
+    )
+    return any(str(membership.get("listId")) == str(TEST_LIST_ID) for membership in response.data.get("results", []))
+
+
 # ---- Contact Management (Read-Only) ----
 
 
@@ -487,17 +496,28 @@ class TestAddContactToList:
         require_contact_id()
         require_list_id()
 
-        result = await hubspot.execute_action(
-            "add_contact_to_list",
-            {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
-            live_context,
-        )
-        api_result = result.result.data["result"]
+        was_member = await contact_is_in_test_list(live_context)
+        try:
+            result = await hubspot.execute_action(
+                "add_contact_to_list",
+                {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
+                live_context,
+            )
+            api_result = result.result.data["result"]
 
-        assert "category" not in api_result
-        assert any(
-            key in api_result for key in ("recordIdsAdded", "recordsIdsAdded", "recordIdsMissing", "recordIdsRemoved")
-        )
+            assert "category" not in api_result
+            assert any(
+                key in api_result
+                for key in ("recordIdsAdded", "recordsIdsAdded", "recordIdsMissing", "recordIdsRemoved")
+            )
+            assert await contact_is_in_test_list(live_context)
+        finally:
+            if not was_member:
+                await hubspot.execute_action(
+                    "remove_contact_from_list",
+                    {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
+                    live_context,
+                )
 
 
 @pytest.mark.destructive
@@ -506,11 +526,13 @@ class TestRemoveContactFromList:
         require_contact_id()
         require_list_id()
 
-        await hubspot.execute_action(
-            "add_contact_to_list",
-            {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
-            live_context,
-        )
+        was_member = await contact_is_in_test_list(live_context)
+        if not was_member:
+            await hubspot.execute_action(
+                "add_contact_to_list",
+                {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
+                live_context,
+            )
 
         try:
             result = await hubspot.execute_action(
@@ -521,10 +543,11 @@ class TestRemoveContactFromList:
             api_result = result.result.data["result"]
 
             assert TEST_CONTACT_ID in api_result.get("recordIdsRemoved", [])
+            assert not await contact_is_in_test_list(live_context)
         finally:
-            # Preserve the established test fixture state for subsequent runs.
+            restore_action = "add_contact_to_list" if was_member else "remove_contact_from_list"
             await hubspot.execute_action(
-                "add_contact_to_list",
+                restore_action,
                 {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
                 live_context,
             )

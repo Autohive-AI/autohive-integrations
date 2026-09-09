@@ -1065,6 +1065,16 @@ To run the tests included with the integration:
 3. For live tests, configure the HubSpot variables documented in `.env.example`
 4. Run the list-membership tests with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k contact_to_static_list`
 
+The list-membership tests reuse existing HubSpot test variables; this action does not introduce any new environment variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `HUBSPOT_ACCESS_TOKEN` | OAuth access token for the live test account |
+| `HUBSPOT_TEST_LIST_ID` | ID of a manual or snapshot test list |
+| `HUBSPOT_TEST_CONTACT_ID` | Contact whose membership is added and removed during the test |
+
+Both membership tests detect the contact's initial membership and restore that state in cleanup, including when an assertion fails.
+
 The test suite includes:
 - Authentication and token management tests
 - Contact, company, and deal CRUD operation tests
