@@ -299,3 +299,49 @@ See the SDK's [Integration Structure Reference](https://github.com/autohive-ai/i
 8. **One integration per PR** — keep PRs focused
 
 All CI checks must pass before merge.
+
+## Deployment packages
+
+Every merge to `master` runs `Package integrations for Autohive`. The workflow
+compares `config.json` versions with the newest successfully processed
+default-branch commit and creates a GitHub Release only when at least one
+integration is new or has a higher semantic version. The release contains only
+those changed integration ZIPs plus an integrity manifest. Manual workflow runs
+remain available for a selected or full snapshot repackage.
+
+If several merges arrive while packaging is already running, GitHub may replace
+an older pending workflow run. The next surviving push run compares against the
+newest successful ancestral push run across paginated workflow history, so it
+catches every still-unreleased version bump in the skipped commit range after
+either a short burst or a long broken-workflow period.
+Both pull-request validation and release packaging use the immutable HiveUp
+`2.5.0` tag, so the tooling release must exist before this workflow change is
+merged.
+
+Runtime dependency changes, including SDK updates in `requirements.txt`, alter
+the deployable ZIP and therefore require a matching `config.json` version bump.
+Documentation-only and test-only changes do not require a release version bump.
+
+A release is a monorepo deployment batch, not an integration version tag. Each
+manifest entry retains its own `config.json` version and repository folder
+path. Autohive stores a release cursor, pulls every later batch, and keeps the
+newest entry if the same repository path occurs in multiple releases.
+
+The workflow only has GitHub `contents: write` permission. It does not contain
+an Autohive URL or deploy credential. Autohive must pull, verify, and deploy the
+assets from its authenticated Admin UI, and deployment never publishes a
+version to end users.
+
+Pull-request validation remains the quality gate. Release packaging deliberately
+uses HiveUp's `--skip-validate` mode so a later lint-rule change cannot prevent
+repackaging an integration that is already on the protected default branch;
+package structure and entry-point safety checks still run during the build.
+
+The top-level integration folder is the repository identity; no separate source
+ID is maintained. A config-name change within the same folder is shown as a
+reviewed rename in Autohive Admin and deploys the next version to a newly named
+Lambda. Moving the folder requires a one-time reviewed rebind. Release
+configuration is only needed to request `zip`, `container`, or the default
+`preserve` package type; Autohive applies its server-side conversion policy
+before deployment. A reviewed folder move also creates a new Lambda for the
+existing Autohive backend.
