@@ -38,7 +38,7 @@ The integration automatically requests the following HubSpot permissions:
 - `crm.objects.deals.write` - Write access to deal records
 - `crm.objects.owners.read` - Read access to owner information
 - `crm.lists.read` - Read access to lists/segments and their memberships
-- `crm.lists.write` - Add contacts to manual or snapshot lists
+- `crm.lists.write` - Add or remove contacts from manual or snapshot lists
 - `tickets` - Full access to support tickets
 - `sales-email-read` - Read access to sales email data
 - `oauth` - OAuth authentication
@@ -100,6 +100,16 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Outputs:** Record IDs added to the list, missing from the account, or removed by the membership update. HubSpot omits result arrays that have no values.
 - **Required scope:** `crm.lists.write`
 - **Limitation:** Dynamic lists calculate membership from filters and cannot be updated directly
+
+#### Action: `remove_contact_from_list`
+- **Description:** Remove a contact from a manual or snapshot HubSpot list
+- **Inputs:**
+  - `list_id` (required): HubSpot list ID
+  - `contact_id` (required): Contact ID to remove from the list
+- **Outputs:** Record IDs removed from the list or missing from the account. HubSpot may omit result arrays that have no values.
+- **Required scope:** `crm.lists.write`
+- **Limitation:** Dynamic lists calculate membership from filters and cannot be updated directly
+- **API:** [Remove records from a list](https://developers.hubspot.com/docs/api-reference/latest/crm/lists/guide#remove-records-from-an-existing-list)
 
 #### Action: `get_recent_contacts`
 - **Description:** Retrieve recently created contacts sorted by creation date
@@ -974,7 +984,7 @@ The integration has the following dependencies:
 1. Search for existing contact using `get_contact` by email
 2. If contact doesn't exist, create new contact with `create_contact`
 3. Update contact information as needed with `update_contact`
-4. Add contact to marketing lists using `add_contact_to_list`
+4. Add or remove the contact from marketing lists using `add_contact_to_list` or `remove_contact_from_list`
 5. Track recent email conversations with `get_contact` (include_recent_emails: true)
 
 ### Note Management Workflow
@@ -998,9 +1008,10 @@ The integration has the following dependencies:
 2. Search for specific lists using `search_lists` with name queries
 3. Get detailed list information with `get_list` including filter definitions for dynamic lists
 4. Add contacts to manual or snapshot lists using `add_contact_to_list`
-5. Export list members with complete contact details using `get_list_members`
-6. For performance-critical operations, use `get_list_memberships` to get raw member IDs first
-7. Use pagination with appropriate limits to manage large lists (10K+ members)
+5. Remove contacts that are no longer in the source audience using `remove_contact_from_list`
+6. Export list members with complete contact details using `get_list_members`
+7. For performance-critical operations, use `get_list_memberships` to get raw member IDs first
+8. Use pagination with appropriate limits to manage large lists (10K+ members)
 
 ### Associations Discovery Workflow
 1. Get a contact by email using `get_contact`
@@ -1052,7 +1063,7 @@ To run the tests included with the integration:
 1. From the repository root, install the test and integration dependencies
 2. Run mocked unit tests with `pytest hubspot/`
 3. For live tests, configure the HubSpot variables documented in `.env.example`
-4. Run the list-membership test with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k add_contact_to_static_list`
+4. Run the list-membership tests with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k contact_to_static_list`
 
 The test suite includes:
 - Authentication and token management tests
@@ -1072,7 +1083,7 @@ The test suite includes:
 - All dates are returned in UTC format for consistency
 - Pagination is essential for pipelines with 100+ deals
 - Some properties may be read-only depending on your HubSpot subscription level
-- `add_contact_to_list` requires `crm.lists.write` and only supports manual or snapshot lists
+- `add_contact_to_list` and `remove_contact_from_list` require `crm.lists.write` and only support manual or snapshot lists
 - Existing connections must be reauthorized after new OAuth scopes are introduced
 
 ## Performance Optimization

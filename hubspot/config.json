@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -1320,6 +1320,57 @@
                   "type": "string"
                 },
                 "description": "Record IDs removed as part of the membership update"
+              }
+            }
+          }
+        },
+        "required": [
+          "result"
+        ]
+      }
+    },
+    "remove_contact_from_list": {
+      "display_name": "Remove Contact from List",
+      "description": "Remove a contact from a manual or snapshot HubSpot list using the Lists API",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "list_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "The ID of the HubSpot list to remove the contact from"
+          },
+          "contact_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "The HubSpot contact ID (internal object ID)"
+          }
+        },
+        "required": [
+          "list_id",
+          "contact_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "object",
+            "description": "Record IDs removed from the list or missing from the HubSpot account",
+            "properties": {
+              "recordIdsRemoved": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Record IDs removed from the list"
+              },
+              "recordIdsMissing": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Record IDs that do not exist in the HubSpot account"
               }
             }
           }
