@@ -1174,7 +1174,9 @@ class QueryLayerByGeometryAction(ActionHandler):
                     except DatafinderError:
                         truncated = True
                     else:
-                        truncated = len(_unique_features(features + probe["features"])) > len(features)
+                        # Any probe row means completeness is unknown: without
+                        # sortBy, WFS can repeat an earlier id at this cursor.
+                        truncated = bool(probe["features"])
                 else:
                     truncated = False
             records: list[dict[str, Any]] = []

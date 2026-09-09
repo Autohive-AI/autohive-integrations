@@ -558,6 +558,19 @@ class TestQueryLayerByGeometry:
         assert result.result.data["truncated"] is True
 
     @pytest.mark.asyncio
+    async def test_duplicate_probe_id_still_marks_truncated(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", "b", number_matched="unknown")),
+            ok(collection("b")),
+        ]
+        result = await _query(mock_context, {"page_size": 50, "max_pages": 1})
+        assert result.type == ResultType.ACTION
+        assert [record["id"] for record in result.result.data["records"]] == ["a", "b"]
+        assert result.result.data["truncated"] is True
+
+    @pytest.mark.asyncio
     async def test_rejects_unclosed_geometry(self, mock_context):
         result = await _query(
             mock_context,
