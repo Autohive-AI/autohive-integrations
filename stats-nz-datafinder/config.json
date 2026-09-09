@@ -1,0 +1,299 @@
+{
+  "name": "stats-nz-datafinder",
+  "version": "1.0.0",
+  "display_name": "Stats NZ Datafinder",
+  "description": "Queries Stats NZ Datafinder WFS layers and exposes layer metadata for geographic analysis.",
+  "entry_point": "stats_nz_datafinder.py",
+  "supports_billing": false,
+  "supports_connected_account": false,
+  "auth": {
+    "type": "custom",
+    "title": "Stats NZ Datafinder API key",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API key",
+          "help_text": "Create a key at https://datafinder.stats.govt.nz/my/api/. The key must be authorised to query layer data through WFS and to read public layer details."
+        }
+      },
+      "required": ["api_key"]
+    }
+  },
+  "actions": {
+    "query_layer_by_geometry": {
+      "display_name": "Query Layer",
+      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (area-weighted overlap), a Point (containing feature, no area-weighting), a bbox, and/or attribute filters. Census VAR_* columns are omitted unless listed in fields or include_coded_fields is true. Use ieq (not contains) for an exact area name. Geometry is omitted unless include_geometry is true. Unscoped national scans are rejected.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "layer_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Numeric Datafinder layer ID, e.g. 120897."
+          },
+          "geometry": {
+            "type": "object",
+            "description": "RFC 7946 WGS84 Point, Polygon, or MultiPolygon. Point = 'what is here'; Polygon = catchment clip with overlap_fraction.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["Point", "Polygon", "MultiPolygon"]
+              },
+              "coordinates": {
+                "type": "array"
+              }
+            },
+            "required": ["type", "coordinates"],
+            "additionalProperties": false
+          },
+          "bbox": {
+            "type": "array",
+            "description": "WGS84 bounding box [west, south, east, north]. Alternative to geometry; do not send both. Longitudes outside [-180, 180] (e.g. Datafinder east=184.5) are wrapped; a box that crosses 180° is split.",
+            "minItems": 4,
+            "maxItems": 4,
+            "items": { "type": "number" }
+          },
+          "attribute_filters": {
+            "type": "array",
+            "description": "Optional filters combined with AND. Use ieq for an exact area name (case-insensitive). contains is a substring match — 'Wellington Central' also matches 'Mount Wellington Central'. Sufficient on their own when looking up a named area.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "property": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+                },
+                "operator": {
+                  "type": "string",
+                  "enum": ["eq", "neq", "lt", "lte", "gt", "gte", "ieq", "contains"]
+                },
+                "value": {
+                  "type": ["string", "number", "boolean"]
+                }
+              },
+              "required": ["property", "operator", "value"],
+              "additionalProperties": false
+            }
+          },
+          "fields": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Attribute names to return. Use after get_layer_metadata. If omitted, VAR_* census codes are dropped and coded_fields_omitted reports how many. An empty list is rejected.",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+            }
+          },
+          "include_coded_fields": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true and fields is omitted, return VAR_* census columns. Default false — those columns are the main cause of agent context compaction."
+          },
+          "include_geometry": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, include each feature's GeoJSON geometry. Default false."
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50,
+            "description": "Maximum features per WFS page."
+          },
+          "max_pages": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 10,
+            "description": "Maximum WFS pages to retrieve. truncated is true when more matching features exist."
+          }
+        },
+        "required": ["layer_id"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "records": {
+            "type": "array",
+            "description": "Matching features as attribute records. Geometry is omitted unless include_geometry is true.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {},
+                "overlap_fraction": {
+                  "type": ["number", "null"],
+                  "description": "Share of the feature's polygon inside the query shape. This is an area share, not a population share. 1.0 for point and attribute-only queries. Null for line/point features (no area to share)."
+                },
+                "overlap_area_sq_km": { "type": ["number", "null"] },
+                "feature_area_sq_km": { "type": ["number", "null"] },
+                "properties": { "type": "object" },
+                "geometry": { "type": ["object", "null"] }
+              }
+            }
+          },
+          "record_count": { "type": "integer" },
+          "layer_id": { "type": "integer" },
+          "retrieved_pages": { "type": "integer" },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when matching features beyond page_size × max_pages were omitted."
+          },
+          "total_matched": {
+            "type": ["integer", "null"],
+            "description": "WFS numberMatched when the server reports it."
+          },
+          "coded_fields_omitted": {
+            "type": "integer",
+            "description": "Count of VAR_* census columns not returned. Pass those names in fields to retrieve them."
+          },
+          "data_vintage": { "type": ["string", "null"] },
+          "licence": { "type": ["string", "null"] },
+          "attribution": { "type": ["string", "null"] }
+        },
+        "required": [
+          "records",
+          "record_count",
+          "layer_id",
+          "retrieved_pages",
+          "truncated",
+          "total_matched",
+          "coded_fields_omitted",
+          "data_vintage",
+          "licence",
+          "attribution"
+        ]
+      }
+    },
+    "get_layer_metadata": {
+      "display_name": "Get Layer Metadata",
+      "description": "Returns citation-ready Stats NZ Datafinder layer metadata, a short description, the layer field list, coded_field_count for Census VAR_* columns, the catalogue page URL, and attachment links (lookups/codebooks when present).",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "layer_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Numeric Datafinder layer ID."
+          }
+        },
+        "required": ["layer_id"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "layer_id": { "type": "integer" },
+          "title": { "type": ["string", "null"] },
+          "description": {
+            "type": ["string", "null"],
+            "description": "First paragraph of the catalogue description, truncated for agent context."
+          },
+          "fields": {
+            "type": "array",
+            "description": "Non-geometry fields from the layer schema. Titles are included when the API provides them. coded is true for Census VAR_* columns.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "type": { "type": ["string", "null"] },
+                "title": { "type": "string" },
+                "coded": { "type": "boolean" }
+              }
+            }
+          },
+          "coded_field_count": {
+            "type": "integer",
+            "description": "Number of VAR_* census columns. Query with fields to retrieve specific ones."
+          },
+          "data_vintage": { "type": ["string", "null"] },
+          "licence": { "type": ["string", "null"] },
+          "attribution": { "type": ["string", "null"] },
+          "page_url": {
+            "type": "string",
+            "description": "Catalogue page for the layer (not the API JSON URL)."
+          },
+          "source_url": { "type": "string" },
+          "attachments": {
+            "type": "array",
+            "description": "Lookup/codebook files when Datafinder publishes them.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "url": { "type": "string" }
+              }
+            }
+          }
+        },
+        "required": [
+          "layer_id",
+          "title",
+          "description",
+          "fields",
+          "coded_field_count",
+          "data_vintage",
+          "licence",
+          "attribution",
+          "page_url",
+          "source_url",
+          "attachments"
+        ]
+      }
+    },
+    "search_layers": {
+      "display_name": "Search Layers",
+      "description": "Searches public vector layers. Returns compact cards (id, title, published_at, queryable) so an agent can pick a layer_id without fetching full metadata.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "keyword": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Catalogue search keyword, e.g. 'census' or 'statistical area'."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          }
+        },
+        "required": ["keyword"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "layers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "integer" },
+                "title": { "type": ["string", "null"] },
+                "description": { "type": ["string", "null"] },
+                "published_at": { "type": ["string", "null"] },
+                "queryable": { "type": "boolean" }
+              }
+            }
+          },
+          "page": { "type": "integer" },
+          "page_size": { "type": "integer" },
+          "total": { "type": ["integer", "null"] }
+        },
+        "required": ["layers", "page", "page_size", "total"]
+      }
+    }
+  }
+}
