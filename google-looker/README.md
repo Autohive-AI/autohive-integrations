@@ -1,321 +1,185 @@
 # Google Looker Integration
 
-A comprehensive integration for accessing Google Looker dashboards, models, queries, and data through the Looker API.
+Access Looker dashboards, LookML models, analytical query results, SQL Runner, and database connection metadata through the Looker API 4.0.
 
-## Features
+## Action safety
 
-### Actions
-- **List Dashboards** - Retrieve all available dashboards with metadata
-- **Get Dashboard** - Fetch detailed dashboard information including elements
-- **Execute LookML Query** - Run queries against Looker models and explores
-- **List Models** - Retrieve all LookML models with their explores
-- **Get Model** - Access detailed model information and structure
-- **Execute SQL Query** - Run raw SQL queries against connected data sources
-- **List Connections** - Retrieve all database connections configured in Looker
+| Action | Looker operation | Classification |
+|---|---|---|
+| `list_dashboards` | `GET /dashboards` | Read-only |
+| `get_dashboard` | `GET /dashboards/{dashboard_id}` | Read-only |
+| `execute_lookml_query` | `POST /queries/run/{result_format}` | Analytical read; can consume database compute and populate Looker-managed caches or derived tables |
+| `list_models` | `GET /lookml_models` | Read-only |
+| `get_model` | `GET /lookml_models/{lookml_model_name}` | Read-only |
+| `execute_sql_query` | `POST /sql_queries`, then `POST /sql_queries/{slug}/run/{result_format}` | Potentially destructive |
+| `list_connections` | `GET /connections` | Read-only metadata |
 
-## Setup
+> [!WARNING]
+> Looker SQL Runner permits DDL and DML statements. `execute_sql_query` can create, alter, or drop schema objects and insert, update, or delete data when the selected database credentials allow it. Use a dedicated Looker API user and read-only database credentials for agent workflows.
 
-### 1. Authentication
-The integration uses Looker's API key authentication:
+## Authentication
 
-1. **Get API Credentials** (requires Looker admin access):
-   - Go to Admin > Users > API Keys
-   - Create a new API key pair (Client ID and Client Secret)
-   - Ensure the API user has appropriate permissions for data access
+Create an API key for a least-privilege Looker user:
 
-2. **Configure Integration**:
-   - Set authentication provider to "custom"
-   - Provide your Looker instance base URL (e.g., https://your-company.looker.com)
-   - Provide your API Client ID and Client Secret
+1. In Looker, open **Admin > Users** and select the API user.
+2. Create an API key to obtain a Client ID and Client Secret.
+3. Configure the integration with:
+   - `base_url`: HTTPS origin of the Looker instance, such as `https://company.cloud.looker.com`. Do not include `/api/4.0` or another path.
+   - `client_id`: Looker API key client ID.
+   - `client_secret`: Looker API key client secret.
 
-### 2. Installation
+API requests execute with the permissions and model access of the Looker user associated with the key. Avoid credentials belonging to an administrator.
+
+### Permissions
+
+Grant only the permissions needed for the enabled workflows:
+
+- Dashboard discovery: `see_user_dashboards` and/or `see_lookml_dashboards`, plus the appropriate folder and model access.
+- LookML model queries: `access_data`, `see_looks`, and `explore` for the relevant model set.
+- SQL Runner: `use_sql_runner`, which depends on `see_lookml`, plus access to the relevant model/connection.
+- Database safety: configure the underlying database user as read-only. Looker does not restrict which SQL commands SQL Runner can execute.
+
+See [Looker API authentication](https://cloud.google.com/looker/docs/api-auth), [Looker roles and permissions](https://cloud.google.com/looker/docs/admin-panel-users-roles), and [SQL Runner database changes](https://cloud.google.com/looker/docs/sql-runner-manage-db).
+
+## Actions
+
+### `list_dashboards`
+
+Returns all active dashboards visible to the API user.
+
+Inputs:
+
+- `fields` (optional): Comma-separated Looker response projection.
+
+Output: `dashboards`, an array of dashboard objects.
+
+Looker's `GET /dashboards` endpoint does not support pagination. Use `fields` to reduce each returned dashboard object when only a projection is needed.
+
+### `get_dashboard`
+
+Returns one dashboard.
+
+Inputs:
+
+- `dashboard_id` (required): Dashboard identifier returned by `list_dashboards`.
+- `fields` (optional): Comma-separated Looker response projection.
+
+Output: `dashboard`, the dashboard object.
+
+### `execute_lookml_query`
+
+Runs a query inline against a LookML model and Explore. It does not create an immutable saved-query object first.
+
+Inputs:
+
+- `model` (required): LookML model name.
+- `explore` (required): Explore name, sent to Looker as `view`.
+- `dimensions` and `measures` (optional): Fully qualified LookML field names. They are combined into the API `fields` array.
+- `filters` (optional): Map of field names to Looker filter expressions.
+- `sorts` (optional): Looker sort expressions.
+- `limit` (optional): Positive row count, or `-1` for unlimited results when permissions permit.
+- `result_format` (optional): `json`, `json_bi`, `json_detail`, `csv`, `txt`, `html`, `md`, or `sql`. Default: `json`.
+- `apply_formatting` and `apply_vis` (optional): Apply Looker formatting or visualization settings.
+
+Output: `query_results`, returned as a string. JSON results are JSON-encoded.
+
+Binary formats such as XLSX, PNG, and JPG are intentionally excluded because the Autohive SDK fetch layer currently exposes non-JSON responses as text.
+
+### `list_models`
+
+Returns LookML models visible to the API user.
+
+Inputs:
+
+- `fields` (optional): Comma-separated response projection.
+- `limit` and `offset` (optional): Server-side result window.
+- `exclude_empty` (optional): Exclude models without Explores.
+- `exclude_hidden` (optional): Exclude hidden Explores.
+- `include_internal` (optional): Include built-in models such as System Activity.
+- `include_self_service` (optional): Include self-service models.
+
+Output: `models`, an array of LookML model objects.
+
+### `get_model`
+
+Returns one LookML model.
+
+Inputs:
+
+- `model_name` (required): LookML model name.
+- `fields` (optional): Comma-separated response projection.
+
+Output: `model`, the LookML model object.
+
+### `execute_sql_query`
+
+Creates and runs a SQL Runner query.
+
+Inputs:
+
+- `sql` (required): SQL statement. The integration does not claim to make arbitrary SQL read-only.
+- Exactly one of `connection_name` or `model_name` (required): Selects the database connection.
+- `vis_config` (optional): Opaque Looker visualization configuration.
+- `result_format` (optional): `inline_json`, `json`, `json_detail`, `json_fe`, `json_bi`, `csv`, `html`, `md`, `txt`, `gsxml`, `sql`, or `json_label`. Default: `json`.
+- `download` (optional): `true` or `false`; controls download-oriented response headers.
+
+Outputs:
+
+- `slug`: Identifier of the SQL Runner query created by Looker.
+- `query_results`: Result returned as a string. JSON results are JSON-encoded.
+
+The action excludes binary XLSX output because the SDK fetch layer handles non-JSON responses as text.
+
+### `list_connections`
+
+Returns database connections visible to the API user.
+
+Input: `fields` (optional), a comma-separated response projection.
+
+Output: `connections`, an array of connection objects.
+
+## Development and testing
+
+Install dependencies and run the mocked unit suite from the repository root:
+
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements-test.txt -r google-looker/requirements.txt
+python -m pytest google-looker/tests/test_google_looker_unit.py -q
+hiveup validate google-looker
 ```
 
-### 3. Required Permissions
-The integration requires these API permissions:
-- `see_lookml_dashboards` - Access dashboard data
-- `see_lookml` - Access models and explores
-- `see_sql` - Access SQL query functionality
-- `access_data` - Execute queries and retrieve data
+Live tests use these environment variables:
 
-## Usage Examples
-
-### List All Dashboards
-```python
-# Get all available dashboards
-result = await integration.execute_action("list_dashboards", {
-    "fields": "id,title,description,created_at",
-    "per_page": 50
-})
-
-for dashboard in result["dashboards"]:
-    print(f"Dashboard: {dashboard['title']} (ID: {dashboard['id']})")
+```text
+LOOKER_BASE_URL
+LOOKER_CLIENT_ID
+LOOKER_CLIENT_SECRET
+LOOKER_TEST_DASHBOARD_ID
+LOOKER_TEST_MODEL_NAME
+LOOKER_TEST_EXPLORE_NAME
+LOOKER_TEST_QUERY_FIELD
+LOOKER_RUN_SQL_TESTS
 ```
 
-### Get Dashboard Details
-```python
-# Get detailed information about a specific dashboard
-result = await integration.execute_action("get_dashboard", {
-    "dashboard_id": "123",
-    "fields": "id,title,description,dashboard_elements"
-})
+Run read-only and analytical tests:
 
-dashboard = result["dashboard"]
-print(f"Dashboard: {dashboard['title']}")
-print(f"Elements: {len(dashboard['dashboard_elements'])}")
-```
-
-### Execute LookML Query
-```python
-# Run a query against a Looker model
-result = await integration.execute_action("execute_lookml_query", {
-    "model": "sales_analytics",
-    "explore": "orders",
-    "dimensions": ["orders.status", "orders.created_date"],
-    "measures": ["orders.count", "orders.total_amount"],
-    "filters": {
-        "orders.created_date": "30 days ago for 30 days"
-    },
-    "sorts": ["orders.created_date desc"],
-    "limit": 1000,
-    "result_format": "json"
-})
-
-import json
-query_data = json.loads(result["query_results"])
-for row in query_data:
-    print(f"Status: {row['orders.status']}, Count: {row['orders.count']}")
-```
-
-### Execute SQL Query
-```python
-# Run raw SQL against a connected database
-result = await integration.execute_action("execute_sql_query", {
-    "sql": """
-        SELECT 
-            status,
-            COUNT(*) as order_count,
-            SUM(total_amount) as total_revenue
-        FROM orders 
-        WHERE created_date >= '2025-01-01'
-        GROUP BY status
-        ORDER BY total_revenue DESC
-    """,
-    "connection_name": "production_warehouse",
-    "result_format": "json"
-})
-
-import json
-sql_data = json.loads(result["query_results"])
-for row in sql_data:
-    print(f"{row['status']}: {row['order_count']} orders, ${row['total_revenue']}")
-```
-
-### List Models and Explores
-```python
-# Get all available models
-models_result = await integration.execute_action("list_models", {
-    "fields": "name,label,explores"
-})
-
-for model in models_result["models"]:
-    print(f"Model: {model['name']} ({model['label']})")
-    
-    # Get detailed model information
-    model_detail = await integration.execute_action("get_model", {
-        "model_name": model['name'],
-        "fields": "name,explores.name,explores.label"
-    })
-    
-    for explore in model_detail["model"]["explores"]:
-        print(f"  - Explore: {explore['name']} ({explore['label']})")
-```
-
-## Testing
-
-### Quick Test (Mock Data)
 ```bash
-# Run tests with mock responses (safe, no API calls)
-python test/test_google_looker_integration.py
+python -m pytest google-looker/tests/test_google_looker_integration.py -m "integration and not destructive" -q
 ```
 
-### Live API Testing
-1. **Configure credentials** in your test environment:
-   ```python
-   LOOKER_BASE_URL = "https://your-company.looker.com"
-   LOOKER_CLIENT_ID = "your_client_id"
-   LOOKER_CLIENT_SECRET = "your_client_secret"
-   ```
+The SQL Runner test uses only `SELECT 1`, but it creates Looker SQL Runner query metadata and is therefore separately opt-in. Set `LOOKER_RUN_SQL_TESTS=true`, confirm the selected model uses read-only database credentials, then run:
 
-2. **Run live tests** (ensure you have test dashboards and models):
-   ```bash
-   python -m pytest test/ -v
-   ```
-
-### Test Coverage
-The test suite covers:
-- All action handlers with mock responses
-- Authentication flow and token management
-- Error handling for missing credentials
-- Input validation for required parameters
-- API response parsing and data transformation
-
-## API Reference
-
-### Actions
-
-#### `list_dashboards`
-Retrieve all available dashboards.
-
-**Input:**
-- `fields` (optional): Comma-separated list of fields to include
-- `page` (optional): Page number for pagination
-- `per_page` (optional): Number of dashboards per page
-
-**Output:**
-- `dashboards`: Array of dashboard objects
-- `result`: Boolean indicating success
-
-#### `get_dashboard`
-Get detailed information about a specific dashboard.
-
-**Input:**
-- `dashboard_id` (required): The dashboard ID
-- `fields` (optional): Comma-separated list of fields to include
-
-**Output:**
-- `dashboard`: Complete dashboard object with elements and metadata
-- `result`: Boolean indicating success
-
-#### `execute_lookml_query`
-Execute a query against Looker models.
-
-**Input:**
-- `model` (required): The LookML model name
-- `explore` (required): The explore name within the model
-- `dimensions` (optional): Array of dimension names
-- `measures` (optional): Array of measure names
-- `filters` (optional): Object with filter conditions
-- `sorts` (optional): Array of sort specifications
-- `limit` (optional): Maximum number of results
-- `result_format` (optional): Output format (json, csv, etc.)
-
-**Output:**
-- `query_results`: JSON string containing query results
-- `result`: Boolean indicating success
-
-#### `execute_sql_query`
-Execute raw SQL queries against connected databases.
-
-**Input:**
-- `sql` (required): The SQL query string
-- `connection_name` OR `model_name` (required): Database connection or model to use
-- `result_format` (optional): Output format (default: json)
-- `download` (optional): Whether to format for download
-
-**Output:**
-- `slug`: Query identifier for reference
-- `query_results`: JSON string containing SQL results
-- `result`: Boolean indicating success
-
-#### `list_models`
-Retrieve all available LookML models.
-
-**Input:**
-- `fields` (optional): Comma-separated list of fields to include
-
-**Output:**
-- `models`: Array of model objects with explores
-- `result`: Boolean indicating success
-
-#### `get_model`
-Get detailed information about a specific model.
-
-**Input:**
-- `model_name` (required): The model name
-- `fields` (optional): Comma-separated list of fields to include
-
-**Output:**
-- `model`: Complete model object with explores and dimensions
-- `result`: Boolean indicating success
-
-#### `list_connections`
-Retrieve all database connections.
-
-**Input:**
-- `fields` (optional): Comma-separated list of fields to include
-
-**Output:**
-- `connections`: Array of connection objects
-- `result`: Boolean indicating success
-
-## Error Handling
-
-The integration includes comprehensive error handling:
-- Authentication failures return appropriate error messages
-- Invalid API responses are handled gracefully
-- Missing required parameters are validated
-- Network errors return empty results with error details
-- All actions include error fields in responses
-
-## Development
-
-### Project Structure
-```
-google-looker/
-├── config.json              # Integration configuration
-├── requirements.txt         # Python dependencies
-├── google_looker.py        # Main integration code
-├── README.md               # This file
-└── test/
-    ├── __init__.py
-    ├── context.py                    # Test configuration
-    └── test_google_looker_integration.py # Test suite
-```
-
-### Adding New Features
-1. Update `config.json` with new action definitions
-2. Add implementation in `google_looker.py`
-3. Add tests in `test/test_google_looker_integration.py`
-4. Update documentation
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Authentication Failed**
-   - Verify Client ID and Client Secret are correct
-   - Ensure the API user has required permissions
-   - Check that the base URL is correct and accessible
-
-2. **No Data Returned**
-   - Verify the user has access to the requested dashboards/models
-   - Check that the model and explore names are correct
-   - Ensure proper permissions are granted for data access
-
-3. **Query Execution Errors**
-   - Validate LookML syntax for dimensions and measures
-   - Check that the connection exists and is accessible
-   - Ensure SQL syntax is compatible with the target database
-
-4. **Rate Limiting**
-   - Looker API has rate limits per user/hour
-   - Implement appropriate delays between requests
-   - Consider caching frequently accessed data
-
-### Debug Mode
-Enable detailed logging by setting environment variables:
 ```bash
-export LOOKER_DEBUG=1
-python google_looker.py
+python -m pytest google-looker/tests/test_google_looker_integration.py -m "integration and destructive" -q
 ```
 
-## Support
+## Official API reference
 
-For issues related to:
-- **Integration bugs**: Check the test suite and error logs
-- **Looker API**: Consult Looker's official API documentation
-- **Authentication**: Verify admin access and API key configuration
-- **Data access**: Check user permissions and model/explore availability
+- [Get all dashboards](https://cloud.google.com/looker/docs/reference/looker-api/latest/methods/Dashboard/all_dashboards)
+- [Get dashboard](https://cloud.google.com/looker/docs/reference/looker-api/latest/methods/Dashboard/dashboard)
+- [Run inline query](https://cloud.google.com/looker/docs/reference/looker-api/latest/methods/Query/run_inline_query)
+- [Get all LookML models](https://cloud.google.com/looker/docs/reference/looker-api/latest/methods/LookmlModel/all_lookml_models)
+- [Get LookML model](https://cloud.google.com/looker/docs/reference/looker-api/latest/methods/LookmlModel/lookml_model)
+- [Create SQL Runner query](https://cloud.google.com/looker/docs/reference/looker-api/latest/methods/Query/create_sql_query)
+- [Run SQL Runner query](https://cloud.google.com/looker/docs/reference/looker-api/latest/methods/Query/run_sql_query)
+- [Get all connections](https://cloud.google.com/looker/docs/reference/looker-api/latest/methods/Connection/all_connections)
