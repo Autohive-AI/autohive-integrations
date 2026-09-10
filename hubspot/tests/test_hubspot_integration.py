@@ -527,14 +527,14 @@ class TestRemoveContactFromList:
         require_list_id()
 
         was_member = await contact_is_in_test_list(live_context)
-        if not was_member:
-            await hubspot.execute_action(
-                "add_contact_to_list",
-                {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
-                live_context,
-            )
-
         try:
+            if not was_member:
+                await hubspot.execute_action(
+                    "add_contact_to_list",
+                    {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
+                    live_context,
+                )
+
             result = await hubspot.execute_action(
                 "remove_contact_from_list",
                 {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},

@@ -98,7 +98,7 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `list_id` (required): HubSpot list ID
   - `contact_id` (required): Contact ID to add to the list
 - **Outputs:** Record IDs added to the list, missing from the account, or removed by the membership update. HubSpot omits result arrays that have no values.
-- **Required scope:** `crm.lists.write`
+- **Required scopes:** `crm.lists.read` and `crm.lists.write`
 - **Limitation:** Dynamic lists calculate membership from filters and cannot be updated directly
 
 #### Action: `remove_contact_from_list`
@@ -107,7 +107,7 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `list_id` (required): HubSpot list ID
   - `contact_id` (required): Contact ID to remove from the list
 - **Outputs:** Record IDs removed from the list or missing from the account. HubSpot may omit result arrays that have no values.
-- **Required scope:** `crm.lists.write`
+- **Required scopes:** `crm.lists.read` and `crm.lists.write`
 - **Limitation:** Dynamic lists calculate membership from filters and cannot be updated directly
 - **API:** [Remove records from a list](https://developers.hubspot.com/docs/api-reference/latest/crm/lists/guide#remove-records-from-an-existing-list)
 
@@ -1093,7 +1093,7 @@ The test suite includes:
 - All dates are returned in UTC format for consistency
 - Pagination is essential for pipelines with 100+ deals
 - Some properties may be read-only depending on your HubSpot subscription level
-- `add_contact_to_list` and `remove_contact_from_list` require `crm.lists.write` and only support manual or snapshot lists
+- `add_contact_to_list` and `remove_contact_from_list` require `crm.lists.read` and `crm.lists.write`, and only support manual or snapshot lists
 - Existing connections must be reauthorized after new OAuth scopes are introduced
 
 ## Performance Optimization
