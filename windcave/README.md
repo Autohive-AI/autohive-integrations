@@ -8,7 +8,7 @@ Windcave is a payment gateway used across New Zealand, Australia, and the Pacifi
 
 It does not create, capture, refund, or void payments, and it does not create Hosted Payment Page sessions. Transactions and sessions must already exist in your Windcave account.
 
-No raw card numbers ever pass through Autohive.
+Card values are redacted before being returned to workflows or chat.
 
 ## Setup & Authentication
 
