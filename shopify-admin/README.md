@@ -201,7 +201,8 @@ response also includes the updated order. The action does not poll pending jobs.
 Get inventory levels by location or item IDs.
 
 #### `set_inventory_level`
-Set inventory level for an item at a location.
+Set inventory level for an item at a location. Pass a unique `idempotency_key` for the operation and reuse that key
+when retrying the same request. If omitted, the integration generates a key for the initial attempt.
 
 #### `list_locations`
 List all store locations.
@@ -364,7 +365,8 @@ API: customers, orders, products, inventory, locations, shop information, draft 
 - Response format is backward-compatible with REST API structure
 - Product create and update use the 2026-07 `ProductCreateInput` and `ProductUpdateInput` contracts
 - Product variants use `productVariantsBulkCreate` or `productVariantsBulkUpdate`
-- Inventory writes use `inventorySetQuantities` with Shopify's required idempotency key
+- Inventory writes use `inventorySetQuantities` with Shopify's required idempotency key; callers can reuse an
+  operation key for safe retries
 - Fulfillment creation uses fulfillment orders and `fulfillmentCreate`
 - `verified_email=false` can't be represented in the GraphQL customer input and is rejected instead of being silently
   ignored; Shopify manages email verification

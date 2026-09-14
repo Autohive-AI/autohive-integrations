@@ -452,7 +452,7 @@ async def test_get_inventory_levels_by_location_uses_location_nodes(monkeypatch,
     assert graphql.await_args.args[2]["query"] is None
 
 
-async def test_set_inventory_level_is_idempotent(monkeypatch, context):
+async def test_set_inventory_level_reuses_caller_idempotency_key(monkeypatch, context):
     graphql = graphql_mock(
         monkeypatch,
         return_value={
@@ -464,16 +464,43 @@ async def test_set_inventory_level_is_idempotent(monkeypatch, context):
     )
 
     result = await module.SetInventoryLevelHandler().execute(
-        {"inventory_item_id": "8", "location_id": "6", "available": 12}, context
+        {
+            "inventory_item_id": "8",
+            "location_id": "6",
+            "available": 12,
+            "idempotency_key": "inventory-operation-123",
+        },
+        context,
     )
 
     assert result.data["inventory_level"]["available"] == 12
     variables = graphql.await_args.args[2]
-    assert variables["idempotencyKey"]
+    assert variables["idempotencyKey"] == "inventory-operation-123"
+    assert variables["input"]["referenceDocumentUri"] == ("autohive://shopify-admin/inventory/inventory-operation-123")
     quantity = variables["input"]["quantities"][0]
     assert quantity["inventoryItemId"].endswith("/8")
     assert quantity["changeFromQuantity"] is None
     assert "ignoreCompareQuantity" not in variables["input"]
+
+
+async def test_set_inventory_level_generates_correlated_idempotency_values(monkeypatch, context):
+    graphql = graphql_mock(
+        monkeypatch,
+        return_value={
+            "inventorySetQuantities": {
+                "inventoryAdjustmentGroup": {"changes": [{"name": "available", "quantityAfterChange": 12}]},
+                "userErrors": [],
+            }
+        },
+    )
+
+    await module.SetInventoryLevelHandler().execute(
+        {"inventory_item_id": "8", "location_id": "6", "available": 12}, context
+    )
+
+    variables = graphql.await_args.args[2]
+    assert variables["idempotencyKey"]
+    assert variables["input"]["referenceDocumentUri"].endswith(variables["idempotencyKey"])
 
 
 async def test_set_inventory_level_falls_back_when_shopify_omits_quantity_after_change(monkeypatch, context):

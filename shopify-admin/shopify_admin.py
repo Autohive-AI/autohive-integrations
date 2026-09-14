@@ -617,7 +617,7 @@ def build_fulfillment_order_payload(fulfillment_orders: list, location_id: str, 
         assigned_location_id = from_gid(fulfillment_order.get("assigned_location_id"))
         if assigned_location_id != requested_location_id:
             continue
-        if supported_actions and "create_fulfillment" not in supported_actions:
+        if "create_fulfillment" not in supported_actions:
             continue
         eligible_orders.append(fulfillment_order)
 
@@ -634,44 +634,79 @@ def build_fulfillment_order_payload(fulfillment_orders: list, location_id: str, 
     for line_item in requested_line_items:
         if not isinstance(line_item, dict) or line_item.get("id") is None:
             raise ValueError("Each line_items entry must include an order line item id")
-        requested_by_id[str(line_item["id"])] = line_item
+        requested_by_id[from_gid(line_item["id"])] = line_item
 
-    matched_ids = set()
-    line_items_by_fulfillment_order = []
-    for fulfillment_order in eligible_orders:
-        fulfillment_order_line_items = []
+    available_line_items = []
+    for order_index, fulfillment_order in enumerate(eligible_orders):
         for fulfillment_order_line_item in fulfillment_order.get("line_items", []):
-            candidate_ids = {
-                str(fulfillment_order_line_item.get("id")),
-                str(fulfillment_order_line_item.get("line_item_id")),
-            }
-            requested_id = next((item_id for item_id in candidate_ids if item_id in requested_by_id), None)
-            if requested_id is None:
+            available_quantity = fulfillment_order_line_item.get("fulfillable_quantity")
+            if available_quantity is None:
+                available_quantity = fulfillment_order_line_item.get("quantity")
+            try:
+                available_quantity = int(available_quantity)
+            except (TypeError, ValueError):
+                available_quantity = 0
+            available_line_items.append(
+                {
+                    "order_index": order_index,
+                    "id": from_gid(fulfillment_order_line_item.get("id")),
+                    "line_item_id": from_gid(fulfillment_order_line_item.get("line_item_id")),
+                    "available_quantity": max(available_quantity, 0),
+                }
+            )
+
+    allocations_by_order = {}
+    for requested_id, requested in requested_by_id.items():
+        matches = [item for item in available_line_items if item["id"] == requested_id]
+        if not matches:
+            matches = [item for item in available_line_items if item["line_item_id"] == requested_id]
+        if not matches:
+            raise ValueError(f"Line items not fulfillable at location {location_id}: {requested_id}")
+
+        requested_quantity = requested.get("quantity")
+        if requested_quantity is None:
+            quantity_to_allocate = sum(item["available_quantity"] for item in matches)
+        else:
+            try:
+                quantity_to_allocate = int(requested_quantity)
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"Quantity for line item {requested_id} must be a positive integer") from error
+            if quantity_to_allocate <= 0 or (
+                isinstance(requested_quantity, float) and not requested_quantity.is_integer()
+            ):
+                raise ValueError(f"Quantity for line item {requested_id} must be a positive integer")
+
+        original_quantity = quantity_to_allocate
+        for match in matches:
+            allocated_quantity = min(quantity_to_allocate, match["available_quantity"])
+            if allocated_quantity <= 0:
                 continue
-            requested = requested_by_id[requested_id]
-            quantity = requested.get("quantity", fulfillment_order_line_item.get("fulfillable_quantity"))
-            if quantity is None:
-                quantity = fulfillment_order_line_item.get("quantity")
-            fulfillment_order_line_items.append(
+            allocations_by_order.setdefault(match["order_index"], []).append(
                 {
-                    "id": to_gid("FulfillmentOrderLineItem", fulfillment_order_line_item["id"]),
-                    "quantity": quantity,
+                    "id": to_gid("FulfillmentOrderLineItem", match["id"]),
+                    "quantity": allocated_quantity,
                 }
             )
-            matched_ids.add(requested_id)
+            match["available_quantity"] -= allocated_quantity
+            quantity_to_allocate -= allocated_quantity
+            if quantity_to_allocate == 0:
+                break
 
-        if fulfillment_order_line_items:
-            line_items_by_fulfillment_order.append(
-                {
-                    "fulfillmentOrderId": to_gid("FulfillmentOrder", fulfillment_order["id"]),
-                    "fulfillmentOrderLineItems": fulfillment_order_line_items,
-                }
+        if quantity_to_allocate:
+            available_quantity = original_quantity - quantity_to_allocate
+            raise ValueError(
+                f"Line item {requested_id} requested quantity {original_quantity}, but only "
+                f"{available_quantity} is fulfillable at location {location_id}"
             )
 
-    unmatched_ids = set(requested_by_id) - matched_ids
-    if unmatched_ids:
-        raise ValueError(f"Line items not fulfillable at location {location_id}: {', '.join(sorted(unmatched_ids))}")
-    return line_items_by_fulfillment_order
+    return [
+        {
+            "fulfillmentOrderId": to_gid("FulfillmentOrder", eligible_orders[order_index]["id"]),
+            "fulfillmentOrderLineItems": allocations_by_order[order_index],
+        }
+        for order_index in range(len(eligible_orders))
+        if order_index in allocations_by_order
+    ]
 
 
 # GraphQL Queries and Mutations for Products
@@ -1874,11 +1909,13 @@ class SetInventoryLevelHandler(ActionHandler):
         try:
             inventory_item_id = to_gid("InventoryItem", inputs["inventory_item_id"])
             location_id = to_gid("Location", inputs["location_id"])
+            requested_idempotency_key = str(inputs.get("idempotency_key") or "").strip()
+            idempotency_key = requested_idempotency_key or str(uuid4())
             variables = {
                 "input": {
                     "name": "available",
                     "reason": "correction",
-                    "referenceDocumentUri": f"autohive://shopify-admin/inventory/{uuid4()}",
+                    "referenceDocumentUri": f"autohive://shopify-admin/inventory/{idempotency_key}",
                     "quantities": [
                         {
                             "inventoryItemId": inventory_item_id,
@@ -1888,7 +1925,7 @@ class SetInventoryLevelHandler(ActionHandler):
                         }
                     ],
                 },
-                "idempotencyKey": str(uuid4()),
+                "idempotencyKey": idempotency_key,
             }
             data = await execute_graphql(context, INVENTORY_SET_MUTATION, variables)
             payload = data.get("inventorySetQuantities", {})

@@ -86,6 +86,67 @@ def test_build_fulfillment_order_payload_rejects_unmatched_items():
         )
 
 
+def test_build_fulfillment_order_payload_excludes_orders_without_create_action():
+    fulfillment_orders = fulfillment_orders_response()
+    fulfillment_orders.insert(
+        0,
+        {
+            "id": 890,
+            "assigned_location_id": 300,
+            "supported_actions": [],
+            "line_items": [{"id": 891, "line_item_id": 101, "fulfillable_quantity": 2}],
+        },
+    )
+
+    payload = build_fulfillment_order_payload(fulfillment_orders, "300", [])
+
+    assert payload == [{"fulfillmentOrderId": "gid://shopify/FulfillmentOrder/900"}]
+
+
+def test_build_fulfillment_order_payload_splits_requested_quantity_across_orders():
+    fulfillment_orders = [
+        {
+            "id": 900,
+            "assigned_location_id": 300,
+            "supported_actions": ["create_fulfillment"],
+            "line_items": [{"id": 901, "line_item_id": 101, "fulfillable_quantity": 1}],
+        },
+        {
+            "id": 910,
+            "assigned_location_id": 300,
+            "supported_actions": ["create_fulfillment"],
+            "line_items": [{"id": 911, "line_item_id": 101, "fulfillable_quantity": 2}],
+        },
+    ]
+
+    payload = build_fulfillment_order_payload(fulfillment_orders, "300", [{"id": "101", "quantity": 2}])
+
+    assert payload == [
+        {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/900",
+            "fulfillmentOrderLineItems": [{"id": "gid://shopify/FulfillmentOrderLineItem/901", "quantity": 1}],
+        },
+        {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/910",
+            "fulfillmentOrderLineItems": [{"id": "gid://shopify/FulfillmentOrderLineItem/911", "quantity": 1}],
+        },
+    ]
+
+
+def test_build_fulfillment_order_payload_rejects_quantity_above_remaining_total():
+    fulfillment_orders = [
+        {
+            "id": 900,
+            "assigned_location_id": 300,
+            "supported_actions": ["create_fulfillment"],
+            "line_items": [{"id": 901, "line_item_id": 101, "fulfillable_quantity": 1}],
+        }
+    ]
+
+    with pytest.raises(ValueError, match="requested quantity 2, but only 1 is fulfillable"):
+        build_fulfillment_order_payload(fulfillment_orders, "300", [{"id": "101", "quantity": 2}])
+
+
 async def test_create_fulfillment_uses_graphql_fulfillment_order_workflow(fulfillment_context):
     fulfillment_context.fetch.side_effect = [
         FetchResponse(status=200, headers={}, data={"access_token": ACCESS_TOKEN}),

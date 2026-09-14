@@ -403,7 +403,8 @@
                 "properties": {
                     "inventory_item_id": {"type": "string", "description": "Inventory item ID", "label": "Inventory Item ID"},
                     "location_id": {"type": "string", "description": "Location ID", "label": "Location ID"},
-                    "available": {"type": "integer", "description": "Available quantity", "label": "Available"}
+                    "available": {"type": "integer", "description": "Available quantity", "label": "Available"},
+                    "idempotency_key": {"type": "string", "description": "Unique key for this inventory operation. Reuse the same key when retrying the same request.", "label": "Idempotency Key"}
                 },
                 "required": ["inventory_item_id", "location_id", "available"]
             },
