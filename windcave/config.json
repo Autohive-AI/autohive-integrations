@@ -1,7 +1,7 @@
 {
     "name": "Windcave",
     "display_name": "Windcave",
-    "version": "1.1.0",
+    "version": "1.0.0",
     "description": "Read-only Windcave integration for retrieving transactions and payment sessions by ID via the Windcave REST API.",
     "entry_point": "windcave.py",
     "auth": {
