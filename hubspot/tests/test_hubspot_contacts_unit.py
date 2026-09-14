@@ -635,6 +635,68 @@ class TestAddContactToList:
         assert payload == ["77"]
 
 
+# ---- RemoveContactFromList ----
+
+
+class TestRemoveContactFromList:
+    def test_config_requests_list_write_scope(self):
+        config_path = Path(__file__).parents[1] / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+
+        assert "crm.lists.write" in config["auth"]["scopes"]
+
+    def test_config_allows_hubspot_to_omit_empty_result_arrays(self):
+        config_path = Path(__file__).parents[1] / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        result_schema = config["actions"]["remove_contact_from_list"]["output_schema"]["properties"]["result"]
+
+        assert "required" not in result_schema
+
+    @pytest.mark.asyncio
+    async def test_accepts_success_response_with_omitted_empty_arrays(self, mock_context):
+        api_result = {"recordIdsRemoved": ["456"]}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=api_result)
+
+        result = await hubspot.execute_action(
+            "remove_contact_from_list",
+            {"list_id": "10", "contact_id": "456"},
+            mock_context,
+        )
+
+        assert result.result.data["result"] == api_result
+
+    @pytest.mark.asyncio
+    async def test_request_matches_hubspot_lists_api(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"recordIdsRemoved": ["99"], "recordIdsMissing": []},
+        )
+
+        await hubspot.execute_action("remove_contact_from_list", {"list_id": "42", "contact_id": "99"}, mock_context)
+
+        call_kwargs = mock_context.fetch.call_args
+        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/lists/2026-03/42/memberships/remove"
+        assert call_kwargs.kwargs["method"] == "PUT"
+        assert call_kwargs.kwargs["json"] == ["99"]
+        assert call_kwargs.kwargs["headers"] == {"Content-Type": "application/json"}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "inputs",
+        [
+            {"list_id": "../other-list", "contact_id": "99"},
+            {"list_id": "42", "contact_id": "not-a-contact-id"},
+        ],
+    )
+    async def test_rejects_non_numeric_ids_before_http(self, mock_context, inputs):
+        result = await hubspot.execute_action("remove_contact_from_list", inputs, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        assert result.result["source"] == "input"
+        mock_context.fetch.assert_not_called()
+
+
 # ---- GetRecentContacts ----
 
 
