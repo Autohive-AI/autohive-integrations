@@ -610,10 +610,12 @@ def transform_inventory_level_response(level: dict) -> dict:
 
 def build_fulfillment_order_payload(fulfillment_orders: list, location_id: str, requested_line_items: list) -> list:
     """Map order line items to Shopify's fulfillment-order based request shape."""
+    requested_location_id = from_gid(location_id)
     eligible_orders = []
     for fulfillment_order in fulfillment_orders:
         supported_actions = [str(action).lower() for action in fulfillment_order.get("supported_actions", [])]
-        if str(fulfillment_order.get("assigned_location_id")) != str(location_id):
+        assigned_location_id = from_gid(fulfillment_order.get("assigned_location_id"))
+        if assigned_location_id != requested_location_id:
             continue
         if supported_actions and "create_fulfillment" not in supported_actions:
             continue
@@ -1014,11 +1016,11 @@ query InventoryItems($ids: [ID!]!, $first: Int!) {
 }
 """
 LOCATION_INVENTORY_QUERY = """
-query LocationInventory($ids: [ID!]!, $first: Int!) {
+query LocationInventory($ids: [ID!]!, $first: Int!, $query: String) {
   nodes(ids: $ids) {
     ... on Location {
       id
-      inventoryLevels(first: $first) {
+      inventoryLevels(first: $first, query: $query) {
         nodes { id updatedAt item { id } location { id } quantities(names: ["available"]) { name quantity } }
       }
     }
@@ -1825,28 +1827,39 @@ class GetInventoryLevelsHandler(ActionHandler):
                     count=0,
                 )
             limit = clamp_limit(inputs.get("limit"))
-            if item_ids:
+            if location_ids:
+                data = await execute_graphql(
+                    context,
+                    LOCATION_INVENTORY_QUERY,
+                    {
+                        "ids": [to_gid("Location", location_id) for location_id in location_ids],
+                        "first": limit,
+                        "query": " OR ".join(f"inventory_item_id:{from_gid(item_id)}" for item_id in item_ids) or None,
+                    },
+                )
+            else:
                 data = await execute_graphql(
                     context,
                     INVENTORY_ITEMS_QUERY,
                     {"ids": [to_gid("InventoryItem", item_id) for item_id in item_ids], "first": limit},
                 )
-            else:
-                data = await execute_graphql(
-                    context,
-                    LOCATION_INVENTORY_QUERY,
-                    {"ids": [to_gid("Location", location_id) for location_id in location_ids], "first": limit},
-                )
-            requested_locations = set(location_ids)
+            level_nodes = [
+                level
+                for node in data.get("nodes", [])
+                for level in connection_nodes((node or {}).get("inventoryLevels", {}))
+            ]
+            requested_locations = {from_gid(location_id) for location_id in location_ids}
+            requested_items = {from_gid(item_id) for item_id in item_ids}
             levels = []
-            for node in data.get("nodes", []):
-                for level in connection_nodes((node or {}).get("inventoryLevels", {})):
-                    if (
-                        requested_locations
-                        and from_gid((level.get("location") or {}).get("id", "")) not in requested_locations
-                    ):
-                        continue
-                    levels.append(transform_inventory_level_response(level))
+            for level in level_nodes:
+                if (
+                    requested_locations
+                    and from_gid((level.get("location") or {}).get("id", "")) not in requested_locations
+                ):
+                    continue
+                if requested_items and from_gid((level.get("item") or {}).get("id", "")) not in requested_items:
+                    continue
+                levels.append(transform_inventory_level_response(level))
             inventory_levels = levels[:limit]
             return success_response(inventory_levels=inventory_levels, count=len(inventory_levels))
         except Exception as e:

@@ -53,7 +53,11 @@ def fulfillment_orders_response():
 
 
 def test_build_fulfillment_order_payload_fulfills_all_items_at_location():
-    payload = build_fulfillment_order_payload(fulfillment_orders_response(), "300", [])
+    payload = build_fulfillment_order_payload(
+        fulfillment_orders_response(),
+        "gid://shopify/Location/300",
+        [],
+    )
 
     assert payload == [{"fulfillmentOrderId": "gid://shopify/FulfillmentOrder/900"}]
 
@@ -136,7 +140,7 @@ async def test_create_fulfillment_uses_graphql_fulfillment_order_workflow(fulfil
     result = await CreateFulfillmentHandler().execute(
         {
             "order_id": "500",
-            "location_id": "300",
+            "location_id": "gid://shopify/Location/300",
             "tracking_number": "TRACK-123",
             "tracking_company": "UPS",
             "notify_customer": True,

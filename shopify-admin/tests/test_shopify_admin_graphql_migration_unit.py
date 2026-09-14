@@ -357,7 +357,7 @@ async def test_cancel_order_stays_successful_when_completed_order_refetch_fails(
     assert graphql.await_count == 2
 
 
-async def test_get_inventory_levels_by_item_uses_nodes(monkeypatch, context):
+async def test_get_inventory_levels_by_item_and_location_uses_server_side_filter(monkeypatch, context):
     level = {
         "id": "gid://shopify/InventoryLevel/7?inventory_item_id=8",
         "item": {"id": "gid://shopify/InventoryItem/8"},
@@ -366,10 +366,80 @@ async def test_get_inventory_levels_by_item_uses_nodes(monkeypatch, context):
     }
     graphql = graphql_mock(monkeypatch, return_value={"nodes": [{"inventoryLevels": {"nodes": [level]}}]})
 
-    result = await module.GetInventoryLevelsHandler().execute({"inventory_item_ids": "8", "location_ids": "6"}, context)
+    result = await module.GetInventoryLevelsHandler().execute(
+        {
+            "inventory_item_ids": "gid://shopify/InventoryItem/8",
+            "location_ids": "gid://shopify/Location/6",
+        },
+        context,
+    )
 
     assert result.data["inventory_levels"][0]["available"] == 4
-    assert graphql.await_args.args[2]["ids"] == ["gid://shopify/InventoryItem/8"]
+    assert graphql.await_args.args[1] == module.LOCATION_INVENTORY_QUERY
+    assert graphql.await_args.args[2] == {
+        "ids": ["gid://shopify/Location/6"],
+        "first": 50,
+        "query": "inventory_item_id:8",
+    }
+
+
+async def test_get_inventory_levels_by_item_uses_inventory_level_connection(monkeypatch, context):
+    level = {
+        "id": "gid://shopify/InventoryLevel/7?inventory_item_id=8",
+        "item": {"id": "gid://shopify/InventoryItem/8"},
+        "location": {"id": "gid://shopify/Location/6"},
+        "quantities": [{"name": "available", "quantity": 4}],
+    }
+    graphql = graphql_mock(monkeypatch, return_value={"nodes": [{"inventoryLevels": {"nodes": [level]}}]})
+
+    result = await module.GetInventoryLevelsHandler().execute({"inventory_item_ids": "8"}, context)
+
+    assert result.data["inventory_levels"][0]["available"] == 4
+    assert graphql.await_args.args[1] == module.INVENTORY_ITEMS_QUERY
+    assert graphql.await_args.args[2] == {"ids": ["gid://shopify/InventoryItem/8"], "first": 50}
+
+
+async def test_get_inventory_levels_filters_requested_items_before_applying_limit(monkeypatch, context):
+    matching_level = {
+        "id": "gid://shopify/InventoryLevel/9?inventory_item_id=8",
+        "item": {"id": "gid://shopify/InventoryItem/8"},
+        "location": {"id": "gid://shopify/Location/7"},
+        "quantities": [{"name": "available", "quantity": 5}],
+    }
+    graphql = graphql_mock(
+        monkeypatch,
+        return_value={
+            "nodes": [
+                {"inventoryLevels": {"nodes": []}},
+                {"inventoryLevels": {"nodes": [matching_level]}},
+            ]
+        },
+    )
+
+    result = await module.GetInventoryLevelsHandler().execute(
+        {
+            "inventory_item_ids": "8",
+            "location_ids": "gid://shopify/Location/6,gid://shopify/Location/7",
+            "limit": 1,
+        },
+        context,
+    )
+
+    assert result.data["inventory_levels"] == [
+        {
+            "id": "9?inventory_item_id=8",
+            "inventory_item_id": "8",
+            "location_id": "7",
+            "available": 5,
+            "updated_at": None,
+        }
+    ]
+    assert graphql.await_count == 1
+    assert graphql.await_args.args[2] == {
+        "ids": ["gid://shopify/Location/6", "gid://shopify/Location/7"],
+        "first": 1,
+        "query": "inventory_item_id:8",
+    }
 
 
 async def test_get_inventory_levels_by_location_uses_location_nodes(monkeypatch, context):
@@ -379,6 +449,7 @@ async def test_get_inventory_levels_by_location_uses_location_nodes(monkeypatch,
 
     assert result.data["count"] == 0
     assert graphql.await_args.args[1] == module.LOCATION_INVENTORY_QUERY
+    assert graphql.await_args.args[2]["query"] is None
 
 
 async def test_set_inventory_level_is_idempotent(monkeypatch, context):
