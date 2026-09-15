@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -1490,15 +1490,24 @@
                       "description": "Ticket properties",
                       "properties": {
                         "subject": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Ticket subject"
                         },
                         "content": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Ticket content/description"
                         },
                         "hs_pipeline_stage": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Current ticket stage ID"
                         },
                         "hs_ticket_priority": {
@@ -1523,15 +1532,24 @@
                           "description": "Ticket category"
                         },
                         "createdate": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Ticket creation date"
                         },
                         "hs_lastmodifieddate": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Last modified date"
                         },
                         "hs_object_id": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "HubSpot object ID"
                         }
                       }

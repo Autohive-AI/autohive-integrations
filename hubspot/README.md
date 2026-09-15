@@ -563,13 +563,14 @@ This integration provides comprehensive actions covering complete CRUD operation
 ### Ticket Management
 
 #### Action: `get_recent_tickets`
-- **Description:** Retrieve recent support tickets with filtering and sorting capabilities
+- **Description:** Retrieve a single page of recent support tickets with filtering and sorting capabilities. By default, tickets are sorted by their most recent modification, not their creation date.
 - **Inputs:**
   - `limit` (optional): Number of tickets to retrieve (default: 20, max: 100)
-  - `status` (optional): Filter by pipeline stage/status (1, 2, 3, 4)
+  - `status` (optional): Filter by the internal stage ID from your HubSpot ticket pipeline; stage IDs are account-specific
   - `sort_property` (optional): Property to sort by (default: hs_lastmodifieddate)
   - `sort_direction` (optional): Sort direction ASC/DESC (default: DESC)
-- **Outputs:** Array of ticket records with subject, content, priority, status, and assigned owner ID information
+- **Outputs:** A `tickets` response object containing `results`, `total`, and optional `paging`, with subject, content, priority, status, and assigned owner ID information. Ticket properties are optional and may be `null` when unset. The integration preserves missing, empty, and null values without inventing subjects or dropping tickets.
+- **API:** [Ticket property behavior](https://developers.hubspot.com/docs/api-reference/legacy/crm/objects/tickets/guide#retrieve-tickets) and [CRM search](https://developers.hubspot.com/docs/api-reference/legacy/crm/search-the-crm)
 
 #### Action: `get_ticket_conversation`
 - **Description:** Retrieve the complete conversation thread associated with a support ticket
