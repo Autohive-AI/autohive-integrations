@@ -11,28 +11,34 @@ Read-only tests require specific object IDs set in environment variables:
 The list-membership tests require HUBSPOT_TEST_LIST_ID to identify a MANUAL or
 SNAPSHOT list and HUBSPOT_TEST_CONTACT_ID to identify the contact to update.
 
-Tests that create, update, or delete data are marked @pytest.mark.destructive
-and excluded by default. Run them explicitly with:
-    pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive"
-
 Run read-only tests with:
     pytest hubspot/tests/test_hubspot_integration.py -m "integration and not destructive"
+
+Tests that create, update, or delete data are marked @pytest.mark.destructive.
+Run them deliberately on a test account only; this command mutates real data:
+    pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive"
+
+For the targeted nullable-subject regression, set
+HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID to a ticket returned in the latest 100
+modified tickets whose search response has subject=null. No tickets are created
+or modified to prepare this test.
 
 Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
 import os
+from copy import deepcopy
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
 
 pytestmark = pytest.mark.integration
 
-ACCESS_TOKEN = os.environ.get("HUBSPOT_ACCESS_TOKEN", "")
 TEST_CONTACT_ID = os.environ.get("HUBSPOT_TEST_CONTACT_ID", "")
 TEST_COMPANY_ID = os.environ.get("HUBSPOT_TEST_COMPANY_ID", "")
 TEST_DEAL_ID = os.environ.get("HUBSPOT_TEST_DEAL_ID", "")
@@ -43,24 +49,30 @@ TEST_CONTACT_EMAIL = os.environ.get("HUBSPOT_TEST_CONTACT_EMAIL", "")
 
 
 @pytest.fixture
-def live_context():
+def live_context(env_credentials):
     """Execution context wired to a real HTTP client with HubSpot OAuth token.
 
     The HubSpot integration relies on context.fetch to auto-inject the OAuth token
     (auth.type = "platform"). In tests we bypass the SDK auth layer and manually
     add the Authorization header to every request.
     """
-    if not ACCESS_TOKEN:
+    access_token = env_credentials("HUBSPOT_ACCESS_TOKEN")
+    if not access_token:
         pytest.skip("HUBSPOT_ACCESS_TOKEN not set — skipping integration tests")
 
     import aiohttp
 
+    api_responses = []
+
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
         merged_headers = dict(headers or {})
-        merged_headers["Authorization"] = f"Bearer {ACCESS_TOKEN}"
-        async with aiohttp.ClientSession() as session:
+        merged_headers["Authorization"] = f"Bearer {access_token}"
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
+                if resp.status >= 400:
+                    raise RuntimeError(f"HubSpot API returned HTTP {resp.status}")
                 data = await resp.json(content_type=None)
+                api_responses.append(deepcopy(data))
                 return FetchResponse(
                     status=resp.status,
                     headers=dict(resp.headers),
@@ -69,9 +81,10 @@ def live_context():
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
+    ctx.api_responses = api_responses
     ctx.auth = {
         "auth_type": "PlatformOauth2",
-        "credentials": {"access_token": ACCESS_TOKEN},
+        "credentials": {"access_token": access_token},
     }
     return ctx
 
@@ -303,18 +316,54 @@ class TestGetDealNotes:
 
 
 class TestGetRecentTickets:
-    async def test_returns_tickets(self, live_context):
+    @pytest.mark.parametrize("limit", [5, 100])
+    async def test_returns_provider_response_without_dropping_tickets(self, live_context, limit):
         result = await hubspot.execute_action(
             "get_recent_tickets",
             {
-                "limit": 5,
+                "limit": limit,
                 "sort_property": "hs_lastmodifieddate",
                 "sort_direction": "DESC",
             },
             live_context,
         )
-        data = result.result.data
-        assert "tickets" in data
+        assert result.type == ResultType.ACTION, f"Unexpected SDK result type: {result.type}"
+        tickets = result.result.data["tickets"]
+        assert tickets == live_context.api_responses[-1]
+        assert isinstance(tickets["total"], int)
+        assert isinstance(tickets["results"], list)
+        assert len(tickets["results"]) <= limit
+        if not tickets["results"]:
+            pytest.skip("No tickets in the test account; ticket-record assertions were not exercised")
+        for ticket in tickets["results"]:
+            assert isinstance(ticket["id"], str)
+            assert isinstance(ticket["properties"], dict)
+            for value in ticket["properties"].values():
+                assert value is None or isinstance(value, str)
+        modified_dates = [ticket["properties"].get("hs_lastmodifieddate") for ticket in tickets["results"]]
+        modified_dates = [value for value in modified_dates if value]
+        assert modified_dates == sorted(modified_dates, reverse=True)
+        if "paging" in tickets:
+            assert "after" in tickets["paging"]["next"]
+
+    async def test_known_null_subject_ticket_is_preserved(self, live_context, env_credentials):
+        ticket_id = env_credentials("HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID")
+        if not ticket_id:
+            pytest.skip("HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID not set — null-subject live regression not exercised")
+
+        result = await hubspot.execute_action("get_recent_tickets", {"limit": 100}, live_context)
+
+        assert result.type == ResultType.ACTION, f"Unexpected SDK result type: {result.type}"
+        provider_response = live_context.api_responses[-1]
+        target = next((ticket for ticket in provider_response["results"] if ticket["id"] == ticket_id), None)
+        assert target is not None, "Configured ticket must be among the latest 100 modified tickets in this account"
+        assert "subject" in target["properties"], (
+            "Configured fixture must have an explicit null subject, not an omitted one"
+        )
+        assert target["properties"]["subject"] is None, (
+            "Configured fixture must have subject=null in the search response"
+        )
+        assert result.result.data["tickets"] == provider_response
 
 
 # ---- Properties Discovery (Read-Only) ----
