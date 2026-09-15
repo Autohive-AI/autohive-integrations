@@ -296,7 +296,7 @@ See the SDK's [Integration Structure Reference](https://github.com/autohive-ai/i
 5. **Update the main README.md** — add your integration to the list
 6. **Complete the [pull request template](.github/PULL_REQUEST_TEMPLATE.md)**
 7. **Use a conventional commit PR title**
-8. **One integration per PR** — keep PRs focused
+8. **Keep PRs focused** — integration feature work normally changes one integration; a dependency refresh may bump several integrations in one PR for bulk deployment.
 
 All CI checks must pass before merge.
 
@@ -327,7 +327,7 @@ manifest entry retains its own `config.json` version and repository folder
 path. Autohive stores a release cursor, pulls every later batch, and keeps the
 newest entry if the same repository path occurs in multiple releases.
 
-The workflow only has GitHub `contents: write` permission. It does not contain
+The workflow has GitHub `contents: write` for releases and `actions: read` for packaging history. It does not contain
 an Autohive URL or deploy credential. Autohive must pull, verify, and deploy the
 assets from its authenticated Admin UI, and deployment never publishes a
 version to end users.
@@ -345,3 +345,6 @@ configuration is only needed to request `zip`, `container`, or the default
 `preserve` package type; Autohive applies its server-side conversion policy
 before deployment. A reviewed folder move also creates a new Lambda for the
 existing Autohive backend.
+
+For the dependency-refresh procedure, release cursor behavior, and how Admin
+handles manually renamed integrations, see [Integration release workflow](docs/integration-release-workflow.md).

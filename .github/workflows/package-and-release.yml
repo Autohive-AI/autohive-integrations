@@ -1,5 +1,5 @@
 name: Package integrations for Autohive
-run-name: Package changed integrations (${{ inputs.request_id || github.run_id }})
+run-name: Package integrations (${{ github.sha }})
 
 on:
   push:
@@ -10,11 +10,6 @@ on:
         description: Comma/newline-separated integration paths, or "all"
         required: true
         default: all
-        type: string
-      request_id:
-        description: Optional Autohive correlation ID used for status polling
-        required: false
-        default: ""
         type: string
 
 permissions:
@@ -55,6 +50,9 @@ jobs:
       - name: Install HiveUp
         run: python -m pip install ./.hiveup-tooling
 
+      - name: Verify release selection
+        run: python -m unittest discover -s .github/tests -v
+
       - name: Resolve release contents
         id: selection
         shell: bash
@@ -72,18 +70,27 @@ jobs:
             # every version bump that an intermediate cancelled run would have
             # handled.
             previous_commit_sha=""
-            while IFS= read -r candidate_sha; do
-              if [[ -n "$candidate_sha" && "$candidate_sha" != "$GITHUB_SHA" ]] && \
-                 git merge-base --is-ancestor "$candidate_sha" "$GITHUB_SHA"; then
-                previous_commit_sha="$candidate_sha"
-                break
+            oldest_push_sha=""
+            # Fail if history cannot be read. Falling back after an API error
+            # could omit version bumps from failed or replaced intermediate runs.
+            gh api \
+              --paginate \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/package-and-release.yml/runs?branch=$GITHUB_REF_NAME&event=push&per_page=100" \
+              --jq '.workflow_runs[] | [.head_sha, (.conclusion // "pending")] | @tsv' > "$RUNNER_TEMP/push-runs.txt"
+            while IFS=$'\t' read -r candidate_sha conclusion; do
+              if [[ -n "$candidate_sha" ]] && git merge-base --is-ancestor "$candidate_sha" "$GITHUB_SHA"; then
+                oldest_push_sha="$candidate_sha"
+                if [[ "$conclusion" == "success" && "$candidate_sha" != "$GITHUB_SHA" ]]; then
+                  previous_commit_sha="$candidate_sha"
+                  break
+                fi
               fi
-            done < <(
-              gh api \
-                --paginate \
-                "repos/$GITHUB_REPOSITORY/actions/workflows/package-and-release.yml/runs?branch=$GITHUB_REF_NAME&event=push&status=success&per_page=100" \
-                --jq '.workflow_runs[].head_sha'
-            )
+            done < "$RUNNER_TEMP/push-runs.txt"
+            # Before the first successful run, include every attempted merge.
+            # The current event's parent alone would omit earlier failed runs.
+            if [[ -z "$previous_commit_sha" && -n "$oldest_push_sha" ]]; then
+              previous_commit_sha="$(git rev-parse "${oldest_push_sha}^")"
+            fi
             previous_commit_sha="${previous_commit_sha:-$EVENT_BEFORE}"
             release_kind="incremental"
             hiveup release-changes \
@@ -118,7 +125,8 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           # Pull requests have their own validation workflow. Release packaging must remain
-          # reproducible for already-merged integrations even if validation rules later tighten.
+          # available for already-merged integrations even if validation rules later tighten.
+          # Each package resolves requirements into fresh staging; dependency pins still apply.
           xargs --max-procs 4 --no-run-if-empty -I {} \
             hiveup package "{}" --output "dist/{}.zip" --skip-validate \
             < "$RUNNER_TEMP/integration-paths.txt"
@@ -161,7 +169,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Integration ${RELEASE_KIND} ${GITHUB_SHA::12}" \
-            --notes "Packages only integrations whose config version changed in this merge range. Deployment and publishing remain gated in the Autohive Admin UI."
+            --notes "Integration ${RELEASE_KIND} packages built from ${GITHUB_SHA}. Autohive Admin reviews bindings and deploys these ZIPs; publication uses the existing integration publishing flow."
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "### Published [$tag]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$tag)" >> "$GITHUB_STEP_SUMMARY"
 
