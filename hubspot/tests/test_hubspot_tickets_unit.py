@@ -21,6 +21,68 @@ def mock_context():
 
 class TestGetRecentTickets:
     @pytest.mark.asyncio
+    async def test_100_tickets_preserves_record_with_null_subject(self, mock_context):
+        tickets = [{"id": str(index), "properties": {"subject": f"Ticket {index}"}} for index in range(100)]
+        tickets[45]["properties"]["subject"] = None
+        response = {"total": 100, "results": tickets, "paging": {"next": {"after": "100"}}}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response)
+
+        result = await hubspot.execute_action("get_recent_tickets", {"limit": 100}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["tickets"] == response
+        assert len(result.result.data["tickets"]["results"]) == 100
+        assert result.result.data["tickets"]["results"][45]["properties"]["subject"] is None
+        assert mock_context.fetch.call_args.kwargs["json"]["limit"] == 100
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "property_name",
+        [
+            "subject",
+            "content",
+            "hs_pipeline_stage",
+            "hs_ticket_priority",
+            "hubspot_owner_id",
+            "hs_ticket_category",
+            "createdate",
+            "hs_lastmodifieddate",
+            "hs_object_id",
+        ],
+    )
+    @pytest.mark.parametrize("value", [None, "", "set value"])
+    async def test_preserves_nullable_and_empty_property_values(self, mock_context, property_name, value):
+        response = {"results": [{"id": "t-1", "properties": {property_name: value}}]}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response)
+
+        result = await hubspot.execute_action("get_recent_tickets", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["tickets"] == response
+
+    @pytest.mark.asyncio
+    async def test_preserves_ticket_without_subject_property(self, mock_context):
+        response = {"results": [{"id": "t-1", "properties": {"content": "No subject provided"}}]}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response)
+
+        result = await hubspot.execute_action("get_recent_tickets", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["tickets"] == response
+        assert "subject" not in result.result.data["tickets"]["results"][0]["properties"]
+
+    @pytest.mark.asyncio
+    async def test_rejects_non_string_non_null_subject(self, mock_context):
+        response = {"results": [{"id": "t-1", "properties": {"subject": 123}}]}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response)
+
+        result = await hubspot.execute_action("get_recent_tickets", {}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        assert result.result["source"] == "output"
+        assert "subject" in result.result["message"]
+
+    @pytest.mark.asyncio
     async def test_happy_path_defaults(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,
