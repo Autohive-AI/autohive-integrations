@@ -104,6 +104,39 @@ class TestSearchLegislation:
         assert all(work["act_status"] == "in_force" for work in works)
         assert all(work["publisher"] == "Parliamentary Counsel Office" for work in works)
 
+    async def test_no_matches_returns_an_empty_final_page(self, live_context):
+        result = await nz_legislation.execute_action(
+            "search_legislation",
+            {
+                "search_term": "zzzz-no-such-legislation-987654321",
+                "search_field": "title",
+                "per_page": 2,
+            },
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["works"] == []
+        assert data["page"] == 1
+        assert data["per_page"] == 2
+        assert data["total"] == 0
+        assert data["has_next_page"] is False
+
+    async def test_bill_results_support_nullable_overall_status(self, live_context):
+        result = await nz_legislation.execute_action(
+            "search_legislation",
+            {"legislation_type": "bill", "bill_status": "current", "per_page": 5},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION, result.result
+        works = result.result.data["works"]
+        assert works
+        assert all(work["legislation_type"] == "bill" for work in works)
+        assert all(work["bill_status"] == "current" for work in works)
+        assert all(work["legislation_status"] is None for work in works)
+
 
 class TestListVersions:
     async def test_lists_distinct_pages_of_known_work_versions(self, live_context):
@@ -132,6 +165,20 @@ class TestListVersions:
         assert all(version["work_id"] == KNOWN_WORK_ID for version in first_data["versions"])
         assert all(version["formats"] for version in first_data["versions"])
 
+    async def test_unknown_work_returns_an_empty_version_page(self, live_context):
+        unknown_work_id = "act_public_9999_999999"
+        result = await nz_legislation.execute_action(
+            "list_versions", {"work_id": unknown_work_id, "per_page": 2}, live_context
+        )
+
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["work_id"] == unknown_work_id
+        assert data["versions"] == []
+        assert data["count"] == 0
+        assert data["total"] == 0
+        assert data["has_next_page"] is False
+
 
 class TestGetVersion:
     async def test_gets_known_version_with_format_links(self, live_context):
@@ -151,6 +198,21 @@ class TestGetVersion:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "version" in result.result.message
+
+
+class TestAuthentication:
+    async def test_invalid_api_key_returns_action_error(self, live_context):
+        live_context.auth = {
+            "auth_type": "Custom",
+            "credentials": {"api_key": "not-a-valid-key"},  # nosec B105
+        }
+
+        result = await nz_legislation.execute_action(
+            "search_legislation", {"search_term": "rights", "per_page": 1}, live_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "API key" in result.result.message
 
 
 class TestGetVersionXml:
@@ -233,3 +295,24 @@ class TestGetVersionXml:
         assert data["total_bytes"] == len(document)
         assert data["truncated"] is False
         assert data["next_offset"] is None
+
+    async def test_offset_at_end_of_document_returns_action_error(self, live_context):
+        first = await nz_legislation.execute_action(
+            "get_version_xml",
+            {"version_id": KNOWN_VERSION_ID, "max_bytes": 1000},
+            live_context,
+        )
+        assert first.type == ResultType.ACTION, first.result
+
+        result = await nz_legislation.execute_action(
+            "get_version_xml",
+            {
+                "version_id": KNOWN_VERSION_ID,
+                "offset": first.result.data["total_bytes"],
+                "max_bytes": 1000,
+            },
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "outside" in result.result.message

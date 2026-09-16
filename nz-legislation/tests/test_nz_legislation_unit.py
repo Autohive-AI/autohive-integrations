@@ -179,6 +179,31 @@ class TestHelpers:
             with pytest.raises(LegislationError, match="website temporarily rate-limited XML requests"):
                 await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
 
+    @pytest.mark.parametrize(
+        "status, expected",
+        [
+            (404, "could not find the requested XML document"),
+            (416, "offset is outside the XML document's byte range"),
+            (403, "refused the XML document request"),
+            (500, "could not provide the XML document"),
+            (200, "did not return a bounded XML byte range"),
+        ],
+    )
+    async def test_xml_fetch_maps_unusable_http_responses(self, status, expected):
+        response = MagicMock(status=status, headers={})
+        response_context = MagicMock()
+        response_context.__aenter__ = AsyncMock(return_value=response)
+        response_context.__aexit__ = AsyncMock(return_value=False)
+        session = MagicMock()
+        session.get.return_value = response_context
+        session_context = MagicMock()
+        session_context.__aenter__ = AsyncMock(return_value=session)
+        session_context.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("nz_legislation.aiohttp.ClientSession", return_value=session_context):
+            with pytest.raises(LegislationError, match=expected):
+                await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
+
 
 class TestSharedErrors:
     @pytest.mark.parametrize(
