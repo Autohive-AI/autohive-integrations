@@ -78,7 +78,11 @@ class ExecutePythonCodeAction(ActionHandler):
 
                 with contextlib.redirect_stdout(stdout_io), contextlib.redirect_stderr(stderr_io):
                     exec(python_code, exec_globals)  # nosec B102
-            except Exception:
+            # User code can deliberately raise BaseException subclasses such as
+            # SystemExit (via sys.exit/quit) or KeyboardInterrupt. This is the
+            # execution boundary, so capture those exactly like normal script
+            # exceptions instead of letting them fail the Lambda invocation.
+            except BaseException:
                 returncode = 1
                 stderr_io.write(traceback.format_exc())
             finally:

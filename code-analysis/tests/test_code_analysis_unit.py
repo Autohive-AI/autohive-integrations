@@ -104,6 +104,62 @@ print(len(lines))
         self.assertIn("ValueError", result.data["error"])
         self.assertIn("Test error", result.data["error"])
 
+    async def test_system_exit_is_captured(self):
+        action = ExecutePythonCodeAction()
+        context = MockContext()
+
+        result = await action.execute({"python_code": "raise SystemExit(7)"}, context)
+
+        self.assertEqual(result.data["result"], "")
+        self.assertIn("SystemExit: 7", result.data["error"])
+        self.assertEqual(result.data["files"], [])
+
+    async def test_zero_system_exit_is_captured(self):
+        action = ExecutePythonCodeAction()
+        context = MockContext()
+
+        result = await action.execute({"python_code": "import sys\nsys.exit(0)"}, context)
+
+        self.assertIn("SystemExit: 0", result.data["error"])
+
+    async def test_keyboard_interrupt_is_captured(self):
+        action = ExecutePythonCodeAction()
+        context = MockContext()
+
+        result = await action.execute({"python_code": "raise KeyboardInterrupt"}, context)
+
+        self.assertIn("KeyboardInterrupt", result.data["error"])
+
+    async def test_stdout_and_generated_files_are_preserved_before_system_exit(self):
+        action = ExecutePythonCodeAction()
+        context = MockContext()
+
+        result = await action.execute(
+            {
+                "python_code": (
+                    "from pathlib import Path\n"
+                    "print('before exit')\n"
+                    "Path('partial.txt').write_text('saved')\n"
+                    "raise SystemExit('stopped')"
+                )
+            },
+            context,
+        )
+
+        self.assertEqual(result.data["result"].strip(), "before exit")
+        self.assertIn("SystemExit: stopped", result.data["error"])
+        self.assertEqual([file["name"] for file in result.data["files"]], ["partial.txt"])
+        self.assertEqual(base64.b64decode(result.data["files"][0]["content"]), b"saved")
+
+    async def test_working_directory_is_restored_after_system_exit(self):
+        action = ExecutePythonCodeAction()
+        context = MockContext()
+        original_cwd = os.getcwd()
+
+        await action.execute({"python_code": "raise SystemExit"}, context)
+
+        self.assertEqual(os.getcwd(), original_cwd)
+
     async def test_missing_python_code(self):
         action = ExecutePythonCodeAction()
         context = MockContext()

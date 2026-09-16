@@ -1,6 +1,6 @@
 {
     "name": "Code analysis",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "description": "An integration that executes arbitrary Python code for data analysis and file processing, with support for input files and automatic output file detection.",
     "entry_point": "code_analysis.py",
     "actions": {
@@ -12,7 +12,7 @@
                 "properties": {
                     "python_code": {
                         "type": "string",
-                        "description": "The Python code to execute.\n\nAvailable third-party libraries already installed in the environment: requests, numpy, Pillow, PyPDF2, python-docx, reportlab, openpyxl, XlsxWriter, matplotlib, python-pptx. Do not import or rely on any other external packages \u00e2\u20ac\u201c only the Python standard library and the packages in this list are guaranteed to exist.\n\nIf your script produces a non-file result (e.g., JSON, text, numbers), you must output it by printing to standard output (e.g., using print(...)). Any files you create should be saved in the current working directory."
+                        "description": "The Python code to execute.\n\nAvailable third-party libraries already installed in the environment: numpy, Pillow, pypdf, python-docx, reportlab, openpyxl, XlsxWriter, matplotlib, python-pptx. Do not import or rely on any other external packages — only the Python standard library and the packages in this list are guaranteed to exist.\n\nIf your script produces a non-file result (e.g., JSON, text, numbers), you must output it by printing to standard output (e.g., using print(...)). Any files you create should be saved in the current working directory. Calls such as sys.exit() and quit(), keyboard interrupts, and uncaught exceptions are captured in the error output instead of terminating the action."
                     },
                     "files": {
                         "type": "array",
@@ -54,7 +54,7 @@
                     },
                     "error": {
                         "type": "string",
-                        "description": "If the user code raised an exception, this field contains the traceback or error message.",
+                        "description": "If the user code raised an exception or requested interpreter exit, this field contains the traceback or error message.",
                         "nullable": true
                     },
                     "files": {

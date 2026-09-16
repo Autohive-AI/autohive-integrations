@@ -31,7 +31,7 @@ Execute Python code with optional input files and automatic output file collecti
 **Outputs:**
 
 - `result` (string): Standard output from the executed code
-- `error` (string, optional): Error message/traceback if execution failed
+- `error` (string, optional): Traceback if execution raised an exception or requested an interpreter exit
 - `files` (array): Generated output files
   - `name` (string): Output filename
   - `content` (string): Base64-encoded file content
@@ -43,7 +43,7 @@ The following third-party libraries are pre-installed:
 
 - **numpy** - Numerical computing
 - **Pillow** - Image processing
-- **PyPDF2** - PDF manipulation
+- **pypdf** - PDF manipulation
 - **python-docx** - Word document creation/editing
 - **reportlab** - PDF generation
 - **openpyxl** - Excel file reading/writing
@@ -82,13 +82,7 @@ total = sum(float(row['amount']) for row in data)
 print(json.dumps({'total': total, 'count': len(data)}))
 """
 
-files = [
-    {
-        "name": "data.csv",
-        "content": "<base64-encoded-csv>",
-        "contentType": "text/csv"
-    }
-]
+files = [{"name": "data.csv", "content": "<base64-encoded-csv>", "contentType": "text/csv"}]
 ```
 
 ### Generate Excel Report
@@ -158,13 +152,7 @@ img.save('output.jpg', 'JPEG', quality=85)
 print(f"Converted image: {img.size}")
 """
 
-files = [
-    {
-        "name": "input.png",
-        "content": "<base64-encoded-png>",
-        "contentType": "image/png"
-    }
-]
+files = [{"name": "input.png", "content": "<base64-encoded-png>", "contentType": "image/png"}]
 ```
 
 ## Best Practices
@@ -175,12 +163,18 @@ files = [
 4. **Handle errors gracefully** - Use try/except for robust scripts
 5. **Close file handles** - Use context managers (`with` statements) for file operations
 
+## Error and exit behavior
+
+Uncaught script exceptions are returned in the optional `error` output rather than raised by the integration. The same applies to interpreter exits triggered by `sys.exit()`, `quit()`, an explicitly raised `SystemExit`, or a keyboard interrupt. Standard output emitted and files created before the failure are still returned. This keeps script-level failures inside the action result instead of failing the Lambda invocation.
+
+This boundary cannot recover from operations that terminate the Python process directly, such as `os._exit()`, or from infrastructure termination such as a Lambda timeout or out-of-memory kill.
+
 ## Requirements
 
-- `autohive-integrations-sdk~=1.0.2`
+- `autohive-integrations-sdk~=2.0.1`
 - `numpy`
 - `Pillow`
-- `PyPDF2`
+- `pypdf~=6.19.0`
 - `python-docx`
 - `reportlab`
 - `openpyxl`
@@ -192,10 +186,14 @@ files = [
 
 To run the tests:
 
-1. Navigate to the integration directory: `cd code-analysis`
-2. Install dependencies: `pip install -r requirements.txt -t dependencies`
-3. Run the tests: `python tests/test_code_analysis.py`
+1. From the repository root, install the repository test dependencies and this integration's dependencies
+2. Run unit tests: `pytest code-analysis/ -m unit`
+3. Run end-to-end integration tests: `pytest code-analysis/tests/test_code_analysis_integration.py -m integration`
+
+The integration tests exercise the registered SDK action with real Python execution, temporary-directory isolation, stdout capture, output-file collection, schema validation, and interpreter-exit handling. Code Analysis has no external service or authentication, so no credentials or `.env` variables are needed.
 
 ## Version
 
-1.0.0
+3.0.0
+
+Version 3 replaces the unmaintained `PyPDF2` dependency with its maintained successor, `pypdf`. PDF scripts must import from `pypdf` instead of `PyPDF2`; upstream documents the package rename as the required migration from PyPDF2 3.0.0 onward.

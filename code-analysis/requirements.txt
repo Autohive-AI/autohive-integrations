@@ -1,7 +1,7 @@
-autohive-integrations-sdk~=2.0.0
+autohive-integrations-sdk~=2.0.1
 numpy
 Pillow
-PyPDF2
+pypdf~=6.19.0
 python-docx
 reportlab
 openpyxl
