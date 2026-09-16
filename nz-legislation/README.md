@@ -125,9 +125,9 @@ Example input:
 
 ### `get_version_xml`
 
-On the first call, resolves the XML link through the authenticated API, verifies that it belongs to the official legislation website, and requests only a bounded UTF-8 byte range. Redirects are not followed, and the API key is never sent to the document URL.
+On the first call, confirms XML availability through the authenticated API and verifies that the response identifies the requested version. It then derives the version's canonical, date-specific XML URL from the documented six-part version identifier and requests only a bounded UTF-8 byte range. Redirects are not followed, and the API key is never sent to the document URL.
 
-The response includes a validated `source` descriptor. Pass that descriptor back unchanged with `next_offset` for continuation calls. A continuation revalidates the public URL but does not repeat the authenticated metadata request, so reading an N-chunk document consumes one API-key quota request rather than N.
+The response includes a `source` descriptor whose canonical URL is deterministically bound to the version identifier. Pass that descriptor back unchanged with `next_offset` for continuation calls. A continuation re-derives and verifies the canonical URL but does not repeat the authenticated metadata request, so reading an N-chunk document consumes one API-key quota request rather than N.
 
 **Inputs**
 
@@ -138,7 +138,7 @@ The response includes a validated `source` descriptor. Pass that descriptor back
 
 **Outputs**
 
-- `source` — Validated source identity containing the version ID, work ID, title, and official XML URL. Pass it back unchanged when continuing.
+- `source` — Validated source identity containing the version ID and its canonical official XML URL. Pass it back unchanged when continuing.
 - `xml` — Requested XML chunk.
 - `offset`, `returned_bytes`, `total_bytes` — Byte-range metadata.
 - `truncated`, `next_offset` — Continue with `next_offset` until `truncated` is `false`.
@@ -163,9 +163,7 @@ For the next chunk, copy both `source` and `next_offset` from the response:
   "version_id": "act_public_1990_109_en_2022-08-30",
   "source": {
     "version_id": "act_public_1990_109_en_2022-08-30",
-    "work_id": "act_public_1990_109",
-    "title": "New Zealand Bill of Rights Act 1990",
-    "source_url": "https://www.legislation.govt.nz/act/public/1990/109/en/latest.xml"
+    "source_url": "https://www.legislation.govt.nz/act/public/1990/109/en/2022-08-30.xml"
   },
   "offset": 20000,
   "max_bytes": 20000

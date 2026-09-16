@@ -428,7 +428,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 250,
-            "pattern": "^[A-Za-z0-9_~-]+$",
+            "pattern": "^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$",
             "description": "Version identifier returned by search_legislation or list_versions."
           },
           "source": {
@@ -439,18 +439,11 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 250,
-                "pattern": "^[A-Za-z0-9_~-]+$"
+                "pattern": "^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$"
               },
-              "work_id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 200,
-                "pattern": "^[A-Za-z0-9_~-]+$"
-              },
-              "title": {"type": "string", "minLength": 1, "maxLength": 2000},
               "source_url": {"type": "string", "minLength": 1, "maxLength": 2048}
             },
-            "required": ["version_id", "work_id", "title", "source_url"],
+            "required": ["version_id", "source_url"],
             "additionalProperties": false
           },
           "offset": {
@@ -478,11 +471,9 @@
             "description": "Resolved and validated XML source identity. Pass this object back unchanged with next_offset when requesting another chunk.",
             "properties": {
               "version_id": {"type": "string"},
-              "work_id": {"type": "string"},
-              "title": {"type": "string"},
               "source_url": {"type": "string"}
             },
-            "required": ["version_id", "work_id", "title", "source_url"],
+            "required": ["version_id", "source_url"],
             "additionalProperties": false
           },
           "xml": {

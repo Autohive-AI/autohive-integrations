@@ -21,8 +21,10 @@ nz_legislation = Integration.load()
 
 API_BASE_URL = "https://api.legislation.govt.nz/v0"
 OFFICIAL_CONTENT_HOSTS = {"legislation.govt.nz", "www.legislation.govt.nz"}
+OFFICIAL_CONTENT_BASE_URL = "https://www.legislation.govt.nz"
 DEFAULT_XML_CHUNK_BYTES = 20_000
 _CONTENT_RANGE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
+_VERSION_ID = re.compile(r"^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$")
 _UNEXPECTED_ERROR = (
     "The New Zealand Legislation integration hit an unexpected error handling this request. Try again later."
 )
@@ -230,15 +232,22 @@ def _trusted_xml_url(formats: list[dict[str, str]]) -> str:
     return xml_url
 
 
+def _canonical_xml_url(version_id: str) -> str:
+    if not _VERSION_ID.fullmatch(version_id):
+        raise LegislationError("version_id does not follow the documented six-part identifier format.")
+    path = "/".join(quote(component, safe="~-") for component in version_id.split("_"))
+    return f"{OFFICIAL_CONTENT_BASE_URL}/{path}.xml"
+
+
 def _continued_xml_source(value: Any, version_id: str) -> dict[str, str]:
     source = _object_response(value)
     if _required_string(source, "version_id") != version_id:
         raise LegislationError("The supplied XML source does not match version_id.")
-    source_url = _trusted_xml_url([{"type": "xml", "url": _required_string(source, "source_url")}])
+    source_url = _required_string(source, "source_url")
+    if source_url != _canonical_xml_url(version_id):
+        raise LegislationError("The supplied XML source does not match version_id.")
     return {
         "version_id": version_id,
-        "work_id": _required_string(source, "work_id"),
-        "title": _required_string(source, "title"),
         "source_url": source_url,
     }
 
@@ -458,11 +467,14 @@ class GetVersionXmlAction(ActionHandler):
             if inputs.get("source") is None:
                 version_response = await _get_version_response(version_id, context)
                 version = _version(_object_response(version_response.data))
-                source_url = _trusted_xml_url(version["formats"])
+                if version["version_id"] != version_id:
+                    raise LegislationError(
+                        "The New Zealand Legislation API returned a different version than requested."
+                    )
+                _trusted_xml_url(version["formats"])
+                source_url = _canonical_xml_url(version_id)
                 source = {
                     "version_id": version_id,
-                    "work_id": version["work_id"],
-                    "title": version["title"],
                     "source_url": source_url,
                 }
                 rate_limit = _rate_limit(version_response.headers)
