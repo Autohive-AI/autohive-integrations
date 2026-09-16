@@ -31,7 +31,7 @@ Keep the key confidential. The [API terms of use](https://www.legislation.govt.n
 | `search_legislation` | Search or browse legislation works with the API's complete documented filter set |
 | `list_versions` | List a page of versions and formats available for a work |
 | `get_version` | Get canonical metadata and format links for one version |
-| `get_version_xml` | Read raw XML chunks when exact markup or non-provision content is required |
+| `get_version_provision` | Retrieve provisions by exact section label or source provision ID |
 | `search_version_xml` | Search an official XML source document for matching provisions |
 
 ### `search_legislation`
@@ -124,37 +124,36 @@ Example input:
 }
 ```
 
-### `get_version_xml`
+### `get_version_provision`
 
-Returns bounded raw UTF-8 chunks from the official XML source. This action preserves access to exact XML markup, schedules, notes, and other content outside `<prov>` elements. Use `search_version_xml` instead when looking for provisions by text.
-
-The first call verifies the version and XML format through the metadata API. Each call downloads the complete XML document with one authenticated request before selecting the requested chunk. Continuation calls therefore repeat the full XML download; they exist for general raw access, not efficient provision research. Documents larger than 25 MiB are rejected before a chunk is returned.
+Downloads the canonical, date-specific XML source once and returns provisions matching an exact section label or source provision ID. Use this after `search_version_xml` identifies a relevant section or provision. A section label can occur more than once in a document, such as in schedules, so the action returns all exact matches in document order, up to 20. Use `provision_id` when one exact source provision is required.
 
 **Inputs**
 
 - `version_id` (string, required) — Version to retrieve.
-- `offset` (integer, optional, default `0`) — UTF-8 byte offset. Start at `0`, then use the returned `next_offset`.
-- `max_bytes` (integer, optional, default `20000`, range `1000`–`100000`) — Maximum bytes to return.
+- `section` (string, conditionally required) — Exact provision label, such as `35`, `231`, or `30A`.
+- `provision_id` (string, conditionally required) — Exact source ID returned by XML search, such as `DLM434650`.
+
+Provide exactly one of `section` or `provision_id`.
 
 **Outputs**
 
 - `version_id`, `source_url` — Requested version and canonical official XML URL.
-- `xml` — Raw XML chunk.
-- `offset`, `returned_bytes`, `total_bytes` — Byte-position and document-size metadata.
-- `truncated`, `next_offset` — Continuation state.
-- `rate_limit` — Metadata request quota state; values are null on continuation calls.
+- `section`, `provision_id` — The exact selector used.
+- `provisions` — Matching provisions with source ID, label, heading, normalised text, and truncation state.
+- `returned_matches`, `total_matches`, `has_more_matches` — Result counts and whether more than 20 exact matches exist.
+- `document_bytes` — Size of the single downloaded XML document.
 
 ```json
 {
   "version_id": "act_public_1990_109_en_2022-08-30",
-  "offset": 0,
-  "max_bytes": 20000
+  "section": "21"
 }
 ```
 
 ### `search_version_xml`
 
-Confirms XML availability through the authenticated API and verifies that the response identifies the requested version. It then derives the version's canonical, date-specific XML URL from the documented six-part version identifier, downloads the complete document once with a normal HTTP GET authenticated by the same `X-Api-Key`, and returns provisions containing the case-insensitive search term. The XML request must return `200 OK`; redirects are not followed.
+Derives the version's canonical, date-specific XML URL from the documented six-part version identifier, downloads the complete document once with a normal HTTP GET authenticated by `X-Api-Key`, and returns provisions containing the case-insensitive search term. The XML request must return `200 OK`; redirects are not followed.
 
 **Inputs**
 
@@ -169,9 +168,8 @@ Confirms XML availability through the authenticated API and verifies that the re
 - `matches` — Matching provisions in document order, including each provision's source ID, label, heading, normalised text, and whether exceptionally long text was truncated.
 - `returned_matches`, `total_matches`, `has_more_matches` — Result counts and whether `max_results` omitted additional matches.
 - `document_bytes` — Size of the downloaded XML document.
-- `rate_limit` — Quota state from the version metadata request.
 
-Each action invocation makes one XML request. There is no byte-offset continuation, Range request, or repeated download for additional chunks. Documents larger than 25 MiB are rejected rather than buffered without a limit. XML is not available for every record, particularly some agency-published secondary legislation and scan-only historical material.
+Each XML action invocation makes one authenticated XML request with no preliminary metadata request. There is no byte-offset continuation or Range request. Documents larger than 25 MiB are rejected rather than buffered without a limit. XML is not available for every record, particularly some agency-published secondary legislation and scan-only historical material.
 
 Example input:
 
@@ -201,8 +199,7 @@ Example input:
 - **Daily quota exceeded** — Wait until the quota resets at midnight New Zealand time; the provider returns HTTP 429.
 - **Burst limit reached** — Wait five minutes before retrying; the provider returns HTTP 403.
 - **Work or version not found** — Re-run search and use the returned identifier. Ephemeral identifiers can change.
-- **No XML format** — Use a returned HTML or PDF format link instead.
-- **Untrusted XML URL** — The integration refuses to fetch XML from hosts other than the official legislation website to prevent credential leakage and server-side request forgery.
+- **XML unavailable** — The official website returns not found when the requested version has no XML representation; use the formats from `search_legislation`, `list_versions`, or `get_version` to choose HTML or PDF instead.
 
 ## Testing
 

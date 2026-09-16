@@ -1,7 +1,7 @@
 """Unit tests for the New Zealand Legislation integration."""
 
 from copy import deepcopy
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
 import pytest
@@ -11,11 +11,10 @@ from nz_legislation import (
     MAX_XML_DOCUMENT_BYTES,
     LegislationError,
     _canonical_xml_url,
-    _decode_xml_chunk,
     _fetch_xml_document,
+    _get_xml_provisions,
     _rate_limit,
     _search_xml_provisions,
-    _trusted_xml_url,
     nz_legislation,
 )
 
@@ -95,56 +94,6 @@ class TestHelpers:
     def test_rate_limit_is_advisory_and_tolerates_missing_or_invalid_headers(self, headers, expected):
         assert _rate_limit(headers) == expected
 
-    @pytest.mark.parametrize(
-        "url",
-        [
-            XML_URL,
-            "https://legislation.govt.nz/act/public/1990/109/en/latest.xml",
-        ],
-    )
-    def test_trusted_xml_url_accepts_only_official_https_hosts(self, url):
-        assert _trusted_xml_url([{"type": "xml", "url": url}]) == url
-
-    @pytest.mark.parametrize(
-        "url",
-        [
-            "http://www.legislation.govt.nz/act.xml",
-            "https://example.test/act.xml",
-            "https://www.legislation.govt.nz.evil.test/act.xml",
-            "https://user@example.test@www.legislation.govt.nz/act.xml",
-            "https://www.legislation.govt.nz:8443/act.xml",
-            "https://www.legislation.govt.nz:invalid/act.xml",
-            "https://www.legislation.govt.nz/act.xml?api_key=must-not-be-sent",
-            "https://www.legislation.govt.nz/act.xml#fragment",
-        ],
-    )
-    def test_trusted_xml_url_rejects_unsafe_urls(self, url):
-        with pytest.raises(LegislationError, match="untrusted"):
-            _trusted_xml_url([{"type": "xml", "url": url}])
-
-    def test_trusted_xml_url_reports_unavailable_format(self):
-        with pytest.raises(LegislationError, match="does not provide"):
-            _trusted_xml_url([{"type": "pdf", "url": "https://www.legislation.govt.nz/a.pdf"}])
-
-    def test_xml_chunk_preserves_utf8_character_boundaries(self):
-        prefix = b'<?xml version="1.0"?>'
-        document = prefix + b"a" * (999 - len(prefix)) + "ā".encode() + b"z"
-
-        xml, returned_bytes, total_bytes, next_offset = _decode_xml_chunk(document, offset=0, max_bytes=1000)
-
-        assert xml == prefix.decode() + "a" * (999 - len(prefix))
-        assert returned_bytes == 999
-        assert total_bytes == len(document)
-        assert next_offset == 999
-
-    def test_xml_chunk_validates_the_full_document_prefix_on_continuation(self):
-        with pytest.raises(LegislationError, match="unexpected XML response"):
-            _decode_xml_chunk(b"skip!abcdefghi", offset=5, max_bytes=4)
-
-    def test_xml_chunk_rejects_offset_outside_document(self):
-        with pytest.raises(LegislationError, match="offset is outside"):
-            _decode_xml_chunk(b"<?xml version='1.0'?><act/>", offset=100, max_bytes=1000)
-
     def test_search_xml_provisions_returns_complete_matching_provisions(self):
         document = (
             b'<?xml version="1.0" encoding="UTF-8"?><act>'
@@ -178,6 +127,36 @@ class TestHelpers:
 
         assert [match["provision_id"] for match in matches] == ["one"]
         assert total_matches == 2
+
+    @pytest.mark.parametrize(
+        "selector, expected_ids",
+        [
+            ({"section": "35", "provision_id": None}, ["main-35", "schedule-35"]),
+            ({"section": None, "provision_id": "main-35"}, ["main-35"]),
+        ],
+    )
+    def test_get_xml_provisions_uses_exact_selector(self, selector, expected_ids):
+        document = b"""<?xml version="1.0"?><act>
+          <prov id="main-35"><label>35</label><heading>Main offence</heading></prov>
+          <prov id="section-35a"><label>35A</label><heading>Different section</heading></prov>
+          <prov id="schedule-35"><label>35</label><heading>Schedule provision</heading></prov>
+        </act>"""
+
+        matches, total_matches = _get_xml_provisions(document, **selector)
+
+        assert [match["provision_id"] for match in matches] == expected_ids
+        assert total_matches == len(expected_ids)
+
+    @pytest.mark.parametrize(
+        "selector",
+        [
+            {"section": None, "provision_id": None},
+            {"section": "35", "provision_id": "main-35"},
+        ],
+    )
+    def test_get_xml_provisions_requires_exactly_one_selector(self, selector):
+        with pytest.raises(LegislationError, match="exactly one"):
+            _get_xml_provisions(b"<?xml version='1.0'?><act/>", **selector)
 
     @pytest.mark.parametrize(
         "document, error",
@@ -310,8 +289,6 @@ class TestSharedErrors:
             ("search_legislation", {}),
             ("list_versions", {"work_id": WORK_ID}),
             ("get_version", {"version_id": VERSION_ID}),
-            ("get_version_xml", {"version_id": VERSION_ID}),
-            ("search_version_xml", {"version_id": VERSION_ID, "search_term": "rights"}),
         ],
     )
     async def test_daily_quota_error_uses_provider_reset_not_sdk_retry_delay(self, mock_context, action, inputs):
@@ -331,8 +308,6 @@ class TestSharedErrors:
             ("search_legislation", {}),
             ("list_versions", {"work_id": WORK_ID}),
             ("get_version", {"version_id": VERSION_ID}),
-            ("get_version_xml", {"version_id": VERSION_ID}),
-            ("search_version_xml", {"version_id": VERSION_ID, "search_term": "rights"}),
         ],
     )
     @pytest.mark.parametrize(
@@ -356,8 +331,6 @@ class TestSharedErrors:
             ("search_legislation", {}),
             ("list_versions", {"work_id": WORK_ID}),
             ("get_version", {"version_id": VERSION_ID}),
-            ("get_version_xml", {"version_id": VERSION_ID}),
-            ("search_version_xml", {"version_id": VERSION_ID, "search_term": "rights"}),
         ],
     )
     async def test_unexpected_errors_are_logged_without_blaming_inputs(self, mock_context, action, inputs):
@@ -620,64 +593,58 @@ class TestGetVersion:
         assert "requested version" in result.result.message
 
 
-class TestGetVersionXml:
-    async def test_returns_first_raw_xml_chunk(self, mock_context):
-        document = b"<?xml version='1.0'?><act>law</act>"
-        mock_context.fetch.return_value = response(SAMPLE_VERSION)
+class TestGetVersionProvision:
+    async def test_returns_exact_section_from_one_xml_download(self, mock_context):
+        document = b"""<?xml version="1.0"?><act>
+          <prov id="DLM434650"><label>35</label><heading>Driving offence</heading>
+            <prov.body><para><text>Operates a motor vehicle recklessly.</text></para></prov.body>
+          </prov>
+          <prov id="other"><label>35A</label><heading>Other offence</heading></prov>
+        </act>"""
 
         with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock, return_value=document) as fetch_xml:
             result = await nz_legislation.execute_action(
-                "get_version_xml", {"version_id": VERSION_ID, "max_bytes": 1000}, mock_context
+                "get_version_provision", {"version_id": VERSION_ID, "section": "35"}, mock_context
             )
 
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["version_id"] == VERSION_ID
         assert data["source_url"] == CANONICAL_XML_URL
-        assert data["xml"] == document.decode()
-        assert data["offset"] == 0
-        assert data["returned_bytes"] == data["total_bytes"] == len(document)
-        assert data["truncated"] is False
-        assert data["next_offset"] is None
-        assert data["rate_limit"]["remaining"] == 9998
-        fetch_xml.assert_awaited_once_with(CANONICAL_XML_URL, "test_api_key")
-
-    async def test_continuation_returns_raw_chunk_without_metadata_request(self, mock_context):
-        document = b"<?xml version='1.0'?><act>abcdefghij</act>"
-        offset = document.index(b"abcdefghij")
-
-        with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock, return_value=document) as fetch_xml:
-            result = await nz_legislation.execute_action(
-                "get_version_xml",
-                {"version_id": VERSION_ID, "offset": offset, "max_bytes": 1000},
-                mock_context,
-            )
-
-        assert result.type == ResultType.ACTION
-        data = result.result.data
-        assert data["xml"] == "abcdefghij</act>"
-        assert data["offset"] == offset
-        assert data["next_offset"] is None
-        assert data["rate_limit"] == {"limit": None, "remaining": None, "reset_at": None}
+        assert data["section"] == "35"
+        assert data["provision_id"] is None
+        assert data["returned_matches"] == data["total_matches"] == 1
+        assert data["has_more_matches"] is False
+        assert data["provisions"][0]["provision_id"] == "DLM434650"
+        assert data["provisions"][0]["label"] == "35"
+        assert "recklessly" in data["provisions"][0]["text"]
+        assert data["document_bytes"] == len(document)
         mock_context.fetch.assert_not_called()
         fetch_xml.assert_awaited_once_with(CANONICAL_XML_URL, "test_api_key")
 
-    async def test_rejects_metadata_for_a_different_version_before_xml_fetch(self, mock_context):
-        version = {**SAMPLE_VERSION, "version_id": "act_public_1991_1_en_1991-01-01"}
-        mock_context.fetch.return_value = response(version)
+    async def test_returns_exact_provision_id(self, mock_context):
+        document = b"""<?xml version="1.0"?><act>
+          <prov id="one"><label>35</label><heading>Main offence</heading></prov>
+          <prov id="two"><label>35</label><heading>Schedule offence</heading></prov>
+        </act>"""
 
-        with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock) as fetch_xml:
-            result = await nz_legislation.execute_action("get_version_xml", {"version_id": VERSION_ID}, mock_context)
+        with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock, return_value=document):
+            result = await nz_legislation.execute_action(
+                "get_version_provision", {"version_id": VERSION_ID, "provision_id": "two"}, mock_context
+            )
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert "different version" in result.result.message
-        fetch_xml.assert_not_awaited()
+        assert result.type == ResultType.ACTION
+        assert [item["provision_id"] for item in result.result.data["provisions"]] == ["two"]
 
-    @pytest.mark.parametrize("max_bytes", [999, 100001])
-    async def test_chunk_size_bounds_are_schema_validated(self, mock_context, max_bytes):
-        result = await nz_legislation.execute_action(
-            "get_version_xml", {"version_id": VERSION_ID, "max_bytes": max_bytes}, mock_context
-        )
+    @pytest.mark.parametrize(
+        "inputs",
+        [
+            {"version_id": VERSION_ID},
+            {"version_id": VERSION_ID, "section": "35", "provision_id": "DLM434650"},
+        ],
+    )
+    async def test_requires_exactly_one_selector(self, mock_context, inputs):
+        result = await nz_legislation.execute_action("get_version_provision", inputs, mock_context)
 
         assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
@@ -702,8 +669,6 @@ class TestSearchVersionXml:
             b'</para></prov.body></prov><prov id="other"><label>22</label><heading>Liberty</heading>'
             b"<prov.body><para><text>Other law.</text></para></prov.body></prov></act>"
         )
-        mock_context.fetch.return_value = response(SAMPLE_VERSION)
-
         with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock, return_value=document) as fetch_xml:
             result = await nz_legislation.execute_action(
                 "search_version_xml",
@@ -723,21 +688,10 @@ class TestSearchVersionXml:
         assert data["matches"][0]["label"] == "21"
         assert data["matches"][0]["heading"] == "Unreasonable search and seizure"
         assert "right to be secure" in data["matches"][0]["text"]
-        assert data["rate_limit"]["remaining"] == 9998
-        assert mock_context.fetch.call_args_list == [
-            call(
-                f"https://api.legislation.govt.nz/v0/versions/{VERSION_ID}/",
-                method="GET",
-                headers={"Accept": "application/json", "X-Api-Key": "test_api_key"},
-            ),
-        ]
+        mock_context.fetch.assert_not_called()
         fetch_xml.assert_awaited_once_with(CANONICAL_XML_URL, "test_api_key")
 
-    async def test_replaces_latest_alias_with_version_bound_canonical_url(self, mock_context):
-        version = deepcopy(SAMPLE_VERSION)
-        version["formats"][1]["url"] = "https://www.legislation.govt.nz/act/public/1990/109/en/latest.xml"
-        mock_context.fetch.return_value = response(version)
-
+    async def test_uses_version_bound_canonical_url(self, mock_context):
         with patch(
             "nz_legislation._fetch_xml_document",
             new_callable=AsyncMock,
@@ -755,7 +709,6 @@ class TestSearchVersionXml:
           <prov id="one"><heading>Rights one</heading></prov>
           <prov id="two"><heading>Rights two</heading></prov>
         </act>"""
-        mock_context.fetch.return_value = response(SAMPLE_VERSION)
 
         with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock, return_value=document) as fetch_xml:
             result = await nz_legislation.execute_action(
@@ -771,46 +724,7 @@ class TestSearchVersionXml:
         assert data["has_more_matches"] is True
         fetch_xml.assert_awaited_once()
 
-    async def test_rejects_metadata_for_a_different_version_before_xml_fetch(self, mock_context):
-        version = {**SAMPLE_VERSION, "version_id": "act_public_1991_1_en_1991-01-01"}
-        mock_context.fetch.return_value = response(version)
-
-        with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock) as fetch_xml:
-            result = await nz_legislation.execute_action(
-                "search_version_xml", {"version_id": VERSION_ID, "search_term": "rights"}, mock_context
-            )
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "different version" in result.result.message
-        fetch_xml.assert_not_awaited()
-
-    async def test_reports_missing_xml_without_second_request(self, mock_context):
-        version = {**SAMPLE_VERSION, "formats": [{"type": "pdf", "url": "https://example.test/a.pdf"}]}
-        mock_context.fetch.return_value = response(version)
-
-        result = await nz_legislation.execute_action(
-            "search_version_xml", {"version_id": VERSION_ID, "search_term": "rights"}, mock_context
-        )
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "does not provide an XML format" in result.result.message
-        assert mock_context.fetch.await_count == 1
-
-    async def test_rejects_untrusted_provider_xml_url_without_fetching_it(self, mock_context):
-        version = {**SAMPLE_VERSION, "formats": [{"type": "xml", "url": "https://evil.test/act.xml"}]}
-        mock_context.fetch.return_value = response(version)
-
-        result = await nz_legislation.execute_action(
-            "search_version_xml", {"version_id": VERSION_ID, "search_term": "rights"}, mock_context
-        )
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "untrusted" in result.result.message
-        assert mock_context.fetch.await_count == 1
-
     async def test_rejects_unexpected_xml_response(self, mock_context):
-        mock_context.fetch.return_value = response(SAMPLE_VERSION)
-
         with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock) as fetch_xml:
             fetch_xml.side_effect = LegislationError(
                 "The New Zealand Legislation website returned an unexpected XML response."
@@ -823,8 +737,6 @@ class TestSearchVersionXml:
         assert "unexpected XML response" in result.result.message
 
     async def test_xml_document_not_found_is_distinct_from_missing_version(self, mock_context):
-        mock_context.fetch.return_value = response(SAMPLE_VERSION)
-
         with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock) as fetch_xml:
             fetch_xml.side_effect = LegislationError(
                 "The New Zealand Legislation website could not find the requested XML document."
@@ -837,8 +749,6 @@ class TestSearchVersionXml:
         assert "requested XML document" in result.result.message
 
     async def test_xml_network_error_is_curated(self, mock_context):
-        mock_context.fetch.return_value = response(SAMPLE_VERSION)
-
         with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock) as fetch_xml:
             fetch_xml.side_effect = aiohttp.ClientConnectionError("private network detail")
             result = await nz_legislation.execute_action(

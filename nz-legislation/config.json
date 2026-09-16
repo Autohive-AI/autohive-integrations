@@ -418,9 +418,9 @@
         "additionalProperties": false
       }
     },
-    "get_version_xml": {
-      "display_name": "Get Legislation XML",
-      "description": "Gets a bounded raw UTF-8 chunk of an official XML source up to 25 MiB. Use search_version_xml for efficient provision lookup; use this action when exact XML markup or non-provision content is required.",
+    "get_version_provision": {
+      "display_name": "Get Legislation Provision",
+      "description": "Downloads the official XML source for a specific version once and returns provisions matching an exact section label or source provision ID.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -431,21 +431,25 @@
             "pattern": "^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$",
             "description": "Version identifier returned by search_legislation or list_versions."
           },
-          "offset": {
-            "type": "integer",
-            "minimum": 0,
-            "default": 0,
-            "description": "UTF-8 byte offset into the XML document. Start at 0 and use the previous response's next_offset to continue so offsets stay on character boundaries."
+          "section": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "description": "Exact provision label, for example 35, 231, or 30A."
           },
-          "max_bytes": {
-            "type": "integer",
-            "minimum": 1000,
-            "maximum": 100000,
-            "default": 20000,
-            "description": "Maximum UTF-8 bytes to return. A chunk may not be a standalone well-formed XML document."
+          "provision_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Exact source provision ID returned by search_version_xml, for example DLM434650."
           }
         },
         "required": ["version_id"],
+        "oneOf": [
+          {"required": ["section"], "not": {"required": ["provision_id"]}},
+          {"required": ["provision_id"], "not": {"required": ["section"]}}
+        ],
         "additionalProperties": false
       },
       "output_schema": {
@@ -453,37 +457,39 @@
         "properties": {
           "version_id": {"type": "string"},
           "source_url": {"type": "string"},
-          "xml": {
-            "type": "string",
-            "description": "The requested XML chunk decoded as UTF-8. Chunks after offset 0 may not be independently well-formed XML."
+          "section": {"type": ["string", "null"]},
+          "provision_id": {"type": ["string", "null"]},
+          "provisions": {
+            "type": "array",
+            "description": "Provisions matching the exact selector in document order.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provision_id": {"type": ["string", "null"]},
+                "label": {"type": "string"},
+                "heading": {"type": "string"},
+                "text": {"type": "string"},
+                "text_truncated": {"type": "boolean"}
+              },
+              "required": ["provision_id", "label", "heading", "text", "text_truncated"],
+              "additionalProperties": false
+            }
           },
-          "offset": {"type": "integer"},
-          "returned_bytes": {"type": "integer"},
-          "total_bytes": {"type": "integer"},
-          "truncated": {"type": "boolean"},
-          "next_offset": {"type": ["integer", "null"]},
-          "rate_limit": {
-            "type": "object",
-            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response. Values are null on continuation calls where offset is greater than zero; reset_at is a UTC Unix timestamp.",
-            "properties": {
-              "limit": {"type": ["integer", "null"]},
-              "remaining": {"type": ["integer", "null"]},
-              "reset_at": {"type": ["integer", "null"]}
-            },
-            "required": ["limit", "remaining", "reset_at"],
-            "additionalProperties": false
-          }
+          "returned_matches": {"type": "integer"},
+          "total_matches": {"type": "integer"},
+          "has_more_matches": {"type": "boolean"},
+          "document_bytes": {"type": "integer"}
         },
         "required": [
           "version_id",
           "source_url",
-          "xml",
-          "offset",
-          "returned_bytes",
-          "total_bytes",
-          "truncated",
-          "next_offset",
-          "rate_limit"
+          "section",
+          "provision_id",
+          "provisions",
+          "returned_matches",
+          "total_matches",
+          "has_more_matches",
+          "document_bytes"
         ],
         "additionalProperties": false
       }
@@ -543,18 +549,7 @@
           "returned_matches": {"type": "integer"},
           "total_matches": {"type": "integer"},
           "has_more_matches": {"type": "boolean"},
-          "document_bytes": {"type": "integer"},
-          "rate_limit": {
-            "type": "object",
-            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response; reset_at is a UTC Unix timestamp.",
-            "properties": {
-              "limit": {"type": ["integer", "null"]},
-              "remaining": {"type": ["integer", "null"]},
-              "reset_at": {"type": ["integer", "null"]}
-            },
-            "required": ["limit", "remaining", "reset_at"],
-            "additionalProperties": false
-          }
+          "document_bytes": {"type": "integer"}
         },
         "required": [
           "version_id",
@@ -564,8 +559,7 @@
           "returned_matches",
           "total_matches",
           "has_more_matches",
-          "document_bytes",
-          "rate_limit"
+          "document_bytes"
         ],
         "additionalProperties": false
       }

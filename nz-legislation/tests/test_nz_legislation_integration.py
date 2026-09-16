@@ -25,6 +25,7 @@ pytestmark = pytest.mark.integration
 KNOWN_WORK_ID = "act_public_1990_109"
 KNOWN_VERSION_ID = "act_public_1990_109_en_2022-08-30"
 CRIMES_ACT_VERSION_ID = "act_public_1961_43_en_2026-08-08"
+LAND_TRANSPORT_ACT_VERSION_ID = "act_public_1998_110_en_2026-08-08"
 
 
 @pytest_asyncio.fixture
@@ -216,37 +217,24 @@ class TestAuthentication:
         assert "API key" in result.result.message
 
 
-class TestGetVersionXml:
-    async def test_returns_raw_xml_chunks_for_general_access(self, live_context):
-        first = await nz_legislation.execute_action(
-            "get_version_xml",
-            {"version_id": KNOWN_VERSION_ID, "max_bytes": 1000},
+class TestGetVersionProvision:
+    async def test_returns_land_transport_act_section_35(self, live_context):
+        result = await nz_legislation.execute_action(
+            "get_version_provision",
+            {"version_id": LAND_TRANSPORT_ACT_VERSION_ID, "section": "35"},
             live_context,
         )
 
-        assert first.type == ResultType.ACTION, first.result
-        first_data = first.result.data
-        assert first_data["xml"].startswith("<?xml")
-        assert first_data["truncated"] is True
-        assert first_data["next_offset"] == first_data["returned_bytes"]
-
-        second = await nz_legislation.execute_action(
-            "get_version_xml",
-            {
-                "version_id": KNOWN_VERSION_ID,
-                "offset": first_data["next_offset"],
-                "max_bytes": 1000,
-            },
-            live_context,
-        )
-
-        assert second.type == ResultType.ACTION, second.result
-        second_data = second.result.data
-        assert second_data["offset"] == first_data["next_offset"]
-        assert second_data["xml"] != first_data["xml"]
-        assert second_data["total_bytes"] == first_data["total_bytes"]
-        assert second_data["rate_limit"] == {"limit": None, "remaining": None, "reset_at": None}
-        assert live_context.fetch.await_count == 1
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["source_url"].endswith("/act/public/1998/110/en/2026-08-08.xml")
+        assert data["returned_matches"] >= 1
+        section = next(item for item in data["provisions"] if item["provision_id"] == "DLM434650")
+        assert section["label"] == "35"
+        assert section["heading"] == "Contravention of section 7, or section 22 where no injury or death involved"
+        assert "operates a motor vehicle recklessly" in section["text"]
+        assert data["document_bytes"] > 1_000_000
+        assert live_context.fetch.await_count == 0
 
 
 class TestSearchVersionXml:
@@ -283,7 +271,7 @@ class TestSearchVersionXml:
         assert data["source_url"] == "https://www.legislation.govt.nz/act/public/1990/109/en/2022-08-30.xml"
         assert any(match["label"] == "21" for match in data["matches"])
         assert any("unreasonable search or seizure" in match["text"].lower() for match in data["matches"])
-        assert live_context.fetch.await_count == 1
+        assert live_context.fetch.await_count == 0
 
     async def test_no_matching_provision_returns_empty_results(self, live_context):
         result = await nz_legislation.execute_action(
