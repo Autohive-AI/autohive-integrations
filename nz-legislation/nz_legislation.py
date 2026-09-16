@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any
 from urllib.parse import quote, urlparse
@@ -23,6 +24,7 @@ API_BASE_URL = "https://api.legislation.govt.nz/v0"
 OFFICIAL_CONTENT_HOSTS = {"legislation.govt.nz", "www.legislation.govt.nz"}
 OFFICIAL_CONTENT_BASE_URL = "https://www.legislation.govt.nz"
 DEFAULT_XML_CHUNK_BYTES = 20_000
+XML_RANGE_ATTEMPTS = 3
 _CONTENT_RANGE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
 _VERSION_ID = re.compile(r"^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$")
 _UNEXPECTED_ERROR = (
@@ -239,6 +241,13 @@ def _canonical_xml_url(version_id: str) -> str:
     return f"{OFFICIAL_CONTENT_BASE_URL}/{path}.xml"
 
 
+def _retry_after_seconds(headers: Any) -> int:
+    try:
+        return min(5, max(1, int(headers.get("Retry-After", "2"))))
+    except (AttributeError, TypeError, ValueError):
+        return 2
+
+
 def _continued_xml_source(value: Any, version_id: str) -> dict[str, str]:
     source = _object_response(value)
     if _required_string(source, "version_id") != version_id:
@@ -301,31 +310,50 @@ async def _fetch_xml_chunk(source_url: str, offset: int, max_bytes: int) -> tupl
     }
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.get(source_url, headers=headers, allow_redirects=False, ssl=True) as response:
-            if response.status == 404:
-                raise LegislationError("The New Zealand Legislation website could not find the requested XML document.")
-            if response.status == 416:
-                raise LegislationError("offset is outside the XML document's byte range.")
-            if response.status == 403:
-                raise LegislationError("The New Zealand Legislation website refused the XML document request.")
-            if response.status == 429:
-                raise LegislationError("The New Zealand Legislation website temporarily rate-limited XML requests.")
-            if response.status >= 500:
-                raise LegislationError("The New Zealand Legislation website could not provide the XML document.")
-            if response.status != 206:
-                raise LegislationError("The New Zealand Legislation website did not return a bounded XML byte range.")
+        for attempt in range(XML_RANGE_ATTEMPTS):
+            request_headers = dict(headers)
+            if attempt:
+                request_headers.update({"Cache-Control": "no-cache", "Pragma": "no-cache"})
 
-            content_type = response.headers.get("Content-Type", "").partition(";")[0].strip().lower()
-            if content_type not in {"application/xml", "text/xml"}:
-                raise LegislationError("The New Zealand Legislation website returned an unexpected XML response.")
+            async with session.get(source_url, headers=request_headers, allow_redirects=False, ssl=True) as response:
+                if response.status in {200, 202} and attempt < XML_RANGE_ATTEMPTS - 1:
+                    response.close()
+                    if response.status == 202:
+                        await asyncio.sleep(_retry_after_seconds(response.headers))
+                    continue
+                if response.status == 404:
+                    raise LegislationError(
+                        "The New Zealand Legislation website could not find the requested XML document."
+                    )
+                if response.status == 416:
+                    raise LegislationError("offset is outside the XML document's byte range.")
+                if response.status == 403:
+                    raise LegislationError("The New Zealand Legislation website refused the XML document request.")
+                if response.status == 429:
+                    raise LegislationError("The New Zealand Legislation website temporarily rate-limited XML requests.")
+                if response.status >= 500:
+                    raise LegislationError("The New Zealand Legislation website could not provide the XML document.")
+                if response.status != 206:
+                    raise LegislationError(
+                        "The New Zealand Legislation website did not return a bounded XML byte range "
+                        f"after retrying (HTTP {response.status})."
+                    )
 
-            body = bytearray()
-            async for chunk in response.content.iter_chunked(16_384):
-                body.extend(chunk)
-                if len(body) > max_bytes + 3:
-                    raise LegislationError("The New Zealand Legislation website exceeded the requested XML byte range.")
+                content_type = response.headers.get("Content-Type", "").partition(";")[0].strip().lower()
+                if content_type not in {"application/xml", "text/xml"}:
+                    raise LegislationError("The New Zealand Legislation website returned an unexpected XML response.")
 
-            return _decode_xml_range(bytes(body), response.headers.get("Content-Range", ""), offset, max_bytes)
+                body = bytearray()
+                async for chunk in response.content.iter_chunked(16_384):
+                    body.extend(chunk)
+                    if len(body) > max_bytes + 3:
+                        raise LegislationError(
+                            "The New Zealand Legislation website exceeded the requested XML byte range."
+                        )
+
+                return _decode_xml_range(bytes(body), response.headers.get("Content-Range", ""), offset, max_bytes)
+
+    raise LegislationError("The New Zealand Legislation website did not return a bounded XML byte range.")
 
 
 @nz_legislation.action("search_legislation")

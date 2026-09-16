@@ -13,6 +13,7 @@ from nz_legislation import (
     _decode_xml_range,
     _fetch_xml_chunk,
     _rate_limit,
+    _retry_after_seconds,
     _trusted_xml_url,
     nz_legislation,
 )
@@ -69,6 +70,18 @@ def response(data, headers=None):
 
 
 class TestHelpers:
+    @pytest.mark.parametrize(
+        "headers, expected",
+        [
+            ({"Retry-After": "1"}, 1),
+            ({"Retry-After": "30"}, 5),
+            ({"Retry-After": "invalid"}, 2),
+            ({}, 2),
+        ],
+    )
+    def test_retry_after_uses_bounded_provider_delay(self, headers, expected):
+        assert _retry_after_seconds(headers) == expected
+
     def test_canonical_xml_url_is_derived_from_all_version_id_components(self):
         assert _canonical_xml_url("secondary-legislation_agency-drafted_~2025_42_en_2025-03-04") == (
             "https://www.legislation.govt.nz/secondary-legislation/agency-drafted/~2025/42/en/2025-03-04.xml"
@@ -196,6 +209,87 @@ class TestHelpers:
             with pytest.raises(LegislationError, match="website temporarily rate-limited XML requests"):
                 await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
 
+    async def test_xml_fetch_retries_when_website_temporarily_ignores_range(self):
+        ignored_response = MagicMock(status=200, headers={})
+        ignored_context = MagicMock()
+        ignored_context.__aenter__ = AsyncMock(return_value=ignored_response)
+        ignored_context.__aexit__ = AsyncMock(return_value=False)
+
+        body = b'<?xml version="1.0"?>'
+
+        async def chunks(_size):
+            yield body
+
+        ranged_response = MagicMock(
+            status=206,
+            headers={"Content-Type": "application/xml", "Content-Range": f"bytes 0-{len(body) - 1}/{len(body)}"},
+        )
+        ranged_response.content.iter_chunked.side_effect = chunks
+        ranged_context = MagicMock()
+        ranged_context.__aenter__ = AsyncMock(return_value=ranged_response)
+        ranged_context.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.get.side_effect = [ignored_context, ranged_context]
+        session_context = MagicMock()
+        session_context.__aenter__ = AsyncMock(return_value=session)
+        session_context.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("nz_legislation.aiohttp.ClientSession", return_value=session_context):
+            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
+
+        assert xml == body.decode()
+        assert returned_bytes == total_bytes == len(body)
+        assert next_offset is None
+        ignored_response.close.assert_called_once_with()
+        assert session.get.call_count == 2
+        assert session.get.call_args_list[1].kwargs["headers"] == {
+            "Accept": "application/xml",
+            "Accept-Encoding": "identity",
+            "Range": "bytes=0-1002",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        }
+
+    async def test_xml_fetch_polls_accepted_document_generation(self):
+        accepted_response = MagicMock(status=202, headers={"Retry-After": "1"})
+        accepted_context = MagicMock()
+        accepted_context.__aenter__ = AsyncMock(return_value=accepted_response)
+        accepted_context.__aexit__ = AsyncMock(return_value=False)
+
+        body = b'<?xml version="1.0"?>'
+
+        async def chunks(_size):
+            yield body
+
+        ranged_response = MagicMock(
+            status=206,
+            headers={"Content-Type": "application/xml", "Content-Range": f"bytes 0-{len(body) - 1}/{len(body)}"},
+        )
+        ranged_response.content.iter_chunked.side_effect = chunks
+        ranged_context = MagicMock()
+        ranged_context.__aenter__ = AsyncMock(return_value=ranged_response)
+        ranged_context.__aexit__ = AsyncMock(return_value=False)
+
+        session = MagicMock()
+        session.get.side_effect = [accepted_context, ranged_context]
+        session_context = MagicMock()
+        session_context.__aenter__ = AsyncMock(return_value=session)
+        session_context.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch("nz_legislation.aiohttp.ClientSession", return_value=session_context),
+            patch("nz_legislation.asyncio.sleep", new_callable=AsyncMock) as sleep,
+        ):
+            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
+
+        assert xml == body.decode()
+        assert returned_bytes == total_bytes == len(body)
+        assert next_offset is None
+        accepted_response.close.assert_called_once_with()
+        sleep.assert_awaited_once_with(1)
+        assert session.get.call_count == 2
+
     @pytest.mark.parametrize(
         "status, expected",
         [
@@ -204,6 +298,7 @@ class TestHelpers:
             (403, "refused the XML document request"),
             (500, "could not provide the XML document"),
             (200, "did not return a bounded XML byte range"),
+            (202, "did not return a bounded XML byte range"),
         ],
     )
     async def test_xml_fetch_maps_unusable_http_responses(self, status, expected):
@@ -217,9 +312,15 @@ class TestHelpers:
         session_context.__aenter__ = AsyncMock(return_value=session)
         session_context.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("nz_legislation.aiohttp.ClientSession", return_value=session_context):
-            with pytest.raises(LegislationError, match=expected):
+        with (
+            patch("nz_legislation.aiohttp.ClientSession", return_value=session_context),
+            patch("nz_legislation.asyncio.sleep", new_callable=AsyncMock),
+        ):
+            with pytest.raises(LegislationError, match=expected) as raised:
                 await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
+        if status in {200, 202}:
+            assert session.get.call_count == 3
+            assert f"HTTP {status}" in str(raised.value)
 
 
 class TestSharedErrors:
