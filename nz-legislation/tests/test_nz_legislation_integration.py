@@ -95,27 +95,37 @@ class TestSearchLegislation:
 
         assert result.type == ResultType.ACTION, result.result
         works = result.result.data["works"]
-        assert len(works) <= 2
+        assert len(works) == 2
         assert all(work["legislation_type"] == "act" for work in works)
         assert all(work["act_status"] == "in_force" for work in works)
 
 
 class TestListVersions:
-    async def test_lists_known_work_versions(self, live_context):
-        result = await nz_legislation.execute_action(
-            "list_versions", {"work_id": KNOWN_WORK_ID, "sort": "asc", "per_page": 2}, live_context
+    async def test_lists_distinct_pages_of_known_work_versions(self, live_context):
+        first = await nz_legislation.execute_action(
+            "list_versions", {"work_id": KNOWN_WORK_ID, "sort": "asc", "page": 1, "per_page": 2}, live_context
+        )
+        second = await nz_legislation.execute_action(
+            "list_versions", {"work_id": KNOWN_WORK_ID, "sort": "asc", "page": 2, "per_page": 2}, live_context
         )
 
-        assert result.type == ResultType.ACTION, result.result
-        data = result.result.data
-        assert data["work_id"] == KNOWN_WORK_ID
-        assert data["versions"]
-        assert data["count"] == len(data["versions"])
-        assert data["count"] == 2
-        assert data["total"] > data["count"]
-        assert data["has_next_page"] is True
-        assert all(version["work_id"] == KNOWN_WORK_ID for version in data["versions"])
-        assert all(version["formats"] for version in data["versions"])
+        assert first.type == ResultType.ACTION, first.result
+        assert second.type == ResultType.ACTION, second.result
+        first_data = first.result.data
+        second_data = second.result.data
+        assert first_data["work_id"] == KNOWN_WORK_ID
+        assert first_data["page"] == 1
+        assert second_data["page"] == 2
+        assert first_data["per_page"] == second_data["per_page"] == 2
+        assert first_data["count"] == second_data["count"] == 2
+        assert first_data["total"] == second_data["total"]
+        assert first_data["total"] > first_data["count"]
+        assert first_data["has_next_page"] is True
+        first_ids = {version["version_id"] for version in first_data["versions"]}
+        second_ids = {version["version_id"] for version in second_data["versions"]}
+        assert first_ids.isdisjoint(second_ids)
+        assert all(version["work_id"] == KNOWN_WORK_ID for version in first_data["versions"])
+        assert all(version["formats"] for version in first_data["versions"])
 
 
 class TestGetVersion:
@@ -176,3 +186,45 @@ class TestGetVersionXml:
         assert second_data["offset"] == first_data["returned_bytes"]
         assert second_data["xml"] != first_data["xml"]
         assert second_data["total_bytes"] == first_data["total_bytes"]
+
+    async def test_final_chunk_matches_the_public_xml_document(self, live_context):
+        first = await nz_legislation.execute_action(
+            "get_version_xml",
+            {"version_id": KNOWN_VERSION_ID, "max_bytes": 1000},
+            live_context,
+        )
+        assert first.type == ResultType.ACTION, first.result
+        first_data = first.result.data
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                first_data["source_url"],
+                headers={"Accept": "application/xml", "Accept-Encoding": "identity"},
+                allow_redirects=False,
+            ) as response:
+                assert response.status == 200
+                document = await response.read()
+
+        offset = max(0, len(document) - 1000)
+        while True:
+            try:
+                expected_xml = document[offset:].decode("utf-8")
+                break
+            except UnicodeDecodeError as exc:
+                assert exc.start == 0
+                offset += 1
+
+        final = await nz_legislation.execute_action(
+            "get_version_xml",
+            {"version_id": KNOWN_VERSION_ID, "offset": offset, "max_bytes": 1000},
+            live_context,
+        )
+
+        assert final.type == ResultType.ACTION, final.result
+        data = final.result.data
+        assert data["xml"] == expected_xml
+        assert data["offset"] == offset
+        assert data["returned_bytes"] == len(document) - offset
+        assert data["total_bytes"] == len(document)
+        assert data["truncated"] is False
+        assert data["next_offset"] is None

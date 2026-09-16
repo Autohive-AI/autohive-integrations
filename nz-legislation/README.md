@@ -56,7 +56,7 @@ Searches titles or legislative content. If `search_term` is omitted, the action 
 
 - `works` — Matching works with classifications, status, agencies, and `latest_matching_version`.
 - `page`, `per_page`, `total`, `has_next_page` — Pagination state.
-- `rate_limit` — Daily key quota: limit, remaining requests, and UTC Unix reset timestamp.
+- `rate_limit` — Advisory snapshot of the daily key quota: limit, remaining requests, and UTC Unix reset timestamp. Concurrent requests may consume quota after the snapshot.
 
 For content searches, `latest_matching_version` means the newest version containing the match. It can be older than the work's newest version. Check `is_latest_version` before treating it as current law.
 
@@ -74,6 +74,8 @@ Example input:
 ### `list_versions`
 
 Lists one page of versions exposed for a work. Increment `page` while `has_next_page` is `true`.
+
+The provider's version 0 OpenAPI document currently omits the `page` and `per_page` request parameters for this endpoint, although the live endpoint accepts them and returns matching pagination metadata. The integration validates that the response honours the requested page rather than silently returning duplicate data. This behaviour remains dependent on the provider's beta API.
 
 **Inputs**
 
@@ -123,7 +125,7 @@ Example input:
 
 ### `get_version_xml`
 
-Resolves the XML link through the authenticated API, verifies that it belongs to the official legislation website, and requests only a bounded UTF-8 byte range. Redirects are not followed, and the API key is never sent to the document URL.
+Resolves the XML link through the authenticated API, verifies that it belongs to the official legislation website, and requests only a bounded UTF-8 byte range. Redirects are not followed, and the API key is never sent to the document URL. Each chunk call makes one authenticated metadata request before fetching the public XML range.
 
 **Inputs**
 
@@ -159,14 +161,15 @@ For the next chunk, copy `next_offset` from the response. Do not calculate offse
 - The API reflects published legislation but is not legal advice. Users are responsible for how they use and represent the data.
 - Agency-published secondary-legislation records collected through the pilot service may be incomplete or inaccurate.
 - Identifiers containing `~` are ephemeral fallback identifiers and may change when the PCO receives better source data.
-- Daily limit: 10,000 requests per API key, reset at midnight New Zealand time. API responses expose the reset as a UTC Unix timestamp.
-- Burst limit: 2,000 requests per IP address per five minutes. A burst-limit response is HTTP 403; wait five minutes before retrying.
+- Default daily limit: 10,000 requests per API key, reset at midnight New Zealand time. Higher limits may be arranged with the provider. Successful API responses expose an advisory quota snapshot and the reset as a UTC Unix timestamp; the values are not a quota reservation.
+- Burst limit: 2,000 requests per IP address per five minutes. This limit is shared by every request using the same outbound IP address. A burst-limit response is HTTP 403; wait five minutes before retrying.
+- The integration does not proactively throttle or automatically retry quota errors. A local limiter could not correctly coordinate the daily key quota or shared-IP limit across concurrent distributed workers.
 - The service may be unavailable during maintenance or outages and does not guarantee error-free or complete responses.
 
 ## Error handling
 
 - **Invalid API key** — Check the connection key; the provider returns HTTP 401.
-- **Daily quota exceeded** — Wait for the reported retry period or quota reset; the provider returns HTTP 429.
+- **Daily quota exceeded** — Wait until the quota resets at midnight New Zealand time; the provider returns HTTP 429.
 - **Burst limit reached** — Wait five minutes before retrying; the provider returns HTTP 403.
 - **Work or version not found** — Re-run search and use the returned identifier. Ephemeral identifiers can change.
 - **No XML format** — Use a returned HTML or PDF format link instead.

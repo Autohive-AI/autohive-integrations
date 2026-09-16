@@ -143,9 +143,9 @@
             "items": {
               "type": "object",
               "properties": {
-                "work_id": {"type": ["string", "null"]},
+                "work_id": {"type": "string"},
                 "legislation_status": {"type": ["string", "null"]},
-                "legislation_type": {"type": ["string", "null"]},
+                "legislation_type": {"type": "string"},
                 "administering_agencies": {"type": "array", "items": {"type": "string"}},
                 "act_classification": {"type": ["string", "null"]},
                 "act_status": {"type": ["string", "null"]},
@@ -156,11 +156,11 @@
                 "instrument_status": {"type": ["string", "null"]},
                 "instrument_type_group": {"type": ["string", "null"]},
                 "latest_matching_version": {
-                  "type": ["object", "null"],
+                  "type": "object",
                   "properties": {
-                    "title": {"type": ["string", "null"]},
-                    "version_id": {"type": ["string", "null"]},
-                    "is_latest_version": {"type": ["boolean", "null"]},
+                    "title": {"type": "string"},
+                    "version_id": {"type": "string"},
+                    "is_latest_version": {"type": "boolean"},
                     "formats": {
                       "type": "array",
                       "items": {
@@ -199,7 +199,7 @@
           "has_next_page": {"type": "boolean"},
           "rate_limit": {
             "type": "object",
-            "description": "Daily API-key quota. reset_at is a UTC Unix timestamp.",
+            "description": "Advisory daily API-key quota snapshot from this response. Values are not reserved for this execution; reset_at is a UTC Unix timestamp.",
             "properties": {
               "limit": {"type": ["integer", "null"]},
               "remaining": {"type": ["integer", "null"]},
@@ -259,11 +259,11 @@
             "items": {
               "type": "object",
               "properties": {
-                "title": {"type": ["string", "null"]},
-                "version_id": {"type": ["string", "null"]},
-                "work_id": {"type": ["string", "null"]},
+                "title": {"type": "string"},
+                "version_id": {"type": "string"},
+                "work_id": {"type": "string"},
                 "legislation_status": {"type": ["string", "null"]},
-                "legislation_type": {"type": ["string", "null"]},
+                "legislation_type": {"type": "string"},
                 "administering_agencies": {"type": "array", "items": {"type": "string"}},
                 "formats": {
                   "type": "array",
@@ -310,6 +310,7 @@
           "has_next_page": {"type": "boolean"},
           "rate_limit": {
             "type": "object",
+            "description": "Advisory daily API-key quota snapshot from this response. Values are not reserved for this execution; reset_at is a UTC Unix timestamp.",
             "properties": {
               "limit": {"type": ["integer", "null"]},
               "remaining": {"type": ["integer", "null"]},
@@ -356,11 +357,11 @@
             "type": "object",
             "description": "Version metadata with identifiers, status, classification, agencies, and available format URLs.",
             "properties": {
-              "title": {"type": ["string", "null"]},
-              "version_id": {"type": ["string", "null"]},
-              "work_id": {"type": ["string", "null"]},
+              "title": {"type": "string"},
+              "version_id": {"type": "string"},
+              "work_id": {"type": "string"},
               "legislation_status": {"type": ["string", "null"]},
-              "legislation_type": {"type": ["string", "null"]},
+              "legislation_type": {"type": "string"},
               "administering_agencies": {"type": "array", "items": {"type": "string"}},
               "formats": {
                 "type": "array",
@@ -401,6 +402,7 @@
           },
           "rate_limit": {
             "type": "object",
+            "description": "Advisory daily API-key quota snapshot from this response. Values are not reserved for this execution; reset_at is a UTC Unix timestamp.",
             "properties": {
               "limit": {"type": ["integer", "null"]},
               "remaining": {"type": ["integer", "null"]},
@@ -448,8 +450,8 @@
         "type": "object",
         "properties": {
           "version_id": {"type": "string"},
-          "work_id": {"type": ["string", "null"]},
-          "title": {"type": ["string", "null"]},
+          "work_id": {"type": "string"},
+          "title": {"type": "string"},
           "source_url": {"type": "string"},
           "xml": {
             "type": "string",
@@ -462,6 +464,7 @@
           "next_offset": {"type": ["integer", "null"]},
           "rate_limit": {
             "type": "object",
+            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response. Values are not reserved for this execution; reset_at is a UTC Unix timestamp.",
             "properties": {
               "limit": {"type": ["integer", "null"]},
               "remaining": {"type": ["integer", "null"]},

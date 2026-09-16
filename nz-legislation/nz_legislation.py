@@ -27,6 +27,7 @@ _UNEXPECTED_ERROR = (
     "The New Zealand Legislation integration hit an unexpected error handling this request. "
     "Check your inputs and try again."
 )
+_NETWORK_ERROR = "The New Zealand Legislation service could not complete the request. Try again later."
 _ACT_FILTERS = {"act_type", "act_classification", "act_status"}
 _INSTRUMENT_FILTERS = {"instrument_type_group", "instrument_status", "instrument_classification"}
 _BILL_FILTERS = {"bill_type", "bill_status"}
@@ -74,63 +75,79 @@ def _rate_limit(headers: Any) -> dict[str, int | None]:
 
 def _formats(value: Any) -> list[dict[str, str]]:
     if not isinstance(value, list):
-        return []
+        raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
     formats = []
     for item in value:
         if not isinstance(item, dict):
-            continue
+            raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
         format_type, url = item.get("type"), item.get("url")
-        if isinstance(format_type, str) and isinstance(url, str):
-            formats.append({"type": format_type, "url": url})
+        if not isinstance(format_type, str) or not isinstance(url, str):
+            raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
+        formats.append({"type": format_type, "url": url})
     return formats
 
 
 def _agencies(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [agency for agency in value if isinstance(agency, str)]
+    if not isinstance(value, list) or not all(isinstance(agency, str) for agency in value):
+        raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
+    return value
+
+
+def _required_string(data: dict[str, Any], field: str) -> str:
+    value = data.get(field)
+    if not isinstance(value, str):
+        raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
+    return value
+
+
+def _nullable_string(data: dict[str, Any], field: str) -> str | None:
+    value = data.get(field)
+    if value is not None and not isinstance(value, str):
+        raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
+    return value
+
+
+def _required_int(data: dict[str, Any], field: str, minimum: int) -> int:
+    value = data.get(field)
+    if not isinstance(value, int) or isinstance(value, bool) or value < minimum:
+        raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
+    return value
 
 
 def _version(data: dict[str, Any]) -> dict[str, Any]:
     result = {
-        "title": data.get("title") if isinstance(data.get("title"), str) else None,
-        "version_id": data.get("version_id") if isinstance(data.get("version_id"), str) else None,
-        "work_id": data.get("work_id") if isinstance(data.get("work_id"), str) else None,
-        "legislation_status": (
-            data.get("legislation_status") if isinstance(data.get("legislation_status"), str) else None
-        ),
-        "legislation_type": data.get("legislation_type") if isinstance(data.get("legislation_type"), str) else None,
+        "title": _required_string(data, "title"),
+        "version_id": _required_string(data, "version_id"),
+        "work_id": _required_string(data, "work_id"),
+        "legislation_status": _nullable_string(data, "legislation_status"),
+        "legislation_type": _required_string(data, "legislation_type"),
         "administering_agencies": _agencies(data.get("administering_agencies")),
         "formats": _formats(data.get("formats")),
     }
     for field in _VERSION_FIELDS:
-        result[field] = data.get(field) if isinstance(data.get(field), str) else None
+        result[field] = _nullable_string(data, field)
     return result
 
 
 def _work(data: dict[str, Any]) -> dict[str, Any]:
     matching = data.get("latest_matching_version")
-    latest_matching_version = None
-    if isinstance(matching, dict):
-        latest_matching_version = {
-            "title": matching.get("title") if isinstance(matching.get("title"), str) else None,
-            "version_id": matching.get("version_id") if isinstance(matching.get("version_id"), str) else None,
-            "is_latest_version": (
-                matching.get("is_latest_version") if isinstance(matching.get("is_latest_version"), bool) else None
-            ),
-            "formats": _formats(matching.get("formats")),
-        }
+    if not isinstance(matching, dict) or not isinstance(matching.get("is_latest_version"), bool):
+        raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
+    latest_matching_version = {
+        "title": _required_string(matching, "title"),
+        "version_id": _required_string(matching, "version_id"),
+        "is_latest_version": matching["is_latest_version"],
+        "formats": _formats(matching.get("formats")),
+    }
     result = {
-        "work_id": data.get("work_id") if isinstance(data.get("work_id"), str) else None,
-        "legislation_status": (
-            data.get("legislation_status") if isinstance(data.get("legislation_status"), str) else None
-        ),
-        "legislation_type": data.get("legislation_type") if isinstance(data.get("legislation_type"), str) else None,
+        "work_id": _required_string(data, "work_id"),
+        "legislation_status": _nullable_string(data, "legislation_status"),
+        "legislation_type": _required_string(data, "legislation_type"),
         "administering_agencies": _agencies(data.get("administering_agencies")),
         "latest_matching_version": latest_matching_version,
     }
     for field in _VERSION_FIELDS:
-        result[field] = data.get(field) if isinstance(data.get(field), str) else None
+        result[field] = _nullable_string(data, field)
     return result
 
 
@@ -142,13 +159,9 @@ def _object_response(data: Any) -> dict[str, Any]:
 
 def _results(data: dict[str, Any]) -> list[dict[str, Any]]:
     results = data.get("results")
-    if not isinstance(results, list):
+    if not isinstance(results, list) or not all(isinstance(item, dict) for item in results):
         raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
-    return [item for item in results if isinstance(item, dict)]
-
-
-def _int_or_default(value: Any, default: int) -> int:
-    return value if isinstance(value, int) and not isinstance(value, bool) else default
+    return results
 
 
 def _validate_search_filters(inputs: dict[str, Any]) -> None:
@@ -164,10 +177,10 @@ def _validate_search_filters(inputs: dict[str, Any]) -> None:
 
 def _http_error(exc: HTTPError, *, resource: str = "request") -> ActionError:
     if isinstance(exc, RateLimitError):
-        retry_after = max(1, getattr(exc, "retry_after", 60))
         return ActionError(
             message=(
-                f"The New Zealand Legislation API daily rate limit has been reached. Retry after {retry_after} seconds."
+                "The New Zealand Legislation API daily API-key quota has been reached. "
+                "It resets at midnight New Zealand time; wait until the reset before retrying."
             )
         )
     if exc.status == 400:
@@ -183,7 +196,7 @@ def _http_error(exc: HTTPError, *, resource: str = "request") -> ActionError:
         )
     if exc.status == 404:
         return ActionError(message=f"The New Zealand Legislation API could not find the requested {resource}.")
-    return ActionError(message="The New Zealand Legislation service could not complete the request. Try again later.")
+    return ActionError(message=_NETWORK_ERROR)
 
 
 def _trusted_xml_url(formats: list[dict[str, str]]) -> str:
@@ -316,9 +329,9 @@ class SearchLegislationAction(ActionHandler):
                 params=params,
             )
             data = _object_response(response.data)
-            total = _int_or_default(data.get("total"), 0)
-            response_page = _int_or_default(data.get("page"), page)
-            response_per_page = _int_or_default(data.get("per_page"), per_page)
+            total = _required_int(data, "total", 0)
+            response_page = _required_int(data, "page", 1)
+            response_per_page = _required_int(data, "per_page", 1)
             return ActionResult(
                 data={
                     "works": [_work(item) for item in _results(data)],
@@ -333,6 +346,8 @@ class SearchLegislationAction(ActionHandler):
             return ActionError(message=str(exc))
         except HTTPError as exc:
             return _http_error(exc)
+        except (aiohttp.ClientError, TimeoutError):
+            return ActionError(message=_NETWORK_ERROR)
         except Exception:
             return ActionError(message=_UNEXPECTED_ERROR)
 
@@ -353,9 +368,13 @@ class ListVersionsAction(ActionHandler):
             )
             data = _object_response(response.data)
             versions = [_version(item) for item in _results(data)]
-            total = _int_or_default(data.get("total"), len(versions))
-            response_page = _int_or_default(data.get("page"), page)
-            response_per_page = _int_or_default(data.get("per_page"), per_page)
+            total = _required_int(data, "total", 0)
+            response_page = _required_int(data, "page", 1)
+            response_per_page = _required_int(data, "per_page", 1)
+            # The v0 OpenAPI document omits these request parameters even though
+            # its response is paginated and the live endpoint supports both.
+            if response_page != page or response_per_page != per_page:
+                raise LegislationError("The New Zealand Legislation API did not honour the requested version page.")
             return ActionResult(
                 data={
                     "work_id": work_id,
@@ -372,6 +391,8 @@ class ListVersionsAction(ActionHandler):
             return ActionError(message=str(exc))
         except HTTPError as exc:
             return _http_error(exc, resource="work")
+        except (aiohttp.ClientError, TimeoutError):
+            return ActionError(message=_NETWORK_ERROR)
         except Exception:
             return ActionError(message=_UNEXPECTED_ERROR)
 
@@ -393,6 +414,8 @@ class GetVersionAction(ActionHandler):
             return ActionError(message=str(exc))
         except HTTPError as exc:
             return _http_error(exc, resource="version")
+        except (aiohttp.ClientError, TimeoutError):
+            return ActionError(message=_NETWORK_ERROR)
         except Exception:
             return ActionError(message=_UNEXPECTED_ERROR)
 
