@@ -225,13 +225,14 @@ class TestGetVersionXml:
 
         assert result.type == ResultType.ACTION, result.result
         data = result.result.data
-        assert data["version_id"] == KNOWN_VERSION_ID
+        assert data["source"]["version_id"] == KNOWN_VERSION_ID
+        assert data["source"]["work_id"] == KNOWN_WORK_ID
         assert data["xml"].startswith("<?xml")
         assert 997 <= data["returned_bytes"] <= 1000
         assert data["total_bytes"] > data["returned_bytes"]
         assert data["truncated"] is True
         assert data["next_offset"] == data["returned_bytes"]
-        assert data["source_url"].startswith("https://www.legislation.govt.nz/")
+        assert data["source"]["source_url"].startswith("https://www.legislation.govt.nz/")
 
     async def test_next_offset_returns_next_non_overlapping_chunk(self, live_context):
         first = await nz_legislation.execute_action(
@@ -244,15 +245,23 @@ class TestGetVersionXml:
 
         second = await nz_legislation.execute_action(
             "get_version_xml",
-            {"version_id": KNOWN_VERSION_ID, "offset": first_data["next_offset"], "max_bytes": 1000},
+            {
+                "version_id": KNOWN_VERSION_ID,
+                "source": first_data["source"],
+                "offset": first_data["next_offset"],
+                "max_bytes": 1000,
+            },
             live_context,
         )
 
         assert second.type == ResultType.ACTION, second.result
         second_data = second.result.data
+        assert second_data["source"] == first_data["source"]
         assert second_data["offset"] == first_data["returned_bytes"]
         assert second_data["xml"] != first_data["xml"]
         assert second_data["total_bytes"] == first_data["total_bytes"]
+        assert second_data["rate_limit"] == {"limit": None, "remaining": None, "reset_at": None}
+        assert live_context.fetch.await_count == 1
 
     async def test_final_chunk_matches_the_public_xml_document(self, live_context):
         first = await nz_legislation.execute_action(
@@ -265,7 +274,7 @@ class TestGetVersionXml:
 
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                first_data["source_url"],
+                first_data["source"]["source_url"],
                 headers={"Accept": "application/xml", "Accept-Encoding": "identity"},
                 allow_redirects=False,
             ) as response:
@@ -283,7 +292,12 @@ class TestGetVersionXml:
 
         final = await nz_legislation.execute_action(
             "get_version_xml",
-            {"version_id": KNOWN_VERSION_ID, "offset": offset, "max_bytes": 1000},
+            {
+                "version_id": KNOWN_VERSION_ID,
+                "source": first_data["source"],
+                "offset": offset,
+                "max_bytes": 1000,
+            },
             live_context,
         )
 
@@ -308,6 +322,7 @@ class TestGetVersionXml:
             "get_version_xml",
             {
                 "version_id": KNOWN_VERSION_ID,
+                "source": first.result.data["source"],
                 "offset": first.result.data["total_bytes"],
                 "max_bytes": 1000,
             },

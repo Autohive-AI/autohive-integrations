@@ -125,21 +125,24 @@ Example input:
 
 ### `get_version_xml`
 
-Resolves the XML link through the authenticated API, verifies that it belongs to the official legislation website, and requests only a bounded UTF-8 byte range. Redirects are not followed, and the API key is never sent to the document URL. Each chunk call makes one authenticated metadata request before fetching the public XML range.
+On the first call, resolves the XML link through the authenticated API, verifies that it belongs to the official legislation website, and requests only a bounded UTF-8 byte range. Redirects are not followed, and the API key is never sent to the document URL.
+
+The response includes a validated `source` descriptor. Pass that descriptor back unchanged with `next_offset` for continuation calls. A continuation revalidates the public URL but does not repeat the authenticated metadata request, so reading an N-chunk document consumes one API-key quota request rather than N.
 
 **Inputs**
 
 - `version_id` (string, required) — Version to retrieve.
+- `source` (object, optional) — `source` returned by an earlier call for the same version. Use it for continuation calls to avoid another authenticated API request.
 - `offset` (integer, optional, default `0`) — UTF-8 byte offset into the document. Start at `0`, then use only a returned `next_offset`.
 - `max_bytes` (integer, optional, default `20000`, range `1000`–`100000`) — Maximum UTF-8 bytes to return.
 
 **Outputs**
 
+- `source` — Validated source identity containing the version ID, work ID, title, and official XML URL. Pass it back unchanged when continuing.
 - `xml` — Requested XML chunk.
 - `offset`, `returned_bytes`, `total_bytes` — Byte-range metadata.
 - `truncated`, `next_offset` — Continue with `next_offset` until `truncated` is `false`.
-- `version_id`, `work_id`, `title`, `source_url` — Source identity.
-- `rate_limit` — Quota state from the version metadata request.
+- `rate_limit` — Quota state from the initial version metadata request. Its values are null when a supplied `source` avoids that request.
 
 A chunk beginning after offset 0 may not be a standalone well-formed XML document. XML is not available for every record, particularly some agency-published secondary legislation and scan-only historical material.
 
@@ -153,12 +156,29 @@ Example input for the first chunk:
 }
 ```
 
-For the next chunk, copy `next_offset` from the response. Do not calculate offsets from the returned string length because UTF-8 characters may occupy more than one byte.
+For the next chunk, copy both `source` and `next_offset` from the response:
+
+```json
+{
+  "version_id": "act_public_1990_109_en_2022-08-30",
+  "source": {
+    "version_id": "act_public_1990_109_en_2022-08-30",
+    "work_id": "act_public_1990_109",
+    "title": "New Zealand Bill of Rights Act 1990",
+    "source_url": "https://www.legislation.govt.nz/act/public/1990/109/en/latest.xml"
+  },
+  "offset": 20000,
+  "max_bytes": 20000
+}
+```
+
+Do not calculate offsets from the returned string length because UTF-8 characters may occupy more than one byte.
 
 ## Provider behaviour and limitations
 
 - The API is currently version 0 (beta), so metadata and query behaviour may change before version 1.
 - The API reflects published legislation but is not legal advice. Users are responsible for how they use and represent the data.
+- PCO-drafted legislation normally advertises `html`, `pdf`, and `xml` formats. Converted pre-2008 enacted Acts may also advertise `pdf_original_scan`. Agency-drafted secondary legislation varies by record and may provide only HTML or PDF links on an agency website.
 - Agency-published secondary-legislation records collected through the pilot service may be incomplete or inaccurate.
 - Identifiers containing `~` are ephemeral fallback identifiers and may change when the PCO receives better source data.
 - Default daily limit: 10,000 requests per API key, reset at midnight New Zealand time. Higher limits may be arranged with the provider. Successful API responses expose an advisory quota snapshot and the reset as a UTC Unix timestamp; the values are not a quota reservation.

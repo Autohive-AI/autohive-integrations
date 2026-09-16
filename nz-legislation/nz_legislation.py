@@ -199,8 +199,12 @@ def _http_error(exc: HTTPError, *, resource: str = "request") -> ActionError:
     return ActionError(message=_NETWORK_ERROR)
 
 
-def _unexpected_error(context: ExecutionContext, action: str) -> ActionError:
-    context.logger.exception("Unexpected error executing New Zealand Legislation action %s", action)
+def _unexpected_error(context: ExecutionContext, action: str, exc: Exception) -> ActionError:
+    context.logger.error(
+        "Unexpected %s executing New Zealand Legislation action %s",
+        type(exc).__name__,
+        action,
+    )
     return ActionError(message=_UNEXPECTED_ERROR)
 
 
@@ -219,9 +223,24 @@ def _trusted_xml_url(formats: list[dict[str, str]]) -> str:
         or port not in (None, 443)
         or parsed.username is not None
         or parsed.password is not None
+        or bool(parsed.query)
+        or bool(parsed.fragment)
     ):
         raise LegislationError("The API returned an untrusted XML format URL, so it was not fetched.")
     return xml_url
+
+
+def _continued_xml_source(value: Any, version_id: str) -> dict[str, str]:
+    source = _object_response(value)
+    if _required_string(source, "version_id") != version_id:
+        raise LegislationError("The supplied XML source does not match version_id.")
+    source_url = _trusted_xml_url([{"type": "xml", "url": _required_string(source, "source_url")}])
+    return {
+        "version_id": version_id,
+        "work_id": _required_string(source, "work_id"),
+        "title": _required_string(source, "title"),
+        "source_url": source_url,
+    }
 
 
 async def _get_version_response(version_id: str, context: ExecutionContext):
@@ -355,8 +374,8 @@ class SearchLegislationAction(ActionHandler):
             return _http_error(exc)
         except (aiohttp.ClientError, TimeoutError):
             return ActionError(message=_NETWORK_ERROR)
-        except Exception:
-            return _unexpected_error(context, "search_legislation")
+        except Exception as exc:
+            return _unexpected_error(context, "search_legislation", exc)
 
 
 @nz_legislation.action("list_versions")
@@ -400,8 +419,8 @@ class ListVersionsAction(ActionHandler):
             return _http_error(exc, resource="work")
         except (aiohttp.ClientError, TimeoutError):
             return ActionError(message=_NETWORK_ERROR)
-        except Exception:
-            return _unexpected_error(context, "list_versions")
+        except Exception as exc:
+            return _unexpected_error(context, "list_versions", exc)
 
 
 @nz_legislation.action("get_version")
@@ -423,8 +442,8 @@ class GetVersionAction(ActionHandler):
             return _http_error(exc, resource="version")
         except (aiohttp.ClientError, TimeoutError):
             return ActionError(message=_NETWORK_ERROR)
-        except Exception:
-            return _unexpected_error(context, "get_version")
+        except Exception as exc:
+            return _unexpected_error(context, "get_version", exc)
 
 
 @nz_legislation.action("get_version_xml")
@@ -436,23 +455,32 @@ class GetVersionXmlAction(ActionHandler):
         offset = inputs.get("offset", 0)
         max_bytes = inputs.get("max_bytes", DEFAULT_XML_CHUNK_BYTES)
         try:
-            version_response = await _get_version_response(version_id, context)
-            version = _version(_object_response(version_response.data))
-            source_url = _trusted_xml_url(version["formats"])
-            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(source_url, offset, max_bytes)
-            return ActionResult(
-                data={
+            if inputs.get("source") is None:
+                version_response = await _get_version_response(version_id, context)
+                version = _version(_object_response(version_response.data))
+                source_url = _trusted_xml_url(version["formats"])
+                source = {
                     "version_id": version_id,
                     "work_id": version["work_id"],
                     "title": version["title"],
                     "source_url": source_url,
+                }
+                rate_limit = _rate_limit(version_response.headers)
+            else:
+                source = _continued_xml_source(inputs["source"], version_id)
+                source_url = source["source_url"]
+                rate_limit = {"limit": None, "remaining": None, "reset_at": None}
+            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(source_url, offset, max_bytes)
+            return ActionResult(
+                data={
+                    "source": source,
                     "xml": xml,
                     "offset": offset,
                     "returned_bytes": returned_bytes,
                     "total_bytes": total_bytes,
                     "truncated": next_offset is not None,
                     "next_offset": next_offset,
-                    "rate_limit": _rate_limit(version_response.headers),
+                    "rate_limit": rate_limit,
                 }
             )
         except LegislationError as exc:
@@ -461,5 +489,5 @@ class GetVersionXmlAction(ActionHandler):
             return _http_error(exc, resource="version")
         except (aiohttp.ClientError, TimeoutError):
             return ActionError(message="The New Zealand Legislation website could not provide the XML document.")
-        except Exception:
-            return _unexpected_error(context, "get_version_xml")
+        except Exception as exc:
+            return _unexpected_error(context, "get_version_xml", exc)

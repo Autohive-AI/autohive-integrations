@@ -57,6 +57,12 @@ SAMPLE_WORK = {
         "formats": SAMPLE_VERSION["formats"],
     },
 }
+XML_SOURCE = {
+    "version_id": VERSION_ID,
+    "work_id": WORK_ID,
+    "title": SAMPLE_VERSION["title"],
+    "source_url": XML_URL,
+}
 
 
 def response(data, headers=None):
@@ -100,6 +106,8 @@ class TestHelpers:
             "https://user@example.test@www.legislation.govt.nz/act.xml",
             "https://www.legislation.govt.nz:8443/act.xml",
             "https://www.legislation.govt.nz:invalid/act.xml",
+            "https://www.legislation.govt.nz/act.xml?api_key=must-not-be-sent",
+            "https://www.legislation.govt.nz/act.xml#fragment",
         ],
     )
     def test_trusted_xml_url_rejects_unsafe_urls(self, url):
@@ -260,16 +268,16 @@ class TestSharedErrors:
         ],
     )
     async def test_unexpected_errors_are_logged_without_blaming_inputs(self, mock_context, action, inputs):
-        mock_context.fetch.side_effect = RuntimeError("private programming detail")
+        mock_context.fetch.side_effect = RuntimeError("private detail containing test_api_key")
 
         result = await nz_legislation.execute_action(action, inputs, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "unexpected error" in result.result.message
         assert "inputs" not in result.result.message
-        assert "private programming detail" not in result.result.message
-        mock_context.logger.exception.assert_called_once_with(
-            "Unexpected error executing New Zealand Legislation action %s", action
+        assert "test_api_key" not in result.result.message
+        mock_context.logger.error.assert_called_once_with(
+            "Unexpected %s executing New Zealand Legislation action %s", "RuntimeError", action
         )
 
 
@@ -395,9 +403,9 @@ class TestSearchLegislation:
     @pytest.mark.parametrize(
         "exc, expected",
         [
-            (HTTPError(401, "Invalid API key", {}), "rejected the API key"),
-            (HTTPError(403, "Forbidden", {}), "burst limit"),
-            (HTTPError(500, "Internal Server Error", {}), "Try again later"),
+            (HTTPError(401, "Invalid API key: test_api_key", {}), "rejected the API key"),
+            (HTTPError(403, "Forbidden: test_api_key", {}), "burst limit"),
+            (HTTPError(500, "Internal Server Error: test_api_key", {}), "Try again later"),
         ],
     )
     async def test_maps_provider_errors_without_leaking_response(self, mock_context, exc, expected):
@@ -407,7 +415,7 @@ class TestSearchLegislation:
 
         assert result.type == ResultType.ACTION_ERROR
         assert expected in result.result.message
-        assert "Internal Server Error" not in result.result.message
+        assert "test_api_key" not in result.result.message
 
     async def test_missing_api_key_is_action_error(self, mock_context):
         mock_context.auth = {"auth_type": "Custom", "credentials": {"api_key": " "}}
@@ -531,9 +539,11 @@ class TestGetVersionXml:
             )
 
         assert result.type == ResultType.ACTION
-        assert result.result.data["xml"] == xml
-        assert result.result.data["truncated"] is False
-        assert result.result.data["next_offset"] is None
+        data = result.result.data
+        assert data["source"] == XML_SOURCE
+        assert data["xml"] == xml
+        assert data["truncated"] is False
+        assert data["next_offset"] is None
         assert mock_context.fetch.call_args_list == [
             call(
                 f"https://api.legislation.govt.nz/v0/versions/{VERSION_ID}/",
@@ -545,23 +555,52 @@ class TestGetVersionXml:
 
     async def test_chunks_xml_with_unambiguous_next_offset(self, mock_context):
         xml = "a" * 2500
-        mock_context.fetch.return_value = response(SAMPLE_VERSION)
 
         with patch("nz_legislation._fetch_xml_chunk", new_callable=AsyncMock) as fetch_xml:
             fetch_xml.return_value = (xml[1000:2000], 1000, 2500, 2000)
             result = await nz_legislation.execute_action(
                 "get_version_xml",
-                {"version_id": VERSION_ID, "offset": 1000, "max_bytes": 1000},
+                {"version_id": VERSION_ID, "source": XML_SOURCE, "offset": 1000, "max_bytes": 1000},
                 mock_context,
             )
 
         data = result.result.data
+        assert data["source"] == XML_SOURCE
         assert data["xml"] == "a" * 1000
         assert data["offset"] == 1000
         assert data["returned_bytes"] == 1000
         assert data["total_bytes"] == 2500
         assert data["truncated"] is True
         assert data["next_offset"] == 2000
+        assert data["rate_limit"] == {"limit": None, "remaining": None, "reset_at": None}
+        mock_context.fetch.assert_not_called()
+        fetch_xml.assert_awaited_once_with(XML_URL, 1000, 1000)
+
+    async def test_rejects_continuation_source_for_another_version(self, mock_context):
+        source = {**XML_SOURCE, "version_id": "act_public_1991_1_en_1991-01-01"}
+
+        with patch("nz_legislation._fetch_xml_chunk", new_callable=AsyncMock) as fetch_xml:
+            result = await nz_legislation.execute_action(
+                "get_version_xml", {"version_id": VERSION_ID, "source": source, "offset": 1000}, mock_context
+            )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "does not match version_id" in result.result.message
+        mock_context.fetch.assert_not_called()
+        fetch_xml.assert_not_awaited()
+
+    async def test_rejects_untrusted_continuation_url_without_authenticated_request(self, mock_context):
+        source = {**XML_SOURCE, "source_url": "https://evil.test/act.xml"}
+
+        with patch("nz_legislation._fetch_xml_chunk", new_callable=AsyncMock) as fetch_xml:
+            result = await nz_legislation.execute_action(
+                "get_version_xml", {"version_id": VERSION_ID, "source": source, "offset": 1000}, mock_context
+            )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "untrusted" in result.result.message
+        mock_context.fetch.assert_not_called()
+        fetch_xml.assert_not_awaited()
 
     async def test_reports_missing_xml_without_second_request(self, mock_context):
         version = {**SAMPLE_VERSION, "formats": [{"type": "pdf", "url": "https://example.test/a.pdf"}]}

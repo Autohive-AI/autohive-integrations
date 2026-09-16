@@ -431,6 +431,28 @@
             "pattern": "^[A-Za-z0-9_~-]+$",
             "description": "Version identifier returned by search_legislation or list_versions."
           },
+          "source": {
+            "type": "object",
+            "description": "Source descriptor returned by an earlier get_version_xml call for this version. Pass it back with next_offset to continue without consuming another authenticated API request.",
+            "properties": {
+              "version_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 250,
+                "pattern": "^[A-Za-z0-9_~-]+$"
+              },
+              "work_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_~-]+$"
+              },
+              "title": {"type": "string", "minLength": 1, "maxLength": 2000},
+              "source_url": {"type": "string", "minLength": 1, "maxLength": 2048}
+            },
+            "required": ["version_id", "work_id", "title", "source_url"],
+            "additionalProperties": false
+          },
           "offset": {
             "type": "integer",
             "minimum": 0,
@@ -451,10 +473,18 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "version_id": {"type": "string"},
-          "work_id": {"type": "string"},
-          "title": {"type": "string"},
-          "source_url": {"type": "string"},
+          "source": {
+            "type": "object",
+            "description": "Resolved and validated XML source identity. Pass this object back unchanged with next_offset when requesting another chunk.",
+            "properties": {
+              "version_id": {"type": "string"},
+              "work_id": {"type": "string"},
+              "title": {"type": "string"},
+              "source_url": {"type": "string"}
+            },
+            "required": ["version_id", "work_id", "title", "source_url"],
+            "additionalProperties": false
+          },
           "xml": {
             "type": "string",
             "description": "The requested XML byte range decoded as UTF-8. Chunks after offset 0 may not be independently well-formed XML."
@@ -466,7 +496,7 @@
           "next_offset": {"type": ["integer", "null"]},
           "rate_limit": {
             "type": "object",
-            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response. Values are not reserved for this execution; reset_at is a UTC Unix timestamp.",
+            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response. Values are null when a supplied source descriptor avoids that request; reset_at is a UTC Unix timestamp.",
             "properties": {
               "limit": {"type": ["integer", "null"]},
               "remaining": {"type": ["integer", "null"]},
@@ -477,10 +507,7 @@
           }
         },
         "required": [
-          "version_id",
-          "work_id",
-          "title",
-          "source_url",
+          "source",
           "xml",
           "offset",
           "returned_bytes",
