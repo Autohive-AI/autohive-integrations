@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import re
 from typing import Any
 from urllib.parse import quote, urlparse
@@ -24,8 +23,6 @@ API_BASE_URL = "https://api.legislation.govt.nz/v0"
 OFFICIAL_CONTENT_HOSTS = {"legislation.govt.nz", "www.legislation.govt.nz"}
 OFFICIAL_CONTENT_BASE_URL = "https://www.legislation.govt.nz"
 DEFAULT_XML_CHUNK_BYTES = 20_000
-XML_RANGE_ATTEMPTS = 3
-_CONTENT_RANGE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
 _VERSION_ID = re.compile(r"^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$")
 _UNEXPECTED_ERROR = (
     "The New Zealand Legislation integration hit an unexpected error handling this request. Try again later."
@@ -241,26 +238,6 @@ def _canonical_xml_url(version_id: str) -> str:
     return f"{OFFICIAL_CONTENT_BASE_URL}/{path}.xml"
 
 
-def _retry_after_seconds(headers: Any) -> int:
-    try:
-        return min(5, max(1, int(headers.get("Retry-After", "2"))))
-    except (AttributeError, TypeError, ValueError):
-        return 2
-
-
-def _continued_xml_source(value: Any, version_id: str) -> dict[str, str]:
-    source = _object_response(value)
-    if _required_string(source, "version_id") != version_id:
-        raise LegislationError("The supplied XML source does not match version_id.")
-    source_url = _required_string(source, "source_url")
-    if source_url != _canonical_xml_url(version_id):
-        raise LegislationError("The supplied XML source does not match version_id.")
-    return {
-        "version_id": version_id,
-        "source_url": source_url,
-    }
-
-
 async def _get_version_response(version_id: str, context: ExecutionContext):
     encoded_id = quote(version_id, safe="")
     return await context.fetch(
@@ -270,16 +247,7 @@ async def _get_version_response(version_id: str, context: ExecutionContext):
     )
 
 
-def _decode_xml_range(body: bytes, content_range: str, offset: int, max_bytes: int) -> tuple[str, int, int, int | None]:
-    match = _CONTENT_RANGE.fullmatch(content_range)
-    if not match:
-        raise LegislationError("The New Zealand Legislation website returned an invalid XML byte range.")
-    range_start, range_end, total_bytes = (int(value) for value in match.groups())
-    if range_start != offset or range_end < range_start or range_end >= total_bytes:
-        raise LegislationError("The New Zealand Legislation website returned an invalid XML byte range.")
-    if len(body) != range_end - range_start + 1:
-        raise LegislationError("The New Zealand Legislation website returned an incomplete XML byte range.")
-
+def _decode_xml_chunk(body: bytes, total_bytes: int, offset: int, max_bytes: int) -> tuple[str, int, int, int | None]:
     returned_bytes = min(max_bytes, len(body))
     while returned_bytes:
         try:
@@ -300,60 +268,38 @@ def _decode_xml_range(body: bytes, content_range: str, offset: int, max_bytes: i
 
 
 async def _fetch_xml_chunk(source_url: str, offset: int, max_bytes: int) -> tuple[str, int, int, int | None]:
-    """Read a bounded UTF-8 byte range without downloading the complete XML document."""
-    requested_end = offset + max_bytes + 2
+    """Download the XML document and return a bounded UTF-8 chunk."""
     timeout = aiohttp.ClientTimeout(total=30)
     headers = {
         "Accept": "application/xml",
         "Accept-Encoding": "identity",
-        "Range": f"bytes={offset}-{requested_end}",
     }
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        for attempt in range(XML_RANGE_ATTEMPTS):
-            request_headers = dict(headers)
-            if attempt:
-                request_headers.update({"Cache-Control": "no-cache", "Pragma": "no-cache"})
+        async with session.get(source_url, headers=headers, allow_redirects=False, ssl=True) as response:
+            if response.status == 404:
+                raise LegislationError("The New Zealand Legislation website could not find the requested XML document.")
+            if response.status == 403:
+                raise LegislationError("The New Zealand Legislation website refused the XML document request.")
+            if response.status == 429:
+                raise LegislationError("The New Zealand Legislation website temporarily rate-limited XML requests.")
+            if response.status >= 500:
+                raise LegislationError("The New Zealand Legislation website could not provide the XML document.")
+            if response.status != 200:
+                raise LegislationError(
+                    f"The New Zealand Legislation website returned an unexpected HTTP {response.status} response."
+                )
 
-            async with session.get(source_url, headers=request_headers, allow_redirects=False, ssl=True) as response:
-                if response.status in {200, 202} and attempt < XML_RANGE_ATTEMPTS - 1:
-                    response.close()
-                    if response.status == 202:
-                        await asyncio.sleep(_retry_after_seconds(response.headers))
-                    continue
-                if response.status == 404:
-                    raise LegislationError(
-                        "The New Zealand Legislation website could not find the requested XML document."
-                    )
-                if response.status == 416:
-                    raise LegislationError("offset is outside the XML document's byte range.")
-                if response.status == 403:
-                    raise LegislationError("The New Zealand Legislation website refused the XML document request.")
-                if response.status == 429:
-                    raise LegislationError("The New Zealand Legislation website temporarily rate-limited XML requests.")
-                if response.status >= 500:
-                    raise LegislationError("The New Zealand Legislation website could not provide the XML document.")
-                if response.status != 206:
-                    raise LegislationError(
-                        "The New Zealand Legislation website did not return a bounded XML byte range "
-                        f"after retrying (HTTP {response.status})."
-                    )
+            content_type = response.headers.get("Content-Type", "").partition(";")[0].strip().lower()
+            if content_type not in {"application/xml", "text/xml"}:
+                raise LegislationError("The New Zealand Legislation website returned an unexpected XML response.")
 
-                content_type = response.headers.get("Content-Type", "").partition(";")[0].strip().lower()
-                if content_type not in {"application/xml", "text/xml"}:
-                    raise LegislationError("The New Zealand Legislation website returned an unexpected XML response.")
+            document = await response.read()
+            total_bytes = len(document)
+            if offset >= total_bytes:
+                raise LegislationError("offset is outside the XML document.")
 
-                body = bytearray()
-                async for chunk in response.content.iter_chunked(16_384):
-                    body.extend(chunk)
-                    if len(body) > max_bytes + 3:
-                        raise LegislationError(
-                            "The New Zealand Legislation website exceeded the requested XML byte range."
-                        )
-
-                return _decode_xml_range(bytes(body), response.headers.get("Content-Range", ""), offset, max_bytes)
-
-    raise LegislationError("The New Zealand Legislation website did not return a bounded XML byte range.")
+            return _decode_xml_chunk(document[offset : offset + max_bytes + 3], total_bytes, offset, max_bytes)
 
 
 @nz_legislation.action("search_legislation")
@@ -485,14 +431,15 @@ class GetVersionAction(ActionHandler):
 
 @nz_legislation.action("get_version_xml")
 class GetVersionXmlAction(ActionHandler):
-    """Fetch a bounded byte range of the official XML source for a version."""
+    """Fetch a bounded chunk of the official XML source for a version."""
 
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
         version_id = inputs["version_id"]
         offset = inputs.get("offset", 0)
         max_bytes = inputs.get("max_bytes", DEFAULT_XML_CHUNK_BYTES)
         try:
-            if inputs.get("source") is None:
+            source_url = _canonical_xml_url(version_id)
+            if offset == 0:
                 version_response = await _get_version_response(version_id, context)
                 version = _version(_object_response(version_response.data))
                 if version["version_id"] != version_id:
@@ -500,20 +447,14 @@ class GetVersionXmlAction(ActionHandler):
                         "The New Zealand Legislation API returned a different version than requested."
                     )
                 _trusted_xml_url(version["formats"])
-                source_url = _canonical_xml_url(version_id)
-                source = {
-                    "version_id": version_id,
-                    "source_url": source_url,
-                }
                 rate_limit = _rate_limit(version_response.headers)
             else:
-                source = _continued_xml_source(inputs["source"], version_id)
-                source_url = source["source_url"]
                 rate_limit = {"limit": None, "remaining": None, "reset_at": None}
             xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(source_url, offset, max_bytes)
             return ActionResult(
                 data={
-                    "source": source,
+                    "version_id": version_id,
+                    "source_url": source_url,
                     "xml": xml,
                     "offset": offset,
                     "returned_bytes": returned_bytes,

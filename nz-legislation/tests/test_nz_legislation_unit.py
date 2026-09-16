@@ -10,10 +10,9 @@ from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, 
 from nz_legislation import (
     LegislationError,
     _canonical_xml_url,
-    _decode_xml_range,
+    _decode_xml_chunk,
     _fetch_xml_chunk,
     _rate_limit,
-    _retry_after_seconds,
     _trusted_xml_url,
     nz_legislation,
 )
@@ -26,6 +25,7 @@ API_HEADERS = {
     "X-RateLimit-Reset": "1790000000",
 }
 XML_URL = "https://www.legislation.govt.nz/act/public/1990/109/en/2022-08-30.xml/"
+CANONICAL_XML_URL = XML_URL.removesuffix("/")
 VERSION_ID = "act_public_1990_109_en_2022-08-30"
 WORK_ID = "act_public_1990_109"
 SAMPLE_VERSION = {
@@ -59,10 +59,6 @@ SAMPLE_WORK = {
         "formats": SAMPLE_VERSION["formats"],
     },
 }
-XML_SOURCE = {
-    "version_id": VERSION_ID,
-    "source_url": XML_URL.removesuffix("/"),
-}
 
 
 def response(data, headers=None):
@@ -70,18 +66,6 @@ def response(data, headers=None):
 
 
 class TestHelpers:
-    @pytest.mark.parametrize(
-        "headers, expected",
-        [
-            ({"Retry-After": "1"}, 1),
-            ({"Retry-After": "30"}, 5),
-            ({"Retry-After": "invalid"}, 2),
-            ({}, 2),
-        ],
-    )
-    def test_retry_after_uses_bounded_provider_delay(self, headers, expected):
-        assert _retry_after_seconds(headers) == expected
-
     def test_canonical_xml_url_is_derived_from_all_version_id_components(self):
         assert _canonical_xml_url("secondary-legislation_agency-drafted_~2025_42_en_2025-03-04") == (
             "https://www.legislation.govt.nz/secondary-legislation/agency-drafted/~2025/42/en/2025-03-04.xml"
@@ -140,13 +124,11 @@ class TestHelpers:
         with pytest.raises(LegislationError, match="does not provide"):
             _trusted_xml_url([{"type": "pdf", "url": "https://www.legislation.govt.nz/a.pdf"}])
 
-    def test_xml_range_preserves_utf8_character_boundaries(self):
+    def test_xml_chunk_preserves_utf8_character_boundaries(self):
         prefix = b'<?xml version="1.0"?>'
         body = prefix + b"a" * (999 - len(prefix)) + "ā".encode() + b"z"
 
-        xml, returned_bytes, total_bytes, next_offset = _decode_xml_range(
-            body, "bytes 0-1001/2000", offset=0, max_bytes=1000
-        )
+        xml, returned_bytes, total_bytes, next_offset = _decode_xml_chunk(body, 2000, offset=0, max_bytes=1000)
 
         assert xml == prefix.decode() + "a" * (999 - len(prefix))
         assert returned_bytes == 999
@@ -154,21 +136,18 @@ class TestHelpers:
         assert next_offset == 999
 
     @pytest.mark.parametrize(
-        "body, content_range, error",
+        "body, error",
         [
-            (b"abc", "invalid", "invalid XML byte range"),
-            (b"abc", "bytes 2-4/10", "invalid XML byte range"),
-            (b"ab", "bytes 0-2/10", "incomplete XML byte range"),
-            (b"\xffab", "bytes 0-2/10", "not valid UTF-8"),
-            (b"<html>", "bytes 0-5/10", "unexpected XML response"),
+            (b"\xffab", "not valid UTF-8"),
+            (b"<html>", "unexpected XML response"),
         ],
     )
-    def test_xml_range_rejects_invalid_provider_data(self, body, content_range, error):
+    def test_xml_chunk_rejects_invalid_content(self, body, error):
         with pytest.raises(LegislationError, match=error):
-            _decode_xml_range(body, content_range, offset=0, max_bytes=1000)
+            _decode_xml_chunk(body, len(body), offset=0, max_bytes=1000)
 
-    async def test_xml_fetch_rejects_html_and_sends_only_bounded_public_headers(self):
-        response = MagicMock(status=206, headers={"Content-Type": "text/html"})
+    async def test_xml_fetch_rejects_html_and_sends_only_public_xml_headers(self):
+        response = MagicMock(status=200, headers={"Content-Type": "text/html", "Content-Length": "10"})
         response_context = MagicMock()
         response_context.__aenter__ = AsyncMock(return_value=response)
         response_context.__aexit__ = AsyncMock(return_value=False)
@@ -188,7 +167,6 @@ class TestHelpers:
             "headers": {
                 "Accept": "application/xml",
                 "Accept-Encoding": "identity",
-                "Range": "bytes=1000-3002",
             },
             "allow_redirects": False,
             "ssl": True,
@@ -209,96 +187,56 @@ class TestHelpers:
             with pytest.raises(LegislationError, match="website temporarily rate-limited XML requests"):
                 await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
 
-    async def test_xml_fetch_retries_when_website_temporarily_ignores_range(self):
-        ignored_response = MagicMock(status=200, headers={})
-        ignored_context = MagicMock()
-        ignored_context.__aenter__ = AsyncMock(return_value=ignored_response)
-        ignored_context.__aexit__ = AsyncMock(return_value=False)
-
-        body = b'<?xml version="1.0"?>'
-
-        async def chunks(_size):
-            yield body
-
-        ranged_response = MagicMock(
-            status=206,
-            headers={"Content-Type": "application/xml", "Content-Range": f"bytes 0-{len(body) - 1}/{len(body)}"},
+    async def test_xml_fetch_uses_normal_get_and_returns_bounded_chunk(self):
+        document = b"skip!abcdefghi"
+        response = MagicMock(
+            status=200,
+            headers={"Content-Type": "application/xml"},
         )
-        ranged_response.content.iter_chunked.side_effect = chunks
-        ranged_context = MagicMock()
-        ranged_context.__aenter__ = AsyncMock(return_value=ranged_response)
-        ranged_context.__aexit__ = AsyncMock(return_value=False)
-
+        response.read = AsyncMock(return_value=document)
+        response_context = MagicMock()
+        response_context.__aenter__ = AsyncMock(return_value=response)
+        response_context.__aexit__ = AsyncMock(return_value=False)
         session = MagicMock()
-        session.get.side_effect = [ignored_context, ranged_context]
+        session.get.return_value = response_context
         session_context = MagicMock()
         session_context.__aenter__ = AsyncMock(return_value=session)
         session_context.__aexit__ = AsyncMock(return_value=False)
 
         with patch("nz_legislation.aiohttp.ClientSession", return_value=session_context):
-            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
+            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(XML_URL, offset=5, max_bytes=4)
 
-        assert xml == body.decode()
-        assert returned_bytes == total_bytes == len(body)
-        assert next_offset is None
-        ignored_response.close.assert_called_once_with()
-        assert session.get.call_count == 2
-        assert session.get.call_args_list[1].kwargs["headers"] == {
-            "Accept": "application/xml",
-            "Accept-Encoding": "identity",
-            "Range": "bytes=0-1002",
-            "Cache-Control": "no-cache",
-            "Pragma": "no-cache",
-        }
+        assert xml == "abcd"
+        assert returned_bytes == 4
+        assert total_bytes == len(document)
+        assert next_offset == 9
 
-    async def test_xml_fetch_polls_accepted_document_generation(self):
-        accepted_response = MagicMock(status=202, headers={"Retry-After": "1"})
-        accepted_context = MagicMock()
-        accepted_context.__aenter__ = AsyncMock(return_value=accepted_response)
-        accepted_context.__aexit__ = AsyncMock(return_value=False)
+        request = session.get.call_args
+        assert "Range" not in request.kwargs["headers"]
 
-        body = b'<?xml version="1.0"?>'
-
-        async def chunks(_size):
-            yield body
-
-        ranged_response = MagicMock(
-            status=206,
-            headers={"Content-Type": "application/xml", "Content-Range": f"bytes 0-{len(body) - 1}/{len(body)}"},
-        )
-        ranged_response.content.iter_chunked.side_effect = chunks
-        ranged_context = MagicMock()
-        ranged_context.__aenter__ = AsyncMock(return_value=ranged_response)
-        ranged_context.__aexit__ = AsyncMock(return_value=False)
-
+    async def test_xml_fetch_rejects_offset_at_end_of_document(self):
+        response = MagicMock(status=200, headers={"Content-Type": "application/xml"})
+        response.read = AsyncMock(return_value=b"<?xml")
+        response_context = MagicMock()
+        response_context.__aenter__ = AsyncMock(return_value=response)
+        response_context.__aexit__ = AsyncMock(return_value=False)
         session = MagicMock()
-        session.get.side_effect = [accepted_context, ranged_context]
+        session.get.return_value = response_context
         session_context = MagicMock()
         session_context.__aenter__ = AsyncMock(return_value=session)
         session_context.__aexit__ = AsyncMock(return_value=False)
 
-        with (
-            patch("nz_legislation.aiohttp.ClientSession", return_value=session_context),
-            patch("nz_legislation.asyncio.sleep", new_callable=AsyncMock) as sleep,
-        ):
-            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
-
-        assert xml == body.decode()
-        assert returned_bytes == total_bytes == len(body)
-        assert next_offset is None
-        accepted_response.close.assert_called_once_with()
-        sleep.assert_awaited_once_with(1)
-        assert session.get.call_count == 2
+        with patch("nz_legislation.aiohttp.ClientSession", return_value=session_context):
+            with pytest.raises(LegislationError, match="offset is outside"):
+                await _fetch_xml_chunk(XML_URL, offset=5, max_bytes=1000)
 
     @pytest.mark.parametrize(
         "status, expected",
         [
             (404, "could not find the requested XML document"),
-            (416, "offset is outside the XML document's byte range"),
             (403, "refused the XML document request"),
             (500, "could not provide the XML document"),
-            (200, "did not return a bounded XML byte range"),
-            (202, "did not return a bounded XML byte range"),
+            (302, "unexpected HTTP 302"),
         ],
     )
     async def test_xml_fetch_maps_unusable_http_responses(self, status, expected):
@@ -312,15 +250,9 @@ class TestHelpers:
         session_context.__aenter__ = AsyncMock(return_value=session)
         session_context.__aexit__ = AsyncMock(return_value=False)
 
-        with (
-            patch("nz_legislation.aiohttp.ClientSession", return_value=session_context),
-            patch("nz_legislation.asyncio.sleep", new_callable=AsyncMock),
-        ):
-            with pytest.raises(LegislationError, match=expected) as raised:
+        with patch("nz_legislation.aiohttp.ClientSession", return_value=session_context):
+            with pytest.raises(LegislationError, match=expected):
                 await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
-        if status in {200, 202}:
-            assert session.get.call_count == 3
-            assert f"HTTP {status}" in str(raised.value)
 
 
 class TestSharedErrors:
@@ -658,7 +590,8 @@ class TestGetVersionXml:
 
         assert result.type == ResultType.ACTION
         data = result.result.data
-        assert data["source"] == XML_SOURCE
+        assert data["version_id"] == VERSION_ID
+        assert data["source_url"] == CANONICAL_XML_URL
         assert data["xml"] == xml
         assert data["truncated"] is False
         assert data["next_offset"] is None
@@ -669,7 +602,7 @@ class TestGetVersionXml:
                 headers={"Accept": "application/json", "X-Api-Key": "test_api_key"},
             ),
         ]
-        fetch_xml.assert_awaited_once_with(XML_SOURCE["source_url"], 0, 1000)
+        fetch_xml.assert_awaited_once_with(CANONICAL_XML_URL, 0, 1000)
 
     async def test_replaces_latest_alias_with_version_bound_canonical_url(self, mock_context):
         version = deepcopy(SAMPLE_VERSION)
@@ -680,8 +613,8 @@ class TestGetVersionXml:
             fetch_xml.return_value = ("<?xml version='1.0'?>", 21, 21, None)
             result = await nz_legislation.execute_action("get_version_xml", {"version_id": VERSION_ID}, mock_context)
 
-        assert result.result.data["source"] == XML_SOURCE
-        fetch_xml.assert_awaited_once_with(XML_SOURCE["source_url"], 0, 20_000)
+        assert result.result.data["source_url"] == CANONICAL_XML_URL
+        fetch_xml.assert_awaited_once_with(CANONICAL_XML_URL, 0, 20_000)
 
     async def test_chunks_xml_with_unambiguous_next_offset(self, mock_context):
         xml = "a" * 2500
@@ -690,12 +623,13 @@ class TestGetVersionXml:
             fetch_xml.return_value = (xml[1000:2000], 1000, 2500, 2000)
             result = await nz_legislation.execute_action(
                 "get_version_xml",
-                {"version_id": VERSION_ID, "source": XML_SOURCE, "offset": 1000, "max_bytes": 1000},
+                {"version_id": VERSION_ID, "offset": 1000, "max_bytes": 1000},
                 mock_context,
             )
 
         data = result.result.data
-        assert data["source"] == XML_SOURCE
+        assert data["version_id"] == VERSION_ID
+        assert data["source_url"] == CANONICAL_XML_URL
         assert data["xml"] == "a" * 1000
         assert data["offset"] == 1000
         assert data["returned_bytes"] == 1000
@@ -704,49 +638,7 @@ class TestGetVersionXml:
         assert data["next_offset"] == 2000
         assert data["rate_limit"] == {"limit": None, "remaining": None, "reset_at": None}
         mock_context.fetch.assert_not_called()
-        fetch_xml.assert_awaited_once_with(XML_SOURCE["source_url"], 1000, 1000)
-
-    async def test_rejects_continuation_source_for_another_version(self, mock_context):
-        source = {**XML_SOURCE, "version_id": "act_public_1991_1_en_1991-01-01"}
-
-        with patch("nz_legislation._fetch_xml_chunk", new_callable=AsyncMock) as fetch_xml:
-            result = await nz_legislation.execute_action(
-                "get_version_xml", {"version_id": VERSION_ID, "source": source, "offset": 1000}, mock_context
-            )
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "does not match version_id" in result.result.message
-        mock_context.fetch.assert_not_called()
-        fetch_xml.assert_not_awaited()
-
-    async def test_rejects_untrusted_continuation_url_without_authenticated_request(self, mock_context):
-        source = {**XML_SOURCE, "source_url": "https://evil.test/act.xml"}
-
-        with patch("nz_legislation._fetch_xml_chunk", new_callable=AsyncMock) as fetch_xml:
-            result = await nz_legislation.execute_action(
-                "get_version_xml", {"version_id": VERSION_ID, "source": source, "offset": 1000}, mock_context
-            )
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "does not match version_id" in result.result.message
-        mock_context.fetch.assert_not_called()
-        fetch_xml.assert_not_awaited()
-
-    async def test_rejects_different_official_document_as_continuation_source(self, mock_context):
-        source = {
-            **XML_SOURCE,
-            "source_url": "https://www.legislation.govt.nz/act/public/1991/1/en/1991-01-01.xml",
-        }
-
-        with patch("nz_legislation._fetch_xml_chunk", new_callable=AsyncMock) as fetch_xml:
-            result = await nz_legislation.execute_action(
-                "get_version_xml", {"version_id": VERSION_ID, "source": source, "offset": 1000}, mock_context
-            )
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "does not match version_id" in result.result.message
-        mock_context.fetch.assert_not_called()
-        fetch_xml.assert_not_awaited()
+        fetch_xml.assert_awaited_once_with(CANONICAL_XML_URL, 1000, 1000)
 
     async def test_rejects_metadata_for_a_different_version_before_xml_fetch(self, mock_context):
         version = {**SAMPLE_VERSION, "version_id": "act_public_1991_1_en_1991-01-01"}
@@ -783,13 +675,13 @@ class TestGetVersionXml:
         mock_context.fetch.return_value = response(SAMPLE_VERSION)
 
         with patch("nz_legislation._fetch_xml_chunk", new_callable=AsyncMock) as fetch_xml:
-            fetch_xml.side_effect = LegislationError("offset is outside the XML document's byte range.")
+            fetch_xml.side_effect = LegislationError("offset is outside the XML document.")
             result = await nz_legislation.execute_action(
                 "get_version_xml", {"version_id": VERSION_ID, "offset": 10}, mock_context
             )
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "outside the XML document's byte range" in result.result.message
+        assert "outside the XML document" in result.result.message
 
     async def test_rejects_unexpected_xml_response(self, mock_context):
         mock_context.fetch.return_value = response(SAMPLE_VERSION)

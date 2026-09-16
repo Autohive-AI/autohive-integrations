@@ -225,13 +225,13 @@ class TestGetVersionXml:
 
         assert result.type == ResultType.ACTION, result.result
         data = result.result.data
-        assert data["source"]["version_id"] == KNOWN_VERSION_ID
+        assert data["version_id"] == KNOWN_VERSION_ID
         assert data["xml"].startswith("<?xml")
         assert 997 <= data["returned_bytes"] <= 1000
         assert data["total_bytes"] > data["returned_bytes"]
         assert data["truncated"] is True
         assert data["next_offset"] == data["returned_bytes"]
-        assert data["source"]["source_url"] == ("https://www.legislation.govt.nz/act/public/1990/109/en/2022-08-30.xml")
+        assert data["source_url"] == "https://www.legislation.govt.nz/act/public/1990/109/en/2022-08-30.xml"
 
     async def test_next_offset_returns_next_non_overlapping_chunk(self, live_context):
         first = await nz_legislation.execute_action(
@@ -246,7 +246,6 @@ class TestGetVersionXml:
             "get_version_xml",
             {
                 "version_id": KNOWN_VERSION_ID,
-                "source": first_data["source"],
                 "offset": first_data["next_offset"],
                 "max_bytes": 1000,
             },
@@ -255,7 +254,7 @@ class TestGetVersionXml:
 
         assert second.type == ResultType.ACTION, second.result
         second_data = second.result.data
-        assert second_data["source"] == first_data["source"]
+        assert second_data["source_url"] == first_data["source_url"]
         assert second_data["offset"] == first_data["returned_bytes"]
         assert second_data["xml"] != first_data["xml"]
         assert second_data["total_bytes"] == first_data["total_bytes"]
@@ -273,7 +272,7 @@ class TestGetVersionXml:
 
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                first_data["source"]["source_url"],
+                first_data["source_url"],
                 headers={"Accept": "application/xml", "Accept-Encoding": "identity"},
                 allow_redirects=False,
             ) as response:
@@ -293,7 +292,6 @@ class TestGetVersionXml:
             "get_version_xml",
             {
                 "version_id": KNOWN_VERSION_ID,
-                "source": first_data["source"],
                 "offset": offset,
                 "max_bytes": 1000,
             },
@@ -321,7 +319,6 @@ class TestGetVersionXml:
             "get_version_xml",
             {
                 "version_id": KNOWN_VERSION_ID,
-                "source": first.result.data["source"],
                 "offset": first.result.data["total_bytes"],
                 "max_bytes": 1000,
             },

@@ -420,7 +420,7 @@
     },
     "get_version_xml": {
       "display_name": "Get Legislation XML",
-      "description": "Gets a bounded UTF-8 byte range of the official XML source for a specific version. Call again with next_offset until truncated is false. XML is unavailable for some agency-published secondary legislation and scanned historical material.",
+      "description": "Gets a bounded UTF-8 chunk of the official XML source for a specific version. Call again with next_offset until truncated is false. XML is unavailable for some agency-published secondary legislation and scanned historical material.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -430,21 +430,6 @@
             "maxLength": 250,
             "pattern": "^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$",
             "description": "Version identifier returned by search_legislation or list_versions."
-          },
-          "source": {
-            "type": "object",
-            "description": "Source descriptor returned by an earlier get_version_xml call for this version. Pass it back with next_offset to continue without consuming another authenticated API request.",
-            "properties": {
-              "version_id": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 250,
-                "pattern": "^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$"
-              },
-              "source_url": {"type": "string", "minLength": 1, "maxLength": 2048}
-            },
-            "required": ["version_id", "source_url"],
-            "additionalProperties": false
           },
           "offset": {
             "type": "integer",
@@ -466,19 +451,11 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "source": {
-            "type": "object",
-            "description": "Resolved and validated XML source identity. Pass this object back unchanged with next_offset when requesting another chunk.",
-            "properties": {
-              "version_id": {"type": "string"},
-              "source_url": {"type": "string"}
-            },
-            "required": ["version_id", "source_url"],
-            "additionalProperties": false
-          },
+          "version_id": {"type": "string"},
+          "source_url": {"type": "string"},
           "xml": {
             "type": "string",
-            "description": "The requested XML byte range decoded as UTF-8. Chunks after offset 0 may not be independently well-formed XML."
+            "description": "The requested XML chunk decoded as UTF-8. Chunks after offset 0 may not be independently well-formed XML."
           },
           "offset": {"type": "integer"},
           "returned_bytes": {"type": "integer"},
@@ -487,7 +464,7 @@
           "next_offset": {"type": ["integer", "null"]},
           "rate_limit": {
             "type": "object",
-            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response. Values are null when a supplied source descriptor avoids that request; reset_at is a UTC Unix timestamp.",
+            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response. Values are null on continuation calls where offset is greater than zero; reset_at is a UTC Unix timestamp.",
             "properties": {
               "limit": {"type": ["integer", "null"]},
               "remaining": {"type": ["integer", "null"]},
@@ -498,7 +475,8 @@
           }
         },
         "required": [
-          "source",
+          "version_id",
+          "source_url",
           "xml",
           "offset",
           "returned_bytes",

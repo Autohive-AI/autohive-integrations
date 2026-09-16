@@ -21,7 +21,7 @@ Keep the key confidential. The [API terms of use](https://www.legislation.govt.n
 
 - Python 3.13 or later
 - `autohive-integrations-sdk~=2.0.1`
-- `aiohttp~=3.12` for bounded XML byte-range downloads
+- `aiohttp~=3.12` for downloading XML documents
 - A New Zealand Legislation API key
 
 ## Actions
@@ -125,26 +125,25 @@ Example input:
 
 ### `get_version_xml`
 
-On the first call, confirms XML availability through the authenticated API and verifies that the response identifies the requested version. It then derives the version's canonical, date-specific XML URL from the documented six-part version identifier and requests only a bounded UTF-8 byte range. Redirects are not followed, and the API key is never sent to the document URL.
+On the first call, confirms XML availability through the authenticated API and verifies that the response identifies the requested version. It then derives the version's canonical, date-specific XML URL from the documented six-part version identifier, downloads it with a normal HTTP GET, and returns a bounded UTF-8 chunk. Redirects are not followed, and the API key is never sent to the document URL.
 
-The response includes a `source` descriptor whose canonical URL is deterministically bound to the version identifier. Pass that descriptor back unchanged with `next_offset` for continuation calls. A continuation re-derives and verifies the canonical URL but does not repeat the authenticated metadata request, so reading an N-chunk document consumes one API-key quota request rather than N.
+For continuation calls, pass the same `version_id` with the returned `next_offset`. The canonical URL is re-derived from the version identifier, and continuations do not repeat the authenticated metadata request. Reading an N-chunk document therefore consumes one API-key quota request rather than N.
 
 **Inputs**
 
 - `version_id` (string, required) — Version to retrieve.
-- `source` (object, optional) — `source` returned by an earlier call for the same version. Use it for continuation calls to avoid another authenticated API request.
 - `offset` (integer, optional, default `0`) — UTF-8 byte offset into the document. Start at `0`, then use only a returned `next_offset`.
 - `max_bytes` (integer, optional, default `20000`, range `1000`–`100000`) — Maximum UTF-8 bytes to return.
 
 **Outputs**
 
-- `source` — Validated source identity containing the version ID and its canonical official XML URL. Pass it back unchanged when continuing.
+- `version_id`, `source_url` — Requested version and its canonical official XML URL.
 - `xml` — Requested XML chunk.
-- `offset`, `returned_bytes`, `total_bytes` — Byte-range metadata.
+- `offset`, `returned_bytes`, `total_bytes` — Byte-position and document-size metadata.
 - `truncated`, `next_offset` — Continue with `next_offset` until `truncated` is `false`.
-- `rate_limit` — Quota state from the initial version metadata request. Its values are null when a supplied `source` avoids that request.
+- `rate_limit` — Quota state from the initial version metadata request. Its values are null on continuation calls (`offset > 0`).
 
-A chunk beginning after offset 0 may not be a standalone well-formed XML document. XML is not available for every record, particularly some agency-published secondary legislation and scan-only historical material.
+A chunk beginning after offset 0 may not be a standalone well-formed XML document. Each call downloads the public XML document before selecting the requested chunk, but continuation calls do not consume authenticated API quota. XML is not available for every record, particularly some agency-published secondary legislation and scan-only historical material.
 
 Example input for the first chunk:
 
@@ -156,15 +155,11 @@ Example input for the first chunk:
 }
 ```
 
-For the next chunk, copy both `source` and `next_offset` from the response:
+For the next chunk, use the same `version_id` and copy `next_offset` from the response:
 
 ```json
 {
   "version_id": "act_public_1990_109_en_2022-08-30",
-  "source": {
-    "version_id": "act_public_1990_109_en_2022-08-30",
-    "source_url": "https://www.legislation.govt.nz/act/public/1990/109/en/2022-08-30.xml"
-  },
   "offset": 20000,
   "max_bytes": 20000
 }
