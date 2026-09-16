@@ -269,11 +269,16 @@ class TestGetVersionXml:
         )
         assert first.type == ResultType.ACTION, first.result
         first_data = first.result.data
+        api_key = live_context.auth["credentials"]["api_key"]
 
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 first_data["source_url"],
-                headers={"Accept": "application/xml", "Accept-Encoding": "identity"},
+                headers={
+                    "Accept": "application/xml",
+                    "Accept-Encoding": "identity",
+                    "X-Api-Key": api_key,
+                },
                 allow_redirects=False,
             ) as response:
                 assert response.status == 200

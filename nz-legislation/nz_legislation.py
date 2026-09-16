@@ -267,12 +267,15 @@ def _decode_xml_chunk(body: bytes, total_bytes: int, offset: int, max_bytes: int
     return xml, returned_bytes, total_bytes, next_offset if next_offset < total_bytes else None
 
 
-async def _fetch_xml_chunk(source_url: str, offset: int, max_bytes: int) -> tuple[str, int, int, int | None]:
+async def _fetch_xml_chunk(
+    source_url: str, api_key: str, offset: int, max_bytes: int
+) -> tuple[str, int, int, int | None]:
     """Download the XML document and return a bounded UTF-8 chunk."""
     timeout = aiohttp.ClientTimeout(total=30)
     headers = {
         "Accept": "application/xml",
         "Accept-Encoding": "identity",
+        "X-Api-Key": api_key,
     }
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -446,6 +449,7 @@ class GetVersionXmlAction(ActionHandler):
         max_bytes = inputs.get("max_bytes", DEFAULT_XML_CHUNK_BYTES)
         try:
             source_url = _canonical_xml_url(version_id)
+            api_key = _api_headers(context)["X-Api-Key"]
             if offset == 0:
                 version_response = await _get_version_response(version_id, context)
                 version = _version(_object_response(version_response.data))
@@ -457,7 +461,9 @@ class GetVersionXmlAction(ActionHandler):
                 rate_limit = _rate_limit(version_response.headers)
             else:
                 rate_limit = {"limit": None, "remaining": None, "reset_at": None}
-            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(source_url, offset, max_bytes)
+            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(
+                source_url, api_key, offset, max_bytes
+            )
             return ActionResult(
                 data={
                     "version_id": version_id,

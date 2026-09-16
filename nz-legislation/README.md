@@ -125,9 +125,9 @@ Example input:
 
 ### `get_version_xml`
 
-On the first call, confirms XML availability through the authenticated API and verifies that the response identifies the requested version. It then derives the version's canonical, date-specific XML URL from the documented six-part version identifier, downloads it with a normal HTTP GET, and returns a bounded UTF-8 chunk. Redirects are not followed, and the API key is never sent to the document URL.
+On the first call, confirms XML availability through the authenticated API and verifies that the response identifies the requested version. It then derives the version's canonical, date-specific XML URL from the documented six-part version identifier, downloads it with a normal HTTP GET authenticated by the same `X-Api-Key`, and returns a bounded UTF-8 chunk. Redirects are not followed.
 
-For continuation calls, pass the same `version_id` with the returned `next_offset`. The canonical URL is re-derived from the version identifier, and continuations do not repeat the authenticated metadata request. Reading an N-chunk document therefore consumes one API-key quota request rather than N.
+For continuation calls, pass the same `version_id` with the returned `next_offset`. The canonical URL is re-derived from the version identifier, and continuations do not repeat the metadata request. Every XML document request includes the API key.
 
 **Inputs**
 
@@ -143,7 +143,7 @@ For continuation calls, pass the same `version_id` with the returned `next_offse
 - `truncated`, `next_offset` — Continue with `next_offset` until `truncated` is `false`.
 - `rate_limit` — Quota state from the initial version metadata request. Its values are null on continuation calls (`offset > 0`).
 
-A chunk beginning after offset 0 may not be a standalone well-formed XML document. Each call downloads the public XML document before selecting the requested chunk, but continuation calls do not consume authenticated API quota. XML is not available for every record, particularly some agency-published secondary legislation and scan-only historical material.
+A chunk beginning after offset 0 may not be a standalone well-formed XML document. Each call downloads the XML document before selecting the requested chunk. XML is not available for every record, particularly some agency-published secondary legislation and scan-only historical material.
 
 Example input for the first chunk:
 
