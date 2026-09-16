@@ -290,8 +290,9 @@ async def _fetch_xml_document(source_url: str, api_key: str) -> bytes:
             )
             try:
                 if content_length is not None and int(content_length) > MAX_XML_DOCUMENT_BYTES:
-                    raise LegislationError("The legislation XML document is too large to search safely.")
+                    raise LegislationError("The legislation XML document is too large to process safely.")
             except (TypeError, ValueError):
+                # The streamed size check below remains authoritative when this advisory header is malformed.
                 pass
 
             document = bytearray()
@@ -301,7 +302,7 @@ async def _fetch_xml_document(source_url: str, api_key: str) -> bytes:
                     break
                 document.extend(chunk)
                 if len(document) > MAX_XML_DOCUMENT_BYTES:
-                    raise LegislationError("The legislation XML document is too large to search safely.")
+                    raise LegislationError("The legislation XML document is too large to process safely.")
             if not document:
                 raise LegislationError(
                     f"The New Zealand Legislation website returned HTTP {response.status} without an XML document."

@@ -128,7 +128,7 @@ Example input:
 
 Returns bounded raw UTF-8 chunks from the official XML source. This action preserves access to exact XML markup, schedules, notes, and other content outside `<prov>` elements. Use `search_version_xml` instead when looking for provisions by text.
 
-The first call verifies the version and XML format through the metadata API. Each call downloads the complete XML document with one authenticated request before selecting the requested chunk. Continuation calls therefore repeat the full XML download; they exist for general raw access, not efficient provision research.
+The first call verifies the version and XML format through the metadata API. Each call downloads the complete XML document with one authenticated request before selecting the requested chunk. Continuation calls therefore repeat the full XML download; they exist for general raw access, not efficient provision research. Documents larger than 25 MiB are rejected before a chunk is returned.
 
 **Inputs**
 

@@ -420,7 +420,7 @@
     },
     "get_version_xml": {
       "display_name": "Get Legislation XML",
-      "description": "Gets a bounded raw UTF-8 chunk of the official XML source for a specific version. Use search_version_xml for efficient provision lookup; use this action when exact XML markup or non-provision content is required.",
+      "description": "Gets a bounded raw UTF-8 chunk of an official XML source up to 25 MiB. Use search_version_xml for efficient provision lookup; use this action when exact XML markup or non-provision content is required.",
       "input_schema": {
         "type": "object",
         "properties": {
