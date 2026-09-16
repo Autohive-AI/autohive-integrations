@@ -1,6 +1,6 @@
 # New Zealand Legislation
 
-Read-only access to the [New Zealand Legislation Data API](https://api.legislation.govt.nz/docs/) operated by the Parliamentary Counsel Office (PCO). Search legislation, inspect a work's version history, retrieve canonical version metadata, and read official XML source documents in bounded chunks.
+Read-only access to the [New Zealand Legislation Data API](https://api.legislation.govt.nz/docs/) operated by the Parliamentary Counsel Office (PCO). Search legislation, inspect a work's version history, retrieve canonical version metadata, and find matching provisions in official XML source documents.
 
 The API uses a three-tier model:
 
@@ -31,7 +31,7 @@ Keep the key confidential. The [API terms of use](https://www.legislation.govt.n
 | `search_legislation` | Search or browse legislation works with the API's complete documented filter set |
 | `list_versions` | List a page of versions and formats available for a work |
 | `get_version` | Get canonical metadata and format links for one version |
-| `get_version_xml` | Read a bounded chunk of an official XML source document |
+| `search_version_xml` | Search an official XML source document for matching provisions |
 
 ### `search_legislation`
 
@@ -123,49 +123,36 @@ Example input:
 }
 ```
 
-### `get_version_xml`
+### `search_version_xml`
 
-On the first call, confirms XML availability through the authenticated API and verifies that the response identifies the requested version. It then derives the version's canonical, date-specific XML URL from the documented six-part version identifier, downloads it with a normal HTTP GET authenticated by the same `X-Api-Key`, and returns a bounded UTF-8 chunk. Redirects are not followed.
-
-For continuation calls, pass the same `version_id` with the returned `next_offset`. The canonical URL is re-derived from the version identifier, and continuations do not repeat the metadata request. Every XML document request includes the API key.
+Confirms XML availability through the authenticated API and verifies that the response identifies the requested version. It then derives the version's canonical, date-specific XML URL from the documented six-part version identifier, downloads the complete document once with a normal HTTP GET authenticated by the same `X-Api-Key`, and returns provisions containing the case-insensitive search term. The XML request must return `200 OK`; redirects are not followed.
 
 **Inputs**
 
-- `version_id` (string, required) — Version to retrieve.
-- `offset` (integer, optional, default `0`) — UTF-8 byte offset into the document. Start at `0`, then use only a returned `next_offset`.
-- `max_bytes` (integer, optional, default `20000`, range `1000`–`100000`) — Maximum UTF-8 bytes to return.
+- `version_id` (string, required) — Version to search.
+- `search_term` (string, required) — Case-insensitive text to find within complete provisions.
+- `max_results` (integer, optional, default `10`, range `1`–`20`) — Maximum matching provisions to return.
 
 **Outputs**
 
 - `version_id`, `source_url` — Requested version and its canonical official XML URL.
-- `xml` — Requested XML chunk.
-- `offset`, `returned_bytes`, `total_bytes` — Byte-position and document-size metadata.
-- `truncated`, `next_offset` — Continue with `next_offset` until `truncated` is `false`.
-- `rate_limit` — Quota state from the initial version metadata request. Its values are null on continuation calls (`offset > 0`).
+- `search_term` — The requested term.
+- `matches` — Matching provisions in document order, including each provision's source ID, label, heading, normalised text, and whether exceptionally long text was truncated.
+- `returned_matches`, `total_matches`, `has_more_matches` — Result counts and whether `max_results` omitted additional matches.
+- `document_bytes` — Size of the downloaded XML document.
+- `rate_limit` — Quota state from the version metadata request.
 
-A chunk beginning after offset 0 may not be a standalone well-formed XML document. Each call downloads the XML document before selecting the requested chunk. XML is not available for every record, particularly some agency-published secondary legislation and scan-only historical material.
+Each action invocation makes one XML request. There is no byte-offset continuation, Range request, or repeated download for additional chunks. Documents larger than 25 MiB are rejected rather than buffered without a limit. XML is not available for every record, particularly some agency-published secondary legislation and scan-only historical material.
 
-Example input for the first chunk:
-
-```json
-{
-  "version_id": "act_public_1990_109_en_2022-08-30",
-  "offset": 0,
-  "max_bytes": 20000
-}
-```
-
-For the next chunk, use the same `version_id` and copy `next_offset` from the response:
+Example input:
 
 ```json
 {
   "version_id": "act_public_1990_109_en_2022-08-30",
-  "offset": 20000,
-  "max_bytes": 20000
+  "search_term": "unreasonable search or seizure",
+  "max_results": 10
 }
 ```
-
-Do not calculate offsets from the returned string length because UTF-8 characters may occupy more than one byte.
 
 ## Provider behaviour and limitations
 

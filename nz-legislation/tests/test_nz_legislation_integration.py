@@ -24,6 +24,7 @@ pytestmark = pytest.mark.integration
 
 KNOWN_WORK_ID = "act_public_1990_109"
 KNOWN_VERSION_ID = "act_public_1990_109_en_2022-08-30"
+CRIMES_ACT_VERSION_ID = "act_public_1961_43_en_2026-08-08"
 
 
 @pytest_asyncio.fixture
@@ -215,120 +216,51 @@ class TestAuthentication:
         assert "API key" in result.result.message
 
 
-class TestGetVersionXml:
-    async def test_returns_first_bounded_xml_chunk(self, live_context):
+class TestSearchVersionXml:
+    async def test_finds_current_crimes_act_burglary_provisions(self, live_context):
         result = await nz_legislation.execute_action(
-            "get_version_xml",
-            {"version_id": KNOWN_VERSION_ID, "max_bytes": 1000},
+            "search_version_xml",
+            {"version_id": CRIMES_ACT_VERSION_ID, "search_term": "burglary"},
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        matches_by_label = {match["label"]: match for match in data["matches"]}
+        assert matches_by_label.keys() >= {"231", "232", "233"}
+        assert matches_by_label["231"]["heading"] == "Burglary"
+        assert "Every one commits burglary" in matches_by_label["231"]["text"]
+        assert data["document_bytes"] > 1_000_000
+
+    async def test_returns_matching_provision_from_one_xml_download(self, live_context):
+        result = await nz_legislation.execute_action(
+            "search_version_xml",
+            {"version_id": KNOWN_VERSION_ID, "search_term": "unreasonable search or seizure"},
             live_context,
         )
 
         assert result.type == ResultType.ACTION, result.result
         data = result.result.data
         assert data["version_id"] == KNOWN_VERSION_ID
-        assert data["xml"].startswith("<?xml")
-        assert 997 <= data["returned_bytes"] <= 1000
-        assert data["total_bytes"] > data["returned_bytes"]
-        assert data["truncated"] is True
-        assert data["next_offset"] == data["returned_bytes"]
+        assert data["search_term"] == "unreasonable search or seizure"
+        assert data["matches"]
+        assert data["returned_matches"] == data["total_matches"]
+        assert data["has_more_matches"] is False
+        assert data["document_bytes"] > 0
         assert data["source_url"] == "https://www.legislation.govt.nz/act/public/1990/109/en/2022-08-30.xml"
-
-    async def test_next_offset_returns_next_non_overlapping_chunk(self, live_context):
-        first = await nz_legislation.execute_action(
-            "get_version_xml",
-            {"version_id": KNOWN_VERSION_ID, "max_bytes": 1000},
-            live_context,
-        )
-        assert first.type == ResultType.ACTION, first.result
-        first_data = first.result.data
-
-        second = await nz_legislation.execute_action(
-            "get_version_xml",
-            {
-                "version_id": KNOWN_VERSION_ID,
-                "offset": first_data["next_offset"],
-                "max_bytes": 1000,
-            },
-            live_context,
-        )
-
-        assert second.type == ResultType.ACTION, second.result
-        second_data = second.result.data
-        assert second_data["source_url"] == first_data["source_url"]
-        assert second_data["offset"] == first_data["returned_bytes"]
-        assert second_data["xml"] != first_data["xml"]
-        assert second_data["total_bytes"] == first_data["total_bytes"]
-        assert second_data["rate_limit"] == {"limit": None, "remaining": None, "reset_at": None}
+        assert any(match["label"] == "21" for match in data["matches"])
+        assert any("unreasonable search or seizure" in match["text"].lower() for match in data["matches"])
         assert live_context.fetch.await_count == 1
 
-    async def test_final_chunk_matches_the_public_xml_document(self, live_context):
-        first = await nz_legislation.execute_action(
-            "get_version_xml",
-            {"version_id": KNOWN_VERSION_ID, "max_bytes": 1000},
-            live_context,
-        )
-        assert first.type == ResultType.ACTION, first.result
-        first_data = first.result.data
-        api_key = live_context.auth["credentials"]["api_key"]
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                first_data["source_url"],
-                headers={
-                    "Accept": "application/xml",
-                    "Accept-Encoding": "identity",
-                    "X-Api-Key": api_key,
-                },
-                allow_redirects=False,
-            ) as response:
-                assert response.status == 200
-                document = await response.read()
-
-        offset = max(0, len(document) - 1000)
-        while True:
-            try:
-                expected_xml = document[offset:].decode("utf-8")
-                break
-            except UnicodeDecodeError as exc:
-                assert exc.start == 0
-                offset += 1
-
-        final = await nz_legislation.execute_action(
-            "get_version_xml",
-            {
-                "version_id": KNOWN_VERSION_ID,
-                "offset": offset,
-                "max_bytes": 1000,
-            },
-            live_context,
-        )
-
-        assert final.type == ResultType.ACTION, final.result
-        data = final.result.data
-        assert data["xml"] == expected_xml
-        assert data["offset"] == offset
-        assert data["returned_bytes"] == len(document) - offset
-        assert data["total_bytes"] == len(document)
-        assert data["truncated"] is False
-        assert data["next_offset"] is None
-
-    async def test_offset_at_end_of_document_returns_action_error(self, live_context):
-        first = await nz_legislation.execute_action(
-            "get_version_xml",
-            {"version_id": KNOWN_VERSION_ID, "max_bytes": 1000},
-            live_context,
-        )
-        assert first.type == ResultType.ACTION, first.result
-
+    async def test_no_matching_provision_returns_empty_results(self, live_context):
         result = await nz_legislation.execute_action(
-            "get_version_xml",
-            {
-                "version_id": KNOWN_VERSION_ID,
-                "offset": first.result.data["total_bytes"],
-                "max_bytes": 1000,
-            },
+            "search_version_xml",
+            {"version_id": KNOWN_VERSION_ID, "search_term": "zzzz-no-such-provision-987654321"},
             live_context,
         )
 
-        assert result.type == ResultType.ACTION_ERROR
-        assert "outside" in result.result.message
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["matches"] == []
+        assert data["returned_matches"] == data["total_matches"] == 0
+        assert data["has_more_matches"] is False

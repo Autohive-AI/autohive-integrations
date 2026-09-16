@@ -16,13 +16,15 @@ from autohive_integrations_sdk import (
     Integration,
     RateLimitError,
 )
+from defusedxml import ElementTree
 
 nz_legislation = Integration.load()
 
 API_BASE_URL = "https://api.legislation.govt.nz/v0"
 OFFICIAL_CONTENT_HOSTS = {"legislation.govt.nz", "www.legislation.govt.nz"}
 OFFICIAL_CONTENT_BASE_URL = "https://www.legislation.govt.nz"
-DEFAULT_XML_CHUNK_BYTES = 20_000
+MAX_XML_DOCUMENT_BYTES = 25 * 1024 * 1024
+MAX_PROVISION_TEXT_CHARS = 10_000
 _VERSION_ID = re.compile(r"^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$")
 _UNEXPECTED_ERROR = (
     "The New Zealand Legislation integration hit an unexpected error handling this request. Try again later."
@@ -247,30 +249,8 @@ async def _get_version_response(version_id: str, context: ExecutionContext):
     )
 
 
-def _decode_xml_chunk(body: bytes, total_bytes: int, offset: int, max_bytes: int) -> tuple[str, int, int, int | None]:
-    returned_bytes = min(max_bytes, len(body))
-    while returned_bytes:
-        try:
-            xml = body[:returned_bytes].decode("utf-8")
-            break
-        except UnicodeDecodeError as exc:
-            if exc.start < returned_bytes - 3:
-                raise LegislationError("The legislation XML is not valid UTF-8 at the requested offset.") from None
-            returned_bytes -= 1
-    else:
-        raise LegislationError("The legislation XML is not valid UTF-8 at the requested offset.")
-
-    if offset == 0 and not xml.lstrip("\ufeff \t\r\n").startswith("<?xml"):
-        raise LegislationError("The New Zealand Legislation website returned an unexpected XML response.")
-
-    next_offset = offset + returned_bytes
-    return xml, returned_bytes, total_bytes, next_offset if next_offset < total_bytes else None
-
-
-async def _fetch_xml_chunk(
-    source_url: str, api_key: str, offset: int, max_bytes: int
-) -> tuple[str, int, int, int | None]:
-    """Download the XML document and return a bounded UTF-8 chunk."""
+async def _fetch_xml_document(source_url: str, api_key: str) -> bytes:
+    """Download one complete, size-bounded XML document."""
     timeout = aiohttp.ClientTimeout(total=30)
     headers = {
         "Accept": "application/xml",
@@ -280,6 +260,10 @@ async def _fetch_xml_chunk(
 
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(source_url, headers=headers, allow_redirects=False, ssl=True) as response:
+            if response.status == 401:
+                raise LegislationError(
+                    "The New Zealand Legislation website rejected the API key. Check the connected account."
+                )
             if response.status == 404:
                 raise LegislationError("The New Zealand Legislation website could not find the requested XML document.")
             if response.status == 403:
@@ -288,7 +272,7 @@ async def _fetch_xml_chunk(
                 raise LegislationError("The New Zealand Legislation website temporarily rate-limited XML requests.")
             if response.status >= 500:
                 raise LegislationError("The New Zealand Legislation website could not provide the XML document.")
-            if not 200 <= response.status < 300:
+            if response.status != 200:
                 raise LegislationError(
                     f"The New Zealand Legislation website returned an unexpected HTTP {response.status} response."
                 )
@@ -300,16 +284,78 @@ async def _fetch_xml_chunk(
                     f"HTTP {response.status} with content type {content_type or 'missing'}, not XML."
                 )
 
-            document = await response.read()
+            content_length = next(
+                (value for name, value in response.headers.items() if str(name).lower() == "content-length"), None
+            )
+            try:
+                if content_length is not None and int(content_length) > MAX_XML_DOCUMENT_BYTES:
+                    raise LegislationError("The legislation XML document is too large to search safely.")
+            except (TypeError, ValueError):
+                pass
+
+            document = bytearray()
+            while True:
+                chunk = await response.content.read(min(64 * 1024, MAX_XML_DOCUMENT_BYTES + 1 - len(document)))
+                if not chunk:
+                    break
+                document.extend(chunk)
+                if len(document) > MAX_XML_DOCUMENT_BYTES:
+                    raise LegislationError("The legislation XML document is too large to search safely.")
             if not document:
                 raise LegislationError(
                     f"The New Zealand Legislation website returned HTTP {response.status} without an XML document."
                 )
-            total_bytes = len(document)
-            if offset >= total_bytes:
-                raise LegislationError("offset is outside the XML document.")
 
-            return _decode_xml_chunk(document[offset : offset + max_bytes + 3], total_bytes, offset, max_bytes)
+            return bytes(document)
+
+
+def _element_name(element: Any) -> str:
+    return element.tag.rsplit("}", 1)[-1]
+
+
+def _element_text(element: Any) -> str:
+    return " ".join(part.strip() for part in element.itertext() if part.strip())
+
+
+def _child_text(element: Any, name: str) -> str:
+    child = next((item for item in element if _element_name(item) == name), None)
+    return _element_text(child) if child is not None else ""
+
+
+def _search_xml_provisions(document: bytes, search_term: str, max_results: int) -> tuple[list[dict[str, Any]], int]:
+    try:
+        decoded = document.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise LegislationError("The legislation XML is not valid UTF-8.") from None
+    if not decoded.lstrip().startswith("<?xml"):
+        raise LegislationError("The New Zealand Legislation website returned an unexpected XML response.")
+    try:
+        root = ElementTree.fromstring(document)
+    except ElementTree.ParseError:
+        raise LegislationError("The New Zealand Legislation website returned malformed XML.") from None
+
+    needle = " ".join(search_term.split()).casefold()
+    matches = []
+    total_matches = 0
+    for element in root.iter():
+        if _element_name(element) != "prov":
+            continue
+        text = _element_text(element)
+        if needle not in text.casefold():
+            continue
+        total_matches += 1
+        if len(matches) >= max_results:
+            continue
+        matches.append(
+            {
+                "provision_id": element.get("id"),
+                "label": _child_text(element, "label"),
+                "heading": _child_text(element, "heading"),
+                "text": text[:MAX_PROVISION_TEXT_CHARS],
+                "text_truncated": len(text) > MAX_PROVISION_TEXT_CHARS,
+            }
+        )
+    return matches, total_matches
 
 
 @nz_legislation.action("search_legislation")
@@ -439,42 +485,36 @@ class GetVersionAction(ActionHandler):
             return _unexpected_error(context, "get_version", exc)
 
 
-@nz_legislation.action("get_version_xml")
-class GetVersionXmlAction(ActionHandler):
-    """Fetch a bounded chunk of the official XML source for a version."""
+@nz_legislation.action("search_version_xml")
+class SearchVersionXmlAction(ActionHandler):
+    """Search the official XML source for matching provisions."""
 
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
         version_id = inputs["version_id"]
-        offset = inputs.get("offset", 0)
-        max_bytes = inputs.get("max_bytes", DEFAULT_XML_CHUNK_BYTES)
         try:
+            search_term = inputs["search_term"].strip()
+            if not search_term:
+                raise LegislationError("search_term must include text to find.")
             source_url = _canonical_xml_url(version_id)
             api_key = _api_headers(context)["X-Api-Key"]
-            if offset == 0:
-                version_response = await _get_version_response(version_id, context)
-                version = _version(_object_response(version_response.data))
-                if version["version_id"] != version_id:
-                    raise LegislationError(
-                        "The New Zealand Legislation API returned a different version than requested."
-                    )
-                _trusted_xml_url(version["formats"])
-                rate_limit = _rate_limit(version_response.headers)
-            else:
-                rate_limit = {"limit": None, "remaining": None, "reset_at": None}
-            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(
-                source_url, api_key, offset, max_bytes
-            )
+            version_response = await _get_version_response(version_id, context)
+            version = _version(_object_response(version_response.data))
+            if version["version_id"] != version_id:
+                raise LegislationError("The New Zealand Legislation API returned a different version than requested.")
+            _trusted_xml_url(version["formats"])
+            document = await _fetch_xml_document(source_url, api_key)
+            matches, total_matches = _search_xml_provisions(document, search_term, inputs.get("max_results", 10))
             return ActionResult(
                 data={
                     "version_id": version_id,
                     "source_url": source_url,
-                    "xml": xml,
-                    "offset": offset,
-                    "returned_bytes": returned_bytes,
-                    "total_bytes": total_bytes,
-                    "truncated": next_offset is not None,
-                    "next_offset": next_offset,
-                    "rate_limit": rate_limit,
+                    "search_term": search_term,
+                    "matches": matches,
+                    "returned_matches": len(matches),
+                    "total_matches": total_matches,
+                    "has_more_matches": total_matches > len(matches),
+                    "document_bytes": len(document),
+                    "rate_limit": _rate_limit(version_response.headers),
                 }
             )
         except LegislationError as exc:
@@ -484,4 +524,4 @@ class GetVersionXmlAction(ActionHandler):
         except (aiohttp.ClientError, TimeoutError):
             return ActionError(message="The New Zealand Legislation website could not provide the XML document.")
         except Exception as exc:
-            return _unexpected_error(context, "get_version_xml", exc)
+            return _unexpected_error(context, "search_version_xml", exc)

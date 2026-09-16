@@ -418,9 +418,9 @@
         "additionalProperties": false
       }
     },
-    "get_version_xml": {
-      "display_name": "Get Legislation XML",
-      "description": "Gets a bounded UTF-8 chunk of the official XML source for a specific version. Call again with next_offset until truncated is false. XML is unavailable for some agency-published secondary legislation and scanned historical material.",
+    "search_version_xml": {
+      "display_name": "Search Legislation XML",
+      "description": "Downloads the official XML source for a specific version once and returns provisions containing a case-insensitive search term. XML is unavailable for some agency-published secondary legislation and scanned historical material.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -431,21 +431,21 @@
             "pattern": "^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$",
             "description": "Version identifier returned by search_legislation or list_versions."
           },
-          "offset": {
-            "type": "integer",
-            "minimum": 0,
-            "default": 0,
-            "description": "UTF-8 byte offset into the XML document. Start at 0 and use the previous response's next_offset to continue so offsets stay on character boundaries."
+          "search_term": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Case-insensitive text to find within complete provisions, for example burglary or search warrant."
           },
-          "max_bytes": {
+          "max_results": {
             "type": "integer",
-            "minimum": 1000,
-            "maximum": 100000,
-            "default": 20000,
-            "description": "Maximum UTF-8 bytes to return. A chunk may not be a standalone well-formed XML document."
+            "minimum": 1,
+            "maximum": 20,
+            "default": 10,
+            "description": "Maximum number of matching provisions to return."
           }
         },
-        "required": ["version_id"],
+        "required": ["version_id", "search_term"],
         "additionalProperties": false
       },
       "output_schema": {
@@ -453,18 +453,30 @@
         "properties": {
           "version_id": {"type": "string"},
           "source_url": {"type": "string"},
-          "xml": {
-            "type": "string",
-            "description": "The requested XML chunk decoded as UTF-8. Chunks after offset 0 may not be independently well-formed XML."
+          "search_term": {"type": "string"},
+          "matches": {
+            "type": "array",
+            "description": "Matching provisions in document order.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provision_id": {"type": ["string", "null"]},
+                "label": {"type": "string"},
+                "heading": {"type": "string"},
+                "text": {"type": "string"},
+                "text_truncated": {"type": "boolean"}
+              },
+              "required": ["provision_id", "label", "heading", "text", "text_truncated"],
+              "additionalProperties": false
+            }
           },
-          "offset": {"type": "integer"},
-          "returned_bytes": {"type": "integer"},
-          "total_bytes": {"type": "integer"},
-          "truncated": {"type": "boolean"},
-          "next_offset": {"type": ["integer", "null"]},
+          "returned_matches": {"type": "integer"},
+          "total_matches": {"type": "integer"},
+          "has_more_matches": {"type": "boolean"},
+          "document_bytes": {"type": "integer"},
           "rate_limit": {
             "type": "object",
-            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response. Values are null on continuation calls where offset is greater than zero; reset_at is a UTC Unix timestamp.",
+            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response; reset_at is a UTC Unix timestamp.",
             "properties": {
               "limit": {"type": ["integer", "null"]},
               "remaining": {"type": ["integer", "null"]},
@@ -477,12 +489,12 @@
         "required": [
           "version_id",
           "source_url",
-          "xml",
-          "offset",
-          "returned_bytes",
-          "total_bytes",
-          "truncated",
-          "next_offset",
+          "search_term",
+          "matches",
+          "returned_matches",
+          "total_matches",
+          "has_more_matches",
+          "document_bytes",
           "rate_limit"
         ],
         "additionalProperties": false
