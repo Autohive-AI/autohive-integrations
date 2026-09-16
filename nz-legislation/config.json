@@ -1,0 +1,496 @@
+{
+  "name": "nz-legislation",
+  "version": "1.0.0",
+  "display_name": "New Zealand Legislation",
+  "description": "Searches New Zealand legislation, retrieves version metadata, and reads official XML source documents.",
+  "entry_point": "nz_legislation.py",
+  "supports_billing": false,
+  "supports_connected_account": false,
+  "auth": {
+    "type": "custom",
+    "title": "New Zealand Legislation API key",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_key": {
+          "type": "string",
+          "format": "password",
+          "label": "API key",
+          "help_text": "Request an API key from contact@pco.govt.nz. Keep it private; keys are issued to a named person or organisation."
+        }
+      },
+      "required": ["api_key"],
+      "additionalProperties": false
+    }
+  },
+  "actions": {
+    "search_legislation": {
+      "display_name": "Search Legislation",
+      "description": "Searches legislation works by title or content and supports the official website filters. Returns one page; use page and has_next_page to continue. A matching content version may be older than the work's latest version, so inspect latest_matching_version.is_latest_version.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "search_term": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "Title or content query using the API's Elasticsearch simple-query-string syntax. Wrap a phrase in double quotes to disable stemming for that phrase. Omit to browse with filters."
+          },
+          "search_field": {
+            "type": "string",
+            "enum": ["title", "content"],
+            "description": "Search titles or full legislative content."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Result page to return."
+          },
+          "per_page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20,
+            "description": "Results per page."
+          },
+          "legislation_status": {
+            "type": "string",
+            "enum": ["in_force", "not_in_force", "no_value"],
+            "description": "Overall legislation status."
+          },
+          "legislation_type": {
+            "type": "string",
+            "enum": ["act", "amendment_paper", "bill", "secondary_legislation"],
+            "description": "Kind of legislation. Required when using type-specific filters."
+          },
+          "act_type": {
+            "type": "string",
+            "enum": ["public", "private", "imperial", "local", "provincial"],
+            "description": "Act subtype. Requires legislation_type=act."
+          },
+          "act_classification": {
+            "type": "string",
+            "enum": ["principal", "amendment"],
+            "description": "Act classification. Requires legislation_type=act."
+          },
+          "act_status": {
+            "type": "string",
+            "enum": ["in_force", "not_in_force", "repealed"],
+            "description": "Act status. Requires legislation_type=act."
+          },
+          "instrument_type_group": {
+            "type": "string",
+            "enum": [
+              "regulations",
+              "order",
+              "rules",
+              "code",
+              "bylaws",
+              "determination",
+              "exemption",
+              "notice",
+              "instrument",
+              "other_type"
+            ],
+            "description": "Secondary-legislation instrument group. Requires legislation_type=secondary_legislation."
+          },
+          "instrument_status": {
+            "type": "string",
+            "enum": ["expired", "in_force", "not_yet_in_force", "revoked", "superseded"],
+            "description": "Secondary-legislation status. Requires legislation_type=secondary_legislation."
+          },
+          "instrument_classification": {
+            "type": "string",
+            "enum": ["principal", "amendment"],
+            "description": "Secondary-legislation classification. Requires legislation_type=secondary_legislation."
+          },
+          "bill_type": {
+            "type": "string",
+            "enum": ["government", "local", "member", "private"],
+            "description": "Bill subtype. Requires legislation_type=bill."
+          },
+          "bill_status": {
+            "type": "string",
+            "enum": ["current", "enacted", "terminated"],
+            "description": "Bill status. Requires legislation_type=bill."
+          },
+          "administering_agencies": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Exact full agency name from https://www.legislation.govt.nz/browse/agencies."
+          },
+          "sort_by": {
+            "type": "string",
+            "enum": ["title_asc", "title_desc", "year_asc", "year_desc", "most_recently_updated"],
+            "description": "Result ordering."
+          },
+          "publisher": {
+            "type": "string",
+            "enum": ["Agency", "Parliamentary Counsel Office"],
+            "description": "Publishing source. Agency records from the pilot secondary-legislation service may be incomplete."
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "works": {
+            "type": "array",
+            "description": "Matching legislation works with publishing source, status, classification, agencies, and latest matching version metadata.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "work_id": {"type": "string"},
+                "legislation_status": {"type": ["string", "null"]},
+                "legislation_type": {"type": "string"},
+                "publisher": {"type": ["string", "null"]},
+                "administering_agencies": {"type": "array", "items": {"type": "string"}},
+                "act_classification": {"type": ["string", "null"]},
+                "act_status": {"type": ["string", "null"]},
+                "act_type": {"type": ["string", "null"]},
+                "bill_status": {"type": ["string", "null"]},
+                "bill_type": {"type": ["string", "null"]},
+                "instrument_classification": {"type": ["string", "null"]},
+                "instrument_status": {"type": ["string", "null"]},
+                "instrument_type_group": {"type": ["string", "null"]},
+                "latest_matching_version": {
+                  "type": "object",
+                  "properties": {
+                    "title": {"type": "string"},
+                    "version_id": {"type": "string"},
+                    "is_latest_version": {"type": "boolean"},
+                    "formats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {"type": {"type": "string"}, "url": {"type": "string"}},
+                        "required": ["type", "url"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["title", "version_id", "is_latest_version", "formats"],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "work_id",
+                "legislation_status",
+                "legislation_type",
+                "publisher",
+                "administering_agencies",
+                "act_classification",
+                "act_status",
+                "act_type",
+                "bill_status",
+                "bill_type",
+                "instrument_classification",
+                "instrument_status",
+                "instrument_type_group",
+                "latest_matching_version"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "page": {"type": "integer"},
+          "per_page": {"type": "integer"},
+          "total": {"type": "integer"},
+          "has_next_page": {"type": "boolean"},
+          "rate_limit": {
+            "type": "object",
+            "description": "Advisory daily API-key quota snapshot from this response. Values are not reserved for this execution; reset_at is a UTC Unix timestamp.",
+            "properties": {
+              "limit": {"type": ["integer", "null"]},
+              "remaining": {"type": ["integer", "null"]},
+              "reset_at": {"type": ["integer", "null"]}
+            },
+            "required": ["limit", "remaining", "reset_at"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["works", "page", "per_page", "total", "has_next_page", "rate_limit"],
+        "additionalProperties": false
+      }
+    },
+    "list_versions": {
+      "display_name": "List Legislation Versions",
+      "description": "Lists one page of versions for a legislation work, including each version's status, administering agencies, and available HTML, PDF, XML, or scan formats. Use page and has_next_page to continue.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "work_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9_~-]+$",
+            "description": "Work identifier returned by search_legislation, for example act_public_1990_109. Identifiers containing ~ are ephemeral and may change."
+          },
+          "sort": {
+            "type": "string",
+            "enum": ["asc", "desc"],
+            "default": "desc",
+            "description": "Version ordering by date."
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1,
+            "default": 1,
+            "description": "Version page to return."
+          },
+          "per_page": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20,
+            "description": "Versions per page."
+          }
+        },
+        "required": ["work_id"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "work_id": {"type": "string"},
+          "versions": {
+            "type": "array",
+            "description": "Versions with canonical identifiers, status, agencies, and format URLs.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {"type": "string"},
+                "version_id": {"type": "string"},
+                "work_id": {"type": "string"},
+                "legislation_status": {"type": ["string", "null"]},
+                "legislation_type": {"type": "string"},
+                "administering_agencies": {"type": "array", "items": {"type": "string"}},
+                "formats": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {"type": {"type": "string"}, "url": {"type": "string"}},
+                    "required": ["type", "url"],
+                    "additionalProperties": false
+                  }
+                },
+                "act_classification": {"type": ["string", "null"]},
+                "act_status": {"type": ["string", "null"]},
+                "act_type": {"type": ["string", "null"]},
+                "bill_status": {"type": ["string", "null"]},
+                "bill_type": {"type": ["string", "null"]},
+                "instrument_classification": {"type": ["string", "null"]},
+                "instrument_status": {"type": ["string", "null"]},
+                "instrument_type_group": {"type": ["string", "null"]}
+              },
+              "required": [
+                "title",
+                "version_id",
+                "work_id",
+                "legislation_status",
+                "legislation_type",
+                "administering_agencies",
+                "formats",
+                "act_classification",
+                "act_status",
+                "act_type",
+                "bill_status",
+                "bill_type",
+                "instrument_classification",
+                "instrument_status",
+                "instrument_type_group"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "page": {"type": "integer"},
+          "per_page": {"type": "integer"},
+          "count": {"type": "integer"},
+          "total": {"type": "integer"},
+          "has_next_page": {"type": "boolean"},
+          "rate_limit": {
+            "type": "object",
+            "description": "Advisory daily API-key quota snapshot from this response. Values are not reserved for this execution; reset_at is a UTC Unix timestamp.",
+            "properties": {
+              "limit": {"type": ["integer", "null"]},
+              "remaining": {"type": ["integer", "null"]},
+              "reset_at": {"type": ["integer", "null"]}
+            },
+            "required": ["limit", "remaining", "reset_at"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "work_id",
+          "versions",
+          "page",
+          "per_page",
+          "count",
+          "total",
+          "has_next_page",
+          "rate_limit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "get_version": {
+      "display_name": "Get Legislation Version",
+      "description": "Gets canonical metadata and available format links for a specific legislation version.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 250,
+            "pattern": "^[A-Za-z0-9_~-]+$",
+            "description": "Version identifier returned by search_legislation or list_versions, for example act_public_1990_109_en_2022-08-30. Identifiers containing ~ are ephemeral and may change."
+          }
+        },
+        "required": ["version_id"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "object",
+            "description": "Version metadata with identifiers, status, classification, agencies, and available format URLs.",
+            "properties": {
+              "title": {"type": "string"},
+              "version_id": {"type": "string"},
+              "work_id": {"type": "string"},
+              "legislation_status": {"type": ["string", "null"]},
+              "legislation_type": {"type": "string"},
+              "administering_agencies": {"type": "array", "items": {"type": "string"}},
+              "formats": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {"type": {"type": "string"}, "url": {"type": "string"}},
+                  "required": ["type", "url"],
+                  "additionalProperties": false
+                }
+              },
+              "act_classification": {"type": ["string", "null"]},
+              "act_status": {"type": ["string", "null"]},
+              "act_type": {"type": ["string", "null"]},
+              "bill_status": {"type": ["string", "null"]},
+              "bill_type": {"type": ["string", "null"]},
+              "instrument_classification": {"type": ["string", "null"]},
+              "instrument_status": {"type": ["string", "null"]},
+              "instrument_type_group": {"type": ["string", "null"]}
+            },
+            "required": [
+              "title",
+              "version_id",
+              "work_id",
+              "legislation_status",
+              "legislation_type",
+              "administering_agencies",
+              "formats",
+              "act_classification",
+              "act_status",
+              "act_type",
+              "bill_status",
+              "bill_type",
+              "instrument_classification",
+              "instrument_status",
+              "instrument_type_group"
+            ],
+            "additionalProperties": false
+          },
+          "rate_limit": {
+            "type": "object",
+            "description": "Advisory daily API-key quota snapshot from this response. Values are not reserved for this execution; reset_at is a UTC Unix timestamp.",
+            "properties": {
+              "limit": {"type": ["integer", "null"]},
+              "remaining": {"type": ["integer", "null"]},
+              "reset_at": {"type": ["integer", "null"]}
+            },
+            "required": ["limit", "remaining", "reset_at"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["version", "rate_limit"],
+        "additionalProperties": false
+      }
+    },
+    "get_version_xml": {
+      "display_name": "Get Legislation XML",
+      "description": "Gets a bounded UTF-8 byte range of the official XML source for a specific version. Call again with next_offset until truncated is false. XML is unavailable for some agency-published secondary legislation and scanned historical material.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 250,
+            "pattern": "^[A-Za-z0-9_~-]+$",
+            "description": "Version identifier returned by search_legislation or list_versions."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "UTF-8 byte offset into the XML document. Start at 0 and use the previous response's next_offset to continue so offsets stay on character boundaries."
+          },
+          "max_bytes": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 100000,
+            "default": 20000,
+            "description": "Maximum UTF-8 bytes to return. A chunk may not be a standalone well-formed XML document."
+          }
+        },
+        "required": ["version_id"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "version_id": {"type": "string"},
+          "work_id": {"type": "string"},
+          "title": {"type": "string"},
+          "source_url": {"type": "string"},
+          "xml": {
+            "type": "string",
+            "description": "The requested XML byte range decoded as UTF-8. Chunks after offset 0 may not be independently well-formed XML."
+          },
+          "offset": {"type": "integer"},
+          "returned_bytes": {"type": "integer"},
+          "total_bytes": {"type": "integer"},
+          "truncated": {"type": "boolean"},
+          "next_offset": {"type": ["integer", "null"]},
+          "rate_limit": {
+            "type": "object",
+            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response. Values are not reserved for this execution; reset_at is a UTC Unix timestamp.",
+            "properties": {
+              "limit": {"type": ["integer", "null"]},
+              "remaining": {"type": ["integer", "null"]},
+              "reset_at": {"type": ["integer", "null"]}
+            },
+            "required": ["limit", "remaining", "reset_at"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "version_id",
+          "work_id",
+          "title",
+          "source_url",
+          "xml",
+          "offset",
+          "returned_bytes",
+          "total_bytes",
+          "truncated",
+          "next_offset",
+          "rate_limit"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}
