@@ -216,6 +216,39 @@ class TestAuthentication:
         assert "API key" in result.result.message
 
 
+class TestGetVersionXml:
+    async def test_returns_raw_xml_chunks_for_general_access(self, live_context):
+        first = await nz_legislation.execute_action(
+            "get_version_xml",
+            {"version_id": KNOWN_VERSION_ID, "max_bytes": 1000},
+            live_context,
+        )
+
+        assert first.type == ResultType.ACTION, first.result
+        first_data = first.result.data
+        assert first_data["xml"].startswith("<?xml")
+        assert first_data["truncated"] is True
+        assert first_data["next_offset"] == first_data["returned_bytes"]
+
+        second = await nz_legislation.execute_action(
+            "get_version_xml",
+            {
+                "version_id": KNOWN_VERSION_ID,
+                "offset": first_data["next_offset"],
+                "max_bytes": 1000,
+            },
+            live_context,
+        )
+
+        assert second.type == ResultType.ACTION, second.result
+        second_data = second.result.data
+        assert second_data["offset"] == first_data["next_offset"]
+        assert second_data["xml"] != first_data["xml"]
+        assert second_data["total_bytes"] == first_data["total_bytes"]
+        assert second_data["rate_limit"] == {"limit": None, "remaining": None, "reset_at": None}
+        assert live_context.fetch.await_count == 1
+
+
 class TestSearchVersionXml:
     async def test_finds_current_crimes_act_burglary_provisions(self, live_context):
         result = await nz_legislation.execute_action(

@@ -11,6 +11,7 @@ from nz_legislation import (
     MAX_XML_DOCUMENT_BYTES,
     LegislationError,
     _canonical_xml_url,
+    _decode_xml_chunk,
     _fetch_xml_document,
     _rate_limit,
     _search_xml_provisions,
@@ -124,6 +125,25 @@ class TestHelpers:
     def test_trusted_xml_url_reports_unavailable_format(self):
         with pytest.raises(LegislationError, match="does not provide"):
             _trusted_xml_url([{"type": "pdf", "url": "https://www.legislation.govt.nz/a.pdf"}])
+
+    def test_xml_chunk_preserves_utf8_character_boundaries(self):
+        prefix = b'<?xml version="1.0"?>'
+        document = prefix + b"a" * (999 - len(prefix)) + "ā".encode() + b"z"
+
+        xml, returned_bytes, total_bytes, next_offset = _decode_xml_chunk(document, offset=0, max_bytes=1000)
+
+        assert xml == prefix.decode() + "a" * (999 - len(prefix))
+        assert returned_bytes == 999
+        assert total_bytes == len(document)
+        assert next_offset == 999
+
+    def test_xml_chunk_validates_the_full_document_prefix_on_continuation(self):
+        with pytest.raises(LegislationError, match="unexpected XML response"):
+            _decode_xml_chunk(b"skip!abcdefghi", offset=5, max_bytes=4)
+
+    def test_xml_chunk_rejects_offset_outside_document(self):
+        with pytest.raises(LegislationError, match="offset is outside"):
+            _decode_xml_chunk(b"<?xml version='1.0'?><act/>", offset=100, max_bytes=1000)
 
     def test_search_xml_provisions_returns_complete_matching_provisions(self):
         document = (
@@ -290,6 +310,7 @@ class TestSharedErrors:
             ("search_legislation", {}),
             ("list_versions", {"work_id": WORK_ID}),
             ("get_version", {"version_id": VERSION_ID}),
+            ("get_version_xml", {"version_id": VERSION_ID}),
             ("search_version_xml", {"version_id": VERSION_ID, "search_term": "rights"}),
         ],
     )
@@ -310,6 +331,7 @@ class TestSharedErrors:
             ("search_legislation", {}),
             ("list_versions", {"work_id": WORK_ID}),
             ("get_version", {"version_id": VERSION_ID}),
+            ("get_version_xml", {"version_id": VERSION_ID}),
             ("search_version_xml", {"version_id": VERSION_ID, "search_term": "rights"}),
         ],
     )
@@ -334,6 +356,7 @@ class TestSharedErrors:
             ("search_legislation", {}),
             ("list_versions", {"work_id": WORK_ID}),
             ("get_version", {"version_id": VERSION_ID}),
+            ("get_version_xml", {"version_id": VERSION_ID}),
             ("search_version_xml", {"version_id": VERSION_ID, "search_term": "rights"}),
         ],
     )
@@ -595,6 +618,69 @@ class TestGetVersion:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "requested version" in result.result.message
+
+
+class TestGetVersionXml:
+    async def test_returns_first_raw_xml_chunk(self, mock_context):
+        document = b"<?xml version='1.0'?><act>law</act>"
+        mock_context.fetch.return_value = response(SAMPLE_VERSION)
+
+        with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock, return_value=document) as fetch_xml:
+            result = await nz_legislation.execute_action(
+                "get_version_xml", {"version_id": VERSION_ID, "max_bytes": 1000}, mock_context
+            )
+
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["version_id"] == VERSION_ID
+        assert data["source_url"] == CANONICAL_XML_URL
+        assert data["xml"] == document.decode()
+        assert data["offset"] == 0
+        assert data["returned_bytes"] == data["total_bytes"] == len(document)
+        assert data["truncated"] is False
+        assert data["next_offset"] is None
+        assert data["rate_limit"]["remaining"] == 9998
+        fetch_xml.assert_awaited_once_with(CANONICAL_XML_URL, "test_api_key")
+
+    async def test_continuation_returns_raw_chunk_without_metadata_request(self, mock_context):
+        document = b"<?xml version='1.0'?><act>abcdefghij</act>"
+        offset = document.index(b"abcdefghij")
+
+        with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock, return_value=document) as fetch_xml:
+            result = await nz_legislation.execute_action(
+                "get_version_xml",
+                {"version_id": VERSION_ID, "offset": offset, "max_bytes": 1000},
+                mock_context,
+            )
+
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["xml"] == "abcdefghij</act>"
+        assert data["offset"] == offset
+        assert data["next_offset"] is None
+        assert data["rate_limit"] == {"limit": None, "remaining": None, "reset_at": None}
+        mock_context.fetch.assert_not_called()
+        fetch_xml.assert_awaited_once_with(CANONICAL_XML_URL, "test_api_key")
+
+    async def test_rejects_metadata_for_a_different_version_before_xml_fetch(self, mock_context):
+        version = {**SAMPLE_VERSION, "version_id": "act_public_1991_1_en_1991-01-01"}
+        mock_context.fetch.return_value = response(version)
+
+        with patch("nz_legislation._fetch_xml_document", new_callable=AsyncMock) as fetch_xml:
+            result = await nz_legislation.execute_action("get_version_xml", {"version_id": VERSION_ID}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "different version" in result.result.message
+        fetch_xml.assert_not_awaited()
+
+    @pytest.mark.parametrize("max_bytes", [999, 100001])
+    async def test_chunk_size_bounds_are_schema_validated(self, mock_context, max_bytes):
+        result = await nz_legislation.execute_action(
+            "get_version_xml", {"version_id": VERSION_ID, "max_bytes": max_bytes}, mock_context
+        )
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
 
 
 class TestSearchVersionXml:

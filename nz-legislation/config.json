@@ -418,6 +418,76 @@
         "additionalProperties": false
       }
     },
+    "get_version_xml": {
+      "display_name": "Get Legislation XML",
+      "description": "Gets a bounded raw UTF-8 chunk of the official XML source for a specific version. Use search_version_xml for efficient provision lookup; use this action when exact XML markup or non-provision content is required.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "version_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 250,
+            "pattern": "^[A-Za-z0-9~-]+(?:_[A-Za-z0-9~-]+){5}$",
+            "description": "Version identifier returned by search_legislation or list_versions."
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "UTF-8 byte offset into the XML document. Start at 0 and use the previous response's next_offset to continue so offsets stay on character boundaries."
+          },
+          "max_bytes": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 100000,
+            "default": 20000,
+            "description": "Maximum UTF-8 bytes to return. A chunk may not be a standalone well-formed XML document."
+          }
+        },
+        "required": ["version_id"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "version_id": {"type": "string"},
+          "source_url": {"type": "string"},
+          "xml": {
+            "type": "string",
+            "description": "The requested XML chunk decoded as UTF-8. Chunks after offset 0 may not be independently well-formed XML."
+          },
+          "offset": {"type": "integer"},
+          "returned_bytes": {"type": "integer"},
+          "total_bytes": {"type": "integer"},
+          "truncated": {"type": "boolean"},
+          "next_offset": {"type": ["integer", "null"]},
+          "rate_limit": {
+            "type": "object",
+            "description": "Advisory daily API-key quota snapshot from the authenticated metadata response. Values are null on continuation calls where offset is greater than zero; reset_at is a UTC Unix timestamp.",
+            "properties": {
+              "limit": {"type": ["integer", "null"]},
+              "remaining": {"type": ["integer", "null"]},
+              "reset_at": {"type": ["integer", "null"]}
+            },
+            "required": ["limit", "remaining", "reset_at"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "version_id",
+          "source_url",
+          "xml",
+          "offset",
+          "returned_bytes",
+          "total_bytes",
+          "truncated",
+          "next_offset",
+          "rate_limit"
+        ],
+        "additionalProperties": false
+      }
+    },
     "search_version_xml": {
       "display_name": "Search Legislation XML",
       "description": "Downloads the official XML source for a specific version once and returns provisions containing a case-insensitive search term. XML is unavailable for some agency-published secondary legislation and scanned historical material.",

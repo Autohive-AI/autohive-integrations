@@ -31,6 +31,7 @@ Keep the key confidential. The [API terms of use](https://www.legislation.govt.n
 | `search_legislation` | Search or browse legislation works with the API's complete documented filter set |
 | `list_versions` | List a page of versions and formats available for a work |
 | `get_version` | Get canonical metadata and format links for one version |
+| `get_version_xml` | Read raw XML chunks when exact markup or non-provision content is required |
 | `search_version_xml` | Search an official XML source document for matching provisions |
 
 ### `search_legislation`
@@ -120,6 +121,34 @@ Example input:
 ```json
 {
   "version_id": "act_public_1990_109_en_2022-08-30"
+}
+```
+
+### `get_version_xml`
+
+Returns bounded raw UTF-8 chunks from the official XML source. This action preserves access to exact XML markup, schedules, notes, and other content outside `<prov>` elements. Use `search_version_xml` instead when looking for provisions by text.
+
+The first call verifies the version and XML format through the metadata API. Each call downloads the complete XML document with one authenticated request before selecting the requested chunk. Continuation calls therefore repeat the full XML download; they exist for general raw access, not efficient provision research.
+
+**Inputs**
+
+- `version_id` (string, required) — Version to retrieve.
+- `offset` (integer, optional, default `0`) — UTF-8 byte offset. Start at `0`, then use the returned `next_offset`.
+- `max_bytes` (integer, optional, default `20000`, range `1000`–`100000`) — Maximum bytes to return.
+
+**Outputs**
+
+- `version_id`, `source_url` — Requested version and canonical official XML URL.
+- `xml` — Raw XML chunk.
+- `offset`, `returned_bytes`, `total_bytes` — Byte-position and document-size metadata.
+- `truncated`, `next_offset` — Continuation state.
+- `rate_limit` — Metadata request quota state; values are null on continuation calls.
+
+```json
+{
+  "version_id": "act_public_1990_109_en_2022-08-30",
+  "offset": 0,
+  "max_bytes": 20000
 }
 ```
 
