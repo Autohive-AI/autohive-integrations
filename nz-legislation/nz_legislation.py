@@ -1,0 +1,435 @@
+"""Read-only integration for the New Zealand Legislation Data API."""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+from urllib.parse import quote, urlparse
+
+import aiohttp
+from autohive_integrations_sdk import (
+    ActionError,
+    ActionHandler,
+    ActionResult,
+    ExecutionContext,
+    HTTPError,
+    Integration,
+    RateLimitError,
+)
+
+nz_legislation = Integration.load()
+
+API_BASE_URL = "https://api.legislation.govt.nz/v0"
+OFFICIAL_CONTENT_HOSTS = {"legislation.govt.nz", "www.legislation.govt.nz"}
+DEFAULT_XML_CHUNK_BYTES = 20_000
+_CONTENT_RANGE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
+_UNEXPECTED_ERROR = (
+    "The New Zealand Legislation integration hit an unexpected error handling this request. "
+    "Check your inputs and try again."
+)
+_ACT_FILTERS = {"act_type", "act_classification", "act_status"}
+_INSTRUMENT_FILTERS = {"instrument_type_group", "instrument_status", "instrument_classification"}
+_BILL_FILTERS = {"bill_type", "bill_status"}
+_VERSION_FIELDS = (
+    "act_classification",
+    "act_status",
+    "act_type",
+    "bill_status",
+    "bill_type",
+    "instrument_classification",
+    "instrument_status",
+    "instrument_type_group",
+)
+
+
+class LegislationError(Exception):
+    """An expected integration error whose message is safe to show to users."""
+
+
+def _api_headers(context: ExecutionContext) -> dict[str, str]:
+    auth = context.auth or {}
+    credentials = auth.get("credentials", {}) if isinstance(auth, dict) else {}
+    api_key = credentials.get("api_key") if isinstance(credentials, dict) else None
+    if not isinstance(api_key, str) or not api_key.strip():
+        raise LegislationError("A New Zealand Legislation API key is required.")
+    return {"Accept": "application/json", "X-Api-Key": api_key.strip()}
+
+
+def _rate_limit(headers: Any) -> dict[str, int | None]:
+    normalised = {str(key).lower(): value for key, value in (headers or {}).items()}
+
+    def parse(name: str) -> int | None:
+        value = normalised.get(name)
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    return {
+        "limit": parse("x-ratelimit-limit"),
+        "remaining": parse("x-ratelimit-remaining"),
+        "reset_at": parse("x-ratelimit-reset"),
+    }
+
+
+def _formats(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    formats = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        format_type, url = item.get("type"), item.get("url")
+        if isinstance(format_type, str) and isinstance(url, str):
+            formats.append({"type": format_type, "url": url})
+    return formats
+
+
+def _agencies(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [agency for agency in value if isinstance(agency, str)]
+
+
+def _version(data: dict[str, Any]) -> dict[str, Any]:
+    result = {
+        "title": data.get("title") if isinstance(data.get("title"), str) else None,
+        "version_id": data.get("version_id") if isinstance(data.get("version_id"), str) else None,
+        "work_id": data.get("work_id") if isinstance(data.get("work_id"), str) else None,
+        "legislation_status": (
+            data.get("legislation_status") if isinstance(data.get("legislation_status"), str) else None
+        ),
+        "legislation_type": data.get("legislation_type") if isinstance(data.get("legislation_type"), str) else None,
+        "administering_agencies": _agencies(data.get("administering_agencies")),
+        "formats": _formats(data.get("formats")),
+    }
+    for field in _VERSION_FIELDS:
+        result[field] = data.get(field) if isinstance(data.get(field), str) else None
+    return result
+
+
+def _work(data: dict[str, Any]) -> dict[str, Any]:
+    matching = data.get("latest_matching_version")
+    latest_matching_version = None
+    if isinstance(matching, dict):
+        latest_matching_version = {
+            "title": matching.get("title") if isinstance(matching.get("title"), str) else None,
+            "version_id": matching.get("version_id") if isinstance(matching.get("version_id"), str) else None,
+            "is_latest_version": (
+                matching.get("is_latest_version") if isinstance(matching.get("is_latest_version"), bool) else None
+            ),
+            "formats": _formats(matching.get("formats")),
+        }
+    result = {
+        "work_id": data.get("work_id") if isinstance(data.get("work_id"), str) else None,
+        "legislation_status": (
+            data.get("legislation_status") if isinstance(data.get("legislation_status"), str) else None
+        ),
+        "legislation_type": data.get("legislation_type") if isinstance(data.get("legislation_type"), str) else None,
+        "administering_agencies": _agencies(data.get("administering_agencies")),
+        "latest_matching_version": latest_matching_version,
+    }
+    for field in _VERSION_FIELDS:
+        result[field] = data.get(field) if isinstance(data.get(field), str) else None
+    return result
+
+
+def _object_response(data: Any) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
+    return data
+
+
+def _results(data: dict[str, Any]) -> list[dict[str, Any]]:
+    results = data.get("results")
+    if not isinstance(results, list):
+        raise LegislationError("The New Zealand Legislation API returned an unexpected response.")
+    return [item for item in results if isinstance(item, dict)]
+
+
+def _int_or_default(value: Any, default: int) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else default
+
+
+def _validate_search_filters(inputs: dict[str, Any]) -> None:
+    legislation_type = inputs.get("legislation_type")
+    supplied = set(inputs)
+    if supplied & _ACT_FILTERS and legislation_type != "act":
+        raise LegislationError("Act filters require legislation_type='act'.")
+    if supplied & _INSTRUMENT_FILTERS and legislation_type != "secondary_legislation":
+        raise LegislationError("Instrument filters require legislation_type='secondary_legislation'.")
+    if supplied & _BILL_FILTERS and legislation_type != "bill":
+        raise LegislationError("Bill filters require legislation_type='bill'.")
+
+
+def _http_error(exc: HTTPError, *, resource: str = "request") -> ActionError:
+    if isinstance(exc, RateLimitError):
+        retry_after = max(1, getattr(exc, "retry_after", 60))
+        return ActionError(
+            message=(
+                f"The New Zealand Legislation API daily rate limit has been reached. Retry after {retry_after} seconds."
+            )
+        )
+    if exc.status == 400:
+        return ActionError(message="The New Zealand Legislation API rejected the request. Check the supplied inputs.")
+    if exc.status == 401:
+        return ActionError(message="The New Zealand Legislation API rejected the API key. Check the connected account.")
+    if exc.status == 403:
+        return ActionError(
+            message=(
+                "The New Zealand Legislation API refused the request. Its per-IP burst limit may have been reached; "
+                "wait five minutes before retrying."
+            )
+        )
+    if exc.status == 404:
+        return ActionError(message=f"The New Zealand Legislation API could not find the requested {resource}.")
+    return ActionError(message="The New Zealand Legislation service could not complete the request. Try again later.")
+
+
+def _trusted_xml_url(formats: list[dict[str, str]]) -> str:
+    xml_url = next((item["url"] for item in formats if item["type"].lower() == "xml"), None)
+    if not xml_url:
+        raise LegislationError("This version does not provide an XML format.")
+    parsed = urlparse(xml_url)
+    try:
+        port = parsed.port
+    except ValueError:
+        raise LegislationError("The API returned an untrusted XML format URL, so it was not fetched.") from None
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname not in OFFICIAL_CONTENT_HOSTS
+        or port not in (None, 443)
+        or parsed.username is not None
+        or parsed.password is not None
+    ):
+        raise LegislationError("The API returned an untrusted XML format URL, so it was not fetched.")
+    return xml_url
+
+
+async def _get_version_response(version_id: str, context: ExecutionContext):
+    encoded_id = quote(version_id, safe="")
+    return await context.fetch(
+        f"{API_BASE_URL}/versions/{encoded_id}/",
+        method="GET",
+        headers=_api_headers(context),
+    )
+
+
+def _decode_xml_range(body: bytes, content_range: str, offset: int, max_bytes: int) -> tuple[str, int, int, int | None]:
+    match = _CONTENT_RANGE.fullmatch(content_range)
+    if not match:
+        raise LegislationError("The New Zealand Legislation website returned an invalid XML byte range.")
+    range_start, range_end, total_bytes = (int(value) for value in match.groups())
+    if range_start != offset or range_end < range_start or range_end >= total_bytes:
+        raise LegislationError("The New Zealand Legislation website returned an invalid XML byte range.")
+    if len(body) != range_end - range_start + 1:
+        raise LegislationError("The New Zealand Legislation website returned an incomplete XML byte range.")
+
+    returned_bytes = min(max_bytes, len(body))
+    while returned_bytes:
+        try:
+            xml = body[:returned_bytes].decode("utf-8")
+            break
+        except UnicodeDecodeError as exc:
+            if exc.start < returned_bytes - 3:
+                raise LegislationError("The legislation XML is not valid UTF-8 at the requested offset.") from None
+            returned_bytes -= 1
+    else:
+        raise LegislationError("The legislation XML is not valid UTF-8 at the requested offset.")
+
+    if offset == 0 and not xml.lstrip("\ufeff \t\r\n").startswith("<?xml"):
+        raise LegislationError("The New Zealand Legislation website returned an unexpected XML response.")
+
+    next_offset = offset + returned_bytes
+    return xml, returned_bytes, total_bytes, next_offset if next_offset < total_bytes else None
+
+
+async def _fetch_xml_chunk(source_url: str, offset: int, max_bytes: int) -> tuple[str, int, int, int | None]:
+    """Read a bounded UTF-8 byte range without downloading the complete XML document."""
+    requested_end = offset + max_bytes + 2
+    timeout = aiohttp.ClientTimeout(total=30)
+    headers = {
+        "Accept": "application/xml",
+        "Accept-Encoding": "identity",
+        "Range": f"bytes={offset}-{requested_end}",
+    }
+
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.get(source_url, headers=headers, allow_redirects=False, ssl=True) as response:
+            if response.status == 404:
+                raise LegislationError("The New Zealand Legislation website could not find the requested XML document.")
+            if response.status == 416:
+                raise LegislationError("offset is outside the XML document's byte range.")
+            if response.status == 403:
+                raise LegislationError("The New Zealand Legislation website refused the XML document request.")
+            if response.status == 429:
+                raise LegislationError("The New Zealand Legislation website temporarily rate-limited XML requests.")
+            if response.status >= 500:
+                raise LegislationError("The New Zealand Legislation website could not provide the XML document.")
+            if response.status != 206:
+                raise LegislationError("The New Zealand Legislation website did not return a bounded XML byte range.")
+
+            content_type = response.headers.get("Content-Type", "").partition(";")[0].strip().lower()
+            if content_type not in {"application/xml", "text/xml"}:
+                raise LegislationError("The New Zealand Legislation website returned an unexpected XML response.")
+
+            body = bytearray()
+            async for chunk in response.content.iter_chunked(16_384):
+                body.extend(chunk)
+                if len(body) > max_bytes + 3:
+                    raise LegislationError("The New Zealand Legislation website exceeded the requested XML byte range.")
+
+            return _decode_xml_range(bytes(body), response.headers.get("Content-Range", ""), offset, max_bytes)
+
+
+@nz_legislation.action("search_legislation")
+class SearchLegislationAction(ActionHandler):
+    """Search legislation works using the official site-search filters."""
+
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
+        page, per_page = inputs.get("page", 1), inputs.get("per_page", 20)
+        try:
+            _validate_search_filters(inputs)
+            optional_params = {
+                "search_term": inputs.get("search_term"),
+                "search_field": inputs.get("search_field"),
+                "legislation_status": inputs.get("legislation_status"),
+                "legislation_type": inputs.get("legislation_type"),
+                "act_type": inputs.get("act_type"),
+                "act_classification": inputs.get("act_classification"),
+                "act_status": inputs.get("act_status"),
+                "instrument_type_group": inputs.get("instrument_type_group"),
+                "instrument_status": inputs.get("instrument_status"),
+                "instrument_classification": inputs.get("instrument_classification"),
+                "bill_type": inputs.get("bill_type"),
+                "bill_status": inputs.get("bill_status"),
+                "administering_agencies": inputs.get("administering_agencies"),
+                "sort_by": inputs.get("sort_by"),
+                "publisher": inputs.get("publisher"),
+            }
+            params = {key: value for key, value in optional_params.items() if value is not None}
+            params.update({"page": page, "per_page": per_page})
+            response = await context.fetch(
+                f"{API_BASE_URL}/works/",
+                method="GET",
+                headers=_api_headers(context),
+                params=params,
+            )
+            data = _object_response(response.data)
+            total = _int_or_default(data.get("total"), 0)
+            response_page = _int_or_default(data.get("page"), page)
+            response_per_page = _int_or_default(data.get("per_page"), per_page)
+            return ActionResult(
+                data={
+                    "works": [_work(item) for item in _results(data)],
+                    "page": response_page,
+                    "per_page": response_per_page,
+                    "total": total,
+                    "has_next_page": response_page * response_per_page < total,
+                    "rate_limit": _rate_limit(response.headers),
+                }
+            )
+        except LegislationError as exc:
+            return ActionError(message=str(exc))
+        except HTTPError as exc:
+            return _http_error(exc)
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
+
+
+@nz_legislation.action("list_versions")
+class ListVersionsAction(ActionHandler):
+    """List one page of versions advertised for a legislation work."""
+
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
+        work_id = inputs["work_id"]
+        page, per_page = inputs.get("page", 1), inputs.get("per_page", 20)
+        try:
+            response = await context.fetch(
+                f"{API_BASE_URL}/works/{quote(work_id, safe='')}/versions/",
+                method="GET",
+                headers=_api_headers(context),
+                params={"sort": inputs.get("sort", "desc"), "page": page, "per_page": per_page},
+            )
+            data = _object_response(response.data)
+            versions = [_version(item) for item in _results(data)]
+            total = _int_or_default(data.get("total"), len(versions))
+            response_page = _int_or_default(data.get("page"), page)
+            response_per_page = _int_or_default(data.get("per_page"), per_page)
+            return ActionResult(
+                data={
+                    "work_id": work_id,
+                    "versions": versions,
+                    "page": response_page,
+                    "per_page": response_per_page,
+                    "count": len(versions),
+                    "total": total,
+                    "has_next_page": response_page * response_per_page < total,
+                    "rate_limit": _rate_limit(response.headers),
+                }
+            )
+        except LegislationError as exc:
+            return ActionError(message=str(exc))
+        except HTTPError as exc:
+            return _http_error(exc, resource="work")
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
+
+
+@nz_legislation.action("get_version")
+class GetVersionAction(ActionHandler):
+    """Get metadata and available formats for one legislation version."""
+
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
+        try:
+            response = await _get_version_response(inputs["version_id"], context)
+            return ActionResult(
+                data={
+                    "version": _version(_object_response(response.data)),
+                    "rate_limit": _rate_limit(response.headers),
+                }
+            )
+        except LegislationError as exc:
+            return ActionError(message=str(exc))
+        except HTTPError as exc:
+            return _http_error(exc, resource="version")
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
+
+
+@nz_legislation.action("get_version_xml")
+class GetVersionXmlAction(ActionHandler):
+    """Fetch a bounded byte range of the official XML source for a version."""
+
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
+        version_id = inputs["version_id"]
+        offset = inputs.get("offset", 0)
+        max_bytes = inputs.get("max_bytes", DEFAULT_XML_CHUNK_BYTES)
+        try:
+            version_response = await _get_version_response(version_id, context)
+            version = _version(_object_response(version_response.data))
+            source_url = _trusted_xml_url(version["formats"])
+            xml, returned_bytes, total_bytes, next_offset = await _fetch_xml_chunk(source_url, offset, max_bytes)
+            return ActionResult(
+                data={
+                    "version_id": version_id,
+                    "work_id": version["work_id"],
+                    "title": version["title"],
+                    "source_url": source_url,
+                    "xml": xml,
+                    "offset": offset,
+                    "returned_bytes": returned_bytes,
+                    "total_bytes": total_bytes,
+                    "truncated": next_offset is not None,
+                    "next_offset": next_offset,
+                    "rate_limit": _rate_limit(version_response.headers),
+                }
+            )
+        except LegislationError as exc:
+            return ActionError(message=str(exc))
+        except HTTPError as exc:
+            return _http_error(exc, resource="version")
+        except (aiohttp.ClientError, TimeoutError):
+            return ActionError(message="The New Zealand Legislation website could not provide the XML document.")
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
