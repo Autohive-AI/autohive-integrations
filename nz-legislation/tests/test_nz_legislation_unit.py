@@ -158,7 +158,7 @@ class TestHelpers:
         session_context.__aexit__ = AsyncMock(return_value=False)
 
         with patch("nz_legislation.aiohttp.ClientSession", return_value=session_context):
-            with pytest.raises(LegislationError, match="unexpected XML response"):
+            with pytest.raises(LegislationError, match="content type text/html, not XML"):
                 await _fetch_xml_chunk(XML_URL, offset=1000, max_bytes=2000)
 
         request = session.get.call_args
@@ -190,7 +190,7 @@ class TestHelpers:
     async def test_xml_fetch_uses_normal_get_and_returns_bounded_chunk(self):
         document = b"skip!abcdefghi"
         response = MagicMock(
-            status=200,
+            status=202,
             headers={"Content-Type": "application/xml"},
         )
         response.read = AsyncMock(return_value=document)
@@ -213,6 +213,22 @@ class TestHelpers:
 
         request = session.get.call_args
         assert "Range" not in request.kwargs["headers"]
+
+    async def test_xml_fetch_reports_success_response_without_xml_body(self):
+        response = MagicMock(status=202, headers={"Content-Type": "application/xml"})
+        response.read = AsyncMock(return_value=b"")
+        response_context = MagicMock()
+        response_context.__aenter__ = AsyncMock(return_value=response)
+        response_context.__aexit__ = AsyncMock(return_value=False)
+        session = MagicMock()
+        session.get.return_value = response_context
+        session_context = MagicMock()
+        session_context.__aenter__ = AsyncMock(return_value=session)
+        session_context.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("nz_legislation.aiohttp.ClientSession", return_value=session_context):
+            with pytest.raises(LegislationError, match="HTTP 202 without an XML document"):
+                await _fetch_xml_chunk(XML_URL, offset=0, max_bytes=1000)
 
     async def test_xml_fetch_rejects_offset_at_end_of_document(self):
         response = MagicMock(status=200, headers={"Content-Type": "application/xml"})

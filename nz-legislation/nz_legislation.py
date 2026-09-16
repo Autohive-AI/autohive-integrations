@@ -285,16 +285,23 @@ async def _fetch_xml_chunk(source_url: str, offset: int, max_bytes: int) -> tupl
                 raise LegislationError("The New Zealand Legislation website temporarily rate-limited XML requests.")
             if response.status >= 500:
                 raise LegislationError("The New Zealand Legislation website could not provide the XML document.")
-            if response.status != 200:
+            if not 200 <= response.status < 300:
                 raise LegislationError(
                     f"The New Zealand Legislation website returned an unexpected HTTP {response.status} response."
                 )
 
             content_type = response.headers.get("Content-Type", "").partition(";")[0].strip().lower()
             if content_type not in {"application/xml", "text/xml"}:
-                raise LegislationError("The New Zealand Legislation website returned an unexpected XML response.")
+                raise LegislationError(
+                    "The New Zealand Legislation website returned "
+                    f"HTTP {response.status} with content type {content_type or 'missing'}, not XML."
+                )
 
             document = await response.read()
+            if not document:
+                raise LegislationError(
+                    f"The New Zealand Legislation website returned HTTP {response.status} without an XML document."
+                )
             total_bytes = len(document)
             if offset >= total_bytes:
                 raise LegislationError("offset is outside the XML document.")
