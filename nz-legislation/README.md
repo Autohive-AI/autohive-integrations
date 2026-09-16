@@ -54,7 +54,7 @@ Searches titles or legislative content. If `search_term` is omitted, the action 
 
 **Outputs**
 
-- `works` — Matching works with classifications, status, agencies, and `latest_matching_version`.
+- `works` — Matching works with publishing source, classifications, status, agencies, and `latest_matching_version`.
 - `page`, `per_page`, `total`, `has_next_page` — Pagination state.
 - `rate_limit` — Advisory snapshot of the daily key quota: limit, remaining requests, and UTC Unix reset timestamp. Concurrent requests may consume quota after the snapshot.
 

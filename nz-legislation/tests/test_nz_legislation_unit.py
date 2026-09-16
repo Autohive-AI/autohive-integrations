@@ -45,6 +45,7 @@ SAMPLE_WORK = {
     "work_id": WORK_ID,
     "legislation_status": "in_force",
     "legislation_type": "act",
+    "publisher": "Parliamentary Counsel Office",
     "administering_agencies": ["Ministry of Justice"],
     "act_type": "public",
     "act_status": "in_force",
@@ -224,6 +225,28 @@ class TestSharedErrors:
         assert "private" not in result.result.message
         fetch_xml.assert_not_awaited()
 
+    @pytest.mark.parametrize(
+        "action, inputs",
+        [
+            ("search_legislation", {}),
+            ("list_versions", {"work_id": WORK_ID}),
+            ("get_version", {"version_id": VERSION_ID}),
+            ("get_version_xml", {"version_id": VERSION_ID}),
+        ],
+    )
+    async def test_unexpected_errors_are_logged_without_blaming_inputs(self, mock_context, action, inputs):
+        mock_context.fetch.side_effect = RuntimeError("private programming detail")
+
+        result = await nz_legislation.execute_action(action, inputs, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "unexpected error" in result.result.message
+        assert "inputs" not in result.result.message
+        assert "private programming detail" not in result.result.message
+        mock_context.logger.exception.assert_called_once_with(
+            "Unexpected error executing New Zealand Legislation action %s", action
+        )
+
 
 class TestSearchLegislation:
     async def test_returns_normalised_work_and_pagination(self, mock_context):
@@ -238,6 +261,7 @@ class TestSearchLegislation:
         assert result.type == ResultType.ACTION
         data = result.result.data
         assert data["works"][0]["work_id"] == WORK_ID
+        assert data["works"][0]["publisher"] == "Parliamentary Counsel Office"
         assert data["works"][0]["latest_matching_version"]["is_latest_version"] is True
         assert data["has_next_page"] is True
         assert data["rate_limit"]["remaining"] == 9998
@@ -273,6 +297,14 @@ class TestSearchLegislation:
         await nz_legislation.execute_action("search_legislation", {}, mock_context)
 
         assert mock_context.fetch.call_args.kwargs["params"] == {"page": 1, "per_page": 20}
+
+    async def test_rejects_a_search_page_the_provider_did_not_honour(self, mock_context):
+        mock_context.fetch.return_value = response({"results": [], "page": 1, "per_page": 20, "total": 100})
+
+        result = await nz_legislation.execute_action("search_legislation", {"page": 2, "per_page": 20}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "did not honour the requested search page" in result.result.message
 
     @pytest.mark.parametrize(
         "inputs, expected",
@@ -314,6 +346,7 @@ class TestSearchLegislation:
         "path, invalid_value",
         [
             (("work_id",), None),
+            (("publisher",), 42),
             (("administering_agencies",), ["Ministry of Justice", 42]),
             (("latest_matching_version",), None),
             (("latest_matching_version", "title"), None),

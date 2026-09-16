@@ -139,13 +139,14 @@
         "properties": {
           "works": {
             "type": "array",
-            "description": "Matching legislation works with status, classification, agencies, and latest matching version metadata.",
+            "description": "Matching legislation works with publishing source, status, classification, agencies, and latest matching version metadata.",
             "items": {
               "type": "object",
               "properties": {
                 "work_id": {"type": "string"},
                 "legislation_status": {"type": ["string", "null"]},
                 "legislation_type": {"type": "string"},
+                "publisher": {"type": ["string", "null"]},
                 "administering_agencies": {"type": "array", "items": {"type": "string"}},
                 "act_classification": {"type": ["string", "null"]},
                 "act_status": {"type": ["string", "null"]},
@@ -179,6 +180,7 @@
                 "work_id",
                 "legislation_status",
                 "legislation_type",
+                "publisher",
                 "administering_agencies",
                 "act_classification",
                 "act_status",

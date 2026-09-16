@@ -77,6 +77,7 @@ class TestSearchLegislation:
         assert len(data["works"]) <= 5
         assert data["total"] >= len(data["works"])
         assert all(work["work_id"] for work in data["works"])
+        assert all(work["publisher"] in {"Agency", "Parliamentary Counsel Office"} for work in data["works"])
         assert all(work["latest_matching_version"] for work in data["works"])
         assert data["rate_limit"]["limit"] > 0
 
@@ -88,16 +89,20 @@ class TestSearchLegislation:
                 "act_status": "in_force",
                 "publisher": "Parliamentary Counsel Office",
                 "sort_by": "year_desc",
+                "page": 2,
                 "per_page": 2,
             },
             live_context,
         )
 
         assert result.type == ResultType.ACTION, result.result
-        works = result.result.data["works"]
+        data = result.result.data
+        works = data["works"]
+        assert data["page"] == 2
         assert len(works) == 2
         assert all(work["legislation_type"] == "act" for work in works)
         assert all(work["act_status"] == "in_force" for work in works)
+        assert all(work["publisher"] == "Parliamentary Counsel Office" for work in works)
 
 
 class TestListVersions:

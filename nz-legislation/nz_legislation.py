@@ -24,8 +24,7 @@ OFFICIAL_CONTENT_HOSTS = {"legislation.govt.nz", "www.legislation.govt.nz"}
 DEFAULT_XML_CHUNK_BYTES = 20_000
 _CONTENT_RANGE = re.compile(r"^bytes (\d+)-(\d+)/(\d+)$")
 _UNEXPECTED_ERROR = (
-    "The New Zealand Legislation integration hit an unexpected error handling this request. "
-    "Check your inputs and try again."
+    "The New Zealand Legislation integration hit an unexpected error handling this request. Try again later."
 )
 _NETWORK_ERROR = "The New Zealand Legislation service could not complete the request. Try again later."
 _ACT_FILTERS = {"act_type", "act_classification", "act_status"}
@@ -143,6 +142,7 @@ def _work(data: dict[str, Any]) -> dict[str, Any]:
         "work_id": _required_string(data, "work_id"),
         "legislation_status": _nullable_string(data, "legislation_status"),
         "legislation_type": _required_string(data, "legislation_type"),
+        "publisher": _nullable_string(data, "publisher"),
         "administering_agencies": _agencies(data.get("administering_agencies")),
         "latest_matching_version": latest_matching_version,
     }
@@ -197,6 +197,11 @@ def _http_error(exc: HTTPError, *, resource: str = "request") -> ActionError:
     if exc.status == 404:
         return ActionError(message=f"The New Zealand Legislation API could not find the requested {resource}.")
     return ActionError(message=_NETWORK_ERROR)
+
+
+def _unexpected_error(context: ExecutionContext, action: str) -> ActionError:
+    context.logger.exception("Unexpected error executing New Zealand Legislation action %s", action)
+    return ActionError(message=_UNEXPECTED_ERROR)
 
 
 def _trusted_xml_url(formats: list[dict[str, str]]) -> str:
@@ -332,6 +337,8 @@ class SearchLegislationAction(ActionHandler):
             total = _required_int(data, "total", 0)
             response_page = _required_int(data, "page", 1)
             response_per_page = _required_int(data, "per_page", 1)
+            if response_page != page or response_per_page != per_page:
+                raise LegislationError("The New Zealand Legislation API did not honour the requested search page.")
             return ActionResult(
                 data={
                     "works": [_work(item) for item in _results(data)],
@@ -349,7 +356,7 @@ class SearchLegislationAction(ActionHandler):
         except (aiohttp.ClientError, TimeoutError):
             return ActionError(message=_NETWORK_ERROR)
         except Exception:
-            return ActionError(message=_UNEXPECTED_ERROR)
+            return _unexpected_error(context, "search_legislation")
 
 
 @nz_legislation.action("list_versions")
@@ -394,7 +401,7 @@ class ListVersionsAction(ActionHandler):
         except (aiohttp.ClientError, TimeoutError):
             return ActionError(message=_NETWORK_ERROR)
         except Exception:
-            return ActionError(message=_UNEXPECTED_ERROR)
+            return _unexpected_error(context, "list_versions")
 
 
 @nz_legislation.action("get_version")
@@ -417,7 +424,7 @@ class GetVersionAction(ActionHandler):
         except (aiohttp.ClientError, TimeoutError):
             return ActionError(message=_NETWORK_ERROR)
         except Exception:
-            return ActionError(message=_UNEXPECTED_ERROR)
+            return _unexpected_error(context, "get_version")
 
 
 @nz_legislation.action("get_version_xml")
@@ -455,4 +462,4 @@ class GetVersionXmlAction(ActionHandler):
         except (aiohttp.ClientError, TimeoutError):
             return ActionError(message="The New Zealand Legislation website could not provide the XML document.")
         except Exception:
-            return ActionError(message=_UNEXPECTED_ERROR)
+            return _unexpected_error(context, "get_version_xml")
