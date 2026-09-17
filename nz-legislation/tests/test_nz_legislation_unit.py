@@ -471,6 +471,7 @@ class TestSearchLegislation:
         [
             (HTTPError(401, "Invalid API key: test_api_key", {}), "rejected the API key"),
             (HTTPError(403, "Forbidden: test_api_key", {}), "burst limit"),
+            (HTTPError(422, "Invalid request: test_api_key", {}), "cannot be completed as submitted"),
             (HTTPError(500, "Internal Server Error: test_api_key", {}), "Try again later"),
         ],
     )

@@ -199,6 +199,13 @@ def _http_error(exc: HTTPError, *, resource: str = "request") -> ActionError:
         )
     if exc.status == 404:
         return ActionError(message=f"The New Zealand Legislation API could not find the requested {resource}.")
+    if 400 <= exc.status < 500:
+        return ActionError(
+            message=(
+                f"The New Zealand Legislation API rejected the request with HTTP {exc.status}. "
+                "It cannot be completed as submitted."
+            )
+        )
     return ActionError(message=_NETWORK_ERROR)
 
 
