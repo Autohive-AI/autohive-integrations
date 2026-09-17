@@ -31,6 +31,91 @@ def graphql_mock(monkeypatch, *, return_value=None, side_effect=None):
     return mock
 
 
+@pytest.mark.parametrize("field", ["inventory_item_ids", "location_ids"])
+async def test_inventory_rejects_more_than_250_ids_before_request(monkeypatch, context, field):
+    graphql = graphql_mock(monkeypatch)
+    result = await module.GetInventoryLevelsHandler().execute(
+        {field: ",".join(str(value) for value in range(251))}, context
+    )
+    assert result.message == f"{field} supports at most 250 IDs; split the request into smaller groups"
+    graphql.assert_not_awaited()
+
+
+@pytest.mark.parametrize("field", ["inventory_item_ids", "location_ids"])
+async def test_inventory_accepts_250_ids(monkeypatch, context, field):
+    graphql = graphql_mock(monkeypatch, return_value={"nodes": []})
+    result = await module.GetInventoryLevelsHandler().execute(
+        {field: ",".join(str(value) for value in range(250)), "limit": 1}, context
+    )
+    assert result.data["success"] is True
+    assert len(graphql.await_args.args[2]["ids"]) == 250
+    assert graphql.await_args.args[2]["first"] == 1
+
+
+@pytest.mark.parametrize("key", ["stock take #42", " a/b?c=d%é "])
+async def test_inventory_encodes_reference_uri_without_changing_idempotency_key(monkeypatch, context, key):
+    from urllib.parse import unquote, urlsplit
+
+    graphql = graphql_mock(monkeypatch, return_value={"inventorySetQuantities": {"userErrors": []}})
+    result = await module.SetInventoryLevelHandler().execute(
+        {"inventory_item_id": "8", "location_id": "6", "available": 12, "idempotency_key": key}, context
+    )
+    assert result.data["success"] is True
+    variables = graphql.await_args.args[2]
+    assert variables["idempotencyKey"] == key
+    uri = variables["input"]["referenceDocumentUri"]
+    assert " " not in uri
+    parsed = urlsplit(uri)
+    assert not parsed.query and not parsed.fragment
+    assert unquote(parsed.path.rsplit("/", 1)[1]) == key
+
+
+@pytest.mark.parametrize("connection", ["fulfillmentOrders", "lineItems"])
+async def test_create_fulfillment_rejects_incomplete_connections_before_mutation(monkeypatch, context, connection):
+    orders = {
+        "nodes": [{"id": "gid://shopify/FulfillmentOrder/900", "lineItems": {"nodes": []}}],
+        "pageInfo": {"hasNextPage": False},
+    }
+    target = orders if connection == "fulfillmentOrders" else orders["nodes"][0]["lineItems"]
+    target["pageInfo"] = {"hasNextPage": True, "endCursor": "next-page"}
+    graphql = graphql_mock(monkeypatch, return_value={"order": {"fulfillmentOrders": orders}})
+    result = await module.CreateFulfillmentHandler().execute({"order_id": "500", "location_id": "300"}, context)
+    assert "incomplete" in result.message
+    assert "no fulfillment was created" in result.message
+    graphql.assert_awaited_once()
+    assert "pageInfo { hasNextPage endCursor }" in graphql.await_args.args[1]
+
+
+@pytest.mark.parametrize("total,precision", [(251, "EXACT"), (250, "AT_LEAST"), (250, None)])
+async def test_list_fulfillments_rejects_truncated_or_uncertain_results(monkeypatch, context, total, precision):
+    graphql_mock(
+        monkeypatch,
+        return_value={
+            "order": {
+                "fulfillments": [{"id": "gid://shopify/Fulfillment/1"}] * 250,
+                "fulfillmentsCount": {"count": total, "precision": precision},
+            }
+        },
+    )
+    result = await module.ListFulfillmentsHandler().execute({"order_id": "500"}, context)
+    assert "incomplete" in result.message
+    assert "fulfillmentsCount { count precision }" in module.ORDER_FULFILLMENTS_QUERY
+
+
+async def test_list_fulfillments_accepts_exactly_250_complete_results(monkeypatch, context):
+    graphql_mock(
+        monkeypatch,
+        return_value={
+            "order": {
+                "fulfillments": [{"id": "gid://shopify/Fulfillment/1"}] * 250,
+                "fulfillmentsCount": {"count": 250, "precision": "EXACT"},
+            }
+        },
+    )
+    result = await module.ListFulfillmentsHandler().execute({"order_id": "500"}, context)
+    assert result.data["count"] == 250
+
+
 CUSTOMER_NODE = {
     "id": "gid://shopify/Customer/1",
     "defaultEmailAddress": {"emailAddress": "buyer@example.com"},

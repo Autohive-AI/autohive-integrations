@@ -86,6 +86,29 @@ def test_build_fulfillment_order_payload_rejects_unmatched_items():
         )
 
 
+@pytest.mark.parametrize("requested_id", ["101", "gid://shopify/LineItem/101"])
+def test_fulfillment_matches_order_line_item_only_despite_numeric_collision(requested_id):
+    orders = fulfillment_orders_response()
+    orders[0]["line_items"].insert(0, {"id": 101, "line_item_id": 999, "fulfillable_quantity": 2})
+    payload = build_fulfillment_order_payload(orders, "300", [{"id": requested_id, "quantity": 1}])
+    assert payload[0]["fulfillmentOrderLineItems"] == [
+        {"id": "gid://shopify/FulfillmentOrderLineItem/901", "quantity": 1}
+    ]
+
+
+def test_fulfillment_rejects_fulfillment_order_item_id_as_order_item_id():
+    with pytest.raises(ValueError, match="Line items not fulfillable"):
+        build_fulfillment_order_payload(fulfillment_orders_response(), "300", [{"id": "901", "quantity": 1}])
+
+
+@pytest.mark.parametrize("duplicate_id", ["101", "gid://shopify/LineItem/101"])
+def test_fulfillment_rejects_duplicate_normalized_line_item_ids(duplicate_id):
+    with pytest.raises(ValueError, match="Duplicate order line item id 101"):
+        build_fulfillment_order_payload(
+            fulfillment_orders_response(), "300", [{"id": "101", "quantity": 1}, {"id": duplicate_id, "quantity": 1}]
+        )
+
+
 def test_build_fulfillment_order_payload_excludes_orders_without_create_action():
     fulfillment_orders = fulfillment_orders_response()
     fulfillment_orders.insert(

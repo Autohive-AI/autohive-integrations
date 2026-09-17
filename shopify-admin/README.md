@@ -199,10 +199,13 @@ response also includes the updated order. The action does not poll pending jobs.
 
 #### `get_inventory_levels`
 Get inventory levels by location or item IDs.
+Each of `inventory_item_ids` and `location_ids` accepts at most 250 comma-separated IDs. Split larger lists into
+separate requests; `limit` caps the overall number of inventory levels returned per request.
 
 #### `set_inventory_level`
 Set inventory level for an item at a location. Pass a unique `idempotency_key` for the operation and reuse that key
 when retrying the same request. If omitted, the integration generates a key for the initial attempt.
+The original key is sent to Shopify unchanged, while its reference-document URI component is URL-encoded.
 
 #### `list_locations`
 List all store locations.
@@ -242,12 +245,17 @@ Delete a draft order.
 
 #### `list_fulfillments`
 List fulfillments for an order.
+Returns an explicit error if Shopify's fulfillment count indicates that the first 250 results are incomplete.
 
 #### `create_fulfillment`
 Create a fulfillment for an order using Shopify's fulfillment-order workflow. The action discovers fulfillment orders
 for the supplied `order_id`, selects those assigned to `location_id`, and submits them through the 2026-07 GraphQL
 mutation. When `line_items` is omitted, all fulfillable items at that location are fulfilled. Otherwise, provide order
 line item IDs and quantities, for example `[{"id": "123", "quantity": 1}]`.
+Only order line-item IDs are matched, not fulfillment-order line-item IDs. Duplicate IDs (including a numeric ID
+and its equivalent GID) are rejected; provide each order line item once.
+If there are more than 250 fulfillment orders or more than 250 line items in a fulfillment order, the action returns
+an explicit incomplete-data error before creating any fulfillment.
 
 With the documented `write_merchant_managed_fulfillment_orders` scope, this action can access only fulfillment orders
 assigned to merchant-managed locations. Fulfillment orders assigned to an app-managed or third-party fulfillment

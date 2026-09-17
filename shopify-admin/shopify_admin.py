@@ -35,6 +35,7 @@ from autohive_integrations_sdk import (
 import re
 from time import monotonic
 from uuid import uuid4
+from urllib.parse import quote
 from typing import Dict, Any
 
 # Create the integration using the config.json
@@ -634,7 +635,10 @@ def build_fulfillment_order_payload(fulfillment_orders: list, location_id: str, 
     for line_item in requested_line_items:
         if not isinstance(line_item, dict) or line_item.get("id") is None:
             raise ValueError("Each line_items entry must include an order line item id")
-        requested_by_id[from_gid(line_item["id"])] = line_item
+        requested_id = from_gid(line_item["id"])
+        if requested_id in requested_by_id:
+            raise ValueError(f"Duplicate order line item id {requested_id}; provide each line item only once")
+        requested_by_id[requested_id] = line_item
 
     available_line_items = []
     for order_index, fulfillment_order in enumerate(eligible_orders):
@@ -657,9 +661,7 @@ def build_fulfillment_order_payload(fulfillment_orders: list, location_id: str, 
 
     allocations_by_order = {}
     for requested_id, requested in requested_by_id.items():
-        matches = [item for item in available_line_items if item["id"] == requested_id]
-        if not matches:
-            matches = [item for item in available_line_items if item["line_item_id"] == requested_id]
+        matches = [item for item in available_line_items if item["line_item_id"] == requested_id]
         if not matches:
             raise ValueError(f"Line items not fulfillable at location {location_id}: {requested_id}")
 
@@ -1144,7 +1146,10 @@ FULFILLMENT_FIELDS = """
 """
 ORDER_FULFILLMENTS_QUERY = f"""
 query OrderFulfillments($id: ID!) {{
-  order(id: $id) {{ fulfillments(first: 250) {{ {FULFILLMENT_FIELDS} }} }}
+  order(id: $id) {{
+    fulfillments(first: 250) {{ {FULFILLMENT_FIELDS} }}
+    fulfillmentsCount {{ count precision }}
+  }}
 }}
 """
 FULFILLMENT_ORDERS_QUERY = """
@@ -1154,8 +1159,12 @@ query FulfillmentOrders($id: ID!) {
       nodes {
         id supportedActions { action }
         assignedLocation { location { id } }
-        lineItems(first: 250) { nodes { id totalQuantity remainingQuantity lineItem { id } } }
+        lineItems(first: 250) {
+          nodes { id totalQuantity remainingQuantity lineItem { id } }
+          pageInfo { hasNextPage endCursor }
+        }
       }
+      pageInfo { hasNextPage endCursor }
     }
   }
 }
@@ -1855,6 +1864,9 @@ class GetInventoryLevelsHandler(ActionHandler):
         try:
             item_ids = comma_list(inputs.get("inventory_item_ids"))
             location_ids = comma_list(inputs.get("location_ids"))
+            for field, ids in (("inventory_item_ids", item_ids), ("location_ids", location_ids)):
+                if len(ids) > 250:
+                    raise ValueError(f"{field} supports at most 250 IDs; split the request into smaller groups")
             if not item_ids and not location_ids:
                 return error_response(
                     "Either inventory_item_ids or location_ids is required",
@@ -1909,13 +1921,13 @@ class SetInventoryLevelHandler(ActionHandler):
         try:
             inventory_item_id = to_gid("InventoryItem", inputs["inventory_item_id"])
             location_id = to_gid("Location", inputs["location_id"])
-            requested_idempotency_key = str(inputs.get("idempotency_key") or "").strip()
-            idempotency_key = requested_idempotency_key or str(uuid4())
+            requested_idempotency_key = str(inputs.get("idempotency_key") or "")
+            idempotency_key = requested_idempotency_key if requested_idempotency_key.strip() else str(uuid4())
             variables = {
                 "input": {
                     "name": "available",
                     "reason": "correction",
-                    "referenceDocumentUri": f"autohive://shopify-admin/inventory/{idempotency_key}",
+                    "referenceDocumentUri": f"autohive://shopify-admin/inventory/{quote(idempotency_key, safe='')}",
                     "quantities": [
                         {
                             "inventoryItemId": inventory_item_id,
@@ -2168,6 +2180,11 @@ class ListFulfillmentsHandler(ActionHandler):
             fulfillments = [
                 transform_fulfillment_response(item) for item in connection_nodes(order.get("fulfillments", {}))
             ]
+            total = order.get("fulfillmentsCount") or {}
+            if total.get("count", len(fulfillments)) > len(fulfillments) or (
+                len(fulfillments) == 250 and total.get("precision") != "EXACT"
+            ):
+                raise ValueError("Fulfillment results are incomplete: this action supports at most 250 fulfillments")
             return success_response(fulfillments=fulfillments, count=len(fulfillments))
         except Exception as e:
             return error_response(e, fulfillments=[], count=0)
@@ -2185,7 +2202,14 @@ class CreateFulfillmentHandler(ActionHandler):
             if not order:
                 raise ValueError(f"Order {inputs['order_id']} was not found")
             fulfillment_orders = []
-            for fulfillment_order in connection_nodes(order.get("fulfillmentOrders", {})):
+            orders_connection = order.get("fulfillmentOrders", {})
+            if (orders_connection.get("pageInfo") or {}).get("hasNextPage"):
+                raise ValueError("Fulfillment orders are incomplete: more than 250 orders; no fulfillment was created")
+            for fulfillment_order in connection_nodes(orders_connection):
+                if ((fulfillment_order.get("lineItems") or {}).get("pageInfo") or {}).get("hasNextPage"):
+                    raise ValueError(
+                        "Fulfillment line items are incomplete: more than 250 items; no fulfillment was created"
+                    )
                 fulfillment_orders.append(
                     {
                         "id": from_gid(fulfillment_order.get("id", "")),
