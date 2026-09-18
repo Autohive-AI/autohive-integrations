@@ -1,5 +1,6 @@
 """OpenRouteService geocoding and drive-time isochrone actions."""
 
+import base64
 import json
 from typing import Any
 
@@ -29,6 +30,29 @@ LOW_CONFIDENCE_THRESHOLD = 0.8
 # Isochrones are compute-heavy. The SDK default is 30s with 3 retries; a timeout
 # after the provider already billed the request would charge the daily quota again.
 ISOCHRONE_TIMEOUT_SECONDS = 90
+_POLYGON_TYPES = {"Polygon", "MultiPolygon"}
+_RETRY_SAFE_ERRORS = {"rate_limit", "request_failed"}
+_ERROR_RECOVERY = {
+    "rate_limit": "Wait retry_after_seconds, then retry the same request.",
+    "quota_exceeded": "Check the HeiGIT dashboard. Do not retry until the daily window resets.",
+    "quota_or_unauthorized": "Check the HeiGIT dashboard and the API key. Do not retry shortly.",
+    "authentication": "Update the OpenRouteService API key on this connection.",
+    "authorization": "Check the API key is enabled for this service. Do not retry the same request.",
+    "invalid_request": "Correct the inputs, then send a new request.",
+    "not_found": "Check the coordinates or address. Retrying the same request will not help.",
+    "not_acceptable": "This is an integration issue. Do not retry the same request.",
+    "provider_error": "Check the request. Retrying may help if the provider is temporarily unavailable.",
+    "request_failed": "Retry shortly.",
+}
+_ISOCHRONE_NO_RETRY = "Do not retry immediately. The isochrone may already have been billed against the daily quota."
+_INVALID_REQUEST_RECOVERY = {
+    "address": "Correct the address, then send a new request.",
+    "time_minutes": "Correct the coordinates or time bands, then send a new request.",
+}
+
+
+class MissingApiKeyError(ValueError):
+    """Raised only when the connection has no usable OpenRouteService API key."""
 
 
 def _api_key(context: ExecutionContext) -> str:
@@ -38,7 +62,7 @@ def _api_key(context: ExecutionContext) -> str:
     if isinstance(api_key, str):
         api_key = api_key.strip()
     if not api_key:
-        raise ValueError("An OpenRouteService API key is required. Add one to this integration connection.")
+        raise MissingApiKeyError("An OpenRouteService API key is required. Add one to this integration connection.")
     return api_key
 
 
@@ -115,16 +139,45 @@ def _classify_forbidden(error: HTTPError) -> tuple[str, str]:
     )
 
 
-def _provider_error(error: Exception) -> ActionResult:
+def _error_payload(
+    error_type: str,
+    message: str,
+    *,
+    retry_after_seconds: int | None = None,
+    field: str | None = None,
+    valid_alternatives: list[Any] | None = None,
+    retry_safe: bool | None = None,
+    recovery: str | None = None,
+) -> dict[str, Any]:
+    """Compact corrective error. Never includes provider bodies, HTML, or credentials."""
+    return {
+        "result": False,
+        "error_type": error_type,
+        "error_code": error_type,
+        "retry_after_seconds": retry_after_seconds,
+        "message": message,
+        "field": field,
+        "valid_alternatives": valid_alternatives or [],
+        "recovery": recovery or _ERROR_RECOVERY.get(error_type, "Check the inputs and try again."),
+        "retry_safe": (error_type in _RETRY_SAFE_ERRORS) if retry_safe is None else retry_safe,
+    }
+
+
+def _provider_error(
+    error: Exception,
+    *,
+    invalid_request_field: str | None = None,
+    retry_safe_on_request_failed: bool = True,
+    retry_safe_on_provider_error: bool = True,
+) -> ActionResult:
     """Return safe, actionable provider errors without exposing request credentials."""
     if isinstance(error, RateLimitError):
         return ActionResult(
-            data={
-                "result": False,
-                "error_type": "rate_limit",
-                "retry_after_seconds": error.retry_after,
-                "message": "OpenRouteService rate limit reached. Try again after the retry interval.",
-            },
+            data=_error_payload(
+                "rate_limit",
+                "OpenRouteService rate limit reached. Try again after the retry interval.",
+                retry_after_seconds=error.retry_after,
+            ),
             cost_usd=0.0,
         )
 
@@ -132,60 +185,215 @@ def _provider_error(error: Exception) -> ActionResult:
         if error.status == 401:
             message = "OpenRouteService rejected the API key. Check the integration connection."
             error_type = "authentication"
+            field = None
         elif error.status == 403:
             error_type, message = _classify_forbidden(error)
+            field = None
         elif error.status == 400:
-            message = "OpenRouteService rejected the request. Check the supplied coordinates or time bands."
             error_type = "invalid_request"
+            field = invalid_request_field
+            if invalid_request_field == "address":
+                message = "OpenRouteService rejected the request. Check the supplied address."
+            elif invalid_request_field == "time_minutes":
+                message = "OpenRouteService rejected the request. Check the supplied coordinates or time bands."
+            else:
+                message = (
+                    "OpenRouteService rejected the request. "
+                    "Check the supplied coordinates, time bands, or other inputs."
+                )
+            recovery = _INVALID_REQUEST_RECOVERY.get(invalid_request_field or "")
+            if not recovery:
+                recovery = (
+                    "Correct the coordinates or time bands if those were wrong, then send a new request."
+                    if not retry_safe_on_request_failed
+                    else _ERROR_RECOVERY["invalid_request"]
+                )
+            return ActionResult(
+                data=_error_payload(error_type, message, field=field, recovery=recovery),
+                cost_usd=0.0,
+            )
         elif error.status == 404:
             message = (
                 "OpenRouteService found no result for this request. "
                 "Check the coordinates or address; retrying will not help."
             )
             error_type = "not_found"
+            field = None
         elif error.status == 406:
             message = (
                 "OpenRouteService rejected the requested response format. Check the API endpoint and Accept header."
             )
             error_type = "not_acceptable"
+            field = None
         else:
-            message = f"OpenRouteService returned HTTP {error.status}. Try again shortly."
             error_type = "provider_error"
+            field = None
+            if retry_safe_on_provider_error:
+                message = f"OpenRouteService returned HTTP {error.status}. Try again shortly."
+            else:
+                message = f"OpenRouteService returned HTTP {error.status}."
+        retry_safe = retry_safe_on_provider_error if error_type == "provider_error" else None
+        recovery = None
+        if error_type == "provider_error" and not retry_safe_on_provider_error:
+            recovery = _ISOCHRONE_NO_RETRY
         return ActionResult(
-            data={"result": False, "error_type": error_type, "retry_after_seconds": None, "message": message},
+            data=_error_payload(error_type, message, field=field, retry_safe=retry_safe, recovery=recovery),
             cost_usd=0.0,
         )
 
     if isinstance(error, ProviderResponseError):
         return ActionResult(
-            data={
-                "result": False,
-                "error_type": "provider_error",
-                "retry_after_seconds": None,
-                "message": str(error),
-            },
+            data=_error_payload(
+                "provider_error",
+                str(error),
+                retry_safe=retry_safe_on_provider_error,
+                recovery=None if retry_safe_on_provider_error else _ISOCHRONE_NO_RETRY,
+            ),
+            cost_usd=0.0,
+        )
+
+    if isinstance(error, MissingApiKeyError):
+        return ActionResult(
+            data=_error_payload(
+                "invalid_request",
+                str(error),
+                field=None,
+                recovery="Add a valid OpenRouteService API key to this connection.",
+            ),
             cost_usd=0.0,
         )
 
     if isinstance(error, ValueError):
         return ActionResult(
-            data={"result": False, "error_type": "invalid_request", "retry_after_seconds": None, "message": str(error)},
+            data=_error_payload(
+                "invalid_request",
+                str(error),
+                field=invalid_request_field,
+                recovery=_INVALID_REQUEST_RECOVERY.get(invalid_request_field or "", _ERROR_RECOVERY["invalid_request"]),
+            ),
             cost_usd=0.0,
         )
 
+    if retry_safe_on_request_failed:
+        message = "OpenRouteService could not complete this request. Try again shortly."
+        recovery = _ERROR_RECOVERY["request_failed"]
+    else:
+        message = "OpenRouteService could not complete this isochrone request."
+        recovery = _ISOCHRONE_NO_RETRY
     return ActionResult(
-        data={
-            "result": False,
-            "error_type": "request_failed",
-            "retry_after_seconds": None,
-            "message": "OpenRouteService could not complete this request. Try again shortly.",
-        },
+        data=_error_payload(
+            "request_failed",
+            message,
+            retry_safe=retry_safe_on_request_failed,
+            recovery=recovery,
+        ),
         cost_usd=0.0,
     )
 
 
 def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _idle_error_fields(*, message: str | None = None) -> dict[str, Any]:
+    return {
+        "error_type": None,
+        "error_code": None,
+        "retry_after_seconds": None,
+        "message": message,
+        "field": None,
+        "valid_alternatives": None,
+        "recovery": None,
+        "retry_safe": None,
+    }
+
+
+def _string_or_none(value: Any) -> str | None:
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _band_minutes(properties: dict[str, Any]) -> int | None:
+    """Stable whole-minute band from feature properties. ORS stores `value` in seconds."""
+    existing = properties.get("time_minutes")
+    if isinstance(existing, int) and not isinstance(existing, bool) and existing >= 1:
+        return existing
+    value = properties.get("value")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    minutes = float(value) / 60.0
+    rounded = round(minutes)
+    if abs(minutes - rounded) > 1e-9 or rounded < 1:
+        return None
+    return int(rounded)
+
+
+def _engine_fields(metadata: Any) -> dict[str, str | None]:
+    meta = _as_dict(metadata)
+    engine = _as_dict(meta.get("engine"))
+    return {
+        "attribution": _string_or_none(meta.get("attribution")),
+        "engine_version": _string_or_none(engine.get("version")),
+        "build_date": _string_or_none(engine.get("build_date")),
+        "graph_date": _string_or_none(engine.get("graph_date")),
+        "osm_date": _string_or_none(engine.get("osm_date")) or _string_or_none(meta.get("osm_date")),
+    }
+
+
+def _platform_file(name: str, content_type: str, body: str | bytes) -> dict[str, str]:
+    raw = body.encode("utf-8") if isinstance(body, str) else body
+    return {
+        "name": name,
+        "contentType": content_type,
+        "content": base64.b64encode(raw).decode("ascii"),
+    }
+
+
+def _geojson_export_file(geojson: dict[str, Any]) -> dict[str, str] | None:
+    """Return a platform file, or None if the GeoJSON cannot be serialized."""
+    try:
+        return _platform_file(
+            "isochrones.geojson",
+            "application/geo+json",
+            json.dumps(geojson, allow_nan=False),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_isochrone_geojson(geojson: dict[str, Any], requested_minutes: list[int]) -> dict[str, Any]:
+    """Copy the FeatureCollection, add time_minutes, keep exact geometry, sort ascending."""
+    normalized: list[dict[str, Any]] = []
+    for feature in geojson.get("features") or []:
+        if not isinstance(feature, dict):
+            raise ProviderResponseError("OpenRouteService returned an isochrone feature that is not an object.")
+        geometry = feature.get("geometry")
+        if not isinstance(geometry, dict) or geometry.get("type") not in _POLYGON_TYPES:
+            raise ProviderResponseError(
+                "OpenRouteService returned an isochrone feature that is not a Polygon or MultiPolygon."
+            )
+        properties = dict(_as_dict(feature.get("properties")))
+        band = _band_minutes(properties)
+        if band is None:
+            raise ProviderResponseError("OpenRouteService returned an isochrone feature without a whole-minute band.")
+        properties["time_minutes"] = band
+        copied = dict(feature)
+        copied["geometry"] = geometry
+        copied["properties"] = properties
+        normalized.append(copied)
+    normalized.sort(key=lambda item: (item["properties"]["time_minutes"], str(item.get("id") or "")))
+    present = {item["properties"]["time_minutes"] for item in normalized}
+    missing = [minutes for minutes in requested_minutes if minutes not in present]
+    if missing:
+        raise ProviderResponseError(
+            "OpenRouteService did not return a polygon for every requested time band. "
+            f"Missing minutes: {', '.join(str(item) for item in missing)}."
+        )
+    result = {"type": "FeatureCollection", "features": normalized}
+    if "bbox" in geojson:
+        result["bbox"] = geojson["bbox"]
+    if "metadata" in geojson:
+        result["metadata"] = geojson["metadata"]
+    return result
 
 
 def _numeric_coordinate(value: Any) -> float | None:
@@ -258,9 +466,7 @@ class GeocodeAddress(ActionHandler):
                         "is_low_confidence": None,
                         "matches": [],
                         "geocoding": data.get("geocoding"),
-                        "error_type": None,
-                        "retry_after_seconds": None,
-                        "message": "No matching address was found.",
+                        **_idle_error_fields(message="No matching address was found."),
                     },
                     cost_usd=0.0,
                 )
@@ -278,9 +484,9 @@ class GeocodeAddress(ActionHandler):
                     "is_low_confidence": best["is_low_confidence"],
                     "matches": matches,
                     "geocoding": data.get("geocoding"),
-                    "error_type": None,
-                    "retry_after_seconds": None,
-                    "message": "Confirm this match before downstream use." if best["is_low_confidence"] else None,
+                    **_idle_error_fields(
+                        message="Confirm this match before downstream use." if best["is_low_confidence"] else None
+                    ),
                 },
                 cost_usd=0.0,
             )
@@ -292,12 +498,12 @@ class GeocodeAddress(ActionHandler):
             aiohttp.ClientError,
             TimeoutError,
         ) as error:
-            return _provider_error(error)
+            return _provider_error(error, invalid_request_field="address")
 
 
 @openrouteservice.action("get_isochrone")
 class GetIsochrone(ActionHandler):
-    """Request unmodified GeoJSON isochrones for one origin and multiple time bands."""
+    """Request drive-time polygons for one origin and one or more minute bands."""
 
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
@@ -310,6 +516,7 @@ class GetIsochrone(ActionHandler):
                 "locations": [[inputs["longitude"], inputs["latitude"]]],
                 "range": [minutes * 60 for minutes in time_minutes],
                 "range_type": "time",
+                "smoothing": 0,
             }
             response = await context.fetch(
                 ISOCHRONE_URL_TEMPLATE.format(profile=profile),
@@ -334,16 +541,34 @@ class GetIsochrone(ActionHandler):
             ):
                 raise ProviderResponseError("OpenRouteService returned an unexpected isochrone response.")
 
+            normalized = _normalize_isochrone_geojson(geojson, time_minutes)
+            engine = _engine_fields(normalized.get("metadata"))
+            files: list[dict[str, str]] = []
+            if inputs.get("export_geojson"):
+                exported = _geojson_export_file(normalized)
+                if exported is not None:
+                    files.append(exported)
             return ActionResult(
                 data={
                     "result": True,
                     "profile": profile,
                     "time_minutes": time_minutes,
-                    "geojson": geojson,
-                    "provider_metadata": geojson.get("metadata"),
+                    "geojson": normalized,
+                    "provider_metadata": normalized.get("metadata"),
+                    "attribution": engine["attribution"],
+                    "engine_version": engine["engine_version"],
+                    "build_date": engine["build_date"],
+                    "graph_date": engine["graph_date"],
+                    "osm_date": engine["osm_date"],
+                    "files": files,
                     "error_type": None,
+                    "error_code": None,
                     "retry_after_seconds": None,
                     "message": None,
+                    "field": None,
+                    "valid_alternatives": None,
+                    "recovery": None,
+                    "retry_safe": None,
                 },
                 cost_usd=0.0,
             )
@@ -355,4 +580,8 @@ class GetIsochrone(ActionHandler):
             aiohttp.ClientError,
             TimeoutError,
         ) as error:
-            return _provider_error(error)
+            return _provider_error(
+                error,
+                retry_safe_on_request_failed=False,
+                retry_safe_on_provider_error=False,
+            )

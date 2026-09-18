@@ -33,18 +33,23 @@ Generates one or more drive-time bands in a single request through the current H
 **Inputs**
 
 - `latitude`, `longitude` (number, required) — origin point in WGS84 coordinates.
-- `time_minutes` (integer array, required) — one to ten driving-time bands in whole minutes from 1 to 60, for example `[10, 15, 30]`. OpenRouteService rejects longer driving ranges and more than 10 intervals.
+- `time_minutes` (integer array, required) — one to ten driving-time bands in whole minutes from 1 to 60, for example `[5, 10, 15, 30]`. Catchment workflows typically send one to five bands in one call. OpenRouteService rejects longer driving ranges and more than 10 intervals.
 - `travel_mode` (optional) — v1 supports `driving-car` only.
+- `export_geojson` (optional, default false) — if true, also return the FeatureCollection as a platform file object.
 
 **Outputs**
 
-- `geojson` — the **unaltered** GeoJSON FeatureCollection returned by OpenRouteService. The integration also parses a JSON-string response when the provider labels it `application/geo+json`.
+- `geojson` — a GeoJSON FeatureCollection. The request sets HeiGIT `smoothing` to `0` so polygons are not generalised. Each feature includes a stable `time_minutes` property. Features are sorted in ascending time-band order. The integration parses a JSON-string response when the provider labels it `application/geo+json`.
 - `provider_metadata` — unaltered provider metadata when present.
-- `profile` and `time_minutes` — the routing profile and bands requested.
+- `profile` and `time_minutes` — the routing profile and requested bands (deduplicated, ascending).
+- `attribution`, `engine_version`, `build_date`, `graph_date`, `osm_date` — copied from provider metadata when supplied.
+- `files` — empty unless `export_geojson` is true. The SDK has no separate artifact API. Files go on `ActionResult.data["files"]` as `{name, contentType, content}` (standard base64), the same Autohive platform channel as Gmail and doc-maker. Autohive materialises that as a tool-output path such as `/tool-outputs/isochrones.geojson`; agents see the path, not the base64. The file never includes the API key.
 
 ## Errors and rate limits
 
-Provider failures are returned as a successful action payload (`result: false`) rather than an SDK `ActionError`, so a calling skill can read `error_type` and `retry_after_seconds` and decide whether to retry. Check `result` before using coordinates or GeoJSON. Credentials and provider error bodies are never returned.
+Provider failures are returned as a successful action payload (`result: false`) rather than an SDK `ActionError`, so a calling skill can read `error_type` / `error_code`, `retry_safe`, `recovery`, and `retry_after_seconds` and decide whether to retry. Check `result` before using coordinates or GeoJSON. Credentials, HTML error pages, stack traces, and provider error bodies are never returned.
+
+`error_type` `rate_limit` (HTTP 429) is retry-safe after `retry_after_seconds`. Daily quota (`quota_exceeded`) and ambiguous 403 (`quota_or_unauthorized`) are **not** retry-safe.
 
 HeiGIT enforces **two** quotas per API key ([FAQ](https://giscience.github.io/openrouteservice/frequently-asked-questions)):
 
@@ -57,7 +62,7 @@ A 403 is `quota_exceeded` only when the body mentions quota and not an unauthori
 
 Other classifications: `authentication` (401), `invalid_request` (400, or a blank API key / empty time bands), `not_found` (404 — no result; retrying will not help), `not_acceptable` (406), `provider_error` (other HTTP, or a 2xx body that is not the expected GeoJSON), `request_failed` (network/timeout after retries).
 
-`get_isochrone` uses a 90-second timeout and does not retry on timeout, so a slow compute that already counted against daily quota is not charged again. Driving-time bands are capped at 60 minutes and 10 intervals because that is the public isochrone limit.
+`get_isochrone` uses a 90-second timeout and does not retry on timeout, so a slow compute that already counted against daily quota is not charged again. Those failures are `request_failed` with `retry_safe: false`. A geocode network failure stays `retry_safe: true`. Driving-time bands are capped at 60 minutes and 10 intervals because that is the public isochrone limit.
 
 ## Testing
 
@@ -74,3 +79,5 @@ Live API tests are read-only. They skip unless `OPENROUTESERVICE_API_KEY` is set
 ```bash
 pytest openrouteservice/tests/test_openrouteservice_integration.py -m "integration and not destructive"
 ```
+
+The live suite includes a GeoJSON file-export round trip (`export_geojson: true`).

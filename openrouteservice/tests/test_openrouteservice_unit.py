@@ -1,5 +1,8 @@
 """Unit tests for OpenRouteService integration actions."""
 
+import base64
+import json
+
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
@@ -9,7 +12,10 @@ from openrouteservice.openrouteservice import (
     GEOCODE_URL,
     ISOCHRONE_TIMEOUT_SECONDS,
     ISOCHRONE_URL_TEMPLATE,
+    MissingApiKeyError,
+    _geojson_export_file,
     _match,
+    _provider_error,
     openrouteservice,
 )
 
@@ -36,17 +42,46 @@ GEOCODE_RESPONSE = {
     ],
 }
 
+ISOCHRONE_POLYGON = {"type": "Polygon", "coordinates": [[[174.76, -36.84], [174.77, -36.84], [174.76, -36.84]]]}
 ISOCHRONE_RESPONSE = {
     "type": "FeatureCollection",
     "features": [
         {
             "type": "Feature",
             "properties": {"group_index": 0, "value": 600},
-            "geometry": {"type": "Polygon", "coordinates": [[[174.76, -36.84], [174.77, -36.84], [174.76, -36.84]]]},
+            "geometry": ISOCHRONE_POLYGON,
         }
     ],
-    "metadata": {"service": "isochrones", "engine": {"graph_date": "2025-01-01"}},
+    "metadata": {
+        "service": "isochrones",
+        "attribution": "openrouteservice.org, OpenStreetMap contributors",
+        "engine": {
+            "version": "8.2.0",
+            "build_date": "2025-01-02T00:00:00Z",
+            "graph_date": "2025-01-01T00:00:00Z",
+            "osm_date": "2024-12-15T00:00:00Z",
+        },
+    },
 }
+
+
+def _isochrone_collection(*minute_bands, metadata=None):
+    features = []
+    for minutes in minute_bands:
+        features.append(
+            {
+                "type": "Feature",
+                "properties": {"group_index": 0, "value": minutes * 60},
+                "geometry": ISOCHRONE_POLYGON,
+            }
+        )
+    payload = {"type": "FeatureCollection", "features": features}
+    if metadata is not None:
+        payload["metadata"] = metadata
+    elif ISOCHRONE_RESPONSE.get("metadata"):
+        payload["metadata"] = ISOCHRONE_RESPONSE["metadata"]
+    return payload
+
 
 ISOCHRONE_INPUTS = {"latitude": -36.8485, "longitude": 174.7633, "time_minutes": [10]}
 
@@ -142,6 +177,10 @@ class TestGeocodeAddress:
         assert data["confidence"] == 0.95
         assert data["is_low_confidence"] is False
         assert data["error_type"] is None
+        assert data["error_code"] is None
+        assert data["field"] is None
+        assert data["recovery"] is None
+        assert data["retry_safe"] is None
         assert len(data["matches"]) == 2
         assert data["matches"][0]["feature"] == GEOCODE_RESPONSE["features"][0]
         mock_context.fetch.assert_awaited_once_with(
@@ -304,8 +343,8 @@ class TestGetIsochrone:
     def test_uses_explicit_geojson_provider_endpoint(self):
         assert ISOCHRONE_URL_TEMPLATE == "https://api.heigit.org/openrouteservice/v2/isochrones/{profile}"
 
-    async def test_requests_all_time_bands_once_and_returns_unmodified_geojson(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=ISOCHRONE_RESPONSE)
+    async def test_requests_all_time_bands_once_and_returns_sorted_polygons(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=_isochrone_collection(30, 10, 15))
 
         result = await openrouteservice.execute_action(
             "get_isochrone",
@@ -316,8 +355,18 @@ class TestGetIsochrone:
         data = _action_data(result)
         assert data["time_minutes"] == [10, 15, 30]
         assert data["profile"] == "driving-car"
-        assert data["geojson"] is ISOCHRONE_RESPONSE
-        assert data["provider_metadata"] is ISOCHRONE_RESPONSE["metadata"]
+        bands = [feature["properties"]["time_minutes"] for feature in data["geojson"]["features"]]
+        assert bands == [10, 15, 30]
+        for feature in data["geojson"]["features"]:
+            assert feature["geometry"] == ISOCHRONE_POLYGON
+            assert feature["properties"]["value"] in {600, 900, 1800}
+        assert data["provider_metadata"] == ISOCHRONE_RESPONSE["metadata"]
+        assert data["attribution"] == "openrouteservice.org, OpenStreetMap contributors"
+        assert data["engine_version"] == "8.2.0"
+        assert data["build_date"] == "2025-01-02T00:00:00Z"
+        assert data["graph_date"] == "2025-01-01T00:00:00Z"
+        assert data["osm_date"] == "2024-12-15T00:00:00Z"
+        assert data["files"] == []
         assert data["error_type"] is None
         mock_context.fetch.assert_awaited_once_with(
             ISOCHRONE_URL_TEMPLATE.format(profile="driving-car"),
@@ -331,6 +380,7 @@ class TestGetIsochrone:
                 "locations": [[174.7633, -36.8485]],
                 "range": [600, 900, 1800],
                 "range_type": "time",
+                "smoothing": 0,
             },
             timeout=ISOCHRONE_TIMEOUT_SECONDS,
             retry_count=3,
@@ -345,7 +395,8 @@ class TestGetIsochrone:
 
         data = _action_data(result)
         assert data["result"] is True
-        assert data["geojson"] == ISOCHRONE_RESPONSE
+        assert data["geojson"]["features"][0]["properties"]["time_minutes"] == 10
+        assert data["geojson"]["features"][0]["geometry"] == ISOCHRONE_POLYGON
 
     async def test_rejects_non_geojson_provider_response(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"unexpected": "response"})
@@ -387,15 +438,18 @@ class TestGetIsochrone:
         assert data["error_type"] == "provider_error"
         assert "<html>" not in data["message"]
 
-    async def test_empty_feature_array_is_still_success(self, mock_context):
+    async def test_empty_feature_array_fails_when_bands_are_missing(self, mock_context):
         payload = {"type": "FeatureCollection", "features": [], "metadata": {"service": "isochrones"}}
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
 
         result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
 
         data = _action_data(result)
-        assert data["result"] is True
-        assert data["geojson"] == payload
+        assert data["result"] is False
+        assert data["error_type"] == "provider_error"
+        assert data["error_code"] == "provider_error"
+        assert data["retry_safe"] is False
+        assert "10" in data["message"]
 
     async def test_rejects_invalid_isochrone_inputs(self, mock_context):
         cases = [
@@ -412,6 +466,77 @@ class TestGetIsochrone:
             assert result.type == ResultType.VALIDATION_ERROR, inputs
         mock_context.fetch.assert_not_called()
 
+    async def test_five_bands_in_one_call(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data=_isochrone_collection(5, 10, 15, 20, 30)
+        )
+        result = await openrouteservice.execute_action(
+            "get_isochrone",
+            {"latitude": -36.8485, "longitude": 174.7633, "time_minutes": [30, 5, 15, 10, 20]},
+            mock_context,
+        )
+        data = _action_data(result)
+        assert data["result"] is True
+        assert [feature["properties"]["time_minutes"] for feature in data["geojson"]["features"]] == [5, 10, 15, 20, 30]
+
+    async def test_rejects_non_polygon_geometry(self, mock_context):
+        payload = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"value": 600},
+                    "geometry": {"type": "Point", "coordinates": [174.76, -36.84]},
+                }
+            ],
+        }
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+        data = _action_data(result)
+        assert data["result"] is False
+        assert data["error_type"] == "provider_error"
+        assert "Polygon" in data["message"]
+
+    async def test_export_geojson_returns_platform_file(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=ISOCHRONE_RESPONSE)
+        result = await openrouteservice.execute_action(
+            "get_isochrone", {**ISOCHRONE_INPUTS, "export_geojson": True}, mock_context
+        )
+        data = _action_data(result)
+        assert len(data["files"]) == 1
+        file_obj = data["files"][0]
+        assert file_obj["name"] == "isochrones.geojson"
+        assert file_obj["contentType"] == "application/geo+json"
+        exported = json.loads(base64.b64decode(file_obj["content"]))
+        assert exported["features"][0]["properties"]["time_minutes"] == 10
+        assert exported["features"][0]["geometry"] == ISOCHRONE_POLYGON
+        assert "test-key" not in file_obj["content"]
+        assert "Authorization" not in file_obj["content"]
+
+    async def test_export_serialization_failure_keeps_geojson(self, mock_context, monkeypatch):
+        import sys
+
+        module = sys.modules["openrouteservice.openrouteservice"]
+
+        def boom(_geojson):
+            return None
+
+        monkeypatch.setattr(module, "_geojson_export_file", boom)
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=ISOCHRONE_RESPONSE)
+        result = await openrouteservice.execute_action(
+            "get_isochrone", {**ISOCHRONE_INPUTS, "export_geojson": True}, mock_context
+        )
+        data = _action_data(result)
+        assert data["result"] is True
+        assert data["geojson"]["features"]
+        assert data["files"] == []
+        assert "api key" not in (data.get("message") or "").lower()
+        assert "api key" not in (data.get("recovery") or "").lower()
+
+    def test_geojson_export_skips_non_finite_values(self):
+        payload = {"type": "FeatureCollection", "features": [{"value": float("nan")}]}
+        assert _geojson_export_file(payload) is None
+
 
 class TestProviderErrors:
     @pytest.mark.parametrize(
@@ -423,12 +548,15 @@ class TestProviderErrors:
 
         result = await openrouteservice.execute_action(action, inputs, mock_context)
 
-        assert _action_data(result) == {
-            "result": False,
-            "error_type": "rate_limit",
-            "retry_after_seconds": 42,
-            "message": "OpenRouteService rate limit reached. Try again after the retry interval.",
-        }
+        data = _action_data(result)
+        assert data["result"] is False
+        assert data["error_type"] == "rate_limit"
+        assert data["error_code"] == "rate_limit"
+        assert data["retry_after_seconds"] == 42
+        assert data["retry_safe"] is True
+        assert "rate limit" in data["message"].lower()
+        assert data["recovery"]
+        assert "test-key" not in data["message"]
 
     @pytest.mark.parametrize(
         ("status", "error_type"),
@@ -447,6 +575,17 @@ class TestProviderErrors:
 
         data = _action_data(result)
         assert data["error_type"] == error_type
+        assert data["error_code"] == error_type
+        if status == 400:
+            assert data["field"] == "address"
+            assert "time bands" not in data["message"].lower()
+            assert "time_minutes" not in data["message"].lower()
+            assert "address" in data["recovery"].lower()
+            assert "time bands" not in data["recovery"].lower()
+        else:
+            assert data["field"] is None
+        if status == 500:
+            assert data["retry_safe"] is True
         assert "test-key" not in data["message"]
 
     async def test_403_quota_only_body_is_quota_exceeded(self, mock_context):
@@ -510,6 +649,28 @@ class TestProviderErrors:
         assert "routing profile" not in data["message"].lower()
         assert "quota" in data["message"].lower()
 
+    async def test_isochrone_400_marks_time_minutes_not_address(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(400, "bad request")
+
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+
+        data = _action_data(result)
+        assert data["error_type"] == "invalid_request"
+        assert data["field"] is None
+        assert "time bands" in data["message"].lower()
+        assert "time bands" in data["recovery"].lower()
+
+    async def test_isochrone_5xx_is_not_retry_safe(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(500, "upstream")
+
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+
+        data = _action_data(result)
+        assert data["error_type"] == "provider_error"
+        assert data["retry_safe"] is False
+        assert "try again shortly" not in data["message"].lower()
+        assert "do not retry" in data["recovery"].lower() or "quota" in data["recovery"].lower()
+
     async def test_404_is_not_found_not_retryable(self, mock_context):
         mock_context.fetch.side_effect = HTTPError(404, "not found")
 
@@ -524,13 +685,23 @@ class TestProviderErrors:
         client_error = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
         client_data = _action_data(client_error)
         assert client_data["error_type"] == "request_failed"
+        assert client_data["retry_safe"] is True
         assert "dns failed" not in client_data["message"]
+        assert "isochrone" not in client_data["recovery"].lower()
 
         mock_context.fetch.side_effect = TimeoutError("timed out")
         timeout = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
         timeout_data = _action_data(timeout)
         assert timeout_data["error_type"] == "request_failed"
+        assert timeout_data["error_code"] == "request_failed"
+        assert timeout_data["retry_safe"] is False
         assert "timed out" not in timeout_data["message"]
+        assert "try again shortly" not in timeout_data["message"].lower()
+        assert "do not retry" in timeout_data["recovery"].lower() or "quota" in timeout_data["recovery"].lower()
+
+        mock_context.fetch.side_effect = aiohttp.ClientError("connection reset")
+        isochrone_network = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+        assert _action_data(isochrone_network)["retry_safe"] is False
 
     async def test_missing_api_key_does_not_start_request(self, mock_context):
         mock_context.auth = {"auth_type": "Custom", "credentials": {}}
@@ -549,4 +720,20 @@ class TestProviderErrors:
         data = _action_data(result)
         assert data["result"] is False
         assert data["error_type"] == "invalid_request"
+        assert data["field"] is None
+        assert "time_minutes" not in (data.get("message") or "").lower()
+        assert "time bands" not in data["recovery"].lower()
+        assert "api key" in data["recovery"].lower()
         mock_context.fetch.assert_not_called()
+
+    def test_non_auth_value_error_does_not_blame_api_key(self):
+        result = _provider_error(ValueError("At least one time value is required."))
+        data = result.data
+        assert data["error_type"] == "invalid_request"
+        assert "api key" not in data["recovery"].lower()
+        assert "api key" not in data["message"].lower()
+
+    def test_missing_api_key_error_still_blames_connection(self):
+        result = _provider_error(MissingApiKeyError("An OpenRouteService API key is required."))
+        data = result.data
+        assert "api key" in data["recovery"].lower()
