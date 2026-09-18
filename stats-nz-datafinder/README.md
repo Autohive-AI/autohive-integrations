@@ -158,9 +158,7 @@ code and returns a compact result.
 - `page_size` / `max_pages` — same bounds as Query Layer. This action defaults
   `max_pages` to 100 and **fails closed** if pagination is incomplete.
 - `max_source_features` — safety cap (default 10 000). Exceeding it fails closed.
-- `include_source_records` / `include_diagnostics` — optional, default false.
-  `include_source_records` is a bounded JSON preview (max 200 rows). For a full
-  SA1-level table, use Query Layer.
+- `include_diagnostics` — optional, default false.
 
 **Behaviour**
 

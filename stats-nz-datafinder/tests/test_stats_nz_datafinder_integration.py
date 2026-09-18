@@ -204,7 +204,6 @@ class TestQueryAreaStatistics:
         assert result.type == ResultType.ACTION, result.result
         data = result.result.data
         assert data["layer"]["layer_id"] == layer_id
-        assert "source_records" not in data
         assert len(data["results"]) == 1
         row = data["results"][0]
         assert row["field"] == coded[0]

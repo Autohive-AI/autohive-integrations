@@ -62,7 +62,6 @@ DEFAULT_MAX_PAGES = 10
 DEFAULT_AREA_MAX_PAGES = 100
 DEFAULT_MISSING_VALUES = [-999, -997]
 DEFAULT_MAX_SOURCE_FEATURES = 10_000
-MAX_SOURCE_RECORDS = 200
 OVERLAP_TOLERANCE = 1e-9
 MAX_DESCRIPTION_CHARS = 400
 _GEOD = Geod(ellps="WGS84")
@@ -1235,11 +1234,10 @@ def _validate_measures(
     return validated
 
 
-def _duplicate_geography_codes(records: list[dict[str, Any]]) -> list[str]:
+def _duplicate_geography_codes(codes: list[str]) -> list[str]:
     counts: dict[str, int] = {}
-    for record in records:
-        code = record.get("geography_code")
-        if isinstance(code, str) and code:
+    for code in codes:
+        if code:
             counts[code] = counts.get(code, 0) + 1
     return [code for code, count in counts.items() if count > 1]
 
@@ -1880,7 +1878,6 @@ class QueryAreaStatisticsAction(ActionHandler):
         page_size = inputs.get("page_size", DEFAULT_PAGE_SIZE)
         max_pages = inputs.get("max_pages", DEFAULT_AREA_MAX_PAGES)
         missing_values = inputs.get("missing_values", DEFAULT_MISSING_VALUES)
-        include_source_records = bool(inputs.get("include_source_records"))
         include_diagnostics = bool(inputs.get("include_diagnostics"))
         max_source_features = inputs.get("max_source_features", DEFAULT_MAX_SOURCE_FEATURES)
         try:
@@ -1950,7 +1947,8 @@ class QueryAreaStatisticsAction(ActionHandler):
                 }
                 for item in measures
             }
-            source_records: list[dict[str, Any]] = []
+            geography_codes: list[str] = []
+            included_any = 0
             overlap_min: float | None = None
             overlap_max: float | None = None
             for feature in collected.features:
@@ -1968,40 +1966,26 @@ class QueryAreaStatisticsAction(ActionHandler):
                 overlap_min = fraction if overlap_min is None else min(overlap_min, fraction)
                 overlap_max = fraction if overlap_max is None else max(overlap_max, fraction)
                 properties = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
-                source_values: dict[str, float | None] = {}
-                contributions: dict[str, float | None] = {}
-                value_status: dict[str, str] = {}
+                has_included = False
                 for measure in measures:
                     key = measure["key"]
-                    raw_value = properties.get(measure["field"]) if measure["field"] in properties else None
                     if measure["field"] not in properties:
                         number, status = None, "unavailable"
                     else:
-                        number, status = _measure_source_value(raw_value, missing_values)
-                    source_values[key] = number
+                        number, status = _measure_source_value(properties.get(measure["field"]), missing_values)
                     if status == "included" and number is not None:
-                        contribution = number * fraction
-                        contributions[key] = contribution
-                        totals[key]["estimated_value"] += contribution
+                        totals[key]["estimated_value"] += number * fraction
                         totals[key]["included_feature_count"] += 1
                         totals[key]["has_value"] = True
+                        has_included = True
                     else:
-                        contributions[key] = None
                         totals[key]["unavailable_feature_count"] += 1
-                        value_status[key] = status
-                        continue
-                    value_status[key] = status
-                source_records.append(
-                    {
-                        "id": feature.get("id"),
-                        "geography_code": _geography_code(properties),
-                        "overlap_fraction": fraction,
-                        "source_values": source_values,
-                        "contributions": contributions,
-                        "value_status": value_status,
-                    }
-                )
-            duplicates = _duplicate_geography_codes(source_records)
+                code = _geography_code(properties)
+                if isinstance(code, str) and code:
+                    geography_codes.append(code)
+                if has_included:
+                    included_any += 1
+            duplicates = _duplicate_geography_codes(geography_codes)
             if duplicates:
                 raise DatafinderError(
                     _contract_error(
@@ -2013,12 +1997,7 @@ class QueryAreaStatisticsAction(ActionHandler):
                         retry_safe=False,
                     )
                 )
-            intersecting = len(source_records)
-            included_any = sum(
-                1
-                for record in source_records
-                if any(status == "included" for status in record["value_status"].values())
-            )
+            intersecting = len(collected.features)
             results = []
             warnings: list[str] = []
             for measure in measures:
@@ -2089,16 +2068,6 @@ class QueryAreaStatisticsAction(ActionHandler):
                 "warnings": warnings,
                 "validation_status": validation_status,
             }
-            if include_source_records:
-                if len(source_records) > MAX_SOURCE_RECORDS:
-                    output["source_records"] = source_records[:MAX_SOURCE_RECORDS]
-                    warnings.append(
-                        f"source_records truncated to {MAX_SOURCE_RECORDS} of {len(source_records)} for context size. "
-                        "Use Query Layer if you need every intersecting SA1."
-                    )
-                    output["warnings"] = warnings
-                else:
-                    output["source_records"] = source_records
             if include_diagnostics:
                 output["diagnostics"] = {
                     "retrieved_pages": collected.pages,

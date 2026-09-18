@@ -249,11 +249,6 @@
             "description": "Numeric sentinels treated as unavailable, never as zero. Default includes -999 (confidential) and -997 (not available).",
             "items": { "type": "number" }
           },
-          "include_source_records": {
-            "type": "boolean",
-            "default": false,
-            "description": "If true, include a bounded source-record array in the JSON response. Default false."
-          },
           "include_diagnostics": {
             "type": "boolean",
             "default": false,
@@ -342,10 +337,6 @@
             "type": "string",
             "enum": ["ok", "partial", "unavailable"],
             "description": "ok when every measure is fully included; partial when some values were suppressed or missing; unavailable when no measure had a usable source value."
-          },
-          "source_records": {
-            "type": "array",
-            "description": "Bounded source contributions. Present only when include_source_records is true."
           },
           "diagnostics": {
             "type": "object",

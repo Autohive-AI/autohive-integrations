@@ -1912,7 +1912,6 @@ class TestQueryAreaStatistics:
         assert data["results"][0]["status"] == "ok"
         assert data["results"][0]["included_feature_count"] == 1
         assert data["geography_summary"]["intersecting_feature_count"] == 1
-        assert "source_records" not in data
         assert "records" not in data
         assert data["layer"]["catalogue_url"].startswith("https://datafinder.stats.govt.nz/")
         assert "WGS84" in data["method"]["projected_crs"]
@@ -2137,7 +2136,6 @@ class TestQueryAreaStatistics:
         result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
         data = result.result.data
         assert "geometry" not in data
-        assert "source_records" not in data
         assert "diagnostics" not in data
         dumped = json.dumps(data)
         assert "Polygon" not in dumped
