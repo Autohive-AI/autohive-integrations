@@ -69,7 +69,7 @@ national scans are rejected):
 | Input | When to use | `overlap_fraction` |
 |--------|-------------|--------------------|
 | `geometry` Polygon / MultiPolygon | Catchment / isochrone clip | Area of the feature inside the polygon |
-| `geojson_file` | Large Polygon/MultiPolygon catchment from a platform GeoJSON file (`name`, `contentType`, base64 `content`). Point files are rejected. | Same as the selected Polygon / MultiPolygon |
+| `file` | Large Polygon/MultiPolygon catchment from a platform GeoJSON file (`name`, `contentType`, base64 `content`). Point files are rejected. | Same as the selected Polygon / MultiPolygon |
 | `geometry` Point | "What SA2/meshblock is this school in?" | Always `1.0` — do **not** area-weight a point |
 | `bbox` `[west, south, east, north]` | Rough map window without building GeoJSON. Unwrapped longitudes (Datafinder east ≈ 184.5) and boxes that cross 180° are accepted. CQL matches both wrapped and unwrapped layer coordinates so Chatham Islands are not dropped | Same as a polygon |
 | `attribute_filters` | Named-area lookup. Use `ieq` for an exact SA2/SA1 name | `1.0` (whole feature) |
@@ -78,7 +78,7 @@ national scans are rejected):
 (`ILIKE %value%`) — `contains` `"Wellington Central"` also matches
 **Mount Wellington Central**. Other operators: `eq`, `neq`, `lt`, `lte`,
 `gt`, `gte`. Combine filters with a spatial clip using AND. Do not send more
-than one of `geometry`, `geojson_file`, and `bbox`.
+than one of `geometry`, `file`, and `bbox`.
 
 A GeoJSON file may be a FeatureCollection, a Feature, or a bare
 Polygon/MultiPolygon. If the file contains exactly one Polygon or
@@ -158,12 +158,12 @@ code and returns a compact result.
 
 1. OpenRouteService `geocode_address` then `get_isochrone` for 5/10/15/30-minute bands (`export_geojson: true` if the polygon is too large to inline).
 2. `search_layers` / `get_layer_metadata` to pick a Census SA1 layer and exact `VAR_*` field names.
-3. `query_area_statistics` once per isochrone band with those fields. Prefer `geojson_file` plus `feature_filter: {"property": "time_minutes", "equals": 10}` over inlining the polygon.
+3. `query_area_statistics` once per isochrone band with those fields. Prefer `file` plus `feature_filter: {"property": "time_minutes", "equals": 10}` over inlining the polygon.
 4. Compute rates or percentages in the report from two additive counts if needed.
 
 **Inputs**
 
-- `layer_id` and a WGS84 Polygon or MultiPolygon, either as inline `geometry` or as `geojson_file` (same selection rules as Query Layer). Do not send both.
+- `layer_id` and a WGS84 Polygon or MultiPolygon, either as inline `geometry` or as `file` (same selection rules as Query Layer). Do not send both.
 - `measures` — bounded list of additive counts. Each item has `key`, `label`,
   `field` (exact Datafinder name), `unit` (`count`), and `aggregation`
   (`additive_count`). Compute rates or percentages in the report from two counts.
@@ -179,7 +179,7 @@ Example file input:
 ```json
 {
   "layer_id": 120766,
-  "geojson_file": {
+  "file": {
     "name": "catchments.geojson",
     "contentType": "application/geo+json",
     "content": "<base64 GeoJSON>"

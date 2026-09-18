@@ -178,7 +178,7 @@ class TestQueryLayerByGeometry:
         geojson_file = _wellington_geojson_file()
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": layer_id, "geojson_file": geojson_file, "page_size": 5, "max_pages": 1},
+            {"layer_id": layer_id, "file": geojson_file, "page_size": 5, "max_pages": 1},
             live_context,
         )
         assert result.type == ResultType.ACTION, result.result
@@ -256,7 +256,7 @@ class TestQueryAreaStatistics:
             "query_area_statistics",
             {
                 "layer_id": layer_id,
-                "geojson_file": geojson_file,
+                "file": geojson_file,
                 "measures": [_population_measure(count_field)],
                 "page_size": 50,
                 "max_pages": 20,

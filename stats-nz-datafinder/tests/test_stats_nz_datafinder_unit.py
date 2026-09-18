@@ -2675,7 +2675,7 @@ class TestResolveGeojsonFile:
     def test_geometry_and_file_conflict(self):
         path = _geojson_file(GEOMETRY)
         with pytest.raises(DatafinderError, match="conflicting_geometry_source"):
-            _bind_geojson_file({"geometry": GEOMETRY, "geojson_file": path})
+            _bind_geojson_file({"geometry": GEOMETRY, "file": path})
 
     def test_selectors_without_file_conflict(self):
         with pytest.raises(DatafinderError, match="conflicting_geometry_source"):
@@ -2688,7 +2688,7 @@ class TestResolveGeojsonFile:
 
     def test_file_input_binds_resolved_geometry(self):
         path = _geojson_file(GEOMETRY)
-        geometry, source = _bind_geojson_file({"geojson_file": path})
+        geometry, source = _bind_geojson_file({"file": path})
         assert geometry == GEOMETRY
         assert source["name"] == "catchments.geojson"
 
@@ -2712,7 +2712,7 @@ class TestQueryAreaStatisticsFromGeojsonFile:
             "query_area_statistics",
             {
                 "layer_id": 123,
-                "geojson_file": path,
+                "file": path,
                 "measures": [POPULATION],
                 "page_size": 1,
                 "max_pages": 1,
@@ -2750,7 +2750,7 @@ class TestQueryAreaStatisticsFromGeojsonFile:
             "query_area_statistics",
             {
                 "layer_id": 123,
-                "geojson_file": path,
+                "file": path,
                 "feature_filter": {"property": "time_minutes", "equals": 30},
                 "measures": [POPULATION],
                 "page_size": 1,
@@ -2784,7 +2784,7 @@ class TestQueryAreaStatisticsFromGeojsonFile:
             {
                 "layer_id": 123,
                 "geometry": GEOMETRY,
-                "geojson_file": path,
+                "file": path,
                 "measures": [POPULATION],
             },
             mock_context,
@@ -2807,7 +2807,7 @@ class TestQueryAreaStatisticsFromGeojsonFile:
         )
         result = await stats_nz_datafinder.execute_action(
             "query_area_statistics",
-            {"layer_id": 123, "geojson_file": path, "measures": [POPULATION]},
+            {"layer_id": 123, "file": path, "measures": [POPULATION]},
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -2827,7 +2827,7 @@ class TestQueryLayerFromGeojsonFile:
         ]
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": 123, "geojson_file": path, "page_size": 1, "max_pages": 1},
+            {"layer_id": 123, "file": path, "page_size": 1, "max_pages": 1},
             mock_context,
         )
         assert result.type == ResultType.ACTION, result.result
@@ -2846,7 +2846,7 @@ class TestQueryLayerFromGeojsonFile:
             "query_layer_by_geometry",
             {
                 "layer_id": 123,
-                "geojson_file": path,
+                "file": path,
                 "bbox": [174.7, -41.3, 174.8, -41.2],
             },
             mock_context,
@@ -2860,7 +2860,7 @@ class TestQueryLayerFromGeojsonFile:
         path = _geojson_file(GEOMETRY)
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": 123, "geometry": GEOMETRY, "geojson_file": path},
+            {"layer_id": 123, "geometry": GEOMETRY, "file": path},
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -2873,7 +2873,7 @@ class TestQueryLayerFromGeojsonFile:
             "query_layer_by_geometry",
             {
                 "layer_id": 123,
-                "geojson_file": {
+                "file": {
                     "name": "catchments.geojson",
                     "contentType": "application/geo+json",
                     "content": "!!!",
@@ -2898,7 +2898,7 @@ class TestQueryLayerFromGeojsonFile:
         )
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": 123, "geojson_file": path},
+            {"layer_id": 123, "file": path},
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -2910,7 +2910,7 @@ class TestQueryLayerFromGeojsonFile:
         path = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(POINT)]})
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": 123, "geojson_file": path},
+            {"layer_id": 123, "file": path},
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
