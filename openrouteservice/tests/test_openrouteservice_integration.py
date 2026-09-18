@@ -39,7 +39,7 @@ async def live_context(env_credentials):
 def _require_provider_success(result):
     assert result.type == ResultType.ACTION, getattr(result.result, "message", result.result)
     data = result.result.data
-    if data.get("error_type") in {"rate_limit", "quota_exceeded"}:
+    if data.get("error_type") in {"rate_limit", "quota_exceeded", "quota_or_unauthorized"}:
         pytest.skip(f"OpenRouteService limited this request: {data.get('message')}")
     assert data.get("result") is True, data.get("message")
     return data
@@ -127,3 +127,11 @@ class TestGetIsochrone:
             assert key in data
         assert data["time_minutes"] == [10, 15]
         assert len(data["geojson"]["features"]) >= 1
+        bands = [feature["properties"].get("time_minutes") for feature in data["geojson"]["features"]]
+        assert all(isinstance(band, int) for band in bands)
+        assert bands == sorted(bands)
+        for feature in data["geojson"]["features"]:
+            assert feature["geometry"]["type"] in {"Polygon", "MultiPolygon"}
+        assert "attribution" in data
+        assert "engine_version" in data
+        assert "graph_date" in data

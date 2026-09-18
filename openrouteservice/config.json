@@ -1,6 +1,6 @@
 {
   "name": "openrouteservice",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "display_name": "OpenRouteService",
   "description": "Geocode addresses and generate drive-time isochrone GeoJSON with OpenRouteService.",
   "entry_point": "openrouteservice.py",
@@ -58,14 +58,15 @@
     },
     "get_isochrone": {
       "display_name": "Get Isochrone",
-      "description": "Generate exact OpenRouteService GeoJSON drive-time polygons for a point and one or more minute bands.",
+      "description": "Generate exact OpenRouteService GeoJSON drive-time polygons for a point and one or more minute bands. Features include a stable time_minutes property, are returned in ascending band order, and are not simplified. Optionally export the FeatureCollection as a platform file.",
       "input_schema": {
         "type": "object",
         "properties": {
           "latitude": {"type": "number", "minimum": -90, "maximum": 90},
           "longitude": {"type": "number", "minimum": -180, "maximum": 180},
           "travel_mode": {"type": "string", "description": "Routing profile. v1 supports driving-car.", "enum": ["driving-car"], "default": "driving-car"},
-          "time_minutes": {"type": "array", "description": "One to ten driving-time bands in whole minutes (1-60), for example [10, 15, 30].", "items": {"type": "integer", "minimum": 1, "maximum": 60}, "minItems": 1, "maxItems": 10}
+          "time_minutes": {"type": "array", "description": "One to ten driving-time bands in whole minutes (1-60), for example [5, 10, 15, 30]. Catchment workflows typically send one to five bands; the public API limit is 10.", "items": {"type": "integer", "minimum": 1, "maximum": 60}, "minItems": 1, "maxItems": 10},
+          "export_geojson": {"type": "boolean", "default": false, "description": "If true, return the FeatureCollection as a platform file object in files (name, contentType, base64 content). Default false."}
         },
         "required": ["latitude", "longitude", "time_minutes"]
       },
@@ -75,14 +76,37 @@
           "result": {"type": "boolean"},
           "profile": {"type": ["string", "null"]},
           "time_minutes": {"type": "array", "items": {"type": "integer"}},
-          "geojson": {"type": ["object", "null"], "description": "Unmodified GeoJSON returned by OpenRouteService."},
+          "geojson": {"type": ["object", "null"], "description": "GeoJSON FeatureCollection. Geometry is unsmoothed; each feature has time_minutes. Bands are sorted ascending."},
           "provider_metadata": {"type": ["object", "null"], "description": "Unmodified metadata returned by OpenRouteService, when supplied."},
+          "attribution": {"type": ["string", "null"]},
+          "engine_version": {"type": ["string", "null"]},
+          "build_date": {"type": ["string", "null"]},
+          "graph_date": {"type": ["string", "null"]},
+          "osm_date": {"type": ["string", "null"]},
+          "files": {
+            "type": "array",
+            "description": "Platform file objects when export_geojson is true.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "contentType": {"type": "string"},
+                "content": {"type": "string", "description": "The file content encoded as base64"}
+              },
+              "required": ["name", "contentType", "content"]
+            }
+          },
           "error_type": {
             "type": ["string", "null"],
             "description": "rate_limit, quota_exceeded, quota_or_unauthorized, authentication, authorization, invalid_request, not_found, not_acceptable, provider_error, or request_failed."
           },
+          "error_code": {"type": ["string", "null"], "description": "Stable machine-readable code. Same values as error_type."},
           "retry_after_seconds": {"type": ["integer", "null"]},
-          "message": {"type": ["string", "null"]}
+          "message": {"type": ["string", "null"]},
+          "field": {"type": ["string", "null"]},
+          "valid_alternatives": {"type": ["array", "null"], "items": {"type": ["string", "number"]}},
+          "recovery": {"type": ["string", "null"]},
+          "retry_safe": {"type": ["boolean", "null"]}
         },
         "required": ["result"]
       }
