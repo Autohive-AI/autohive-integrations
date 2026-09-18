@@ -171,7 +171,7 @@
     },
     "query_area_statistics": {
       "display_name": "Query Area Statistics",
-      "description": "Given a WGS84 Polygon or MultiPolygon and explicitly configured additive Census counts, return compact area-weighted totals. Raw SA1 records are omitted by default. Optionally return a JSON or CSV file of source contributions using the platform file object (name, contentType, content).",
+      "description": "Given a WGS84 Polygon or MultiPolygon and explicitly configured additive Census counts, return compact area-weighted totals. Raw SA1 records are omitted by default.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -258,17 +258,6 @@
             "type": "boolean",
             "default": false,
             "description": "If true, include pagination and overlap diagnostics. Default false."
-          },
-          "export_source_records": {
-            "type": "boolean",
-            "default": false,
-            "description": "If true, return the full source-contribution table as a platform file object in files (name, contentType, base64 content). Default false."
-          },
-          "export_format": {
-            "type": "string",
-            "enum": ["json", "csv"],
-            "default": "json",
-            "description": "File format when export_source_records is true."
           },
           "max_source_features": {
             "type": "integer",
@@ -361,19 +350,6 @@
           "diagnostics": {
             "type": "object",
             "description": "Present only when include_diagnostics is true."
-          },
-          "files": {
-            "type": "array",
-            "description": "Platform file objects when export_source_records is true. Each item is {name, contentType, content} with standard base64 content. Empty when export is off.",
-            "items": {
-              "type": "object",
-              "properties": {
-                "name": { "type": "string", "description": "Name of the file" },
-                "contentType": { "type": "string", "description": "The MIME type of the file" },
-                "content": { "type": "string", "description": "The file content encoded as base64" }
-              },
-              "required": ["name", "contentType", "content"]
-            }
           }
         },
         "required": [
@@ -383,8 +359,7 @@
           "layer",
           "retrieved_at",
           "warnings",
-          "validation_status",
-          "files"
+          "validation_status"
         ]
       }
     },

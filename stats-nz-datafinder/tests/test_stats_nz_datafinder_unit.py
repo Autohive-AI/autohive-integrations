@@ -1,7 +1,6 @@
 """Unit tests for the Stats NZ Datafinder integration using mocked HTTP seams."""
 
 import asyncio
-import base64
 import json
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -28,7 +27,6 @@ from stats_nz_datafinder import (
     _contract_error,
     _cql_literal,
     _cql_spatial_wkts,
-    _export_source_records,
     _fields,
     _geometry_field,
     _get_api_key,
@@ -36,7 +34,6 @@ from stats_nz_datafinder import (
     _measure_source_value,
     _overlap_stats,
     _parse_bbox,
-    _platform_file,
     _raw_overlap_fraction,
     _redact,
     _requested_attribute_names,
@@ -1852,31 +1849,6 @@ class TestAreaStatisticsHelpers:
         assert _raw_overlap_fraction(_as_shapely(feature), feature) == pytest.approx(1.0)
         assert _raw_overlap_fraction(_as_shapely(disjoint), feature) == pytest.approx(0.0)
 
-    def test_platform_file_matches_gmail_shape(self):
-        file_obj = _platform_file("contributions.json", "application/json", '{"ok": true}')
-        assert set(file_obj) == {"name", "contentType", "content"}
-        assert file_obj["name"] == "contributions.json"
-        assert file_obj["contentType"] == "application/json"
-        assert json.loads(base64.b64decode(file_obj["content"])) == {"ok": True}
-
-    def test_csv_export_has_contribution_columns_and_no_credentials(self):
-        records = [
-            {
-                "id": "sa1-1",
-                "geography_code": "7010001",
-                "overlap_fraction": 1.0,
-                "source_values": {"population": 10},
-                "contributions": {"population": 10.0},
-                "value_status": {"population": "included"},
-            }
-        ]
-        file_obj = _export_source_records(records, [POPULATION], "csv")
-        body = base64.b64decode(file_obj["content"]).decode("utf-8")
-        assert "source_feature_id" in body
-        assert "population_contribution" in body
-        assert "test_api_key" not in body
-        assert "Authorization" not in body
-
     def test_contract_error_includes_code_field_and_retry_guidance(self):
         message = _contract_error(
             message="Unknown field.",
@@ -1914,7 +1886,7 @@ class TestQueryAreaStatistics:
         assert data["results"][0]["status"] == "ok"
         assert data["results"][0]["included_feature_count"] == 1
         assert data["geography_summary"]["intersecting_feature_count"] == 1
-        assert data["files"] == []
+        assert "files" not in data
         assert "source_records" not in data
         assert "records" not in data
         assert data["layer"]["catalogue_url"].startswith("https://datafinder.stats.govt.nz/")
@@ -2145,27 +2117,6 @@ class TestQueryAreaStatistics:
         dumped = json.dumps(data)
         assert "Polygon" not in dumped
         assert dumped.count("7010001") == 0
-
-    @pytest.mark.asyncio
-    async def test_export_json_file_uses_platform_file_object(self, mock_context, mock_wfs):
-        geom = square(174.7, -41.3, 174.8, -41.2)
-        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
-        mock_wfs.side_effect = [
-            ok(CAPABILITIES),
-            ok(_fc(_feature("a", geom, {"SA12023_V1_00": "7010001", "VAR_1_1": 12}), number_matched=1)),
-        ]
-        result = await _area_query(
-            mock_context,
-            {"geometry": geom, "page_size": 1, "max_pages": 1, "export_source_records": True, "export_format": "json"},
-        )
-        files = result.result.data["files"]
-        assert len(files) == 1
-        assert files[0]["name"].endswith(".json")
-        assert files[0]["contentType"] == "application/json"
-        payload = json.loads(base64.b64decode(files[0]["content"]))
-        assert payload["records"][0]["geography_code"] == "7010001"
-        assert payload["records"][0]["contributions"]["population"] == pytest.approx(12.0)
-        assert "test_api_key" not in files[0]["content"]
 
     @pytest.mark.asyncio
     async def test_point_geometry_is_rejected(self, mock_context):

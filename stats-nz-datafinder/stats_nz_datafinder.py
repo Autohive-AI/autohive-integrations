@@ -24,7 +24,6 @@ WFS calls set ``allow_redirects=False`` so a 301/302 cannot drop a POST
 from __future__ import annotations
 
 import asyncio
-import base64
 import csv
 import io
 import json
@@ -1224,52 +1223,6 @@ def _duplicate_geography_codes(records: list[dict[str, Any]]) -> list[str]:
     return [code for code, count in counts.items() if count > 1]
 
 
-def _platform_file(name: str, content_type: str, body: str | bytes) -> dict[str, str]:
-    """Return an Autohive platform file object (name, contentType, base64 content)."""
-    raw = body.encode("utf-8") if isinstance(body, str) else body
-    return {
-        "name": name,
-        "contentType": content_type,
-        "content": base64.b64encode(raw).decode("ascii"),
-    }
-
-
-def _export_source_records(
-    records: list[dict[str, Any]], measures: list[dict[str, Any]], export_format: str
-) -> dict[str, str]:
-    """Build a platform file containing source contributions. Never includes credentials."""
-    if export_format == "csv":
-        buffer = io.StringIO()
-        fieldnames = ["source_feature_id", "geography_code", "overlap_fraction"]
-        for measure in measures:
-            key = measure["key"]
-            fieldnames.extend([f"{key}_source_value", f"{key}_contribution", f"{key}_status"])
-        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
-        writer.writeheader()
-        for record in records:
-            row = {
-                "source_feature_id": record.get("id"),
-                "geography_code": record.get("geography_code"),
-                "overlap_fraction": record.get("overlap_fraction"),
-            }
-            for measure in measures:
-                key = measure["key"]
-                row[f"{key}_source_value"] = (record.get("source_values") or {}).get(key)
-                row[f"{key}_contribution"] = (record.get("contributions") or {}).get(key)
-                row[f"{key}_status"] = (record.get("value_status") or {}).get(key)
-            writer.writerow(row)
-        return _platform_file("area-statistics-contributions.csv", "text/csv", buffer.getvalue())
-    payload = {
-        "records": records,
-        "measures": [{"key": item["key"], "field": item["field"], "label": item["label"]} for item in measures],
-    }
-    return _platform_file(
-        "area-statistics-contributions.json",
-        "application/json",
-        json.dumps(payload, allow_nan=False),
-    )
-
-
 def _search_layer(item: dict[str, Any]) -> dict[str, Any]:
     capabilities = item.get("user_capabilities")
     return {
@@ -1908,8 +1861,6 @@ class QueryAreaStatisticsAction(ActionHandler):
         missing_values = inputs.get("missing_values", DEFAULT_MISSING_VALUES)
         include_source_records = bool(inputs.get("include_source_records"))
         include_diagnostics = bool(inputs.get("include_diagnostics"))
-        export_source_records = bool(inputs.get("export_source_records"))
-        export_format = inputs.get("export_format", "json")
         max_source_features = inputs.get("max_source_features", DEFAULT_MAX_SOURCE_FEATURES)
         try:
             geometry = inputs["geometry"]
@@ -2089,9 +2040,6 @@ class QueryAreaStatisticsAction(ActionHandler):
                 validation_status = "partial"
             else:
                 validation_status = "ok"
-            files: list[dict[str, str]] = []
-            if export_source_records:
-                files.append(_export_source_records(source_records, measures, export_format))
             output: dict[str, Any] = {
                 "results": results,
                 "geography_summary": {
@@ -2119,14 +2067,13 @@ class QueryAreaStatisticsAction(ActionHandler):
                 "retrieved_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "warnings": warnings,
                 "validation_status": validation_status,
-                "files": files,
             }
             if include_source_records:
                 if len(source_records) > MAX_SOURCE_RECORDS:
                     output["source_records"] = source_records[:MAX_SOURCE_RECORDS]
                     warnings.append(
                         f"source_records truncated to {MAX_SOURCE_RECORDS} of {len(source_records)} for context size. "
-                        "Set export_source_records true to receive the full table as a file."
+                        "Use Query Layer if you need every intersecting SA1."
                     )
                     output["warnings"] = warnings
                 else:

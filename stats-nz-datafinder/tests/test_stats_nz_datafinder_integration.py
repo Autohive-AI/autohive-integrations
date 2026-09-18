@@ -13,9 +13,6 @@ Never runs in CI — the default marker filter (-m unit) and the
 test_*_integration.py naming both exclude it.
 """
 
-import base64
-import csv
-import io
 import os
 from unittest.mock import AsyncMock, MagicMock
 
@@ -28,7 +25,6 @@ from stats_nz_datafinder import stats_nz_datafinder
 pytestmark = pytest.mark.integration
 
 TEST_LAYER_ID = os.environ.get("STATS_NZ_DATAFINDER_TEST_LAYER_ID", "")
-CENSUS_SA1_LAYER_ID = 120766
 WELLINGTON = {
     "type": "Polygon",
     "coordinates": [
@@ -209,7 +205,7 @@ class TestQueryAreaStatistics:
         data = result.result.data
         assert data["validation_status"] == "ok"
         assert data["layer"]["layer_id"] == layer_id
-        assert data["files"] == []
+        assert "files" not in data
         assert "source_records" not in data
         assert len(data["results"]) == 1
         row = data["results"][0]
@@ -218,74 +214,3 @@ class TestQueryAreaStatistics:
         if row["estimated_value"] is not None:
             assert row["estimated_value"] >= 0
         assert data["geography_summary"]["intersecting_feature_count"] >= 0
-
-    async def test_csv_export_is_a_platform_file_without_credentials(self, live_context):
-        metadata = await stats_nz_datafinder.execute_action(
-            "get_layer_metadata", {"layer_id": CENSUS_SA1_LAYER_ID}, live_context
-        )
-        if metadata.type != ResultType.ACTION:
-            pytest.skip(f"Census SA1 layer {CENSUS_SA1_LAYER_ID} is not available")
-        measure_field = None
-        for field in metadata.result.data.get("fields") or []:
-            if not isinstance(field, dict) or not field.get("coded"):
-                continue
-            codebook_measure = str(field.get("measure") or "").strip().lower()
-            if codebook_measure and codebook_measure != "count":
-                continue
-            if field.get("name") == "VAR_1_3":
-                measure_field = field
-                break
-            if measure_field is None and isinstance(field.get("name"), str):
-                measure_field = field
-        if measure_field is None:
-            pytest.skip("No additive Census count field on layer 120766")
-        result = await stats_nz_datafinder.execute_action(
-            "query_area_statistics",
-            {
-                "layer_id": CENSUS_SA1_LAYER_ID,
-                "geometry": WELLINGTON,
-                "measures": [
-                    {
-                        "key": "population",
-                        "label": measure_field.get("title") or "Census count",
-                        "field": measure_field["name"],
-                        "unit": "count",
-                        "aggregation": "additive_count",
-                    }
-                ],
-                "export_source_records": True,
-                "export_format": "csv",
-                "page_size": 50,
-                "max_pages": 20,
-            },
-            live_context,
-        )
-        assert result.type == ResultType.ACTION, result.result
-        data = result.result.data
-        files = data["files"]
-        assert len(files) == 1
-        file_obj = files[0]
-        assert file_obj["name"].endswith(".csv")
-        assert file_obj["contentType"] == "text/csv"
-        raw = base64.b64decode(file_obj["content"])
-        api_key = live_context.auth["credentials"]["api_key"]
-        assert api_key.encode("utf-8") not in raw
-        assert b"Authorization" not in raw
-        text = raw.decode("utf-8")
-        reader = csv.DictReader(io.StringIO(text))
-        fieldnames = reader.fieldnames or []
-        for required in (
-            "source_feature_id",
-            "geography_code",
-            "overlap_fraction",
-            "population_source_value",
-            "population_contribution",
-            "population_status",
-        ):
-            assert required in fieldnames
-        rows = list(reader)
-        assert len(rows) == data["geography_summary"]["intersecting_feature_count"]
-        for row in rows:
-            fraction = float(row["overlap_fraction"])
-            assert 0.0 <= fraction <= 1.0
-            assert row["population_status"] in {"included", "unavailable", "suppressed"}

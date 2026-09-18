@@ -159,7 +159,8 @@ code and returns a compact result.
   `max_pages` to 100 and **fails closed** if pagination is incomplete.
 - `max_source_features` — safety cap (default 10 000). Exceeding it fails closed.
 - `include_source_records` / `include_diagnostics` — optional, default false.
-- `export_source_records` / `export_format` (`json` or `csv`) — optional file export.
+  `include_source_records` is a bounded JSON preview (max 200 rows). For a full
+  SA1-level table, use Query Layer.
 
 **Behaviour**
 
@@ -177,28 +178,6 @@ code and returns a compact result.
   `partial` if any measure has suppressed/missing values, and `unavailable` if
   no measure had a usable source value. Per-measure `status` is still on each
   result row.
-
-**File export**
-
-The Autohive Integrations SDK `ActionResult` has no separate artifact field.
-Files are returned on `ActionResult.data["files"]` as platform file objects
-`{name, contentType, content}` (standard base64), the same channel Gmail and
-doc-maker use. Autohive then materialises those objects as tool-output files
-(for example `/tool-outputs/area-statistics-contributions.csv`); agents see the
-path, not the base64. When `export_source_records` is true, `files` contains
-one JSON or CSV file with:
-
-- source feature id
-- geography code
-- overlap fraction
-- requested source values
-- estimated contributions
-- missing or suppression status
-
-The file never includes API keys, Authorization headers, or WFS URLs. Use this
-when the report calculator needs the contribution table without stuffing hundreds
-of records into agent context. `include_source_records` is a bounded JSON preview
-(max 200 rows) and is off by default.
 
 **Errors**
 
@@ -291,4 +270,4 @@ STATS_NZ_DATAFINDER_API_KEY=... pytest stats-nz-datafinder/tests/test_stats_nz_d
 
 Optional: `STATS_NZ_DATAFINDER_TEST_LAYER_ID` pins `get_layer_metadata` and
 `query_layer_by_geometry` to a known public vector layer instead of searching
-for one. The CSV export test uses Census SA1 layer 120766.
+for one.
