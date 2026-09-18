@@ -708,7 +708,7 @@ def _read_geojson_file(path: str) -> Any:
             recovery="Use a smaller FeatureCollection or pass a single Polygon/MultiPolygon file.",
         )
     try:
-        raw = raw_bytes.decode("utf-8")
+        raw = raw_bytes.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         raise _geojson_contract_error(
             message="The GeoJSON file could not be read.",
@@ -720,7 +720,7 @@ def _read_geojson_file(path: str) -> Any:
     except json.JSONDecodeError as exc:
         raise _geojson_contract_error(
             message="The GeoJSON file is not valid JSON.",
-            error_code="geojson_file_unreadable",
+            error_code="invalid_geojson",
             recovery="Pass RFC 7946 GeoJSON (FeatureCollection, Feature, or Polygon/MultiPolygon).",
         ) from exc
 
@@ -735,7 +735,9 @@ def _geojson_features(document: Any) -> tuple[list[Any], bool]:
     doc_type = document.get("type")
     if doc_type == "FeatureCollection":
         features = document.get("features")
-        if not isinstance(features, list) or any(not isinstance(item, dict) for item in features):
+        if not isinstance(features, list) or any(
+            not isinstance(item, dict) or item.get("type") != "Feature" for item in features
+        ):
             raise _geojson_contract_error(
                 message="GeoJSON FeatureCollection.features must be an array of Feature objects.",
                 error_code="invalid_geojson",
@@ -778,7 +780,7 @@ def _auto_select_area_feature(features: list[Any]) -> tuple[Any, int]:
         raise _geojson_contract_error(
             message="The GeoJSON file does not contain a Polygon or MultiPolygon feature.",
             error_code="invalid_geometry",
-            recovery="Pass a file with one Polygon or MultiPolygon, or provide feature_index / feature_filter.",
+            recovery="Pass a file that contains a Polygon or MultiPolygon.",
             valid_alternatives=["Polygon", "MultiPolygon"],
         )
     raise _geojson_contract_error(
@@ -906,14 +908,14 @@ def _bind_geojson_file(inputs: dict[str, Any]) -> tuple[dict[str, Any] | None, d
             recovery="Pass geojson_file_path, or omit feature_index and feature_filter.",
         )
     if path:
-        if geometry:
+        if geometry is not None:
             raise _geojson_contract_error(
                 message="Provide geometry or geojson_file_path, not both.",
                 error_code="conflicting_geometry_source",
                 recovery="Pass either inline geometry or a GeoJSON file, not both.",
             )
         return _resolve_geojson_file(path, feature_index=feature_index, feature_filter=feature_filter)
-    return geometry if geometry else None, None
+    return geometry, None
 
 
 def _resolve_query_scope(inputs: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
@@ -2034,7 +2036,6 @@ class QueryLayerByGeometryAction(ActionHandler):
         include_coded_fields = bool(inputs.get("include_coded_fields"))
         fields = inputs.get("fields")
         try:
-            headers = _headers(context)
             if inputs.get("geojson_file_path") and inputs.get("bbox"):
                 raise _geojson_contract_error(
                     message="Provide only one spatial source: geometry, geojson_file_path, or bbox.",
@@ -2042,6 +2043,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                     recovery="Pass either inline geometry, a GeoJSON file, or bbox — not more than one.",
                 )
             geometry, geometry_source = _bind_geojson_file(inputs)
+            headers = _headers(context)
             scoped = dict(inputs)
             if geometry is not None:
                 scoped["geometry"] = geometry

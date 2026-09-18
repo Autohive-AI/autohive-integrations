@@ -52,7 +52,7 @@
           "geojson_file_path": {
             "type": "string",
             "minLength": 1,
-            "description": "Path to a GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon. Alternative to inline geometry for large catchments. Do not send with geometry or bbox."
+            "description": "Path to a GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon, at most 5 MB. Alternative to inline geometry for large catchments. Do not send with geometry or bbox."
           },
           "feature_index": {
             "type": "integer",
@@ -232,7 +232,7 @@
           "geojson_file_path": {
             "type": "string",
             "minLength": 1,
-            "description": "Path to a GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon. Alternative to inline geometry for large catchments."
+            "description": "Path to a GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon, at most 5 MB. Alternative to inline geometry for large catchments. Do not send with geometry."
           },
           "feature_index": {
             "type": "integer",

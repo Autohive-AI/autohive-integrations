@@ -85,10 +85,12 @@ Polygon/MultiPolygon. If the file contains exactly one Polygon or
 MultiPolygon, that feature is used. If it contains more than one eligible
 area feature, pass `feature_index` (0-based index into the **original**
 `features` array, including points and lines) or `feature_filter`
-`{ "property": "time_minutes", "equals": 30 }`. The selected feature must
-be a Polygon or MultiPolygon; otherwise the action fails before querying.
-Numeric `30` matches `30.0`; the string `"30"` does not match the number
-`30`. File size is capped at 5 MB. When a file is used, the compact
+`{ "property": "time_minutes", "equals": 30 }`. `feature_filter` matches the
+original array, including points and lines — two hits are ambiguous even if
+only one is a polygon. The selected feature must be a Polygon or MultiPolygon;
+otherwise the action fails before querying. Numeric `30` matches `30.0`; the
+string `"30"` does not match the number `30`. File size is capped at 5 MB.
+When a file is used, the compact
 `geometry_source` citation (`path`, `feature_index`, and matched properties
 when a filter was used) is included; coordinates are not echoed.
 

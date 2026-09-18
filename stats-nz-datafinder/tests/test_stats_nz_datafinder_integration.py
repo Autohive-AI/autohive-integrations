@@ -160,6 +160,32 @@ class TestQueryLayerByGeometry:
             if area is not None:
                 assert area >= 0
 
+    async def test_scopes_query_from_geojson_file(self, live_context, tmp_path):
+        layer_id = await _layer_id(live_context)
+        path = tmp_path / "wellington.geojson"
+        path.write_text(
+            json.dumps(
+                {
+                    "type": "FeatureCollection",
+                    "features": [{"type": "Feature", "geometry": WELLINGTON, "properties": {}}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": layer_id, "geojson_file_path": str(path), "page_size": 5, "max_pages": 1},
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        source = data["geometry_source"]
+        assert source["path"] == str(path)
+        assert source["feature_index"] == 0
+        assert "coordinates" not in source
+        if data["records"]:
+            assert "geometry" not in data["records"][0]
+
 
 async def _census_count_field(live_context) -> tuple[int, dict]:
     layer_id = CENSUS_SA1_LAYER_ID
