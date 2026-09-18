@@ -1317,6 +1317,32 @@ def _page_url(metadata: dict[str, Any], layer_id: int) -> str:
     return f"https://datafinder.stats.govt.nz/layer/{layer_id}/"
 
 
+_BINARY_ATTACHMENT_SUFFIXES = (
+    ".xlsx",
+    ".xls",
+    ".pdf",
+    ".zip",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".tif",
+    ".tiff",
+    ".doc",
+    ".docx",
+)
+_BINARY_CONTENT_TYPES = (
+    "application/pdf",
+    "application/zip",
+    "application/octet-stream",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument",
+    "image/",
+    "audio/",
+    "video/",
+)
+
+
 def _looks_like_file_url(url: str) -> bool:
     """True for a downloadable file path, not a Koordinates JSON resource URL."""
     path = urlparse(url).path.rstrip("/").lower()
@@ -1324,6 +1350,25 @@ def _looks_like_file_url(url: str) -> bool:
         return True
     filename = path.rsplit("/", 1)[-1]
     return "." in filename
+
+
+def _attachment_basename(attachment: dict[str, str]) -> str:
+    name = (attachment.get("name") or "").lower()
+    url = (attachment.get("url") or "").lower()
+    return f"{name} {urlparse(url).path}"
+
+
+def _is_binary_attachment(attachment: dict[str, str]) -> bool:
+    name = (attachment.get("name") or "").lower()
+    path = urlparse(attachment.get("url") or "").path.lower()
+    return any(name.endswith(suffix) or path.endswith(suffix) for suffix in _BINARY_ATTACHMENT_SUFFIXES)
+
+
+def _is_binary_content_type(content_type: str) -> bool:
+    low = content_type.lower()
+    if "csv" in low or "text/" in low:
+        return False
+    return any(token in low for token in _BINARY_CONTENT_TYPES)
 
 
 def _attachment_name(item: dict[str, Any]) -> str | None:
@@ -1432,11 +1477,25 @@ async def _download_https_text(context: ExecutionContext, url: str) -> tuple[str
                     continue
                 if not (200 <= response.status < 300):
                     return "", ""
-                text = await response.text()
-                if len(text) > CODEBOOK_MAX_CHARS:
+                content_type = response.headers.get("Content-Type", "")
+                if _is_binary_content_type(content_type):
                     return "", ""
-                return response.headers.get("Content-Type", ""), text
-        except (aiohttp.ClientError, asyncio.TimeoutError):
+                content_length = response.headers.get("Content-Length")
+                if content_length and content_length.isdigit() and int(content_length) > CODEBOOK_MAX_CHARS:
+                    return "", ""
+                chunks: list[bytes] = []
+                total = 0
+                async for chunk in response.content.iter_chunked(65_536):
+                    total += len(chunk)
+                    if total > CODEBOOK_MAX_CHARS:
+                        return "", ""
+                    chunks.append(chunk)
+                try:
+                    text = b"".join(chunks).decode("utf-8-sig")
+                except UnicodeDecodeError:
+                    return "", ""
+                return content_type, text
+        except (aiohttp.ClientError, asyncio.TimeoutError, UnicodeDecodeError):
             return "", ""
     return "", ""
 
@@ -1498,9 +1557,13 @@ async def _apply_codebook_titles(
     context: ExecutionContext, fields: list[dict[str, Any]], attachments: list[dict[str, str]]
 ) -> None:
     """Fill field titles from the first downloadable lookup CSV. Never fails the action."""
-    for attachment in attachments:
+    ranked = sorted(
+        attachments,
+        key=lambda item: 0 if "lookup" in _attachment_basename(item) or ".csv" in _attachment_basename(item) else 1,
+    )
+    for attachment in ranked:
         url = attachment.get("url")
-        if not isinstance(url, str) or not _looks_like_file_url(url):
+        if not isinstance(url, str) or not _looks_like_file_url(url) or _is_binary_attachment(attachment):
             continue
         content_type, text = await _download_https_text(context, url)
         if not text or not _is_csv_codebook(content_type, text):

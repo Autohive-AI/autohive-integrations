@@ -17,6 +17,7 @@ from stats_nz_datafinder import (
     _as_shapely,
     _attachment_items,
     _codebook_field_info,
+    _is_binary_attachment,
     _attribution,
     _bbox_polygon,
     _build_cql_filter,
@@ -1189,6 +1190,15 @@ class TestGetLayerMetadata:
             }
         ]
 
+    def test_skips_xlsx_and_pdf_attachments(self):
+        assert _is_binary_attachment({"name": "notes.pdf", "url": "https://datafinder.stats.govt.nz/files/notes.pdf"})
+        assert _is_binary_attachment(
+            {"name": "lookup.xlsx", "url": "https://datafinder.stats.govt.nz/files/lookup.xlsx"}
+        )
+        assert not _is_binary_attachment(
+            {"name": "lookup.csv", "url": "https://datafinder.stats.govt.nz/files/lookup.csv"}
+        )
+
     def test_codebook_maps_count_and_median(self):
         csv_text = (
             "Column_name,Year,Measure,Variable1,Variable1_category,Field_name_alias\n"
@@ -1250,6 +1260,34 @@ class TestGetLayerMetadata:
         assert field["measure"] == "Count"
         assert field["year"] == "2023"
         assert result.result.data["attachments"][0]["url"].endswith("/download/")
+
+    @pytest.mark.asyncio
+    async def test_metadata_skips_binary_attachments_and_still_succeeds(self, mock_context, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, url):
+            raise AssertionError(f"must not download binary attachment {url}")
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
+                }
+            ),
+            fetch_ok(
+                [
+                    {
+                        "document": {"title": "guide", "extension": "pdf"},
+                        "url_download": "https://datafinder.stats.govt.nz/files/guide.pdf",
+                    }
+                ]
+            ),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["layer_id"] == 123
 
     @pytest.mark.asyncio
     async def test_off_origin_page_url_falls_back_to_catalogue(self, mock_context):
