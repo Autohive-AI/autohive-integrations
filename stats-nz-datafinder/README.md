@@ -291,4 +291,4 @@ STATS_NZ_DATAFINDER_API_KEY=... pytest stats-nz-datafinder/tests/test_stats_nz_d
 
 Optional: `STATS_NZ_DATAFINDER_TEST_LAYER_ID` pins `get_layer_metadata` and
 `query_layer_by_geometry` to a known public vector layer instead of searching
-for one.
+for one. The CSV export test uses Census SA1 layer 120766.
