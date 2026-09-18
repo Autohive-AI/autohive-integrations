@@ -17,7 +17,7 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import FetchResponse, HTTPError
+from autohive_integrations_sdk import HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from windcave import windcave
@@ -75,33 +75,31 @@ def assert_card_fields_are_redacted(value):
 
 
 @pytest.fixture
-def live_context(env_credentials):
+def live_context(env_credentials, monkeypatch):
     username = env_credentials("WINDCAVE_USERNAME")
     api_key = env_credentials("WINDCAVE_API_KEY")
     if not username or not api_key:
         pytest.skip("WINDCAVE_USERNAME / WINDCAVE_API_KEY not set — skipping integration tests")
 
-    import aiohttp
+    import importlib
 
+    module = importlib.import_module("windcave.windcave")
+    direct_request = module._windcave_request
     response_statuses: list[int] = []
 
-    async def real_fetch(url, *, method="GET", json=None, headers=None, **kwargs):
-        async with aiohttp.ClientSession() as session:
-            async with session.request(method, url, json=json, headers=headers) as resp:
-                response_statuses.append(resp.status)
-                try:
-                    data = await resp.json(content_type=None)
-                except Exception:
-                    data = await resp.text()
-                # Mirror the SDK contract: context.fetch() raises on non-2xx so the
-                # action's try/except surfaces an ActionError. Returning a FetchResponse
-                # for an error status would let an error body masquerade as success data.
-                if not resp.ok:
-                    raise HTTPError(resp.status, str(data), data)
-                return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
+    async def observed_request(*args, **kwargs):
+        # Exercise the production direct transport; observe only safe status data.
+        try:
+            response = await direct_request(*args, **kwargs)
+        except HTTPError as error:
+            response_statuses.append(error.status)
+            raise
+        response_statuses.append(response.status)
+        return response
 
+    monkeypatch.setattr(module, "_windcave_request", observed_request)
     ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock(side_effect=real_fetch)
+    ctx.fetch = AsyncMock(name="unused_sdk_fetch")
     ctx.response_statuses = response_statuses
     ctx.auth = {
         "auth_type": "Custom",

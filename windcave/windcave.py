@@ -4,11 +4,14 @@ import base64
 from typing import Any
 from urllib.parse import quote
 
+import aiohttp
+
 from autohive_integrations_sdk import (
     ActionError,
     ActionHandler,
     ActionResult,
     ExecutionContext,
+    FetchResponse,
     HTTPError,
     Integration,
 )
@@ -16,6 +19,7 @@ from autohive_integrations_sdk import (
 windcave = Integration.load()
 
 BASE_URL = "https://sec.windcave.com/api/v1"
+REQUEST_TIMEOUT_SECONDS = 30
 REDACTED_VALUE = "[REDACTED]"
 CARD_FIELDS = frozenset(
     {
@@ -109,6 +113,34 @@ def redact_card_objects(value: Any) -> Any:
     return value
 
 
+async def _windcave_request(url: str, *, headers: dict[str, str], method: str = "GET") -> FetchResponse:
+    """Bypass SDK response logging, redacting data before it leaves transport.
+
+    One request, no retries. Redirects are disabled to avoid forwarding auth or
+    following a provider redirect outside the fixed Windcave endpoint.
+    """
+    try:
+        timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT_SECONDS)
+        async with aiohttp.ClientSession(timeout=timeout, raise_for_status=False) as session:
+            async with session.request(method, url, headers=headers, allow_redirects=False, ssl=True) as response:
+                try:
+                    data = await response.json(content_type=None)
+                except (ValueError, UnicodeError):
+                    data = None
+                if not 200 <= response.status < 300:
+                    message = extract_error_message(HTTPError(response.status, "", data))
+                    # Only a curated message leaves transport; never the raw body.
+                    raise HTTPError(response.status, message, {"message": message}) from None
+                if not isinstance(data, dict):
+                    raise ValueError("Invalid Windcave response")
+                return FetchResponse(status=response.status, headers={}, data=redact_card_objects(data))
+    except HTTPError:
+        raise
+    except Exception:
+        # aiohttp and parser exceptions can contain sensitive response details.
+        raise RuntimeError("Windcave request failed") from None
+
+
 # ---- Transaction Action Handlers ----
 
 
@@ -120,7 +152,7 @@ class GetTransactionAction(ActionHandler):
         try:
             transaction_id = quote(inputs["transaction_id"], safe="")
 
-            response = await context.fetch(
+            response = await _windcave_request(
                 f"{BASE_URL}/transactions/{transaction_id}",
                 method="GET",
                 headers=get_auth_headers(context),
@@ -155,7 +187,7 @@ class GetSessionAction(ActionHandler):
         try:
             session_id = quote(inputs["session_id"], safe="")
 
-            response = await context.fetch(
+            response = await _windcave_request(
                 f"{BASE_URL}/sessions/{session_id}",
                 method="GET",
                 headers=get_auth_headers(context),

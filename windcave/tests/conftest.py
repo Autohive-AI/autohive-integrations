@@ -10,7 +10,7 @@ import pytest
 
 
 @pytest.fixture
-def mock_context():
+def mock_context(monkeypatch):
     """Mock ExecutionContext pre-loaded with Windcave's wrapped custom-auth envelope."""
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
@@ -21,4 +21,9 @@ def mock_context():
             "api_key": "test_api_key",  # nosec B105
         },
     }
+    import importlib
+
+    module = importlib.import_module("windcave.windcave")
+    ctx.request_mock = AsyncMock(name="_windcave_request")
+    monkeypatch.setattr(module, "_windcave_request", ctx.request_mock)
     return ctx

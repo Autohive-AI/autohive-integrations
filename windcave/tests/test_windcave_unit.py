@@ -1,3 +1,4 @@
+import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
@@ -163,7 +164,7 @@ class TestCustomAuthValidation:
 
     @pytest.mark.asyncio
     async def test_full_credentials_pass_validation(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
 
         result = await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, mock_context)
 
@@ -176,7 +177,7 @@ class TestCustomAuthValidation:
 class TestGetTransaction:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
 
         result = await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, mock_context)
 
@@ -188,7 +189,7 @@ class TestGetTransaction:
 
     @pytest.mark.asyncio
     async def test_redacts_card_data_in_transaction(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
 
         result = await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, mock_context)
 
@@ -201,11 +202,11 @@ class TestGetTransaction:
 
     @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
 
         await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, mock_context)
 
-        call_args = mock_context.fetch.call_args
+        call_args = mock_context.request_mock.call_args
         assert call_args.args[0] == f"https://sec.windcave.com/api/v1/transactions/{TRANSACTION_ID}"
         assert call_args.kwargs["method"] == "GET"
 
@@ -216,11 +217,11 @@ class TestGetTransaction:
         )
 
         assert result.type == ResultType.VALIDATION_ERROR
-        mock_context.fetch.assert_not_awaited()
+        mock_context.request_mock.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_http_error_returns_action_error(self, mock_context):
-        mock_context.fetch.side_effect = HTTPError(404, "Not Found", {"message": "Transaction not found"})
+        mock_context.request_mock.side_effect = HTTPError(404, "Not Found", {"message": "Transaction not found"})
 
         result = await windcave.execute_action(
             "get_transaction", {"transaction_id": MISSING_TRANSACTION_ID}, mock_context
@@ -236,7 +237,7 @@ class TestGetTransaction:
 class TestGetSession:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_SESSION)
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_SESSION)
 
         result = await windcave.execute_action("get_session", {"session_id": "session_1"}, mock_context)
 
@@ -249,7 +250,7 @@ class TestGetSession:
 
     @pytest.mark.asyncio
     async def test_redacts_card_data_in_transactions_and_full_session(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_SESSION)
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_SESSION)
 
         result = await windcave.execute_action("get_session", {"session_id": "session_1"}, mock_context)
 
@@ -267,18 +268,18 @@ class TestGetSession:
 
     @pytest.mark.asyncio
     async def test_request_url_method_and_headers(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_SESSION)
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_SESSION)
 
         await windcave.execute_action("get_session", {"session_id": "session/1"}, mock_context)
 
-        call_args = mock_context.fetch.call_args
+        call_args = mock_context.request_mock.call_args
         assert call_args.args[0] == "https://sec.windcave.com/api/v1/sessions/session%2F1"
         assert call_args.kwargs["method"] == "GET"
         assert call_args.kwargs["headers"]["Authorization"].startswith("Basic ")
 
     @pytest.mark.asyncio
     async def test_session_without_transactions_returns_empty_list(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": "session_1"})
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data={"id": "session_1"})
 
         result = await windcave.execute_action("get_session", {"session_id": "session_1"}, mock_context)
 
@@ -289,11 +290,11 @@ class TestGetSession:
         result = await windcave.execute_action("get_session", {"session_id": ""}, mock_context)
 
         assert result.type == ResultType.VALIDATION_ERROR
-        mock_context.fetch.assert_not_awaited()
+        mock_context.request_mock.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_http_error_returns_action_error(self, mock_context):
-        mock_context.fetch.side_effect = HTTPError(404, "Not Found", {"message": "Session not found"})
+        mock_context.request_mock.side_effect = HTTPError(404, "Not Found", {"message": "Session not found"})
 
         result = await windcave.execute_action("get_session", {"session_id": "missing"}, mock_context)
 
@@ -336,7 +337,7 @@ class TestSensitiveDataBoundaries:
                 {"cardId": "secret-attempt-token", "cardNumber2": "secret-attempt-number2"}
             )
         original = deepcopy(payload)
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=payload)
 
         result = await windcave.execute_action(action, inputs, mock_context)
 
@@ -368,7 +369,7 @@ class TestSensitiveDataBoundaries:
         ],
     )
     async def test_http_errors_never_echo_payload(self, mock_context, action, inputs, payload):
-        mock_context.fetch.side_effect = HTTPError(400, "raw-secret-card-payload", payload)
+        mock_context.request_mock.side_effect = HTTPError(400, "raw-secret-card-payload", payload)
 
         result = await windcave.execute_action(action, inputs, mock_context)
 
@@ -384,7 +385,7 @@ class TestSensitiveDataBoundaries:
         ],
     )
     async def test_unexpected_errors_never_echo_details(self, mock_context, action, inputs, exception):
-        mock_context.fetch.side_effect = exception
+        mock_context.request_mock.side_effect = exception
 
         result = await windcave.execute_action(action, inputs, mock_context)
 
@@ -400,7 +401,7 @@ class TestSensitiveDataBoundaries:
 
         assert result.type == ResultType.ACTION_ERROR
         assert result.result.message == "Windcave REST API credentials must contain only ASCII characters"
-        mock_context.fetch.assert_not_awaited()
+        mock_context.request_mock.assert_not_awaited()
 
 
 @pytest.mark.parametrize("value", [None, [], {}, "secret-scalar", 123, False])
@@ -412,3 +413,165 @@ def test_sensitive_fields_redact_unusual_shapes(key, value):
         assert result[key] == value
     else:
         assert result[key] == "[REDACTED]"
+
+
+class TestDirectTransport:
+    @pytest.fixture
+    def transport(self, monkeypatch, make_context):
+        import importlib
+        from unittest.mock import AsyncMock, MagicMock
+
+        module = importlib.import_module("windcave.windcave")
+        response = MagicMock()
+        response.status = 200
+        response.json = AsyncMock(return_value={"id": TRANSACTION_ID, "cardId": "SECRET-TOKEN"})
+        request = MagicMock()
+        request.__aenter__ = AsyncMock(return_value=response)
+        request.__aexit__ = AsyncMock(return_value=False)
+        session = MagicMock()
+        session.request.return_value = request
+        session.__aenter__ = AsyncMock(return_value=session)
+        session.__aexit__ = AsyncMock(return_value=False)
+        factory = MagicMock(return_value=session)
+        monkeypatch.setattr(module.aiohttp, "ClientSession", factory)
+        ctx = make_context(
+            auth={
+                "auth_type": "Custom",
+                "credentials": {"username": "SECRET-USER", "api_key": "SECRET-KEY"},
+            }
+        )
+        return module, ctx, factory, session, request, response
+
+    async def test_redacts_before_transport_returns(self, transport):
+        module, ctx, factory, session, request, response = transport
+        response.json.return_value = {
+            "cardId": "SECRET-TOKEN",
+            "transactions": [{"cardNumber2": "SECRET-NUMBER2"}],
+            "card": {"cardNumber": "SECRET-PAN", "cardHolderName": "SECRET-HOLDER"},
+        }
+
+        result = await module._windcave_request("https://sec.windcave.com/api/v1/transactions/test", headers={})
+
+        assert "SECRET-" not in str(result.data)
+        assert response.json.return_value["cardId"] == "SECRET-TOKEN"
+        session.__aexit__.assert_awaited_once()
+        request.__aexit__.assert_awaited_once()
+        ctx.fetch.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "action, inputs",
+        [
+            ("get_transaction", {"transaction_id": TRANSACTION_ID}),
+            ("get_session", {"session_id": "session_1"}),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "status, body, failure",
+        [
+            (200, {"id": TRANSACTION_ID, "card": {"cardNumber": "SECRET-PAN"}, "cardId": "SECRET-TOKEN"}, None),
+            (400, {"message": "Invalid session id", "cardId": "SECRET-TOKEN"}, None),
+            (401, {"message": "SECRET-KEY"}, None),
+            (403, {"errors": [{"message": "SECRET-HOLDER"}]}, None),
+            (404, {"message": "Invalid transaction id"}, None),
+            (429, {"cardNumber2": "SECRET-NUMBER2"}, None),
+            (500, {"card": {"cardHolderName": "SECRET-HOLDER"}}, None),
+            (302, {"message": "SECRET-REDIRECT"}, None),
+            (502, None, ValueError("SECRET-HTML-BODY")),
+            (200, None, ValueError("SECRET-JSON-BODY")),
+            (200, ["SECRET-UNEXPECTED-SHAPE"], None),
+            (200, None, RuntimeError("SECRET-PARSER-DETAILS")),
+        ],
+    )
+    async def test_actions_do_not_use_sdk_or_emit_sensitive_data(
+        self, transport, action, inputs, status, body, failure, capsys, caplog
+    ):
+        import json
+
+        module, ctx, factory, session, request, response = transport
+        response.status = status
+        response.json.return_value = body
+        response.json.side_effect = failure
+
+        result = await windcave.execute_action(action, inputs, ctx)
+
+        ctx.fetch.assert_not_awaited()
+        session.request.assert_called_once()
+        factory.assert_called_once()
+        timeout = factory.call_args.kwargs["timeout"]
+        assert timeout.total == 30
+        assert factory.call_args.kwargs["raise_for_status"] is False
+        args, kwargs = session.request.call_args
+        assert args[0] == "GET"
+        path = "transactions" if action == "get_transaction" else "sessions"
+        input_id = inputs["transaction_id" if action == "get_transaction" else "session_id"]
+        assert args[1] == f"https://sec.windcave.com/api/v1/{path}/{input_id}"
+        assert kwargs["ssl"] is True
+        assert kwargs["allow_redirects"] is False
+        assert kwargs["headers"]["Authorization"].startswith("Basic ")
+        if status == 200 and isinstance(body, dict) and failure is None:
+            assert result.type == ResultType.ACTION
+            serialized = json.dumps(result.result.data)
+        else:
+            assert result.type == ResultType.ACTION_ERROR
+            serialized = result.result.message
+            if status != 200:
+                assert serialized in {
+                    "Invalid session id",
+                    "Invalid transaction id",
+                    f"Windcave API request failed (HTTP {status})",
+                }
+        captured = capsys.readouterr()
+        assert "SECRET-" not in serialized + captured.out + captured.err + caplog.text
+        assert kwargs["headers"]["Authorization"] not in captured.out + captured.err + caplog.text
+        session.__aexit__.assert_awaited_once()
+        request.__aexit__.assert_awaited_once()
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            aiohttp.ClientError("SECRET-KEY in connection error"),
+            TimeoutError("SECRET-PAN in timeout"),
+            RuntimeError("SECRET-HOLDER in unexpected request error"),
+        ],
+    )
+    async def test_connection_failures_are_sanitized_and_session_closed(self, transport, error, capsys, caplog):
+        module, ctx, factory, session, request, response = transport
+        request.__aenter__.side_effect = error
+
+        result = await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, ctx)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Unable to retrieve the Windcave transaction. Please try again."
+        ctx.fetch.assert_not_awaited()
+        session.__aexit__.assert_awaited_once()
+        captured = capsys.readouterr()
+        assert "SECRET-" not in captured.out + captured.err + caplog.text
+
+
+@pytest.mark.parametrize("status", [200, 400, 500])
+async def test_real_aiohttp_transport_does_not_log_card_data(status, capsys, caplog):
+    import importlib
+    from aiohttp import web
+    from aiohttp.test_utils import TestServer
+
+    module = importlib.import_module("windcave.windcave")
+
+    async def handler(request):
+        return web.json_response(
+            {"cardId": "SYNTHETIC-SECRET-CARD", "message": "SYNTHETIC-SECRET-PROVIDER"}, status=status
+        )
+
+    app = web.Application()
+    app.router.add_get("/transaction", handler)
+    async with TestServer(app) as server:
+        url = str(server.make_url("/transaction"))
+        if status == 200:
+            result = await module._windcave_request(url, headers={"Authorization": "Basic SYNTHETIC-SECRET-AUTH"})
+            assert result.data["cardId"] == "[REDACTED]"
+        else:
+            with pytest.raises(HTTPError) as error:
+                await module._windcave_request(url, headers={"Authorization": "Basic SYNTHETIC-SECRET-AUTH"})
+            assert error.value.message == f"Windcave API request failed (HTTP {status})"
+            assert "SYNTHETIC-SECRET" not in str(error.value.response_data)
+    captured = capsys.readouterr()
+    assert "SYNTHETIC-SECRET" not in captured.out + captured.err + caplog.text

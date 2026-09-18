@@ -55,7 +55,9 @@ For security, all values inside every `card` object and `cards` collection are r
 
 Only exact known lookup messages (`Invalid session id`, `Invalid transaction id`, `Session not found`, and `Transaction not found`) are returned from provider errors. Other HTTP failures return a fixed message with the HTTP status, and unexpected failures return a fixed retry message. Raw error bodies, arbitrary provider messages, and internal exception details are never included in action errors. Non-ASCII credentials are rejected before a request is sent.
 
-This protection applies to action results returned to workflows or chat. The SDK transport receives the original response before integration redaction; transport logging must be assessed separately. SDK 2.0.1 prints raw non-success response bodies and exception details, so these integration changes do not guarantee redaction in SDK or platform logs.
+Windcave HTTP requests use `aiohttp` directly, following the LINZ integration approach, because SDK 2.0.1 logs raw failed-response bodies. The SDK is still used for action registration and schema validation. The direct transport emits no response bodies, credentials, or exception details to stdout or logs, redacts successful responses before returning them, and passes only curated errors to action handlers.
+
+Requests use certificate verification, a 30-second total timeout, and disabled redirects. Each request owns and closes its HTTP session. There is one attempt per lookup: SDK retries and rate-limit handling are bypassed, so callers must retry timeout, connection, or HTTP 429 failures themselves.
 
 ## Troubleshooting
 
