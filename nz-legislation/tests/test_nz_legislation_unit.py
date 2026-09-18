@@ -669,6 +669,15 @@ class TestGetVersionProvision:
         assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
 
+    async def test_whitespace_only_section_reports_empty_selector(self, mock_context):
+        result = await nz_legislation.execute_action(
+            "get_version_provision", {"version_id": VERSION_ID, "section": "   "}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "section must include text to match."
+        mock_context.fetch.assert_not_called()
+
 
 class TestSearchVersionXml:
     async def test_rejects_non_six_part_version_id_before_authenticated_request(self, mock_context):

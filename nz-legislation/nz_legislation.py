@@ -544,11 +544,15 @@ class GetVersionProvisionAction(ActionHandler):
         try:
             section = inputs.get("section")
             provision_id = inputs.get("provision_id")
-            if isinstance(section, str):
+            if section is not None:
                 section = section.strip()
-            if isinstance(provision_id, str):
+                if not section:
+                    raise LegislationError("section must include text to match.")
+            if provision_id is not None:
                 provision_id = provision_id.strip()
-            if bool(section) == bool(provision_id):
+                if not provision_id:
+                    raise LegislationError("provision_id must include text to match.")
+            if (section is None) == (provision_id is None):
                 raise LegislationError("Provide exactly one of section or provision_id.")
             source_url = _canonical_xml_url(version_id)
             api_key = _api_headers(context)["X-Api-Key"]
