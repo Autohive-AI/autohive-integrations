@@ -51,6 +51,10 @@ _INVALID_REQUEST_RECOVERY = {
 }
 
 
+class MissingApiKeyError(ValueError):
+    """Raised only when the connection has no usable OpenRouteService API key."""
+
+
 def _api_key(context: ExecutionContext) -> str:
     """Return the configured API key without ever placing it in a URL."""
     credentials = (context.auth or {}).get("credentials", {})
@@ -58,7 +62,7 @@ def _api_key(context: ExecutionContext) -> str:
     if isinstance(api_key, str):
         api_key = api_key.strip()
     if not api_key:
-        raise ValueError("An OpenRouteService API key is required. Add one to this integration connection.")
+        raise MissingApiKeyError("An OpenRouteService API key is required. Add one to this integration connection.")
     return api_key
 
 
@@ -248,13 +252,24 @@ def _provider_error(
             cost_usd=0.0,
         )
 
-    if isinstance(error, ValueError):
+    if isinstance(error, MissingApiKeyError):
         return ActionResult(
             data=_error_payload(
                 "invalid_request",
                 str(error),
                 field=None,
                 recovery="Add a valid OpenRouteService API key to this connection.",
+            ),
+            cost_usd=0.0,
+        )
+
+    if isinstance(error, ValueError):
+        return ActionResult(
+            data=_error_payload(
+                "invalid_request",
+                str(error),
+                field=invalid_request_field,
+                recovery=_INVALID_REQUEST_RECOVERY.get(invalid_request_field or "", _ERROR_RECOVERY["invalid_request"]),
             ),
             cost_usd=0.0,
         )
@@ -331,6 +346,18 @@ def _platform_file(name: str, content_type: str, body: str | bytes) -> dict[str,
         "contentType": content_type,
         "content": base64.b64encode(raw).decode("ascii"),
     }
+
+
+def _geojson_export_file(geojson: dict[str, Any]) -> dict[str, str] | None:
+    """Return a platform file, or None if the GeoJSON cannot be serialized."""
+    try:
+        return _platform_file(
+            "isochrones.geojson",
+            "application/geo+json",
+            json.dumps(geojson, allow_nan=False),
+        )
+    except (TypeError, ValueError):
+        return None
 
 
 def _normalize_isochrone_geojson(geojson: dict[str, Any], requested_minutes: list[int]) -> dict[str, Any]:
@@ -518,13 +545,9 @@ class GetIsochrone(ActionHandler):
             engine = _engine_fields(normalized.get("metadata"))
             files: list[dict[str, str]] = []
             if inputs.get("export_geojson"):
-                files.append(
-                    _platform_file(
-                        "isochrones.geojson",
-                        "application/geo+json",
-                        json.dumps(normalized, allow_nan=False),
-                    )
-                )
+                exported = _geojson_export_file(normalized)
+                if exported is not None:
+                    files.append(exported)
             return ActionResult(
                 data={
                     "result": True,

@@ -12,7 +12,10 @@ from openrouteservice.openrouteservice import (
     GEOCODE_URL,
     ISOCHRONE_TIMEOUT_SECONDS,
     ISOCHRONE_URL_TEMPLATE,
+    MissingApiKeyError,
+    _geojson_export_file,
     _match,
+    _provider_error,
     openrouteservice,
 )
 
@@ -510,6 +513,30 @@ class TestGetIsochrone:
         assert "test-key" not in file_obj["content"]
         assert "Authorization" not in file_obj["content"]
 
+    async def test_export_serialization_failure_keeps_geojson(self, mock_context, monkeypatch):
+        import sys
+
+        module = sys.modules["openrouteservice.openrouteservice"]
+
+        def boom(_geojson):
+            return None
+
+        monkeypatch.setattr(module, "_geojson_export_file", boom)
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=ISOCHRONE_RESPONSE)
+        result = await openrouteservice.execute_action(
+            "get_isochrone", {**ISOCHRONE_INPUTS, "export_geojson": True}, mock_context
+        )
+        data = _action_data(result)
+        assert data["result"] is True
+        assert data["geojson"]["features"]
+        assert data["files"] == []
+        assert "api key" not in (data.get("message") or "").lower()
+        assert "api key" not in (data.get("recovery") or "").lower()
+
+    def test_geojson_export_skips_non_finite_values(self):
+        payload = {"type": "FeatureCollection", "features": [{"value": float("nan")}]}
+        assert _geojson_export_file(payload) is None
+
 
 class TestProviderErrors:
     @pytest.mark.parametrize(
@@ -698,3 +725,15 @@ class TestProviderErrors:
         assert "time bands" not in data["recovery"].lower()
         assert "api key" in data["recovery"].lower()
         mock_context.fetch.assert_not_called()
+
+    def test_non_auth_value_error_does_not_blame_api_key(self):
+        result = _provider_error(ValueError("At least one time value is required."))
+        data = result.data
+        assert data["error_type"] == "invalid_request"
+        assert "api key" not in data["recovery"].lower()
+        assert "api key" not in data["message"].lower()
+
+    def test_missing_api_key_error_still_blames_connection(self):
+        result = _provider_error(MissingApiKeyError("An OpenRouteService API key is required."))
+        data = result.data
+        assert "api key" in data["recovery"].lower()
