@@ -17,6 +17,32 @@ windcave = Integration.load()
 
 BASE_URL = "https://sec.windcave.com/api/v1"
 REDACTED_VALUE = "[REDACTED]"
+CARD_FIELDS = frozenset(
+    {
+        "card",
+        "cards",
+        "cardid",
+        "cardnumber2",
+        "cardnumber",
+        "cardholdername",
+        "dateexpirymonth",
+        "dateexpiryyear",
+        "cvc",
+        "cvv",
+    }
+)
+SAFE_API_MESSAGES = frozenset(
+    {
+        "Invalid session id",
+        "Invalid transaction id",
+        "Session not found",
+        "Transaction not found",
+    }
+)
+
+
+class WindcaveCredentialsError(ValueError):
+    """Credential validation failure with a safe, fixed message."""
 
 
 # ---- Helper Functions ----
@@ -32,9 +58,12 @@ def get_auth_headers(context: ExecutionContext) -> dict[str, str]:
     api_key = credentials.get("api_key")
 
     if not isinstance(username, str) or not username.strip():
-        raise ValueError("Windcave REST API username is required")
+        raise WindcaveCredentialsError("Windcave REST API username is required")
     if not isinstance(api_key, str) or not api_key.strip():
-        raise ValueError("Windcave REST API key is required")
+        raise WindcaveCredentialsError("Windcave REST API key is required")
+
+    if not username.isascii() or not api_key.isascii():
+        raise WindcaveCredentialsError("Windcave REST API credentials must contain only ASCII characters")
 
     auth_bytes = f"{username}:{api_key}".encode("ascii")
     basic_auth = base64.b64encode(auth_bytes).decode("ascii")
@@ -43,16 +72,18 @@ def get_auth_headers(context: ExecutionContext) -> dict[str, str]:
 
 
 def extract_error_message(error: HTTPError) -> str:
-    """Extract a human-readable error message from a Windcave error response."""
+    """Return only known lookup messages; never echo upstream payloads."""
     data = error.response_data
     if isinstance(data, dict):
         errors = data.get("errors")
         if isinstance(errors, list) and errors:
-            messages = [e.get("message", str(e)) if isinstance(e, dict) else str(e) for e in errors]
-            return "; ".join(messages)
-        if data.get("message"):
-            return str(data["message"])
-    return f"Windcave API error (HTTP {error.status}): {error.message}"
+            messages = [e.get("message") if isinstance(e, dict) else e for e in errors]
+            if all(isinstance(message, str) and message in SAFE_API_MESSAGES for message in messages):
+                return "; ".join(messages)
+        message = data.get("message")
+        if isinstance(message, str) and message in SAFE_API_MESSAGES:
+            return message
+    return f"Windcave API request failed (HTTP {error.status})"
 
 
 def _redact_value(value: Any) -> Any:
@@ -67,10 +98,10 @@ def _redact_value(value: Any) -> Any:
 
 
 def redact_card_objects(value: Any) -> Any:
-    """Return a copy with every Windcave card object recursively redacted."""
+    """Redact card objects and standalone card credentials at every depth."""
     if isinstance(value, dict):
         return {
-            key: _redact_value(item) if key.lower() == "card" else redact_card_objects(item)
+            key: _redact_value(item) if key.lower() in CARD_FIELDS else redact_card_objects(item)
             for key, item in value.items()
         }
     if isinstance(value, list):
@@ -107,8 +138,10 @@ class GetTransactionAction(ActionHandler):
             )
         except HTTPError as e:
             return ActionError(message=extract_error_message(e))
-        except Exception as e:
+        except WindcaveCredentialsError as e:
             return ActionError(message=str(e))
+        except Exception:
+            return ActionError(message="Unable to retrieve the Windcave transaction. Please try again.")
 
 
 # ---- Session Action Handlers ----
@@ -144,5 +177,7 @@ class GetSessionAction(ActionHandler):
             )
         except HTTPError as e:
             return ActionError(message=extract_error_message(e))
-        except Exception as e:
+        except WindcaveCredentialsError as e:
             return ActionError(message=str(e))
+        except Exception:
+            return ActionError(message="Unable to retrieve the Windcave session. Please try again.")

@@ -63,7 +63,7 @@
                     },
                     "transaction": {
                         "type": "object",
-                        "description": "The full transaction object returned by Windcave, with every card object recursively redacted."
+                        "description": "The full transaction object returned by Windcave, with card objects and standalone card-credential fields recursively redacted."
                     }
                 }
             }
@@ -116,11 +116,11 @@
                     "transactions": {
                         "type": "array",
                         "items": {"type": "object"},
-                        "description": "Payment attempts in the session. Every card object is retained with all values redacted."
+                        "description": "Payment attempts in the session. Card objects and standalone card-credential fields are recursively redacted."
                     },
                     "session": {
                         "type": "object",
-                        "description": "The full session response with every card object recursively redacted."
+                        "description": "The full session response with card objects and standalone card-credential fields recursively redacted."
                     }
                 }
             }

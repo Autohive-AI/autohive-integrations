@@ -92,20 +92,29 @@ class TestGetAuthHeaders:
 
 class TestExtractErrorMessage:
     def test_extracts_from_errors_list(self):
-        err = HTTPError(400, "Bad Request", {"errors": [{"message": "Invalid currency"}]})
-        assert extract_error_message(err) == "Invalid currency"
+        err = HTTPError(400, "Bad Request", {"errors": [{"message": "Invalid session id"}]})
+        assert extract_error_message(err) == "Invalid session id"
 
     def test_joins_multiple_errors(self):
-        err = HTTPError(400, "Bad Request", {"errors": [{"message": "A"}, {"message": "B"}]})
-        assert extract_error_message(err) == "A; B"
+        err = HTTPError(
+            400,
+            "Bad Request",
+            {
+                "errors": [
+                    {"message": "Invalid session id"},
+                    {"message": "Invalid transaction id"},
+                ]
+            },
+        )
+        assert extract_error_message(err) == "Invalid session id; Invalid transaction id"
 
     def test_extracts_from_message_field(self):
-        err = HTTPError(500, "Server Error", {"message": "Something went wrong"})
-        assert extract_error_message(err) == "Something went wrong"
+        err = HTTPError(404, "Not Found", {"message": "Transaction not found"})
+        assert extract_error_message(err) == "Transaction not found"
 
     def test_falls_back_to_status_and_message(self):
         err = HTTPError(502, "Bad Gateway", "not json")
-        assert extract_error_message(err) == "Windcave API error (HTTP 502): Bad Gateway"
+        assert extract_error_message(err) == "Windcave API request failed (HTTP 502)"
 
 
 class TestRedactCardObjects:
@@ -290,3 +299,116 @@ class TestGetSession:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Session not found" in result.result.message
+
+
+# Exercise the whole action result, including duplicated session transactions.
+@pytest.mark.parametrize(
+    "action, inputs",
+    [
+        ("get_transaction", {"transaction_id": TRANSACTION_ID}),
+        ("get_session", {"session_id": "session_1"}),
+    ],
+)
+class TestSensitiveDataBoundaries:
+    async def test_all_card_representations_redacted(self, mock_context, action, inputs):
+        from copy import deepcopy
+        import json
+
+        payload = deepcopy(SAMPLE_SESSION if action == "get_session" else SAMPLE_TRANSACTION)
+        payload.update({"cardId": "secret-top-token", "cardNumber2": "secret-top-number2"})
+        payload["nested"] = [
+            {
+                "CardId": "secret-nested-token",
+                "CARDNUMBER2": "secret-nested-number2",
+                "cardNumber": "secret-pan",
+                "cardHolderName": "secret-holder",
+                "dateExpiryMonth": "secret-month",
+                "dateExpiryYear": "secret-year",
+                "cvc": "secret-cvc",
+                "cvv": "secret-cvv",
+                "cards": [{"id": "secret-array-token", "type": "secret-brand"}],
+                "CaRd": {"unknownField": ["secret-new-field", {"value": "secret-deep-value"}]},
+                "cardIdNull": None,
+            }
+        ]
+        if action == "get_session":
+            payload["transactions"][0].update(
+                {"cardId": "secret-attempt-token", "cardNumber2": "secret-attempt-number2"}
+            )
+        original = deepcopy(payload)
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
+
+        result = await windcave.execute_action(action, inputs, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert payload == original
+        output = result.result.data
+        assert "secret-" not in json.dumps(output)
+        assert "TEST CUSTOMER" not in json.dumps(output)
+        full = output["session" if action == "get_session" else "transaction"]
+        assert full["cardId"] == "[REDACTED]"
+        assert full["cardNumber2"] == "[REDACTED]"
+        assert full["merchantReference"] == "ORDER-1"
+        if action == "get_session":
+            assert output["transactions"] == full["transactions"]
+            assert output["transactions"][0]["authorised"] is False
+            assert output["transactions"][0]["responseText"] == "DECLINED"
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            "raw-secret-card-payload",
+            {"card": {"cardNumber": "secret-pan"}},
+            {"message": "Invalid transaction id: secret-token"},
+            {"message": {"cardId": "secret-token"}},
+            {"errors": [{"cardNumber2": "secret-token"}]},
+            {"errors": ["secret-token"]},
+            {"errors": [{"message": "Invalid session id"}, {"message": "secret-token"}]},
+            {"errors": [{"message": {"cardId": "secret-token"}}]},
+        ],
+    )
+    async def test_http_errors_never_echo_payload(self, mock_context, action, inputs, payload):
+        mock_context.fetch.side_effect = HTTPError(400, "raw-secret-card-payload", payload)
+
+        result = await windcave.execute_action(action, inputs, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Windcave API request failed (HTTP 400)"
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            RuntimeError("secret-card-token and cardholder details"),
+            ValueError("secret-card-token"),
+            UnicodeEncodeError("ascii", "secret-\u00e9-key", 7, 8, "not ASCII"),
+        ],
+    )
+    async def test_unexpected_errors_never_echo_details(self, mock_context, action, inputs, exception):
+        mock_context.fetch.side_effect = exception
+
+        result = await windcave.execute_action(action, inputs, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        resource = "session" if action == "get_session" else "transaction"
+        assert result.result.message == f"Unable to retrieve the Windcave {resource}. Please try again."
+
+    @pytest.mark.parametrize("field", ["username", "api_key"])
+    async def test_non_ascii_credentials_are_safe_and_not_sent(self, mock_context, action, inputs, field):
+        mock_context.auth["credentials"][field] = "secret-\u00e9-credential"
+
+        result = await windcave.execute_action(action, inputs, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Windcave REST API credentials must contain only ASCII characters"
+        mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("value", [None, [], {}, "secret-scalar", 123, False])
+@pytest.mark.parametrize("key", ["card", "cards", "cardId", "cardNumber2"])
+def test_sensitive_fields_redact_unusual_shapes(key, value):
+    result = redact_card_objects({key: value, "amount": "19.99"})
+    assert result["amount"] == "19.99"
+    if value is None or isinstance(value, (dict, list)):
+        assert result[key] == value
+    else:
+        assert result[key] == "[REDACTED]"

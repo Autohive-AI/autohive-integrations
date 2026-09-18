@@ -4,7 +4,7 @@ Connects Autohive to the [Windcave](https://www.windcave.com/) REST API to retri
 
 ## Description
 
-Windcave is a payment gateway used across New Zealand, Australia, and the Pacific. This integration is **read-only**: it retrieves individual transactions and payment sessions. Every `card` object in transaction and session responses is recursively redacted before data leaves the integration.
+Windcave is a payment gateway used across New Zealand, Australia, and the Pacific. This integration is **read-only**: it retrieves individual transactions and payment sessions. Card objects and standalone card-credential fields in transaction and session responses are recursively redacted before being returned to workflows or chat.
 
 It does not create, capture, refund, or void payments, and it does not create Hosted Payment Page sessions. Transactions and sessions must already exist in your Windcave account.
 
@@ -41,7 +41,7 @@ Retrieve an existing payment session and all transaction attempts associated wit
 
 **Outputs:** `session_id`, `state`, `type`, `amount`, `currency`, `merchant_reference`, `expires`, `transactions`, `session`
 
-For security, all values inside every `card` object are replaced with `[REDACTED]`. The object and its keys remain present so workflows can detect that card data existed without receiving cardholder, token, card-number, expiry, or brand values.
+For security, all values inside every `card` object and `cards` collection are replaced with `[REDACTED]`. Standalone `cardId`, `cardNumber2`, `cardNumber`, `cardHolderName`, `dateExpiryMonth`, `dateExpiryYear`, `cvc`, and `cvv` fields are also redacted at every nesting depth (case-insensitively). The object and its keys remain present so workflows can detect that card data existed without receiving cardholder, token, card-number, expiry, or brand values.
 
 ## API information
 
@@ -50,6 +50,12 @@ For security, all values inside every `card` object are replaced with `[REDACTED
 - Endpoints used:
   - `GET /transactions/{id}`
   - `GET /sessions/{id}`
+
+## Error privacy
+
+Only exact known lookup messages (`Invalid session id`, `Invalid transaction id`, `Session not found`, and `Transaction not found`) are returned from provider errors. Other HTTP failures return a fixed message with the HTTP status, and unexpected failures return a fixed retry message. Raw error bodies, arbitrary provider messages, and internal exception details are never included in action errors. Non-ASCII credentials are rejected before a request is sent.
+
+This protection applies to action results returned to workflows or chat. The SDK transport receives the original response before integration redaction; transport logging must be assessed separately. SDK 2.0.1 prints raw non-success response bodies and exception details, so these integration changes do not guarantee redaction in SDK or platform logs.
 
 ## Troubleshooting
 
@@ -92,7 +98,7 @@ pytest windcave/tests/test_windcave_integration.py -m "integration and not destr
 
 ## Notes
 
-- This integration never accepts raw card numbers or CVCs. Card objects returned within transaction or session data retain their shape, but all contained values are recursively replaced with `[REDACTED]` before being returned.
+- This integration never accepts raw card numbers or CVCs. Card objects and collections retain their shape, but all contained values and standalone card-credential fields are recursively replaced with `[REDACTED]` before being returned; `null` remains `null`.
 - `settlement_date` and `amount_surcharge` are read directly from Windcave's transaction data (`settlementDate`/`amountSurcharge`). `settlement_date` may be `null` before settlement, while `amount_surcharge` may be `null` when no surcharge applies.
 
 ### Reconciliation fields: what's available vs. not

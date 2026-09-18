@@ -50,6 +50,30 @@ def assert_card_is_redacted(value):
         assert value is None or value == "[REDACTED]"
 
 
+def assert_card_fields_are_redacted(value):
+    """Check objects and standalone card fields throughout the full output."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key.lower() in {
+                "card",
+                "cards",
+                "cardid",
+                "cardnumber2",
+                "cardnumber",
+                "cardholdername",
+                "dateexpirymonth",
+                "dateexpiryyear",
+                "cvc",
+                "cvv",
+            }:
+                assert_card_is_redacted(item)
+            else:
+                assert_card_fields_are_redacted(item)
+    elif isinstance(value, list):
+        for item in value:
+            assert_card_fields_are_redacted(item)
+
+
 @pytest.fixture
 def live_context(env_credentials):
     username = env_credentials("WINDCAVE_USERNAME")
@@ -120,6 +144,7 @@ class TestGetTransaction:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["transaction_id"] == transaction_id
+        assert_card_fields_are_redacted(result.result.data)
 
 
 # ---- Read-Only Session Tests ----
@@ -146,6 +171,7 @@ class TestGetSession:
         data = result.result.data
         assert data["session_id"] == session_id
         assert isinstance(data["transactions"], list)
+        assert_card_fields_are_redacted(data)
 
         cards = list(find_card_objects(data["session"]))
         assert cards, "WINDCAVE_TEST_SESSION_ID must reference a session containing card data"
