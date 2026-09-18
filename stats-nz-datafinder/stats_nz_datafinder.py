@@ -934,8 +934,15 @@ def _resolve_query_scope(inputs: dict[str, Any]) -> tuple[dict[str, Any] | None,
     geometry = inputs.get("geometry")
     bbox = inputs.get("bbox")
     filters = inputs.get("attribute_filters") or []
-    if geometry and bbox:
-        raise DatafinderError("Provide geometry or bbox, not both.")
+    if geometry is not None and bbox is not None:
+        raise DatafinderError(
+            _contract_error(
+                message="Provide only one spatial source: geometry, file, or bbox.",
+                error_code="conflicting_geometry_source",
+                recovery="Pass either inline geometry, a GeoJSON file, or bbox — not more than one.",
+                retry_safe=False,
+            )
+        )
     if bbox:
         return _bbox_polygon(bbox), "bbox"
     if geometry:
@@ -2169,16 +2176,6 @@ class QueryLayerByGeometryAction(ActionHandler):
             if geometry_source:
                 payload["geometry_source"] = geometry_source
             if export_geojson:
-                if len(export_features) != len(records):
-                    raise DatafinderError(
-                        _contract_error(
-                            message="The GeoJSON export feature count does not match record_count.",
-                            error_code="geojson_export_failed",
-                            field="export_geojson",
-                            recovery="Retry the query, or omit export_geojson.",
-                            retry_safe=False,
-                        )
-                    )
                 payload["files"] = [_query_layer_geojson_file(layer_id, export_features)]
             return ActionResult(data=payload)
         except DatafinderError as exc:

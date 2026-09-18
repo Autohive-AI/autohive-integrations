@@ -67,8 +67,7 @@
                 "description": "The content type of the file"
               }
             },
-            "required": ["content", "name", "contentType"],
-            "additionalProperties": false
+            "required": ["content", "name", "contentType"]
           },
           "feature_index": {
             "type": "integer",
@@ -281,8 +280,7 @@
                 "description": "The content type of the file"
               }
             },
-            "required": ["content", "name", "contentType"],
-            "additionalProperties": false
+            "required": ["content", "name", "contentType"]
           },
           "feature_index": {
             "type": "integer",

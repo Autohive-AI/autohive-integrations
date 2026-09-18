@@ -88,7 +88,8 @@ requested attributes, and `overlap_fraction` / `overlap_area_sq_km` /
 `feature_area_sq_km`. Null, `-997`, and `-999` are preserved. The export
 feature count matches `record_count`. Incomplete pagination fails closed
 instead of writing a partial file. Compact JSON records still omit geometry
-unless `include_geometry` is true.
+unless `include_geometry` is true. Export size follows `page_size` × `max_pages`
+(not a separate byte cap).
 
 A GeoJSON file may be a FeatureCollection, a Feature, or a bare
 Polygon/MultiPolygon. If the file contains exactly one Polygon or
