@@ -543,6 +543,13 @@ class TestProviderErrors:
 
         data = _action_data(result)
         assert data["error_type"] == error_type
+        assert data["error_code"] == error_type
+        if status == 400:
+            assert data["field"] == "address"
+            assert "time bands" not in data["message"].lower()
+            assert "time_minutes" not in data["message"].lower()
+        else:
+            assert data["field"] is None
         assert "test-key" not in data["message"]
 
     async def test_403_quota_only_body_is_quota_exceeded(self, mock_context):
@@ -606,6 +613,16 @@ class TestProviderErrors:
         assert "routing profile" not in data["message"].lower()
         assert "quota" in data["message"].lower()
 
+    async def test_isochrone_400_marks_time_minutes_not_address(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(400, "bad request")
+
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+
+        data = _action_data(result)
+        assert data["error_type"] == "invalid_request"
+        assert data["field"] == "time_minutes"
+        assert "time bands" in data["message"].lower()
+
     async def test_404_is_not_found_not_retryable(self, mock_context):
         mock_context.fetch.side_effect = HTTPError(404, "not found")
 
@@ -647,4 +664,6 @@ class TestProviderErrors:
         data = _action_data(result)
         assert data["result"] is False
         assert data["error_type"] == "invalid_request"
+        assert data["field"] is None
+        assert "time_minutes" not in (data.get("message") or "").lower()
         mock_context.fetch.assert_not_called()

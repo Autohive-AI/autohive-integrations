@@ -153,7 +153,7 @@ def _error_payload(
     }
 
 
-def _provider_error(error: Exception) -> ActionResult:
+def _provider_error(error: Exception, *, invalid_request_field: str | None = None) -> ActionResult:
     """Return safe, actionable provider errors without exposing request credentials."""
     if isinstance(error, RateLimitError):
         return ActionResult(
@@ -174,9 +174,14 @@ def _provider_error(error: Exception) -> ActionResult:
             error_type, message = _classify_forbidden(error)
             field = None
         elif error.status == 400:
-            message = "OpenRouteService rejected the request. Check the supplied coordinates or time bands."
             error_type = "invalid_request"
-            field = "time_minutes"
+            field = invalid_request_field
+            if invalid_request_field == "address":
+                message = "OpenRouteService rejected the request. Check the supplied address."
+            elif invalid_request_field == "time_minutes":
+                message = "OpenRouteService rejected the request. Check the supplied coordinates or time bands."
+            else:
+                message = "OpenRouteService rejected the request. Check the inputs and try again."
         elif error.status == 404:
             message = (
                 "OpenRouteService found no result for this request. "
@@ -201,7 +206,7 @@ def _provider_error(error: Exception) -> ActionResult:
 
     if isinstance(error, ValueError):
         return ActionResult(
-            data=_error_payload("invalid_request", str(error), field="time_minutes"),
+            data=_error_payload("invalid_request", str(error), field=None),
             cost_usd=0.0,
         )
 
@@ -398,7 +403,7 @@ class GeocodeAddress(ActionHandler):
             aiohttp.ClientError,
             TimeoutError,
         ) as error:
-            return _provider_error(error)
+            return _provider_error(error, invalid_request_field="address")
 
 
 @openrouteservice.action("get_isochrone")
@@ -483,4 +488,4 @@ class GetIsochrone(ActionHandler):
             aiohttp.ClientError,
             TimeoutError,
         ) as error:
-            return _provider_error(error)
+            return _provider_error(error, invalid_request_field="time_minutes")

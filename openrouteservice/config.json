@@ -50,8 +50,13 @@
             "type": ["string", "null"],
             "description": "rate_limit, quota_exceeded, quota_or_unauthorized, authentication, authorization, invalid_request, not_found, not_acceptable, provider_error, or request_failed."
           },
+          "error_code": {"type": ["string", "null"], "description": "Stable machine-readable code. Same values as error_type."},
           "retry_after_seconds": {"type": ["integer", "null"]},
-          "message": {"type": ["string", "null"]}
+          "message": {"type": ["string", "null"]},
+          "field": {"type": ["string", "null"]},
+          "valid_alternatives": {"type": ["array", "null"], "items": {"type": ["string", "number"]}},
+          "recovery": {"type": ["string", "null"]},
+          "retry_safe": {"type": ["boolean", "null"]}
         },
         "required": ["result"]
       }
