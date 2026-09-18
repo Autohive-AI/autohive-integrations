@@ -166,6 +166,8 @@ code and returns a compact result.
 
 - Validates every requested field against current layer metadata.
 - Rejects non-additive aggregations (medians, rates, percentages, indexes).
+  Coded `VAR_*` fields must have codebook measure `Count`; if the codebook
+  cannot classify a field, the action fails closed.
 - Queries every intersecting feature, deduplicates by feature id, and fails on
   duplicate geography-code joins.
 - Contribution = unrounded `source_value × overlap_fraction`.

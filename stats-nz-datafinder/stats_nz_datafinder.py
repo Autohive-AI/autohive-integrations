@@ -717,6 +717,12 @@ def _fields(metadata: Any) -> list[dict[str, Any]]:
         title = item.get("title") or item.get("label")
         if isinstance(title, str) and title.strip():
             field["title"] = title
+        measure = item.get("measure")
+        if isinstance(measure, str) and measure.strip():
+            field["measure"] = measure
+        year = item.get("year")
+        if isinstance(year, str) and year.strip():
+            field["year"] = year
         if _CODED_FIELD.fullmatch(name):
             field["coded"] = True
         fields.append(field)
@@ -1134,18 +1140,33 @@ def _validate_measures(
                 )
             )
         codebook_measure = next((row.get("measure") for row in rows if row.get("name") == field), None)
-        if isinstance(codebook_measure, str) and codebook_measure.strip().lower() not in {"", "count"}:
+        coded = _is_coded_field(field)
+        measure_name = codebook_measure.strip().lower() if isinstance(codebook_measure, str) else ""
+        if coded and measure_name != "count":
+            if measure_name:
+                raise DatafinderError(
+                    _contract_error(
+                        message=(
+                            f"Field '{field}' has codebook measure '{codebook_measure}'. "
+                            "Medians, means, rates, percentages, and indexes cannot be area-weighted."
+                        ),
+                        error_code="non_additive_aggregation",
+                        field=f"{path}.field",
+                        valid_alternatives=[ADDITIVE_COUNT],
+                        recovery="Request only additive Census counts (codebook measure Count).",
+                        retry_safe=False,
+                    )
+                )
             raise DatafinderError(
                 _contract_error(
                     message=(
-                        f"Field '{field}' has codebook measure '{codebook_measure}'. "
-                        "Medians, means, rates, percentages, and indexes cannot be area-weighted."
+                        f"Field '{field}' is a coded Census column without a codebook Count classification, "
+                        "so it cannot be area-weighted."
                     ),
-                    error_code="non_additive_aggregation",
+                    error_code="unclassified_field",
                     field=f"{path}.field",
-                    valid_alternatives=[ADDITIVE_COUNT],
-                    recovery="Request only additive Census counts (codebook measure Count).",
-                    retry_safe=False,
+                    recovery="Call Get Layer Metadata and use a field whose measure is Count.",
+                    retry_safe=True,
                 )
             )
         if aggregation != ADDITIVE_COUNT:

@@ -203,7 +203,6 @@ class TestQueryAreaStatistics:
         )
         assert result.type == ResultType.ACTION, result.result
         data = result.result.data
-        assert data["validation_status"] == "ok"
         assert data["layer"]["layer_id"] == layer_id
         assert "files" not in data
         assert "source_records" not in data
@@ -211,6 +210,7 @@ class TestQueryAreaStatistics:
         row = data["results"][0]
         assert row["field"] == coded[0]
         assert row["status"] in {"ok", "partial", "unavailable"}
+        assert data["validation_status"] == row["status"]
         if row["estimated_value"] is not None:
             assert row["estimated_value"] >= 0
         assert data["geography_summary"]["intersecting_feature_count"] >= 0

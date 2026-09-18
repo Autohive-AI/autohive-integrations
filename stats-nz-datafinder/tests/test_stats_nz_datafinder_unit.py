@@ -1354,6 +1354,27 @@ class TestGetLayerMetadata:
                 rows,
             )
 
+    def test_rejects_coded_field_without_codebook_count(self):
+        rows = [{"name": "VAR_1_3", "type": "integer"}]
+        metadata = {
+            **METADATA,
+            "data": {"fields": [{"name": "VAR_1_3", "type": "integer"}]},
+        }
+        with pytest.raises(DatafinderError, match="unclassified_field"):
+            _validate_measures(
+                [
+                    {
+                        "key": "population",
+                        "label": "Population",
+                        "field": "VAR_1_3",
+                        "unit": "count",
+                        "aggregation": "additive_count",
+                    }
+                ],
+                metadata,
+                rows,
+            )
+
     @pytest.mark.asyncio
     async def test_attachments_http_500_does_not_fail_metadata(self, mock_context):
         mock_context.fetch.side_effect = [
@@ -1766,8 +1787,13 @@ CENSUS_META = {
         "fields": [
             {"name": "Shape", "type": "geometry"},
             {"name": "SA12023_V1_00", "type": "string"},
-            {"name": "VAR_1_1", "type": "integer", "title": "Census usually resident population count"},
-            {"name": "VAR_1_2", "type": "integer"},
+            {
+                "name": "VAR_1_1",
+                "type": "integer",
+                "title": "Census usually resident population count",
+                "measure": "Count",
+            },
+            {"name": "VAR_1_2", "type": "integer", "measure": "Count"},
         ],
     },
 }
