@@ -18,7 +18,6 @@ from stats_nz_datafinder import (
     _attachment_items,
     _codebook_field_info,
     _download_https_text,
-    _is_binary_attachment,
     _validate_measures,
     _attribution,
     _bbox_polygon,
@@ -1220,15 +1219,6 @@ class TestGetLayerMetadata:
             }
         ]
 
-    def test_skips_xlsx_and_pdf_attachments(self):
-        assert _is_binary_attachment({"name": "notes.pdf", "url": "https://datafinder.stats.govt.nz/files/notes.pdf"})
-        assert _is_binary_attachment(
-            {"name": "lookup.xlsx", "url": "https://datafinder.stats.govt.nz/files/lookup.xlsx"}
-        )
-        assert not _is_binary_attachment(
-            {"name": "lookup.csv", "url": "https://datafinder.stats.govt.nz/files/lookup.csv"}
-        )
-
     def test_codebook_maps_count_and_median(self):
         csv_text = (
             "Column_name,Year,Measure,Variable1,Variable1_category,Field_name_alias\n"
@@ -1310,7 +1300,7 @@ class TestGetLayerMetadata:
         import stats_nz_datafinder as module
 
         async def fake_download(_context, url):
-            raise AssertionError(f"must not download binary attachment {url}")
+            return "application/pdf", "%PDF-1.4 not a codebook"
 
         monkeypatch.setattr(module, "_download_https_text", fake_download)
         mock_context.fetch.side_effect = [
@@ -2136,7 +2126,6 @@ class TestQueryAreaStatistics:
         result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
         data = result.result.data
         assert "geometry" not in data
-        assert "diagnostics" not in data
         dumped = json.dumps(data)
         assert "Polygon" not in dumped
         assert dumped.count("7010001") == 0

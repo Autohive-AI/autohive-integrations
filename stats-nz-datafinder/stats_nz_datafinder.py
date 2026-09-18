@@ -1202,35 +1202,8 @@ def _validate_measures(
                 "field": field,
                 "unit": unit,
                 "aggregation": aggregation,
-                "denominator_key": item.get("denominator_key"),
             }
         )
-    keyset = {item["key"] for item in validated}
-    for index, item in enumerate(validated):
-        denominator = item["denominator_key"]
-        if denominator is None:
-            continue
-        if not isinstance(denominator, str) or denominator not in keyset:
-            raise DatafinderError(
-                _contract_error(
-                    message=f"denominator_key '{denominator}' does not match another requested measure key.",
-                    error_code="invalid_denominator",
-                    field=f"measures[{index}].denominator_key",
-                    valid_alternatives=sorted(keyset),
-                    recovery="Set denominator_key to another measure's key, or omit it.",
-                    retry_safe=False,
-                )
-            )
-        if denominator == item["key"]:
-            raise DatafinderError(
-                _contract_error(
-                    message="denominator_key cannot refer to the same measure.",
-                    error_code="invalid_denominator",
-                    field=f"measures[{index}].denominator_key",
-                    recovery="Point denominator_key at a different additive count.",
-                    retry_safe=False,
-                )
-            )
     return validated
 
 
@@ -1323,31 +1296,6 @@ def _page_url(metadata: dict[str, Any], layer_id: int) -> str:
     return f"https://datafinder.stats.govt.nz/layer/{layer_id}/"
 
 
-_BINARY_ATTACHMENT_SUFFIXES = (
-    ".xlsx",
-    ".xls",
-    ".pdf",
-    ".zip",
-    ".png",
-    ".jpg",
-    ".jpeg",
-    ".gif",
-    ".tif",
-    ".tiff",
-    ".doc",
-    ".docx",
-)
-_BINARY_CONTENT_TYPES = (
-    "application/pdf",
-    "application/zip",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument",
-    "image/",
-    "audio/",
-    "video/",
-)
-
-
 def _looks_like_file_url(url: str) -> bool:
     """True for a downloadable file path, not a Koordinates JSON resource URL."""
     path = urlparse(url).path.rstrip("/").lower()
@@ -1361,19 +1309,6 @@ def _attachment_basename(attachment: dict[str, str]) -> str:
     name = (attachment.get("name") or "").lower()
     url = (attachment.get("url") or "").lower()
     return f"{name} {urlparse(url).path}"
-
-
-def _is_binary_attachment(attachment: dict[str, str]) -> bool:
-    name = (attachment.get("name") or "").lower()
-    path = urlparse(attachment.get("url") or "").path.lower()
-    return any(name.endswith(suffix) or path.endswith(suffix) for suffix in _BINARY_ATTACHMENT_SUFFIXES)
-
-
-def _is_binary_content_type(content_type: str) -> bool:
-    low = content_type.lower()
-    if "csv" in low or "text/" in low:
-        return False
-    return any(token in low for token in _BINARY_CONTENT_TYPES)
 
 
 def _attachment_name(item: dict[str, Any]) -> str | None:
@@ -1484,8 +1419,6 @@ async def _download_https_text(context: ExecutionContext, url: str) -> tuple[str
                 if not (200 <= response.status < 300):
                     return "", ""
                 content_type = response.headers.get("Content-Type", "")
-                if _is_binary_content_type(content_type):
-                    return "", ""
                 content_length = response.headers.get("Content-Length")
                 if content_length and content_length.isdigit() and int(content_length) > CODEBOOK_MAX_CHARS:
                     return "", ""
@@ -1569,7 +1502,7 @@ async def _apply_codebook_titles(
         downloads = 0
         for attachment in ranked:
             url = attachment.get("url")
-            if not isinstance(url, str) or not _looks_like_file_url(url) or _is_binary_attachment(attachment):
+            if not isinstance(url, str) or not _looks_like_file_url(url):
                 continue
             if downloads >= CODEBOOK_MAX_DOWNLOADS:
                 return
@@ -1878,7 +1811,6 @@ class QueryAreaStatisticsAction(ActionHandler):
         page_size = inputs.get("page_size", DEFAULT_PAGE_SIZE)
         max_pages = inputs.get("max_pages", DEFAULT_AREA_MAX_PAGES)
         missing_values = inputs.get("missing_values", DEFAULT_MISSING_VALUES)
-        include_diagnostics = bool(inputs.get("include_diagnostics"))
         max_source_features = inputs.get("max_source_features", DEFAULT_MAX_SOURCE_FEATURES)
         try:
             geometry = inputs["geometry"]
@@ -1949,8 +1881,6 @@ class QueryAreaStatisticsAction(ActionHandler):
             }
             geography_codes: list[str] = []
             included_any = 0
-            overlap_min: float | None = None
-            overlap_max: float | None = None
             for feature in collected.features:
                 if not isinstance(feature, dict):
                     raise DatafinderError(
@@ -1963,8 +1893,6 @@ class QueryAreaStatisticsAction(ActionHandler):
                         )
                     )
                 fraction = _raw_overlap_fraction(query_geom, feature.get("geometry"))
-                overlap_min = fraction if overlap_min is None else min(overlap_min, fraction)
-                overlap_max = fraction if overlap_max is None else max(overlap_max, fraction)
                 properties = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
                 has_included = False
                 for measure in measures:
@@ -2030,8 +1958,6 @@ class QueryAreaStatisticsAction(ActionHandler):
                     "unavailable_feature_count": unavailable,
                     "status": status,
                 }
-                if measure.get("denominator_key"):
-                    result_row["denominator_key"] = measure["denominator_key"]
                 results.append(result_row)
             statuses = [row["status"] for row in results]
             if statuses and all(status == "unavailable" for status in statuses):
@@ -2068,17 +1994,6 @@ class QueryAreaStatisticsAction(ActionHandler):
                 "warnings": warnings,
                 "validation_status": validation_status,
             }
-            if include_diagnostics:
-                output["diagnostics"] = {
-                    "retrieved_pages": collected.pages,
-                    "total_matched": collected.matched,
-                    "page_size": page_size,
-                    "max_pages": max_pages,
-                    "overlap_min": overlap_min,
-                    "overlap_max": overlap_max,
-                    "feature_type": feature_type,
-                    "sort_by": sort_by,
-                }
             return ActionResult(data=output)
         except DatafinderError as exc:
             return ActionError(message=_redact(exc))

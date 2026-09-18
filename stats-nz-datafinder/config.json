@@ -229,12 +229,6 @@
                   "type": "string",
                   "enum": ["additive_count"],
                   "description": "Only additive_count is supported. Medians, rates, percentages, and indexes are rejected."
-                },
-                "denominator_key": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 64,
-                  "description": "Optional key of another requested measure for downstream percentage calculation. Not computed here."
                 }
               },
               "required": ["key", "label", "field", "unit", "aggregation"],
@@ -248,11 +242,6 @@
             "default": [-999, -997],
             "description": "Numeric sentinels treated as unavailable, never as zero. Default includes -999 (confidential) and -997 (not available).",
             "items": { "type": "number" }
-          },
-          "include_diagnostics": {
-            "type": "boolean",
-            "default": false,
-            "description": "If true, include pagination and overlap diagnostics. Default false."
           },
           "max_source_features": {
             "type": "integer",
@@ -293,7 +282,6 @@
                 "estimated_value": { "type": ["number", "null"] },
                 "unit": { "type": "string" },
                 "aggregation": { "type": "string" },
-                "denominator_key": { "type": "string" },
                 "source_feature_count": { "type": "integer" },
                 "included_feature_count": { "type": "integer" },
                 "unavailable_feature_count": { "type": "integer" },
@@ -337,10 +325,6 @@
             "type": "string",
             "enum": ["ok", "partial", "unavailable"],
             "description": "ok when every measure is fully included; partial when some values were suppressed or missing; unavailable when no measure had a usable source value."
-          },
-          "diagnostics": {
-            "type": "object",
-            "description": "Present only when include_diagnostics is true."
           }
         },
         "required": [
