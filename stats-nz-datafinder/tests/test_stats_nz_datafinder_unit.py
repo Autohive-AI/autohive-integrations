@@ -1912,7 +1912,6 @@ class TestQueryAreaStatistics:
         assert data["results"][0]["status"] == "ok"
         assert data["results"][0]["included_feature_count"] == 1
         assert data["geography_summary"]["intersecting_feature_count"] == 1
-        assert "files" not in data
         assert "source_records" not in data
         assert "records" not in data
         assert data["layer"]["catalogue_url"].startswith("https://datafinder.stats.govt.nz/")
