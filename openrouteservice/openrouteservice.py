@@ -38,11 +38,17 @@ _ERROR_RECOVERY = {
     "quota_or_unauthorized": "Check the HeiGIT dashboard and the API key. Do not retry shortly.",
     "authentication": "Update the OpenRouteService API key on this connection.",
     "authorization": "Check the API key is enabled for this service. Do not retry the same request.",
-    "invalid_request": "Correct the coordinates or time bands, then send a new request.",
+    "invalid_request": "Correct the inputs, then send a new request.",
     "not_found": "Check the coordinates or address. Retrying the same request will not help.",
     "not_acceptable": "This is an integration issue. Do not retry the same request.",
     "provider_error": "Check the request. Retrying may help if the provider is temporarily unavailable.",
-    "request_failed": "Retry shortly. A timeout after isochrone compute should not be retried immediately.",
+    "request_failed": (
+        "Retry shortly if this was a geocode or connection failure. Do not immediately retry an isochrone timeout."
+    ),
+}
+_INVALID_REQUEST_RECOVERY = {
+    "address": "Correct the address, then send a new request.",
+    "time_minutes": "Correct the coordinates or time bands, then send a new request.",
 }
 
 
@@ -138,6 +144,7 @@ def _error_payload(
     field: str | None = None,
     valid_alternatives: list[Any] | None = None,
     retry_safe: bool | None = None,
+    recovery: str | None = None,
 ) -> dict[str, Any]:
     """Compact corrective error. Never includes provider bodies, HTML, or credentials."""
     return {
@@ -148,12 +155,17 @@ def _error_payload(
         "message": message,
         "field": field,
         "valid_alternatives": valid_alternatives or [],
-        "recovery": _ERROR_RECOVERY.get(error_type, "Check the inputs and try again."),
+        "recovery": recovery or _ERROR_RECOVERY.get(error_type, "Check the inputs and try again."),
         "retry_safe": (error_type in _RETRY_SAFE_ERRORS) if retry_safe is None else retry_safe,
     }
 
 
-def _provider_error(error: Exception, *, invalid_request_field: str | None = None) -> ActionResult:
+def _provider_error(
+    error: Exception,
+    *,
+    invalid_request_field: str | None = None,
+    retry_safe_on_request_failed: bool = True,
+) -> ActionResult:
     """Return safe, actionable provider errors without exposing request credentials."""
     if isinstance(error, RateLimitError):
         return ActionResult(
@@ -182,6 +194,17 @@ def _provider_error(error: Exception, *, invalid_request_field: str | None = Non
                 message = "OpenRouteService rejected the request. Check the supplied coordinates or time bands."
             else:
                 message = "OpenRouteService rejected the request. Check the inputs and try again."
+            return ActionResult(
+                data=_error_payload(
+                    error_type,
+                    message,
+                    field=field,
+                    recovery=_INVALID_REQUEST_RECOVERY.get(
+                        invalid_request_field or "", _ERROR_RECOVERY["invalid_request"]
+                    ),
+                ),
+                cost_usd=0.0,
+            )
         elif error.status == 404:
             message = (
                 "OpenRouteService found no result for this request. "
@@ -206,14 +229,26 @@ def _provider_error(error: Exception, *, invalid_request_field: str | None = Non
 
     if isinstance(error, ValueError):
         return ActionResult(
-            data=_error_payload("invalid_request", str(error), field=None),
+            data=_error_payload(
+                "invalid_request",
+                str(error),
+                field=None,
+                recovery="Add a valid OpenRouteService API key to this connection.",
+            ),
             cost_usd=0.0,
         )
 
+    recovery = (
+        "Do not retry immediately. The isochrone may already have been billed against the daily quota."
+        if not retry_safe_on_request_failed
+        else _ERROR_RECOVERY["request_failed"]
+    )
     return ActionResult(
         data=_error_payload(
             "request_failed",
             "OpenRouteService could not complete this request. Try again shortly.",
+            retry_safe=retry_safe_on_request_failed,
+            recovery=recovery,
         ),
         cost_usd=0.0,
     )
@@ -488,4 +523,8 @@ class GetIsochrone(ActionHandler):
             aiohttp.ClientError,
             TimeoutError,
         ) as error:
-            return _provider_error(error, invalid_request_field="time_minutes")
+            return _provider_error(
+                error,
+                invalid_request_field="time_minutes",
+                retry_safe_on_request_failed=False,
+            )

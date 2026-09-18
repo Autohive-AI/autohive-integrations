@@ -548,6 +548,8 @@ class TestProviderErrors:
             assert data["field"] == "address"
             assert "time bands" not in data["message"].lower()
             assert "time_minutes" not in data["message"].lower()
+            assert "address" in data["recovery"].lower()
+            assert "time bands" not in data["recovery"].lower()
         else:
             assert data["field"] is None
         assert "test-key" not in data["message"]
@@ -622,6 +624,7 @@ class TestProviderErrors:
         assert data["error_type"] == "invalid_request"
         assert data["field"] == "time_minutes"
         assert "time bands" in data["message"].lower()
+        assert "time bands" in data["recovery"].lower()
 
     async def test_404_is_not_found_not_retryable(self, mock_context):
         mock_context.fetch.side_effect = HTTPError(404, "not found")
@@ -637,6 +640,7 @@ class TestProviderErrors:
         client_error = await openrouteservice.execute_action("geocode_address", {"address": "Auckland"}, mock_context)
         client_data = _action_data(client_error)
         assert client_data["error_type"] == "request_failed"
+        assert client_data["retry_safe"] is True
         assert "dns failed" not in client_data["message"]
 
         mock_context.fetch.side_effect = TimeoutError("timed out")
@@ -644,8 +648,13 @@ class TestProviderErrors:
         timeout_data = _action_data(timeout)
         assert timeout_data["error_type"] == "request_failed"
         assert timeout_data["error_code"] == "request_failed"
-        assert timeout_data["retry_safe"] is True
+        assert timeout_data["retry_safe"] is False
         assert "timed out" not in timeout_data["message"]
+        assert "do not retry" in timeout_data["recovery"].lower() or "quota" in timeout_data["recovery"].lower()
+
+        mock_context.fetch.side_effect = aiohttp.ClientError("connection reset")
+        isochrone_network = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+        assert _action_data(isochrone_network)["retry_safe"] is False
 
     async def test_missing_api_key_does_not_start_request(self, mock_context):
         mock_context.auth = {"auth_type": "Custom", "credentials": {}}
@@ -666,4 +675,6 @@ class TestProviderErrors:
         assert data["error_type"] == "invalid_request"
         assert data["field"] is None
         assert "time_minutes" not in (data.get("message") or "").lower()
+        assert "time bands" not in data["recovery"].lower()
+        assert "api key" in data["recovery"].lower()
         mock_context.fetch.assert_not_called()

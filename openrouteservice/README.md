@@ -62,7 +62,7 @@ A 403 is `quota_exceeded` only when the body mentions quota and not an unauthori
 
 Other classifications: `authentication` (401), `invalid_request` (400, or a blank API key / empty time bands), `not_found` (404 — no result; retrying will not help), `not_acceptable` (406), `provider_error` (other HTTP, or a 2xx body that is not the expected GeoJSON), `request_failed` (network/timeout after retries).
 
-`get_isochrone` uses a 90-second timeout and does not retry on timeout, so a slow compute that already counted against daily quota is not charged again. Driving-time bands are capped at 60 minutes and 10 intervals because that is the public isochrone limit.
+`get_isochrone` uses a 90-second timeout and does not retry on timeout, so a slow compute that already counted against daily quota is not charged again. Those failures are `request_failed` with `retry_safe: false`. A geocode network failure stays `retry_safe: true`. Driving-time bands are capped at 60 minutes and 10 intervals because that is the public isochrone limit.
 
 ## Testing
 
