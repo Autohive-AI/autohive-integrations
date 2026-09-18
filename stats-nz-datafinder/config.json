@@ -349,7 +349,11 @@
             "type": "array",
             "items": { "type": "string" }
           },
-          "validation_status": { "type": "string" },
+          "validation_status": {
+            "type": "string",
+            "enum": ["ok", "partial", "unavailable"],
+            "description": "ok when every measure is fully included; partial when some values were suppressed or missing; unavailable when no measure had a usable source value."
+          },
           "source_records": {
             "type": "array",
             "description": "Bounded source contributions. Present only when include_source_records is true."

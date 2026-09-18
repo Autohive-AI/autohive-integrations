@@ -173,12 +173,20 @@ code and returns a compact result.
   floating-point tolerance of `1e-9`.
 - Default JSON is compact: totals, geography summary, method, layer citation,
   warnings, `validation_status`. No raw features or geometry.
+- `validation_status` is `ok` only when every measure is fully included. It is
+  `partial` if any measure has suppressed/missing values, and `unavailable` if
+  no measure had a usable source value. Per-measure `status` is still on each
+  result row.
 
 **File export**
 
-Autohive integrations return files as platform file objects on `ActionResult.data`
-(the same `{name, contentType, content}` shape used by Gmail and doc-maker).
-When `export_source_records` is true, `files` contains one JSON or CSV file with:
+The Autohive Integrations SDK `ActionResult` has no separate artifact field.
+Files are returned on `ActionResult.data["files"]` as platform file objects
+`{name, contentType, content}` (standard base64), the same channel Gmail and
+doc-maker use. Autohive then materialises those objects as tool-output files
+(for example `/tool-outputs/area-statistics-contributions.csv`); agents see the
+path, not the base64. When `export_source_records` is true, `files` contains
+one JSON or CSV file with:
 
 - source feature id
 - geography code

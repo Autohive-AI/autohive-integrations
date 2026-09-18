@@ -1991,6 +1991,26 @@ class TestQueryAreaStatistics:
         assert row["status"] == "unavailable"
         assert row["unavailable_feature_count"] == 1
         assert row["included_feature_count"] == 0
+        assert result.result.data["validation_status"] == "unavailable"
+
+    @pytest.mark.asyncio
+    async def test_partial_validation_status_when_some_values_are_suppressed(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("a", geom, {"VAR_1_1": 10}),
+                    _feature("b", geom, {"VAR_1_1": -999}),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 2, "max_pages": 1})
+        data = result.result.data
+        assert data["results"][0]["status"] == "partial"
+        assert data["validation_status"] == "partial"
 
     @pytest.mark.asyncio
     async def test_null_and_non_numeric_are_unavailable(self, mock_context, mock_wfs):
@@ -2010,6 +2030,7 @@ class TestQueryAreaStatistics:
         row = result.result.data["results"][0]
         assert row["estimated_value"] is None
         assert row["unavailable_feature_count"] == 2
+        assert result.result.data["validation_status"] == "unavailable"
 
     @pytest.mark.asyncio
     async def test_paginates_and_deduplicates(self, mock_context, mock_wfs):

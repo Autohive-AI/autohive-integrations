@@ -2063,6 +2063,13 @@ class QueryAreaStatisticsAction(ActionHandler):
                 if measure.get("denominator_key"):
                     result_row["denominator_key"] = measure["denominator_key"]
                 results.append(result_row)
+            statuses = [row["status"] for row in results]
+            if statuses and all(status == "unavailable" for status in statuses):
+                validation_status = "unavailable"
+            elif any(status in {"partial", "unavailable"} for status in statuses):
+                validation_status = "partial"
+            else:
+                validation_status = "ok"
             files: list[dict[str, str]] = []
             if export_source_records:
                 files.append(_export_source_records(source_records, measures, export_format))
@@ -2092,7 +2099,7 @@ class QueryAreaStatisticsAction(ActionHandler):
                 },
                 "retrieved_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "warnings": warnings,
-                "validation_status": "ok",
+                "validation_status": validation_status,
                 "files": files,
             }
             if include_source_records:
