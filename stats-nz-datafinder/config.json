@@ -52,7 +52,7 @@
           "geojson_file_path": {
             "type": "string",
             "minLength": 1,
-            "description": "Path to a GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon. Alternative to inline geometry. Platform paths such as /tool-outputs/isochrones.geojson are accepted. Do not send with geometry or bbox."
+            "description": "Path to a GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon. Alternative to inline geometry for large catchments. Do not send with geometry or bbox."
           },
           "feature_index": {
             "type": "integer",
@@ -232,7 +232,7 @@
           "geojson_file_path": {
             "type": "string",
             "minLength": 1,
-            "description": "Path to a GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon. Alternative to inline geometry. Platform paths such as /tool-outputs/isochrones.geojson are accepted."
+            "description": "Path to a GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon. Alternative to inline geometry for large catchments."
           },
           "feature_index": {
             "type": "integer",

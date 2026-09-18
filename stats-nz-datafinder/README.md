@@ -69,7 +69,7 @@ national scans are rejected):
 | Input | When to use | `overlap_fraction` |
 |--------|-------------|--------------------|
 | `geometry` Polygon / MultiPolygon | Catchment / isochrone clip | Area of the feature inside the polygon |
-| `geojson_file_path` | Large Polygon/MultiPolygon catchment from a workspace or `/tool-outputs/` GeoJSON file. Point files are rejected. | Same as the selected Polygon / MultiPolygon |
+| `geojson_file_path` | Large Polygon/MultiPolygon catchment from a GeoJSON file. Point files are rejected. | Same as the selected Polygon / MultiPolygon |
 | `geometry` Point | "What SA2/meshblock is this school in?" | Always `1.0` — do **not** area-weight a point |
 | `bbox` `[west, south, east, north]` | Rough map window without building GeoJSON. Unwrapped longitudes (Datafinder east ≈ 184.5) and boxes that cross 180° are accepted. CQL matches both wrapped and unwrapped layer coordinates so Chatham Islands are not dropped | Same as a polygon |
 | `attribute_filters` | Named-area lookup. Use `ieq` for an exact SA2/SA1 name | `1.0` (whole feature) |
@@ -177,7 +177,7 @@ Example file input:
 ```json
 {
   "layer_id": 120766,
-  "geojson_file_path": "/tool-outputs/isochrones.geojson",
+  "geojson_file_path": "catchments.geojson",
   "feature_filter": {"property": "time_minutes", "equals": 30},
   "measures": [
     {
