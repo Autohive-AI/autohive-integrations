@@ -42,10 +42,9 @@ _ERROR_RECOVERY = {
     "not_found": "Check the coordinates or address. Retrying the same request will not help.",
     "not_acceptable": "This is an integration issue. Do not retry the same request.",
     "provider_error": "Check the request. Retrying may help if the provider is temporarily unavailable.",
-    "request_failed": (
-        "Retry shortly if this was a geocode or connection failure. Do not immediately retry an isochrone timeout."
-    ),
+    "request_failed": "Retry shortly.",
 }
+_ISOCHRONE_NO_RETRY = "Do not retry immediately. The isochrone may already have been billed against the daily quota."
 _INVALID_REQUEST_RECOVERY = {
     "address": "Correct the address, then send a new request.",
     "time_minutes": "Correct the coordinates or time bands, then send a new request.",
@@ -223,12 +222,18 @@ def _provider_error(
             error_type = "not_acceptable"
             field = None
         else:
-            message = f"OpenRouteService returned HTTP {error.status}. Try again shortly."
             error_type = "provider_error"
             field = None
+            if retry_safe_on_provider_error:
+                message = f"OpenRouteService returned HTTP {error.status}. Try again shortly."
+            else:
+                message = f"OpenRouteService returned HTTP {error.status}."
         retry_safe = retry_safe_on_provider_error if error_type == "provider_error" else None
+        recovery = None
+        if error_type == "provider_error" and not retry_safe_on_provider_error:
+            recovery = _ISOCHRONE_NO_RETRY
         return ActionResult(
-            data=_error_payload(error_type, message, field=field, retry_safe=retry_safe),
+            data=_error_payload(error_type, message, field=field, retry_safe=retry_safe, recovery=recovery),
             cost_usd=0.0,
         )
 
@@ -238,6 +243,7 @@ def _provider_error(
                 "provider_error",
                 str(error),
                 retry_safe=retry_safe_on_provider_error,
+                recovery=None if retry_safe_on_provider_error else _ISOCHRONE_NO_RETRY,
             ),
             cost_usd=0.0,
         )
@@ -253,15 +259,16 @@ def _provider_error(
             cost_usd=0.0,
         )
 
-    recovery = (
-        "Do not retry immediately. The isochrone may already have been billed against the daily quota."
-        if not retry_safe_on_request_failed
-        else _ERROR_RECOVERY["request_failed"]
-    )
+    if retry_safe_on_request_failed:
+        message = "OpenRouteService could not complete this request. Try again shortly."
+        recovery = _ERROR_RECOVERY["request_failed"]
+    else:
+        message = "OpenRouteService could not complete this isochrone request."
+        recovery = _ISOCHRONE_NO_RETRY
     return ActionResult(
         data=_error_payload(
             "request_failed",
-            "OpenRouteService could not complete this request. Try again shortly.",
+            message,
             retry_safe=retry_safe_on_request_failed,
             recovery=recovery,
         ),
@@ -271,6 +278,19 @@ def _provider_error(
 
 def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
+
+
+def _idle_error_fields(*, message: str | None = None) -> dict[str, Any]:
+    return {
+        "error_type": None,
+        "error_code": None,
+        "retry_after_seconds": None,
+        "message": message,
+        "field": None,
+        "valid_alternatives": None,
+        "recovery": None,
+        "retry_safe": None,
+    }
 
 
 def _string_or_none(value: Any) -> str | None:
@@ -419,9 +439,7 @@ class GeocodeAddress(ActionHandler):
                         "is_low_confidence": None,
                         "matches": [],
                         "geocoding": data.get("geocoding"),
-                        "error_type": None,
-                        "retry_after_seconds": None,
-                        "message": "No matching address was found.",
+                        **_idle_error_fields(message="No matching address was found."),
                     },
                     cost_usd=0.0,
                 )
@@ -439,9 +457,9 @@ class GeocodeAddress(ActionHandler):
                     "is_low_confidence": best["is_low_confidence"],
                     "matches": matches,
                     "geocoding": data.get("geocoding"),
-                    "error_type": None,
-                    "retry_after_seconds": None,
-                    "message": "Confirm this match before downstream use." if best["is_low_confidence"] else None,
+                    **_idle_error_fields(
+                        message="Confirm this match before downstream use." if best["is_low_confidence"] else None
+                    ),
                 },
                 cost_usd=0.0,
             )
@@ -471,6 +489,7 @@ class GetIsochrone(ActionHandler):
                 "locations": [[inputs["longitude"], inputs["latitude"]]],
                 "range": [minutes * 60 for minutes in time_minutes],
                 "range_type": "time",
+                "smoothing": 0,
             }
             response = await context.fetch(
                 ISOCHRONE_URL_TEMPLATE.format(profile=profile),

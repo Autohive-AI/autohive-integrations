@@ -174,6 +174,10 @@ class TestGeocodeAddress:
         assert data["confidence"] == 0.95
         assert data["is_low_confidence"] is False
         assert data["error_type"] is None
+        assert data["error_code"] is None
+        assert data["field"] is None
+        assert data["recovery"] is None
+        assert data["retry_safe"] is None
         assert len(data["matches"]) == 2
         assert data["matches"][0]["feature"] == GEOCODE_RESPONSE["features"][0]
         mock_context.fetch.assert_awaited_once_with(
@@ -373,6 +377,7 @@ class TestGetIsochrone:
                 "locations": [[174.7633, -36.8485]],
                 "range": [600, 900, 1800],
                 "range_type": "time",
+                "smoothing": 0,
             },
             timeout=ISOCHRONE_TIMEOUT_SECONDS,
             retry_count=3,
@@ -636,6 +641,8 @@ class TestProviderErrors:
         data = _action_data(result)
         assert data["error_type"] == "provider_error"
         assert data["retry_safe"] is False
+        assert "try again shortly" not in data["message"].lower()
+        assert "do not retry" in data["recovery"].lower() or "quota" in data["recovery"].lower()
 
     async def test_404_is_not_found_not_retryable(self, mock_context):
         mock_context.fetch.side_effect = HTTPError(404, "not found")
@@ -653,6 +660,7 @@ class TestProviderErrors:
         assert client_data["error_type"] == "request_failed"
         assert client_data["retry_safe"] is True
         assert "dns failed" not in client_data["message"]
+        assert "isochrone" not in client_data["recovery"].lower()
 
         mock_context.fetch.side_effect = TimeoutError("timed out")
         timeout = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
@@ -661,6 +669,7 @@ class TestProviderErrors:
         assert timeout_data["error_code"] == "request_failed"
         assert timeout_data["retry_safe"] is False
         assert "timed out" not in timeout_data["message"]
+        assert "try again shortly" not in timeout_data["message"].lower()
         assert "do not retry" in timeout_data["recovery"].lower() or "quota" in timeout_data["recovery"].lower()
 
         mock_context.fetch.side_effect = aiohttp.ClientError("connection reset")

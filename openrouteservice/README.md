@@ -39,7 +39,7 @@ Generates one or more drive-time bands in a single request through the current H
 
 **Outputs**
 
-- `geojson` — a GeoJSON FeatureCollection. Polygon/MultiPolygon coordinates are **not simplified**. Each feature includes a stable `time_minutes` property. Features are sorted in ascending time-band order. The integration parses a JSON-string response when the provider labels it `application/geo+json`.
+- `geojson` — a GeoJSON FeatureCollection. The request sets HeiGIT `smoothing` to `0` so polygons are not generalised. Each feature includes a stable `time_minutes` property. Features are sorted in ascending time-band order. The integration parses a JSON-string response when the provider labels it `application/geo+json`.
 - `provider_metadata` — unaltered provider metadata when present.
 - `profile` and `time_minutes` — the routing profile and requested bands (deduplicated, ascending).
 - `attribution`, `engine_version`, `build_date`, `graph_date`, `osm_date` — copied from provider metadata when supplied.
