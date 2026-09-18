@@ -165,6 +165,7 @@ def _provider_error(
     *,
     invalid_request_field: str | None = None,
     retry_safe_on_request_failed: bool = True,
+    retry_safe_on_provider_error: bool = True,
 ) -> ActionResult:
     """Return safe, actionable provider errors without exposing request credentials."""
     if isinstance(error, RateLimitError):
@@ -193,16 +194,19 @@ def _provider_error(
             elif invalid_request_field == "time_minutes":
                 message = "OpenRouteService rejected the request. Check the supplied coordinates or time bands."
             else:
-                message = "OpenRouteService rejected the request. Check the inputs and try again."
+                message = (
+                    "OpenRouteService rejected the request. "
+                    "Check the supplied coordinates, time bands, or other inputs."
+                )
+            recovery = _INVALID_REQUEST_RECOVERY.get(invalid_request_field or "")
+            if not recovery:
+                recovery = (
+                    "Correct the coordinates or time bands if those were wrong, then send a new request."
+                    if not retry_safe_on_request_failed
+                    else _ERROR_RECOVERY["invalid_request"]
+                )
             return ActionResult(
-                data=_error_payload(
-                    error_type,
-                    message,
-                    field=field,
-                    recovery=_INVALID_REQUEST_RECOVERY.get(
-                        invalid_request_field or "", _ERROR_RECOVERY["invalid_request"]
-                    ),
-                ),
+                data=_error_payload(error_type, message, field=field, recovery=recovery),
                 cost_usd=0.0,
             )
         elif error.status == 404:
@@ -222,10 +226,21 @@ def _provider_error(
             message = f"OpenRouteService returned HTTP {error.status}. Try again shortly."
             error_type = "provider_error"
             field = None
-        return ActionResult(data=_error_payload(error_type, message, field=field), cost_usd=0.0)
+        retry_safe = retry_safe_on_provider_error if error_type == "provider_error" else None
+        return ActionResult(
+            data=_error_payload(error_type, message, field=field, retry_safe=retry_safe),
+            cost_usd=0.0,
+        )
 
     if isinstance(error, ProviderResponseError):
-        return ActionResult(data=_error_payload("provider_error", str(error)), cost_usd=0.0)
+        return ActionResult(
+            data=_error_payload(
+                "provider_error",
+                str(error),
+                retry_safe=retry_safe_on_provider_error,
+            ),
+            cost_usd=0.0,
+        )
 
     if isinstance(error, ValueError):
         return ActionResult(
@@ -525,6 +540,6 @@ class GetIsochrone(ActionHandler):
         ) as error:
             return _provider_error(
                 error,
-                invalid_request_field="time_minutes",
                 retry_safe_on_request_failed=False,
+                retry_safe_on_provider_error=False,
             )

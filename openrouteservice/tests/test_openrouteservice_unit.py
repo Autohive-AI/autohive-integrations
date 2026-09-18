@@ -552,6 +552,8 @@ class TestProviderErrors:
             assert "time bands" not in data["recovery"].lower()
         else:
             assert data["field"] is None
+        if status == 500:
+            assert data["retry_safe"] is True
         assert "test-key" not in data["message"]
 
     async def test_403_quota_only_body_is_quota_exceeded(self, mock_context):
@@ -622,9 +624,18 @@ class TestProviderErrors:
 
         data = _action_data(result)
         assert data["error_type"] == "invalid_request"
-        assert data["field"] == "time_minutes"
+        assert data["field"] is None
         assert "time bands" in data["message"].lower()
         assert "time bands" in data["recovery"].lower()
+
+    async def test_isochrone_5xx_is_not_retry_safe(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(500, "upstream")
+
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+
+        data = _action_data(result)
+        assert data["error_type"] == "provider_error"
+        assert data["retry_safe"] is False
 
     async def test_404_is_not_found_not_retryable(self, mock_context):
         mock_context.fetch.side_effect = HTTPError(404, "not found")
