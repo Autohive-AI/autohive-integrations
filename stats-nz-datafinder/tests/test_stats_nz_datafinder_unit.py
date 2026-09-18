@@ -18,6 +18,7 @@ from stats_nz_datafinder import (
     _attachment_items,
     _codebook_field_info,
     _download_https_text,
+    _unique_geography_field,
     _validate_measures,
     _attribution,
     _bbox_polygon,
@@ -1344,6 +1345,17 @@ class TestGetLayerMetadata:
                 rows,
             )
 
+    def test_unique_geography_field_prefers_sa1_over_sa2(self):
+        metadata = {
+            "data": {
+                "fields": [
+                    {"name": "SA22023_V1_00", "type": "string"},
+                    {"name": "SA12023_V1_00", "type": "string"},
+                ]
+            }
+        }
+        assert _unique_geography_field(metadata) == "SA12023_V1_00"
+
     def test_rejects_non_var_median_from_codebook(self):
         rows = [{"name": "MEDIAN_AGE", "type": "double", "measure": "Median"}]
         metadata = {
@@ -2119,6 +2131,44 @@ class TestQueryAreaStatistics:
         assert "timed out" in result.result.message
 
     @pytest.mark.asyncio
+    @pytest.mark.asyncio
+    async def test_shared_parent_sa2_does_not_fail_when_sa1_differs(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        meta = {
+            **CENSUS_META,
+            "data": {
+                "geometry_field": "Shape",
+                "fields": [
+                    {"name": "Shape", "type": "geometry"},
+                    {"name": "SA22023_V1_00", "type": "string"},
+                    {"name": "SA12023_V1_00", "type": "string"},
+                    {"name": "VAR_1_1", "type": "integer", "measure": "Count"},
+                ],
+            },
+        }
+        mock_context.fetch.return_value = fetch_ok(meta)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature(
+                        "a",
+                        geom,
+                        {"SA22023_V1_00": "200000", "SA12023_V1_00": "7010001", "VAR_1_1": 10},
+                    ),
+                    _feature(
+                        "b",
+                        geom,
+                        {"SA22023_V1_00": "200000", "SA12023_V1_00": "7010002", "VAR_1_1": 20},
+                    ),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 2, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["results"][0]["estimated_value"] == pytest.approx(30.0)
+
     async def test_duplicate_geography_code_fails_closed(self, mock_context, mock_wfs):
         geom = square(174.7, -41.3, 174.8, -41.2)
         mock_context.fetch.return_value = fetch_ok(CENSUS_META)

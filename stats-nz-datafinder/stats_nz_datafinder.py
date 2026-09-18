@@ -1010,15 +1010,37 @@ def _measure_source_value(value: Any, missing_values: list[Any]) -> tuple[float 
     return number, "included"
 
 
-def _geography_code(properties: Any) -> str | None:
-    if not isinstance(properties, dict):
+_GEOGRAPHY_RANK = ("MB", "SA1", "SA2", "SA3", "AU", "TA", "RC")
+
+
+def _geography_field_rank(name: str) -> tuple[int, str]:
+    upper = name.upper()
+    for index, prefix in enumerate(_GEOGRAPHY_RANK):
+        if upper.startswith(prefix):
+            return (index, name)
+    return (len(_GEOGRAPHY_RANK), name)
+
+
+def _unique_geography_field(metadata: Any) -> str | None:
+    """Pick one unique geography-code column (sort key, else finest unit)."""
+    names = [
+        field["name"]
+        for field in _fields(metadata)
+        if isinstance(field.get("name"), str) and _GEOGRAPHY_CODE.fullmatch(field["name"])
+    ]
+    if not names:
         return None
-    for key, value in properties.items():
-        if _GEOGRAPHY_CODE.fullmatch(str(key)) and value is not None and not isinstance(value, (dict, list, bool)):
-            text = str(value).strip()
-            if text:
-                return text
-    return None
+    return min(names, key=_geography_field_rank)
+
+
+def _geography_code(properties: Any, field: str | None = None) -> str | None:
+    if not isinstance(properties, dict) or not field:
+        return None
+    value = properties.get(field)
+    if value is None or isinstance(value, (dict, list, bool)):
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _validate_measures(
@@ -1821,9 +1843,8 @@ class QueryAreaStatisticsAction(ActionHandler):
             measures = _validate_measures(inputs["measures"], metadata_response.data, field_rows)
             geometry_field = _geometry_field(metadata_response.data)
             measure_fields = [item["field"] for item in measures]
-            geography_fields = [
-                field["name"] for field in _fields(metadata_response.data) if _GEOGRAPHY_CODE.fullmatch(field["name"])
-            ]
+            geography_field = _unique_geography_field(metadata_response.data)
+            geography_fields = [geography_field] if geography_field else []
             attribute_names = list(dict.fromkeys([*geography_fields, *measure_fields]))
             property_names = [geometry_field, *attribute_names]
             cql_filter = _build_cql_filter(spatial_wkts, None, geometry_field)
@@ -1855,7 +1876,7 @@ class QueryAreaStatisticsAction(ActionHandler):
             included_any = 0
             skipped_no_area = 0
             warnings: list[str] = []
-            if not geography_fields:
+            if not geography_field:
                 warnings.append("No geography-code field was found, so duplicate SA1 joins were not checked.")
             for feature in collected.features:
                 if not isinstance(feature, dict):
@@ -1889,7 +1910,7 @@ class QueryAreaStatisticsAction(ActionHandler):
                         has_included = True
                     else:
                         totals[key]["unavailable_feature_count"] += 1
-                code = _geography_code(properties)
+                code = _geography_code(properties, geography_field)
                 if isinstance(code, str) and code:
                     geography_codes.append(code)
                 if has_included:
