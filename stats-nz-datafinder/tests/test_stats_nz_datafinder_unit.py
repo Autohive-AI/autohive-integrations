@@ -1,6 +1,7 @@
 """Unit tests for the Stats NZ Datafinder integration using mocked HTTP seams."""
 
 import asyncio
+import base64
 import json
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -2405,10 +2406,14 @@ POINT = {"type": "Point", "coordinates": [174.78, -41.30]}
 LINE = {"type": "LineString", "coordinates": [[174.7, -41.3], [174.8, -41.2]]}
 
 
-def _write_geojson(tmp_path, document, name="catchments.geojson") -> str:
-    path = tmp_path / name
-    path.write_text(json.dumps(document), encoding="utf-8")
-    return str(path)
+def _geojson_file(document=None, name="catchments.geojson", *, raw_bytes=None) -> dict:
+    if raw_bytes is None:
+        raw_bytes = json.dumps(document).encode("utf-8")
+    return {
+        "name": name,
+        "contentType": "application/geo+json",
+        "content": base64.b64encode(raw_bytes).decode("ascii"),
+    }
 
 
 def _gj_feature(geometry, properties=None):
@@ -2416,30 +2421,29 @@ def _gj_feature(geometry, properties=None):
 
 
 class TestResolveGeojsonFile:
-    def test_single_polygon_is_used_without_selector(self, tmp_path):
-        path = _write_geojson(tmp_path, {"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY)]})
+    def test_single_polygon_is_used_without_selector(self):
+        path = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY)]})
         geometry, source = _resolve_geojson_file(path)
         assert geometry == GEOMETRY
-        assert source["path"] == path
+        assert source["name"] == "catchments.geojson"
         assert source["feature_index"] == 0
         assert "matched_properties" not in source
 
-    def test_bare_polygon_geometry_is_accepted(self, tmp_path):
-        path = _write_geojson(tmp_path, GEOMETRY)
+    def test_bare_polygon_geometry_is_accepted(self):
+        path = _geojson_file(GEOMETRY)
         geometry, source = _resolve_geojson_file(path)
         assert geometry == GEOMETRY
-        assert source["path"] == path
+        assert source["name"] == "catchments.geojson"
         assert source["feature_index"] is None
 
-    def test_feature_document_is_accepted(self, tmp_path):
-        path = _write_geojson(tmp_path, _gj_feature(GEOMETRY, {"name": "catchment"}))
+    def test_feature_document_is_accepted(self):
+        path = _geojson_file(_gj_feature(GEOMETRY, {"name": "catchment"}))
         geometry, source = _resolve_geojson_file(path)
         assert geometry == GEOMETRY
         assert source["feature_index"] is None
 
-    def test_mixed_point_and_polygon_auto_selects_polygon_at_original_index(self, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    def test_mixed_point_and_polygon_auto_selects_polygon_at_original_index(self):
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [_gj_feature(POINT, {"kind": "marker"}), _gj_feature(GEOMETRY, {"kind": "area"})],
@@ -2449,10 +2453,9 @@ class TestResolveGeojsonFile:
         assert geometry == GEOMETRY
         assert source["feature_index"] == 1
 
-    def test_two_polygons_without_selector_are_ambiguous(self, tmp_path):
+    def test_two_polygons_without_selector_are_ambiguous(self):
         other = square(174.9, -41.3, 175.0, -41.2)
-        path = _write_geojson(
-            tmp_path,
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [
@@ -2464,10 +2467,9 @@ class TestResolveGeojsonFile:
         with pytest.raises(DatafinderError, match="ambiguous_geojson_feature"):
             _resolve_geojson_file(path)
 
-    def test_feature_index_uses_original_array_including_points(self, tmp_path):
+    def test_feature_index_uses_original_array_including_points(self):
         other = square(174.9, -41.3, 175.0, -41.2)
-        path = _write_geojson(
-            tmp_path,
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [
@@ -2482,23 +2484,21 @@ class TestResolveGeojsonFile:
         assert geometry == other
         assert source["feature_index"] == 3
 
-    def test_feature_index_point_is_rejected(self, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    def test_feature_index_point_is_rejected(self):
+        path = _geojson_file(
             {"type": "FeatureCollection", "features": [_gj_feature(POINT), _gj_feature(GEOMETRY)]},
         )
         with pytest.raises(DatafinderError, match="invalid_geometry"):
             _resolve_geojson_file(path, feature_index=0)
 
-    def test_feature_index_out_of_range(self, tmp_path):
-        path = _write_geojson(tmp_path, {"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY)]})
+    def test_feature_index_out_of_range(self):
+        path = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY)]})
         with pytest.raises(DatafinderError, match="geojson_feature_not_found"):
             _resolve_geojson_file(path, feature_index=1)
 
-    def test_feature_filter_matches_exactly_one(self, tmp_path):
+    def test_feature_filter_matches_exactly_one(self):
         other = square(174.9, -41.3, 175.0, -41.2)
-        path = _write_geojson(
-            tmp_path,
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [
@@ -2512,35 +2512,31 @@ class TestResolveGeojsonFile:
         assert source["feature_index"] == 1
         assert source["matched_properties"] == {"time_minutes": 30}
 
-    def test_feature_filter_numeric_30_matches_30_0(self, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    def test_feature_filter_numeric_30_matches_30_0(self):
+        path = _geojson_file(
             {"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY, {"time_minutes": 30.0})]},
         )
         geometry, source = _resolve_geojson_file(path, feature_filter={"property": "time_minutes", "equals": 30})
         assert geometry == GEOMETRY
         assert source["matched_properties"] == {"time_minutes": 30.0}
 
-    def test_feature_filter_string_does_not_match_number(self, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    def test_feature_filter_string_does_not_match_number(self):
+        path = _geojson_file(
             {"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY, {"time_minutes": 30})]},
         )
         with pytest.raises(DatafinderError, match="geojson_feature_not_found"):
             _resolve_geojson_file(path, feature_filter={"property": "time_minutes", "equals": "30"})
 
-    def test_feature_filter_true_does_not_match_one(self, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    def test_feature_filter_true_does_not_match_one(self):
+        path = _geojson_file(
             {"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY, {"flag": 1})]},
         )
         with pytest.raises(DatafinderError, match="geojson_feature_not_found"):
             _resolve_geojson_file(path, feature_filter={"property": "flag", "equals": True})
 
-    def test_feature_filter_two_matches_are_ambiguous(self, tmp_path):
+    def test_feature_filter_two_matches_are_ambiguous(self):
         other = square(174.9, -41.3, 175.0, -41.2)
-        path = _write_geojson(
-            tmp_path,
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [
@@ -2552,8 +2548,8 @@ class TestResolveGeojsonFile:
         with pytest.raises(DatafinderError, match="ambiguous_geojson_feature"):
             _resolve_geojson_file(path, feature_filter={"property": "zone", "equals": "A"})
 
-    def test_both_selectors_are_rejected(self, tmp_path):
-        path = _write_geojson(tmp_path, {"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY)]})
+    def test_both_selectors_are_rejected(self):
+        path = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY)]})
         with pytest.raises(DatafinderError, match="conflicting_geometry_source"):
             _resolve_geojson_file(
                 path,
@@ -2561,40 +2557,50 @@ class TestResolveGeojsonFile:
                 feature_filter={"property": "time_minutes", "equals": 30},
             )
 
-    def test_only_points_fail_closed(self, tmp_path):
-        path = _write_geojson(tmp_path, {"type": "FeatureCollection", "features": [_gj_feature(POINT)]})
+    def test_only_points_fail_closed(self):
+        path = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(POINT)]})
         with pytest.raises(DatafinderError, match="invalid_geometry"):
             _resolve_geojson_file(path)
 
-    def test_missing_file_is_unreadable(self, tmp_path):
+    def test_missing_content_is_unreadable(self):
         with pytest.raises(DatafinderError, match="geojson_file_unreadable"):
-            _resolve_geojson_file(str(tmp_path / "missing.geojson"))
+            _resolve_geojson_file({"name": "catchments.geojson", "contentType": "application/geo+json", "content": ""})
 
-    def test_invalid_json_is_invalid_geojson(self, tmp_path):
-        path = tmp_path / "catchments.geojson"
-        path.write_text("{not json", encoding="utf-8")
+    def test_invalid_base64_is_unreadable(self):
+        with pytest.raises(DatafinderError, match="geojson_file_unreadable"):
+            _resolve_geojson_file(
+                {"name": "catchments.geojson", "contentType": "application/geo+json", "content": "!!!"}
+            )
+
+    def test_newline_wrapped_base64_is_accepted(self):
+        compact = _geojson_file(GEOMETRY)
+        wrapped = "\n".join(compact["content"][i : i + 40] for i in range(0, len(compact["content"]), 40))
+        geometry, source = _resolve_geojson_file({**compact, "content": wrapped})
+        assert geometry == GEOMETRY
+        assert source["name"] == "catchments.geojson"
+
+    def test_invalid_json_is_invalid_geojson(self):
         with pytest.raises(DatafinderError, match="invalid_geojson"):
-            _resolve_geojson_file(str(path))
+            _resolve_geojson_file(_geojson_file(raw_bytes=b"{not json"))
 
-    def test_utf8_bom_file_is_accepted(self, tmp_path):
-        path = tmp_path / "catchments.geojson"
-        path.write_bytes(b"\xef\xbb\xbf" + json.dumps(GEOMETRY).encode("utf-8"))
-        geometry, _source = _resolve_geojson_file(str(path))
+    def test_utf8_bom_file_is_accepted(self):
+        geometry, _source = _resolve_geojson_file(
+            _geojson_file(raw_bytes=b"\xef\xbb\xbf" + json.dumps(GEOMETRY).encode("utf-8"))
+        )
         assert geometry == GEOMETRY
 
-    def test_bare_polygon_in_feature_collection_is_rejected(self, tmp_path):
-        path = _write_geojson(tmp_path, {"type": "FeatureCollection", "features": [GEOMETRY]})
+    def test_bare_polygon_in_feature_collection_is_rejected(self):
+        path = _geojson_file({"type": "FeatureCollection", "features": [GEOMETRY]})
         with pytest.raises(DatafinderError, match="invalid_geojson"):
             _resolve_geojson_file(path)
 
-    def test_feature_filter_on_bare_polygon_is_rejected(self, tmp_path):
-        path = _write_geojson(tmp_path, GEOMETRY)
+    def test_feature_filter_on_bare_polygon_is_rejected(self):
+        path = _geojson_file(GEOMETRY)
         with pytest.raises(DatafinderError, match="geojson_feature_not_found"):
             _resolve_geojson_file(path, feature_filter={"property": "time_minutes", "equals": 30})
 
-    def test_feature_filter_matching_point_and_polygon_is_ambiguous(self, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    def test_feature_filter_matching_point_and_polygon_is_ambiguous(self):
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [
@@ -2606,68 +2612,55 @@ class TestResolveGeojsonFile:
         with pytest.raises(DatafinderError, match="ambiguous_geojson_feature"):
             _resolve_geojson_file(path, feature_filter={"property": "time_minutes", "equals": 10})
 
-    def test_file_over_size_cap_fails(self, tmp_path, monkeypatch):
+    def test_file_over_size_cap_fails(self, monkeypatch):
         import stats_nz_datafinder as module
 
         monkeypatch.setattr(module, "GEOJSON_MAX_BYTES", 64)
-        path = tmp_path / "big.geojson"
-        path.write_text("x" * 65, encoding="utf-8")
-        with pytest.raises(DatafinderError, match="geojson_file_unreadable"):
-            _resolve_geojson_file(str(path))
+        with pytest.raises(DatafinderError, match="5 MB limit"):
+            _resolve_geojson_file(_geojson_file(raw_bytes=b"x" * 65))
         assert GEOJSON_MAX_BYTES == 5 * 1024 * 1024
 
-    def test_size_cap_is_bytes_not_characters(self, tmp_path, monkeypatch):
+    def test_size_cap_is_bytes_not_characters(self, monkeypatch):
         import stats_nz_datafinder as module
 
         monkeypatch.setattr(module, "GEOJSON_MAX_BYTES", 64)
-        monkeypatch.setattr(module.os.path, "getsize", lambda _path: 64)
-        path = tmp_path / "wide.geojson"
-        path.write_text("€" * 30, encoding="utf-8")
-        assert path.stat().st_size > 64
-        assert len(path.read_text(encoding="utf-8")) < 64
+        raw = "€".encode("utf-8") * 30
+        assert len(raw) > 64
+        assert len(raw.decode("utf-8")) < 64
         with pytest.raises(DatafinderError, match="5 MB limit"):
-            _resolve_geojson_file(str(path))
+            _resolve_geojson_file(_geojson_file(raw_bytes=raw))
 
-    def test_non_utf8_file_is_unreadable(self, tmp_path):
-        path = tmp_path / "catchments.geojson"
-        path.write_bytes(b"\xff")
+    def test_non_utf8_file_is_unreadable(self):
         with pytest.raises(DatafinderError, match="UTF-8"):
-            _resolve_geojson_file(str(path))
+            _resolve_geojson_file(_geojson_file(raw_bytes=b"\xff"))
 
-    def test_directory_is_unreadable(self, tmp_path):
-        with pytest.raises(DatafinderError, match="geojson_file_unreadable"):
-            _resolve_geojson_file(str(tmp_path))
-
-    def test_null_geometry_is_not_eligible(self, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    def test_null_geometry_is_not_eligible(self):
+        path = _geojson_file(
             {"type": "FeatureCollection", "features": [_gj_feature(None), _gj_feature(GEOMETRY)]},
         )
         geometry, source = _resolve_geojson_file(path)
         assert geometry == GEOMETRY
         assert source["feature_index"] == 1
 
-    def test_geometry_collection_document_is_rejected(self, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    def test_geometry_collection_document_is_rejected(self):
+        path = _geojson_file(
             {"type": "GeometryCollection", "geometries": [GEOMETRY]},
         )
         with pytest.raises(DatafinderError, match="invalid_geojson"):
             _resolve_geojson_file(path)
 
-    def test_empty_feature_collection_fails_closed(self, tmp_path):
-        path = _write_geojson(tmp_path, {"type": "FeatureCollection", "features": []})
+    def test_empty_feature_collection_fails_closed(self):
+        path = _geojson_file({"type": "FeatureCollection", "features": []})
         with pytest.raises(DatafinderError, match="invalid_geometry"):
             _resolve_geojson_file(path)
 
-    def test_feature_index_on_bare_polygon_is_rejected(self, tmp_path):
-        path = _write_geojson(tmp_path, GEOMETRY)
+    def test_feature_index_on_bare_polygon_is_rejected(self):
+        path = _geojson_file(GEOMETRY)
         with pytest.raises(DatafinderError, match="geojson_feature_not_found"):
             _resolve_geojson_file(path, feature_index=0)
 
-    def test_feature_filter_matching_a_point_is_rejected(self, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    def test_feature_filter_matching_a_point_is_rejected(self):
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [
@@ -2679,10 +2672,10 @@ class TestResolveGeojsonFile:
         with pytest.raises(DatafinderError, match="invalid_geometry"):
             _resolve_geojson_file(path, feature_filter={"property": "time_minutes", "equals": 30})
 
-    def test_geometry_and_file_conflict(self, tmp_path):
-        path = _write_geojson(tmp_path, GEOMETRY)
+    def test_geometry_and_file_conflict(self):
+        path = _geojson_file(GEOMETRY)
         with pytest.raises(DatafinderError, match="conflicting_geometry_source"):
-            _bind_geojson_file({"geometry": GEOMETRY, "geojson_file_path": path})
+            _bind_geojson_file({"geometry": GEOMETRY, "geojson_file": path})
 
     def test_selectors_without_file_conflict(self):
         with pytest.raises(DatafinderError, match="conflicting_geometry_source"):
@@ -2693,19 +2686,18 @@ class TestResolveGeojsonFile:
         assert geometry == GEOMETRY
         assert source is None
 
-    def test_file_input_binds_resolved_geometry(self, tmp_path):
-        path = _write_geojson(tmp_path, GEOMETRY)
-        geometry, source = _bind_geojson_file({"geojson_file_path": path})
+    def test_file_input_binds_resolved_geometry(self):
+        path = _geojson_file(GEOMETRY)
+        geometry, source = _bind_geojson_file({"geojson_file": path})
         assert geometry == GEOMETRY
-        assert source["path"] == path
+        assert source["name"] == "catchments.geojson"
 
 
 class TestQueryAreaStatisticsFromGeojsonFile:
     @pytest.mark.asyncio
-    async def test_file_path_runs_existing_totals_path(self, mock_context, mock_wfs, tmp_path):
+    async def test_file_runs_existing_totals_path(self, mock_context, mock_wfs):
         geom = square(174.7, -41.3, 174.8, -41.2)
-        path = _write_geojson(
-            tmp_path,
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [_gj_feature(POINT, {"time_minutes": 5}), _gj_feature(geom, {"time_minutes": 10})],
@@ -2720,7 +2712,7 @@ class TestQueryAreaStatisticsFromGeojsonFile:
             "query_area_statistics",
             {
                 "layer_id": 123,
-                "geojson_file_path": path,
+                "geojson_file": path,
                 "measures": [POPULATION],
                 "page_size": 1,
                 "max_pages": 1,
@@ -2731,17 +2723,16 @@ class TestQueryAreaStatisticsFromGeojsonFile:
         data = result.result.data
         assert data["results"][0]["estimated_value"] == pytest.approx(100.0)
         source = data["geometry_source"]
-        assert source["path"] == path
+        assert source["name"] == "catchments.geojson"
         assert source["feature_index"] == 1
         assert "coordinates" not in source
         assert "geometry" not in data
 
     @pytest.mark.asyncio
-    async def test_feature_filter_selects_band(self, mock_context, mock_wfs, tmp_path):
+    async def test_feature_filter_selects_band(self, mock_context, mock_wfs):
         geom = square(174.7, -41.3, 174.8, -41.2)
         other = square(174.9, -41.3, 175.0, -41.2)
-        path = _write_geojson(
-            tmp_path,
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [
@@ -2759,7 +2750,7 @@ class TestQueryAreaStatisticsFromGeojsonFile:
             "query_area_statistics",
             {
                 "layer_id": 123,
-                "geojson_file_path": path,
+                "geojson_file": path,
                 "feature_filter": {"property": "time_minutes", "equals": 30},
                 "measures": [POPULATION],
                 "page_size": 1,
@@ -2786,14 +2777,14 @@ class TestQueryAreaStatisticsFromGeojsonFile:
         mock_wfs.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_geometry_and_file_fail_before_fetch(self, mock_context, mock_wfs, tmp_path):
-        path = _write_geojson(tmp_path, GEOMETRY)
+    async def test_geometry_and_file_fail_before_fetch(self, mock_context, mock_wfs):
+        path = _geojson_file(GEOMETRY)
         result = await stats_nz_datafinder.execute_action(
             "query_area_statistics",
             {
                 "layer_id": 123,
                 "geometry": GEOMETRY,
-                "geojson_file_path": path,
+                "geojson_file": path,
                 "measures": [POPULATION],
             },
             mock_context,
@@ -2804,9 +2795,8 @@ class TestQueryAreaStatisticsFromGeojsonFile:
         mock_wfs.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_ambiguous_file_fails_before_wfs(self, mock_context, mock_wfs, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    async def test_ambiguous_file_fails_before_wfs(self, mock_context, mock_wfs):
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [
@@ -2817,7 +2807,7 @@ class TestQueryAreaStatisticsFromGeojsonFile:
         )
         result = await stats_nz_datafinder.execute_action(
             "query_area_statistics",
-            {"layer_id": 123, "geojson_file_path": path, "measures": [POPULATION]},
+            {"layer_id": 123, "geojson_file": path, "measures": [POPULATION]},
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -2828,8 +2818,8 @@ class TestQueryAreaStatisticsFromGeojsonFile:
 
 class TestQueryLayerFromGeojsonFile:
     @pytest.mark.asyncio
-    async def test_file_path_scopes_query(self, mock_context, mock_wfs, tmp_path):
-        path = _write_geojson(tmp_path, GEOMETRY)
+    async def test_file_scopes_query(self, mock_context, mock_wfs):
+        path = _geojson_file(GEOMETRY)
         mock_context.fetch.return_value = fetch_ok(METADATA)
         mock_wfs.side_effect = [
             ok(CAPABILITIES),
@@ -2837,26 +2827,26 @@ class TestQueryLayerFromGeojsonFile:
         ]
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": 123, "geojson_file_path": path, "page_size": 1, "max_pages": 1},
+            {"layer_id": 123, "geojson_file": path, "page_size": 1, "max_pages": 1},
             mock_context,
         )
         assert result.type == ResultType.ACTION, result.result
         assert result.result.data["record_count"] == 1
         source = result.result.data["geometry_source"]
-        assert source["path"] == path
+        assert source["name"] == "catchments.geojson"
         assert "coordinates" not in source
         assert "geometry" not in result.result.data
         cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
         assert "INTERSECTS" in cql
 
     @pytest.mark.asyncio
-    async def test_file_and_bbox_rejected_before_fetch(self, mock_context, tmp_path):
-        path = _write_geojson(tmp_path, GEOMETRY)
+    async def test_file_and_bbox_rejected_before_fetch(self, mock_context):
+        path = _geojson_file(GEOMETRY)
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
             {
                 "layer_id": 123,
-                "geojson_file_path": path,
+                "geojson_file": path,
                 "bbox": [174.7, -41.3, 174.8, -41.2],
             },
             mock_context,
@@ -2866,11 +2856,11 @@ class TestQueryLayerFromGeojsonFile:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_geometry_and_file_rejected_before_fetch(self, mock_context, tmp_path):
-        path = _write_geojson(tmp_path, GEOMETRY)
+    async def test_geometry_and_file_rejected_before_fetch(self, mock_context):
+        path = _geojson_file(GEOMETRY)
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": 123, "geometry": GEOMETRY, "geojson_file_path": path},
+            {"layer_id": 123, "geometry": GEOMETRY, "geojson_file": path},
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -2878,10 +2868,17 @@ class TestQueryLayerFromGeojsonFile:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_unreadable_file_rejected_before_fetch(self, mock_context, tmp_path):
+    async def test_unreadable_file_rejected_before_fetch(self, mock_context):
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": 123, "geojson_file_path": str(tmp_path / "missing.geojson")},
+            {
+                "layer_id": 123,
+                "geojson_file": {
+                    "name": "catchments.geojson",
+                    "contentType": "application/geo+json",
+                    "content": "!!!",
+                },
+            },
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -2889,9 +2886,8 @@ class TestQueryLayerFromGeojsonFile:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_ambiguous_file_fails_before_fetch(self, mock_context, tmp_path):
-        path = _write_geojson(
-            tmp_path,
+    async def test_ambiguous_file_fails_before_fetch(self, mock_context):
+        path = _geojson_file(
             {
                 "type": "FeatureCollection",
                 "features": [
@@ -2902,7 +2898,7 @@ class TestQueryLayerFromGeojsonFile:
         )
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": 123, "geojson_file_path": path},
+            {"layer_id": 123, "geojson_file": path},
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR
@@ -2910,11 +2906,11 @@ class TestQueryLayerFromGeojsonFile:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_point_file_fails_before_fetch(self, mock_context, tmp_path):
-        path = _write_geojson(tmp_path, {"type": "FeatureCollection", "features": [_gj_feature(POINT)]})
+    async def test_point_file_fails_before_fetch(self, mock_context):
+        path = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(POINT)]})
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": 123, "geojson_file_path": path},
+            {"layer_id": 123, "geojson_file": path},
             mock_context,
         )
         assert result.type == ResultType.ACTION_ERROR

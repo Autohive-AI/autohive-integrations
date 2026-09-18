@@ -24,11 +24,12 @@ WFS calls set ``allow_redirects=False`` so a 301/302 cannot drop a POST
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import csv
 import io
 import json
 import math
-import os
 import re
 from datetime import datetime, timezone
 from typing import Any, NamedTuple
@@ -71,8 +72,7 @@ _GEOD = Geod(ellps="WGS84")
 ADDITIVE_COUNT = "additive_count"
 COUNT_UNIT = "count"
 UNSCOPED_ERROR = (
-    "Provide geometry, geojson_file_path, bbox, or at least one attribute filter. "
-    "Unscoped national scans are not supported."
+    "Provide geometry, geojson_file, bbox, or at least one attribute filter. Unscoped national scans are not supported."
 )
 _UNEXPECTED_ERROR = (
     "The Stats NZ Datafinder integration hit an unexpected error handling this request. "
@@ -623,7 +623,7 @@ def _geojson_contract_error(
     message: str,
     error_code: str,
     recovery: str,
-    field: str = "geojson_file_path",
+    field: str = "geojson_file",
     valid_alternatives: list[str] | None = None,
 ) -> DatafinderError:
     return DatafinderError(
@@ -671,35 +671,42 @@ def _feature_properties(feature: Any) -> dict[str, Any]:
     return {}
 
 
-def _read_geojson_file(path: str) -> Any:
-    if not isinstance(path, str) or not path.strip() or not os.path.isfile(path):
+def _read_geojson_file(file_obj: Any) -> Any:
+    """Decode a platform file object (`name`, `contentType`, base64 `content`)."""
+    if not isinstance(file_obj, dict):
         raise _geojson_contract_error(
-            message="The GeoJSON file could not be read.",
+            message="geojson_file must be a platform file object.",
             error_code="geojson_file_unreadable",
-            recovery="Pass a readable GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon path.",
+            recovery="Pass a GeoJSON file with name, contentType, and base64 content.",
         )
-    try:
-        size = os.path.getsize(path)
-    except OSError as exc:
+    content = file_obj.get("content")
+    if not isinstance(content, str):
         raise _geojson_contract_error(
             message="The GeoJSON file could not be read.",
             error_code="geojson_file_unreadable",
-            recovery="Pass a readable GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon path.",
-        ) from exc
-    if size > GEOJSON_MAX_BYTES:
+            recovery="Pass a GeoJSON file with name, contentType, and base64 content.",
+        )
+    content = "".join(content.split())
+    if not content:
+        raise _geojson_contract_error(
+            message="The GeoJSON file could not be read.",
+            error_code="geojson_file_unreadable",
+            recovery="Pass a GeoJSON file with name, contentType, and base64 content.",
+        )
+    max_encoded = (GEOJSON_MAX_BYTES * 4) // 3 + 8
+    if len(content) > max_encoded:
         raise _geojson_contract_error(
             message="The GeoJSON file is larger than the 5 MB limit.",
             error_code="geojson_file_unreadable",
             recovery="Use a smaller FeatureCollection or pass a single Polygon/MultiPolygon file.",
         )
     try:
-        with open(path, "rb") as handle:
-            raw_bytes = handle.read(GEOJSON_MAX_BYTES + 1)
-    except OSError as exc:
+        raw_bytes = base64.b64decode(content, validate=True)
+    except (ValueError, binascii.Error) as exc:
         raise _geojson_contract_error(
             message="The GeoJSON file could not be read.",
             error_code="geojson_file_unreadable",
-            recovery="Pass a readable GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon path.",
+            recovery="Pass a GeoJSON file with name, contentType, and base64 content.",
         ) from exc
     if len(raw_bytes) > GEOJSON_MAX_BYTES:
         raise _geojson_contract_error(
@@ -713,7 +720,7 @@ def _read_geojson_file(path: str) -> Any:
         raise _geojson_contract_error(
             message="The GeoJSON file could not be read.",
             error_code="geojson_file_unreadable",
-            recovery="Pass a UTF-8 GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon path.",
+            recovery="Pass a UTF-8 GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon file.",
         ) from exc
     try:
         return json.loads(raw)
@@ -845,12 +852,12 @@ def _select_feature_by_filter(features: list[Any], feature_filter: Any) -> tuple
 
 
 def _resolve_geojson_file(
-    path: str,
+    file_obj: Any,
     *,
     feature_index: int | None = None,
     feature_filter: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Load a GeoJSON file and return one Polygon/MultiPolygon plus a compact source citation."""
+    """Load a platform GeoJSON file and return one Polygon/MultiPolygon plus a compact source citation."""
     if feature_index is not None and feature_filter is not None:
         raise _geojson_contract_error(
             message="Provide feature_index or feature_filter, not both.",
@@ -858,10 +865,10 @@ def _resolve_geojson_file(
             field="feature_index",
             recovery="Select the catchment with exactly one of feature_index or feature_filter.",
         )
-    document = _read_geojson_file(path)
+    document = _read_geojson_file(file_obj)
     features, is_collection = _geojson_features(document)
     matched_properties: dict[str, Any] | None = None
-    selector_field = "geojson_file_path"
+    selector_field = "geojson_file"
     if feature_index is not None:
         if not is_collection:
             raise _geojson_contract_error(
@@ -885,8 +892,9 @@ def _resolve_geojson_file(
     else:
         feature, index = _auto_select_area_feature(features)
     geometry = _selected_area_geometry(feature, field=selector_field)
+    name = file_obj.get("name") if isinstance(file_obj, dict) else None
     source: dict[str, Any] = {
-        "path": path,
+        "name": name if isinstance(name, str) and name else None,
         "feature_index": index if is_collection else None,
     }
     if matched_properties is not None:
@@ -895,26 +903,26 @@ def _resolve_geojson_file(
 
 
 def _bind_geojson_file(inputs: dict[str, Any]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    """Return (geometry, file source). File path is an alternative to inline geometry."""
-    path = inputs.get("geojson_file_path")
+    """Return (geometry, file source). A platform GeoJSON file is an alternative to inline geometry."""
+    file_obj = inputs.get("geojson_file")
     geometry = inputs.get("geometry")
     feature_index = inputs.get("feature_index")
     feature_filter = inputs.get("feature_filter")
-    if (feature_index is not None or feature_filter is not None) and not path:
+    if (feature_index is not None or feature_filter is not None) and file_obj is None:
         raise _geojson_contract_error(
-            message="feature_index and feature_filter are only valid with geojson_file_path.",
+            message="feature_index and feature_filter are only valid with geojson_file.",
             error_code="conflicting_geometry_source",
             field="feature_index" if feature_index is not None else "feature_filter",
-            recovery="Pass geojson_file_path, or omit feature_index and feature_filter.",
+            recovery="Pass geojson_file, or omit feature_index and feature_filter.",
         )
-    if path:
+    if file_obj is not None:
         if geometry is not None:
             raise _geojson_contract_error(
-                message="Provide geometry or geojson_file_path, not both.",
+                message="Provide geometry or geojson_file, not both.",
                 error_code="conflicting_geometry_source",
                 recovery="Pass either inline geometry or a GeoJSON file, not both.",
             )
-        return _resolve_geojson_file(path, feature_index=feature_index, feature_filter=feature_filter)
+        return _resolve_geojson_file(file_obj, feature_index=feature_index, feature_filter=feature_filter)
     return geometry, None
 
 
@@ -2036,9 +2044,9 @@ class QueryLayerByGeometryAction(ActionHandler):
         include_coded_fields = bool(inputs.get("include_coded_fields"))
         fields = inputs.get("fields")
         try:
-            if inputs.get("geojson_file_path") and inputs.get("bbox"):
+            if inputs.get("geojson_file") is not None and inputs.get("bbox") is not None:
                 raise _geojson_contract_error(
-                    message="Provide only one spatial source: geometry, geojson_file_path, or bbox.",
+                    message="Provide only one spatial source: geometry, geojson_file, or bbox.",
                     error_code="conflicting_geometry_source",
                     recovery="Pass either inline geometry, a GeoJSON file, or bbox — not more than one.",
                 )
@@ -2134,10 +2142,10 @@ class QueryAreaStatisticsAction(ActionHandler):
             if geometry is None:
                 raise DatafinderError(
                     _contract_error(
-                        message="Provide geometry or geojson_file_path.",
+                        message="Provide geometry or geojson_file.",
                         error_code="missing_geometry",
                         field="geometry",
-                        valid_alternatives=["geometry", "geojson_file_path"],
+                        valid_alternatives=["geometry", "geojson_file"],
                         recovery="Pass a WGS84 Polygon or MultiPolygon, or a GeoJSON file containing one.",
                         retry_safe=False,
                     )

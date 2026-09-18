@@ -13,6 +13,7 @@ Never runs in CI — the default marker filter (-m unit) and the
 test_*_integration.py naming both exclude it.
 """
 
+import base64
 import json
 import os
 from unittest.mock import AsyncMock, MagicMock
@@ -39,6 +40,18 @@ WELLINGTON = {
         ]
     ],
 }
+
+
+def _wellington_geojson_file() -> dict:
+    payload = {
+        "type": "FeatureCollection",
+        "features": [{"type": "Feature", "geometry": WELLINGTON, "properties": {}}],
+    }
+    return {
+        "name": "catchments.geojson",
+        "contentType": "application/geo+json",
+        "content": base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii"),
+    }
 
 
 @pytest_asyncio.fixture
@@ -160,27 +173,18 @@ class TestQueryLayerByGeometry:
             if area is not None:
                 assert area >= 0
 
-    async def test_scopes_query_from_geojson_file(self, live_context, tmp_path):
+    async def test_scopes_query_from_geojson_file(self, live_context):
         layer_id = await _layer_id(live_context)
-        path = tmp_path / "wellington.geojson"
-        path.write_text(
-            json.dumps(
-                {
-                    "type": "FeatureCollection",
-                    "features": [{"type": "Feature", "geometry": WELLINGTON, "properties": {}}],
-                }
-            ),
-            encoding="utf-8",
-        )
+        geojson_file = _wellington_geojson_file()
         result = await stats_nz_datafinder.execute_action(
             "query_layer_by_geometry",
-            {"layer_id": layer_id, "geojson_file_path": str(path), "page_size": 5, "max_pages": 1},
+            {"layer_id": layer_id, "geojson_file": geojson_file, "page_size": 5, "max_pages": 1},
             live_context,
         )
         assert result.type == ResultType.ACTION, result.result
         data = result.result.data
         source = data["geometry_source"]
-        assert source["path"] == str(path)
+        assert source["name"] == "catchments.geojson"
         assert source["feature_index"] == 0
         assert "coordinates" not in source
         if data["records"]:
@@ -245,23 +249,14 @@ class TestQueryAreaStatistics:
             assert row["estimated_value"] >= 0
         assert data["geography_summary"]["intersecting_feature_count"] >= 0
 
-    async def test_returns_compact_totals_from_geojson_file(self, live_context, tmp_path):
+    async def test_returns_compact_totals_from_geojson_file(self, live_context):
         layer_id, count_field = await _census_count_field(live_context)
-        path = tmp_path / "wellington.geojson"
-        path.write_text(
-            json.dumps(
-                {
-                    "type": "FeatureCollection",
-                    "features": [{"type": "Feature", "geometry": WELLINGTON, "properties": {}}],
-                }
-            ),
-            encoding="utf-8",
-        )
+        geojson_file = _wellington_geojson_file()
         result = await stats_nz_datafinder.execute_action(
             "query_area_statistics",
             {
                 "layer_id": layer_id,
-                "geojson_file_path": str(path),
+                "geojson_file": geojson_file,
                 "measures": [_population_measure(count_field)],
                 "page_size": 50,
                 "max_pages": 20,
@@ -271,7 +266,7 @@ class TestQueryAreaStatistics:
         assert result.type == ResultType.ACTION, result.result
         data = result.result.data
         source = data["geometry_source"]
-        assert source["path"] == str(path)
+        assert source["name"] == "catchments.geojson"
         assert source["feature_index"] == 0
         assert "coordinates" not in source
         assert "geometry" not in data
