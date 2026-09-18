@@ -13,6 +13,7 @@ Never runs in CI — the default marker filter (-m unit) and the
 test_*_integration.py naming both exclude it.
 """
 
+import json
 import os
 from unittest.mock import AsyncMock, MagicMock
 
@@ -160,40 +161,47 @@ class TestQueryLayerByGeometry:
                 assert area >= 0
 
 
+async def _census_count_field(live_context) -> tuple[int, dict]:
+    layer_id = CENSUS_SA1_LAYER_ID
+    metadata = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": layer_id}, live_context)
+    if metadata.type != ResultType.ACTION:
+        pytest.skip(f"Census SA1 layer {layer_id} is not available")
+    count_fields = [
+        field
+        for field in metadata.result.data.get("fields", [])
+        if isinstance(field, dict)
+        and field.get("coded")
+        and isinstance(field.get("name"), str)
+        and str(field.get("measure") or "").strip().lower() == "count"
+    ]
+    if not count_fields:
+        pytest.skip(f"Layer {layer_id} has no codebook Count fields")
+    count_field = next(
+        (field for field in count_fields if field["name"] == "VAR_1_3"),
+        count_fields[0],
+    )
+    return layer_id, count_field
+
+
+def _population_measure(count_field: dict) -> dict:
+    return {
+        "key": "population",
+        "label": count_field.get("title") or "Census count",
+        "field": count_field["name"],
+        "unit": "count",
+        "aggregation": "additive_count",
+    }
+
+
 class TestQueryAreaStatistics:
     async def test_returns_compact_totals_for_wellington_polygon(self, live_context):
-        layer_id = CENSUS_SA1_LAYER_ID
-        metadata = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": layer_id}, live_context)
-        if metadata.type != ResultType.ACTION:
-            pytest.skip(f"Census SA1 layer {layer_id} is not available")
-        count_fields = [
-            field
-            for field in metadata.result.data.get("fields", [])
-            if isinstance(field, dict)
-            and field.get("coded")
-            and isinstance(field.get("name"), str)
-            and str(field.get("measure") or "").strip().lower() == "count"
-        ]
-        if not count_fields:
-            pytest.skip(f"Layer {layer_id} has no codebook Count fields")
-        count_field = next(
-            (field for field in count_fields if field["name"] == "VAR_1_3"),
-            count_fields[0],
-        )
+        layer_id, count_field = await _census_count_field(live_context)
         result = await stats_nz_datafinder.execute_action(
             "query_area_statistics",
             {
                 "layer_id": layer_id,
                 "geometry": WELLINGTON,
-                "measures": [
-                    {
-                        "key": "population",
-                        "label": count_field.get("title") or "Census count",
-                        "field": count_field["name"],
-                        "unit": "count",
-                        "aggregation": "additive_count",
-                    }
-                ],
+                "measures": [_population_measure(count_field)],
                 "page_size": 50,
                 "max_pages": 20,
             },
@@ -210,3 +218,36 @@ class TestQueryAreaStatistics:
         if row["estimated_value"] is not None:
             assert row["estimated_value"] >= 0
         assert data["geography_summary"]["intersecting_feature_count"] >= 0
+
+    async def test_returns_compact_totals_from_geojson_file(self, live_context, tmp_path):
+        layer_id, count_field = await _census_count_field(live_context)
+        path = tmp_path / "wellington.geojson"
+        path.write_text(
+            json.dumps(
+                {
+                    "type": "FeatureCollection",
+                    "features": [{"type": "Feature", "geometry": WELLINGTON, "properties": {}}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        result = await stats_nz_datafinder.execute_action(
+            "query_area_statistics",
+            {
+                "layer_id": layer_id,
+                "geojson_file_path": str(path),
+                "measures": [_population_measure(count_field)],
+                "page_size": 50,
+                "max_pages": 20,
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        source = data["geometry_source"]
+        assert source["path"] == str(path)
+        assert source["feature_index"] == 0
+        assert "coordinates" not in source
+        assert "geometry" not in data
+        if data["results"][0]["estimated_value"] is not None:
+            assert data["results"][0]["estimated_value"] >= 0

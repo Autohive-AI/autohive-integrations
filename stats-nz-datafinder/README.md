@@ -16,7 +16,7 @@ Official documentation:
 | Action | What it does |
 |--------|--------------|
 | `query_area_statistics` | Area-weight explicitly configured additive Census counts for a Polygon/MultiPolygon catchment (inline geometry or a GeoJSON file). Returns compact totals, not raw SA1 records. |
-| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, GeoJSON file, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. |
+| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, a Polygon/MultiPolygon GeoJSON file, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. |
 | `get_layer_metadata` | Return a short description, field list (`coded` flags `VAR_*` columns, titles/measure/year from the lookup codebook when present), catalogue page URL, and codebook **download** links. |
 | `search_layers` | Search public vector layers. Compact cards: id, title, published_at, queryable. |
 
@@ -69,7 +69,7 @@ national scans are rejected):
 | Input | When to use | `overlap_fraction` |
 |--------|-------------|--------------------|
 | `geometry` Polygon / MultiPolygon | Catchment / isochrone clip | Area of the feature inside the polygon |
-| `geojson_file_path` | Large catchment from a workspace or `/tool-outputs/` GeoJSON file | Same as the selected Polygon / MultiPolygon |
+| `geojson_file_path` | Large Polygon/MultiPolygon catchment from a workspace or `/tool-outputs/` GeoJSON file. Point files are rejected. | Same as the selected Polygon / MultiPolygon |
 | `geometry` Point | "What SA2/meshblock is this school in?" | Always `1.0` — do **not** area-weight a point |
 | `bbox` `[west, south, east, north]` | Rough map window without building GeoJSON. Unwrapped longitudes (Datafinder east ≈ 184.5) and boxes that cross 180° are accepted. CQL matches both wrapped and unwrapped layer coordinates so Chatham Islands are not dropped | Same as a polygon |
 | `attribute_filters` | Named-area lookup. Use `ieq` for an exact SA2/SA1 name | `1.0` (whole feature) |
@@ -77,8 +77,8 @@ national scans are rejected):
 `ieq` is a case-insensitive exact match. `contains` is a substring match
 (`ILIKE %value%`) — `contains` `"Wellington Central"` also matches
 **Mount Wellington Central**. Other operators: `eq`, `neq`, `lt`, `lte`,
-`gt`, `gte`. Combine filters with a spatial clip using AND. Do not send
-`geometry`, `geojson_file_path`, and `bbox` together.
+`gt`, `gte`. Combine filters with a spatial clip using AND. Do not send more
+than one of `geometry`, `geojson_file_path`, and `bbox`.
 
 A GeoJSON file may be a FeatureCollection, a Feature, or a bare
 Polygon/MultiPolygon. If the file contains exactly one Polygon or
@@ -202,7 +202,7 @@ Example file input:
 - Contribution = unrounded `source_value × overlap_fraction`.
 - Overlap uses the existing WGS84 **geodesic** area method (`pyproj Geod`), not
   planar degrees. Fractions must fall in `[0, 1]` within a documented
-  floating-point tolerance of `1e-9`.
+  floating-point tolerance of `1e-6`.
 - Default JSON is compact: totals, geography summary, method, layer citation,
   warnings, `validation_status`. No raw features or geometry. File-backed
   queries add `geometry_source` (`path`, `feature_index`, matched properties)

@@ -693,20 +693,28 @@ def _read_geojson_file(path: str) -> Any:
             recovery="Use a smaller FeatureCollection or pass a single Polygon/MultiPolygon file.",
         )
     try:
-        with open(path, encoding="utf-8") as handle:
-            raw = handle.read(GEOJSON_MAX_BYTES + 1)
-    except (OSError, UnicodeDecodeError) as exc:
+        with open(path, "rb") as handle:
+            raw_bytes = handle.read(GEOJSON_MAX_BYTES + 1)
+    except OSError as exc:
         raise _geojson_contract_error(
             message="The GeoJSON file could not be read.",
             error_code="geojson_file_unreadable",
-            recovery="Pass a UTF-8 GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon path.",
+            recovery="Pass a readable GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon path.",
         ) from exc
-    if len(raw) > GEOJSON_MAX_BYTES:
+    if len(raw_bytes) > GEOJSON_MAX_BYTES:
         raise _geojson_contract_error(
             message="The GeoJSON file is larger than the 5 MB limit.",
             error_code="geojson_file_unreadable",
             recovery="Use a smaller FeatureCollection or pass a single Polygon/MultiPolygon file.",
         )
+    try:
+        raw = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise _geojson_contract_error(
+            message="The GeoJSON file could not be read.",
+            error_code="geojson_file_unreadable",
+            recovery="Pass a UTF-8 GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon path.",
+        ) from exc
     try:
         return json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -900,9 +908,9 @@ def _bind_geojson_file(inputs: dict[str, Any]) -> tuple[dict[str, Any] | None, d
     if path:
         if geometry:
             raise _geojson_contract_error(
-                message="Provide only one spatial source: geometry, geojson_file_path, or bbox.",
+                message="Provide geometry or geojson_file_path, not both.",
                 error_code="conflicting_geometry_source",
-                recovery="Pass either inline geometry, a GeoJSON file, or bbox — not more than one.",
+                recovery="Pass either inline geometry or a GeoJSON file, not both.",
             )
         return _resolve_geojson_file(path, feature_index=feature_index, feature_filter=feature_filter)
     return geometry if geometry else None, None
