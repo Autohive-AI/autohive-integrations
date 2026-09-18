@@ -17,7 +17,7 @@ Official documentation:
 |--------|--------------|
 | `query_area_statistics` | Area-weight explicitly configured additive Census counts for a Polygon/MultiPolygon catchment. Returns compact totals, not raw SA1 records. |
 | `query_layer_by_geometry` | Query a layer by polygon, point, bbox, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. |
-| `get_layer_metadata` | Return a short description, field list (`coded` flags `VAR_*` columns), catalogue page URL, and attachment links. |
+| `get_layer_metadata` | Return a short description, field list (`coded` flags `VAR_*` columns, titles/measure/year from the lookup codebook when present), catalogue page URL, and codebook **download** links. |
 | `search_layers` | Search public vector layers. Compact cards: id, title, published_at, queryable. |
 
 ## Authentication
@@ -54,8 +54,11 @@ is 50 (maximum 200).
 1. `search_layers` to pick a `layer_id` (prefer a named geography such as SA2
    over “totals by topic” dumps when you only need a few measures).
 2. `get_layer_metadata` for field names. `coded_field_count` is the number of
-   `VAR_*` columns; `page_url` is the catalogue page; `attachments` lists
-   lookup/codebook files when Datafinder publishes them.
+   `VAR_*` columns; `page_url` is the catalogue page. When Datafinder publishes a
+   lookup table, `attachments[].url` is the **file download** URL (not the JSON
+   metadata endpoint) and matching `fields[].title` / `measure` / `year` are
+   filled from that CSV. Use `measure` `Count` only with Query Area Statistics;
+   skip Median and Mean.
 3. `query_layer_by_geometry` with a scope **and** `fields` set to the columns
    you will actually use (geography code/name plus the `VAR_*` measures).
 4. Named-area lookup uses `ieq` on the name field, not `contains`.
@@ -199,18 +202,20 @@ bodies, HTML, stack traces, and API keys are never included.
 ## Get Layer Metadata
 
 `get_layer_metadata` returns title, a **short** description (first paragraph,
-capped), the non-geometry `fields` list (`name` / `type`, plus `title` when the
-API provides one; `coded` is true for Census `VAR_*` columns),
-`coded_field_count`, `page_url` (the catalogue page, not the API JSON),
-attachment links when Datafinder publishes a lookup/codebook, a best-available
-data-vintage date, licence, supplier/source
+capped), the non-geometry `fields` list (`name` / `type`; `coded` is true for
+Census `VAR_*` columns), `coded_field_count`, `page_url` (the catalogue page,
+not the API JSON), codebook **download** links when Datafinder publishes a
+lookup, a best-available data-vintage date, licence, supplier/source
 attribution, and the canonical Datafinder API URL. Licence objects from the live
 API are normalised to their title string. Census layers often name columns
-`VAR_1_1`, `VAR_1_2`, … — `attachments` lists lookup/codebook files when present.
-`page_url` and attachment file URLs are returned only when they are HTTPS on
-`datafinder.stats.govt.nz`; off-origin catalogue or file links are dropped
-(the attachment name is kept). Field titles are included only when the layer
-schema provides them.
+`VAR_1_1`, `VAR_1_2`, … with no labels in the layer schema. When a lookup CSV
+is attached, the action downloads it (following off-origin redirects **without**
+the API key) and copies `title`, `measure`, and `year` onto matching fields.
+`attachments[].url` is the file `url_download` path, not the JSON attachment
+metadata endpoint. `page_url` and attachment file URLs are returned only when
+they are HTTPS on `datafinder.stats.govt.nz`; off-origin catalogue or file links
+are dropped (the attachment name is kept). Do not area-weight fields whose
+`measure` is Median or Mean.
 
 ## Search Layers
 

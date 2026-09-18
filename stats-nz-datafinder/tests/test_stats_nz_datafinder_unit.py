@@ -15,6 +15,8 @@ from stats_nz_datafinder import (
     OVERLAP_TOLERANCE,
     DatafinderError,
     _as_shapely,
+    _attachment_items,
+    _codebook_field_info,
     _attribution,
     _bbox_polygon,
     _build_cql_filter,
@@ -1137,7 +1139,13 @@ class TestGetLayerMetadata:
         assert result.result.data["coded_field_count"] == 1
 
     @pytest.mark.asyncio
-    async def test_includes_page_url_and_attachments(self, mock_context):
+    async def test_includes_page_url_and_attachments(self, mock_context, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, _url):
+            return "", ""
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
         mock_context.fetch.side_effect = [
             fetch_ok(
                 {
@@ -1161,6 +1169,87 @@ class TestGetLayerMetadata:
             {"name": "Off-origin dump"},
         ]
         assert mock_context.fetch.await_count == 2
+
+    def test_attachment_prefers_url_download_over_json_metadata(self):
+        items = _attachment_items(
+            [
+                {
+                    "url": "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/",
+                    "url_download": (
+                        "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/download/"
+                    ),
+                    "document": {"title": "SA1_part_1_lookup_table", "extension": "csv"},
+                }
+            ]
+        )
+        assert items == [
+            {
+                "name": "SA1_part_1_lookup_table.csv",
+                "url": "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/download/",
+            }
+        ]
+
+    def test_codebook_maps_count_and_median(self):
+        csv_text = (
+            "Column_name,Year,Measure,Variable1,Variable1_category,Field_name_alias\n"
+            "VAR_1_3,2023,Count,Census usually resident population count,Total,"
+            "Usually resident population 2023\n"
+            "VAR_1_27,2013,Median,Age,Median,Median age 2013\n"
+        )
+        info = _codebook_field_info(csv_text)
+        assert info["VAR_1_3"]["measure"] == "Count"
+        assert info["VAR_1_3"]["year"] == "2023"
+        assert "Usually resident population 2023" in info["VAR_1_3"]["title"]
+        assert info["VAR_1_27"]["measure"] == "Median"
+
+    @pytest.mark.asyncio
+    async def test_metadata_enriches_titles_from_codebook_csv(self, mock_context, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, url):
+            assert url.endswith("/download/")
+            body = (
+                "Column_name,Year,Measure,Variable1,Variable1_category,Field_name_alias\n"
+                "VAR_1_3,2023,Count,Census usually resident population count,Total,"
+                "Usually resident population 2023\n"
+            )
+            return "text/csv", body
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "data": {
+                        "fields": [
+                            {"name": "Shape", "type": "geometry"},
+                            {"name": "VAR_1_3", "type": "integer"},
+                        ]
+                    },
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
+                }
+            ),
+            fetch_ok(
+                [
+                    {
+                        "url": "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/",
+                        "url_download": (
+                            "https://datafinder.stats.govt.nz/services/api/v1/"
+                            "layers/123/versions/1/attachments/1/download/"
+                        ),
+                        "document": {"title": "lookup", "extension": "csv"},
+                    }
+                ]
+            ),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        field = result.result.data["fields"][0]
+        assert field["name"] == "VAR_1_3"
+        assert field["title"] == "Usually resident population 2023"
+        assert field["measure"] == "Count"
+        assert field["year"] == "2023"
+        assert result.result.data["attachments"][0]["url"].endswith("/download/")
 
     @pytest.mark.asyncio
     async def test_off_origin_page_url_falls_back_to_catalogue(self, mock_context):
@@ -1201,7 +1290,13 @@ class TestGetLayerMetadata:
         assert mock_context.fetch.await_args.args[0].endswith("/layers/123/")
 
     @pytest.mark.asyncio
-    async def test_relative_attachments_url_is_fetched_on_datafinder_origin(self, mock_context):
+    async def test_relative_attachments_url_is_fetched_on_datafinder_origin(self, mock_context, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, _url):
+            return "", ""
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
         mock_context.fetch.side_effect = [
             fetch_ok({**METADATA, "attachments": "/services/api/v1/layers/123/versions/1/attachments/"}),
             fetch_ok([{"title": "Codebook", "url": "https://datafinder.stats.govt.nz/files/codebook.csv"}]),

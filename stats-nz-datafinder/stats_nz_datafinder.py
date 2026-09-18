@@ -1317,18 +1317,55 @@ def _page_url(metadata: dict[str, Any], layer_id: int) -> str:
     return f"https://datafinder.stats.govt.nz/layer/{layer_id}/"
 
 
+def _looks_like_file_url(url: str) -> bool:
+    """True for a downloadable file path, not a Koordinates JSON resource URL."""
+    path = urlparse(url).path.rstrip("/").lower()
+    if path.endswith("/download"):
+        return True
+    filename = path.rsplit("/", 1)[-1]
+    return "." in filename
+
+
+def _attachment_name(item: dict[str, Any]) -> str | None:
+    document = item.get("document") if isinstance(item.get("document"), dict) else {}
+    extension = _string_or_none(document.get("extension"))
+    name = (
+        _string_or_none(item.get("title"))
+        or _string_or_none(document.get("title"))
+        or _string_or_none(item.get("name"))
+        or _string_or_none(item.get("filename"))
+    )
+    if name and extension and not name.lower().endswith(f".{extension.lower()}"):
+        return f"{name}.{extension}"
+    return name
+
+
+def _attachment_download_url(item: dict[str, Any]) -> str | None:
+    """Prefer url_download so agents get the CSV, not the attachment JSON metadata."""
+    document = item.get("document") if isinstance(item.get("document"), dict) else {}
+    candidates = (
+        item.get("url_download"),
+        document.get("url_download"),
+        item.get("file"),
+        item.get("url"),
+    )
+    for candidate in candidates:
+        trusted = _trusted_datafinder_url(_string_or_none(candidate) or "")
+        if trusted and _looks_like_file_url(trusted):
+            return trusted
+    return None
+
+
 def _attachment_items(payload: Any) -> list[dict[str, str]]:
     items = payload if isinstance(payload, list) else []
+    if not items and isinstance(payload, dict) and isinstance(payload.get("results"), list):
+        items = payload["results"]
     attachments: list[dict[str, str]] = []
     for item in items:
         if not isinstance(item, dict):
             continue
-        name = (
-            _string_or_none(item.get("title"))
-            or _string_or_none(item.get("name"))
-            or _string_or_none(item.get("filename"))
-        )
-        url = _trusted_datafinder_url(_string_or_none(item.get("url")) or _string_or_none(item.get("file")) or "")
+        name = _attachment_name(item)
+        url = _attachment_download_url(item)
         if not name and not url:
             continue
         attachment: dict[str, str] = {}
@@ -1356,6 +1393,132 @@ async def _layer_attachments(context: ExecutionContext, metadata: Any) -> list[d
             return []
         raise
     return _attachment_items(response.data)
+
+
+CODEBOOK_TIMEOUT_SECONDS = 30
+CODEBOOK_MAX_CHARS = 2_000_000
+
+
+async def _download_https_text(context: ExecutionContext, url: str) -> tuple[str, str]:
+    """GET text from HTTPS. Send the API key only to datafinder.stats.govt.nz.
+
+    Attachment downloads 302 to object storage. The key must not follow off-origin.
+    Failures return empty strings so metadata still succeeds without the codebook.
+    """
+    trusted = _trusted_datafinder_url(url)
+    if not trusted:
+        return "", ""
+    session = getattr(context, "_session", None)
+    if not isinstance(session, aiohttp.ClientSession):
+        session = aiohttp.ClientSession()
+        context._session = session
+    current = trusted
+    timeout = aiohttp.ClientTimeout(total=CODEBOOK_TIMEOUT_SECONDS)
+    for _ in range(5):
+        parsed = urlparse(current)
+        if parsed.scheme != "https" or not parsed.hostname:
+            return "", ""
+        on_datafinder = parsed.hostname == _DATAFINDER_HOST and parsed.port in (None, 443)
+        headers = _headers(context) if on_datafinder else {}
+        try:
+            async with session.get(
+                current, headers=headers, timeout=timeout, ssl=True, allow_redirects=False
+            ) as response:
+                if response.status in (301, 302, 303, 307, 308):
+                    location = response.headers.get("Location")
+                    if not location:
+                        return "", ""
+                    current = urljoin(current, location)
+                    continue
+                if not (200 <= response.status < 300):
+                    return "", ""
+                text = await response.text()
+                if len(text) > CODEBOOK_MAX_CHARS:
+                    return "", ""
+                return response.headers.get("Content-Type", ""), text
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            return "", ""
+    return "", ""
+
+
+def _codebook_field_info(csv_text: str) -> dict[str, dict[str, str]]:
+    """Map Column_name -> title/measure/year from a Stats NZ lookup CSV."""
+    text = csv_text.lstrip("\ufeff")
+    try:
+        reader = csv.DictReader(io.StringIO(text))
+    except csv.Error:
+        return {}
+    info: dict[str, dict[str, str]] = {}
+    for row in reader:
+        if not isinstance(row, dict):
+            continue
+        name = _string_or_none(row.get("Column_name")) or _string_or_none(row.get("column_name"))
+        if not _is_identifier(name):
+            continue
+        alias = _string_or_none(row.get("Field_name_alias"))
+        variable = _string_or_none(row.get("Variable1"))
+        category = _string_or_none(row.get("Variable1_category"))
+        year = _string_or_none(row.get("Year"))
+        measure = _string_or_none(row.get("Measure"))
+        if alias:
+            title = alias
+        elif variable and category:
+            title = f"{variable} ({category})"
+            if year:
+                title = f"{title}, {year}"
+            if measure:
+                title = f"{title}, {measure}"
+        elif variable:
+            title = variable
+        else:
+            title = None
+        entry: dict[str, str] = {}
+        if title:
+            entry["title"] = title
+        if measure:
+            entry["measure"] = measure
+        if year:
+            entry["year"] = year
+        if entry:
+            info[name] = entry
+        if len(info) >= 2000:
+            break
+    return info
+
+
+def _is_csv_codebook(content_type: str, text: str) -> bool:
+    low = content_type.lower()
+    if "json" in low or "html" in low:
+        return False
+    header = text.lstrip("\ufeff").split("\n", 1)[0].lower()
+    return "csv" in low or "column_name" in header
+
+
+async def _apply_codebook_titles(
+    context: ExecutionContext, fields: list[dict[str, Any]], attachments: list[dict[str, str]]
+) -> None:
+    """Fill field titles from the first downloadable lookup CSV. Never fails the action."""
+    for attachment in attachments:
+        url = attachment.get("url")
+        if not isinstance(url, str) or not _looks_like_file_url(url):
+            continue
+        content_type, text = await _download_https_text(context, url)
+        if not text or not _is_csv_codebook(content_type, text):
+            continue
+        info = _codebook_field_info(text)
+        if not info:
+            continue
+        for field in fields:
+            extra = info.get(field.get("name"))
+            if not extra:
+                continue
+            if extra.get("title") and not field.get("title"):
+                field["title"] = extra["title"]
+            if extra.get("measure"):
+                field["measure"] = extra["measure"]
+            if extra.get("year"):
+                field["year"] = extra["year"]
+        return
 
 
 def _metadata_result(layer_id: int, data: Any, *, attachments: list[dict[str, str]] | None = None) -> dict[str, Any]:
@@ -1540,7 +1703,9 @@ class GetLayerMetadataAction(ActionHandler):
         try:
             response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=_headers(context))
             attachments = await _layer_attachments(context, response.data)
-            return ActionResult(data=_metadata_result(layer_id, response.data, attachments=attachments))
+            result = _metadata_result(layer_id, response.data, attachments=attachments)
+            await _apply_codebook_titles(context, result["fields"], attachments)
+            return ActionResult(data=result)
         except DatafinderError as exc:
             return ActionError(message=_redact(exc))
         except HTTPError as exc:

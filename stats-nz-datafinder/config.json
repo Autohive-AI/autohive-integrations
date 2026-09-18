@@ -386,7 +386,7 @@
     },
     "get_layer_metadata": {
       "display_name": "Get Layer Metadata",
-      "description": "Returns citation-ready Stats NZ Datafinder layer metadata, a short description, the layer field list, coded_field_count for Census VAR_* columns, the catalogue page URL, and attachment links (lookups/codebooks when present).",
+      "description": "Returns citation-ready Stats NZ Datafinder layer metadata, a short description, the layer field list (titles/measure/year from the lookup codebook when present), coded_field_count for Census VAR_* columns, the catalogue page URL, and codebook download links.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -410,14 +410,16 @@
           },
           "fields": {
             "type": "array",
-            "description": "Non-geometry fields from the layer schema. Titles are included when the API provides them. coded is true for Census VAR_* columns.",
+            "description": "Non-geometry fields from the layer schema. title, measure, and year come from the lookup codebook when Datafinder publishes one. coded is true for Census VAR_* columns. Do not area-weight measure Median or Mean.",
             "items": {
               "type": "object",
               "properties": {
                 "name": { "type": "string" },
                 "type": { "type": ["string", "null"] },
                 "title": { "type": "string" },
-                "coded": { "type": "boolean" }
+                "coded": { "type": "boolean" },
+                "measure": { "type": "string", "description": "Lookup Measure, e.g. Count, Median, Mean." },
+                "year": { "type": "string", "description": "Census year from the lookup codebook, when present." }
               }
             }
           },
@@ -435,7 +437,7 @@
           "source_url": { "type": "string" },
           "attachments": {
             "type": "array",
-            "description": "Lookup/codebook files when Datafinder publishes them.",
+            "description": "Lookup/codebook download URLs (url_download), not the JSON attachment metadata endpoint.",
             "items": {
               "type": "object",
               "properties": {
