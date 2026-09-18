@@ -43,7 +43,7 @@ Generates one or more drive-time bands in a single request through the current H
 - `provider_metadata` — unaltered provider metadata when present.
 - `profile` and `time_minutes` — the routing profile and requested bands (deduplicated, ascending).
 - `attribution`, `engine_version`, `build_date`, `graph_date`, `osm_date` — copied from provider metadata when supplied.
-- `files` — empty unless `export_geojson` is true. When true, one file uses the Autohive platform shape `{name, contentType, content}` (standard base64), the same convention as Gmail and doc-maker. The file never includes the API key.
+- `files` — empty unless `export_geojson` is true. The SDK has no separate artifact API. Files go on `ActionResult.data["files"]` as `{name, contentType, content}` (standard base64), the same Autohive platform channel as Gmail and doc-maker. Autohive materialises that as a tool-output path such as `/tool-outputs/isochrones.geojson`; agents see the path, not the base64. The file never includes the API key.
 
 ## Errors and rate limits
 
