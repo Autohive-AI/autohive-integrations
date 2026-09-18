@@ -2579,6 +2579,14 @@ class TestResolveGeojsonFile:
         assert geometry == GEOMETRY
         assert source["name"] == "catchments.geojson"
 
+    def test_stripped_base64_padding_is_restored(self):
+        compact = _geojson_file(_gj_feature(GEOMETRY, {"k": "x"}))
+        unpadded = compact["content"].rstrip("=")
+        assert unpadded != compact["content"]
+        geometry, source = _resolve_geojson_file({**compact, "content": unpadded})
+        assert geometry == GEOMETRY
+        assert source["name"] == "catchments.geojson"
+
     def test_invalid_json_is_invalid_geojson(self):
         with pytest.raises(DatafinderError, match="invalid_geojson"):
             _resolve_geojson_file(_geojson_file(raw_bytes=b"{not json"))

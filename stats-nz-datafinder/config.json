@@ -51,6 +51,7 @@
           },
           "file": {
             "type": "object",
+            "format": "file",
             "description": "Platform GeoJSON file (FeatureCollection, Feature, or Polygon/MultiPolygon), at most 5 MB decoded. Alternative to inline geometry for large catchments. Do not send with geometry or bbox.",
             "properties": {
               "name": {
@@ -246,6 +247,7 @@
           },
           "file": {
             "type": "object",
+            "format": "file",
             "description": "Platform GeoJSON file (FeatureCollection, Feature, or Polygon/MultiPolygon), at most 5 MB decoded. Alternative to inline geometry for large catchments. Do not send with geometry.",
             "properties": {
               "name": {

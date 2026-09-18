@@ -693,6 +693,9 @@ def _read_geojson_file(file_obj: Any) -> Any:
             error_code="geojson_file_unreadable",
             recovery="Pass a GeoJSON file with name, contentType, and base64 content.",
         )
+    padding_needed = len(content) % 4
+    if padding_needed:
+        content += "=" * (4 - padding_needed)
     max_encoded = (GEOJSON_MAX_BYTES * 4) // 3 + 8
     if len(content) > max_encoded:
         raise _geojson_contract_error(
