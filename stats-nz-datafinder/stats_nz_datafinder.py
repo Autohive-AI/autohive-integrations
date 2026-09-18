@@ -62,7 +62,7 @@ DEFAULT_MAX_PAGES = 10
 DEFAULT_AREA_MAX_PAGES = 100
 DEFAULT_MISSING_VALUES = [-999, -997]
 DEFAULT_MAX_SOURCE_FEATURES = 10_000
-OVERLAP_TOLERANCE = 1e-9
+OVERLAP_TOLERANCE = 1e-6
 MAX_DESCRIPTION_CHARS = 400
 _GEOD = Geod(ellps="WGS84")
 ADDITIVE_COUNT = "additive_count"
@@ -957,7 +957,7 @@ def _overlap_stats(query_geom: Any, feature_geometry: Any) -> dict[str, float | 
 
 
 def _validate_overlap_fraction(value: float) -> float:
-    """Accept fractions in [0, 1], allowing only OVERLAP_TOLERANCE of floating-point error."""
+    """Clamp fractions in [0, 1] within OVERLAP_TOLERANCE; fail on clearly absurd values."""
     if value < -OVERLAP_TOLERANCE or value > 1.0 + OVERLAP_TOLERANCE:
         raise DatafinderError(
             _contract_error(
@@ -1484,10 +1484,27 @@ def _is_csv_codebook(content_type: str, text: str) -> bool:
     return "csv" in low or "column_name" in header
 
 
+def _coded_fields_need_measure(fields: list[dict[str, Any]]) -> bool:
+    return any(_is_coded_field(field.get("name")) and not str(field.get("measure") or "").strip() for field in fields)
+
+
+def _merge_codebook_info(fields: list[dict[str, Any]], info: dict[str, dict[str, str]]) -> None:
+    for field in fields:
+        extra = info.get(field.get("name"))
+        if not extra:
+            continue
+        if extra.get("title") and not field.get("title"):
+            field["title"] = extra["title"]
+        if extra.get("measure") and not field.get("measure"):
+            field["measure"] = extra["measure"]
+        if extra.get("year") and not field.get("year"):
+            field["year"] = extra["year"]
+
+
 async def _apply_codebook_titles(
     context: ExecutionContext, fields: list[dict[str, Any]], attachments: list[dict[str, str]]
 ) -> None:
-    """Fill field titles from the first downloadable lookup CSV. Never fails the action."""
+    """Fill field titles from lookup CSVs. Never fails the action."""
     try:
         ranked = sorted(
             attachments,
@@ -1495,6 +1512,8 @@ async def _apply_codebook_titles(
         )
         downloads = 0
         for attachment in ranked:
+            if not _coded_fields_need_measure(fields):
+                return
             url = attachment.get("url")
             if not isinstance(url, str) or not _looks_like_file_url(url):
                 continue
@@ -1507,17 +1526,7 @@ async def _apply_codebook_titles(
             info = _codebook_field_info(text)
             if not info:
                 continue
-            for field in fields:
-                extra = info.get(field.get("name"))
-                if not extra:
-                    continue
-                if extra.get("title") and not field.get("title"):
-                    field["title"] = extra["title"]
-                if extra.get("measure"):
-                    field["measure"] = extra["measure"]
-                if extra.get("year"):
-                    field["year"] = extra["year"]
-            return
+            _merge_codebook_info(fields, info)
     except (csv.Error, UnicodeDecodeError, ValueError, OSError):
         return
 
@@ -1588,10 +1597,7 @@ async def _collect_wfs_features(
     fail_closed: bool = False,
     max_source_features: int | None = None,
 ) -> _CollectedFeatures:
-    """Page WFS GetFeature results. Existing query_layer keeps truncated pages.
-
-    ``fail_closed`` raises instead of returning a partial catchment.
-    """
+    """Page WFS GetFeature results. When fail_closed is set, raise instead of returning a partial page set."""
     features: list[Any] = []
     matched: int | None = None
     pages = 0
@@ -1719,7 +1725,7 @@ class GetLayerMetadataAction(ActionHandler):
 class QueryLayerByGeometryAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
         layer_id = inputs["layer_id"]
-        page_size, max_pages = inputs.get("page_size", DEFAULT_PAGE_SIZE), inputs.get("max_pages", 10)
+        page_size, max_pages = inputs.get("page_size", DEFAULT_PAGE_SIZE), inputs.get("max_pages", DEFAULT_MAX_PAGES)
         include_geometry = bool(inputs.get("include_geometry"))
         include_coded_fields = bool(inputs.get("include_coded_fields"))
         fields = inputs.get("fields")
@@ -1868,7 +1874,6 @@ class QueryAreaStatisticsAction(ActionHandler):
                     "estimated_value": 0.0,
                     "included_feature_count": 0,
                     "unavailable_feature_count": 0,
-                    "has_value": False,
                 }
                 for item in measures
             }
@@ -1893,8 +1898,6 @@ class QueryAreaStatisticsAction(ActionHandler):
                 properties = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
                 if fraction is None:
                     skipped_no_area += 1
-                    for measure in measures:
-                        totals[measure["key"]]["unavailable_feature_count"] += 1
                     continue
                 has_included = False
                 for measure in measures:
@@ -1906,7 +1909,6 @@ class QueryAreaStatisticsAction(ActionHandler):
                     if status == "included" and number is not None:
                         totals[key]["estimated_value"] += number * fraction
                         totals[key]["included_feature_count"] += 1
-                        totals[key]["has_value"] = True
                         has_included = True
                     else:
                         totals[key]["unavailable_feature_count"] += 1

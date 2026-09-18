@@ -1297,6 +1297,56 @@ class TestGetLayerMetadata:
         assert result.result.data["attachments"][0]["url"].endswith("/download/")
 
     @pytest.mark.asyncio
+    async def test_codebook_continues_after_unrelated_csv(self, mock_context, monkeypatch):
+        import stats_nz_datafinder as module
+
+        downloads: list[str] = []
+
+        async def fake_download(_context, url):
+            downloads.append(url)
+            if "notes.csv" in url:
+                return "text/csv", "Column_name,Year,Measure\nUNRELATED_1,2023,Count\n"
+            return (
+                "text/csv",
+                "Column_name,Year,Measure,Field_name_alias\nVAR_1_3,2023,Count,Usually resident population 2023\n",
+            )
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "data": {
+                        "fields": [
+                            {"name": "Shape", "type": "geometry"},
+                            {"name": "VAR_1_3", "type": "integer"},
+                        ]
+                    },
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
+                }
+            ),
+            fetch_ok(
+                [
+                    {
+                        "url_download": "https://datafinder.stats.govt.nz/files/notes.csv",
+                        "document": {"title": "notes", "extension": "csv"},
+                    },
+                    {
+                        "url_download": "https://datafinder.stats.govt.nz/files/codebook.csv",
+                        "document": {"title": "codebook", "extension": "csv"},
+                    },
+                ]
+            ),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert len(downloads) == 2
+        field = result.result.data["fields"][0]
+        assert field["name"] == "VAR_1_3"
+        assert field["measure"] == "Count"
+        assert field["title"] == "Usually resident population 2023"
+
+    @pytest.mark.asyncio
     async def test_metadata_skips_binary_attachments_and_still_succeeds(self, mock_context, monkeypatch):
         import stats_nz_datafinder as module
 
@@ -1889,6 +1939,7 @@ class TestAreaStatisticsHelpers:
     def test_overlap_tolerance_clamps_within_epsilon(self):
         assert _validate_overlap_fraction(1.0 + OVERLAP_TOLERANCE / 2) == 1.0
         assert _validate_overlap_fraction(-OVERLAP_TOLERANCE / 2) == 0.0
+        assert _validate_overlap_fraction(1.0 + 1e-7) == 1.0
         with pytest.raises(DatafinderError, match="invalid_overlap_fraction"):
             _validate_overlap_fraction(1.1)
 
@@ -2131,7 +2182,6 @@ class TestQueryAreaStatistics:
         assert "timed out" in result.result.message
 
     @pytest.mark.asyncio
-    @pytest.mark.asyncio
     async def test_shared_parent_sa2_does_not_fail_when_sa1_differs(self, mock_context, mock_wfs):
         geom = square(174.7, -41.3, 174.8, -41.2)
         meta = {
@@ -2234,8 +2284,9 @@ class TestQueryAreaStatistics:
         assert result.type == ResultType.ACTION, result.result
         data = result.result.data
         assert data["results"][0]["estimated_value"] == pytest.approx(100.0)
-        assert data["results"][0]["status"] == "partial"
+        assert data["results"][0]["status"] == "ok"
         assert any("no polygon area" in warning for warning in data["warnings"])
+        assert not any("missing or suppressed" in warning for warning in data["warnings"])
 
     @pytest.mark.asyncio
     async def test_warns_when_layer_has_no_geography_code(self, mock_context, mock_wfs):
