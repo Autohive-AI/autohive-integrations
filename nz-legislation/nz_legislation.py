@@ -299,8 +299,42 @@ def _element_name(element: Any) -> str:
     return element.tag.rsplit("}", 1)[-1]
 
 
+_BLOCK_ELEMENT_NAMES = {
+    "def-para",
+    "heading",
+    "history-note",
+    "label",
+    "label-para",
+    "list",
+    "list-item",
+    "para",
+    "prov.body",
+    "subprov",
+    "table",
+    "td",
+    "th",
+    "tr",
+}
+
+
 def _element_text(element: Any) -> str:
-    return " ".join(part.strip() for part in element.itertext() if part.strip())
+    parts: list[str] = []
+
+    def append(item: Any) -> None:
+        if item.text:
+            parts.append(item.text)
+        for child in item:
+            is_block = _element_name(child) in _BLOCK_ELEMENT_NAMES
+            if is_block:
+                parts.append(" ")
+            append(child)
+            if is_block:
+                parts.append(" ")
+            if child.tail:
+                parts.append(child.tail)
+
+    append(element)
+    return " ".join("".join(parts).split())
 
 
 def _child_text(element: Any, name: str) -> str:

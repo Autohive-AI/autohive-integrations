@@ -117,6 +117,25 @@ class TestHelpers:
             }
         ]
 
+    def test_search_xml_provisions_preserves_inline_citation_punctuation(self):
+        document = b"""<?xml version="1.0" encoding="UTF-8"?><act>
+          <prov id="DLM225501" toc="yes"><label denominator="yes">5</label>
+            <heading>Justified limitations</heading><prov.body><subprov><label denominator="no"/>
+              <para><text>Subject to <citation jurisdiction="nz"><intref href="DLM225500">
+                section 4</intref></citation>, the rights and freedoms contained in this Bill of Rights may be
+                subject only to reasonable limits.</text></para>
+            </subprov></prov.body>
+          </prov>
+        </act>"""
+
+        matches, total_matches = _search_xml_provisions(document, "section 4, the rights", max_results=10)
+
+        assert total_matches == 1
+        assert matches[0]["text"] == (
+            "5 Justified limitations Subject to section 4, the rights and freedoms contained in this Bill of Rights "
+            "may be subject only to reasonable limits."
+        )
+
     def test_search_xml_provisions_reports_matches_beyond_result_limit(self):
         document = b"""<?xml version="1.0"?><act>
           <prov id="one"><heading>Burglary one</heading></prov>
