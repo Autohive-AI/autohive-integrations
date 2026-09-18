@@ -1,6 +1,6 @@
 {
   "name": "stats-nz-datafinder",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "display_name": "Stats NZ Datafinder",
   "description": "Queries Stats NZ Datafinder WFS layers and exposes layer metadata for geographic analysis.",
   "entry_point": "stats_nz_datafinder.py",
@@ -25,7 +25,7 @@
   "actions": {
     "query_layer_by_geometry": {
       "display_name": "Query Layer",
-      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (area-weighted overlap), a Point (containing feature, no area-weighting), a bbox, and/or attribute filters. Census VAR_* columns are omitted unless listed in fields or include_coded_fields is true. Use ieq (not contains) for an exact area name. Geometry is omitted unless include_geometry is true. Unscoped national scans are rejected.",
+      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (inline or geojson_file_path), a Point, a bbox, and/or attribute filters. Census VAR_* columns are omitted unless listed in fields or include_coded_fields is true. Use ieq (not contains) for an exact area name. Geometry is omitted unless include_geometry is true. Unscoped national scans are rejected.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -36,7 +36,7 @@
           },
           "geometry": {
             "type": "object",
-            "description": "RFC 7946 WGS84 Point, Polygon, or MultiPolygon. Point = 'what is here'; Polygon = catchment clip with overlap_fraction.",
+            "description": "RFC 7946 WGS84 Point, Polygon, or MultiPolygon. Point = 'what is here'; Polygon = catchment clip with overlap_fraction. Do not send with geojson_file_path or bbox.",
             "properties": {
               "type": {
                 "type": "string",
@@ -47,6 +47,31 @@
               }
             },
             "required": ["type", "coordinates"],
+            "additionalProperties": false
+          },
+          "geojson_file_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to a GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon. Alternative to inline geometry. Platform paths such as /tool-outputs/isochrones.geojson are accepted. Do not send with geometry or bbox."
+          },
+          "feature_index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0-based index into the original GeoJSON features array, including points and lines. Required when the file has more than one Polygon/MultiPolygon unless feature_filter is set."
+          },
+          "feature_filter": {
+            "type": "object",
+            "description": "Select exactly one feature by property equality. Required when the file has more than one Polygon/MultiPolygon unless feature_index is set. 30 matches 30.0; the string '30' does not match the number 30.",
+            "properties": {
+              "property": {
+                "type": "string",
+                "minLength": 1
+              },
+              "equals": {
+                "type": ["string", "number", "boolean"]
+              }
+            },
+            "required": ["property", "equals"],
             "additionalProperties": false
           },
           "bbox": {
@@ -153,7 +178,16 @@
           },
           "data_vintage": { "type": ["string", "null"] },
           "licence": { "type": ["string", "null"] },
-          "attribution": { "type": ["string", "null"] }
+          "attribution": { "type": ["string", "null"] },
+          "geometry_source": {
+            "type": "object",
+            "description": "Present when geometry was loaded from geojson_file_path. Does not include coordinates.",
+            "properties": {
+              "path": { "type": "string" },
+              "feature_index": { "type": ["integer", "null"] },
+              "matched_properties": { "type": "object" }
+            }
+          }
         },
         "required": [
           "records",
@@ -171,7 +205,7 @@
     },
     "query_area_statistics": {
       "display_name": "Query Area Statistics",
-      "description": "Given a WGS84 Polygon or MultiPolygon and explicitly configured additive Census counts, return compact area-weighted totals. Does not return SA1 rows; use Query Layer for individual records.",
+      "description": "Given a WGS84 Polygon or MultiPolygon (inline geometry or geojson_file_path) and explicitly configured additive Census counts, return compact area-weighted totals. Does not return SA1 rows; use Query Layer for individual records.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -182,7 +216,7 @@
           },
           "geometry": {
             "type": "object",
-            "description": "RFC 7946 WGS84 Polygon or MultiPolygon catchment clip.",
+            "description": "RFC 7946 WGS84 Polygon or MultiPolygon catchment clip. Do not send with geojson_file_path.",
             "properties": {
               "type": {
                 "type": "string",
@@ -193,6 +227,31 @@
               }
             },
             "required": ["type", "coordinates"],
+            "additionalProperties": false
+          },
+          "geojson_file_path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to a GeoJSON FeatureCollection, Feature, or Polygon/MultiPolygon. Alternative to inline geometry. Platform paths such as /tool-outputs/isochrones.geojson are accepted."
+          },
+          "feature_index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0-based index into the original GeoJSON features array, including points and lines. Required when the file has more than one Polygon/MultiPolygon unless feature_filter is set."
+          },
+          "feature_filter": {
+            "type": "object",
+            "description": "Select exactly one feature by property equality. Required when the file has more than one Polygon/MultiPolygon unless feature_index is set. 30 matches 30.0; the string '30' does not match the number 30.",
+            "properties": {
+              "property": {
+                "type": "string",
+                "minLength": 1
+              },
+              "equals": {
+                "type": ["string", "number", "boolean"]
+              }
+            },
+            "required": ["property", "equals"],
             "additionalProperties": false
           },
           "measures": {
@@ -265,7 +324,7 @@
             "description": "Maximum WFS pages. Defaults to 100 so typical catchments complete. Incomplete pagination fails closed."
           }
         },
-        "required": ["layer_id", "geometry", "measures"],
+        "required": ["layer_id", "measures"],
         "additionalProperties": false
       },
       "output_schema": {
@@ -325,6 +384,15 @@
             "type": "string",
             "enum": ["ok", "partial", "unavailable"],
             "description": "ok when every measure is fully included; partial when some values were suppressed or missing; unavailable when no measure had a usable source value."
+          },
+          "geometry_source": {
+            "type": "object",
+            "description": "Present when geometry was loaded from geojson_file_path. Does not include coordinates.",
+            "properties": {
+              "path": { "type": "string" },
+              "feature_index": { "type": ["integer", "null"] },
+              "matched_properties": { "type": "object" }
+            }
           }
         },
         "required": [
