@@ -243,6 +243,36 @@ class TestHelpers:
         wkts = _cql_spatial_wkts(point, {"geometry": point})
         assert wkts == ["POINT(174.75 -41.25)"]
 
+    def test_cql_spatial_wkts_mixed_mainland_and_chatham_multipolygon(self):
+        geometry = {
+            "type": "MultiPolygon",
+            "coordinates": [
+                [
+                    [
+                        [174.7, -41.3],
+                        [174.8, -41.3],
+                        [174.8, -41.2],
+                        [174.7, -41.2],
+                        [174.7, -41.3],
+                    ]
+                ],
+                [
+                    [
+                        [-176.6, -44.1],
+                        [-176.4, -44.1],
+                        [-176.4, -43.9],
+                        [-176.6, -43.9],
+                        [-176.6, -44.1],
+                    ]
+                ],
+            ],
+        }
+        wkts = _cql_spatial_wkts(geometry, {"geometry": geometry})
+        joined = " ".join(wkts)
+        assert "174.7" in joined
+        assert "183.4" in joined or "183.6" in joined
+        assert "534" not in joined
+
     def test_bbox_rejects_zero_span_and_inverted_lat(self):
         with pytest.raises(DatafinderError, match="south < north"):
             _parse_bbox([174.7, -41.2, 174.8, -41.2])
@@ -1213,6 +1243,14 @@ class TestGetLayerMetadata:
         assert info["VAR_1_3"]["measure"] == "Count"
         assert info["VAR_1_3"]["year"] == "2023"
         assert "Usually resident population 2023" in info["VAR_1_3"]["title"]
+        assert info["VAR_1_27"]["measure"] == "Median"
+
+    def test_codebook_parses_more_than_two_thousand_fields(self):
+        rows = ["Column_name,Year,Measure"]
+        rows.extend(f"VAR_9_{index},2023,Count" for index in range(2500))
+        rows.append("VAR_1_27,2013,Median")
+        info = _codebook_field_info("\n".join(rows) + "\n")
+        assert len(info) == 2501
         assert info["VAR_1_27"]["measure"] == "Median"
 
     def test_malformed_csv_row_does_not_raise(self):

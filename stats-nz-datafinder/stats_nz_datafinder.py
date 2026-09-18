@@ -506,6 +506,22 @@ def _shift_geojson_longitudes(geometry: dict[str, Any], delta: float) -> dict[st
     return {"type": geometry["type"], "coordinates": _shift_coords(geometry.get("coordinates"), delta)}
 
 
+def _unwrap_negative_longitudes(geometry: dict[str, Any]) -> dict[str, Any]:
+    """Add 360° only to negative longitudes so mainland NZ and Chatham can coexist."""
+    return {"type": geometry["type"], "coordinates": _shift_negative_longitudes(geometry.get("coordinates"))}
+
+
+def _shift_negative_longitudes(coords: Any) -> Any:
+    if isinstance(coords, list) and coords and isinstance(coords[0], (int, float)) and not isinstance(coords[0], bool):
+        lon = float(coords[0])
+        if lon < 0:
+            lon += 360.0
+        return [lon, *coords[1:]]
+    if isinstance(coords, list):
+        return [_shift_negative_longitudes(item) for item in coords]
+    return coords
+
+
 def _geojson_has_negative_longitude(geometry: dict[str, Any]) -> bool:
     stack: list[Any] = [geometry.get("coordinates")]
     while stack:
@@ -536,7 +552,7 @@ def _cql_spatial_wkts(spatial_geometry: dict[str, Any] | None, inputs: dict[str,
         if extra is not None:
             add(extra, allow_unwrapped=True)
     elif _geojson_has_negative_longitude(spatial_geometry):
-        add(_shift_geojson_longitudes(spatial_geometry, 360.0), allow_unwrapped=True)
+        add(_unwrap_negative_longitudes(spatial_geometry), allow_unwrapped=True)
     return wkts
 
 
@@ -1459,6 +1475,7 @@ async def _layer_attachments(context: ExecutionContext, metadata: Any) -> list[d
 
 CODEBOOK_TIMEOUT_SECONDS = 30
 CODEBOOK_MAX_CHARS = 2_000_000
+CODEBOOK_MAX_DOWNLOADS = 2
 
 
 async def _download_https_text(context: ExecutionContext, url: str) -> tuple[str, str]:
@@ -1555,8 +1572,6 @@ def _codebook_field_info(csv_text: str) -> dict[str, dict[str, str]]:
                 entry["year"] = year
             if entry:
                 info[name] = entry
-            if len(info) >= 2000:
-                break
     except csv.Error:
         return info
     return info
@@ -1579,10 +1594,14 @@ async def _apply_codebook_titles(
             attachments,
             key=lambda item: 0 if "lookup" in _attachment_basename(item) or ".csv" in _attachment_basename(item) else 1,
         )
+        downloads = 0
         for attachment in ranked:
             url = attachment.get("url")
             if not isinstance(url, str) or not _looks_like_file_url(url) or _is_binary_attachment(attachment):
                 continue
+            if downloads >= CODEBOOK_MAX_DOWNLOADS:
+                return
+            downloads += 1
             content_type, text = await _download_https_text(context, url)
             if not text or not _is_csv_codebook(content_type, text):
                 continue
