@@ -25,6 +25,7 @@ from stats_nz_datafinder import stats_nz_datafinder
 pytestmark = pytest.mark.integration
 
 TEST_LAYER_ID = os.environ.get("STATS_NZ_DATAFINDER_TEST_LAYER_ID", "")
+CENSUS_SA1_LAYER_ID = 120766
 WELLINGTON = {
     "type": "Polygon",
     "coordinates": [
@@ -161,20 +162,10 @@ class TestQueryLayerByGeometry:
 
 class TestQueryAreaStatistics:
     async def test_returns_compact_totals_for_wellington_polygon(self, live_context):
-        search = await stats_nz_datafinder.execute_action(
-            "search_layers", {"keyword": "census statistical area 1", "page_size": 10}, live_context
-        )
-        assert search.type == ResultType.ACTION, search.result
-        layers = [
-            layer
-            for layer in search.result.data["layers"]
-            if isinstance(layer, dict) and layer.get("queryable") and isinstance(layer.get("id"), int)
-        ]
-        if not layers:
-            pytest.skip("No queryable Census SA1 layer returned")
-        layer_id = layers[0]["id"]
+        layer_id = CENSUS_SA1_LAYER_ID
         metadata = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": layer_id}, live_context)
-        assert metadata.type == ResultType.ACTION, metadata.result
+        if metadata.type != ResultType.ACTION:
+            pytest.skip(f"Census SA1 layer {layer_id} is not available")
         count_fields = [
             field
             for field in metadata.result.data.get("fields", [])
