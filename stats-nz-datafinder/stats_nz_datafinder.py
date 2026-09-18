@@ -24,8 +24,13 @@ WFS calls set ``allow_redirects=False`` so a 301/302 cannot drop a POST
 from __future__ import annotations
 
 import asyncio
+import base64
+import csv
+import io
 import json
+import math
 import re
+from datetime import datetime, timezone
 from typing import Any, NamedTuple
 from urllib.parse import quote, urljoin, urlparse
 
@@ -54,8 +59,16 @@ WFS_VERSION = "2.0.0"
 WFS_REQUEST_TIMEOUT_SECONDS = 30
 DEFAULT_GEOMETRY_FIELD = "Shape"
 DEFAULT_PAGE_SIZE = 50
+DEFAULT_MAX_PAGES = 10
+DEFAULT_AREA_MAX_PAGES = 100
+DEFAULT_MISSING_VALUES = [-999]
+DEFAULT_MAX_SOURCE_FEATURES = 10_000
+MAX_SOURCE_RECORDS = 200
+OVERLAP_TOLERANCE = 1e-9
 MAX_DESCRIPTION_CHARS = 400
 _GEOD = Geod(ellps="WGS84")
+ADDITIVE_COUNT = "additive_count"
+COUNT_UNIT = "count"
 UNSCOPED_ERROR = "Provide geometry, bbox, or at least one attribute filter. Unscoped national scans are not supported."
 _UNEXPECTED_ERROR = (
     "The Stats NZ Datafinder integration hit an unexpected error handling this request. "
@@ -83,11 +96,43 @@ class DatafinderError(Exception):
     """
 
 
+def _contract_error(
+    *,
+    message: str,
+    error_code: str,
+    recovery: str,
+    field: str | None = None,
+    valid_alternatives: list[str] | None = None,
+    retry_safe: bool = False,
+) -> str:
+    """Build a compact, corrective error message without provider payloads."""
+    parts = [message, f"Error code: {error_code}."]
+    if field:
+        parts.append(f"Affected field: {field}.")
+    if valid_alternatives:
+        shown = [str(item) for item in valid_alternatives[:8]]
+        alternatives = ", ".join(shown)
+        if len(valid_alternatives) > 8:
+            alternatives += ", …"
+        parts.append(f"Valid alternatives: {alternatives}.")
+    parts.append(f"Recovery: {recovery}.")
+    parts.append("Retrying this request is safe." if retry_safe else "Retrying this request is not safe.")
+    return " ".join(parts)
+
+
 class _WfsResponse(NamedTuple):
     """Minimal response wrapper: the pieces the error/parse helpers need."""
 
     status: int
     data: Any
+
+
+class _CollectedFeatures(NamedTuple):
+    features: list[Any]
+    pages: int
+    matched: int | None
+    truncated: bool
+    duplicate_count: int
 
 
 def _redact(text: Any) -> str:
@@ -903,6 +948,294 @@ def _overlap_stats(query_geom: Any, feature_geometry: Any) -> dict[str, float | 
     return best or empty
 
 
+def _validate_overlap_fraction(value: float) -> float:
+    """Accept fractions in [0, 1], allowing only OVERLAP_TOLERANCE of floating-point error."""
+    if value < -OVERLAP_TOLERANCE or value > 1.0 + OVERLAP_TOLERANCE:
+        raise DatafinderError(
+            _contract_error(
+                message=f"Computed overlap fraction {value} is outside [0, 1].",
+                error_code="invalid_overlap_fraction",
+                field="geometry",
+                recovery="Supply a valid WGS84 Polygon or MultiPolygon and query a polygon layer.",
+                retry_safe=False,
+            )
+        )
+    return min(1.0, max(0.0, value))
+
+
+def _raw_overlap_fraction(query_geom: Any, feature_geometry: Any) -> float:
+    """Unrounded geodesic overlap fraction for area-weighted additive counts."""
+    feature_geom = _as_shapely(feature_geometry)
+    if query_geom is None or feature_geom is None:
+        raise DatafinderError(
+            _contract_error(
+                message="Could not compute overlap for a returned feature.",
+                error_code="invalid_geometry",
+                field="geometry",
+                recovery="Supply a valid WGS84 Polygon or MultiPolygon and query a polygon layer.",
+                retry_safe=False,
+            )
+        )
+    feature_area = _geodesic_area_m2(feature_geom)
+    if feature_area <= 0:
+        raise DatafinderError(
+            _contract_error(
+                message="A returned feature has no polygon area, so it cannot be area-weighted.",
+                error_code="invalid_geometry",
+                field="geometry",
+                recovery="Query a polygon Census geography layer such as SA1, not a line or point layer.",
+                retry_safe=False,
+            )
+        )
+    best_frac: float | None = None
+    for shifted in _longitude_shifted_copies(feature_geom):
+        intersection = _safe_intersection(query_geom, shifted)
+        if intersection is None or intersection.is_empty:
+            frac = 0.0
+        else:
+            frac = _geodesic_area_m2(intersection) / feature_area
+        if best_frac is None or frac > best_frac:
+            best_frac = frac
+        if best_frac >= 1.0 - OVERLAP_TOLERANCE:
+            break
+    return _validate_overlap_fraction(0.0 if best_frac is None else best_frac)
+
+
+def _measure_source_value(value: Any, missing_values: list[Any]) -> tuple[float | None, str]:
+    """Return (numeric value, status). Zero is valid. Sentinels are never coerced to zero."""
+    if value is None:
+        return None, "unavailable"
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None, "unavailable"
+    number = float(value)
+    if math.isnan(number) or math.isinf(number):
+        return None, "unavailable"
+    for sentinel in missing_values:
+        if isinstance(sentinel, bool) or not isinstance(sentinel, (int, float)):
+            continue
+        if number == float(sentinel):
+            return None, "suppressed"
+    return number, "included"
+
+
+def _geography_code(properties: Any) -> str | None:
+    if not isinstance(properties, dict):
+        return None
+    for key, value in properties.items():
+        if _GEOGRAPHY_CODE.fullmatch(str(key)) and value is not None and not isinstance(value, (dict, list, bool)):
+            text = str(value).strip()
+            if text:
+                return text
+    return None
+
+
+def _validate_measures(measures: list[Any], metadata: Any) -> list[dict[str, Any]]:
+    schema_fields = [field["name"] for field in _fields(metadata) if isinstance(field.get("name"), str)]
+    schema_set = set(schema_fields)
+    if not schema_set:
+        raise DatafinderError(
+            _contract_error(
+                message=(
+                    "Layer metadata does not include a field list, so requested Census measures cannot be validated."
+                ),
+                error_code="unknown_fields",
+                field="measures",
+                recovery="Call Get Layer Metadata and confirm the layer publishes a field schema.",
+                retry_safe=True,
+            )
+        )
+    seen_keys: set[str] = set()
+    validated: list[dict[str, Any]] = []
+    for index, item in enumerate(measures or []):
+        path = f"measures[{index}]"
+        if not isinstance(item, dict):
+            raise DatafinderError(
+                _contract_error(
+                    message="Each measures entry must be an object.",
+                    error_code="invalid_measure",
+                    field=path,
+                    recovery="Pass measures as objects with key, label, field, unit, and aggregation.",
+                    retry_safe=False,
+                )
+            )
+        key = item.get("key")
+        field = item.get("field")
+        label = item.get("label")
+        unit = item.get("unit", COUNT_UNIT)
+        aggregation = item.get("aggregation")
+        if not isinstance(key, str) or not key.strip():
+            raise DatafinderError(
+                _contract_error(
+                    message="Each measure needs a stable non-empty key.",
+                    error_code="invalid_measure",
+                    field=f"{path}.key",
+                    recovery="Set key to a stable identifier such as 'population'.",
+                    retry_safe=False,
+                )
+            )
+        if key in seen_keys:
+            raise DatafinderError(
+                _contract_error(
+                    message=f"Measure key '{key}' is duplicated.",
+                    error_code="duplicate_measure_key",
+                    field=f"{path}.key",
+                    recovery="Use a unique key for each measure.",
+                    retry_safe=False,
+                )
+            )
+        seen_keys.add(key)
+        if not isinstance(label, str) or not label.strip():
+            raise DatafinderError(
+                _contract_error(
+                    message="Each measure needs a human-readable label.",
+                    error_code="invalid_measure",
+                    field=f"{path}.label",
+                    recovery="Set label to a short description of the Census count.",
+                    retry_safe=False,
+                )
+            )
+        if not _is_identifier(field):
+            raise DatafinderError(
+                _contract_error(
+                    message="Each measure field must be a valid Datafinder property name.",
+                    error_code="invalid_measure",
+                    field=f"{path}.field",
+                    recovery="Use an exact field name from Get Layer Metadata.",
+                    retry_safe=False,
+                )
+            )
+        if field not in schema_set:
+            raise DatafinderError(
+                _contract_error(
+                    message=f"Field '{field}' is not in the current layer metadata.",
+                    error_code="unknown_field",
+                    field=f"{path}.field",
+                    valid_alternatives=schema_fields,
+                    recovery="Call Get Layer Metadata and use an exact field name.",
+                    retry_safe=False,
+                )
+            )
+        if aggregation != ADDITIVE_COUNT:
+            raise DatafinderError(
+                _contract_error(
+                    message=(
+                        "Only additive_count aggregation is supported. "
+                        "Medians, rates, percentages, and indexes cannot be area-weighted."
+                    ),
+                    error_code="non_additive_aggregation",
+                    field=f"{path}.aggregation",
+                    valid_alternatives=[ADDITIVE_COUNT],
+                    recovery=(
+                        "Request only additive Census counts, or compute rates downstream from two additive counts."
+                    ),
+                    retry_safe=False,
+                )
+            )
+        if unit != COUNT_UNIT:
+            raise DatafinderError(
+                _contract_error(
+                    message="Only unit 'count' is supported for area-weighted totals.",
+                    error_code="unsupported_unit",
+                    field=f"{path}.unit",
+                    valid_alternatives=[COUNT_UNIT],
+                    recovery="Set unit to 'count' for additive Census counts.",
+                    retry_safe=False,
+                )
+            )
+        validated.append(
+            {
+                "key": key,
+                "label": label,
+                "field": field,
+                "unit": unit,
+                "aggregation": aggregation,
+                "denominator_key": item.get("denominator_key"),
+            }
+        )
+    keyset = {item["key"] for item in validated}
+    for index, item in enumerate(validated):
+        denominator = item["denominator_key"]
+        if denominator is None:
+            continue
+        if not isinstance(denominator, str) or denominator not in keyset:
+            raise DatafinderError(
+                _contract_error(
+                    message=f"denominator_key '{denominator}' does not match another requested measure key.",
+                    error_code="invalid_denominator",
+                    field=f"measures[{index}].denominator_key",
+                    valid_alternatives=sorted(keyset),
+                    recovery="Set denominator_key to another measure's key, or omit it.",
+                    retry_safe=False,
+                )
+            )
+        if denominator == item["key"]:
+            raise DatafinderError(
+                _contract_error(
+                    message="denominator_key cannot refer to the same measure.",
+                    error_code="invalid_denominator",
+                    field=f"measures[{index}].denominator_key",
+                    recovery="Point denominator_key at a different additive count.",
+                    retry_safe=False,
+                )
+            )
+    return validated
+
+
+def _duplicate_geography_codes(records: list[dict[str, Any]]) -> list[str]:
+    counts: dict[str, int] = {}
+    for record in records:
+        code = record.get("geography_code")
+        if isinstance(code, str) and code:
+            counts[code] = counts.get(code, 0) + 1
+    return [code for code, count in counts.items() if count > 1]
+
+
+def _platform_file(name: str, content_type: str, body: str | bytes) -> dict[str, str]:
+    """Return an Autohive platform file object (name, contentType, base64 content)."""
+    raw = body.encode("utf-8") if isinstance(body, str) else body
+    return {
+        "name": name,
+        "contentType": content_type,
+        "content": base64.b64encode(raw).decode("ascii"),
+    }
+
+
+def _export_source_records(
+    records: list[dict[str, Any]], measures: list[dict[str, Any]], export_format: str
+) -> dict[str, str]:
+    """Build a platform file containing source contributions. Never includes credentials."""
+    if export_format == "csv":
+        buffer = io.StringIO()
+        fieldnames = ["source_feature_id", "geography_code", "overlap_fraction"]
+        for measure in measures:
+            key = measure["key"]
+            fieldnames.extend([f"{key}_source_value", f"{key}_contribution", f"{key}_status"])
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+        writer.writeheader()
+        for record in records:
+            row = {
+                "source_feature_id": record.get("id"),
+                "geography_code": record.get("geography_code"),
+                "overlap_fraction": record.get("overlap_fraction"),
+            }
+            for measure in measures:
+                key = measure["key"]
+                row[f"{key}_source_value"] = (record.get("source_values") or {}).get(key)
+                row[f"{key}_contribution"] = (record.get("contributions") or {}).get(key)
+                row[f"{key}_status"] = (record.get("value_status") or {}).get(key)
+            writer.writerow(row)
+        return _platform_file("area-statistics-contributions.csv", "text/csv", buffer.getvalue())
+    payload = {
+        "records": records,
+        "measures": [{"key": item["key"], "field": item["field"], "label": item["label"]} for item in measures],
+    }
+    return _platform_file(
+        "area-statistics-contributions.json",
+        "application/json",
+        json.dumps(payload, allow_nan=False),
+    )
+
+
 def _search_layer(item: dict[str, Any]) -> dict[str, Any]:
     capabilities = item.get("user_capabilities")
     return {
@@ -1078,6 +1411,128 @@ def _feature_params(
     return params
 
 
+async def _collect_wfs_features(
+    context: ExecutionContext,
+    layer_id: int,
+    *,
+    feature_type: str,
+    cql_filter: str,
+    page_size: int,
+    max_pages: int,
+    sort_by: str | None,
+    property_names: list[str] | None,
+    fail_closed: bool = False,
+    max_source_features: int | None = None,
+) -> _CollectedFeatures:
+    """Page WFS GetFeature results. Existing query_layer keeps truncated pages.
+
+    ``fail_closed`` raises instead of returning a partial catchment.
+    """
+    features: list[Any] = []
+    matched: int | None = None
+    pages = 0
+    start_index = 0
+    truncated = False
+    raw_count = 0
+    for _ in range(max_pages):
+        try:
+            data = await _wfs_get_features(
+                context,
+                layer_id,
+                params=_feature_params(
+                    feature_type=feature_type,
+                    cql_filter=cql_filter,
+                    page_size=page_size,
+                    start_index=start_index,
+                    sort_by=sort_by,
+                    property_names=property_names,
+                ),
+            )
+        except DatafinderError:
+            if fail_closed or not features:
+                raise
+            truncated = True
+            break
+        page_features = data["features"]
+        page_matched = _total_matched(data)
+        if page_matched is not None:
+            matched = page_matched
+        if fail_closed and max_source_features is not None and matched is not None and matched > max_source_features:
+            raise DatafinderError(
+                _contract_error(
+                    message=(
+                        f"Layer {layer_id} has {matched} intersecting features, "
+                        f"above max_source_features={max_source_features}."
+                    ),
+                    error_code="max_source_features_exceeded",
+                    field="max_source_features",
+                    recovery="Increase max_source_features or use a smaller catchment polygon.",
+                    retry_safe=False,
+                )
+            )
+        if not page_features:
+            break
+        raw_count += len(page_features)
+        features.extend(page_features)
+        features = _unique_features(features)
+        pages += 1
+        start_index += len(page_features)
+        if fail_closed and max_source_features is not None and len(features) > max_source_features:
+            raise DatafinderError(
+                _contract_error(
+                    message=(
+                        f"Layer {layer_id} returned more unique features than "
+                        f"max_source_features={max_source_features}."
+                    ),
+                    error_code="max_source_features_exceeded",
+                    field="max_source_features",
+                    recovery="Increase max_source_features or use a smaller catchment polygon.",
+                    retry_safe=False,
+                )
+            )
+        if matched is not None and len(features) >= matched:
+            break
+    if not truncated:
+        if matched is not None:
+            truncated = len(features) < matched
+        elif pages >= max_pages:
+            try:
+                probe = await _wfs_get_features(
+                    context,
+                    layer_id,
+                    params=_feature_params(
+                        feature_type=feature_type,
+                        cql_filter=cql_filter,
+                        page_size=1,
+                        start_index=start_index,
+                        sort_by=sort_by,
+                        property_names=property_names,
+                    ),
+                )
+            except DatafinderError:
+                if fail_closed:
+                    raise
+                truncated = True
+            else:
+                truncated = bool(probe["features"])
+        else:
+            truncated = False
+    if fail_closed and truncated:
+        raise DatafinderError(
+            _contract_error(
+                message=f"The catchment query did not retrieve every intersecting feature for layer {layer_id}.",
+                error_code="incomplete_pagination",
+                field="max_pages",
+                recovery=(
+                    "Increase page_size and max_pages so page_size × max_pages covers every "
+                    "intersecting feature, then retry."
+                ),
+                retry_safe=False,
+            )
+        )
+    return _CollectedFeatures(features, pages, matched, truncated, max(0, raw_count - len(features)))
+
+
 @stats_nz_datafinder.action("get_layer_metadata")
 class GetLayerMetadataAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
@@ -1118,67 +1573,20 @@ class QueryLayerByGeometryAction(ActionHandler):
             capabilities = await _wfs_get_capabilities(context, layer_id)
             feature_type = _resolve_feature_type(layer_id, capabilities)
             sort_by = _stable_sort_field(metadata_response.data)
-            features: list[Any] = []
-            matched: int | None = None
-            pages = 0
-            start_index = 0
-            truncated = False
-            for _ in range(max_pages):
-                try:
-                    data = await _wfs_get_features(
-                        context,
-                        layer_id,
-                        params=_feature_params(
-                            feature_type=feature_type,
-                            cql_filter=cql_filter,
-                            page_size=page_size,
-                            start_index=start_index,
-                            sort_by=sort_by,
-                            property_names=property_names,
-                        ),
-                    )
-                except DatafinderError:
-                    if not features:
-                        raise
-                    truncated = True
-                    break
-                page_features = data["features"]
-                page_matched = _total_matched(data)
-                if page_matched is not None:
-                    matched = page_matched
-                if not page_features:
-                    break
-                features.extend(page_features)
-                features = _unique_features(features)
-                pages += 1
-                start_index += len(page_features)
-                if matched is not None and len(features) >= matched:
-                    break
-            if not truncated:
-                if matched is not None:
-                    truncated = len(features) < matched
-                elif pages >= max_pages:
-                    try:
-                        probe = await _wfs_get_features(
-                            context,
-                            layer_id,
-                            params=_feature_params(
-                                feature_type=feature_type,
-                                cql_filter=cql_filter,
-                                page_size=1,
-                                start_index=start_index,
-                                sort_by=sort_by,
-                                property_names=property_names,
-                            ),
-                        )
-                    except DatafinderError:
-                        truncated = True
-                    else:
-                        # Any probe row means completeness is unknown: without
-                        # sortBy, WFS can repeat an earlier id at this cursor.
-                        truncated = bool(probe["features"])
-                else:
-                    truncated = False
+            collected = await _collect_wfs_features(
+                context,
+                layer_id,
+                feature_type=feature_type,
+                cql_filter=cql_filter,
+                page_size=page_size,
+                max_pages=max_pages,
+                sort_by=sort_by,
+                property_names=property_names,
+            )
+            features = collected.features
+            pages = collected.pages
+            matched = collected.matched
+            truncated = collected.truncated
             records: list[dict[str, Any]] = []
             row_omitted = 0
             for feature in features:
@@ -1193,8 +1601,7 @@ class QueryLayerByGeometryAction(ActionHandler):
                     continue
                 record, omitted = projected
                 records.append(record)
-                if omitted > row_omitted:
-                    row_omitted = omitted
+                row_omitted = max(row_omitted, omitted)
             coded_fields_omitted = max(
                 _coded_fields_omitted_count(
                     metadata_response.data, fields=fields, include_coded_fields=include_coded_fields
@@ -1215,6 +1622,250 @@ class QueryLayerByGeometryAction(ActionHandler):
                     "attribution": metadata["attribution"],
                 }
             )
+        except DatafinderError as exc:
+            return ActionError(message=_redact(exc))
+        except HTTPError as exc:
+            return _http_action_error(exc, layer_id=layer_id)
+        except Exception:
+            return ActionError(message=_UNEXPECTED_ERROR)
+
+
+@stats_nz_datafinder.action("query_area_statistics")
+class QueryAreaStatisticsAction(ActionHandler):
+    """Return compact area-weighted Census totals for a catchment polygon."""
+
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
+        layer_id = inputs["layer_id"]
+        page_size = inputs.get("page_size", DEFAULT_PAGE_SIZE)
+        max_pages = inputs.get("max_pages", DEFAULT_AREA_MAX_PAGES)
+        missing_values = inputs.get("missing_values", DEFAULT_MISSING_VALUES)
+        include_source_records = bool(inputs.get("include_source_records"))
+        include_diagnostics = bool(inputs.get("include_diagnostics"))
+        export_source_records = bool(inputs.get("export_source_records"))
+        export_format = inputs.get("export_format", "json")
+        max_source_features = inputs.get("max_source_features", DEFAULT_MAX_SOURCE_FEATURES)
+        try:
+            geometry = inputs["geometry"]
+            if not isinstance(geometry, dict) or geometry.get("type") not in ("Polygon", "MultiPolygon"):
+                raise DatafinderError(
+                    _contract_error(
+                        message="geometry must be a WGS84 Polygon or MultiPolygon.",
+                        error_code="invalid_geometry",
+                        field="geometry",
+                        valid_alternatives=["Polygon", "MultiPolygon"],
+                        recovery="Pass the isochrone band as a GeoJSON Polygon or MultiPolygon.",
+                        retry_safe=False,
+                    )
+                )
+            if not isinstance(missing_values, list) or not missing_values:
+                missing_values = list(DEFAULT_MISSING_VALUES)
+            headers = _headers(context)
+            spatial_geometry, _ = _resolve_query_scope({"geometry": geometry})
+            spatial_wkts = _cql_spatial_wkts(spatial_geometry, {"geometry": geometry})
+            query_geom = _as_shapely(spatial_geometry)
+            if query_geom is None:
+                raise DatafinderError(
+                    _contract_error(
+                        message="The supplied catchment geometry is empty or invalid.",
+                        error_code="invalid_geometry",
+                        field="geometry",
+                        recovery="Supply a closed WGS84 Polygon or MultiPolygon.",
+                        retry_safe=False,
+                    )
+                )
+            metadata_response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=headers)
+            metadata = _metadata_result(layer_id, metadata_response.data)
+            measures = _validate_measures(inputs["measures"], metadata_response.data)
+            geometry_field = _geometry_field(metadata_response.data)
+            measure_fields = [item["field"] for item in measures]
+            geography_fields = [
+                field["name"] for field in _fields(metadata_response.data) if _GEOGRAPHY_CODE.fullmatch(field["name"])
+            ]
+            attribute_names = list(dict.fromkeys([*geography_fields, *measure_fields]))
+            property_names = [geometry_field, *attribute_names]
+            cql_filter = _build_cql_filter(spatial_wkts, None, geometry_field)
+            capabilities = await _wfs_get_capabilities(context, layer_id)
+            feature_type = _resolve_feature_type(layer_id, capabilities)
+            sort_by = _stable_sort_field(metadata_response.data)
+            collected = await _collect_wfs_features(
+                context,
+                layer_id,
+                feature_type=feature_type,
+                cql_filter=cql_filter,
+                page_size=page_size,
+                max_pages=max_pages,
+                sort_by=sort_by,
+                property_names=property_names,
+                fail_closed=True,
+                max_source_features=max_source_features,
+            )
+            totals: dict[str, dict[str, Any]] = {
+                item["key"]: {
+                    "estimated_value": 0.0,
+                    "included_feature_count": 0,
+                    "unavailable_feature_count": 0,
+                    "has_value": False,
+                }
+                for item in measures
+            }
+            source_records: list[dict[str, Any]] = []
+            overlap_min: float | None = None
+            overlap_max: float | None = None
+            for feature in collected.features:
+                if not isinstance(feature, dict):
+                    raise DatafinderError(
+                        _contract_error(
+                            message="Datafinder returned a malformed feature.",
+                            error_code="partial_provider_failure",
+                            field="geometry",
+                            recovery="Retry the request. If it persists, choose another layer.",
+                            retry_safe=True,
+                        )
+                    )
+                fraction = _raw_overlap_fraction(query_geom, feature.get("geometry"))
+                overlap_min = fraction if overlap_min is None else min(overlap_min, fraction)
+                overlap_max = fraction if overlap_max is None else max(overlap_max, fraction)
+                properties = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
+                source_values: dict[str, float | None] = {}
+                contributions: dict[str, float | None] = {}
+                value_status: dict[str, str] = {}
+                for measure in measures:
+                    key = measure["key"]
+                    raw_value = properties.get(measure["field"]) if measure["field"] in properties else None
+                    if measure["field"] not in properties:
+                        number, status = None, "unavailable"
+                    else:
+                        number, status = _measure_source_value(raw_value, missing_values)
+                    source_values[key] = number
+                    if status == "included" and number is not None:
+                        contribution = number * fraction
+                        contributions[key] = contribution
+                        totals[key]["estimated_value"] += contribution
+                        totals[key]["included_feature_count"] += 1
+                        totals[key]["has_value"] = True
+                    else:
+                        contributions[key] = None
+                        totals[key]["unavailable_feature_count"] += 1
+                        value_status[key] = status
+                        continue
+                    value_status[key] = status
+                source_records.append(
+                    {
+                        "id": feature.get("id"),
+                        "geography_code": _geography_code(properties),
+                        "overlap_fraction": fraction,
+                        "source_values": source_values,
+                        "contributions": contributions,
+                        "value_status": value_status,
+                    }
+                )
+            duplicates = _duplicate_geography_codes(source_records)
+            if duplicates:
+                raise DatafinderError(
+                    _contract_error(
+                        message="Duplicate geography codes remain after feature-id deduplication.",
+                        error_code="duplicate_join",
+                        field="geometry",
+                        valid_alternatives=duplicates[:8],
+                        recovery="Retry the query. If it persists, the layer is not a unique-join Census geography.",
+                        retry_safe=False,
+                    )
+                )
+            intersecting = len(source_records)
+            included_any = sum(
+                1
+                for record in source_records
+                if any(status == "included" for status in record["value_status"].values())
+            )
+            results = []
+            warnings: list[str] = []
+            for measure in measures:
+                stats = totals[measure["key"]]
+                included = stats["included_feature_count"]
+                unavailable = stats["unavailable_feature_count"]
+                if included == 0:
+                    status = "unavailable"
+                    estimated: float | None = None
+                    warnings.append(f"Measure '{measure['key']}' had no usable source values in this catchment.")
+                elif unavailable > 0:
+                    status = "partial"
+                    estimated = stats["estimated_value"]
+                    warnings.append(
+                        f"Measure '{measure['key']}' excluded {unavailable} feature(s) "
+                        "with missing or suppressed values."
+                    )
+                else:
+                    status = "ok"
+                    estimated = stats["estimated_value"]
+                result_row = {
+                    "key": measure["key"],
+                    "label": measure["label"],
+                    "field": measure["field"],
+                    "estimated_value": estimated,
+                    "unit": measure["unit"],
+                    "aggregation": measure["aggregation"],
+                    "source_feature_count": intersecting,
+                    "included_feature_count": included,
+                    "unavailable_feature_count": unavailable,
+                    "status": status,
+                }
+                if measure.get("denominator_key"):
+                    result_row["denominator_key"] = measure["denominator_key"]
+                results.append(result_row)
+            files: list[dict[str, str]] = []
+            if export_source_records:
+                files.append(_export_source_records(source_records, measures, export_format))
+            output: dict[str, Any] = {
+                "results": results,
+                "geography_summary": {
+                    "intersecting_feature_count": intersecting,
+                    "included_feature_count": included_any,
+                    "duplicate_feature_count": collected.duplicate_count,
+                },
+                "method": {
+                    "area_weighting": (
+                        "Additive counts are estimated as the unrounded sum of source_value × overlap_fraction. "
+                        "overlap_fraction is the geodesic intersection area divided by the geodesic feature area "
+                        "on the WGS84 ellipsoid (pyproj Geod). Areas are not computed in longitude/latitude degrees."
+                    ),
+                    "projected_crs": "WGS84 geodesic (pyproj Geod, ellps=WGS84); not a planar degree grid",
+                    "overlap_tolerance": OVERLAP_TOLERANCE,
+                },
+                "layer": {
+                    "layer_id": layer_id,
+                    "title": metadata["title"],
+                    "data_vintage": metadata["data_vintage"],
+                    "licence": metadata["licence"],
+                    "attribution": metadata["attribution"],
+                    "catalogue_url": metadata["page_url"],
+                },
+                "retrieved_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "warnings": warnings,
+                "validation_status": "ok",
+                "files": files,
+            }
+            if include_source_records:
+                if len(source_records) > MAX_SOURCE_RECORDS:
+                    output["source_records"] = source_records[:MAX_SOURCE_RECORDS]
+                    warnings.append(
+                        f"source_records truncated to {MAX_SOURCE_RECORDS} of {len(source_records)} for context size. "
+                        "Set export_source_records true to receive the full table as a file."
+                    )
+                    output["warnings"] = warnings
+                else:
+                    output["source_records"] = source_records
+            if include_diagnostics:
+                output["diagnostics"] = {
+                    "retrieved_pages": collected.pages,
+                    "total_matched": collected.matched,
+                    "page_size": page_size,
+                    "max_pages": max_pages,
+                    "overlap_min": overlap_min,
+                    "overlap_max": overlap_max,
+                    "feature_type": feature_type,
+                    "sort_by": sort_by,
+                }
+            return ActionResult(data=output)
         except DatafinderError as exc:
             return ActionError(message=_redact(exc))
         except HTTPError as exc:

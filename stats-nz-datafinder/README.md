@@ -15,6 +15,7 @@ Official documentation:
 
 | Action | What it does |
 |--------|--------------|
+| `query_area_statistics` | Area-weight explicitly configured additive Census counts for a Polygon/MultiPolygon catchment. Returns compact totals, not raw SA1 records. |
 | `query_layer_by_geometry` | Query a layer by polygon, point, bbox, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. |
 | `get_layer_metadata` | Return a short description, field list (`coded` flags `VAR_*` columns), catalogue page URL, and attachment links. |
 | `search_layers` | Search public vector layers. Compact cards: id, title, published_at, queryable. |
@@ -126,6 +127,74 @@ Example input:
 
 `coded_fields_omitted` is the number of `VAR_*` columns not returned. Pass those
 names in `fields` on a follow-up query if you need them.
+
+## Query Area Statistics
+
+`query_area_statistics` is the catchment-reporting action. Agents should use it
+instead of `query_layer_by_geometry` when the workflow needs **totals**, not
+every SA1 row. A 10-minute Wellington drive-time polygon can intersect hundreds
+of SA1s; this action area-weights configured additive counts in integration
+code and returns a compact result.
+
+**Suggested catchment sequence**
+
+1. OpenRouteService `geocode_address` then `get_isochrone` for 5/10/15/30-minute bands.
+2. `search_layers` / `get_layer_metadata` to pick a Census SA1 layer and exact `VAR_*` field names.
+3. `query_area_statistics` once per isochrone band with those fields.
+4. Compute rates or percentages in the report from two additive counts if needed.
+
+**Inputs**
+
+- `layer_id` and WGS84 `geometry` (Polygon or MultiPolygon only).
+- `measures` — bounded list of additive counts. Each item has `key`, `label`,
+  `field` (exact Datafinder name), `unit` (`count`), `aggregation`
+  (`additive_count`), and optional `denominator_key` for downstream percentages.
+- `missing_values` — default `[-999]`. Those sentinels, plus null, absent, and
+  non-numeric values, are **unavailable**. They are never converted to zero.
+  Numeric zero is a valid count.
+- `page_size` / `max_pages` — same bounds as Query Layer. This action defaults
+  `max_pages` to 100 and **fails closed** if pagination is incomplete.
+- `max_source_features` — safety cap (default 10 000). Exceeding it fails closed.
+- `include_source_records` / `include_diagnostics` — optional, default false.
+- `export_source_records` / `export_format` (`json` or `csv`) — optional file export.
+
+**Behaviour**
+
+- Validates every requested field against current layer metadata.
+- Rejects non-additive aggregations (medians, rates, percentages, indexes).
+- Queries every intersecting feature, deduplicates by feature id, and fails on
+  duplicate geography-code joins.
+- Contribution = unrounded `source_value × overlap_fraction`.
+- Overlap uses the existing WGS84 **geodesic** area method (`pyproj Geod`), not
+  planar degrees. Fractions must fall in `[0, 1]` within a documented
+  floating-point tolerance of `1e-9`.
+- Default JSON is compact: totals, geography summary, method, layer citation,
+  warnings, `validation_status`. No raw features or geometry.
+
+**File export**
+
+Autohive integrations return files as platform file objects on `ActionResult.data`
+(the same `{name, contentType, content}` shape used by Gmail and doc-maker).
+When `export_source_records` is true, `files` contains one JSON or CSV file with:
+
+- source feature id
+- geography code
+- overlap fraction
+- requested source values
+- estimated contributions
+- missing or suppression status
+
+The file never includes API keys, Authorization headers, or WFS URLs. Use this
+when the report calculator needs the contribution table without stuffing hundreds
+of records into agent context. `include_source_records` is a bounded JSON preview
+(max 200 rows) and is off by default.
+
+**Errors**
+
+Failures return `ActionError` with a compact corrective message: human-readable
+text, a stable `Error code`, affected field, bounded valid alternatives when
+known, recovery action, and whether retrying the same request is safe. Provider
+bodies, HTML, stack traces, and API keys are never included.
 
 ## Get Layer Metadata
 

@@ -20,7 +20,6 @@ import aiohttp
 import pytest
 import pytest_asyncio
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
-
 from stats_nz_datafinder import stats_nz_datafinder
 
 pytestmark = pytest.mark.integration
@@ -158,3 +157,60 @@ class TestQueryLayerByGeometry:
             area = record["feature_area_sq_km"]
             if area is not None:
                 assert area >= 0
+
+
+class TestQueryAreaStatistics:
+    async def test_returns_compact_totals_for_wellington_polygon(self, live_context):
+        search = await stats_nz_datafinder.execute_action(
+            "search_layers", {"keyword": "census statistical area 1", "page_size": 10}, live_context
+        )
+        assert search.type == ResultType.ACTION, search.result
+        layers = [
+            layer
+            for layer in search.result.data["layers"]
+            if isinstance(layer, dict) and layer.get("queryable") and isinstance(layer.get("id"), int)
+        ]
+        if not layers:
+            pytest.skip("No queryable Census SA1 layer returned")
+        layer_id = layers[0]["id"]
+        metadata = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": layer_id}, live_context)
+        assert metadata.type == ResultType.ACTION, metadata.result
+        coded = [
+            field["name"]
+            for field in metadata.result.data.get("fields", [])
+            if isinstance(field, dict) and field.get("coded") and isinstance(field.get("name"), str)
+        ]
+        if not coded:
+            pytest.skip(f"Layer {layer_id} has no VAR_* census fields")
+        result = await stats_nz_datafinder.execute_action(
+            "query_area_statistics",
+            {
+                "layer_id": layer_id,
+                "geometry": WELLINGTON,
+                "measures": [
+                    {
+                        "key": "population",
+                        "label": "Census count",
+                        "field": coded[0],
+                        "unit": "count",
+                        "aggregation": "additive_count",
+                    }
+                ],
+                "page_size": 50,
+                "max_pages": 20,
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["validation_status"] == "ok"
+        assert data["layer"]["layer_id"] == layer_id
+        assert data["files"] == []
+        assert "source_records" not in data
+        assert len(data["results"]) == 1
+        row = data["results"][0]
+        assert row["field"] == coded[0]
+        assert row["status"] in {"ok", "partial", "unavailable"}
+        if row["estimated_value"] is not None:
+            assert row["estimated_value"] >= 0
+        assert data["geography_summary"]["intersecting_feature_count"] >= 0
