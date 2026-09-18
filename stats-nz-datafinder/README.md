@@ -16,7 +16,7 @@ Official documentation:
 | Action | What it does |
 |--------|--------------|
 | `query_area_statistics` | Area-weight explicitly configured additive Census counts for a Polygon/MultiPolygon catchment (inline geometry or a GeoJSON file). Returns compact totals, not raw SA1 records. |
-| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, a Polygon/MultiPolygon GeoJSON file, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. |
+| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, a Polygon/MultiPolygon GeoJSON file, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. `export_geojson` returns all retrieved features as a platform GeoJSON file after a complete query. |
 | `get_layer_metadata` | Return a short description, field list (`coded` flags `VAR_*` columns, titles/measure/year from the lookup codebook when present), catalogue page URL, and codebook **download** links. |
 | `search_layers` | Search public vector layers. Compact cards: id, title, published_at, queryable. |
 
@@ -79,6 +79,16 @@ national scans are rejected):
 **Mount Wellington Central**. Other operators: `eq`, `neq`, `lt`, `lte`,
 `gt`, `gte`. Combine filters with a spatial clip using AND. Do not send more
 than one of `geometry`, `file`, and `bbox`.
+
+`export_geojson: true` returns a platform file
+(`name`, `contentType`, base64 `content`) named
+`layer-<id>-query.geojson` after the query completes. The FeatureCollection
+includes every retrieved page, original WGS84 geometries (no simplification),
+requested attributes, and `overlap_fraction` / `overlap_area_sq_km` /
+`feature_area_sq_km`. Null, `-997`, and `-999` are preserved. The export
+feature count matches `record_count`. Incomplete pagination fails closed
+instead of writing a partial file. Compact JSON records still omit geometry
+unless `include_geometry` is true.
 
 A GeoJSON file may be a FeatureCollection, a Feature, or a bare
 Polygon/MultiPolygon. If the file contains exactly one Polygon or

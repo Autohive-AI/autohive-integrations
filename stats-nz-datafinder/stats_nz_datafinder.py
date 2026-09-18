@@ -1560,6 +1560,48 @@ def _record_from_feature(
     return record, omitted
 
 
+def _platform_file(name: str, content_type: str, body: str | bytes) -> dict[str, str]:
+    raw = body.encode("utf-8") if isinstance(body, str) else body
+    return {
+        "name": name,
+        "contentType": content_type,
+        "content": base64.b64encode(raw).decode("ascii"),
+    }
+
+
+def _geojson_feature_for_export(feature: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
+    properties = dict(record.get("properties") or {})
+    properties["overlap_fraction"] = record.get("overlap_fraction")
+    properties["overlap_area_sq_km"] = record.get("overlap_area_sq_km")
+    properties["feature_area_sq_km"] = record.get("feature_area_sq_km")
+    exported: dict[str, Any] = {
+        "type": "Feature",
+        "properties": properties,
+        "geometry": feature.get("geometry"),
+    }
+    fid = record.get("id")
+    if fid is not None:
+        exported["id"] = fid
+    return exported
+
+
+def _query_layer_geojson_file(layer_id: int, features: list[dict[str, Any]]) -> dict[str, str]:
+    collection = {"type": "FeatureCollection", "features": features}
+    try:
+        body = json.dumps(collection, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise DatafinderError(
+            _contract_error(
+                message="The query GeoJSON export could not be serialised.",
+                error_code="geojson_export_failed",
+                field="export_geojson",
+                recovery="Retry the query, or omit export_geojson and inspect records.",
+                retry_safe=False,
+            )
+        ) from exc
+    return _platform_file(f"layer-{layer_id}-query.geojson", "application/geo+json", body)
+
+
 def _vintage(metadata: dict[str, Any]) -> str | None:
     for key in ("collected_at", "published_at", "first_published_at", "updated_at"):
         value = metadata.get(key)
@@ -2045,6 +2087,7 @@ class QueryLayerByGeometryAction(ActionHandler):
         page_size, max_pages = inputs.get("page_size", DEFAULT_PAGE_SIZE), inputs.get("max_pages", DEFAULT_MAX_PAGES)
         include_geometry = bool(inputs.get("include_geometry"))
         include_coded_fields = bool(inputs.get("include_coded_fields"))
+        export_geojson = bool(inputs.get("export_geojson"))
         fields = inputs.get("fields")
         try:
             if inputs.get("file") is not None and inputs.get("bbox") is not None:
@@ -2081,12 +2124,14 @@ class QueryLayerByGeometryAction(ActionHandler):
                 max_pages=max_pages,
                 sort_by=sort_by,
                 property_names=property_names,
+                fail_closed=export_geojson,
             )
             features = collected.features
             pages = collected.pages
             matched = collected.matched
             truncated = collected.truncated
             records: list[dict[str, Any]] = []
+            export_features: list[dict[str, Any]] = []
             row_omitted = 0
             for feature in features:
                 projected = _record_from_feature(
@@ -2101,6 +2146,8 @@ class QueryLayerByGeometryAction(ActionHandler):
                 record, omitted = projected
                 records.append(record)
                 row_omitted = max(row_omitted, omitted)
+                if export_geojson:
+                    export_features.append(_geojson_feature_for_export(feature, record))
             coded_fields_omitted = max(
                 _coded_fields_omitted_count(
                     metadata_response.data, fields=fields, include_coded_fields=include_coded_fields
@@ -2121,6 +2168,18 @@ class QueryLayerByGeometryAction(ActionHandler):
             }
             if geometry_source:
                 payload["geometry_source"] = geometry_source
+            if export_geojson:
+                if len(export_features) != len(records):
+                    raise DatafinderError(
+                        _contract_error(
+                            message="The GeoJSON export feature count does not match record_count.",
+                            error_code="geojson_export_failed",
+                            field="export_geojson",
+                            recovery="Retry the query, or omit export_geojson.",
+                            retry_safe=False,
+                        )
+                    )
+                payload["files"] = [_query_layer_geojson_file(layer_id, export_features)]
             return ActionResult(data=payload)
         except DatafinderError as exc:
             return ActionError(message=_redact(exc))

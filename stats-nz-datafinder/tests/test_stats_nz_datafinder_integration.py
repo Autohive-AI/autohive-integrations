@@ -173,6 +173,36 @@ class TestQueryLayerByGeometry:
             if area is not None:
                 assert area >= 0
 
+    async def test_export_geojson_returns_feature_collection_file(self, live_context):
+        layer_id = await _layer_id(live_context)
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {
+                "layer_id": layer_id,
+                "geometry": WELLINGTON,
+                "page_size": 50,
+                "max_pages": 20,
+                "export_geojson": True,
+            },
+            live_context,
+        )
+        if result.type == ResultType.ACTION_ERROR and "incomplete_pagination" in str(result.result.message):
+            pytest.skip("Wellington clip exceeds page cap on this layer")
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        exported_file = data["files"][0]
+        assert exported_file["name"] == f"layer-{layer_id}-query.geojson"
+        assert exported_file["contentType"] == "application/geo+json"
+        exported = json.loads(base64.b64decode(exported_file["content"]))
+        assert exported["type"] == "FeatureCollection"
+        assert len(exported["features"]) == data["record_count"]
+        if exported["features"]:
+            feature = exported["features"][0]
+            assert feature["type"] == "Feature"
+            assert "overlap_fraction" in feature["properties"]
+            assert "geometry" in feature
+            assert "geometry" not in data["records"][0]
+
     async def test_scopes_query_from_geojson_file(self, live_context):
         layer_id = await _layer_id(live_context)
         geojson_file = _wellington_geojson_file()

@@ -815,6 +815,83 @@ class TestQueryLayerByGeometry:
         assert result.result.data["records"][0]["geometry"]["type"] == "Polygon"
 
     @pytest.mark.asyncio
+    async def test_export_geojson_returns_platform_file(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                collection(
+                    "layer-123.1",
+                    number_matched=1,
+                    geometry=geom,
+                    properties={"SA22023_V1_00": "7024587", "VAR_1_1": -999},
+                )
+            ),
+        ]
+        result = await _query(
+            mock_context,
+            {
+                "page_size": 1,
+                "max_pages": 1,
+                "export_geojson": True,
+                "fields": ["SA22023_V1_00", "VAR_1_1"],
+            },
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["record_count"] == 1
+        assert "geometry" not in data["records"][0]
+        exported_file = data["files"][0]
+        assert exported_file["name"] == "layer-123-query.geojson"
+        assert exported_file["contentType"] == "application/geo+json"
+        exported = json.loads(base64.b64decode(exported_file["content"]))
+        assert exported["type"] == "FeatureCollection"
+        assert len(exported["features"]) == data["record_count"]
+        feature = exported["features"][0]
+        assert feature["id"] == "layer-123.1"
+        assert feature["geometry"] == geom
+        assert feature["properties"]["SA22023_V1_00"] == "7024587"
+        assert feature["properties"]["VAR_1_1"] == -999
+        assert "overlap_fraction" in feature["properties"]
+        assert "overlap_area_sq_km" in feature["properties"]
+        assert "feature_area_sq_km" in feature["properties"]
+
+    @pytest.mark.asyncio
+    async def test_export_geojson_includes_all_pages(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", number_matched=2, geometry=geom)),
+            ok(collection("b", number_matched=2, geometry=geom)),
+        ]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 5, "export_geojson": True})
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        exported = json.loads(base64.b64decode(data["files"][0]["content"]))
+        assert [feature["id"] for feature in exported["features"]] == ["a", "b"]
+        assert len(exported["features"]) == data["record_count"] == 2
+        assert data["truncated"] is False
+        assert data["retrieved_pages"] == 2
+
+    @pytest.mark.asyncio
+    async def test_export_geojson_fails_closed_when_truncated(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=9))]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1, "export_geojson": True})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "incomplete_pagination" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_without_export_omits_files(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=1))]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION
+        assert "files" not in result.result.data
+
+    @pytest.mark.asyncio
     async def test_point_query_does_not_area_weight(self, mock_context, mock_wfs):
         feature = square(174.7, -41.3, 174.8, -41.2)
         mock_context.fetch.return_value = fetch_ok(METADATA)

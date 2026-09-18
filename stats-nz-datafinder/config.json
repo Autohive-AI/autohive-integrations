@@ -25,7 +25,7 @@
   "actions": {
     "query_layer_by_geometry": {
       "display_name": "Query Layer",
-      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (inline or file), a Point, a bbox, and/or attribute filters. Census VAR_* columns are omitted unless listed in fields or include_coded_fields is true. Use ieq (not contains) for an exact area name. Geometry is omitted unless include_geometry is true. Unscoped national scans are rejected.",
+      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (inline or file), a Point, a bbox, and/or attribute filters. Census VAR_* columns are omitted unless listed in fields or include_coded_fields is true. Use ieq (not contains) for an exact area name. Geometry is omitted unless include_geometry is true. export_geojson returns all retrieved features as a platform GeoJSON file after a complete query. Unscoped national scans are rejected.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -138,6 +138,11 @@
             "default": false,
             "description": "If true, include each feature's GeoJSON geometry. Default false."
           },
+          "export_geojson": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, return all retrieved features as a platform GeoJSON FeatureCollection file (name, contentType, base64 content) after the query completes. Fails closed if pagination is incomplete. Default false."
+          },
           "page_size": {
             "type": "integer",
             "minimum": 1,
@@ -202,6 +207,19 @@
               "name": { "type": ["string", "null"] },
               "feature_index": { "type": ["integer", "null"] },
               "matched_properties": { "type": "object" }
+            }
+          },
+          "files": {
+            "type": "array",
+            "description": "Present when export_geojson is true. One platform GeoJSON FeatureCollection file.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "contentType": { "type": "string" },
+                "content": { "type": "string", "description": "The file content encoded as base64" }
+              },
+              "required": ["name", "contentType", "content"]
             }
           }
         },
