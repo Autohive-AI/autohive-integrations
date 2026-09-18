@@ -245,8 +245,8 @@
             "type": "array",
             "minItems": 1,
             "maxItems": 20,
-            "default": [-999],
-            "description": "Numeric sentinels treated as unavailable, never as zero. Default includes -999.",
+            "default": [-999, -997],
+            "description": "Numeric sentinels treated as unavailable, never as zero. Default includes -999 (confidential) and -997 (not available).",
             "items": { "type": "number" }
           },
           "include_source_records": {

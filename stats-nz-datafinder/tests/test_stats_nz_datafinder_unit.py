@@ -12,12 +12,15 @@ from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 from shapely.errors import ShapelyError
 from stats_nz_datafinder import (
+    DEFAULT_MISSING_VALUES,
     OVERLAP_TOLERANCE,
     DatafinderError,
     _as_shapely,
     _attachment_items,
     _codebook_field_info,
+    _download_https_text,
     _is_binary_attachment,
+    _validate_measures,
     _attribution,
     _bbox_polygon,
     _build_cql_filter,
@@ -1212,6 +1215,12 @@ class TestGetLayerMetadata:
         assert "Usually resident population 2023" in info["VAR_1_3"]["title"]
         assert info["VAR_1_27"]["measure"] == "Median"
 
+    def test_malformed_csv_row_does_not_raise(self):
+        text = 'Column_name,Year,Measure\nVAR_1_3,2023,Count\n"VAR_1_4,2018,Count\n'
+        info = _codebook_field_info(text)
+        assert isinstance(info, dict)
+        assert "VAR_1_3" in info
+
     @pytest.mark.asyncio
     async def test_metadata_enriches_titles_from_codebook_csv(self, mock_context, monkeypatch):
         import stats_nz_datafinder as module
@@ -1288,6 +1297,37 @@ class TestGetLayerMetadata:
         result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
         assert result.type == ResultType.ACTION
         assert result.result.data["layer_id"] == 123
+
+    def test_rejects_codebook_median_even_when_aggregation_is_additive(self):
+        rows = [{"name": "VAR_1_3", "type": "double", "measure": "Median"}]
+        metadata = {
+            **METADATA,
+            "data": {"fields": [{"name": "VAR_1_3", "type": "double"}]},
+        }
+        with pytest.raises(DatafinderError, match="non_additive_aggregation"):
+            _validate_measures(
+                [
+                    {
+                        "key": "median_age",
+                        "label": "Median age",
+                        "field": "VAR_1_3",
+                        "unit": "count",
+                        "aggregation": "additive_count",
+                    }
+                ],
+                metadata,
+                rows,
+            )
+
+    @pytest.mark.asyncio
+    async def test_attachments_http_500_does_not_fail_metadata(self, mock_context):
+        mock_context.fetch.side_effect = [
+            fetch_ok({**METADATA, "attachments": DATAFINDER_ATTACHMENTS_URL}),
+            HTTPError(500, "attachments down"),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["attachments"] == []
 
     @pytest.mark.asyncio
     async def test_off_origin_page_url_falls_back_to_catalogue(self, mock_context):
@@ -1435,10 +1475,12 @@ class TestSearchLayers:
 
 
 class _FakeResp:
-    def __init__(self, status=200, text="{}", content_type="application/json"):
+    def __init__(self, status=200, text="{}", content_type="application/json", headers=None, body=None):
         self.status = status
         self._text = text
-        self.headers = {"Content-Type": content_type}
+        self.headers = {"Content-Type": content_type, **(headers or {})}
+        self._body = body if body is not None else text.encode("utf-8")
+        self.content = self
 
     async def __aenter__(self):
         return self
@@ -1448,6 +1490,9 @@ class _FakeResp:
 
     async def text(self):
         return self._text
+
+    async def iter_chunked(self, _size):
+        yield self._body
 
 
 class _RaisingCtx:
@@ -1518,6 +1563,65 @@ class TestWfsRequestDirect:
         assert params["cql_filter"] == "a = 'b'"
         assert kwargs["allow_redirects"] is False
         assert kwargs["ssl"] is True
+
+
+class _SeqSession:
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.calls = []
+
+    def get(self, url, **kwargs):
+        self.calls.append((url, kwargs.get("headers") or {}))
+        return self._responses.pop(0)
+
+    async def close(self):
+        pass
+
+
+class TestCodebookDownload:
+    @pytest.mark.asyncio
+    async def test_follows_redirect_without_sending_key_off_origin(self):
+        csv_body = "Column_name,Year,Measure,Field_name_alias\nVAR_1_3,2023,Count,Usually resident\n"
+        session = _SeqSession(
+            [
+                _FakeResp(
+                    status=302,
+                    headers={"Location": "https://s3.amazonaws.com/bucket/lookup.csv"},
+                    content_type="text/html",
+                ),
+                _FakeResp(status=200, text=csv_body, content_type="application/octet-stream"),
+            ]
+        )
+        ctx = _key_context(session)
+        content_type, text = await _download_https_text(
+            ctx,
+            "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/download/",
+        )
+        assert "Column_name" in text
+        assert content_type == "application/octet-stream"
+        assert "Authorization" in session.calls[0][1]
+        assert session.calls[1][1] == {}
+        assert "s3.amazonaws.com" in session.calls[1][0]
+
+    @pytest.mark.asyncio
+    async def test_oversize_content_length_is_skipped(self):
+        session = _SeqSession(
+            [
+                _FakeResp(
+                    status=200,
+                    text="Column_name,Year\nVAR_1_3,2023\n",
+                    content_type="text/csv",
+                    headers={"Content-Length": "3000000"},
+                )
+            ]
+        )
+        ctx = _key_context(session)
+        content_type, text = await _download_https_text(
+            ctx,
+            "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/download/",
+        )
+        assert content_type == ""
+        assert text == ""
 
     @pytest.mark.asyncio
     async def test_get_feature_post_puts_cql_in_body_not_query(self, monkeypatch):
@@ -1686,6 +1790,11 @@ class TestAreaStatisticsHelpers:
     def test_sentinel_minus_999_is_suppressed(self):
         assert _measure_source_value(-999, [-999]) == (None, "suppressed")
         assert _measure_source_value(-999.0, [-999]) == (None, "suppressed")
+
+    def test_default_missing_values_include_minus_997(self):
+        assert -999 in DEFAULT_MISSING_VALUES
+        assert -997 in DEFAULT_MISSING_VALUES
+        assert _measure_source_value(-997, DEFAULT_MISSING_VALUES) == (None, "suppressed")
 
     def test_null_absent_and_non_numeric_are_unavailable(self):
         assert _measure_source_value(None, [-999]) == (None, "unavailable")

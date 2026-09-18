@@ -152,9 +152,9 @@ code and returns a compact result.
 - `measures` — bounded list of additive counts. Each item has `key`, `label`,
   `field` (exact Datafinder name), `unit` (`count`), `aggregation`
   (`additive_count`), and optional `denominator_key` for downstream percentages.
-- `missing_values` — default `[-999]`. Those sentinels, plus null, absent, and
-  non-numeric values, are **unavailable**. They are never converted to zero.
-  Numeric zero is a valid count.
+- `missing_values` — default `[-999, -997]` (confidential and not available).
+  Those sentinels, plus null, absent, and non-numeric values, are **unavailable**.
+  They are never converted to zero. Numeric zero is a valid count.
 - `page_size` / `max_pages` — same bounds as Query Layer. This action defaults
   `max_pages` to 100 and **fails closed** if pagination is incomplete.
 - `max_source_features` — safety cap (default 10 000). Exceeding it fails closed.

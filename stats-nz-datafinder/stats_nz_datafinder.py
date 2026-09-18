@@ -61,7 +61,7 @@ DEFAULT_GEOMETRY_FIELD = "Shape"
 DEFAULT_PAGE_SIZE = 50
 DEFAULT_MAX_PAGES = 10
 DEFAULT_AREA_MAX_PAGES = 100
-DEFAULT_MISSING_VALUES = [-999]
+DEFAULT_MISSING_VALUES = [-999, -997]
 DEFAULT_MAX_SOURCE_FEATURES = 10_000
 MAX_SOURCE_RECORDS = 200
 OVERLAP_TOLERANCE = 1e-9
@@ -1029,8 +1029,11 @@ def _geography_code(properties: Any) -> str | None:
     return None
 
 
-def _validate_measures(measures: list[Any], metadata: Any) -> list[dict[str, Any]]:
-    schema_fields = [field["name"] for field in _fields(metadata) if isinstance(field.get("name"), str)]
+def _validate_measures(
+    measures: list[Any], metadata: Any, field_rows: list[dict[str, Any]] | None = None
+) -> list[dict[str, Any]]:
+    rows = field_rows if field_rows is not None else _fields(metadata)
+    schema_fields = [field["name"] for field in rows if isinstance(field.get("name"), str)]
     schema_set = set(schema_fields)
     if not schema_set:
         raise DatafinderError(
@@ -1112,6 +1115,21 @@ def _validate_measures(measures: list[Any], metadata: Any) -> list[dict[str, Any
                     field=f"{path}.field",
                     valid_alternatives=schema_fields,
                     recovery="Call Get Layer Metadata and use an exact field name.",
+                    retry_safe=False,
+                )
+            )
+        codebook_measure = next((row.get("measure") for row in rows if row.get("name") == field), None)
+        if isinstance(codebook_measure, str) and codebook_measure.strip().lower() not in {"", "count"}:
+            raise DatafinderError(
+                _contract_error(
+                    message=(
+                        f"Field '{field}' has codebook measure '{codebook_measure}'. "
+                        "Medians, means, rates, percentages, and indexes cannot be area-weighted."
+                    ),
+                    error_code="non_additive_aggregation",
+                    field=f"{path}.field",
+                    valid_alternatives=[ADDITIVE_COUNT],
+                    recovery="Request only additive Census counts (codebook measure Count).",
                     retry_safe=False,
                 )
             )
@@ -1334,7 +1352,6 @@ _BINARY_ATTACHMENT_SUFFIXES = (
 _BINARY_CONTENT_TYPES = (
     "application/pdf",
     "application/zip",
-    "application/octet-stream",
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument",
     "image/",
@@ -1434,9 +1451,9 @@ async def _layer_attachments(context: ExecutionContext, metadata: Any) -> list[d
     try:
         response = await context.fetch(trusted, headers=_headers(context))
     except HTTPError as exc:
-        if not isinstance(exc, RateLimitError) and getattr(exc, "status", None) == 404:
-            return []
-        raise
+        if isinstance(exc, RateLimitError):
+            raise
+        return []
     return _attachment_items(response.data)
 
 
@@ -1454,7 +1471,7 @@ async def _download_https_text(context: ExecutionContext, url: str) -> tuple[str
     if not trusted:
         return "", ""
     session = getattr(context, "_session", None)
-    if not isinstance(session, aiohttp.ClientSession):
+    if session is None or not hasattr(session, "get"):
         session = aiohttp.ClientSession()
         context._session = session
     current = trusted
@@ -1503,45 +1520,45 @@ async def _download_https_text(context: ExecutionContext, url: str) -> tuple[str
 def _codebook_field_info(csv_text: str) -> dict[str, dict[str, str]]:
     """Map Column_name -> title/measure/year from a Stats NZ lookup CSV."""
     text = csv_text.lstrip("\ufeff")
+    info: dict[str, dict[str, str]] = {}
     try:
         reader = csv.DictReader(io.StringIO(text))
-    except csv.Error:
-        return {}
-    info: dict[str, dict[str, str]] = {}
-    for row in reader:
-        if not isinstance(row, dict):
-            continue
-        name = _string_or_none(row.get("Column_name")) or _string_or_none(row.get("column_name"))
-        if not _is_identifier(name):
-            continue
-        alias = _string_or_none(row.get("Field_name_alias"))
-        variable = _string_or_none(row.get("Variable1"))
-        category = _string_or_none(row.get("Variable1_category"))
-        year = _string_or_none(row.get("Year"))
-        measure = _string_or_none(row.get("Measure"))
-        if alias:
-            title = alias
-        elif variable and category:
-            title = f"{variable} ({category})"
-            if year:
-                title = f"{title}, {year}"
+        for row in reader:
+            if not isinstance(row, dict):
+                continue
+            name = _string_or_none(row.get("Column_name")) or _string_or_none(row.get("column_name"))
+            if not _is_identifier(name):
+                continue
+            alias = _string_or_none(row.get("Field_name_alias"))
+            variable = _string_or_none(row.get("Variable1"))
+            category = _string_or_none(row.get("Variable1_category"))
+            year = _string_or_none(row.get("Year"))
+            measure = _string_or_none(row.get("Measure"))
+            if alias:
+                title = alias
+            elif variable and category:
+                title = f"{variable} ({category})"
+                if year:
+                    title = f"{title}, {year}"
+                if measure:
+                    title = f"{title}, {measure}"
+            elif variable:
+                title = variable
+            else:
+                title = None
+            entry: dict[str, str] = {}
+            if title:
+                entry["title"] = title
             if measure:
-                title = f"{title}, {measure}"
-        elif variable:
-            title = variable
-        else:
-            title = None
-        entry: dict[str, str] = {}
-        if title:
-            entry["title"] = title
-        if measure:
-            entry["measure"] = measure
-        if year:
-            entry["year"] = year
-        if entry:
-            info[name] = entry
-        if len(info) >= 2000:
-            break
+                entry["measure"] = measure
+            if year:
+                entry["year"] = year
+            if entry:
+                info[name] = entry
+            if len(info) >= 2000:
+                break
+    except csv.Error:
+        return info
     return info
 
 
@@ -1557,30 +1574,33 @@ async def _apply_codebook_titles(
     context: ExecutionContext, fields: list[dict[str, Any]], attachments: list[dict[str, str]]
 ) -> None:
     """Fill field titles from the first downloadable lookup CSV. Never fails the action."""
-    ranked = sorted(
-        attachments,
-        key=lambda item: 0 if "lookup" in _attachment_basename(item) or ".csv" in _attachment_basename(item) else 1,
-    )
-    for attachment in ranked:
-        url = attachment.get("url")
-        if not isinstance(url, str) or not _looks_like_file_url(url) or _is_binary_attachment(attachment):
-            continue
-        content_type, text = await _download_https_text(context, url)
-        if not text or not _is_csv_codebook(content_type, text):
-            continue
-        info = _codebook_field_info(text)
-        if not info:
-            continue
-        for field in fields:
-            extra = info.get(field.get("name"))
-            if not extra:
+    try:
+        ranked = sorted(
+            attachments,
+            key=lambda item: 0 if "lookup" in _attachment_basename(item) or ".csv" in _attachment_basename(item) else 1,
+        )
+        for attachment in ranked:
+            url = attachment.get("url")
+            if not isinstance(url, str) or not _looks_like_file_url(url) or _is_binary_attachment(attachment):
                 continue
-            if extra.get("title") and not field.get("title"):
-                field["title"] = extra["title"]
-            if extra.get("measure"):
-                field["measure"] = extra["measure"]
-            if extra.get("year"):
-                field["year"] = extra["year"]
+            content_type, text = await _download_https_text(context, url)
+            if not text or not _is_csv_codebook(content_type, text):
+                continue
+            info = _codebook_field_info(text)
+            if not info:
+                continue
+            for field in fields:
+                extra = info.get(field.get("name"))
+                if not extra:
+                    continue
+                if extra.get("title") and not field.get("title"):
+                    field["title"] = extra["title"]
+                if extra.get("measure"):
+                    field["measure"] = extra["measure"]
+                if extra.get("year"):
+                    field["year"] = extra["year"]
+            return
+    except (csv.Error, UnicodeDecodeError, ValueError, OSError):
         return
 
 
@@ -1903,7 +1923,10 @@ class QueryAreaStatisticsAction(ActionHandler):
                 )
             metadata_response = await context.fetch(f"{API_BASE_URL}/layers/{layer_id}/", headers=headers)
             metadata = _metadata_result(layer_id, metadata_response.data)
-            measures = _validate_measures(inputs["measures"], metadata_response.data)
+            attachments = await _layer_attachments(context, metadata_response.data)
+            field_rows = _fields(metadata_response.data)
+            await _apply_codebook_titles(context, field_rows, attachments)
+            measures = _validate_measures(inputs["measures"], metadata_response.data, field_rows)
             geometry_field = _geometry_field(metadata_response.data)
             measure_fields = [item["field"] for item in measures]
             geography_fields = [
