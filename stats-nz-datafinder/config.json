@@ -171,7 +171,7 @@
     },
     "query_area_statistics": {
       "display_name": "Query Area Statistics",
-      "description": "Given a WGS84 Polygon or MultiPolygon and explicitly configured additive Census counts, return compact area-weighted totals. Raw SA1 records are omitted by default.",
+      "description": "Given a WGS84 Polygon or MultiPolygon and explicitly configured additive Census counts, return compact area-weighted totals. Does not return SA1 rows; use Query Layer for individual records.",
       "input_schema": {
         "type": "object",
         "properties": {

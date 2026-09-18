@@ -1344,6 +1344,27 @@ class TestGetLayerMetadata:
                 rows,
             )
 
+    def test_rejects_non_var_median_from_codebook(self):
+        rows = [{"name": "MEDIAN_AGE", "type": "double", "measure": "Median"}]
+        metadata = {
+            **METADATA,
+            "data": {"fields": [{"name": "MEDIAN_AGE", "type": "double"}]},
+        }
+        with pytest.raises(DatafinderError, match="non_additive_aggregation"):
+            _validate_measures(
+                [
+                    {
+                        "key": "median_age",
+                        "label": "Median age",
+                        "field": "MEDIAN_AGE",
+                        "unit": "count",
+                        "aggregation": "additive_count",
+                    }
+                ],
+                metadata,
+                rows,
+            )
+
     def test_rejects_coded_field_without_codebook_count(self):
         rows = [{"name": "VAR_1_3", "type": "integer"}]
         metadata = {
@@ -2138,3 +2159,135 @@ class TestQueryAreaStatistics:
         )
         assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
+
+    def test_line_feature_has_no_overlap_fraction(self):
+        polygon = square(174.7, -41.3, 174.8, -41.2)
+        line = {"type": "LineString", "coordinates": [[174.7, -41.3], [174.8, -41.2]]}
+        assert _raw_overlap_fraction(_as_shapely(polygon), line) is None
+
+    @pytest.mark.asyncio
+    async def test_degenerate_feature_is_excluded_not_fatal(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        line = {"type": "LineString", "coordinates": [[174.7, -41.3], [174.8, -41.2]]}
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("a", geom, {"VAR_1_1": 100}),
+                    _feature("b", line, {"VAR_1_1": 50}),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 2, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["results"][0]["estimated_value"] == pytest.approx(100.0)
+        assert data["results"][0]["status"] == "partial"
+        assert any("no polygon area" in warning for warning in data["warnings"])
+
+    @pytest.mark.asyncio
+    async def test_warns_when_layer_has_no_geography_code(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        meta = {
+            **METADATA,
+            "data": {
+                "geometry_field": "Shape",
+                "fields": [
+                    {"name": "Shape", "type": "geometry"},
+                    {"name": "VAR_1_1", "type": "integer", "measure": "Count"},
+                ],
+            },
+        }
+        mock_context.fetch.return_value = fetch_ok(meta)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 10}), number_matched=1)),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        assert any("geography-code" in warning for warning in result.result.data["warnings"])
+
+    @pytest.mark.asyncio
+    async def test_execute_uses_codebook_when_schema_has_no_measure(self, mock_context, mock_wfs, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, _url):
+            return "text/csv", "Column_name,Year,Measure\nVAR_1_1,2023,Count\n"
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "data": {
+                        "geometry_field": "Shape",
+                        "fields": [
+                            {"name": "Shape", "type": "geometry"},
+                            {"name": "SA12023_V1_00", "type": "string"},
+                            {"name": "VAR_1_1", "type": "integer"},
+                        ],
+                    },
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
+                }
+            ),
+            fetch_ok(
+                [
+                    {
+                        "url_download": (
+                            "https://datafinder.stats.govt.nz/services/api/v1/"
+                            "layers/123/versions/1/attachments/1/download/"
+                        ),
+                        "document": {"title": "lookup", "extension": "csv"},
+                    }
+                ]
+            ),
+        ]
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 80}), number_matched=1)),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["results"][0]["estimated_value"] == pytest.approx(80.0)
+
+    @pytest.mark.asyncio
+    async def test_execute_rejects_codebook_median_before_wfs(self, mock_context, mock_wfs, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, _url):
+            return "text/csv", "Column_name,Year,Measure\nVAR_1_1,2013,Median\n"
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "data": {
+                        "geometry_field": "Shape",
+                        "fields": [
+                            {"name": "Shape", "type": "geometry"},
+                            {"name": "VAR_1_1", "type": "integer"},
+                        ],
+                    },
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
+                }
+            ),
+            fetch_ok(
+                [
+                    {
+                        "url_download": (
+                            "https://datafinder.stats.govt.nz/services/api/v1/"
+                            "layers/123/versions/1/attachments/1/download/"
+                        ),
+                        "document": {"title": "lookup", "extension": "csv"},
+                    }
+                ]
+            ),
+        ]
+        result = await _area_query(mock_context, {"page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "non_additive_aggregation" in result.result.message
+        mock_wfs.assert_not_called()

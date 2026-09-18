@@ -492,18 +492,6 @@ def _unwrapped_bbox_polygon(bbox: Any) -> dict[str, Any] | None:
     return _bbox_rectangle(west, south, east_u, north)
 
 
-def _shift_coords(coords: Any, delta: float) -> Any:
-    if isinstance(coords, list) and coords and isinstance(coords[0], (int, float)) and not isinstance(coords[0], bool):
-        return [float(coords[0]) + delta, *coords[1:]]
-    if isinstance(coords, list):
-        return [_shift_coords(item, delta) for item in coords]
-    return coords
-
-
-def _shift_geojson_longitudes(geometry: dict[str, Any], delta: float) -> dict[str, Any]:
-    return {"type": geometry["type"], "coordinates": _shift_coords(geometry.get("coordinates"), delta)}
-
-
 def _unwrap_negative_longitudes(geometry: dict[str, Any]) -> dict[str, Any]:
     """Add 360° only to negative longitudes so mainland NZ and Chatham can coexist."""
     return {"type": geometry["type"], "coordinates": _shift_negative_longitudes(geometry.get("coordinates"))}
@@ -983,30 +971,14 @@ def _validate_overlap_fraction(value: float) -> float:
     return min(1.0, max(0.0, value))
 
 
-def _raw_overlap_fraction(query_geom: Any, feature_geometry: Any) -> float:
-    """Unrounded geodesic overlap fraction for area-weighted additive counts."""
+def _raw_overlap_fraction(query_geom: Any, feature_geometry: Any) -> float | None:
+    """Unrounded geodesic overlap fraction, or None when the feature has no polygon area."""
     feature_geom = _as_shapely(feature_geometry)
     if query_geom is None or feature_geom is None:
-        raise DatafinderError(
-            _contract_error(
-                message="Could not compute overlap for a returned feature.",
-                error_code="invalid_geometry",
-                field="geometry",
-                recovery="Supply a valid WGS84 Polygon or MultiPolygon and query a polygon layer.",
-                retry_safe=False,
-            )
-        )
+        return None
     feature_area = _geodesic_area_m2(feature_geom)
     if feature_area <= 0:
-        raise DatafinderError(
-            _contract_error(
-                message="A returned feature has no polygon area, so it cannot be area-weighted.",
-                error_code="invalid_geometry",
-                field="geometry",
-                recovery="Query a polygon Census geography layer such as SA1, not a line or point layer.",
-                retry_safe=False,
-            )
-        )
+        return None
     best_frac: float | None = None
     for shifted in _longitude_shifted_copies(feature_geom):
         intersection = _safe_intersection(query_geom, shifted)
@@ -1141,21 +1113,21 @@ def _validate_measures(
         codebook_measure = next((row.get("measure") for row in rows if row.get("name") == field), None)
         coded = _is_coded_field(field)
         measure_name = codebook_measure.strip().lower() if isinstance(codebook_measure, str) else ""
-        if coded and measure_name != "count":
-            if measure_name:
-                raise DatafinderError(
-                    _contract_error(
-                        message=(
-                            f"Field '{field}' has codebook measure '{codebook_measure}'. "
-                            "Medians, means, rates, percentages, and indexes cannot be area-weighted."
-                        ),
-                        error_code="non_additive_aggregation",
-                        field=f"{path}.field",
-                        valid_alternatives=[ADDITIVE_COUNT],
-                        recovery="Request only additive Census counts (codebook measure Count).",
-                        retry_safe=False,
-                    )
+        if measure_name and measure_name != "count":
+            raise DatafinderError(
+                _contract_error(
+                    message=(
+                        f"Field '{field}' has codebook measure '{codebook_measure}'. "
+                        "Medians, means, rates, percentages, and indexes cannot be area-weighted."
+                    ),
+                    error_code="non_additive_aggregation",
+                    field=f"{path}.field",
+                    valid_alternatives=[ADDITIVE_COUNT],
+                    recovery="Request only additive Census counts (codebook measure Count).",
+                    retry_safe=False,
                 )
+            )
+        if coded and measure_name != "count":
             raise DatafinderError(
                 _contract_error(
                     message=(
@@ -1881,6 +1853,10 @@ class QueryAreaStatisticsAction(ActionHandler):
             }
             geography_codes: list[str] = []
             included_any = 0
+            skipped_no_area = 0
+            warnings: list[str] = []
+            if not geography_fields:
+                warnings.append("No geography-code field was found, so duplicate SA1 joins were not checked.")
             for feature in collected.features:
                 if not isinstance(feature, dict):
                     raise DatafinderError(
@@ -1894,6 +1870,11 @@ class QueryAreaStatisticsAction(ActionHandler):
                     )
                 fraction = _raw_overlap_fraction(query_geom, feature.get("geometry"))
                 properties = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
+                if fraction is None:
+                    skipped_no_area += 1
+                    for measure in measures:
+                        totals[measure["key"]]["unavailable_feature_count"] += 1
+                    continue
                 has_included = False
                 for measure in measures:
                     key = measure["key"]
@@ -1926,8 +1907,9 @@ class QueryAreaStatisticsAction(ActionHandler):
                     )
                 )
             intersecting = len(collected.features)
+            if skipped_no_area:
+                warnings.append(f"Excluded {skipped_no_area} feature(s) with no polygon area.")
             results = []
-            warnings: list[str] = []
             for measure in measures:
                 stats = totals[measure["key"]]
                 included = stats["included_feature_count"]

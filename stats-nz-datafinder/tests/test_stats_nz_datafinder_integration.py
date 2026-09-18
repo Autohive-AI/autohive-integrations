@@ -175,13 +175,20 @@ class TestQueryAreaStatistics:
         layer_id = layers[0]["id"]
         metadata = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": layer_id}, live_context)
         assert metadata.type == ResultType.ACTION, metadata.result
-        coded = [
-            field["name"]
+        count_fields = [
+            field
             for field in metadata.result.data.get("fields", [])
-            if isinstance(field, dict) and field.get("coded") and isinstance(field.get("name"), str)
+            if isinstance(field, dict)
+            and field.get("coded")
+            and isinstance(field.get("name"), str)
+            and str(field.get("measure") or "").strip().lower() == "count"
         ]
-        if not coded:
-            pytest.skip(f"Layer {layer_id} has no VAR_* census fields")
+        if not count_fields:
+            pytest.skip(f"Layer {layer_id} has no codebook Count fields")
+        count_field = next(
+            (field for field in count_fields if field["name"] == "VAR_1_3"),
+            count_fields[0],
+        )
         result = await stats_nz_datafinder.execute_action(
             "query_area_statistics",
             {
@@ -190,8 +197,8 @@ class TestQueryAreaStatistics:
                 "measures": [
                     {
                         "key": "population",
-                        "label": "Census count",
-                        "field": coded[0],
+                        "label": count_field.get("title") or "Census count",
+                        "field": count_field["name"],
                         "unit": "count",
                         "aggregation": "additive_count",
                     }
@@ -206,7 +213,7 @@ class TestQueryAreaStatistics:
         assert data["layer"]["layer_id"] == layer_id
         assert len(data["results"]) == 1
         row = data["results"][0]
-        assert row["field"] == coded[0]
+        assert row["field"] == count_field["name"]
         assert row["status"] in {"ok", "partial", "unavailable"}
         assert data["validation_status"] == row["status"]
         if row["estimated_value"] is not None:
