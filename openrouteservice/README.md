@@ -79,3 +79,5 @@ Live API tests are read-only. They skip unless `OPENROUTESERVICE_API_KEY` is set
 ```bash
 pytest openrouteservice/tests/test_openrouteservice_integration.py -m "integration and not destructive"
 ```
+
+The live suite includes a GeoJSON file-export round trip (`export_geojson: true`).

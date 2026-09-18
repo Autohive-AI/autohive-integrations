@@ -13,6 +13,9 @@ Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
+import base64
+import json
+
 import pytest
 from autohive_integrations_sdk import ExecutionContext
 from autohive_integrations_sdk.integration import ResultType
@@ -135,3 +138,31 @@ class TestGetIsochrone:
         assert "attribution" in data
         assert "engine_version" in data
         assert "graph_date" in data
+
+    async def test_export_geojson_is_a_platform_file_without_credentials(self, live_context, env_credentials):
+        result = await openrouteservice.execute_action(
+            "get_isochrone",
+            {
+                "latitude": AUCKLAND_LATITUDE,
+                "longitude": AUCKLAND_LONGITUDE,
+                "time_minutes": [5],
+                "export_geojson": True,
+            },
+            live_context,
+        )
+        data = _require_provider_success(result)
+        files = data["files"]
+        assert len(files) == 1
+        file_obj = files[0]
+        assert file_obj["name"] == "isochrones.geojson"
+        assert "geo+json" in file_obj["contentType"] or file_obj["contentType"] == "application/json"
+        raw = base64.b64decode(file_obj["content"])
+        api_key = env_credentials("OPENROUTESERVICE_API_KEY")
+        assert api_key.encode("utf-8") not in raw
+        assert b"Authorization" not in raw
+        exported = json.loads(raw)
+        assert exported["type"] == "FeatureCollection"
+        assert exported["features"]
+        feature = exported["features"][0]
+        assert feature["geometry"]["type"] in {"Polygon", "MultiPolygon"}
+        assert feature["properties"]["time_minutes"] == 5
