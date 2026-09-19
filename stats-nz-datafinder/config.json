@@ -373,6 +373,10 @@
           }
         },
         "required": ["layer_id", "measures"],
+        "oneOf": [
+          { "required": ["geometry"] },
+          { "required": ["file"] }
+        ],
         "additionalProperties": false
       },
       "output_schema": {

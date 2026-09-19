@@ -2930,8 +2930,7 @@ class TestQueryAreaStatisticsFromGeojsonFile:
             {"layer_id": 123, "measures": [POPULATION]},
             mock_context,
         )
-        assert result.type == ResultType.ACTION_ERROR
-        assert "missing_geometry" in result.result.message
+        assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
         mock_wfs.assert_not_called()
 
@@ -2948,8 +2947,7 @@ class TestQueryAreaStatisticsFromGeojsonFile:
             },
             mock_context,
         )
-        assert result.type == ResultType.ACTION_ERROR
-        assert "conflicting_geometry_source" in result.result.message
+        assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()
         mock_wfs.assert_not_called()
 
