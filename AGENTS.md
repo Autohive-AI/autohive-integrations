@@ -47,10 +47,6 @@ ruff format <integration-name>
   - Examples: `feat/42/add-slack-reactions`, `fix/108/gmail-empty-attachments`, `docs/55/update-readme`
   - The `<type>` prefix should match conventional commit types.
 
-### Issues
-
-- Every task must have a corresponding GitHub issue in this repo. If one does not exist, create it before starting work.
-- Reference the issue in your PR description (e.g. `Closes #42`).
 
 ### History
 
