@@ -559,7 +559,7 @@ def _warning_items(value: Any) -> list[dict[str, Any]]:
             continue
         code = item.get("code")
         message = item.get("message")
-        if isinstance(message, str) and "<" in message or not isinstance(message, str):
+        if not isinstance(message, str) or "<" in message:
             message = None
         if isinstance(code, bool) or not isinstance(code, (int, str)):
             code = None
@@ -914,6 +914,7 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
     warnings: list[dict[str, Any]] = []
     warning_keys: set[tuple[Any, Any]] = set()
     provider_metadata: Any = None
+    successful_batches = 0
 
     for origin_start, origin_end, destination_start, destination_end in _matrix_route_batches(
         len(origins), len(destinations)
@@ -921,14 +922,28 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
         origin_chunk = origins[origin_start:origin_end]
         destination_chunk = destinations[destination_start:destination_end]
         payload = _matrix_request_payload(origin_chunk, destination_chunk, include_distance)
-        response = await context.fetch(
-            MATRIX_URL_TEMPLATE.format(profile=profile),
-            method="POST",
-            headers=_isochrone_headers(context),
-            json=payload,
-            timeout=MATRIX_TIMEOUT_SECONDS,
-            retry_count=_fetch_retry_count(context),
-        )
+        try:
+            response = await context.fetch(
+                MATRIX_URL_TEMPLATE.format(profile=profile),
+                method="POST",
+                headers=_isochrone_headers(context),
+                json=payload,
+                timeout=MATRIX_TIMEOUT_SECONDS,
+                retry_count=_fetch_retry_count(context),
+            )
+        except RateLimitError as error:
+            if successful_batches == 0:
+                raise
+            return ActionResult(
+                data=_error_payload(
+                    "rate_limit",
+                    "OpenRouteService rate limit reached after part of this matrix request was billed.",
+                    retry_after_seconds=error.retry_after,
+                    retry_safe=False,
+                    recovery=_MATRIX_NO_RETRY,
+                ),
+                cost_usd=0.0,
+            )
         body = _as_matrix_body(response.data)
         batch_pairs, batch_origins, batch_destinations, metadata, batch_warnings = _parse_matrix_batch(
             body, origin_chunk, destination_chunk, include_distance
@@ -950,6 +965,7 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
                 continue
             warning_keys.add(warning_key)
             warnings.append(warning)
+        successful_batches += 1
 
     expected = [(origin["id"], destination["id"]) for origin in origins for destination in destinations]
     if set(pair_map) != set(expected):

@@ -71,20 +71,20 @@ The action accepts at most 10,000 origin–destination pairs. OpenRouteService a
 
 Provider failures are returned as a successful action payload (`result: false`) rather than an SDK `ActionError`, so a calling skill can read `error_type` / `error_code`, `retry_safe`, `recovery`, and `retry_after_seconds` and decide whether to retry. Check `result` before using coordinates, GeoJSON, or matrix pairs. Credentials, HTML error pages, stack traces, and provider error bodies are never returned.
 
-`error_type` `rate_limit` (HTTP 429) is retry-safe after `retry_after_seconds`. Daily quota (`quota_exceeded`) and ambiguous 403 (`quota_or_unauthorized`) are **not** retry-safe.
+`error_type` `rate_limit` (HTTP 429) is retry-safe after `retry_after_seconds` when no provider call in that action has already succeeded. Daily quota (`quota_exceeded`) and ambiguous 403 (`quota_or_unauthorized`) are **not** retry-safe. A `get_travel_time_matrix` 429 after an earlier batch succeeded is `rate_limit` with `retry_safe: false`.
 
 HeiGIT enforces **two** quotas per API key ([FAQ](https://giscience.github.io/openrouteservice/frequently-asked-questions)):
 
 | Limit | HTTP | `error_type` | What to do |
 | --- | --- | --- | --- |
-| Minutely (sliding 60s window) | 429 | `rate_limit` | Wait `retry_after_seconds` (from `Retry-After`, default 60) then retry. |
+| Minutely (sliding 60s window) | 429 | `rate_limit` | If `retry_safe` is true, wait `retry_after_seconds` (from `Retry-After`, default 60) then retry. If `retry_safe` is false (matrix after a billed batch), do not retry the same request. |
 | Daily (24h window from first request, not midnight) | 403 | `quota_exceeded` (quota wording only) or `quota_or_unauthorized` (combined/empty 403) | Do **not** retry shortly. Check the [HeiGIT dashboard](https://openrouteservice.org/dev/#/home). If the type is `quota_or_unauthorized`, also check the API key. |
 
 A 403 is `quota_exceeded` only when the body mentions quota and not an unauthorized key. HeiGIT’s combined wording (`Daily quota reached or API key unauthorized`) is `quota_or_unauthorized` — staff document 403 as either daily quota or a key that is not allowed, and the body does not distinguish them. A 403 that only says access is disallowed is `authorization`. None of these mean the `driving-car` profile is missing.
 
-Other classifications: `authentication` (401), `invalid_request` (400, a blank API key, empty time bands, duplicate matrix ids, or more than 10,000 matrix pairs), `not_found` (404 — no result; retrying will not help), `not_acceptable` (406), `timeout` (matrix only — the provider did not finish in time), `provider_error` (other HTTP, or a 2xx body that is not the expected shape), `request_failed` (network/timeout after retries). Schema rejections (missing fields, empty arrays, unsupported `travel_mode`) are SDK validation errors, not `result: false`.
+Other classifications: `authentication` (401), `invalid_request` (400, a blank API key, empty time bands, duplicate matrix ids, or more than 10,000 matrix pairs), `not_found` (404 — no result; retrying will not help), `not_acceptable` (406), `provider_error` (other HTTP, or a 2xx body that is not the expected shape). `request_failed` is a network failure after the SDK retry budget. `get_isochrone` maps a timeout to `request_failed` with `retry_safe: false`. `get_travel_time_matrix` maps a timeout to `error_type` `timeout` with `retry_safe: false`. Schema rejections (missing fields, empty arrays, unsupported `travel_mode`) are SDK validation errors, not `result: false`.
 
-`get_isochrone` uses a 90-second timeout and does not retry on timeout, so a slow compute that already counted against daily quota is not charged again. Those failures are `request_failed` with `retry_safe: false`. `get_travel_time_matrix` uses the same 90-second timeout per batch; a timeout is `error_type` `timeout` with `retry_safe: false`. A mid-batch rate limit or provider failure returns no partial matrix. A geocode network failure stays `retry_safe: true`. Driving-time bands are capped at 60 minutes and 10 intervals because that is the public isochrone limit.
+`get_isochrone` uses a 90-second timeout and does not retry on timeout, so a slow compute that already counted against daily quota is not charged again. `get_travel_time_matrix` uses the same 90-second timeout per batch. A mid-batch rate limit after a successful batch is `rate_limit` with `retry_safe: false` (earlier batches may already have been billed). A rate limit on the first batch stays retry-safe. A mid-batch provider failure returns no partial matrix. A geocode network failure stays `retry_safe: true`. Driving-time bands are capped at 60 minutes and 10 intervals because that is the public isochrone limit.
 
 ## Testing
 

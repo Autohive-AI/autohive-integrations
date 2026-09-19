@@ -12,9 +12,11 @@ from openrouteservice.openrouteservice import (
     GEOCODE_URL,
     ISOCHRONE_TIMEOUT_SECONDS,
     ISOCHRONE_URL_TEMPLATE,
+    MATRIX_TIMEOUT_SECONDS,
     MissingApiKeyError,
     _geojson_export_file,
     _match,
+    _matrix_route_batches,
     _provider_error,
     openrouteservice,
 )
@@ -841,6 +843,8 @@ class TestGetTravelTimeMatrix:
         assert payload["resolve_locations"] is True
         assert payload["units"] == "m"
         assert "options" not in payload
+        assert request.kwargs["timeout"] == MATRIX_TIMEOUT_SECONDS
+        assert request.kwargs["retry_count"] == 3
 
     async def test_unreachable_and_non_finite_routes_are_null_not_zero(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
@@ -1056,7 +1060,7 @@ class TestGetTravelTimeMatrix:
         assert data["error_type"] == "provider_error"
         assert data["retry_safe"] is False
 
-    async def test_duplicate_pair_from_provider_is_rejected(self, mock_context):
+    async def test_wrong_duration_grid_shape_is_provider_error(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
@@ -1073,6 +1077,48 @@ class TestGetTravelTimeMatrix:
 
         assert data["result"] is False
         assert data["error_type"] == "provider_error"
+
+    async def test_overlapping_batches_are_rejected_as_duplicate_pairs(self, mock_context, monkeypatch):
+        import sys
+
+        module = sys.modules["openrouteservice.openrouteservice"]
+        monkeypatch.setattr(module, "_matrix_route_batches", lambda *_args, **_kwargs: [(0, 1, 0, 1), (0, 1, 0, 1)])
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=_matrix_provider_body([[1.0]]),
+        )
+
+        data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix",
+                {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A]},
+                mock_context,
+            )
+        )
+
+        assert data["result"] is False
+        assert data["error_type"] == "provider_error"
+        assert "duplicate" in data["message"].lower()
+
+    def test_tiles_when_both_sides_exceed_max_routes(self, monkeypatch):
+        import sys
+
+        module = sys.modules["openrouteservice.openrouteservice"]
+        monkeypatch.setattr(module, "MATRIX_MAX_ROUTES", 4)
+        batches = _matrix_route_batches(5, 5)
+        assert batches
+        for origin_start, origin_end, destination_start, destination_end in batches:
+            assert (origin_end - origin_start) * (destination_end - destination_start) <= 4
+        covered = {
+            (origin_index, destination_index)
+            for origin_start, origin_end, destination_start, destination_end in batches
+            for origin_index in range(origin_start, origin_end)
+            for destination_index in range(destination_start, destination_end)
+        }
+        assert covered == {
+            (origin_index, destination_index) for origin_index in range(5) for destination_index in range(5)
+        }
 
     async def test_export_json_and_csv_are_platform_files_without_credentials(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
@@ -1170,8 +1216,22 @@ class TestGetTravelTimeMatrix:
 
         assert data["result"] is False
         assert data["error_type"] == "rate_limit"
-        assert data["retry_safe"] is True
+        assert data["retry_safe"] is False
+        assert "try again" not in data["message"].lower()
+        assert "do not retry" in data["recovery"].lower() or "quota" in data["recovery"].lower()
         assert "pairs" not in data or data.get("pairs") in (None, [])
+
+    async def test_first_batch_rate_limit_stays_retry_safe(self, mock_context):
+        mock_context.fetch.side_effect = RateLimitError(30, 429, "Rate limit exceeded")
+
+        data = _action_data(
+            await openrouteservice.execute_action("get_travel_time_matrix", MATRIX_INPUTS, mock_context)
+        )
+
+        assert data["result"] is False
+        assert data["error_type"] == "rate_limit"
+        assert data["retry_safe"] is True
+        assert data["retry_after_seconds"] == 30
 
     async def test_matrix_400_does_not_blame_time_minutes(self, mock_context):
         mock_context.fetch.side_effect = HTTPError(400, "bad request")
