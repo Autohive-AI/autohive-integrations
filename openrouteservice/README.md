@@ -1,12 +1,12 @@
 # OpenRouteService Integration
 
-Geocode addresses and generate drive-time catchment polygons through the [OpenRouteService API](https://openrouteservice.org/dev/). The integration is designed for spatial workflows, including New Zealand demographic catchment analysis.
+Geocode addresses, generate drive-time catchment polygons, and calculate road-network travel-time matrices through the [OpenRouteService API](https://openrouteservice.org/dev/). The integration is designed for spatial workflows, including New Zealand demographic catchment analysis.
 
 ## Setup & authentication
 
 Create a free OpenRouteService API key at the [OpenRouteService developer portal](https://openrouteservice.org/dev/#/signup), then add it as the integration connection's **API Key**. The key is passed only in the `Authorization` header; it is never added to request URLs or returned in action output.
 
-Typical catchment workflow: call `geocode_address` for a place in New Zealand, confirm the match when `is_low_confidence` is true, then pass the returned coordinates to `get_isochrone` with the drive-time bands you need.
+Typical catchment workflow: call `geocode_address` for a place in New Zealand, confirm the match when `is_low_confidence` is true, then pass the returned coordinates to `get_isochrone` with the drive-time bands you need. `get_travel_time_matrix` is a labelled origin–destination table only; it does not select facilities or apply demographic rules.
 
 ## Actions
 
@@ -45,9 +45,31 @@ Generates one or more drive-time bands in a single request through the current H
 - `attribution`, `engine_version`, `build_date`, `graph_date`, `osm_date` — copied from provider metadata when supplied.
 - `files` — empty unless `export_geojson` is true. The SDK has no separate artifact API. Files go on `ActionResult.data["files"]` as `{name, contentType, content}` (standard base64), the same Autohive platform channel as Gmail and doc-maker. Autohive materialises that as a tool-output path such as `/tool-outputs/isochrones.geojson`; agents see the path, not the base64. The file never includes the API key.
 
+### `get_travel_time_matrix`
+
+Returns driving durations, and optional distances, for every labelled origin–destination pair through `POST https://api.heigit.org/openrouteservice/v2/matrix/{profile}`.
+
+**Inputs**
+
+- `origins`, `destinations` (array, required) — each item is `{id, latitude, longitude}`. IDs are caller-defined strings and must be unique within origins and within destinations. The same id may appear once as an origin and once as a destination.
+- `travel_mode` (optional) — v1 supports `driving-car` only.
+- `include_distance` (optional, default false) — if true, also return road-network distances in metres.
+- `export_format` (optional) — `json` or `csv`. If omitted, return the compact result only.
+
+The action accepts at most 10,000 origin–destination pairs. OpenRouteService allows 3,500 routes per HTTP call; larger matrices are split automatically, then reassembled and checked so each pair appears exactly once.
+
+**Outputs**
+
+- `pairs` — origin-major, destination-minor objects with `origin_id`, `destination_id`, unrounded `duration_seconds`, and `distance_metres` (null when distance was not requested or the route is unreachable). Unreachable, unsnappable, infinite, or NaN values are `null`, not `0`. A true zero-time route stays `0`.
+- `origins` / `destinations` — requested coordinates in input order, plus provider snapping (`snapped_latitude`, `snapped_longitude`, `snapped_distance_metres`, optional street `name`) when supplied.
+- `unreachable_count` — number of pairs whose duration is null.
+- `warnings` — provider warnings when present.
+- `provider_metadata`, `attribution`, `engine_version`, `build_date`, `graph_date`, `osm_date` — copied from provider metadata when supplied.
+- `files` — empty unless `export_format` is set. JSON is the compact payload without `files` or credentials. CSV columns are `origin_id,destination_id,duration_seconds,distance_metres` with empty cells for nulls. Serialization failure omits `files` and still returns the compact result.
+
 ## Errors and rate limits
 
-Provider failures are returned as a successful action payload (`result: false`) rather than an SDK `ActionError`, so a calling skill can read `error_type` / `error_code`, `retry_safe`, `recovery`, and `retry_after_seconds` and decide whether to retry. Check `result` before using coordinates or GeoJSON. Credentials, HTML error pages, stack traces, and provider error bodies are never returned.
+Provider failures are returned as a successful action payload (`result: false`) rather than an SDK `ActionError`, so a calling skill can read `error_type` / `error_code`, `retry_safe`, `recovery`, and `retry_after_seconds` and decide whether to retry. Check `result` before using coordinates, GeoJSON, or matrix pairs. Credentials, HTML error pages, stack traces, and provider error bodies are never returned.
 
 `error_type` `rate_limit` (HTTP 429) is retry-safe after `retry_after_seconds`. Daily quota (`quota_exceeded`) and ambiguous 403 (`quota_or_unauthorized`) are **not** retry-safe.
 
@@ -60,9 +82,9 @@ HeiGIT enforces **two** quotas per API key ([FAQ](https://giscience.github.io/op
 
 A 403 is `quota_exceeded` only when the body mentions quota and not an unauthorized key. HeiGIT’s combined wording (`Daily quota reached or API key unauthorized`) is `quota_or_unauthorized` — staff document 403 as either daily quota or a key that is not allowed, and the body does not distinguish them. A 403 that only says access is disallowed is `authorization`. None of these mean the `driving-car` profile is missing.
 
-Other classifications: `authentication` (401), `invalid_request` (400, or a blank API key / empty time bands), `not_found` (404 — no result; retrying will not help), `not_acceptable` (406), `provider_error` (other HTTP, or a 2xx body that is not the expected GeoJSON), `request_failed` (network/timeout after retries).
+Other classifications: `authentication` (401), `invalid_request` (400, a blank API key, empty time bands, duplicate matrix ids, or more than 10,000 matrix pairs), `not_found` (404 — no result; retrying will not help), `not_acceptable` (406), `timeout` (matrix only — the provider did not finish in time), `provider_error` (other HTTP, or a 2xx body that is not the expected shape), `request_failed` (network/timeout after retries). Schema rejections (missing fields, empty arrays, unsupported `travel_mode`) are SDK validation errors, not `result: false`.
 
-`get_isochrone` uses a 90-second timeout and does not retry on timeout, so a slow compute that already counted against daily quota is not charged again. Those failures are `request_failed` with `retry_safe: false`. A geocode network failure stays `retry_safe: true`. Driving-time bands are capped at 60 minutes and 10 intervals because that is the public isochrone limit.
+`get_isochrone` uses a 90-second timeout and does not retry on timeout, so a slow compute that already counted against daily quota is not charged again. Those failures are `request_failed` with `retry_safe: false`. `get_travel_time_matrix` uses the same 90-second timeout per batch; a timeout is `error_type` `timeout` with `retry_safe: false`. A mid-batch rate limit or provider failure returns no partial matrix. A geocode network failure stays `retry_safe: true`. Driving-time bands are capped at 60 minutes and 10 intervals because that is the public isochrone limit.
 
 ## Testing
 
@@ -80,4 +102,4 @@ Live API tests are read-only. They skip unless `OPENROUTESERVICE_API_KEY` is set
 pytest openrouteservice/tests/test_openrouteservice_integration.py -m "integration and not destructive"
 ```
 
-The live suite includes a GeoJSON file-export round trip (`export_geojson: true`).
+The live suite includes a GeoJSON file-export round trip (`export_geojson: true`) and a small Auckland travel-time matrix, including an unreachable pair and optional JSON export.

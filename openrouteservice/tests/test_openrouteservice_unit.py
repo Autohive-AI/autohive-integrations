@@ -737,3 +737,478 @@ class TestProviderErrors:
         result = _provider_error(MissingApiKeyError("An OpenRouteService API key is required."))
         data = result.data
         assert "api key" in data["recovery"].lower()
+
+
+MATRIX_ORIGIN = {"id": "home", "latitude": -36.8485, "longitude": 174.7633}
+MATRIX_DEST_A = {"id": "work", "latitude": -36.8509, "longitude": 174.7648}
+MATRIX_DEST_B = {"id": "shop", "latitude": -36.8524, "longitude": 174.7701}
+MATRIX_INPUTS = {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A, MATRIX_DEST_B]}
+MATRIX_METADATA = {
+    "service": "matrix",
+    "attribution": "openrouteservice.org, OpenStreetMap contributors",
+    "engine": {
+        "version": "8.2.0",
+        "build_date": "2025-01-02T00:00:00Z",
+        "graph_date": "2025-01-01T00:00:00Z",
+        "osm_date": "2024-12-15T00:00:00Z",
+    },
+}
+
+
+def _snap(lon, lat, distance, name=None):
+    item = {"location": [lon, lat], "snapped_distance": distance}
+    if name is not None:
+        item["name"] = name
+    return item
+
+
+def _matrix_provider_body(
+    durations,
+    *,
+    distances=None,
+    sources=None,
+    destinations=None,
+    metadata=None,
+    warnings=None,
+):
+    body = {"durations": durations, "metadata": MATRIX_METADATA if metadata is None else metadata}
+    if distances is not None:
+        body["distances"] = distances
+    if sources is not None:
+        body["sources"] = sources
+    if destinations is not None:
+        body["destinations"] = destinations
+    if warnings is not None:
+        body["warnings"] = warnings
+    return body
+
+
+class TestGetTravelTimeMatrix:
+    async def test_returns_labelled_unrounded_pairs_in_input_order(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=_matrix_provider_body(
+                [[312.45, 480.125], [12.5, 0.0]],
+                sources=[
+                    _snap(174.76331, -36.84852, 4.2, "Queen Street"),
+                    _snap(174.76201, -36.84901, 1.0, "Depot Street"),
+                ],
+                destinations=[
+                    _snap(174.76481, -36.85091, 6.5, "Work Street"),
+                    _snap(174.77012, -36.85241, 3.1, "Shop Street"),
+                ],
+            ),
+        )
+        # Two origins so row order is visible; reuse dest B as a second origin.
+        inputs = {
+            "origins": [MATRIX_ORIGIN, {"id": "depot", "latitude": -36.8490, "longitude": 174.7620}],
+            "destinations": [MATRIX_DEST_A, MATRIX_DEST_B],
+        }
+
+        result = await openrouteservice.execute_action("get_travel_time_matrix", inputs, mock_context)
+
+        data = _action_data(result)
+        assert data["result"] is True
+        assert data["profile"] == "driving-car"
+        assert data["metrics"] == ["duration"]
+        assert [pair["origin_id"] for pair in data["pairs"]] == ["home", "home", "depot", "depot"]
+        assert [pair["destination_id"] for pair in data["pairs"]] == ["work", "shop", "work", "shop"]
+        assert [pair["duration_seconds"] for pair in data["pairs"]] == [312.45, 480.125, 12.5, 0.0]
+        assert [pair["distance_metres"] for pair in data["pairs"]] == [None, None, None, None]
+        assert data["origins"][0]["id"] == "home"
+        assert data["origins"][0]["snapped_latitude"] == -36.84852
+        assert data["origins"][0]["snapped_longitude"] == 174.76331
+        assert data["origins"][0]["snapped_distance_metres"] == 4.2
+        assert data["origins"][0]["name"] == "Queen Street"
+        assert data["files"] == []
+        assert data["error_type"] is None
+        request = mock_context.fetch.await_args
+        assert request.args[0] == "https://api.heigit.org/openrouteservice/v2/matrix/driving-car"
+        assert request.kwargs["method"] == "POST"
+        assert request.kwargs["headers"]["Authorization"] == "test-key"
+        assert "test-key" not in request.args[0]
+        payload = request.kwargs["json"]
+        assert payload["locations"] == [
+            [174.7633, -36.8485],
+            [174.7620, -36.8490],
+            [174.7648, -36.8509],
+            [174.7701, -36.8524],
+        ]
+        assert payload["sources"] == ["0", "1"]
+        assert payload["destinations"] == ["2", "3"]
+        assert payload["metrics"] == ["duration"]
+        assert payload["resolve_locations"] is True
+        assert payload["units"] == "m"
+        assert "options" not in payload
+
+    async def test_unreachable_and_non_finite_routes_are_null_not_zero(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=_matrix_provider_body([[None, 0.0, float("inf"), float("nan")]]),
+        )
+        inputs = {
+            "origins": [MATRIX_ORIGIN],
+            "destinations": [
+                MATRIX_DEST_A,
+                MATRIX_DEST_B,
+                {"id": "far", "latitude": -36.86, "longitude": 174.78},
+                {"id": "none", "latitude": -36.87, "longitude": 174.79},
+            ],
+        }
+
+        data = _action_data(await openrouteservice.execute_action("get_travel_time_matrix", inputs, mock_context))
+
+        assert [pair["duration_seconds"] for pair in data["pairs"]] == [None, 0.0, None, None]
+        assert data["unreachable_count"] == 3
+
+    async def test_include_distance_returns_unrounded_metres(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=_matrix_provider_body([[448.82]], distances=[[3210.4]]),
+        )
+
+        data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix",
+                {
+                    "origins": [MATRIX_ORIGIN],
+                    "destinations": [MATRIX_DEST_A],
+                    "include_distance": True,
+                },
+                mock_context,
+            )
+        )
+
+        assert data["metrics"] == ["duration", "distance"]
+        assert data["pairs"][0]["duration_seconds"] == 448.82
+        assert data["pairs"][0]["distance_metres"] == 3210.4
+        assert mock_context.fetch.await_args.kwargs["json"]["metrics"] == ["duration", "distance"]
+
+    async def test_returns_provider_warnings_and_engine_metadata(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=_matrix_provider_body(
+                [[12.0]],
+                warnings=[{"code": 1, "message": "One or more locations could not be routed"}],
+            ),
+        )
+
+        data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix",
+                {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A]},
+                mock_context,
+            )
+        )
+
+        assert data["warnings"] == [{"code": 1, "message": "One or more locations could not be routed"}]
+        assert data["attribution"] == "openrouteservice.org, OpenStreetMap contributors"
+        assert data["engine_version"] == "8.2.0"
+        assert data["build_date"] == "2025-01-02T00:00:00Z"
+        assert data["graph_date"] == "2025-01-01T00:00:00Z"
+        assert data["osm_date"] == "2024-12-15T00:00:00Z"
+        assert data["provider_metadata"]["service"] == "matrix"
+
+    async def test_duplicate_and_blank_ids_are_invalid_request(self, mock_context):
+        duplicate = await openrouteservice.execute_action(
+            "get_travel_time_matrix",
+            {"origins": [MATRIX_ORIGIN, {**MATRIX_ORIGIN, "latitude": -36.85}], "destinations": [MATRIX_DEST_A]},
+            mock_context,
+        )
+        duplicate_data = _action_data(duplicate)
+        assert duplicate_data["result"] is False
+        assert duplicate_data["error_type"] == "invalid_request"
+        assert duplicate_data["field"] == "origins"
+        assert "home" in duplicate_data["message"]
+
+        blank = await openrouteservice.execute_action(
+            "get_travel_time_matrix",
+            {"origins": [{**MATRIX_ORIGIN, "id": "  "}], "destinations": [MATRIX_DEST_A]},
+            mock_context,
+        )
+        blank_data = _action_data(blank)
+        assert blank_data["result"] is False
+        assert blank_data["error_type"] == "invalid_request"
+        assert blank_data["field"] == "origins"
+        mock_context.fetch.assert_not_called()
+
+    async def test_pair_count_over_cap_is_invalid_request(self, mock_context, monkeypatch):
+        import sys
+
+        module = sys.modules["openrouteservice.openrouteservice"]
+        monkeypatch.setattr(module, "MATRIX_MAX_PAIRS", 3)
+
+        result = await openrouteservice.execute_action(
+            "get_travel_time_matrix",
+            {
+                "origins": [MATRIX_ORIGIN, {"id": "depot", "latitude": -36.849, "longitude": 174.762}],
+                "destinations": [MATRIX_DEST_A, MATRIX_DEST_B],
+            },
+            mock_context,
+        )
+
+        data = _action_data(result)
+        assert data["result"] is False
+        assert data["error_type"] == "invalid_request"
+        assert "3" in data["message"]
+        mock_context.fetch.assert_not_called()
+
+    async def test_schema_rejects_invalid_matrix_inputs(self, mock_context):
+        cases = [
+            {"destinations": [MATRIX_DEST_A]},
+            {"origins": [MATRIX_ORIGIN]},
+            {"origins": [], "destinations": [MATRIX_DEST_A]},
+            {"origins": [MATRIX_ORIGIN], "destinations": []},
+            {"origins": [{**MATRIX_ORIGIN, "id": ""}], "destinations": [MATRIX_DEST_A]},
+            {"origins": [{**MATRIX_ORIGIN, "latitude": 91}], "destinations": [MATRIX_DEST_A]},
+            {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A], "travel_mode": "cycling-regular"},
+            {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A], "export_format": "xlsx"},
+        ]
+        for inputs in cases:
+            result = await openrouteservice.execute_action("get_travel_time_matrix", inputs, mock_context)
+            assert result.type == ResultType.VALIDATION_ERROR, inputs
+        mock_context.fetch.assert_not_called()
+
+    async def test_splits_oversize_requests_and_reassembles_unique_pairs(self, mock_context, monkeypatch):
+        import sys
+
+        module = sys.modules["openrouteservice.openrouteservice"]
+        monkeypatch.setattr(module, "MATRIX_MAX_ROUTES", 2)
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=200,
+                headers={},
+                data=_matrix_provider_body(
+                    [[10.5, 20.25]],
+                    sources=[_snap(174.7633, -36.8485, 1.0)],
+                    destinations=[_snap(174.7648, -36.8509, 2.0), _snap(174.7701, -36.8524, 3.0)],
+                ),
+            ),
+            FetchResponse(
+                status=200,
+                headers={},
+                data=_matrix_provider_body(
+                    [[30.5, 40.25]],
+                    sources=[_snap(174.7620, -36.8490, 1.5)],
+                    destinations=[_snap(174.7648, -36.8509, 2.0), _snap(174.7701, -36.8524, 3.0)],
+                ),
+            ),
+        ]
+        inputs = {
+            "origins": [MATRIX_ORIGIN, {"id": "depot", "latitude": -36.8490, "longitude": 174.7620}],
+            "destinations": [MATRIX_DEST_A, MATRIX_DEST_B],
+        }
+
+        data = _action_data(await openrouteservice.execute_action("get_travel_time_matrix", inputs, mock_context))
+
+        assert mock_context.fetch.await_count == 2
+        first_payload = mock_context.fetch.await_args_list[0].kwargs["json"]
+        second_payload = mock_context.fetch.await_args_list[1].kwargs["json"]
+        assert first_payload["locations"] == [[174.7633, -36.8485], [174.7648, -36.8509], [174.7701, -36.8524]]
+        assert first_payload["sources"] == ["0"]
+        assert first_payload["destinations"] == ["1", "2"]
+        assert second_payload["locations"][0] == [174.7620, -36.8490]
+        assert [pair["origin_id"] for pair in data["pairs"]] == ["home", "home", "depot", "depot"]
+        assert [pair["duration_seconds"] for pair in data["pairs"]] == [10.5, 20.25, 30.5, 40.25]
+        assert data["origins"][0]["id"] == "home"
+        assert data["origins"][1]["id"] == "depot"
+        assert data["destinations"][0]["id"] == "work"
+
+    async def test_conflicting_origin_snaps_across_batches_are_provider_error(self, mock_context, monkeypatch):
+        import sys
+
+        module = sys.modules["openrouteservice.openrouteservice"]
+        monkeypatch.setattr(module, "MATRIX_MAX_ROUTES", 1)
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=200,
+                headers={},
+                data=_matrix_provider_body(
+                    [[1.0]],
+                    sources=[_snap(174.7633, -36.8485, 1.0)],
+                    destinations=[_snap(174.7648, -36.8509, 2.0)],
+                ),
+            ),
+            FetchResponse(
+                status=200,
+                headers={},
+                data=_matrix_provider_body(
+                    [[2.0]],
+                    sources=[_snap(174.7999, -36.8999, 80.0)],
+                    destinations=[_snap(174.7701, -36.8524, 3.0)],
+                ),
+            ),
+        ]
+
+        data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix",
+                {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A, MATRIX_DEST_B]},
+                mock_context,
+            )
+        )
+
+        assert data["result"] is False
+        assert data["error_type"] == "provider_error"
+        assert data["retry_safe"] is False
+
+    async def test_duplicate_pair_from_provider_is_rejected(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=_matrix_provider_body([[1.0, 2.0, 3.0]]),
+        )
+
+        data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix",
+                {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A, MATRIX_DEST_B]},
+                mock_context,
+            )
+        )
+
+        assert data["result"] is False
+        assert data["error_type"] == "provider_error"
+
+    async def test_export_json_and_csv_are_platform_files_without_credentials(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=_matrix_provider_body([[None, 12.5]], distances=[[None, 100.25]]),
+        )
+        inputs = {
+            "origins": [MATRIX_ORIGIN],
+            "destinations": [MATRIX_DEST_A, MATRIX_DEST_B],
+            "include_distance": True,
+        }
+
+        json_data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix", {**inputs, "export_format": "json"}, mock_context
+            )
+        )
+        json_file = json_data["files"][0]
+        assert json_file["name"] == "travel_time_matrix.json"
+        assert json_file["contentType"] == "application/json"
+        exported = json.loads(base64.b64decode(json_file["content"]))
+        assert exported["pairs"][0]["duration_seconds"] is None
+        assert "files" not in exported
+        assert "test-key" not in json_file["content"]
+        assert "Authorization" not in json_file["content"]
+
+        csv_data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix", {**inputs, "export_format": "csv"}, mock_context
+            )
+        )
+        csv_file = csv_data["files"][0]
+        assert csv_file["name"] == "travel_time_matrix.csv"
+        assert csv_file["contentType"] == "text/csv"
+        csv_text = base64.b64decode(csv_file["content"]).decode("utf-8")
+        assert "test-key" not in csv_text
+        lines = [line for line in csv_text.strip().splitlines() if line]
+        assert lines[0] == "origin_id,destination_id,duration_seconds,distance_metres"
+        assert lines[1] == "home,work,,"
+        assert "home,shop,12.5,100.25" in lines[2]
+
+    async def test_export_serialization_failure_keeps_compact_result(self, mock_context, monkeypatch):
+        import sys
+
+        module = sys.modules["openrouteservice.openrouteservice"]
+        monkeypatch.setattr(module, "_matrix_export_file", lambda *_args, **_kwargs: None)
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=_matrix_provider_body([[9.0]]))
+
+        data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix",
+                {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A], "export_format": "json"},
+                mock_context,
+            )
+        )
+
+        assert data["result"] is True
+        assert data["pairs"][0]["duration_seconds"] == 9.0
+        assert data["files"] == []
+
+    async def test_timeout_is_distinct_and_not_retry_safe(self, mock_context):
+        mock_context.fetch.side_effect = TimeoutError("timed out")
+
+        data = _action_data(
+            await openrouteservice.execute_action("get_travel_time_matrix", MATRIX_INPUTS, mock_context)
+        )
+
+        assert data["result"] is False
+        assert data["error_type"] == "timeout"
+        assert data["error_code"] == "timeout"
+        assert data["retry_safe"] is False
+        assert "timed out" not in data["message"]
+        assert "try again shortly" not in data["message"].lower()
+        assert "isochrone" not in data["message"].lower()
+        assert "isochrone" not in data["recovery"].lower()
+
+    async def test_rate_limit_after_a_successful_batch_fails_closed(self, mock_context, monkeypatch):
+        import sys
+
+        module = sys.modules["openrouteservice.openrouteservice"]
+        monkeypatch.setattr(module, "MATRIX_MAX_ROUTES", 1)
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data=_matrix_provider_body([[1.0]])),
+            RateLimitError(30, 429, "Rate limit exceeded"),
+        ]
+
+        data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix",
+                {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A, MATRIX_DEST_B]},
+                mock_context,
+            )
+        )
+
+        assert data["result"] is False
+        assert data["error_type"] == "rate_limit"
+        assert data["retry_safe"] is True
+        assert "pairs" not in data or data.get("pairs") in (None, [])
+
+    async def test_matrix_400_does_not_blame_time_minutes(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(400, "bad request")
+
+        data = _action_data(
+            await openrouteservice.execute_action("get_travel_time_matrix", MATRIX_INPUTS, mock_context)
+        )
+
+        assert data["error_type"] == "invalid_request"
+        assert data["field"] == "origins"
+        assert "time bands" not in data["message"].lower()
+        assert "time_minutes" not in data["message"].lower()
+        assert "origin" in data["message"].lower()
+
+    async def test_matrix_5xx_is_not_retry_safe(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(500, "upstream")
+
+        data = _action_data(
+            await openrouteservice.execute_action("get_travel_time_matrix", MATRIX_INPUTS, mock_context)
+        )
+
+        assert data["error_type"] == "provider_error"
+        assert data["retry_safe"] is False
+        assert "try again shortly" not in data["message"].lower()
+        assert "isochrone" not in data["recovery"].lower()
+
+    async def test_missing_durations_are_provider_error(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"metadata": MATRIX_METADATA})
+
+        data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix",
+                {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A]},
+                mock_context,
+            )
+        )
+
+        assert data["result"] is False
+        assert data["error_type"] == "provider_error"
+        assert data["retry_safe"] is False
