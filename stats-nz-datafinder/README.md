@@ -15,8 +15,8 @@ Official documentation:
 
 | Action | What it does |
 |--------|--------------|
-| `query_area_statistics` | Area-weight explicitly configured additive Census counts for a Polygon/MultiPolygon catchment. Returns compact totals, not raw SA1 records. |
-| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. |
+| `query_area_statistics` | Area-weight explicitly configured additive Census counts for a Polygon/MultiPolygon catchment (inline geometry or a GeoJSON file). Returns compact totals, not raw SA1 records. |
+| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, a Polygon/MultiPolygon GeoJSON file, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. `export_geojson` returns all retrieved features as a platform GeoJSON file after a complete query. |
 | `get_layer_metadata` | Return a short description, field list (`coded` flags `VAR_*` columns, titles/measure/year from the lookup codebook when present), catalogue page URL, and codebook **download** links. |
 | `search_layers` | Search public vector layers. Compact cards: id, title, published_at, queryable. |
 
@@ -69,6 +69,7 @@ national scans are rejected):
 | Input | When to use | `overlap_fraction` |
 |--------|-------------|--------------------|
 | `geometry` Polygon / MultiPolygon | Catchment / isochrone clip | Area of the feature inside the polygon |
+| `file` | Large Polygon/MultiPolygon catchment from a platform GeoJSON file (`name`, `contentType`, base64 `content`). Point files are rejected. | Same as the selected Polygon / MultiPolygon |
 | `geometry` Point | "What SA2/meshblock is this school in?" | Always `1.0` — do **not** area-weight a point |
 | `bbox` `[west, south, east, north]` | Rough map window without building GeoJSON. Unwrapped longitudes (Datafinder east ≈ 184.5) and boxes that cross 180° are accepted. CQL matches both wrapped and unwrapped layer coordinates so Chatham Islands are not dropped | Same as a polygon |
 | `attribute_filters` | Named-area lookup. Use `ieq` for an exact SA2/SA1 name | `1.0` (whole feature) |
@@ -76,8 +77,33 @@ national scans are rejected):
 `ieq` is a case-insensitive exact match. `contains` is a substring match
 (`ILIKE %value%`) — `contains` `"Wellington Central"` also matches
 **Mount Wellington Central**. Other operators: `eq`, `neq`, `lt`, `lte`,
-`gt`, `gte`. Combine filters with a spatial clip using AND. Do not send
-`geometry` and `bbox` together.
+`gt`, `gte`. Combine filters with a spatial clip using AND. Do not send more
+than one of `geometry`, `file`, and `bbox`.
+
+`export_geojson: true` returns a platform file
+(`name`, `contentType`, base64 `content`) named
+`layer-<id>-query.geojson` after the query completes. The FeatureCollection
+includes every retrieved page, original WGS84 geometries (no simplification),
+requested attributes, and `overlap_fraction` / `overlap_area_sq_km` /
+`feature_area_sq_km`. Null, `-997`, and `-999` are preserved. The export
+feature count matches `record_count`. Incomplete pagination fails closed
+instead of writing a partial file. Compact JSON records still omit geometry
+unless `include_geometry` is true. Export size follows `page_size` × `max_pages`
+(not a separate byte cap).
+
+A GeoJSON file may be a FeatureCollection, a Feature, or a bare
+Polygon/MultiPolygon. If the file contains exactly one Polygon or
+MultiPolygon, that feature is used. If it contains more than one eligible
+area feature, pass `feature_index` (0-based index into the **original**
+`features` array, including points and lines) or `feature_filter`
+`{ "property": "time_minutes", "equals": 30 }`. `feature_filter` matches the
+original array, including points and lines — two hits are ambiguous even if
+only one is a polygon. The selected feature must be a Polygon or MultiPolygon;
+otherwise the action fails before querying. Numeric `30` matches `30.0`; the
+string `"30"` does not match the number `30`. File size is capped at 5 MB decoded.
+When a file is used, the compact
+`geometry_source` citation (`name`, `feature_index`, and matched properties
+when a filter was used) is included; coordinates are not echoed.
 
 `overlap_fraction` is an area share of the feature, not a population share.
 It is `null` for line or point features under a polygon/bbox clip — those have
@@ -141,14 +167,14 @@ code and returns a compact result.
 
 **Suggested catchment sequence**
 
-1. OpenRouteService `geocode_address` then `get_isochrone` for 5/10/15/30-minute bands.
+1. OpenRouteService `geocode_address` then `get_isochrone` for 5/10/15/30-minute bands (`export_geojson: true` if the polygon is too large to inline).
 2. `search_layers` / `get_layer_metadata` to pick a Census SA1 layer and exact `VAR_*` field names.
-3. `query_area_statistics` once per isochrone band with those fields.
+3. `query_area_statistics` once per isochrone band with those fields. Prefer `file` plus `feature_filter: {"property": "time_minutes", "equals": 10}` over inlining the polygon.
 4. Compute rates or percentages in the report from two additive counts if needed.
 
 **Inputs**
 
-- `layer_id` and WGS84 `geometry` (Polygon or MultiPolygon only).
+- `layer_id` and a WGS84 Polygon or MultiPolygon, either as inline `geometry` or as `file` (same selection rules as Query Layer). Do not send both.
 - `measures` — bounded list of additive counts. Each item has `key`, `label`,
   `field` (exact Datafinder name), `unit` (`count`), and `aggregation`
   (`additive_count`). Compute rates or percentages in the report from two counts.
@@ -158,6 +184,29 @@ code and returns a compact result.
 - `page_size` / `max_pages` — same bounds as Query Layer. This action defaults
   `max_pages` to 100 and **fails closed** if pagination is incomplete.
 - `max_source_features` — safety cap (default 10 000). Exceeding it fails closed.
+
+Example file input:
+
+```json
+{
+  "layer_id": 120766,
+  "file": {
+    "name": "catchments.geojson",
+    "contentType": "application/geo+json",
+    "content": "<base64 GeoJSON>"
+  },
+  "feature_filter": {"property": "time_minutes", "equals": 30},
+  "measures": [
+    {
+      "key": "population",
+      "label": "Usually resident population",
+      "field": "VAR_1_3",
+      "unit": "count",
+      "aggregation": "additive_count"
+    }
+  ]
+}
+```
 
 **Behaviour**
 
@@ -170,9 +219,11 @@ code and returns a compact result.
 - Contribution = unrounded `source_value × overlap_fraction`.
 - Overlap uses the existing WGS84 **geodesic** area method (`pyproj Geod`), not
   planar degrees. Fractions must fall in `[0, 1]` within a documented
-  floating-point tolerance of `1e-9`.
+  floating-point tolerance of `1e-6`.
 - Default JSON is compact: totals, geography summary, method, layer citation,
-  warnings, `validation_status`. No raw features or geometry.
+  warnings, `validation_status`. No raw features or geometry. File-backed
+  queries add `geometry_source` (`name`, `feature_index`, matched properties)
+  without echoing coordinates.
 - `validation_status` is `ok` only when every measure is fully included. It is
   `partial` if any measure has suppressed/missing values, and `unavailable` if
   no measure had a usable source value. Per-measure `status` is still on each
