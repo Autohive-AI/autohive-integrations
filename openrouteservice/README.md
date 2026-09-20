@@ -60,7 +60,7 @@ The action accepts at most 10,000 origin–destination pairs. OpenRouteService a
 
 **Outputs**
 
-- `pairs` — origin-major, destination-minor objects with `origin_id`, `destination_id`, unrounded `duration_seconds`, and `distance_metres` (null when distance was not requested or the route is unreachable). Unreachable, unsnappable, infinite, or NaN values are `null`, not `0`. A true zero-time route stays `0`.
+- `pairs` — origin-major, destination-minor objects with `origin_id`, `destination_id`, unrounded `duration_seconds`, and `distance_metres` (null when distance was not requested or the route is unreachable). A cell is `null` when the provider snapped both points but found no driving route (disconnected road graph). Infinite or NaN values are also `null`, not `0`. A true zero-time route stays `0`. A coordinate too far from any road (HeiGIT snap radius is about 350 m) can fail the whole request with provider "point not found" instead of returning a null cell.
 - `origins` / `destinations` — requested coordinates in input order, plus provider snapping (`snapped_latitude`, `snapped_longitude`, `snapped_distance_metres`, optional street `name`) when supplied.
 - `unreachable_count` — number of pairs whose duration is null.
 - `provider_metadata`, `attribution`, `engine_version`, `build_date`, `graph_date`, `osm_date` — copied from provider metadata when supplied. If the matrix was split across more than one provider call, `query`, `timestamp`, and `id` are omitted because they describe only one chunk; attribution and engine fields still come from that metadata. The HeiGIT matrix endpoint does not return a `warnings` array; unreachable routes are `null` durations in `pairs`.
@@ -101,4 +101,4 @@ Live API tests are read-only. They skip unless `OPENROUTESERVICE_API_KEY` is set
 pytest openrouteservice/tests/test_openrouteservice_integration.py -m "integration and not destructive"
 ```
 
-The live suite includes a GeoJSON file-export round trip (`export_geojson: true`) and a small Auckland travel-time matrix, including an unreachable pair and optional JSON export.
+The live suite includes a GeoJSON file-export round trip (`export_geojson: true`) and a small Auckland travel-time matrix, including a snapped but disconnected pair (Auckland to the Chatham Islands) and optional JSON export.

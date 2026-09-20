@@ -27,6 +27,10 @@ pytestmark = pytest.mark.integration
 AUCKLAND_ADDRESS = "1 Queen Street, Auckland"
 AUCKLAND_LATITUDE = -36.8485
 AUCKLAND_LONGITUDE = 174.7633
+# Waitangi, Chatham Islands: snaps to local roads, no driving-car route to Auckland.
+# Stewart Island is connected in the HeiGIT driving-car graph (about 33 hours).
+CHATHAM_ISLANDS_LATITUDE = -43.951
+CHATHAM_ISLANDS_LONGITUDE = -176.561
 
 
 @pytest.fixture
@@ -200,7 +204,7 @@ class TestGetTravelTimeMatrix:
         assert "attribution" in data
         assert data["files"] == []
 
-    async def test_unreachable_destination_is_null(self, live_context):
+    async def test_disconnected_destination_is_null(self, live_context):
         result = await openrouteservice.execute_action(
             "get_travel_time_matrix",
             {
@@ -209,7 +213,11 @@ class TestGetTravelTimeMatrix:
                 ],
                 "destinations": [
                     {"id": "britomart", "latitude": -36.8443, "longitude": 174.7674},
-                    {"id": "ocean", "latitude": 0.0, "longitude": 0.0},
+                    {
+                        "id": "chatham-islands",
+                        "latitude": CHATHAM_ISLANDS_LATITUDE,
+                        "longitude": CHATHAM_ISLANDS_LONGITUDE,
+                    },
                 ],
             },
             live_context,
@@ -217,8 +225,8 @@ class TestGetTravelTimeMatrix:
         data = _require_provider_success(result)
         by_id = {pair["destination_id"]: pair for pair in data["pairs"]}
         assert isinstance(by_id["britomart"]["duration_seconds"], (int, float))
-        assert by_id["ocean"]["duration_seconds"] is None
-        assert by_id["ocean"]["distance_metres"] is None
+        assert by_id["chatham-islands"]["duration_seconds"] is None
+        assert by_id["chatham-islands"]["distance_metres"] is None
         assert data["unreachable_count"] >= 1
 
     async def test_export_json_is_a_platform_file_without_credentials(self, live_context, env_credentials):
