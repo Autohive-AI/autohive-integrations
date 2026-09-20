@@ -201,11 +201,6 @@
             }
           },
           "unreachable_count": {"type": ["integer", "null"]},
-          "warnings": {
-            "type": "array",
-            "description": "Provider warning objects when the matrix response includes them. Live HeiGIT Matrix usually omits this field; unreachable routes are null durations, not warnings. Empty if absent.",
-            "items": {"type": "object"}
-          },
           "provider_metadata": {"type": ["object", "null"], "description": "Unmodified metadata returned by OpenRouteService, when supplied."},
           "attribution": {"type": ["string", "null"]},
           "engine_version": {"type": ["string", "null"]},

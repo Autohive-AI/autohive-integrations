@@ -771,7 +771,6 @@ def _matrix_provider_body(
     sources=None,
     destinations=None,
     metadata=None,
-    warnings=None,
 ):
     body = {"durations": durations, "metadata": MATRIX_METADATA if metadata is None else metadata}
     if distances is not None:
@@ -780,8 +779,6 @@ def _matrix_provider_body(
         body["sources"] = sources
     if destinations is not None:
         body["destinations"] = destinations
-    if warnings is not None:
-        body["warnings"] = warnings
     return body
 
 
@@ -891,14 +888,11 @@ class TestGetTravelTimeMatrix:
         assert data["pairs"][0]["distance_metres"] == 3210.4
         assert mock_context.fetch.await_args.kwargs["json"]["metrics"] == ["duration", "distance"]
 
-    async def test_returns_provider_warnings_and_engine_metadata(self, mock_context):
+    async def test_returns_engine_metadata_and_omits_warnings(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data=_matrix_provider_body(
-                [[12.0]],
-                warnings=[{"code": 1, "message": "One or more locations could not be routed"}],
-            ),
+            data=_matrix_provider_body([[12.0]]),
         )
 
         data = _action_data(
@@ -909,7 +903,7 @@ class TestGetTravelTimeMatrix:
             )
         )
 
-        assert data["warnings"] == [{"code": 1, "message": "One or more locations could not be routed"}]
+        assert "warnings" not in data
         assert data["attribution"] == "openrouteservice.org, OpenStreetMap contributors"
         assert data["engine_version"] == "8.2.0"
         assert data["build_date"] == "2025-01-02T00:00:00Z"

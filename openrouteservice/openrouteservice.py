@@ -556,41 +556,12 @@ def _optional_snap_list(name: str, value: Any, count: int) -> list[Any] | None:
     return value
 
 
-def _warning_items(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    warnings: list[dict[str, Any]] = []
-    seen: set[tuple[Any, Any]] = set()
-    for item in value:
-        if not isinstance(item, dict):
-            continue
-        code = item.get("code")
-        message = item.get("message")
-        if not isinstance(message, str) or "<" in message:
-            message = None
-        if isinstance(code, bool) or not isinstance(code, (int, str)):
-            code = None
-        if code is None and message is None:
-            continue
-        key = (code, message)
-        if key in seen:
-            continue
-        seen.add(key)
-        entry: dict[str, Any] = {}
-        if code is not None:
-            entry["code"] = code
-        if message is not None:
-            entry["message"] = message
-        warnings.append(entry)
-    return warnings
-
-
 def _parse_matrix_batch(
     body: dict[str, Any],
     origin_chunk: list[dict[str, Any]],
     destination_chunk: list[dict[str, Any]],
     include_distance: bool,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], Any, list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], Any]:
     durations = _require_grid("duration", body.get("durations"), len(origin_chunk), len(destination_chunk))
     distances = None
     if include_distance:
@@ -616,11 +587,7 @@ def _parse_matrix_batch(
     for dest_index, destination in enumerate(destination_chunk):
         provider_dest = destination_snaps[dest_index] if destination_snaps is not None else None
         destinations_out.append(_snap_record(destination, provider_dest))
-    metadata = body.get("metadata")
-    warnings = body.get("warnings")
-    if warnings is None and isinstance(metadata, dict):
-        warnings = metadata.get("warnings")
-    return pairs, origins_out, destinations_out, metadata, _warning_items(warnings)
+    return pairs, origins_out, destinations_out, body.get("metadata")
 
 
 def _matrix_request_payload(
@@ -918,10 +885,8 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
     pair_map: dict[tuple[str, str], dict[str, Any]] = {}
     origin_snaps: dict[str, dict[str, Any]] = {}
     destination_snaps: dict[str, dict[str, Any]] = {}
-    warnings: list[dict[str, Any]] = []
-    warning_keys: set[tuple[Any, Any]] = set()
     provider_metadata: Any = None
-    successful_batches = 0
+    billed_batch = False
 
     for origin_start, origin_end, destination_start, destination_end in _matrix_route_batches(
         len(origins), len(destinations)
@@ -939,7 +904,7 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
                 retry_count=_fetch_retry_count(context),
             )
         except RateLimitError as error:
-            if successful_batches == 0:
+            if not billed_batch:
                 raise
             return ActionResult(
                 data=_error_payload(
@@ -952,7 +917,7 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
                 cost_usd=0.0,
             )
         body = _as_matrix_body(response.data)
-        batch_pairs, batch_origins, batch_destinations, metadata, batch_warnings = _parse_matrix_batch(
+        batch_pairs, batch_origins, batch_destinations, metadata = _parse_matrix_batch(
             body, origin_chunk, destination_chunk, include_distance
         )
         if provider_metadata is None and metadata is not None:
@@ -966,13 +931,7 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
             origin_snaps[record["id"]] = _merge_snap(origin_snaps.get(record["id"]), record)
         for record in batch_destinations:
             destination_snaps[record["id"]] = _merge_snap(destination_snaps.get(record["id"]), record)
-        for warning in batch_warnings:
-            warning_key = (warning.get("code"), warning.get("message"))
-            if warning_key in warning_keys:
-                continue
-            warning_keys.add(warning_key)
-            warnings.append(warning)
-        successful_batches += 1
+        billed_batch = True
 
     expected = [(origin["id"], destination["id"]) for origin in origins for destination in destinations]
     if set(pair_map) != set(expected):
@@ -988,7 +947,6 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
         "destinations": compact_destinations,
         "pairs": pairs,
         "unreachable_count": sum(1 for pair in pairs if pair["duration_seconds"] is None),
-        "warnings": warnings,
         "provider_metadata": provider_metadata,
         "attribution": engine["attribution"],
         "engine_version": engine["engine_version"],
