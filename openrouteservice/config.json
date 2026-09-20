@@ -118,13 +118,13 @@
     },
     "get_travel_time_matrix": {
       "display_name": "Get Travel-Time Matrix",
-      "description": "Return driving durations in seconds, and optional distances in metres, for each labelled origin-destination pair. Unreachable routes are null. Large requests are split into provider-compliant batches. Optionally export compact JSON or CSV.",
+      "description": "Return driving durations in seconds, and optional distances in metres, for each labelled origin-destination pair. Unreachable routes are null. At most 10000 pairs (origins × destinations). Large requests are split into provider-compliant batches. Optionally export compact JSON or CSV.",
       "input_schema": {
         "type": "object",
         "properties": {
           "origins": {
             "type": "array",
-            "description": "Start points. Each item needs a unique caller-defined id plus WGS84 latitude and longitude.",
+            "description": "Start points. Each item needs a unique caller-defined id plus WGS84 latitude and longitude. At most 10000 items. Combined with destinations, at most 10000 origin-destination pairs (invalid_request if the product is larger).",
             "minItems": 1,
             "maxItems": 10000,
             "items": {
@@ -139,7 +139,7 @@
           },
           "destinations": {
             "type": "array",
-            "description": "End points. Each item needs a unique caller-defined id plus WGS84 latitude and longitude.",
+            "description": "End points. Each item needs a unique caller-defined id plus WGS84 latitude and longitude. At most 10000 items. Combined with origins, at most 10000 origin-destination pairs (invalid_request if the product is larger).",
             "minItems": 1,
             "maxItems": 10000,
             "items": {
@@ -201,7 +201,11 @@
             }
           },
           "unreachable_count": {"type": ["integer", "null"]},
-          "warnings": {"type": "array", "items": {"type": "object"}},
+          "warnings": {
+            "type": "array",
+            "description": "Provider warning objects when the matrix response includes them. Live HeiGIT Matrix usually omits this field; unreachable routes are null durations, not warnings. Empty if absent.",
+            "items": {"type": "object"}
+          },
           "provider_metadata": {"type": ["object", "null"], "description": "Unmodified metadata returned by OpenRouteService, when supplied."},
           "attribution": {"type": ["string", "null"]},
           "engine_version": {"type": ["string", "null"]},

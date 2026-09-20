@@ -403,6 +403,13 @@ def _csv_cell(value: Any) -> str:
     return json.dumps(value, allow_nan=False)
 
 
+def _csv_formula_safe(value: str) -> str:
+    """Prefix spreadsheet formula markers so Excel/Sheets treat the cell as text."""
+    if value[:1] in {"=", "+", "-", "@"}:
+        return f"'{value}"
+    return value
+
+
 def _labelled_locations(raw: Any, *, field: str) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         raise MatrixInputError(f"{field} must be a list of labelled coordinates.", field)
@@ -642,8 +649,8 @@ def _matrix_export_csv(pairs: list[dict[str, Any]]) -> dict[str, str] | None:
         for pair in pairs:
             writer.writerow(
                 [
-                    pair["origin_id"],
-                    pair["destination_id"],
+                    _csv_formula_safe(pair["origin_id"]),
+                    _csv_formula_safe(pair["destination_id"]),
                     _csv_cell(pair.get("duration_seconds")),
                     _csv_cell(pair.get("distance_metres")),
                 ]

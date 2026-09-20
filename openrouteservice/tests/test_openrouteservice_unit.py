@@ -1161,6 +1161,34 @@ class TestGetTravelTimeMatrix:
         assert lines[1] == "home,work,,"
         assert "home,shop,12.5,100.25" in lines[2]
 
+    async def test_csv_export_neutralizes_formula_prefixed_ids(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=_matrix_provider_body([[1.0, 2.0, 3.0, 4.0]]),
+        )
+        inputs = {
+            "origins": [{"id": "=cmd", "latitude": -36.8485, "longitude": 174.7633}],
+            "destinations": [
+                {"id": "+work", "latitude": -36.8509, "longitude": 174.7648},
+                {"id": "-shop", "latitude": -36.8524, "longitude": 174.7701},
+                {"id": "@depot", "latitude": -36.8490, "longitude": 174.7620},
+                {"id": "plain", "latitude": -36.8510, "longitude": 174.7660},
+            ],
+            "export_format": "csv",
+        }
+
+        data = _action_data(await openrouteservice.execute_action("get_travel_time_matrix", inputs, mock_context))
+
+        assert [pair["origin_id"] for pair in data["pairs"]] == ["=cmd", "=cmd", "=cmd", "=cmd"]
+        assert [pair["destination_id"] for pair in data["pairs"]] == ["+work", "-shop", "@depot", "plain"]
+        csv_text = base64.b64decode(data["files"][0]["content"]).decode("utf-8")
+        lines = [line for line in csv_text.strip().splitlines() if line]
+        assert lines[1] == "'=cmd,'+work,1.0,"
+        assert lines[2] == "'=cmd,'-shop,2.0,"
+        assert lines[3] == "'=cmd,'@depot,3.0,"
+        assert lines[4] == "'=cmd,plain,4.0,"
+
     async def test_export_serialization_failure_keeps_compact_result(self, mock_context, monkeypatch):
         import sys
 
