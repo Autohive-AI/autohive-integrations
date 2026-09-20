@@ -118,7 +118,7 @@
     },
     "get_travel_time_matrix": {
       "display_name": "Get Travel-Time Matrix",
-      "description": "Return driving durations in seconds, and optional distances in metres, for each labelled origin-destination pair. Unreachable routes are null. At most 10000 pairs (origins × destinations). Large requests are split into provider-compliant batches. Optionally export compact JSON or CSV.",
+      "description": "Return driving durations in seconds, and optional distances in metres, for each labelled origin-destination pair. Unreachable routes are null. At most 10000 pairs (origins × destinations). Large requests are split into provider-compliant batches. Optionally export compact JSON.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -165,8 +165,8 @@
           },
           "export_format": {
             "type": "string",
-            "enum": ["json", "csv"],
-            "description": "If set, also return the compact matrix as a platform file in files (name, contentType, base64 content)."
+            "enum": ["json"],
+            "description": "If json, also return the compact matrix as a platform file in files (name, contentType, base64 content)."
           }
         },
         "required": ["origins", "destinations"]
@@ -201,7 +201,10 @@
             }
           },
           "unreachable_count": {"type": ["integer", "null"]},
-          "provider_metadata": {"type": ["object", "null"], "description": "Unmodified metadata returned by OpenRouteService, when supplied."},
+          "provider_metadata": {
+            "type": ["object", "null"],
+            "description": "OpenRouteService metadata when supplied. If the matrix was split across provider calls, query, timestamp, and id are omitted because they describe only one chunk."
+          },
           "attribution": {"type": ["string", "null"]},
           "engine_version": {"type": ["string", "null"]},
           "build_date": {"type": ["string", "null"]},
@@ -209,7 +212,7 @@
           "osm_date": {"type": ["string", "null"]},
           "files": {
             "type": "array",
-            "description": "Platform file objects when export_format is json or csv.",
+            "description": "Platform file objects when export_format is json.",
             "items": {
               "type": "object",
               "properties": {

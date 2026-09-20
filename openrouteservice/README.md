@@ -54,7 +54,7 @@ Returns driving durations, and optional distances, for every labelled origin–d
 - `origins`, `destinations` (array, required) — each item is `{id, latitude, longitude}`. IDs are caller-defined strings and must be unique within origins and within destinations. The same id may appear once as an origin and once as a destination. Each list is at most 10,000 items. The product `origins × destinations` must be at most 10,000 pairs or the action returns `invalid_request` (schema `maxItems` applies to each list separately).
 - `travel_mode` (optional) — v1 supports `driving-car` only.
 - `include_distance` (optional, default false) — if true, also return road-network distances in metres.
-- `export_format` (optional) — `json` or `csv`. If omitted, return the compact result only.
+- `export_format` (optional) — `json`. If omitted, return the compact result only.
 
 The action accepts at most 10,000 origin–destination pairs. OpenRouteService allows 3,500 routes per HTTP call; larger matrices are split automatically, then reassembled and checked so each pair appears exactly once.
 
@@ -63,8 +63,8 @@ The action accepts at most 10,000 origin–destination pairs. OpenRouteService a
 - `pairs` — origin-major, destination-minor objects with `origin_id`, `destination_id`, unrounded `duration_seconds`, and `distance_metres` (null when distance was not requested or the route is unreachable). Unreachable, unsnappable, infinite, or NaN values are `null`, not `0`. A true zero-time route stays `0`.
 - `origins` / `destinations` — requested coordinates in input order, plus provider snapping (`snapped_latitude`, `snapped_longitude`, `snapped_distance_metres`, optional street `name`) when supplied.
 - `unreachable_count` — number of pairs whose duration is null.
-- `provider_metadata`, `attribution`, `engine_version`, `build_date`, `graph_date`, `osm_date` — copied from provider metadata when supplied. The HeiGIT matrix endpoint does not return a `warnings` array; unreachable routes are `null` durations in `pairs`.
-- `files` — empty unless `export_format` is set. JSON is the compact payload without `files` or credentials. CSV columns are `origin_id,destination_id,duration_seconds,distance_metres` with empty cells for nulls. IDs that start with `=`, `+`, `-`, or `@` are prefixed with `'` in the CSV only, so spreadsheets do not treat them as formulas; compact JSON keeps the original IDs. Serialization failure omits `files` and still returns the compact result.
+- `provider_metadata`, `attribution`, `engine_version`, `build_date`, `graph_date`, `osm_date` — copied from provider metadata when supplied. If the matrix was split across more than one provider call, `query`, `timestamp`, and `id` are omitted because they describe only one chunk; attribution and engine fields still come from that metadata. The HeiGIT matrix endpoint does not return a `warnings` array; unreachable routes are `null` durations in `pairs`.
+- `files` — empty unless `export_format` is `json`. The file is the compact payload without `files` or credentials. Serialization failure omits `files` and still returns the compact result.
 
 ## Errors and rate limits
 

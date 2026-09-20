@@ -992,6 +992,7 @@ class TestGetTravelTimeMatrix:
             {"origins": [{**MATRIX_ORIGIN, "latitude": 91}], "destinations": [MATRIX_DEST_A]},
             {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A], "travel_mode": "cycling-regular"},
             {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A], "export_format": "xlsx"},
+            {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A], "export_format": "csv"},
         ]
         for inputs in cases:
             result = await openrouteservice.execute_action("get_travel_time_matrix", inputs, mock_context)
@@ -1011,6 +1012,12 @@ class TestGetTravelTimeMatrix:
                     [[10.5, 20.25]],
                     sources=[_snap(174.7633, -36.8485, 1.0)],
                     destinations=[_snap(174.7648, -36.8509, 2.0), _snap(174.7701, -36.8524, 3.0)],
+                    metadata={
+                        **MATRIX_METADATA,
+                        "id": "chunk-1",
+                        "timestamp": 1549549847974,
+                        "query": {"locations": [[174.7633, -36.8485]], "sources": ["0"], "destinations": ["1", "2"]},
+                    },
                 ),
             ),
             FetchResponse(
@@ -1042,6 +1049,36 @@ class TestGetTravelTimeMatrix:
         assert data["origins"][0]["id"] == "home"
         assert data["origins"][1]["id"] == "depot"
         assert data["destinations"][0]["id"] == "work"
+        assert data["provider_metadata"]["service"] == "matrix"
+        assert "query" not in data["provider_metadata"]
+        assert "timestamp" not in data["provider_metadata"]
+        assert "id" not in data["provider_metadata"]
+        assert data["engine_version"] == "8.2.0"
+
+    async def test_single_batch_keeps_provider_query_metadata(self, mock_context):
+        metadata = {
+            **MATRIX_METADATA,
+            "id": "req-1",
+            "timestamp": 1549549847974,
+            "query": {"locations": [[174.7633, -36.8485]], "sources": ["0"], "destinations": ["1"]},
+        }
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=_matrix_provider_body([[1.0]], metadata=metadata),
+        )
+
+        data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix",
+                {"origins": [MATRIX_ORIGIN], "destinations": [MATRIX_DEST_A]},
+                mock_context,
+            )
+        )
+
+        assert data["provider_metadata"]["query"] == metadata["query"]
+        assert data["provider_metadata"]["timestamp"] == 1549549847974
+        assert data["provider_metadata"]["id"] == "req-1"
 
     async def test_conflicting_origin_snaps_across_batches_are_provider_error(self, mock_context, monkeypatch):
         import sys
@@ -1141,7 +1178,7 @@ class TestGetTravelTimeMatrix:
             (origin_index, destination_index) for origin_index in range(5) for destination_index in range(5)
         }
 
-    async def test_export_json_and_csv_are_platform_files_without_credentials(self, mock_context):
+    async def test_export_json_is_a_platform_file_without_credentials(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
@@ -1151,13 +1188,10 @@ class TestGetTravelTimeMatrix:
             "origins": [MATRIX_ORIGIN],
             "destinations": [MATRIX_DEST_A, MATRIX_DEST_B],
             "include_distance": True,
+            "export_format": "json",
         }
 
-        json_data = _action_data(
-            await openrouteservice.execute_action(
-                "get_travel_time_matrix", {**inputs, "export_format": "json"}, mock_context
-            )
-        )
+        json_data = _action_data(await openrouteservice.execute_action("get_travel_time_matrix", inputs, mock_context))
         json_file = json_data["files"][0]
         assert json_file["name"] == "travel_time_matrix.json"
         assert json_file["contentType"] == "application/json"
@@ -1166,49 +1200,6 @@ class TestGetTravelTimeMatrix:
         assert "files" not in exported
         assert "test-key" not in json_file["content"]
         assert "Authorization" not in json_file["content"]
-
-        csv_data = _action_data(
-            await openrouteservice.execute_action(
-                "get_travel_time_matrix", {**inputs, "export_format": "csv"}, mock_context
-            )
-        )
-        csv_file = csv_data["files"][0]
-        assert csv_file["name"] == "travel_time_matrix.csv"
-        assert csv_file["contentType"] == "text/csv"
-        csv_text = base64.b64decode(csv_file["content"]).decode("utf-8")
-        assert "test-key" not in csv_text
-        lines = [line for line in csv_text.strip().splitlines() if line]
-        assert lines[0] == "origin_id,destination_id,duration_seconds,distance_metres"
-        assert lines[1] == "home,work,,"
-        assert "home,shop,12.5,100.25" in lines[2]
-
-    async def test_csv_export_neutralizes_formula_prefixed_ids(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200,
-            headers={},
-            data=_matrix_provider_body([[1.0, 2.0, 3.0, 4.0]]),
-        )
-        inputs = {
-            "origins": [{"id": "=cmd", "latitude": -36.8485, "longitude": 174.7633}],
-            "destinations": [
-                {"id": "+work", "latitude": -36.8509, "longitude": 174.7648},
-                {"id": "-shop", "latitude": -36.8524, "longitude": 174.7701},
-                {"id": "@depot", "latitude": -36.8490, "longitude": 174.7620},
-                {"id": "plain", "latitude": -36.8510, "longitude": 174.7660},
-            ],
-            "export_format": "csv",
-        }
-
-        data = _action_data(await openrouteservice.execute_action("get_travel_time_matrix", inputs, mock_context))
-
-        assert [pair["origin_id"] for pair in data["pairs"]] == ["=cmd", "=cmd", "=cmd", "=cmd"]
-        assert [pair["destination_id"] for pair in data["pairs"]] == ["+work", "-shop", "@depot", "plain"]
-        csv_text = base64.b64decode(data["files"][0]["content"]).decode("utf-8")
-        lines = [line for line in csv_text.strip().splitlines() if line]
-        assert lines[1] == "'=cmd,'+work,1.0,"
-        assert lines[2] == "'=cmd,'-shop,2.0,"
-        assert lines[3] == "'=cmd,'@depot,3.0,"
-        assert lines[4] == "'=cmd,plain,4.0,"
 
     async def test_export_serialization_failure_keeps_compact_result(self, mock_context, monkeypatch):
         import sys

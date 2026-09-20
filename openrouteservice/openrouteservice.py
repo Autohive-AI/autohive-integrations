@@ -1,8 +1,6 @@
 """OpenRouteService geocoding, isochrone, and travel-time matrix actions."""
 
 import base64
-import csv
-import io
 import json
 import math
 from typing import Any
@@ -38,6 +36,7 @@ MATRIX_TIMEOUT_SECONDS = 90
 # Public HeiGIT matrix limit is 3500 routes (sources × destinations) per request.
 MATRIX_MAX_ROUTES = 3500
 MATRIX_MAX_PAIRS = 10000
+_BATCHED_METADATA_OMIT = frozenset({"query", "timestamp", "id"})
 _POLYGON_TYPES = {"Polygon", "MultiPolygon"}
 _RETRY_SAFE_ERRORS = {"rate_limit", "request_failed"}
 _ERROR_RECOVERY = {
@@ -395,21 +394,6 @@ def _finite_or_none(value: Any) -> float | None:
     return number
 
 
-def _csv_cell(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return str(value)
-    return json.dumps(value, allow_nan=False)
-
-
-def _csv_formula_safe(value: str) -> str:
-    """Prefix spreadsheet formula markers so Excel/Sheets treat the cell as text."""
-    if value[:1] in {"=", "+", "-", "@"}:
-        return f"'{value}"
-    return value
-
-
 def _labelled_locations(raw: Any, *, field: str) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         raise MatrixInputError(f"{field} must be a list of labelled coordinates.", field)
@@ -607,38 +591,15 @@ def _matrix_request_payload(
     }
 
 
-def _matrix_export_csv(pairs: list[dict[str, Any]]) -> dict[str, str] | None:
+def _matrix_export_file(compact: dict[str, Any]) -> dict[str, str] | None:
     try:
-        buffer = io.StringIO()
-        writer = csv.writer(buffer, lineterminator="\n")
-        writer.writerow(["origin_id", "destination_id", "duration_seconds", "distance_metres"])
-        for pair in pairs:
-            writer.writerow(
-                [
-                    _csv_formula_safe(pair["origin_id"]),
-                    _csv_formula_safe(pair["destination_id"]),
-                    _csv_cell(pair.get("duration_seconds")),
-                    _csv_cell(pair.get("distance_metres")),
-                ]
-            )
-        return _platform_file("travel_time_matrix.csv", "text/csv", buffer.getvalue())
+        return _platform_file(
+            "travel_time_matrix.json",
+            "application/json",
+            json.dumps(compact, allow_nan=False),
+        )
     except (TypeError, ValueError):
         return None
-
-
-def _matrix_export_file(export_format: str, compact: dict[str, Any]) -> dict[str, str] | None:
-    if export_format == "json":
-        try:
-            return _platform_file(
-                "travel_time_matrix.json",
-                "application/json",
-                json.dumps(compact, allow_nan=False),
-            )
-        except (TypeError, ValueError):
-            return None
-    if export_format == "csv":
-        return _matrix_export_csv(compact.get("pairs") or [])
-    return None
 
 
 def _normalize_isochrone_geojson(geojson: dict[str, Any], requested_minutes: list[int]) -> dict[str, Any]:
@@ -886,10 +847,9 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
     destination_snaps: dict[str, dict[str, Any]] = {}
     provider_metadata: Any = None
     billed_batch = False
+    batches = _matrix_route_batches(len(origins), len(destinations))
 
-    for origin_start, origin_end, destination_start, destination_end in _matrix_route_batches(
-        len(origins), len(destinations)
-    ):
+    for origin_start, origin_end, destination_start, destination_end in batches:
         origin_chunk = origins[origin_start:origin_end]
         destination_chunk = destinations[destination_start:destination_end]
         payload = _matrix_request_payload(origin_chunk, destination_chunk, include_distance)
@@ -938,6 +898,10 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
     pairs = [pair_map[key] for key in expected]
     compact_origins = [origin_snaps[origin["id"]] for origin in origins]
     compact_destinations = [destination_snaps[destination["id"]] for destination in destinations]
+    if len(batches) > 1 and isinstance(provider_metadata, dict):
+        provider_metadata = {
+            key: value for key, value in provider_metadata.items() if key not in _BATCHED_METADATA_OMIT
+        }
     engine = _engine_fields(provider_metadata)
     compact = {
         "profile": profile,
@@ -954,8 +918,8 @@ async def _execute_travel_time_matrix(inputs: dict[str, Any], context: Execution
         "osm_date": engine["osm_date"],
     }
     files: list[dict[str, str]] = []
-    if export_format in {"json", "csv"}:
-        exported = _matrix_export_file(export_format, compact)
+    if export_format == "json":
+        exported = _matrix_export_file(compact)
         if exported is not None:
             files.append(exported)
     return ActionResult(
