@@ -286,7 +286,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Shopify Admin
 
-[shopify-admin](shopify-admin): Integrates with the Shopify Admin API for backend store management. Currently enables comprehensive customer lifecycle management including searching, creating, updating, and deleting customer records via the GraphQL API.
+[shopify-admin](shopify-admin): Connects Autohive to Shopify's GraphQL Admin API for backend store management. Includes 25 actions covering customers, orders, products and variants, inventory levels, locations, shop details, draft orders, and fulfillments. Supports listing and retrieving resources, customer search and management, product creation and updates, inventory changes, order creation and cancellation, draft-order management, and fulfillment tracking. Uses credentials from a merchant-owned Shopify app through Shopify's client credentials grant.
 
 ### Shopify Storefront
 
