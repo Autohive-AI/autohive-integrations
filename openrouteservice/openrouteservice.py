@@ -424,7 +424,6 @@ def _labelled_locations(raw: Any, *, field: str) -> list[dict[str, Any]]:
         ident = item.get("id")
         if not isinstance(ident, str) or not ident.strip():
             raise MatrixInputError(f"Each {field} entry needs a non-empty id.", field)
-        ident = ident.strip()
         if ident in seen:
             raise MatrixInputError(f"Duplicate {field} id '{ident}'.", field)
         seen.add(ident)

@@ -934,6 +934,33 @@ class TestGetTravelTimeMatrix:
         assert blank_data["field"] == "origins"
         mock_context.fetch.assert_not_called()
 
+    async def test_preserves_caller_id_whitespace_and_treats_padded_ids_as_distinct(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data=_matrix_provider_body([[1.0, 2.0]]),
+        )
+
+        data = _action_data(
+            await openrouteservice.execute_action(
+                "get_travel_time_matrix",
+                {
+                    "origins": [{"id": "site ", "latitude": -36.8485, "longitude": 174.7633}],
+                    "destinations": [
+                        {"id": "site", "latitude": -36.8509, "longitude": 174.7648},
+                        {"id": " site", "latitude": -36.8524, "longitude": 174.7701},
+                    ],
+                },
+                mock_context,
+            )
+        )
+
+        assert data["result"] is True
+        assert [pair["origin_id"] for pair in data["pairs"]] == ["site ", "site "]
+        assert [pair["destination_id"] for pair in data["pairs"]] == ["site", " site"]
+        assert data["origins"][0]["id"] == "site "
+        assert [destination["id"] for destination in data["destinations"]] == ["site", " site"]
+
     async def test_pair_count_over_cap_is_invalid_request(self, mock_context, monkeypatch):
         import sys
 
