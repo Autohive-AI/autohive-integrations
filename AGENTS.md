@@ -47,7 +47,6 @@ ruff format <integration-name>
   - Examples: `feat/42/add-slack-reactions`, `fix/108/gmail-empty-attachments`, `docs/55/update-readme`
   - The `<type>` prefix should match conventional commit types.
 
-
 ### History
 
 - **Do not force-push** unless absolutely necessary. Add new commits to the branch instead of rewriting history.

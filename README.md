@@ -286,7 +286,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Shopify Admin
 
-[shopify-admin](shopify-admin): Integrates with the Shopify Admin API for backend store management. Currently enables comprehensive customer lifecycle management including searching, creating, updating, and deleting customer records via the GraphQL API.
+[shopify-admin](shopify-admin): Connects Autohive to Shopify's GraphQL Admin API for backend store management. Includes 25 actions covering customers, orders, products and variants, inventory levels, locations, shop details, draft orders, and fulfillments. Supports listing and retrieving resources, customer search and management, product creation and updates, inventory changes, order creation and cancellation, draft-order management, and fulfillment tracking. Uses credentials from a merchant-owned Shopify app through Shopify's client credentials grant.
 
 ### Shopify Storefront
 
@@ -356,7 +356,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Stats NZ Datafinder
 
-[stats-nz-datafinder](stats-nz-datafinder): Read-only access to Stats NZ Geographic Data Service layers through Datafinder’s Koordinates API and WFS services. Supports scoped queries by WGS84 polygon, point, bbox, or attribute filter, returning compact attribute records (geometry omitted unless requested) with area-weighted overlap for polygon clips. Also returns citation-ready layer metadata (vintage, licence and attribution) and public vector-layer discovery. Uses a Datafinder API key. Includes 3 actions. Ideal for catchment, census, and other NZ geographic analysis workflows.
+[stats-nz-datafinder](stats-nz-datafinder): Read-only access to Stats NZ Geographic Data Service layers through Datafinder’s Koordinates API and WFS services. Supports scoped queries by WGS84 polygon, point, bbox, Polygon/MultiPolygon GeoJSON file, or attribute filter, returning compact attribute records (geometry omitted unless requested) with area-weighted overlap for polygon clips. Query Layer can export retrieved features as a platform GeoJSON file. Query Area Statistics returns compact area-weighted additive Census totals for a catchment polygon (inline or from a GeoJSON file) without dumping raw SA1 records. Also returns citation-ready layer metadata (vintage, licence, attribution, codebook field titles) and public vector-layer discovery. Uses a Datafinder API key. Includes 4 actions. Ideal for catchment, census, and other NZ geographic analysis workflows.
 
 ### Code Analysis
 
@@ -397,7 +397,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### OpenRouteService
 
-[openrouteservice](openrouteservice): Geocode addresses and create exact drive-time isochrone GeoJSON polygons through OpenRouteService. Uses an API-key connection, defaults address searches to New Zealand, flags low-confidence matches for human confirmation, and returns rate-limit retry guidance for spatial catchment workflows.
+[openrouteservice](openrouteservice): Geocode addresses, create exact drive-time isochrone GeoJSON polygons, and calculate labelled road-network travel-time matrices through OpenRouteService. Uses an API-key connection, defaults address searches to New Zealand, flags low-confidence matches for human confirmation, and returns rate-limit retry guidance for spatial catchment workflows.
 
 ## Template
 

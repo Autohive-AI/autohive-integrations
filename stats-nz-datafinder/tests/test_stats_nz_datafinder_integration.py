@@ -13,6 +13,8 @@ Never runs in CI — the default marker filter (-m unit) and the
 test_*_integration.py naming both exclude it.
 """
 
+import base64
+import json
 import os
 from unittest.mock import AsyncMock, MagicMock
 
@@ -20,12 +22,12 @@ import aiohttp
 import pytest
 import pytest_asyncio
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
-
 from stats_nz_datafinder import stats_nz_datafinder
 
 pytestmark = pytest.mark.integration
 
 TEST_LAYER_ID = os.environ.get("STATS_NZ_DATAFINDER_TEST_LAYER_ID", "")
+CENSUS_SA1_LAYER_ID = 120766
 WELLINGTON = {
     "type": "Polygon",
     "coordinates": [
@@ -38,6 +40,18 @@ WELLINGTON = {
         ]
     ],
 }
+
+
+def _wellington_geojson_file() -> dict:
+    payload = {
+        "type": "FeatureCollection",
+        "features": [{"type": "Feature", "geometry": WELLINGTON, "properties": {}}],
+    }
+    return {
+        "name": "catchments.geojson",
+        "contentType": "application/geo+json",
+        "content": base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii"),
+    }
 
 
 @pytest_asyncio.fixture
@@ -158,3 +172,133 @@ class TestQueryLayerByGeometry:
             area = record["feature_area_sq_km"]
             if area is not None:
                 assert area >= 0
+
+    async def test_export_geojson_returns_feature_collection_file(self, live_context):
+        layer_id = await _layer_id(live_context)
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {
+                "layer_id": layer_id,
+                "geometry": WELLINGTON,
+                "page_size": 50,
+                "max_pages": 20,
+                "export_geojson": True,
+            },
+            live_context,
+        )
+        if result.type == ResultType.ACTION_ERROR and "incomplete_pagination" in str(result.result.message):
+            pytest.skip("Wellington clip exceeds page cap on this layer")
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        exported_file = data["files"][0]
+        assert exported_file["name"] == f"layer-{layer_id}-query.geojson"
+        assert exported_file["contentType"] == "application/geo+json"
+        exported = json.loads(base64.b64decode(exported_file["content"]))
+        assert exported["type"] == "FeatureCollection"
+        assert len(exported["features"]) == data["record_count"]
+        if exported["features"]:
+            feature = exported["features"][0]
+            assert feature["type"] == "Feature"
+            assert "overlap_fraction" in feature["properties"]
+            assert "geometry" in feature
+            assert "geometry" not in data["records"][0]
+
+    async def test_scopes_query_from_geojson_file(self, live_context):
+        layer_id = await _layer_id(live_context)
+        geojson_file = _wellington_geojson_file()
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": layer_id, "file": geojson_file, "page_size": 5, "max_pages": 1},
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        source = data["geometry_source"]
+        assert source["name"] == "catchments.geojson"
+        assert source["feature_index"] == 0
+        assert "coordinates" not in source
+        if data["records"]:
+            assert "geometry" not in data["records"][0]
+
+
+async def _census_count_field(live_context) -> tuple[int, dict]:
+    layer_id = CENSUS_SA1_LAYER_ID
+    metadata = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": layer_id}, live_context)
+    if metadata.type != ResultType.ACTION:
+        pytest.skip(f"Census SA1 layer {layer_id} is not available")
+    count_fields = [
+        field
+        for field in metadata.result.data.get("fields", [])
+        if isinstance(field, dict)
+        and field.get("coded")
+        and isinstance(field.get("name"), str)
+        and str(field.get("measure") or "").strip().lower() == "count"
+    ]
+    if not count_fields:
+        pytest.skip(f"Layer {layer_id} has no codebook Count fields")
+    count_field = next(
+        (field for field in count_fields if field["name"] == "VAR_1_3"),
+        count_fields[0],
+    )
+    return layer_id, count_field
+
+
+def _population_measure(count_field: dict) -> dict:
+    return {
+        "key": "population",
+        "label": count_field.get("title") or "Census count",
+        "field": count_field["name"],
+        "unit": "count",
+        "aggregation": "additive_count",
+    }
+
+
+class TestQueryAreaStatistics:
+    async def test_returns_compact_totals_for_wellington_polygon(self, live_context):
+        layer_id, count_field = await _census_count_field(live_context)
+        result = await stats_nz_datafinder.execute_action(
+            "query_area_statistics",
+            {
+                "layer_id": layer_id,
+                "geometry": WELLINGTON,
+                "measures": [_population_measure(count_field)],
+                "page_size": 50,
+                "max_pages": 20,
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["layer"]["layer_id"] == layer_id
+        assert len(data["results"]) == 1
+        row = data["results"][0]
+        assert row["field"] == count_field["name"]
+        assert row["status"] in {"ok", "partial", "unavailable"}
+        assert data["validation_status"] == row["status"]
+        if row["estimated_value"] is not None:
+            assert row["estimated_value"] >= 0
+        assert data["geography_summary"]["intersecting_feature_count"] >= 0
+
+    async def test_returns_compact_totals_from_geojson_file(self, live_context):
+        layer_id, count_field = await _census_count_field(live_context)
+        geojson_file = _wellington_geojson_file()
+        result = await stats_nz_datafinder.execute_action(
+            "query_area_statistics",
+            {
+                "layer_id": layer_id,
+                "file": geojson_file,
+                "measures": [_population_measure(count_field)],
+                "page_size": 50,
+                "max_pages": 20,
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        source = data["geometry_source"]
+        assert source["name"] == "catchments.geojson"
+        assert source["feature_index"] == 0
+        assert "coordinates" not in source
+        assert "geometry" not in data
+        if data["results"][0]["estimated_value"] is not None:
+            assert data["results"][0]["estimated_value"] >= 0

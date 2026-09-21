@@ -1,6 +1,6 @@
 {
   "name": "stats-nz-datafinder",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "display_name": "Stats NZ Datafinder",
   "description": "Queries Stats NZ Datafinder WFS layers and exposes layer metadata for geographic analysis.",
   "entry_point": "stats_nz_datafinder.py",
@@ -25,7 +25,7 @@
   "actions": {
     "query_layer_by_geometry": {
       "display_name": "Query Layer",
-      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (area-weighted overlap), a Point (containing feature, no area-weighting), a bbox, and/or attribute filters. Census VAR_* columns are omitted unless listed in fields or include_coded_fields is true. Use ieq (not contains) for an exact area name. Geometry is omitted unless include_geometry is true. Unscoped national scans are rejected.",
+      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (inline or file), a Point, a bbox, and/or attribute filters. Census VAR_* columns are omitted unless listed in fields or include_coded_fields is true. Use ieq (not contains) for an exact area name. Geometry is omitted unless include_geometry is true. export_geojson returns all retrieved features as a platform GeoJSON file after a complete query. Unscoped national scans are rejected.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -36,7 +36,7 @@
           },
           "geometry": {
             "type": "object",
-            "description": "RFC 7946 WGS84 Point, Polygon, or MultiPolygon. Point = 'what is here'; Polygon = catchment clip with overlap_fraction.",
+            "description": "RFC 7946 WGS84 Point, Polygon, or MultiPolygon. Point = 'what is here'; Polygon = catchment clip with overlap_fraction. Do not send with file or bbox.",
             "properties": {
               "type": {
                 "type": "string",
@@ -49,9 +49,49 @@
             "required": ["type", "coordinates"],
             "additionalProperties": false
           },
+          "file": {
+            "type": "object",
+            "format": "file",
+            "description": "Platform GeoJSON file (FeatureCollection, Feature, or Polygon/MultiPolygon), at most 5 MB decoded. Alternative to inline geometry for large catchments. Do not send with geometry or bbox.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The name of the file"
+              },
+              "content": {
+                "type": "string",
+                "description": "The file content encoded as base64"
+              },
+              "contentType": {
+                "type": "string",
+                "description": "The content type of the file"
+              }
+            },
+            "required": ["content", "name", "contentType"]
+          },
+          "feature_index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0-based index into the original GeoJSON features array, including points and lines. Required when the file has more than one Polygon/MultiPolygon unless feature_filter is set."
+          },
+          "feature_filter": {
+            "type": "object",
+            "description": "Select exactly one feature by property equality. Required when the file has more than one Polygon/MultiPolygon unless feature_index is set. 30 matches 30.0; the string '30' does not match the number 30.",
+            "properties": {
+              "property": {
+                "type": "string",
+                "minLength": 1
+              },
+              "equals": {
+                "type": ["string", "number", "boolean"]
+              }
+            },
+            "required": ["property", "equals"],
+            "additionalProperties": false
+          },
           "bbox": {
             "type": "array",
-            "description": "WGS84 bounding box [west, south, east, north]. Alternative to geometry; do not send both. Longitudes outside [-180, 180] (e.g. Datafinder east=184.5) are wrapped; a box that crosses 180° is split.",
+            "description": "WGS84 bounding box [west, south, east, north]. Alternative to geometry or file; do not send with either. Longitudes outside [-180, 180] (e.g. Datafinder east=184.5) are wrapped; a box that crosses 180° is split.",
             "minItems": 4,
             "maxItems": 4,
             "items": { "type": "number" }
@@ -96,6 +136,11 @@
             "type": "boolean",
             "default": false,
             "description": "If true, include each feature's GeoJSON geometry. Default false."
+          },
+          "export_geojson": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, return all retrieved features as a platform GeoJSON FeatureCollection file (name, contentType, base64 content) after the query completes. Fails closed if pagination is incomplete. Default false."
           },
           "page_size": {
             "type": "integer",
@@ -153,7 +198,29 @@
           },
           "data_vintage": { "type": ["string", "null"] },
           "licence": { "type": ["string", "null"] },
-          "attribution": { "type": ["string", "null"] }
+          "attribution": { "type": ["string", "null"] },
+          "geometry_source": {
+            "type": "object",
+            "description": "Present when geometry was loaded from file. Does not include coordinates.",
+            "properties": {
+              "name": { "type": ["string", "null"] },
+              "feature_index": { "type": ["integer", "null"] },
+              "matched_properties": { "type": "object" }
+            }
+          },
+          "files": {
+            "type": "array",
+            "description": "Present when export_geojson is true. One platform GeoJSON FeatureCollection file.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": { "type": "string" },
+                "contentType": { "type": "string" },
+                "content": { "type": "string", "description": "The file content encoded as base64" }
+              },
+              "required": ["name", "contentType", "content"]
+            }
+          }
         },
         "required": [
           "records",
@@ -169,9 +236,231 @@
         ]
       }
     },
+    "query_area_statistics": {
+      "display_name": "Query Area Statistics",
+      "description": "Given a WGS84 Polygon or MultiPolygon (inline geometry or file) and explicitly configured additive Census counts, return compact area-weighted totals. Does not return SA1 rows; use Query Layer for individual records.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "layer_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Numeric Datafinder layer ID, e.g. a Census SA1 layer."
+          },
+          "geometry": {
+            "type": "object",
+            "description": "RFC 7946 WGS84 Polygon or MultiPolygon catchment clip. Do not send with file.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["Polygon", "MultiPolygon"]
+              },
+              "coordinates": {
+                "type": "array"
+              }
+            },
+            "required": ["type", "coordinates"],
+            "additionalProperties": false
+          },
+          "file": {
+            "type": "object",
+            "format": "file",
+            "description": "Platform GeoJSON file (FeatureCollection, Feature, or Polygon/MultiPolygon), at most 5 MB decoded. Alternative to inline geometry for large catchments. Do not send with geometry.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The name of the file"
+              },
+              "content": {
+                "type": "string",
+                "description": "The file content encoded as base64"
+              },
+              "contentType": {
+                "type": "string",
+                "description": "The content type of the file"
+              }
+            },
+            "required": ["content", "name", "contentType"]
+          },
+          "feature_index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0-based index into the original GeoJSON features array, including points and lines. Required when the file has more than one Polygon/MultiPolygon unless feature_filter is set."
+          },
+          "feature_filter": {
+            "type": "object",
+            "description": "Select exactly one feature by property equality. Required when the file has more than one Polygon/MultiPolygon unless feature_index is set. 30 matches 30.0; the string '30' does not match the number 30.",
+            "properties": {
+              "property": {
+                "type": "string",
+                "minLength": 1
+              },
+              "equals": {
+                "type": ["string", "number", "boolean"]
+              }
+            },
+            "required": ["property", "equals"],
+            "additionalProperties": false
+          },
+          "measures": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "description": "Additive Census counts to area-weight. Each field must exist in current layer metadata.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "description": "Stable caller-defined result key."
+                },
+                "label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "description": "Human-readable label for reports."
+                },
+                "field": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                  "description": "Exact Datafinder field identifier."
+                },
+                "unit": {
+                  "type": "string",
+                  "enum": ["count"],
+                  "description": "Expected unit. Only count is supported."
+                },
+                "aggregation": {
+                  "type": "string",
+                  "enum": ["additive_count"],
+                  "description": "Only additive_count is supported. Medians, rates, percentages, and indexes are rejected."
+                }
+              },
+              "required": ["key", "label", "field", "unit", "aggregation"],
+              "additionalProperties": false
+            }
+          },
+          "missing_values": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "default": [-999, -997],
+            "description": "Numeric sentinels treated as unavailable, never as zero. Default includes -999 (confidential) and -997 (not available).",
+            "items": { "type": "number" }
+          },
+          "max_source_features": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20000,
+            "default": 10000,
+            "description": "Fail closed when more unique intersecting features than this limit are matched."
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50,
+            "description": "Maximum features per WFS page. Same bounds as Query Layer."
+          },
+          "max_pages": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 100,
+            "description": "Maximum WFS pages. Defaults to 100 so typical catchments complete. Incomplete pagination fails closed."
+          }
+        },
+        "required": ["layer_id", "measures"],
+        "oneOf": [
+          { "required": ["geometry"] },
+          { "required": ["file"] }
+        ],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": { "type": "string" },
+                "label": { "type": "string" },
+                "field": { "type": "string" },
+                "estimated_value": { "type": ["number", "null"] },
+                "unit": { "type": "string" },
+                "aggregation": { "type": "string" },
+                "source_feature_count": { "type": "integer" },
+                "included_feature_count": { "type": "integer" },
+                "unavailable_feature_count": { "type": "integer" },
+                "status": { "type": "string", "enum": ["ok", "partial", "unavailable"] }
+              }
+            }
+          },
+          "geography_summary": {
+            "type": "object",
+            "properties": {
+              "intersecting_feature_count": { "type": "integer" },
+              "included_feature_count": { "type": "integer" },
+              "duplicate_feature_count": { "type": "integer" }
+            }
+          },
+          "method": {
+            "type": "object",
+            "properties": {
+              "area_weighting": { "type": "string" },
+              "projected_crs": { "type": "string" },
+              "overlap_tolerance": { "type": "number" }
+            }
+          },
+          "layer": {
+            "type": "object",
+            "properties": {
+              "layer_id": { "type": "integer" },
+              "title": { "type": ["string", "null"] },
+              "data_vintage": { "type": ["string", "null"] },
+              "licence": { "type": ["string", "null"] },
+              "attribution": { "type": ["string", "null"] },
+              "catalogue_url": { "type": "string" }
+            }
+          },
+          "retrieved_at": { "type": "string" },
+          "warnings": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "validation_status": {
+            "type": "string",
+            "enum": ["ok", "partial", "unavailable"],
+            "description": "ok when every measure is fully included; partial when some values were suppressed or missing; unavailable when no measure had a usable source value."
+          },
+          "geometry_source": {
+            "type": "object",
+            "description": "Present when geometry was loaded from file. Does not include coordinates.",
+            "properties": {
+              "name": { "type": ["string", "null"] },
+              "feature_index": { "type": ["integer", "null"] },
+              "matched_properties": { "type": "object" }
+            }
+          }
+        },
+        "required": [
+          "results",
+          "geography_summary",
+          "method",
+          "layer",
+          "retrieved_at",
+          "warnings",
+          "validation_status"
+        ]
+      }
+    },
     "get_layer_metadata": {
       "display_name": "Get Layer Metadata",
-      "description": "Returns citation-ready Stats NZ Datafinder layer metadata, a short description, the layer field list, coded_field_count for Census VAR_* columns, the catalogue page URL, and attachment links (lookups/codebooks when present).",
+      "description": "Returns citation-ready Stats NZ Datafinder layer metadata, a short description, the layer field list (titles/measure/year from the lookup codebook when present), coded_field_count for Census VAR_* columns, the catalogue page URL, and codebook download links.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -195,14 +484,16 @@
           },
           "fields": {
             "type": "array",
-            "description": "Non-geometry fields from the layer schema. Titles are included when the API provides them. coded is true for Census VAR_* columns.",
+            "description": "Non-geometry fields from the layer schema. title, measure, and year come from the lookup codebook when Datafinder publishes one. coded is true for Census VAR_* columns. Do not area-weight measure Median or Mean.",
             "items": {
               "type": "object",
               "properties": {
                 "name": { "type": "string" },
                 "type": { "type": ["string", "null"] },
                 "title": { "type": "string" },
-                "coded": { "type": "boolean" }
+                "coded": { "type": "boolean" },
+                "measure": { "type": "string", "description": "Lookup Measure, e.g. Count, Median, Mean." },
+                "year": { "type": "string", "description": "Census year from the lookup codebook, when present." }
               }
             }
           },
@@ -220,7 +511,7 @@
           "source_url": { "type": "string" },
           "attachments": {
             "type": "array",
-            "description": "Lookup/codebook files when Datafinder publishes them.",
+            "description": "Lookup/codebook download URLs (url_download), not the JSON attachment metadata endpoint.",
             "items": {
               "type": "object",
               "properties": {

@@ -1,6 +1,7 @@
 """Unit tests for the Stats NZ Datafinder integration using mocked HTTP seams."""
 
 import asyncio
+import base64
 import json
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
@@ -11,29 +12,43 @@ from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 from shapely.errors import ShapelyError
 from stats_nz_datafinder import (
+    DEFAULT_MISSING_VALUES,
+    GEOJSON_MAX_BYTES,
+    OVERLAP_TOLERANCE,
     DatafinderError,
     _as_shapely,
+    _attachment_items,
     _attribution,
     _bbox_polygon,
+    _bind_geojson_file,
     _build_cql_filter,
+    _codebook_field_info,
     _coded_fields_omitted_count,
+    _contract_error,
     _cql_literal,
     _cql_spatial_wkts,
+    _download_https_text,
     _fields,
     _geometry_field,
     _get_api_key,
     _licence,
+    _measure_source_value,
     _overlap_stats,
     _parse_bbox,
+    _raw_overlap_fraction,
     _redact,
     _requested_attribute_names,
     _resolve_feature_type,
+    _resolve_geojson_file,
     _safe_intersection,
     _short_description,
     _stable_sort_field,
     _total_matched,
     _trusted_datafinder_url,
+    _unique_geography_field,
     _unwrapped_bbox_polygon,
+    _validate_measures,
+    _validate_overlap_fraction,
     _vintage,
     _wfs_request,
     _wfs_url,
@@ -228,6 +243,36 @@ class TestHelpers:
         point = {"type": "Point", "coordinates": [174.75, -41.25]}
         wkts = _cql_spatial_wkts(point, {"geometry": point})
         assert wkts == ["POINT(174.75 -41.25)"]
+
+    def test_cql_spatial_wkts_mixed_mainland_and_chatham_multipolygon(self):
+        geometry = {
+            "type": "MultiPolygon",
+            "coordinates": [
+                [
+                    [
+                        [174.7, -41.3],
+                        [174.8, -41.3],
+                        [174.8, -41.2],
+                        [174.7, -41.2],
+                        [174.7, -41.3],
+                    ]
+                ],
+                [
+                    [
+                        [-176.6, -44.1],
+                        [-176.4, -44.1],
+                        [-176.4, -43.9],
+                        [-176.6, -43.9],
+                        [-176.6, -44.1],
+                    ]
+                ],
+            ],
+        }
+        wkts = _cql_spatial_wkts(geometry, {"geometry": geometry})
+        joined = " ".join(wkts)
+        assert "174.7" in joined
+        assert "183.4" in joined or "183.6" in joined
+        assert "534" not in joined
 
     def test_bbox_rejects_zero_span_and_inverted_lat(self):
         with pytest.raises(DatafinderError, match="south < north"):
@@ -770,6 +815,157 @@ class TestQueryLayerByGeometry:
         assert result.result.data["records"][0]["geometry"]["type"] == "Polygon"
 
     @pytest.mark.asyncio
+    async def test_export_geojson_returns_platform_file(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                collection(
+                    "layer-123.1",
+                    number_matched=1,
+                    geometry=geom,
+                    properties={"SA22023_V1_00": "7024587", "VAR_1_1": -999},
+                )
+            ),
+        ]
+        result = await _query(
+            mock_context,
+            {
+                "page_size": 1,
+                "max_pages": 1,
+                "export_geojson": True,
+                "fields": ["SA22023_V1_00", "VAR_1_1"],
+            },
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["record_count"] == 1
+        assert "geometry" not in data["records"][0]
+        exported_file = data["files"][0]
+        assert exported_file["name"] == "layer-123-query.geojson"
+        assert exported_file["contentType"] == "application/geo+json"
+        exported = json.loads(base64.b64decode(exported_file["content"]))
+        assert exported["type"] == "FeatureCollection"
+        assert len(exported["features"]) == data["record_count"]
+        feature = exported["features"][0]
+        assert feature["id"] == "layer-123.1"
+        assert feature["geometry"] == geom
+        assert feature["properties"]["SA22023_V1_00"] == "7024587"
+        assert feature["properties"]["VAR_1_1"] == -999
+        assert "overlap_fraction" in feature["properties"]
+        assert "overlap_area_sq_km" in feature["properties"]
+        assert "feature_area_sq_km" in feature["properties"]
+
+    @pytest.mark.asyncio
+    async def test_export_geojson_includes_all_pages(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", number_matched=2, geometry=geom)),
+            ok(collection("b", number_matched=2, geometry=geom)),
+        ]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 5, "export_geojson": True})
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        exported = json.loads(base64.b64decode(data["files"][0]["content"]))
+        assert [feature["id"] for feature in exported["features"]] == ["a", "b"]
+        assert len(exported["features"]) == data["record_count"] == 2
+        assert data["truncated"] is False
+        assert data["retrieved_pages"] == 2
+
+    @pytest.mark.asyncio
+    async def test_export_geojson_fails_closed_when_truncated(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=9))]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1, "export_geojson": True})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "incomplete_pagination" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_without_export_omits_files(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=1))]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION
+        assert "files" not in result.result.data
+
+    @pytest.mark.asyncio
+    async def test_export_geojson_fails_closed_when_match_count_unknown(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", number_matched="unknown")),
+            ok(collection("b")),
+        ]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1, "export_geojson": True})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "incomplete_pagination" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_export_geojson_fails_closed_on_later_page_error(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", "b", number_matched=4)),
+            DatafinderError("Datafinder WFS request timed out."),
+        ]
+        result = await _query(mock_context, {"page_size": 2, "max_pages": 5, "export_geojson": True})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "timed out" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_export_geojson_omits_unrequested_coded_fields(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                collection(
+                    "a",
+                    number_matched=1,
+                    geometry=geom,
+                    properties={"SA22023_V1_00_NAME": "Island Bay", "VAR_1_1": 1200},
+                )
+            ),
+        ]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1, "export_geojson": True})
+        assert result.type == ResultType.ACTION, result.result
+        exported = json.loads(base64.b64decode(result.result.data["files"][0]["content"]))
+        properties = exported["features"][0]["properties"]
+        assert "VAR_1_1" not in properties
+        assert "VAR_1_1" not in result.result.data["records"][0]["properties"]
+        assert properties["SA22023_V1_00_NAME"] == "Island Bay"
+
+    @pytest.mark.asyncio
+    async def test_export_geojson_fails_closed_on_non_finite_values(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", number_matched=1, geometry=geom, properties={"note": float("nan")})),
+        ]
+        result = await _query(mock_context, {"page_size": 1, "max_pages": 1, "export_geojson": True})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "geojson_export_failed" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_geometry_and_bbox_use_conflicting_geometry_source(self, mock_context):
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {
+                "layer_id": 123,
+                "geometry": GEOMETRY,
+                "bbox": [174.7, -41.3, 174.8, -41.2],
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "conflicting_geometry_source" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_point_query_does_not_area_weight(self, mock_context, mock_wfs):
         feature = square(174.7, -41.3, 174.8, -41.2)
         mock_context.fetch.return_value = fetch_ok(METADATA)
@@ -1129,7 +1325,13 @@ class TestGetLayerMetadata:
         assert result.result.data["coded_field_count"] == 1
 
     @pytest.mark.asyncio
-    async def test_includes_page_url_and_attachments(self, mock_context):
+    async def test_includes_page_url_and_attachments(self, mock_context, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, _url):
+            return "", ""
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
         mock_context.fetch.side_effect = [
             fetch_ok(
                 {
@@ -1153,6 +1355,263 @@ class TestGetLayerMetadata:
             {"name": "Off-origin dump"},
         ]
         assert mock_context.fetch.await_count == 2
+
+    def test_attachment_prefers_url_download_over_json_metadata(self):
+        items = _attachment_items(
+            [
+                {
+                    "url": "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/",
+                    "url_download": (
+                        "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/download/"
+                    ),
+                    "document": {"title": "SA1_part_1_lookup_table", "extension": "csv"},
+                }
+            ]
+        )
+        assert items == [
+            {
+                "name": "SA1_part_1_lookup_table.csv",
+                "url": "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/download/",
+            }
+        ]
+
+    def test_codebook_maps_count_and_median(self):
+        csv_text = (
+            "Column_name,Year,Measure,Variable1,Variable1_category,Field_name_alias\n"
+            "VAR_1_3,2023,Count,Census usually resident population count,Total,"
+            "Usually resident population 2023\n"
+            "VAR_1_27,2013,Median,Age,Median,Median age 2013\n"
+        )
+        info = _codebook_field_info(csv_text)
+        assert info["VAR_1_3"]["measure"] == "Count"
+        assert info["VAR_1_3"]["year"] == "2023"
+        assert "Usually resident population 2023" in info["VAR_1_3"]["title"]
+        assert info["VAR_1_27"]["measure"] == "Median"
+
+    def test_codebook_parses_more_than_two_thousand_fields(self):
+        rows = ["Column_name,Year,Measure"]
+        rows.extend(f"VAR_9_{index},2023,Count" for index in range(2500))
+        rows.append("VAR_1_27,2013,Median")
+        info = _codebook_field_info("\n".join(rows) + "\n")
+        assert len(info) == 2501
+        assert info["VAR_1_27"]["measure"] == "Median"
+
+    def test_malformed_csv_row_does_not_raise(self):
+        text = 'Column_name,Year,Measure\nVAR_1_3,2023,Count\n"VAR_1_4,2018,Count\n'
+        info = _codebook_field_info(text)
+        assert isinstance(info, dict)
+        assert "VAR_1_3" in info
+
+    @pytest.mark.asyncio
+    async def test_metadata_enriches_titles_from_codebook_csv(self, mock_context, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, url):
+            assert url.endswith("/download/")
+            body = (
+                "Column_name,Year,Measure,Variable1,Variable1_category,Field_name_alias\n"
+                "VAR_1_3,2023,Count,Census usually resident population count,Total,"
+                "Usually resident population 2023\n"
+            )
+            return "text/csv", body
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "data": {
+                        "fields": [
+                            {"name": "Shape", "type": "geometry"},
+                            {"name": "VAR_1_3", "type": "integer"},
+                        ]
+                    },
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
+                }
+            ),
+            fetch_ok(
+                [
+                    {
+                        "url": "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/",
+                        "url_download": (
+                            "https://datafinder.stats.govt.nz/services/api/v1/"
+                            "layers/123/versions/1/attachments/1/download/"
+                        ),
+                        "document": {"title": "lookup", "extension": "csv"},
+                    }
+                ]
+            ),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        field = result.result.data["fields"][0]
+        assert field["name"] == "VAR_1_3"
+        assert field["title"] == "Usually resident population 2023"
+        assert field["measure"] == "Count"
+        assert field["year"] == "2023"
+        assert result.result.data["attachments"][0]["url"].endswith("/download/")
+
+    @pytest.mark.asyncio
+    async def test_codebook_continues_after_unrelated_csv(self, mock_context, monkeypatch):
+        import stats_nz_datafinder as module
+
+        downloads: list[str] = []
+
+        async def fake_download(_context, url):
+            downloads.append(url)
+            if "notes.csv" in url:
+                return "text/csv", "Column_name,Year,Measure\nUNRELATED_1,2023,Count\n"
+            return (
+                "text/csv",
+                "Column_name,Year,Measure,Field_name_alias\nVAR_1_3,2023,Count,Usually resident population 2023\n",
+            )
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "data": {
+                        "fields": [
+                            {"name": "Shape", "type": "geometry"},
+                            {"name": "VAR_1_3", "type": "integer"},
+                        ]
+                    },
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
+                }
+            ),
+            fetch_ok(
+                [
+                    {
+                        "url_download": "https://datafinder.stats.govt.nz/files/notes.csv",
+                        "document": {"title": "notes", "extension": "csv"},
+                    },
+                    {
+                        "url_download": "https://datafinder.stats.govt.nz/files/codebook.csv",
+                        "document": {"title": "codebook", "extension": "csv"},
+                    },
+                ]
+            ),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert len(downloads) == 2
+        field = result.result.data["fields"][0]
+        assert field["name"] == "VAR_1_3"
+        assert field["measure"] == "Count"
+        assert field["title"] == "Usually resident population 2023"
+
+    @pytest.mark.asyncio
+    async def test_metadata_skips_binary_attachments_and_still_succeeds(self, mock_context, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, url):
+            return "application/pdf", "%PDF-1.4 not a codebook"
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
+                }
+            ),
+            fetch_ok(
+                [
+                    {
+                        "document": {"title": "guide", "extension": "pdf"},
+                        "url_download": "https://datafinder.stats.govt.nz/files/guide.pdf",
+                    }
+                ]
+            ),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["layer_id"] == 123
+
+    def test_rejects_codebook_median_even_when_aggregation_is_additive(self):
+        rows = [{"name": "VAR_1_3", "type": "double", "measure": "Median"}]
+        metadata = {
+            **METADATA,
+            "data": {"fields": [{"name": "VAR_1_3", "type": "double"}]},
+        }
+        with pytest.raises(DatafinderError, match="non_additive_aggregation"):
+            _validate_measures(
+                [
+                    {
+                        "key": "median_age",
+                        "label": "Median age",
+                        "field": "VAR_1_3",
+                        "unit": "count",
+                        "aggregation": "additive_count",
+                    }
+                ],
+                metadata,
+                rows,
+            )
+
+    def test_unique_geography_field_prefers_sa1_over_sa2(self):
+        metadata = {
+            "data": {
+                "fields": [
+                    {"name": "SA22023_V1_00", "type": "string"},
+                    {"name": "SA12023_V1_00", "type": "string"},
+                ]
+            }
+        }
+        assert _unique_geography_field(metadata) == "SA12023_V1_00"
+
+    def test_rejects_non_var_median_from_codebook(self):
+        rows = [{"name": "MEDIAN_AGE", "type": "double", "measure": "Median"}]
+        metadata = {
+            **METADATA,
+            "data": {"fields": [{"name": "MEDIAN_AGE", "type": "double"}]},
+        }
+        with pytest.raises(DatafinderError, match="non_additive_aggregation"):
+            _validate_measures(
+                [
+                    {
+                        "key": "median_age",
+                        "label": "Median age",
+                        "field": "MEDIAN_AGE",
+                        "unit": "count",
+                        "aggregation": "additive_count",
+                    }
+                ],
+                metadata,
+                rows,
+            )
+
+    def test_rejects_coded_field_without_codebook_count(self):
+        rows = [{"name": "VAR_1_3", "type": "integer"}]
+        metadata = {
+            **METADATA,
+            "data": {"fields": [{"name": "VAR_1_3", "type": "integer"}]},
+        }
+        with pytest.raises(DatafinderError, match="unclassified_field"):
+            _validate_measures(
+                [
+                    {
+                        "key": "population",
+                        "label": "Population",
+                        "field": "VAR_1_3",
+                        "unit": "count",
+                        "aggregation": "additive_count",
+                    }
+                ],
+                metadata,
+                rows,
+            )
+
+    @pytest.mark.asyncio
+    async def test_attachments_http_500_does_not_fail_metadata(self, mock_context):
+        mock_context.fetch.side_effect = [
+            fetch_ok({**METADATA, "attachments": DATAFINDER_ATTACHMENTS_URL}),
+            HTTPError(500, "attachments down"),
+        ]
+        result = await stats_nz_datafinder.execute_action("get_layer_metadata", {"layer_id": 123}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["attachments"] == []
 
     @pytest.mark.asyncio
     async def test_off_origin_page_url_falls_back_to_catalogue(self, mock_context):
@@ -1193,7 +1652,13 @@ class TestGetLayerMetadata:
         assert mock_context.fetch.await_args.args[0].endswith("/layers/123/")
 
     @pytest.mark.asyncio
-    async def test_relative_attachments_url_is_fetched_on_datafinder_origin(self, mock_context):
+    async def test_relative_attachments_url_is_fetched_on_datafinder_origin(self, mock_context, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, _url):
+            return "", ""
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
         mock_context.fetch.side_effect = [
             fetch_ok({**METADATA, "attachments": "/services/api/v1/layers/123/versions/1/attachments/"}),
             fetch_ok([{"title": "Codebook", "url": "https://datafinder.stats.govt.nz/files/codebook.csv"}]),
@@ -1294,10 +1759,12 @@ class TestSearchLayers:
 
 
 class _FakeResp:
-    def __init__(self, status=200, text="{}", content_type="application/json"):
+    def __init__(self, status=200, text="{}", content_type="application/json", headers=None, body=None):
         self.status = status
         self._text = text
-        self.headers = {"Content-Type": content_type}
+        self.headers = {"Content-Type": content_type, **(headers or {})}
+        self._body = body if body is not None else text.encode("utf-8")
+        self.content = self
 
     async def __aenter__(self):
         return self
@@ -1307,6 +1774,9 @@ class _FakeResp:
 
     async def text(self):
         return self._text
+
+    async def iter_chunked(self, _size):
+        yield self._body
 
 
 class _RaisingCtx:
@@ -1377,6 +1847,65 @@ class TestWfsRequestDirect:
         assert params["cql_filter"] == "a = 'b'"
         assert kwargs["allow_redirects"] is False
         assert kwargs["ssl"] is True
+
+
+class _SeqSession:
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.calls = []
+
+    def get(self, url, **kwargs):
+        self.calls.append((url, kwargs.get("headers") or {}))
+        return self._responses.pop(0)
+
+    async def close(self):
+        pass
+
+
+class TestCodebookDownload:
+    @pytest.mark.asyncio
+    async def test_follows_redirect_without_sending_key_off_origin(self):
+        csv_body = "Column_name,Year,Measure,Field_name_alias\nVAR_1_3,2023,Count,Usually resident\n"
+        session = _SeqSession(
+            [
+                _FakeResp(
+                    status=302,
+                    headers={"Location": "https://s3.amazonaws.com/bucket/lookup.csv"},
+                    content_type="text/html",
+                ),
+                _FakeResp(status=200, text=csv_body, content_type="application/octet-stream"),
+            ]
+        )
+        ctx = _key_context(session)
+        content_type, text = await _download_https_text(
+            ctx,
+            "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/download/",
+        )
+        assert "Column_name" in text
+        assert content_type == "application/octet-stream"
+        assert "Authorization" in session.calls[0][1]
+        assert session.calls[1][1] == {}
+        assert "s3.amazonaws.com" in session.calls[1][0]
+
+    @pytest.mark.asyncio
+    async def test_oversize_content_length_is_skipped(self):
+        session = _SeqSession(
+            [
+                _FakeResp(
+                    status=200,
+                    text="Column_name,Year\nVAR_1_3,2023\n",
+                    content_type="text/csv",
+                    headers={"Content-Length": "3000000"},
+                )
+            ]
+        )
+        ctx = _key_context(session)
+        content_type, text = await _download_https_text(
+            ctx,
+            "https://datafinder.stats.govt.nz/services/api/v1/layers/123/versions/1/attachments/1/download/",
+        )
+        assert content_type == ""
+        assert text == ""
 
     @pytest.mark.asyncio
     async def test_get_feature_post_puts_cql_in_body_not_query(self, monkeypatch):
@@ -1471,3 +2000,1076 @@ class TestErrorsDoNotLeakKey:
         result = await _query(mock_context, {"page_size": 1, "max_pages": 1})
         assert result.type == ResultType.ACTION_ERROR
         self.assert_clean(result.result.message)
+
+
+# =============================================================================
+# query_area_statistics
+# =============================================================================
+
+CENSUS_META = {
+    **METADATA,
+    "title": "Statistical Area 1 2023 Census",
+    "url_html": "https://datafinder.stats.govt.nz/layer/123/",
+    "data": {
+        "geometry_field": "Shape",
+        "fields": [
+            {"name": "Shape", "type": "geometry"},
+            {"name": "SA12023_V1_00", "type": "string"},
+            {
+                "name": "VAR_1_1",
+                "type": "integer",
+                "title": "Census usually resident population count",
+                "measure": "Count",
+            },
+            {"name": "VAR_1_2", "type": "integer", "measure": "Count"},
+        ],
+    },
+}
+
+POPULATION = {
+    "key": "population",
+    "label": "Usually resident population",
+    "field": "VAR_1_1",
+    "unit": "count",
+    "aggregation": "additive_count",
+}
+DWELLINGS = {
+    "key": "dwellings",
+    "label": "Occupied dwellings",
+    "field": "VAR_1_2",
+    "unit": "count",
+    "aggregation": "additive_count",
+}
+
+
+def _feature(fid, geometry=None, properties=None):
+    return {
+        "type": "Feature",
+        "id": fid,
+        "geometry": geometry,
+        "properties": {} if properties is None else properties,
+    }
+
+
+def _fc(*features, number_matched=None):
+    payload = {"type": "FeatureCollection", "features": list(features)}
+    if number_matched is not None:
+        payload["numberMatched"] = number_matched
+    return payload
+
+
+async def _area_query(mock_context, inputs=None):
+    payload = {
+        "layer_id": 123,
+        "geometry": GEOMETRY,
+        "measures": [POPULATION],
+        "page_size": 2,
+        "max_pages": 5,
+    }
+    if inputs:
+        payload.update(inputs)
+    return await stats_nz_datafinder.execute_action("query_area_statistics", payload, mock_context)
+
+
+class TestAreaStatisticsHelpers:
+    def test_zero_is_a_valid_count(self):
+        assert _measure_source_value(0, [-999]) == (0.0, "included")
+        assert _measure_source_value(0.0, [-999]) == (0.0, "included")
+
+    def test_sentinel_minus_999_is_suppressed(self):
+        assert _measure_source_value(-999, [-999]) == (None, "suppressed")
+        assert _measure_source_value(-999.0, [-999]) == (None, "suppressed")
+
+    def test_default_missing_values_include_minus_997(self):
+        assert -999 in DEFAULT_MISSING_VALUES
+        assert -997 in DEFAULT_MISSING_VALUES
+        assert _measure_source_value(-997, DEFAULT_MISSING_VALUES) == (None, "suppressed")
+
+    def test_null_absent_and_non_numeric_are_unavailable(self):
+        assert _measure_source_value(None, [-999]) == (None, "unavailable")
+        assert _measure_source_value("12", [-999]) == (None, "unavailable")
+        assert _measure_source_value(True, [-999]) == (None, "unavailable")
+        assert _measure_source_value(float("nan"), [-999]) == (None, "unavailable")
+
+    def test_overlap_tolerance_clamps_within_epsilon(self):
+        assert _validate_overlap_fraction(1.0 + OVERLAP_TOLERANCE / 2) == 1.0
+        assert _validate_overlap_fraction(-OVERLAP_TOLERANCE / 2) == 0.0
+        assert _validate_overlap_fraction(1.0 + 1e-7) == 1.0
+        with pytest.raises(DatafinderError, match="invalid_overlap_fraction"):
+            _validate_overlap_fraction(1.1)
+
+    def test_raw_overlap_zero_and_one(self):
+        feature = square(174.7, -41.3, 174.8, -41.2)
+        disjoint = square(175.0, -41.3, 175.1, -41.2)
+        assert _raw_overlap_fraction(_as_shapely(feature), feature) == pytest.approx(1.0)
+        assert _raw_overlap_fraction(_as_shapely(disjoint), feature) == pytest.approx(0.0)
+
+    def test_contract_error_includes_code_field_and_retry_guidance(self):
+        message = _contract_error(
+            message="Unknown field.",
+            error_code="unknown_field",
+            field="measures[0].field",
+            valid_alternatives=["VAR_1_1", "VAR_1_2"],
+            recovery="Use an exact field name.",
+            retry_safe=False,
+        )
+        assert "Error code: unknown_field." in message
+        assert "Affected field: measures[0].field." in message
+        assert "Valid alternatives: VAR_1_1, VAR_1_2." in message
+        assert "Retrying this request is not safe." in message
+
+
+class TestQueryAreaStatistics:
+    @pytest.mark.asyncio
+    async def test_polygon_full_overlap_area_weights_unrounded_total(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("a", geom, {"SA12023_V1_00": "7010001", "VAR_1_1": 100}),
+                    number_matched=1,
+                )
+            ),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["validation_status"] == "ok"
+        assert data["results"][0]["estimated_value"] == pytest.approx(100.0)
+        assert data["results"][0]["status"] == "ok"
+        assert data["results"][0]["included_feature_count"] == 1
+        assert data["geography_summary"]["intersecting_feature_count"] == 1
+        assert "records" not in data
+        assert data["layer"]["catalogue_url"].startswith("https://datafinder.stats.govt.nz/")
+        assert "WGS84" in data["method"]["projected_crs"]
+        assert data["method"]["overlap_tolerance"] == OVERLAP_TOLERANCE
+
+    @pytest.mark.asyncio
+    async def test_multipolygon_input(self, mock_context, mock_wfs):
+        geom = {
+            "type": "MultiPolygon",
+            "coordinates": [square(174.7, -41.3, 174.8, -41.2)["coordinates"]],
+        }
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 20}), number_matched=1)),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["results"][0]["estimated_value"] == pytest.approx(20.0)
+
+    @pytest.mark.asyncio
+    async def test_multiple_measures(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 100, "VAR_1_2": 40}), number_matched=1)),
+        ]
+        result = await _area_query(
+            mock_context, {"geometry": geom, "measures": [POPULATION, DWELLINGS], "page_size": 1, "max_pages": 1}
+        )
+        data = result.result.data
+        by_key = {row["key"]: row for row in data["results"]}
+        assert by_key["population"]["estimated_value"] == pytest.approx(100.0)
+        assert by_key["dwellings"]["estimated_value"] == pytest.approx(40.0)
+
+    @pytest.mark.asyncio
+    async def test_unknown_field_fails_closed(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        result = await _area_query(
+            mock_context,
+            {"measures": [{**POPULATION, "field": "VAR_9_9"}]},
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "unknown_field" in result.result.message
+        assert "measures[0].field" in result.result.message
+        mock_wfs.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_non_additive_aggregation_is_rejected_by_schema(self, mock_context):
+        result = await _area_query(
+            mock_context,
+            {"measures": [{**POPULATION, "aggregation": "median"}]},
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_partial_overlap_is_area_weighted(self, mock_context, mock_wfs):
+        query = square(174.7, -41.3, 174.75, -41.2)
+        feature = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", feature, {"VAR_1_1": 100}), number_matched=1)),
+        ]
+        result = await _area_query(mock_context, {"geometry": query, "page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        estimated = result.result.data["results"][0]["estimated_value"]
+        assert estimated == pytest.approx(50.0, abs=2.0)
+
+    @pytest.mark.asyncio
+    async def test_overlap_zero_contributes_zero_when_value_is_valid(self, mock_context, mock_wfs):
+        query = square(174.7, -41.3, 174.8, -41.2)
+        disjoint = square(175.0, -41.3, 175.1, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", disjoint, {"VAR_1_1": 100}), number_matched=1)),
+        ]
+        result = await _area_query(mock_context, {"geometry": query, "page_size": 1, "max_pages": 1})
+        assert result.result.data["results"][0]["estimated_value"] == pytest.approx(0.0)
+        assert result.result.data["results"][0]["included_feature_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_numeric_zero_is_included(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 0}), number_matched=1)),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
+        row = result.result.data["results"][0]
+        assert row["estimated_value"] == 0.0
+        assert row["included_feature_count"] == 1
+        assert row["unavailable_feature_count"] == 0
+        assert row["status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_sentinel_is_not_converted_to_zero(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": -999}), number_matched=1)),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
+        row = result.result.data["results"][0]
+        assert row["estimated_value"] is None
+        assert row["status"] == "unavailable"
+        assert row["unavailable_feature_count"] == 1
+        assert row["included_feature_count"] == 0
+        assert result.result.data["validation_status"] == "unavailable"
+
+    @pytest.mark.asyncio
+    async def test_partial_validation_status_when_some_values_are_suppressed(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("a", geom, {"VAR_1_1": 10}),
+                    _feature("b", geom, {"VAR_1_1": -999}),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 2, "max_pages": 1})
+        data = result.result.data
+        assert data["results"][0]["status"] == "partial"
+        assert data["validation_status"] == "partial"
+
+    @pytest.mark.asyncio
+    async def test_null_and_non_numeric_are_unavailable(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("a", geom, {"VAR_1_1": None}),
+                    _feature("b", geom, {"VAR_1_1": "suppressed"}),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 2, "max_pages": 1})
+        row = result.result.data["results"][0]
+        assert row["estimated_value"] is None
+        assert row["unavailable_feature_count"] == 2
+        assert result.result.data["validation_status"] == "unavailable"
+
+    @pytest.mark.asyncio
+    async def test_paginates_and_deduplicates(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 10}), _feature("b", geom, {"VAR_1_1": 20}), number_matched=3)),
+            ok(_fc(_feature("b", geom, {"VAR_1_1": 20}), _feature("c", geom, {"VAR_1_1": 30}), number_matched=3)),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 2, "max_pages": 5})
+        data = result.result.data
+        assert data["results"][0]["estimated_value"] == pytest.approx(60.0)
+        assert data["geography_summary"]["intersecting_feature_count"] == 3
+        assert data["geography_summary"]["duplicate_feature_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_incomplete_pagination_fails_closed(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 10}), number_matched=9)),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "incomplete_pagination" in result.result.message
+        assert "not safe" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_later_page_failure_fails_closed(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 10}), _feature("b", geom, {"VAR_1_1": 20}), number_matched=4)),
+            DatafinderError("Datafinder WFS request timed out."),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 2, "max_pages": 5})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "timed out" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_shared_parent_sa2_does_not_fail_when_sa1_differs(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        meta = {
+            **CENSUS_META,
+            "data": {
+                "geometry_field": "Shape",
+                "fields": [
+                    {"name": "Shape", "type": "geometry"},
+                    {"name": "SA22023_V1_00", "type": "string"},
+                    {"name": "SA12023_V1_00", "type": "string"},
+                    {"name": "VAR_1_1", "type": "integer", "measure": "Count"},
+                ],
+            },
+        }
+        mock_context.fetch.return_value = fetch_ok(meta)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature(
+                        "a",
+                        geom,
+                        {"SA22023_V1_00": "200000", "SA12023_V1_00": "7010001", "VAR_1_1": 10},
+                    ),
+                    _feature(
+                        "b",
+                        geom,
+                        {"SA22023_V1_00": "200000", "SA12023_V1_00": "7010002", "VAR_1_1": 20},
+                    ),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 2, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["results"][0]["estimated_value"] == pytest.approx(30.0)
+
+    async def test_duplicate_geography_code_fails_closed(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("a", geom, {"SA12023_V1_00": "7010001", "VAR_1_1": 10}),
+                    _feature("b", geom, {"SA12023_V1_00": "7010001", "VAR_1_1": 20}),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 2, "max_pages": 1})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "duplicate_join" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_default_response_is_compact(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 5, "SA12023_V1_00": "7010001"}), number_matched=1)),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
+        data = result.result.data
+        assert "geometry" not in data
+        dumped = json.dumps(data)
+        assert "Polygon" not in dumped
+        assert dumped.count("7010001") == 0
+
+    @pytest.mark.asyncio
+    async def test_point_geometry_is_rejected(self, mock_context):
+        result = await _area_query(
+            mock_context,
+            {"geometry": {"type": "Point", "coordinates": [174.77, -41.28]}},
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    def test_line_feature_has_no_overlap_fraction(self):
+        polygon = square(174.7, -41.3, 174.8, -41.2)
+        line = {"type": "LineString", "coordinates": [[174.7, -41.3], [174.8, -41.2]]}
+        assert _raw_overlap_fraction(_as_shapely(polygon), line) is None
+
+    @pytest.mark.asyncio
+    async def test_degenerate_feature_is_excluded_not_fatal(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        line = {"type": "LineString", "coordinates": [[174.7, -41.3], [174.8, -41.2]]}
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("a", geom, {"VAR_1_1": 100}),
+                    _feature("b", line, {"VAR_1_1": 50}),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 2, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["results"][0]["estimated_value"] == pytest.approx(100.0)
+        assert data["results"][0]["status"] == "ok"
+        assert any("no polygon area" in warning for warning in data["warnings"])
+        assert not any("missing or suppressed" in warning for warning in data["warnings"])
+
+    @pytest.mark.asyncio
+    async def test_warns_when_layer_has_no_geography_code(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        meta = {
+            **METADATA,
+            "data": {
+                "geometry_field": "Shape",
+                "fields": [
+                    {"name": "Shape", "type": "geometry"},
+                    {"name": "VAR_1_1", "type": "integer", "measure": "Count"},
+                ],
+            },
+        }
+        mock_context.fetch.return_value = fetch_ok(meta)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 10}), number_matched=1)),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        assert any("geography-code" in warning for warning in result.result.data["warnings"])
+
+    @pytest.mark.asyncio
+    async def test_execute_uses_codebook_when_schema_has_no_measure(self, mock_context, mock_wfs, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, _url):
+            return "text/csv", "Column_name,Year,Measure\nVAR_1_1,2023,Count\n"
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "data": {
+                        "geometry_field": "Shape",
+                        "fields": [
+                            {"name": "Shape", "type": "geometry"},
+                            {"name": "SA12023_V1_00", "type": "string"},
+                            {"name": "VAR_1_1", "type": "integer"},
+                        ],
+                    },
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
+                }
+            ),
+            fetch_ok(
+                [
+                    {
+                        "url_download": (
+                            "https://datafinder.stats.govt.nz/services/api/v1/"
+                            "layers/123/versions/1/attachments/1/download/"
+                        ),
+                        "document": {"title": "lookup", "extension": "csv"},
+                    }
+                ]
+            ),
+        ]
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"VAR_1_1": 80}), number_matched=1)),
+        ]
+        result = await _area_query(mock_context, {"geometry": geom, "page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["results"][0]["estimated_value"] == pytest.approx(80.0)
+
+    @pytest.mark.asyncio
+    async def test_execute_rejects_codebook_median_before_wfs(self, mock_context, mock_wfs, monkeypatch):
+        import stats_nz_datafinder as module
+
+        async def fake_download(_context, _url):
+            return "text/csv", "Column_name,Year,Measure\nVAR_1_1,2013,Median\n"
+
+        monkeypatch.setattr(module, "_download_https_text", fake_download)
+        mock_context.fetch.side_effect = [
+            fetch_ok(
+                {
+                    **METADATA,
+                    "data": {
+                        "geometry_field": "Shape",
+                        "fields": [
+                            {"name": "Shape", "type": "geometry"},
+                            {"name": "VAR_1_1", "type": "integer"},
+                        ],
+                    },
+                    "attachments": DATAFINDER_ATTACHMENTS_URL,
+                }
+            ),
+            fetch_ok(
+                [
+                    {
+                        "url_download": (
+                            "https://datafinder.stats.govt.nz/services/api/v1/"
+                            "layers/123/versions/1/attachments/1/download/"
+                        ),
+                        "document": {"title": "lookup", "extension": "csv"},
+                    }
+                ]
+            ),
+        ]
+        result = await _area_query(mock_context, {"page_size": 1, "max_pages": 1})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "non_additive_aggregation" in result.result.message
+        mock_wfs.assert_not_called()
+
+
+# =============================================================================
+# GeoJSON file geometry
+# =============================================================================
+
+POINT = {"type": "Point", "coordinates": [174.78, -41.30]}
+LINE = {"type": "LineString", "coordinates": [[174.7, -41.3], [174.8, -41.2]]}
+
+
+def _geojson_file(document=None, name="catchments.geojson", *, raw_bytes=None) -> dict:
+    if raw_bytes is None:
+        raw_bytes = json.dumps(document).encode("utf-8")
+    return {
+        "name": name,
+        "contentType": "application/geo+json",
+        "content": base64.b64encode(raw_bytes).decode("ascii"),
+    }
+
+
+def _gj_feature(geometry, properties=None):
+    return {"type": "Feature", "geometry": geometry, "properties": {} if properties is None else properties}
+
+
+class TestResolveGeojsonFile:
+    def test_single_polygon_is_used_without_selector(self):
+        file_obj = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY)]})
+        geometry, source = _resolve_geojson_file(file_obj)
+        assert geometry == GEOMETRY
+        assert source["name"] == "catchments.geojson"
+        assert source["feature_index"] == 0
+        assert "matched_properties" not in source
+
+    def test_bare_polygon_geometry_is_accepted(self):
+        file_obj = _geojson_file(GEOMETRY)
+        geometry, source = _resolve_geojson_file(file_obj)
+        assert geometry == GEOMETRY
+        assert source["name"] == "catchments.geojson"
+        assert source["feature_index"] is None
+
+    def test_feature_document_is_accepted(self):
+        file_obj = _geojson_file(_gj_feature(GEOMETRY, {"name": "catchment"}))
+        geometry, source = _resolve_geojson_file(file_obj)
+        assert geometry == GEOMETRY
+        assert source["feature_index"] is None
+
+    def test_mixed_point_and_polygon_auto_selects_polygon_at_original_index(self):
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [_gj_feature(POINT, {"kind": "marker"}), _gj_feature(GEOMETRY, {"kind": "area"})],
+            },
+        )
+        geometry, source = _resolve_geojson_file(file_obj)
+        assert geometry == GEOMETRY
+        assert source["feature_index"] == 1
+
+    def test_two_polygons_without_selector_are_ambiguous(self):
+        other = square(174.9, -41.3, 175.0, -41.2)
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    _gj_feature(GEOMETRY, {"time_minutes": 10}),
+                    _gj_feature(other, {"time_minutes": 30}),
+                ],
+            },
+        )
+        with pytest.raises(DatafinderError, match="ambiguous_geojson_feature"):
+            _resolve_geojson_file(file_obj)
+
+    def test_feature_index_uses_original_array_including_points(self):
+        other = square(174.9, -41.3, 175.0, -41.2)
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    _gj_feature(POINT),
+                    _gj_feature(GEOMETRY, {"time_minutes": 10}),
+                    _gj_feature(LINE),
+                    _gj_feature(other, {"time_minutes": 30}),
+                ],
+            },
+        )
+        geometry, source = _resolve_geojson_file(file_obj, feature_index=3)
+        assert geometry == other
+        assert source["feature_index"] == 3
+
+    def test_feature_index_point_is_rejected(self):
+        file_obj = _geojson_file(
+            {"type": "FeatureCollection", "features": [_gj_feature(POINT), _gj_feature(GEOMETRY)]},
+        )
+        with pytest.raises(DatafinderError, match="invalid_geometry"):
+            _resolve_geojson_file(file_obj, feature_index=0)
+
+    def test_feature_index_out_of_range(self):
+        file_obj = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY)]})
+        with pytest.raises(DatafinderError, match="geojson_feature_not_found"):
+            _resolve_geojson_file(file_obj, feature_index=1)
+
+    def test_feature_filter_matches_exactly_one(self):
+        other = square(174.9, -41.3, 175.0, -41.2)
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    _gj_feature(GEOMETRY, {"time_minutes": 10}),
+                    _gj_feature(other, {"time_minutes": 30}),
+                ],
+            },
+        )
+        geometry, source = _resolve_geojson_file(file_obj, feature_filter={"property": "time_minutes", "equals": 30})
+        assert geometry == other
+        assert source["feature_index"] == 1
+        assert source["matched_properties"] == {"time_minutes": 30}
+
+    def test_feature_filter_numeric_30_matches_30_0(self):
+        file_obj = _geojson_file(
+            {"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY, {"time_minutes": 30.0})]},
+        )
+        geometry, source = _resolve_geojson_file(file_obj, feature_filter={"property": "time_minutes", "equals": 30})
+        assert geometry == GEOMETRY
+        assert source["matched_properties"] == {"time_minutes": 30.0}
+
+    def test_feature_filter_string_does_not_match_number(self):
+        file_obj = _geojson_file(
+            {"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY, {"time_minutes": 30})]},
+        )
+        with pytest.raises(DatafinderError, match="geojson_feature_not_found"):
+            _resolve_geojson_file(file_obj, feature_filter={"property": "time_minutes", "equals": "30"})
+
+    def test_feature_filter_true_does_not_match_one(self):
+        file_obj = _geojson_file(
+            {"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY, {"flag": 1})]},
+        )
+        with pytest.raises(DatafinderError, match="geojson_feature_not_found"):
+            _resolve_geojson_file(file_obj, feature_filter={"property": "flag", "equals": True})
+
+    def test_feature_filter_two_matches_are_ambiguous(self):
+        other = square(174.9, -41.3, 175.0, -41.2)
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    _gj_feature(GEOMETRY, {"zone": "A"}),
+                    _gj_feature(other, {"zone": "A"}),
+                ],
+            },
+        )
+        with pytest.raises(DatafinderError, match="ambiguous_geojson_feature"):
+            _resolve_geojson_file(file_obj, feature_filter={"property": "zone", "equals": "A"})
+
+    def test_both_selectors_are_rejected(self):
+        file_obj = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(GEOMETRY)]})
+        with pytest.raises(DatafinderError, match="conflicting_geometry_source"):
+            _resolve_geojson_file(
+                file_obj,
+                feature_index=0,
+                feature_filter={"property": "time_minutes", "equals": 30},
+            )
+
+    def test_only_points_fail_closed(self):
+        file_obj = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(POINT)]})
+        with pytest.raises(DatafinderError, match="invalid_geometry"):
+            _resolve_geojson_file(file_obj)
+
+    def test_missing_content_is_unreadable(self):
+        with pytest.raises(DatafinderError, match="geojson_file_unreadable"):
+            _resolve_geojson_file({"name": "catchments.geojson", "contentType": "application/geo+json", "content": ""})
+
+    def test_invalid_base64_is_unreadable(self):
+        with pytest.raises(DatafinderError, match="geojson_file_unreadable"):
+            _resolve_geojson_file(
+                {"name": "catchments.geojson", "contentType": "application/geo+json", "content": "!!!"}
+            )
+
+    def test_newline_wrapped_base64_is_accepted(self):
+        compact = _geojson_file(GEOMETRY)
+        wrapped = "\n".join(compact["content"][i : i + 40] for i in range(0, len(compact["content"]), 40))
+        geometry, source = _resolve_geojson_file({**compact, "content": wrapped})
+        assert geometry == GEOMETRY
+        assert source["name"] == "catchments.geojson"
+
+    def test_stripped_base64_padding_is_restored(self):
+        compact = _geojson_file(_gj_feature(GEOMETRY, {"k": "x"}))
+        unpadded = compact["content"].rstrip("=")
+        assert unpadded != compact["content"]
+        geometry, source = _resolve_geojson_file({**compact, "content": unpadded})
+        assert geometry == GEOMETRY
+        assert source["name"] == "catchments.geojson"
+
+    def test_invalid_json_is_invalid_geojson(self):
+        with pytest.raises(DatafinderError, match="invalid_geojson"):
+            _resolve_geojson_file(_geojson_file(raw_bytes=b"{not json"))
+
+    def test_utf8_bom_file_is_accepted(self):
+        geometry, _source = _resolve_geojson_file(
+            _geojson_file(raw_bytes=b"\xef\xbb\xbf" + json.dumps(GEOMETRY).encode("utf-8"))
+        )
+        assert geometry == GEOMETRY
+
+    def test_bare_polygon_in_feature_collection_is_rejected(self):
+        file_obj = _geojson_file({"type": "FeatureCollection", "features": [GEOMETRY]})
+        with pytest.raises(DatafinderError, match="invalid_geojson"):
+            _resolve_geojson_file(file_obj)
+
+    def test_feature_filter_on_bare_polygon_is_rejected(self):
+        file_obj = _geojson_file(GEOMETRY)
+        with pytest.raises(DatafinderError, match="geojson_feature_not_found"):
+            _resolve_geojson_file(file_obj, feature_filter={"property": "time_minutes", "equals": 30})
+
+    def test_feature_filter_matching_point_and_polygon_is_ambiguous(self):
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    _gj_feature(POINT, {"time_minutes": 10}),
+                    _gj_feature(GEOMETRY, {"time_minutes": 10}),
+                ],
+            },
+        )
+        with pytest.raises(DatafinderError, match="ambiguous_geojson_feature"):
+            _resolve_geojson_file(file_obj, feature_filter={"property": "time_minutes", "equals": 10})
+
+    def test_file_over_size_cap_fails(self, monkeypatch):
+        import stats_nz_datafinder as module
+
+        monkeypatch.setattr(module, "GEOJSON_MAX_BYTES", 64)
+        with pytest.raises(DatafinderError, match="5 MB limit"):
+            _resolve_geojson_file(_geojson_file(raw_bytes=b"x" * 65))
+        assert GEOJSON_MAX_BYTES == 5 * 1024 * 1024
+
+    def test_size_cap_is_bytes_not_characters(self, monkeypatch):
+        import stats_nz_datafinder as module
+
+        monkeypatch.setattr(module, "GEOJSON_MAX_BYTES", 64)
+        raw = "€".encode("utf-8") * 30
+        assert len(raw) > 64
+        assert len(raw.decode("utf-8")) < 64
+        with pytest.raises(DatafinderError, match="5 MB limit"):
+            _resolve_geojson_file(_geojson_file(raw_bytes=raw))
+
+    def test_non_utf8_file_is_unreadable(self):
+        with pytest.raises(DatafinderError, match="UTF-8"):
+            _resolve_geojson_file(_geojson_file(raw_bytes=b"\xff"))
+
+    def test_null_geometry_is_not_eligible(self):
+        file_obj = _geojson_file(
+            {"type": "FeatureCollection", "features": [_gj_feature(None), _gj_feature(GEOMETRY)]},
+        )
+        geometry, source = _resolve_geojson_file(file_obj)
+        assert geometry == GEOMETRY
+        assert source["feature_index"] == 1
+
+    def test_geometry_collection_document_is_rejected(self):
+        file_obj = _geojson_file(
+            {"type": "GeometryCollection", "geometries": [GEOMETRY]},
+        )
+        with pytest.raises(DatafinderError, match="invalid_geojson"):
+            _resolve_geojson_file(file_obj)
+
+    def test_empty_feature_collection_fails_closed(self):
+        file_obj = _geojson_file({"type": "FeatureCollection", "features": []})
+        with pytest.raises(DatafinderError, match="invalid_geometry"):
+            _resolve_geojson_file(file_obj)
+
+    def test_feature_index_on_bare_polygon_is_rejected(self):
+        file_obj = _geojson_file(GEOMETRY)
+        with pytest.raises(DatafinderError, match="geojson_feature_not_found"):
+            _resolve_geojson_file(file_obj, feature_index=0)
+
+    def test_feature_filter_matching_a_point_is_rejected(self):
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    _gj_feature(POINT, {"time_minutes": 30}),
+                    _gj_feature(GEOMETRY, {"time_minutes": 10}),
+                ],
+            },
+        )
+        with pytest.raises(DatafinderError, match="invalid_geometry"):
+            _resolve_geojson_file(file_obj, feature_filter={"property": "time_minutes", "equals": 30})
+
+    def test_geometry_and_file_conflict(self):
+        file_obj = _geojson_file(GEOMETRY)
+        with pytest.raises(DatafinderError, match="conflicting_geometry_source"):
+            _bind_geojson_file({"geometry": GEOMETRY, "file": file_obj})
+
+    def test_selectors_without_file_conflict(self):
+        with pytest.raises(DatafinderError, match="conflicting_geometry_source"):
+            _bind_geojson_file({"geometry": GEOMETRY, "feature_index": 0})
+
+    def test_inline_geometry_has_no_file_source(self):
+        geometry, source = _bind_geojson_file({"geometry": GEOMETRY})
+        assert geometry == GEOMETRY
+        assert source is None
+
+    def test_file_input_binds_resolved_geometry(self):
+        file_obj = _geojson_file(GEOMETRY)
+        geometry, source = _bind_geojson_file({"file": file_obj})
+        assert geometry == GEOMETRY
+        assert source["name"] == "catchments.geojson"
+
+
+class TestQueryAreaStatisticsFromGeojsonFile:
+    @pytest.mark.asyncio
+    async def test_file_runs_existing_totals_path(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [_gj_feature(POINT, {"time_minutes": 5}), _gj_feature(geom, {"time_minutes": 10})],
+            },
+        )
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", geom, {"SA12023_V1_00": "7010001", "VAR_1_1": 100}), number_matched=1)),
+        ]
+        result = await stats_nz_datafinder.execute_action(
+            "query_area_statistics",
+            {
+                "layer_id": 123,
+                "file": file_obj,
+                "measures": [POPULATION],
+                "page_size": 1,
+                "max_pages": 1,
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["results"][0]["estimated_value"] == pytest.approx(100.0)
+        source = data["geometry_source"]
+        assert source["name"] == "catchments.geojson"
+        assert source["feature_index"] == 1
+        assert "coordinates" not in source
+        assert "geometry" not in data
+
+    @pytest.mark.asyncio
+    async def test_feature_filter_selects_band(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        other = square(174.9, -41.3, 175.0, -41.2)
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    _gj_feature(geom, {"time_minutes": 10}),
+                    _gj_feature(other, {"time_minutes": 30}),
+                ],
+            },
+        )
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("a", other, {"VAR_1_1": 40}), number_matched=1)),
+        ]
+        result = await stats_nz_datafinder.execute_action(
+            "query_area_statistics",
+            {
+                "layer_id": 123,
+                "file": file_obj,
+                "feature_filter": {"property": "time_minutes", "equals": 30},
+                "measures": [POPULATION],
+                "page_size": 1,
+                "max_pages": 1,
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        source = result.result.data["geometry_source"]
+        assert source["feature_index"] == 1
+        assert source["matched_properties"] == {"time_minutes": 30}
+        assert "coordinates" not in source
+
+    @pytest.mark.asyncio
+    async def test_missing_geometry_or_file_fails_before_fetch(self, mock_context, mock_wfs):
+        result = await stats_nz_datafinder.execute_action(
+            "query_area_statistics",
+            {"layer_id": 123, "measures": [POPULATION]},
+            mock_context,
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_geometry_and_file_fail_before_fetch(self, mock_context, mock_wfs):
+        file_obj = _geojson_file(GEOMETRY)
+        result = await stats_nz_datafinder.execute_action(
+            "query_area_statistics",
+            {
+                "layer_id": 123,
+                "geometry": GEOMETRY,
+                "file": file_obj,
+                "measures": [POPULATION],
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_file_fails_before_wfs(self, mock_context, mock_wfs):
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    _gj_feature(GEOMETRY, {"time_minutes": 10}),
+                    _gj_feature(square(174.9, -41.3, 175.0, -41.2), {"time_minutes": 30}),
+                ],
+            },
+        )
+        result = await stats_nz_datafinder.execute_action(
+            "query_area_statistics",
+            {"layer_id": 123, "file": file_obj, "measures": [POPULATION]},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "ambiguous_geojson_feature" in result.result.message
+        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
+
+
+class TestQueryLayerFromGeojsonFile:
+    @pytest.mark.asyncio
+    async def test_file_scopes_query(self, mock_context, mock_wfs):
+        file_obj = _geojson_file(GEOMETRY)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("island-bay", number_matched=1, geometry=GEOMETRY)),
+        ]
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": 123, "file": file_obj, "page_size": 1, "max_pages": 1},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["record_count"] == 1
+        source = result.result.data["geometry_source"]
+        assert source["name"] == "catchments.geojson"
+        assert "coordinates" not in source
+        assert "geometry" not in result.result.data
+        cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
+        assert "INTERSECTS" in cql
+
+    @pytest.mark.asyncio
+    async def test_file_and_bbox_rejected_before_fetch(self, mock_context):
+        file_obj = _geojson_file(GEOMETRY)
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {
+                "layer_id": 123,
+                "file": file_obj,
+                "bbox": [174.7, -41.3, 174.8, -41.2],
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "conflicting_geometry_source" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_geometry_and_file_rejected_before_fetch(self, mock_context):
+        file_obj = _geojson_file(GEOMETRY)
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": 123, "geometry": GEOMETRY, "file": file_obj},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "conflicting_geometry_source" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unreadable_file_rejected_before_fetch(self, mock_context):
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {
+                "layer_id": 123,
+                "file": {
+                    "name": "catchments.geojson",
+                    "contentType": "application/geo+json",
+                    "content": "!!!",
+                },
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "geojson_file_unreadable" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_ambiguous_file_fails_before_fetch(self, mock_context):
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    _gj_feature(GEOMETRY, {"time_minutes": 10}),
+                    _gj_feature(square(174.9, -41.3, 175.0, -41.2), {"time_minutes": 30}),
+                ],
+            },
+        )
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": 123, "file": file_obj},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "ambiguous_geojson_feature" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_point_file_fails_before_fetch(self, mock_context):
+        file_obj = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(POINT)]})
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": 123, "file": file_obj},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "invalid_geometry" in result.result.message
+        mock_context.fetch.assert_not_called()
