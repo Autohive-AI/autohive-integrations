@@ -76,8 +76,10 @@
                 "properties": {
                     "session_id": {
                         "type": "string",
-                        "minLength": 1,
-                        "description": "The Windcave payment session ID to retrieve."
+                        "minLength": 32,
+                        "maxLength": 32,
+                        "pattern": "^[0-9A-Fa-f]{32}$",
+                        "description": "The 32-character hexadecimal Windcave payment session ID to retrieve."
                     }
                 },
                 "required": ["session_id"]

@@ -37,11 +37,11 @@ Retrieve a transaction by ID.
 ### `get_session`
 Retrieve an existing payment session and all transaction attempts associated with it.
 
-**Inputs:** `session_id` (required)
+**Inputs:** `session_id` (required, 32-character hexadecimal format)
 
 **Outputs:** `session_id`, `state`, `type`, `amount`, `currency`, `merchant_reference`, `expires`, `transactions`, `session`
 
-For security, all values inside every `card` object and `cards` collection are replaced with `[REDACTED]`. Standalone `cardId`, `cardNumber2`, `cardNumber`, `cardHolderName`, `dateExpiryMonth`, `dateExpiryYear`, `cvc`, and `cvv` fields are also redacted at every nesting depth (case-insensitively). The object and its keys remain present so workflows can detect that card data existed without receiving cardholder, token, card-number, expiry, or brand values.
+For security, all values inside every `card` object and `cards` collection are replaced with `[REDACTED]`. Standalone `cardId`, `cardNumber2`, `cardNumber`, `cardHolderName`, `dateExpiryMonth`, `dateExpiryYear`, `cvc`, `cvc2`, and `cvv` fields are also redacted at every nesting depth (case-insensitively). The object and its keys remain present so workflows can detect that card data existed without receiving cardholder, token, card-number, expiry, or brand values.
 
 ## API information
 

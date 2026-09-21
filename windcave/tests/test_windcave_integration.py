@@ -151,7 +151,7 @@ class TestGetTransaction:
 class TestGetSession:
     async def test_nonexistent_session_returns_action_error(self, live_context):
         result = await windcave.execute_action(
-            "get_session", {"session_id": "00000000-0000-0000-0000-000000000000"}, live_context
+            "get_session", {"session_id": "00000000000000000000000000000000"}, live_context
         )
 
         assert result.type == ResultType.ACTION_ERROR

@@ -32,6 +32,7 @@ CARD_FIELDS = frozenset(
         "dateexpirymonth",
         "dateexpiryyear",
         "cvc",
+        "cvc2",
         "cvv",
     }
 )

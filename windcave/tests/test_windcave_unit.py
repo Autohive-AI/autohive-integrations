@@ -14,6 +14,8 @@ pytestmark = pytest.mark.unit
 
 TRANSACTION_ID = "0000001c00000001"
 MISSING_TRANSACTION_ID = "0000001c00000002"
+SESSION_ID = "00001200030240010c9e7ceadd26a6d8"
+MISSING_SESSION_ID = "00000000000000000000000000000000"
 
 SAMPLE_TRANSACTION = {
     "id": TRANSACTION_ID,
@@ -34,7 +36,7 @@ SAMPLE_TRANSACTION = {
 }
 
 SAMPLE_SESSION = {
-    "id": "session_1",
+    "id": SESSION_ID,
     "state": "complete",
     "type": "purchase",
     "amount": "19.99",
@@ -133,6 +135,21 @@ class TestRedactCardObjects:
         redact_card_objects(SAMPLE_SESSION)
 
         assert SAMPLE_SESSION["transactions"][0]["card"]["cardNumber"] == "411111......1111"
+
+    def test_redacts_standalone_nested_and_mixed_case_cvc2_fields(self):
+        payload = {
+            "cvc2": "123",
+            "nested": {"CvC2": "456"},
+            "items": [{"CVC2": "789"}],
+        }
+
+        result = redact_card_objects(payload)
+
+        assert result == {
+            "cvc2": "[REDACTED]",
+            "nested": {"CvC2": "[REDACTED]"},
+            "items": [{"CVC2": "[REDACTED]"}],
+        }
 
 
 # ---- Custom Auth Contract ----
@@ -239,20 +256,20 @@ class TestGetSession:
     async def test_happy_path(self, mock_context):
         mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_SESSION)
 
-        result = await windcave.execute_action("get_session", {"session_id": "session_1"}, mock_context)
+        result = await windcave.execute_action("get_session", {"session_id": SESSION_ID}, mock_context)
 
         assert result.type == ResultType.ACTION
-        assert result.result.data["session_id"] == "session_1"
+        assert result.result.data["session_id"] == SESSION_ID
         assert result.result.data["state"] == "complete"
         assert result.result.data["merchant_reference"] == "ORDER-1"
         assert len(result.result.data["transactions"]) == 2
-        assert result.result.data["session"]["id"] == "session_1"
+        assert result.result.data["session"]["id"] == SESSION_ID
 
     @pytest.mark.asyncio
     async def test_redacts_card_data_in_transactions_and_full_session(self, mock_context):
         mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_SESSION)
 
-        result = await windcave.execute_action("get_session", {"session_id": "session_1"}, mock_context)
+        result = await windcave.execute_action("get_session", {"session_id": SESSION_ID}, mock_context)
 
         output = result.result.data
         for transaction in output["transactions"]:
@@ -270,18 +287,18 @@ class TestGetSession:
     async def test_request_url_method_and_headers(self, mock_context):
         mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_SESSION)
 
-        await windcave.execute_action("get_session", {"session_id": "session/1"}, mock_context)
+        await windcave.execute_action("get_session", {"session_id": SESSION_ID}, mock_context)
 
         call_args = mock_context.request_mock.call_args
-        assert call_args.args[0] == "https://sec.windcave.com/api/v1/sessions/session%2F1"
+        assert call_args.args[0] == f"https://sec.windcave.com/api/v1/sessions/{SESSION_ID}"
         assert call_args.kwargs["method"] == "GET"
         assert call_args.kwargs["headers"]["Authorization"].startswith("Basic ")
 
     @pytest.mark.asyncio
     async def test_session_without_transactions_returns_empty_list(self, mock_context):
-        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data={"id": "session_1"})
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data={"id": SESSION_ID})
 
-        result = await windcave.execute_action("get_session", {"session_id": "session_1"}, mock_context)
+        result = await windcave.execute_action("get_session", {"session_id": SESSION_ID}, mock_context)
 
         assert result.result.data["transactions"] == []
 
@@ -293,10 +310,26 @@ class TestGetSession:
         mock_context.request_mock.assert_not_awaited()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "session_id",
+        [
+            "00001200030240010c9e7ceadd26a6d",
+            "00001200030240010c9e7ceadd26a6d80",
+            "00001200030240010c9e7ceadd26a6dg",
+            "00001200-0302-4001-0c9e-7ceadd26a6d8",
+        ],
+    )
+    async def test_malformed_session_id_returns_validation_error(self, mock_context, session_id):
+        result = await windcave.execute_action("get_session", {"session_id": session_id}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.request_mock.assert_not_awaited()
+
+    @pytest.mark.asyncio
     async def test_http_error_returns_action_error(self, mock_context):
         mock_context.request_mock.side_effect = HTTPError(404, "Not Found", {"message": "Session not found"})
 
-        result = await windcave.execute_action("get_session", {"session_id": "missing"}, mock_context)
+        result = await windcave.execute_action("get_session", {"session_id": MISSING_SESSION_ID}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Session not found" in result.result.message
@@ -307,7 +340,7 @@ class TestGetSession:
     "action, inputs",
     [
         ("get_transaction", {"transaction_id": TRANSACTION_ID}),
-        ("get_session", {"session_id": "session_1"}),
+        ("get_session", {"session_id": SESSION_ID}),
     ],
 )
 class TestSensitiveDataBoundaries:
@@ -316,7 +349,13 @@ class TestSensitiveDataBoundaries:
         import json
 
         payload = deepcopy(SAMPLE_SESSION if action == "get_session" else SAMPLE_TRANSACTION)
-        payload.update({"cardId": "secret-top-token", "cardNumber2": "secret-top-number2"})
+        payload.update(
+            {
+                "cardId": "secret-top-token",
+                "cardNumber2": "secret-top-number2",
+                "cvc2": "secret-top-cvc2",
+            }
+        )
         payload["nested"] = [
             {
                 "CardId": "secret-nested-token",
@@ -326,6 +365,7 @@ class TestSensitiveDataBoundaries:
                 "dateExpiryMonth": "secret-month",
                 "dateExpiryYear": "secret-year",
                 "cvc": "secret-cvc",
+                "CvC2": "secret-cvc2",
                 "cvv": "secret-cvv",
                 "cards": [{"id": "secret-array-token", "type": "secret-brand"}],
                 "CaRd": {"unknownField": ["secret-new-field", {"value": "secret-deep-value"}]},
@@ -405,7 +445,7 @@ class TestSensitiveDataBoundaries:
 
 
 @pytest.mark.parametrize("value", [None, [], {}, "secret-scalar", 123, False])
-@pytest.mark.parametrize("key", ["card", "cards", "cardId", "cardNumber2"])
+@pytest.mark.parametrize("key", ["card", "cards", "cardId", "cardNumber2", "cvc2", "CvC2"])
 def test_sensitive_fields_redact_unusual_shapes(key, value):
     result = redact_card_objects({key: value, "amount": "19.99"})
     assert result["amount"] == "19.99"
@@ -462,7 +502,7 @@ class TestDirectTransport:
         "action, inputs",
         [
             ("get_transaction", {"transaction_id": TRANSACTION_ID}),
-            ("get_session", {"session_id": "session_1"}),
+            ("get_session", {"session_id": SESSION_ID}),
         ],
     )
     @pytest.mark.parametrize(
