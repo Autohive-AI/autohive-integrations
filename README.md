@@ -393,7 +393,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### OpenRouteService
 
-[openrouteservice](openrouteservice): Geocode addresses and create exact drive-time isochrone GeoJSON polygons through OpenRouteService. Uses an API-key connection, defaults address searches to New Zealand, flags low-confidence matches for human confirmation, and returns rate-limit retry guidance for spatial catchment workflows.
+[openrouteservice](openrouteservice): Geocode addresses, create exact drive-time isochrone GeoJSON polygons, and calculate labelled road-network travel-time matrices through OpenRouteService. Uses an API-key connection, defaults address searches to New Zealand, flags low-confidence matches for human confirmation, and returns rate-limit retry guidance for spatial catchment workflows.
 
 ## Template
 
