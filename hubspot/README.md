@@ -563,13 +563,14 @@ This integration provides comprehensive actions covering complete CRUD operation
 ### Ticket Management
 
 #### Action: `get_recent_tickets`
-- **Description:** Retrieve recent support tickets with filtering and sorting capabilities
+- **Description:** Retrieve a single page of recent support tickets with filtering and sorting capabilities. By default, tickets are sorted by their most recent modification, not their creation date.
 - **Inputs:**
   - `limit` (optional): Number of tickets to retrieve (default: 20, max: 100)
-  - `status` (optional): Filter by pipeline stage/status (1, 2, 3, 4)
+  - `status` (optional): Filter by the internal stage ID from your HubSpot ticket pipeline; stage IDs are account-specific
   - `sort_property` (optional): Property to sort by (default: hs_lastmodifieddate)
   - `sort_direction` (optional): Sort direction ASC/DESC (default: DESC)
-- **Outputs:** Array of ticket records with subject, content, priority, status, and assigned owner ID information
+- **Outputs:** A `tickets` response object containing `results`, `total`, and optional `paging`, with subject, content, priority, status, and assigned owner ID information. Ticket properties are optional and may be `null` when unset. The integration preserves missing, empty, and null values without inventing subjects or dropping tickets.
+- **API:** [Ticket property behavior](https://developers.hubspot.com/docs/api-reference/legacy/crm/objects/tickets/guide#retrieve-tickets) and [CRM search](https://developers.hubspot.com/docs/api-reference/legacy/crm/search-the-crm)
 
 #### Action: `get_ticket_conversation`
 - **Description:** Retrieve the complete conversation thread associated with a support ticket
@@ -1063,7 +1064,13 @@ To run the tests included with the integration:
 1. From the repository root, install the test and integration dependencies
 2. Run mocked unit tests with `pytest hubspot/`
 3. For live tests, configure the HubSpot variables documented in `.env.example`
-4. Run the list-membership tests with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k contact_to_static_list`
+4. Run read-only live tests with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and not destructive"`
+5. To run only the ticket tests, append `-k TestGetRecentTickets` to the read-only command. These request pages of 5 and 100 tickets, check limits/sorting and response structure, and compare the action output with the raw API response so missing/null values or records cannot silently be dropped. An empty account skips ticket-record coverage rather than claiming it was exercised.
+6. Optionally set `HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID` to a dedicated test ticket within the latest 100 modified tickets whose search response contains an explicit `subject: null`. This enables the targeted live regression; it fails if the configured fixture is absent or no longer null, and skips if the variable is unset. Tests do not create or modify the fixture.
+
+Use a current HubSpot OAuth access token for a dedicated test account, with the `tickets` scope for ticket tests. Missing credentials skip live tests; expired tokens, permission errors, and API failures fail rather than passing. Refresh expired tokens through your HubSpot OAuth app's token-refresh flow and update the local `.env`; never commit tokens.
+
+**Warning: destructive tests mutate real account data.** Run the list-membership tests deliberately on a test account with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k contact_to_static_list`.
 
 The list-membership tests reuse existing HubSpot test variables; this action does not introduce any new environment variables:
 
