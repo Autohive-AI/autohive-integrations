@@ -46,7 +46,7 @@
                 "type": "object",
                 "properties": {
                     "transaction_id": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "The Windcave transaction ID."
                     },
                     "authorised": {

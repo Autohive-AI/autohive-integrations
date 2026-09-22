@@ -205,6 +205,16 @@ class TestGetTransaction:
         assert result.result.data["amount_surcharge"] == "0.50"
 
     @pytest.mark.asyncio
+    async def test_missing_response_id_returns_null_transaction_id(self, mock_context):
+        transaction = {key: value for key, value in SAMPLE_TRANSACTION.items() if key != "id"}
+        mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=transaction)
+
+        result = await windcave.execute_action("get_transaction", {"transaction_id": TRANSACTION_ID}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["transaction_id"] is None
+
+    @pytest.mark.asyncio
     async def test_redacts_card_data_in_transaction(self, mock_context):
         mock_context.request_mock.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TRANSACTION)
 

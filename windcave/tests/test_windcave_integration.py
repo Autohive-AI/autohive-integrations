@@ -21,6 +21,7 @@ from autohive_integrations_sdk import HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from windcave import windcave
+from windcave.windcave import CARD_FIELDS
 
 pytestmark = pytest.mark.integration
 
@@ -54,18 +55,7 @@ def assert_card_fields_are_redacted(value):
     """Check objects and standalone card fields throughout the full output."""
     if isinstance(value, dict):
         for key, item in value.items():
-            if key.lower() in {
-                "card",
-                "cards",
-                "cardid",
-                "cardnumber2",
-                "cardnumber",
-                "cardholdername",
-                "dateexpirymonth",
-                "dateexpiryyear",
-                "cvc",
-                "cvv",
-            }:
+            if key.lower() in CARD_FIELDS:
                 assert_card_is_redacted(item)
             else:
                 assert_card_fields_are_redacted(item)
