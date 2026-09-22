@@ -295,8 +295,21 @@ def fetch_keyword_data(client, customer_id, date_ranges_input, campaign_ids=None
 
     query_template = """
         SELECT
-        ad_group_criterion.keyword.text, metrics.impressions,
-        metrics.clicks, metrics.cost_micros
+        campaign.id,
+        campaign.name,
+        ad_group.id,
+        ad_group.name,
+        ad_group_criterion.criterion_id,
+        ad_group_criterion.keyword.text,
+        ad_group_criterion.keyword.match_type,
+        ad_group_criterion.status,
+        ad_group_criterion.quality_info.quality_score,
+        metrics.impressions,
+        metrics.clicks,
+        metrics.cost_micros,
+        metrics.all_conversions,
+        metrics.interaction_rate,
+        metrics.average_cpc
         FROM keyword_view
         WHERE segments.date BETWEEN '{start_date}' AND '{end_date}'
         AND ad_group_criterion.status != 'REMOVED'

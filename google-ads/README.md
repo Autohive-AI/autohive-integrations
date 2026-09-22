@@ -290,7 +290,7 @@ Retrieves the search terms that triggered your ads, including matched keyword, i
 ### Keyword Planning (4 actions)
 
 #### `retrieve_keyword_metrics`
-Retrieves detailed performance metrics for keywords including match type, impressions, clicks, cost, conversions, and interaction rate.
+Retrieves detailed performance metrics for keywords including campaign/ad group identifiers, keyword ID, keyword text, match type, status, quality score, impressions, clicks, cost, conversions, and interaction rate.
 
 **Inputs:**
 - `login_customer_id` (required): Manager Account ID (MCC) without dashes
@@ -298,6 +298,8 @@ Retrieves detailed performance metrics for keywords including match type, impres
 - `ad_group_ids` (required): List of ad group IDs to filter by
 - `campaign_ids` (required): List of campaign IDs to filter by
 - `date_ranges` (optional): List of date ranges
+
+**Output includes:** `Campaign ID`, `Campaign`, `Ad Group ID`, `Ad Group`, `Keyword ID`, `Keyword`, `Match Type`, `Status`, `Quality Score`, `Impressions`, `Clicks`, `Cost`, `Conversions`, `Interaction Rate`, and `Avg. CPC`.
 
 ---
 
@@ -361,6 +363,7 @@ Generates forecast metrics (impressions, clicks, cost) for keywords with specifi
 ## Important Notes
 
 - OAuth tokens are automatically managed by the Autohive platform
+- The Lambda runtime must also provide the shared Google Ads app credentials: `ADWORDS_DEVELOPER_TOKEN`, `ADWORDS_CLIENT_ID`, and `ADWORDS_CLIENT_SECRET`
 - Most actions require both a `login_customer_id` (MCC manager account) and a `customer_id` (target client account)
 - Budget and bid amounts are in **micros** — divide by 1,000,000 to get the dollar value (e.g., 1000000 micros = $1.00)
 - New campaigns, ad groups, and ads are created in **PAUSED** status by default for safety
@@ -368,7 +371,30 @@ Generates forecast metrics (impressions, clicks, cost) for keywords with specifi
 
 ## Testing
 
-To test the integration:
+Unit tests are mocked and safe to run locally:
+
+```bash
+pytest google-ads/tests/test_google_ads_unit.py
+```
+
+Live integration tests call the real Google Ads API and skip unless all required environment variables are set:
+
+```bash
+pytest google-ads/tests/test_google_ads_integration.py -m integration
+```
+
+Required live-test environment variables:
+
+- `ADWORDS_DEVELOPER_TOKEN`
+- `ADWORDS_CLIENT_ID`
+- `ADWORDS_CLIENT_SECRET`
+- `GOOGLE_ADS_REFRESH_TOKEN`
+- `GOOGLE_ADS_LOGIN_CUSTOMER_ID`
+- `GOOGLE_ADS_CUSTOMER_ID`
+- `GOOGLE_ADS_TEST_CAMPAIGN_IDS`
+- `GOOGLE_ADS_TEST_AD_GROUP_IDS`
+
+Legacy manual smoke test:
 
 1. Navigate to the integration directory: `cd google-ads`
 2. Install dependencies: `pip install -r requirements.txt`
