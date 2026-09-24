@@ -1,0 +1,432 @@
+{
+  "name": "JobAdder",
+  "display_name": "JobAdder",
+  "version": "1.0.0",
+  "description": "JobAdder recruitment integration for jobs, candidates, applications, placements, and connected-user discovery.",
+  "entry_point": "jobadder.py",
+  "auth": {
+    "type": "platform",
+    "provider": "JobAdder",
+    "scopes": [
+      "offline_access",
+      "read_user",
+      "read_job",
+      "read_candidate",
+      "write_candidate",
+      "read_jobapplication",
+      "write_jobapplication",
+      "read_placement"
+    ]
+  },
+  "actions": {
+    "get_current_user": {
+      "display_name": "Get Current User",
+      "description": "Retrieves the JobAdder user who authorised the connected account.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "user": {"type": "object", "description": "Connected JobAdder user details"}
+        },
+        "required": ["user"]
+      }
+    },
+    "list_jobs": {
+      "display_name": "List Jobs",
+      "description": "Lists jobs with filters for title, company, status, owner, activity, dates, and sorting.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_title": {"type": "string", "description": "Filter by job title"},
+          "company_name": {"type": "string", "description": "Filter by company name"},
+          "company_id": {"type": "integer", "description": "Filter by company ID"},
+          "status_id": {"type": "integer", "description": "Filter by job status ID"},
+          "active": {"type": "boolean", "description": "Return only active/open jobs when true"},
+          "owner_user_id": {"type": "integer", "description": "Filter by owner user ID"},
+          "created_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "updated_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "sort": {"type": "string", "description": "Sort field; prefix with - for descending order"},
+          "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset"},
+          "limit": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 100, "description": "Maximum results to return; 0 returns only the count"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "jobs": {"type": "array", "items": {"type": "object"}, "description": "Matching jobs"},
+          "total_count": {"type": "integer", "description": "Total number of matching jobs"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["jobs", "total_count", "links"]
+      }
+    },
+    "get_job": {
+      "display_name": "Get Job",
+      "description": "Retrieves a job by its JobAdder ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {"type": "integer", "description": "JobAdder job ID"}
+        },
+        "required": ["job_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "job": {"type": "object", "description": "Job details"}
+        },
+        "required": ["job"]
+      }
+    },
+    "list_candidates": {
+      "display_name": "List Candidates",
+      "description": "Searches candidates by identity, resume keywords, status, recruiter, dates, and sorting.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Candidate name"},
+          "email": {"type": "string", "description": "Candidate email address"},
+          "phone": {"type": "string", "description": "Candidate phone or mobile number"},
+          "keywords": {"type": "string", "description": "Keywords to search in the latest resume"},
+          "status_id": {"type": "integer", "description": "Candidate status ID"},
+          "recruiter_user_id": {"type": "integer", "description": "Associated recruiter user ID"},
+          "created_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "updated_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "sort": {"type": "string", "description": "Sort field; prefix with - for descending order"},
+          "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset"},
+          "limit": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 100, "description": "Maximum results to return; 0 returns only the count"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "candidates": {"type": "array", "items": {"type": "object"}, "description": "Matching candidates"},
+          "total_count": {"type": "integer", "description": "Total number of matching candidates"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["candidates", "total_count", "links"]
+      }
+    },
+    "get_candidate": {
+      "display_name": "Get Candidate",
+      "description": "Retrieves a candidate profile by its JobAdder ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "JobAdder candidate ID"}
+        },
+        "required": ["candidate_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "candidate": {"type": "object", "description": "Candidate profile"}
+        },
+        "required": ["candidate"]
+      }
+    },
+    "create_candidate": {
+      "display_name": "Create Candidate",
+      "description": "Creates a JobAdder candidate with contact, employment, availability, education, skill, social, and custom-field data.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "first_name": {"type": "string", "maxLength": 50, "description": "Candidate first name"},
+          "last_name": {"type": "string", "maxLength": 50, "description": "Candidate last name"},
+          "email": {"type": "string", "maxLength": 100, "description": "Primary email address"},
+          "phone": {"type": "string", "maxLength": 50, "description": "Phone number"},
+          "mobile": {"type": "string", "maxLength": 50, "description": "Mobile number"},
+          "salutation": {"type": "string", "maxLength": 20, "description": "Salutation or title"},
+          "status_id": {"type": "integer", "description": "Candidate status ID"},
+          "rating": {"type": "string", "maxLength": 50, "description": "Internal candidate rating"},
+          "source": {"type": "string", "maxLength": 50, "description": "Candidate source"},
+          "seeking": {"type": "string", "enum": ["Yes", "Maybe", "No"], "description": "Whether the candidate is seeking work"},
+          "social": {
+            "type": "object",
+            "additionalProperties": {"type": "string"},
+            "description": "Social profile URLs keyed by network, such as linkedin, facebook, twitter, youtube, or other"
+          },
+          "address": {
+            "type": "object",
+            "properties": {
+              "street": {"type": "array", "items": {"type": "string"}, "description": "Street address lines"},
+              "city": {"type": "string", "description": "City or locality"},
+              "state": {"type": "string", "description": "State, province, or region"},
+              "postalCode": {"type": "string", "description": "Postal code"},
+              "countryCode": {"type": "string", "description": "ISO country code"}
+            },
+            "additionalProperties": false,
+            "description": "Candidate address using JobAdder field names"
+          },
+          "skill_tags": {"type": "array", "maxItems": 100, "items": {"type": "string"}, "description": "Candidate skill tags"},
+          "employment": {
+            "type": "object",
+            "properties": {
+              "current": {
+                "type": "object",
+                "properties": {
+                  "employer": {"type": "string"},
+                  "position": {"type": "string"},
+                  "workTypeId": {"type": "integer"},
+                  "salary": {
+                    "type": "object",
+                    "properties": {
+                      "ratePer": {"type": "string", "enum": ["Hour", "Day", "Week", "Month", "Year"]},
+                      "rate": {"type": "number"},
+                      "currency": {"type": "string", "minLength": 3, "maxLength": 3, "description": "ISO 4217 currency code"}
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "ideal": {
+                "type": "object",
+                "properties": {
+                  "position": {"type": "string"},
+                  "workTypeId": {"type": "integer"},
+                  "salary": {
+                    "type": "object",
+                    "properties": {
+                      "ratePer": {"type": "string", "enum": ["Hour", "Day", "Week", "Month", "Year"]},
+                      "rateLow": {"type": "number"},
+                      "rateHigh": {"type": "number"},
+                      "currency": {"type": "string", "minLength": 3, "maxLength": 3, "description": "ISO 4217 currency code"}
+                    },
+                    "additionalProperties": false
+                  },
+                  "other": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "workTypeId": {"type": "integer"},
+                        "salary": {
+                          "type": "object",
+                          "properties": {
+                            "ratePer": {"type": "string", "enum": ["Hour", "Day", "Week", "Month", "Year"]},
+                            "rateLow": {"type": "number"},
+                            "rateHigh": {"type": "number"},
+                            "currency": {"type": "string", "minLength": 3, "maxLength": 3, "description": "ISO 4217 currency code"}
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "employer": {"type": "string"},
+                    "position": {"type": "string"},
+                    "start": {"type": "string", "description": "Start year, year-month, or ISO full-date"},
+                    "end": {"type": "string", "description": "End year, year-month, ISO full-date, or Present"},
+                    "description": {"type": "string", "description": "Responsibilities and achievements"}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false,
+            "description": "Current, ideal, and historical employment using JobAdder field names"
+          },
+          "availability": {
+            "type": "object",
+            "properties": {
+              "immediate": {"type": "boolean", "description": "Whether the candidate can start immediately"},
+              "relative": {
+                "type": "object",
+                "properties": {
+                  "period": {"type": "integer", "minimum": 1, "maximum": 6},
+                  "unit": {"type": "string", "enum": ["Week", "Month"]}
+                },
+                "required": ["period", "unit"],
+                "additionalProperties": false,
+                "description": "Notice period; JobAdder permits 1-4 weeks or 1-6 months"
+              },
+              "date": {"type": "string", "format": "date", "description": "Specific available start date"}
+            },
+            "oneOf": [
+              {"required": ["immediate"]},
+              {"required": ["relative"]},
+              {"required": ["date"]}
+            ],
+            "additionalProperties": false,
+            "description": "Availability expressed using exactly one of immediate, relative, or date"
+          },
+          "education": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "institution": {"type": "string"},
+                "course": {"type": "string"},
+                "date": {"type": "string", "description": "Completion year, year-month, or ISO full-date"}
+              },
+              "additionalProperties": false
+            },
+            "description": "Education history"
+          },
+          "custom_fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fieldId": {"type": "integer", "description": "JobAdder custom-field ID"},
+                "value": {
+                  "oneOf": [
+                    {"type": "string"},
+                    {"type": "array", "items": {"type": "string"}}
+                  ],
+                  "description": "Text, list, or ISO full-date value appropriate for the custom-field type"
+                }
+              },
+              "required": ["fieldId"],
+              "additionalProperties": false
+            },
+            "description": "Candidate custom fields"
+          },
+          "recruiter_user_ids": {"type": "array", "items": {"type": "integer"}, "description": "Associated recruiter user IDs"},
+          "allow_duplicates": {"type": "string", "description": "Duplicate override code from an earlier HTTP 409 response"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "candidate": {"type": "object", "description": "Created candidate profile"}
+        },
+        "required": ["candidate"]
+      }
+    },
+    "list_applications": {
+      "display_name": "List Applications",
+      "description": "Lists job applications with filters for candidate, job, status, activity, rejection, resume keywords, dates, and sorting.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "Filter by candidate ID"},
+          "job_id": {"type": "integer", "description": "Filter by job ID"},
+          "status_id": {"type": "integer", "description": "Filter by application status ID"},
+          "job_title": {"type": "string", "description": "Filter by job title"},
+          "active": {"type": "boolean", "description": "Filter for active applications"},
+          "rejected": {"type": "boolean", "description": "Filter for rejected applications"},
+          "keywords": {"type": "string", "description": "Keywords to search in applicant resumes"},
+          "created_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "updated_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "sort": {"type": "string", "description": "Sort field; prefix with - for descending order"},
+          "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset"},
+          "limit": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 100, "description": "Maximum results to return; 0 returns only the count"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "applications": {"type": "array", "items": {"type": "object"}, "description": "Matching applications"},
+          "total_count": {"type": "integer", "description": "Total number of matching applications"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["applications", "total_count", "links"]
+      }
+    },
+    "get_application": {
+      "display_name": "Get Application",
+      "description": "Retrieves a job application by its JobAdder ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "application_id": {"type": "integer", "description": "JobAdder application ID"}
+        },
+        "required": ["application_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "application": {"type": "object", "description": "Application details"}
+        },
+        "required": ["application"]
+      }
+    },
+    "add_candidates_to_job": {
+      "display_name": "Add Candidates to Job",
+      "description": "Creates applications by adding one or more existing JobAdder candidates to a job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {"type": "integer", "description": "Target JobAdder job ID"},
+          "candidate_ids": {"type": "array", "minItems": 1, "items": {"type": "integer"}, "description": "Candidate IDs to add to the job"},
+          "source": {"type": "string", "description": "Application source"}
+        },
+        "required": ["job_id", "candidate_ids"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "applications": {"type": "array", "items": {"type": "object"}, "description": "Created applications"},
+          "total_count": {"type": "integer", "description": "Number of applications returned"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["applications", "total_count", "links"]
+      }
+    },
+    "list_placements": {
+      "display_name": "List Placements",
+      "description": "Lists placements with candidate, job, company, status, approval, and audit-date filters.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "Filter by candidate ID"},
+          "job_id": {"type": "integer", "description": "Filter by job ID"},
+          "company_id": {"type": "integer", "description": "Filter by company ID"},
+          "status_id": {"type": "integer", "description": "Filter by placement status ID"},
+          "approved": {"type": "boolean", "description": "Filter by approval state"},
+          "created_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "updated_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset"},
+          "limit": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 100, "description": "Maximum results to return; 0 returns only the count"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "placements": {"type": "array", "items": {"type": "object"}, "description": "Matching placements"},
+          "total_count": {"type": "integer", "description": "Total number of matching placements"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["placements", "total_count", "links"]
+      }
+    },
+    "get_placement": {
+      "display_name": "Get Placement",
+      "description": "Retrieves a placement by its JobAdder ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "placement_id": {"type": "integer", "description": "JobAdder placement ID"}
+        },
+        "required": ["placement_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "placement": {"type": "object", "description": "Placement details"}
+        },
+        "required": ["placement"]
+      }
+    }
+  }
+}
