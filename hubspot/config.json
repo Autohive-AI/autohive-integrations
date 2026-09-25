@@ -1604,7 +1604,7 @@
     },
     "add_ticket_comment": {
       "display_name": "Add Ticket Comment",
-      "description": "Add a comment to an existing HubSpot ticket.",
+      "description": "Add an internal note to an existing HubSpot ticket.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1618,7 +1618,7 @@
           },
           "is_public": {
             "type": "boolean",
-            "description": "Whether the comment should be visible to the customer (default: false)."
+            "description": "Reserved for future public-reply support. Current implementation creates an internal ticket note."
           }
         },
         "required": [
@@ -1631,7 +1631,7 @@
         "properties": {
           "result": {
             "type": "object",
-            "description": "Result of adding the comment to the ticket."
+            "description": "Result of adding the internal note to the ticket."
           }
         },
         "required": [

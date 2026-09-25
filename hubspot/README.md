@@ -578,12 +578,12 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Outputs:** Sorted conversation messages with sender information, timestamps, and message types
 
 #### Action: `add_ticket_comment`
-- **Description:** Add a comment to an existing ticket's conversation thread
+- **Description:** Add an internal CRM note to an existing ticket
 - **Inputs:**
-  - `ticket_id` (required): Ticket ID to add comment to
-  - `comment` (required): Comment text to add
-  - `is_public` (optional): Whether comment is visible to customer (default: false)
-- **Outputs:** Operation result with success status and thread message details
+  - `ticket_id` (required): Ticket ID to add the note to
+  - `comment` (required): Note text to add
+  - `is_public` (optional): Reserved for future public-reply support. Current implementation creates an internal note.
+- **Outputs:** Operation result with success status and created note details
 
 ### Marketing Emails
 
@@ -736,7 +736,7 @@ The integration has the following dependencies:
 }
 ```
 
-**Example 6: Adding a comment to a support ticket**
+**Example 6: Adding an internal note to a support ticket**
 ```json
 {
   "ticket_id": "123456789",
@@ -1032,7 +1032,7 @@ The integration has the following dependencies:
 ### Customer Support Workflow
 1. Retrieve recent tickets using `get_recent_tickets` with status filtering
 2. Get complete conversation history with `get_ticket_conversation`
-3. Add internal notes or customer responses with `add_ticket_comment`
+3. Add internal ticket notes with `add_ticket_comment`
 4. Update ticket properties as issues are resolved
 
 ### Company Account Management
