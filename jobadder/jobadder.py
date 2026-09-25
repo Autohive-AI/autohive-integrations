@@ -27,7 +27,7 @@ def _list_result(data: Any, key: str) -> ActionResult:
     payload = data if isinstance(data, dict) else {}
     return ActionResult(
         data={
-            key: payload.get("items", []),
+            key: payload.get("items") or [],
             "total_count": payload.get("totalCount", 0),
             "links": payload.get("links", {}),
         }
@@ -36,6 +36,10 @@ def _list_result(data: Any, key: str) -> ActionResult:
 
 def _pagination(inputs: dict[str, Any]) -> dict[str, Any]:
     return {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)}
+
+
+def _boolean_query_value(value: bool | None) -> str | None:
+    return str(value).lower() if value is not None else None
 
 
 @jobadder.action("get_current_user")
@@ -61,7 +65,7 @@ class ListJobsAction(ActionHandler):
                         "company.name": inputs.get("company_name"),
                         "companyId": inputs.get("company_id"),
                         "statusId": inputs.get("status_id"),
-                        "active": inputs.get("active"),
+                        "active": _boolean_query_value(inputs.get("active")),
                         "ownerUserId": inputs.get("owner_user_id"),
                         "createdAt": inputs.get("created_at"),
                         "updatedAt": inputs.get("updated_at"),
@@ -181,8 +185,8 @@ class ListApplicationsAction(ActionHandler):
                         "jobId": inputs.get("job_id"),
                         "statusId": inputs.get("status_id"),
                         "jobTitle": inputs.get("job_title"),
-                        "active": inputs.get("active"),
-                        "rejected": inputs.get("rejected"),
+                        "active": _boolean_query_value(inputs.get("active")),
+                        "rejected": _boolean_query_value(inputs.get("rejected")),
                         "keywords": inputs.get("keywords"),
                         "createdAt": inputs.get("created_at"),
                         "updatedAt": inputs.get("updated_at"),
@@ -242,7 +246,7 @@ class ListPlacementsAction(ActionHandler):
                         "jobId": inputs.get("job_id"),
                         "companyId": inputs.get("company_id"),
                         "statusId": inputs.get("status_id"),
-                        "approved": inputs.get("approved"),
+                        "approved": _boolean_query_value(inputs.get("approved")),
                         "createdAt": inputs.get("created_at"),
                         "updatedAt": inputs.get("updated_at"),
                     }.items()

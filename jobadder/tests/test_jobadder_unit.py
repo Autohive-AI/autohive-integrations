@@ -106,7 +106,7 @@ class TestListJobs:
                 "company_name": "Acme",
                 "company_id": 9,
                 "status_id": 2,
-                "active": False,
+                "active": True,
                 "owner_user_id": 4,
                 "created_at": ">2026-01-01T00:00:00Z",
                 "updated_at": "<2026-02-01T00:00:00Z",
@@ -125,7 +125,7 @@ class TestListJobs:
             "company.name": "Acme",
             "companyId": 9,
             "statusId": 2,
-            "active": False,
+            "active": "true",
             "ownerUserId": 4,
             "createdAt": ">2026-01-01T00:00:00Z",
             "updatedAt": "<2026-02-01T00:00:00Z",
@@ -211,10 +211,12 @@ class TestListCandidates:
         }
 
     @pytest.mark.asyncio
-    async def test_preserves_zero_limit_for_count_only(self, mock_context):
-        mock_context.fetch.return_value = response(list_payload(total=42))
-        await jobadder.execute_action("list_candidates", {"limit": 0}, mock_context)
+    async def test_normalizes_null_items_for_zero_limit(self, mock_context):
+        mock_context.fetch.return_value = response({"items": None, "totalCount": 42, "links": {}})
+        result = await jobadder.execute_action("list_candidates", {"limit": 0}, mock_context)
+
         assert mock_context.fetch.call_args.kwargs["params"]["limit"] == 0
+        assert result.result.data == {"candidates": [], "total_count": 42, "links": {}}
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
@@ -362,8 +364,8 @@ class TestListApplications:
         params = call.kwargs["params"]
         assert params["candidateId"] == 21
         assert params["jobId"] == 11
-        assert params["active"] is False
-        assert params["rejected"] is False
+        assert params["active"] == "false"
+        assert params["rejected"] == "false"
         assert params["sort"] == "-createdAt"
 
     @pytest.mark.asyncio
@@ -464,7 +466,7 @@ class TestListPlacements:
             "jobId": 11,
             "companyId": 9,
             "statusId": 5,
-            "approved": False,
+            "approved": "false",
             "createdAt": ">2026-01-01T00:00:00Z",
             "updatedAt": "<2026-12-31T23:59:59Z",
             "offset": 5,
