@@ -11,6 +11,7 @@ The write actions are intentionally excluded because JobAdder has no delete
 endpoint for reliably cleaning up candidates or applications created by tests.
 """
 
+import asyncio
 from unittest.mock import AsyncMock
 
 import pytest
@@ -21,6 +22,11 @@ from jobadder.jobadder import jobadder
 
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+async def respect_jobadder_rate_limit():
+    await asyncio.sleep(1)
 
 
 def require_integer_id(value: str | None, variable_name: str) -> int:
@@ -73,7 +79,7 @@ def resource_ids(env_credentials):
 
 
 def assert_list_result(result, records_key: str) -> None:
-    assert result.type == ResultType.ACTION_RESULT
+    assert result.type == ResultType.ACTION
     data = result.result.data
     assert isinstance(data[records_key], list)
     assert len(data[records_key]) <= 2
@@ -85,7 +91,7 @@ class TestCurrentUser:
     async def test_get_current_user(self, live_context):
         result = await jobadder.execute_action("get_current_user", {}, live_context)
 
-        assert result.type == ResultType.ACTION_RESULT
+        assert result.type == ResultType.ACTION
         assert isinstance(result.result.data["user"], dict)
         assert "userId" in result.result.data["user"]
 
@@ -99,7 +105,7 @@ class TestJobs:
         job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
         result = await jobadder.execute_action("get_job", {"job_id": job_id}, live_context)
 
-        assert result.type == ResultType.ACTION_RESULT
+        assert result.type == ResultType.ACTION
         assert result.result.data["job"]["jobId"] == job_id
 
 
@@ -112,7 +118,7 @@ class TestCandidates:
         candidate_id = require_integer_id(resource_ids["candidate"], "JOBADDER_TEST_CANDIDATE_ID")
         result = await jobadder.execute_action("get_candidate", {"candidate_id": candidate_id}, live_context)
 
-        assert result.type == ResultType.ACTION_RESULT
+        assert result.type == ResultType.ACTION
         assert result.result.data["candidate"]["candidateId"] == candidate_id
 
 
@@ -125,7 +131,7 @@ class TestApplications:
         application_id = require_integer_id(resource_ids["application"], "JOBADDER_TEST_APPLICATION_ID")
         result = await jobadder.execute_action("get_application", {"application_id": application_id}, live_context)
 
-        assert result.type == ResultType.ACTION_RESULT
+        assert result.type == ResultType.ACTION
         assert result.result.data["application"]["applicationId"] == application_id
 
 
@@ -138,5 +144,5 @@ class TestPlacements:
         placement_id = require_integer_id(resource_ids["placement"], "JOBADDER_TEST_PLACEMENT_ID")
         result = await jobadder.execute_action("get_placement", {"placement_id": placement_id}, live_context)
 
-        assert result.type == ResultType.ACTION_RESULT
+        assert result.type == ResultType.ACTION
         assert result.result.data["placement"]["placementId"] == placement_id
