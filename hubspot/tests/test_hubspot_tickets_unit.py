@@ -413,8 +413,7 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "My comment"}},
         )
-        association_response = FetchResponse(status=200, headers={}, data={"id": "association-new"})
-        mock_context.fetch.side_effect = [note_post_response, association_response]
+        mock_context.fetch.side_effect = [note_post_response]
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
@@ -427,7 +426,6 @@ class TestAddTicketComment:
         assert data["result"]["message"] == "Note added successfully to the ticket"
         assert data["result"]["visibility"] == "internal_note"
         assert data["result"]["note"]["id"] == "note-new"
-        assert data["result"]["association"]["id"] == "association-new"
 
         # Verify the POST payload
         post_call = mock_context.fetch.call_args_list[0]
@@ -435,27 +433,11 @@ class TestAddTicketComment:
         assert post_call.kwargs["method"] == "POST"
         payload = post_call.kwargs["json"]
         assert payload["properties"]["hs_note_body"] == "My comment"
-        assert "associations" not in payload
-
-        association_call = mock_context.fetch.call_args_list[1]
-        assert association_call.args[0] == (
-            "https://api.hubapi.com/crm/v4/objects/notes/note-new/associations/default/tickets/ticket-1"
-        )
-        assert association_call.kwargs["method"] == "PUT"
-
-    @pytest.mark.asyncio
-    async def test_note_without_id_returns_action_error(self, mock_context):
-        note_post_response = FetchResponse(status=200, headers={}, data={"properties": {"hs_note_body": "Hello"}})
-        mock_context.fetch.side_effect = [note_post_response]
-
-        result = await hubspot.execute_action(
-            "add_ticket_comment",
-            {"ticket_id": "ticket-1", "comment": "Hello"},
-            mock_context,
-        )
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "HubSpot did not return a note ID" in result.result.message
+        assert payload["associations"][0]["to"]["id"] == "ticket-1"
+        assert payload["associations"][0]["types"][0] == {
+            "associationCategory": "HUBSPOT_DEFINED",
+            "associationTypeId": 228,
+        }
 
     @pytest.mark.asyncio
     async def test_parse_error_returns_action_error(self, mock_context):
@@ -480,8 +462,7 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "test"}},
         )
-        association_response = FetchResponse(status=200, headers={}, data={})
-        mock_context.fetch.side_effect = [note_post_response, association_response]
+        mock_context.fetch.side_effect = [note_post_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "test"}, mock_context)
 
@@ -495,14 +476,13 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "hello"}},
         )
-        association_response = FetchResponse(status=200, headers={}, data={})
-        mock_context.fetch.side_effect = [note_post_response, association_response]
+        mock_context.fetch.side_effect = [note_post_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "hello"}, mock_context)
 
         payload = mock_context.fetch.call_args_list[0].kwargs["json"]
         assert payload["properties"]["hs_note_body"] == "hello"
-        assert "associations" not in payload
+        assert payload["associations"][0]["to"]["id"] == "t1"
 
     @pytest.mark.asyncio
     async def test_request_method_is_post(self, mock_context):
@@ -511,8 +491,7 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "x"}},
         )
-        association_response = FetchResponse(status=200, headers={}, data={})
-        mock_context.fetch.side_effect = [note_post_response, association_response]
+        mock_context.fetch.side_effect = [note_post_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "x"}, mock_context)
 
@@ -525,25 +504,10 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "ok"}},
         )
-        association_response = FetchResponse(status=200, headers={}, data={})
-        mock_context.fetch.side_effect = [note_post_response, association_response]
+        mock_context.fetch.side_effect = [note_post_response]
 
         result = await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "ok"}, mock_context)
 
         data = result.result.data
         assert data["result"]["success"] is True
         assert "message" in data["result"]
-
-    @pytest.mark.asyncio
-    async def test_association_error_returns_action_error(self, mock_context):
-        note_post_response = FetchResponse(
-            status=200,
-            headers={},
-            data={"id": "note-new", "properties": {"hs_note_body": "ok"}},
-        )
-        mock_context.fetch.side_effect = [note_post_response, Exception("400 invalid association")]
-
-        result = await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "ok"}, mock_context)
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "Failed to associate note note-new to ticket t1" in result.result.message

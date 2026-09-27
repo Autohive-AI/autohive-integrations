@@ -1300,7 +1300,18 @@ class AddTicketCommentActionHandler(ActionHandler):
             "properties": {
                 "hs_timestamp": datetime.now(timezone.utc).isoformat(),
                 "hs_note_body": comment,
-            }
+            },
+            "associations": [
+                {
+                    "to": {"id": str(ticket_id)},
+                    "types": [
+                        {
+                            "associationCategory": "HUBSPOT_DEFINED",
+                            "associationTypeId": 228,
+                        }
+                    ],
+                }
+            ],
         }
 
         try:
@@ -1312,26 +1323,7 @@ class AddTicketCommentActionHandler(ActionHandler):
             )
             note_result = await parse_response(note_response)
         except Exception as e:
-            return ActionError(message=f"Failed to create note for ticket {ticket_id}: {str(e)}")
-
-        note_id = note_result.get("id")
-        if not note_id:
-            return ActionError(
-                message=(f"Failed to associate note to ticket {ticket_id}: HubSpot did not return a note ID")
-            )
-
-        association_url = (
-            f"https://api.hubapi.com/crm/v4/objects/notes/{note_id}/associations/default/tickets/{ticket_id}"
-        )
-        try:
-            association_response = await context.fetch(
-                association_url,
-                method="PUT",
-                headers={"Content-Type": "application/json"},
-            )
-            association_result = await parse_response(association_response)
-        except Exception as e:
-            return ActionError(message=f"Failed to associate note {note_id} to ticket {ticket_id}: {str(e)}")
+            return ActionError(message=f"Failed to add note to ticket {ticket_id}: {str(e)}")
 
         return ActionResult(
             data={
@@ -1340,7 +1332,6 @@ class AddTicketCommentActionHandler(ActionHandler):
                     "message": "Note added successfully to the ticket",
                     "visibility": "internal_note",
                     "note": note_result,
-                    "association": association_result,
                 }
             },
             cost_usd=None,
