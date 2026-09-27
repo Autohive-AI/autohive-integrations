@@ -395,18 +395,6 @@ class TestGetTicketConversation:
 
 class TestAddTicketComment:
     @pytest.mark.asyncio
-    async def test_public_comment_returns_clear_error(self, mock_context):
-        result = await hubspot.execute_action(
-            "add_ticket_comment",
-            {"ticket_id": "ticket-1", "comment": "Public reply", "is_public": True},
-            mock_context,
-        )
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "Public ticket replies are not supported" in result.result.message
-        mock_context.fetch.assert_not_called()
-
-    @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
         note_post_response = FetchResponse(
             status=200,
@@ -433,7 +421,7 @@ class TestAddTicketComment:
         assert post_call.kwargs["method"] == "POST"
         payload = post_call.kwargs["json"]
         assert payload["properties"]["hs_note_body"] == "My comment"
-        assert "hs_timestamp" not in payload["properties"]
+        assert isinstance(payload["properties"]["hs_timestamp"], int)
         assert payload["associations"][0]["to"]["id"] == "ticket-1"
         assert payload["associations"][0]["types"][0] == {
             "associationCategory": "HUBSPOT_DEFINED",

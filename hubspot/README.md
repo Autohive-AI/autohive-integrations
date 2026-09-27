@@ -29,7 +29,6 @@ The integration uses HubSpot's OAuth 2.0 platform authentication. No manual API 
 **Required Scopes:**
 The integration automatically requests the following HubSpot permissions:
 - `conversations.read` - Read access to conversation threads
-- `conversations.write` - Write access to conversation threads
 - `crm.objects.companies.read` - Read access to company records
 - `crm.objects.companies.write` - Write access to company records
 - `crm.objects.contacts.read` - Read access to contact records
@@ -582,7 +581,6 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Inputs:**
   - `ticket_id` (required): Ticket ID to add the note to
   - `comment` (required): Note text to add
-  - `is_public` (optional): Reserved for future public-reply support. Current implementation creates an internal note.
 - **Outputs:** Operation result with success status and created note details
 
 ### Marketing Emails
@@ -740,8 +738,7 @@ The integration has the following dependencies:
 ```json
 {
   "ticket_id": "123456789",
-  "comment": "Following up on the customer's request. The issue has been resolved and we've updated the system accordingly.",
-  "is_public": false
+  "comment": "Following up on the customer's request. The issue has been resolved and we've updated the system accordingly."
 }
 ```
 

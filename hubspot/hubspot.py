@@ -1287,17 +1287,10 @@ class AddTicketCommentActionHandler(ActionHandler):
         ticket_id = inputs["ticket_id"]
         comment = inputs["comment"]
 
-        if inputs.get("is_public"):
-            return ActionError(
-                message=(
-                    "Public ticket replies are not supported by add_ticket_comment; "
-                    "use this action for internal ticket notes only."
-                ),
-            )
-
         notes_url = "https://api.hubapi.com/crm/v3/objects/notes"
         note_payload = {
             "properties": {
+                "hs_timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
                 "hs_note_body": comment,
             },
             "associations": [
