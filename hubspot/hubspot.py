@@ -1111,29 +1111,6 @@ async def get_thread_id_from_ticket(ticket_id: str, context: ExecutionContext) -
     return ticket_data.get("properties", {}).get("hs_conversations_originating_thread_id")
 
 
-async def get_note_to_ticket_association_type_id(context: ExecutionContext) -> int:
-    """Return the HubSpot-defined association type ID for note -> ticket.
-
-    HubSpot exposes association type IDs through the v4 labels endpoint. Keep a
-    fallback for accounts where label discovery is unavailable so adding an
-    internal ticket note can still proceed with HubSpot's default association.
-    """
-    fallback_type_id = 227
-    labels_url = "https://api.hubapi.com/crm/v4/associations/notes/tickets/labels"
-
-    try:
-        labels_response = await context.fetch(labels_url, headers={"Content-Type": "application/json"})
-        labels_data = await parse_response(labels_response)
-    except Exception:  # nosec B110 - fallback is the HubSpot-defined default association type.
-        return fallback_type_id
-
-    for label in labels_data.get("results", []):
-        if label.get("category") == "HUBSPOT_DEFINED" and label.get("typeId"):
-            return int(label["typeId"])
-
-    return fallback_type_id
-
-
 @hubspot.action("get_recent_tickets")
 class GetRecentTicketsActionHandler(ActionHandler):
     """
@@ -1318,25 +1295,25 @@ class AddTicketCommentActionHandler(ActionHandler):
                 ),
             )
 
-        association_type_id = await get_note_to_ticket_association_type_id(context)
+        ticket_url = f"https://api.hubapi.com/crm/v3/objects/tickets/{ticket_id}"
         notes_url = "https://api.hubapi.com/crm/v3/objects/notes"
         note_payload = {
             "properties": {
                 "hs_timestamp": datetime.now(timezone.utc).isoformat(),
                 "hs_note_body": comment,
-            },
-            "associations": [
-                {
-                    "to": {"id": str(ticket_id)},
-                    "types": [
-                        {
-                            "associationCategory": "HUBSPOT_DEFINED",
-                            "associationTypeId": association_type_id,
-                        }
-                    ],
-                }
-            ],
+            }
         }
+
+        try:
+            ticket_response = await context.fetch(ticket_url, headers={"Content-Type": "application/json"})
+            await parse_response(ticket_response)
+        except Exception as e:
+            return ActionError(
+                message=(
+                    f"Ticket {ticket_id} was not found in the connected HubSpot portal. "
+                    f"Please confirm the ticket ID belongs to the same HubSpot connection: {str(e)}"
+                )
+            )
 
         try:
             note_response = await context.fetch(
@@ -1347,7 +1324,26 @@ class AddTicketCommentActionHandler(ActionHandler):
             )
             note_result = await parse_response(note_response)
         except Exception as e:
-            return ActionError(message=f"Failed to add note to ticket {ticket_id}: {str(e)}")
+            return ActionError(message=f"Failed to create note for ticket {ticket_id}: {str(e)}")
+
+        note_id = note_result.get("id")
+        if not note_id:
+            return ActionError(
+                message=(f"Failed to associate note to ticket {ticket_id}: HubSpot did not return a note ID")
+            )
+
+        association_url = (
+            f"https://api.hubapi.com/crm/v4/objects/notes/{note_id}/associations/default/tickets/{ticket_id}"
+        )
+        try:
+            association_response = await context.fetch(
+                association_url,
+                method="PUT",
+                headers={"Content-Type": "application/json"},
+            )
+            association_result = await parse_response(association_response)
+        except Exception as e:
+            return ActionError(message=f"Failed to associate note {note_id} to ticket {ticket_id}: {str(e)}")
 
         return ActionResult(
             data={
@@ -1356,6 +1352,7 @@ class AddTicketCommentActionHandler(ActionHandler):
                     "message": "Note added successfully to the ticket",
                     "visibility": "internal_note",
                     "note": note_result,
+                    "association": association_result,
                 }
             },
             cost_usd=None,
