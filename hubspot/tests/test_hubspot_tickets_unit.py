@@ -411,7 +411,7 @@ class TestAddTicketComment:
         labels_response = FetchResponse(
             status=200,
             headers={},
-            data={"results": [{"category": "HUBSPOT_DEFINED", "typeId": 228, "label": None}]},
+            data={"results": [{"category": "HUBSPOT_DEFINED", "typeId": 227, "label": None}]},
         )
         note_post_response = FetchResponse(
             status=200,
@@ -441,7 +441,7 @@ class TestAddTicketComment:
         assert payload["associations"][0]["to"]["id"] == "ticket-1"
         assert payload["associations"][0]["types"][0] == {
             "associationCategory": "HUBSPOT_DEFINED",
-            "associationTypeId": 228,
+            "associationTypeId": 227,
         }
 
     @pytest.mark.asyncio
@@ -462,7 +462,7 @@ class TestAddTicketComment:
         data = result.result.data
         assert data["result"]["success"] is True
         post_call = mock_context.fetch.call_args_list[1]
-        assert post_call.kwargs["json"]["associations"][0]["types"][0]["associationTypeId"] == 228
+        assert post_call.kwargs["json"]["associations"][0]["types"][0]["associationTypeId"] == 227
 
     @pytest.mark.asyncio
     async def test_parse_error_returns_action_error(self, mock_context):

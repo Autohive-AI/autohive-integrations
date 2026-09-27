@@ -1118,7 +1118,7 @@ async def get_note_to_ticket_association_type_id(context: ExecutionContext) -> i
     fallback for accounts where label discovery is unavailable so adding an
     internal ticket note can still proceed with HubSpot's default association.
     """
-    fallback_type_id = 228
+    fallback_type_id = 227
     labels_url = "https://api.hubapi.com/crm/v4/associations/notes/tickets/labels"
 
     try:
