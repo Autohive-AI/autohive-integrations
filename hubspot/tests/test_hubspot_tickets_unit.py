@@ -433,6 +433,7 @@ class TestAddTicketComment:
         assert post_call.kwargs["method"] == "POST"
         payload = post_call.kwargs["json"]
         assert payload["properties"]["hs_note_body"] == "My comment"
+        assert "hs_timestamp" not in payload["properties"]
         assert payload["associations"][0]["to"]["id"] == "ticket-1"
         assert payload["associations"][0]["types"][0] == {
             "associationCategory": "HUBSPOT_DEFINED",

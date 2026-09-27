@@ -1298,7 +1298,6 @@ class AddTicketCommentActionHandler(ActionHandler):
         notes_url = "https://api.hubapi.com/crm/v3/objects/notes"
         note_payload = {
             "properties": {
-                "hs_timestamp": datetime.now(timezone.utc).isoformat(),
                 "hs_note_body": comment,
             },
             "associations": [
