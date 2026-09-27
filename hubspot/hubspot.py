@@ -1295,7 +1295,6 @@ class AddTicketCommentActionHandler(ActionHandler):
                 ),
             )
 
-        ticket_url = f"https://api.hubapi.com/crm/v3/objects/tickets/{ticket_id}"
         notes_url = "https://api.hubapi.com/crm/v3/objects/notes"
         note_payload = {
             "properties": {
@@ -1303,17 +1302,6 @@ class AddTicketCommentActionHandler(ActionHandler):
                 "hs_note_body": comment,
             }
         }
-
-        try:
-            ticket_response = await context.fetch(ticket_url, headers={"Content-Type": "application/json"})
-            await parse_response(ticket_response)
-        except Exception as e:
-            return ActionError(
-                message=(
-                    f"Ticket {ticket_id} was not found in the connected HubSpot portal. "
-                    f"Please confirm the ticket ID belongs to the same HubSpot connection: {str(e)}"
-                )
-            )
 
         try:
             note_response = await context.fetch(
