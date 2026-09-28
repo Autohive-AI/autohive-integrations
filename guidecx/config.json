@@ -1,0 +1,2781 @@
+{
+  "name": "GUIDEcx",
+  "version": "1.2.0",
+  "display_name": "GUIDEcx",
+  "description": "Customer onboarding and project management platform. Track onboarding projects, milestones and tasks, update task progress and post updates to project or task message channels.",
+  "entry_point": "guidecx.py",
+  "auth": {
+    "type": "custom",
+    "title": "GUIDEcx",
+    "fields": {
+      "type": "object",
+      "properties": {
+        "api_token": {
+          "type": "string",
+          "format": "password",
+          "label": "API Token",
+          "help_text": "GUIDEcx Open API bearer token. Generate it in the GUIDEcx web app under Company Settings -> Open API. A workspace admin role is required to create tokens."
+        }
+      },
+      "required": [
+        "api_token"
+      ]
+    }
+  },
+  "actions": {
+    "list_projects": {
+      "display_name": "List Projects",
+      "description": "Search onboarding projects, optionally filtered by status, status category, customer, project manager or tag.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by workspace-specific status labels (for example 'Kickoff'). Use status_category for portable filtering."
+          },
+          "status_category": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "IN_PROGRESS",
+                "DONE",
+                "LATE",
+                "CANCELLED",
+                "ON_HOLD"
+              ]
+            },
+            "description": "Filter by standard project status categories."
+          },
+          "customer_id": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by customer IDs."
+          },
+          "project_manager_id": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by project manager member IDs."
+          },
+          "tag": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by tag name."
+          },
+          "updated_after": {
+            "type": "string",
+            "description": "Only return projects updated at or after this ISO 8601 timestamp (for example 2026-01-31T00:00:00Z)."
+          },
+          "updated_before": {
+            "type": "string",
+            "description": "Only return projects updated at or before this ISO 8601 timestamp."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of projects to return.",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of projects to skip, for pagination.",
+            "default": 0,
+            "minimum": 0
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "projects": {
+            "type": "array",
+            "description": "The matching projects.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Project ID."
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Project name."
+                },
+                "status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Workspace-specific status label."
+                },
+                "statusCategory": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Standard status category."
+                },
+                "startDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Project start date."
+                },
+                "endDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Project end date."
+                },
+                "forecastedEndDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Currently forecasted end date."
+                },
+                "completedDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Date the project was completed."
+                },
+                "createdDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Creation timestamp."
+                },
+                "updatedDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last update timestamp."
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total number of projects matching the filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size used for this request."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used for this request."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when more projects remain beyond this page."
+          }
+        }
+      }
+    },
+    "get_project": {
+      "display_name": "Get Project",
+      "description": "Retrieve a single onboarding project by its ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project to retrieve."
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "object",
+            "description": "The requested project.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Project ID."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Project name."
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Workspace-specific status label."
+              },
+              "statusCategory": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Standard status category."
+              },
+              "startDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Project start date."
+              },
+              "endDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Project end date."
+              },
+              "forecastedEndDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Currently forecasted end date."
+              },
+              "completedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Date the project was completed."
+              },
+              "internalPmNote": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Internal project manager note."
+              },
+              "externalPmNote": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Customer-visible project manager note."
+              },
+              "createdDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Creation timestamp."
+              },
+              "updatedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "list_milestones": {
+      "display_name": "List Milestones",
+      "description": "List the milestones belonging to a project, in their display order.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project whose milestones to list."
+          },
+          "phase_id": {
+            "type": "string",
+            "description": "Optionally restrict results to a single phase."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of milestones to return.",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of milestones to skip, for pagination.",
+            "default": 0,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "milestones": {
+            "type": "array",
+            "description": "The project's milestones.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Milestone ID."
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Milestone name."
+                },
+                "startDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Milestone start date."
+                },
+                "endDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Milestone due date."
+                },
+                "sortOrder": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Display order within the project."
+                },
+                "formattedDescription": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Milestone description."
+                },
+                "createdDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Creation timestamp."
+                },
+                "updatedDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last update timestamp."
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total number of milestones matching the filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size used for this request."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used for this request."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when more milestones remain beyond this page."
+          }
+        }
+      }
+    },
+    "list_tasks": {
+      "display_name": "List Tasks",
+      "description": "Search tasks, optionally filtered by project, milestone, assignee, status category or name.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Only return tasks in this project."
+          },
+          "milestone_id": {
+            "type": "string",
+            "description": "Only return tasks in this milestone."
+          },
+          "assignee_id": {
+            "type": "string",
+            "description": "Only return tasks assigned to this member."
+          },
+          "status_category": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "NOT_STARTED",
+                "IN_PROGRESS",
+                "STUCK",
+                "SIGN_OFF",
+                "DONE",
+                "NOT_APPLICABLE"
+              ]
+            },
+            "description": "Filter by standard task status categories."
+          },
+          "name": {
+            "type": "string",
+            "description": "Match tasks by exact or partial name."
+          },
+          "type_filter": {
+            "type": "string",
+            "enum": [
+              "ALL",
+              "TASK",
+              "SUBTASK"
+            ],
+            "description": "Which task types to include. Defaults to ALL."
+          },
+          "updated_after": {
+            "type": "string",
+            "description": "Only return tasks updated at or after this ISO 8601 timestamp."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of tasks to return.",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of tasks to skip, for pagination.",
+            "default": 0,
+            "minimum": 0
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "description": "The matching tasks.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Task ID."
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Task name."
+                },
+                "status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Workspace-specific status label."
+                },
+                "statusCategory": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Standard status category."
+                },
+                "formattedDescription": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Task description."
+                },
+                "startDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Task start date."
+                },
+                "endDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Task due date."
+                },
+                "priority": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Task priority."
+                },
+                "responsibility": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Which party owns the task."
+                },
+                "estimatedHours": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Estimated hours for the task."
+                },
+                "createdDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Creation timestamp."
+                },
+                "updatedDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last update timestamp."
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total number of tasks matching the filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size used for this request."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used for this request."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when more tasks remain beyond this page."
+          }
+        }
+      }
+    },
+    "update_task": {
+      "display_name": "Update Task",
+      "description": "Update an existing task's status, due date, assignee or priority.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project the task belongs to.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "task_id": {
+            "type": "string",
+            "description": "The ID of the task to update."
+          },
+          "status": {
+            "type": "string",
+            "description": "The new status label for the task, as configured in the workspace (for example 'In Progress')."
+          },
+          "end_date": {
+            "type": "string",
+            "description": "New due date, as an ISO 8601 timestamp."
+          },
+          "assignee_id": {
+            "type": "string",
+            "description": "Member ID to assign the task to."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "description": "New priority for the task."
+          }
+        },
+        "required": [
+          "project_id",
+          "task_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "object",
+            "description": "The updated task as returned by GUIDEcx.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Task ID."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Task name."
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Workspace-specific status label."
+              },
+              "statusCategory": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Standard status category."
+              },
+              "endDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Task due date."
+              },
+              "priority": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Task priority."
+              },
+              "updatedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "add_task_note": {
+      "display_name": "Add Task Note",
+      "description": "Post a note to a task's message channel. The note is attributed to the owner of the API token.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "The ID of the task to post the note to.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "content": {
+            "type": "string",
+            "description": "The note body. Supports basic HTML formatting."
+          },
+          "internal_only": {
+            "type": "boolean",
+            "description": "When true the note is visible only to internal team members, not the customer. Defaults to false.",
+            "default": false
+          }
+        },
+        "required": [
+          "task_id",
+          "content"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "description": "The created messages as returned by GUIDEcx.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Message ID."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "get_customer": {
+      "display_name": "Get Customer",
+      "description": "Retrieve a customer record by its ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "description": "The ID of the customer to retrieve.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "customer_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "customer": {
+            "type": "object",
+            "description": "The requested customer.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Customer ID."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Customer name."
+              },
+              "domain": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Customer email domain."
+              },
+              "createdDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Creation timestamp."
+              },
+              "updatedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "list_phases": {
+      "display_name": "List Phases",
+      "description": "List the phases of a project, in display order. Phases are the top level of the project structure: a phase contains milestones, which contain tasks.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project whose phases to list."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of phases to return.",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of phases to skip, for pagination.",
+            "default": 0,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "phases": {
+            "type": "array",
+            "description": "The matching phases.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Phase ID."
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Phase name."
+                },
+                "sortOrder": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Display order within the project."
+                },
+                "createdDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Creation timestamp."
+                },
+                "updatedDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last update timestamp."
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total number of phases matching the filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size used for this request."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used for this request."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when more phases remain beyond this page."
+          }
+        }
+      }
+    },
+    "list_project_members": {
+      "display_name": "List Project Team",
+      "description": "List the members assigned to a project, including their role on that project. Use this to find who manages an onboarding.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project whose team to list.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "email": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by member email addresses."
+          },
+          "project_role": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "UNKNOWN",
+                "PROJECT_MANAGER",
+                "TEAM_MEMBER",
+                "CUSTOM"
+              ]
+            },
+            "description": "Filter by project role."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of members to return.",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of members to skip, for pagination.",
+            "default": 0,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "array",
+            "description": "The matching project members.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Member ID."
+                },
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Member email."
+                },
+                "firstName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "First name."
+                },
+                "lastName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last name."
+                },
+                "role": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Workspace role."
+                },
+                "status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Invitation status."
+                },
+                "createdDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Creation timestamp."
+                },
+                "updatedDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last update timestamp."
+                },
+                "projectRole": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Role on this project (PROJECT_MANAGER, TEAM_MEMBER or CUSTOM)."
+                },
+                "view": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Default project view for this member."
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total number of project members matching the filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size used for this request."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used for this request."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when more project members remain beyond this page."
+          }
+        }
+      }
+    },
+    "remove_project_member": {
+      "display_name": "Remove Project Member",
+      "description": "Remove a member from a project's team. This does not deactivate the member in the workspace, it only unassigns them from this project.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project to remove the member from.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "member_id": {
+            "type": "string",
+            "description": "The ID of the member to remove.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "project_id",
+          "member_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "removed": {
+            "type": "boolean",
+            "description": "True when the member was removed."
+          },
+          "member_id": {
+            "type": "string",
+            "description": "The ID of the member that was removed."
+          }
+        }
+      }
+    },
+    "list_members": {
+      "display_name": "List Workspace Members",
+      "description": "Search the members of the workspace, optionally filtered by email, role or invitation status.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by member email addresses."
+          },
+          "role": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by workspace role."
+          },
+          "status": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "ACTIVE",
+                "ACTIVE_VIA_SSO",
+                "DEACTIVATED"
+              ]
+            },
+            "description": "Filter by invitation status."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of members to return.",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of members to skip, for pagination.",
+            "default": 0,
+            "minimum": 0
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "array",
+            "description": "The matching members.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Member ID."
+                },
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Member email."
+                },
+                "firstName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "First name."
+                },
+                "lastName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last name."
+                },
+                "role": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Workspace role."
+                },
+                "status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Invitation status."
+                },
+                "createdDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Creation timestamp."
+                },
+                "updatedDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last update timestamp."
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total number of members matching the filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size used for this request."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used for this request."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when more members remain beyond this page."
+          }
+        }
+      }
+    },
+    "list_roles": {
+      "display_name": "List Roles",
+      "description": "List the roles configured in the workspace. Role IDs are needed when assigning members to projects or tasks.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Filter by role name."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of roles to return.",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of roles to skip, for pagination.",
+            "default": 0,
+            "minimum": 0
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "roles": {
+            "type": "array",
+            "description": "The matching roles.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Role ID."
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Role name."
+                },
+                "category": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Whether the role is INTERNAL or EXTERNAL."
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total number of roles matching the filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size used for this request."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used for this request."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when more roles remain beyond this page."
+          }
+        }
+      }
+    },
+    "list_webhooks": {
+      "display_name": "List Webhooks",
+      "description": "List the webhooks configured in the workspace, with their last delivery success and failure timestamps.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "include_disabled": {
+            "type": "boolean",
+            "description": "When true, also return webhooks that have been disabled. Defaults to false.",
+            "default": false
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of webhooks to return.",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of webhooks to skip, for pagination.",
+            "default": 0,
+            "minimum": 0
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "webhooks": {
+            "type": "array",
+            "description": "The matching webhooks.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Webhook ID."
+                },
+                "event_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The event that triggers the webhook. GUIDEcx returns this as null on upsert responses."
+                },
+                "url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Destination URL."
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Webhook description."
+                },
+                "disabled_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "When the webhook was disabled, if it has been."
+                },
+                "last_success_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "When the webhook last delivered successfully."
+                },
+                "last_failure_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "When the webhook last failed to deliver."
+                },
+                "created_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Creation timestamp."
+                },
+                "updated_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last update timestamp."
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total number of webhooks matching the filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size used for this request."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used for this request."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when more webhooks remain beyond this page."
+          }
+        }
+      }
+    },
+    "upsert_webhook": {
+      "display_name": "Create or Update Webhook",
+      "description": "Create a webhook subscription, or update an existing one by passing its ID. Use this to receive GUIDEcx events instead of polling.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "project.created",
+              "project.updated",
+              "project.deleted",
+              "task.created",
+              "task.updated",
+              "task.deleted",
+              "milestone.created",
+              "milestone.updated",
+              "milestone.deleted",
+              "phase.deleted",
+              "member.created",
+              "member.updated",
+              "message.created",
+              "message.updated"
+            ],
+            "description": "The event that triggers the webhook. GUIDEcx only accepts lowercase dotted names and rejects anything else."
+          },
+          "url": {
+            "type": "string",
+            "description": "HTTPS URL that GUIDEcx will POST the event to."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional description of the webhook's purpose."
+          },
+          "webhook_id": {
+            "type": "string",
+            "description": "Pass an existing webhook ID to update it instead of creating a new one."
+          }
+        },
+        "required": [
+          "event_type",
+          "url"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "webhook": {
+            "type": "object",
+            "description": "The created or updated webhook.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Webhook ID."
+              },
+              "event_type": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The event that triggers the webhook. GUIDEcx returns this as null on upsert responses."
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Destination URL."
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Webhook description."
+              },
+              "disabled_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "When the webhook was disabled, if it has been."
+              },
+              "last_success_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "When the webhook last delivered successfully."
+              },
+              "last_failure_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "When the webhook last failed to deliver."
+              },
+              "created_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Creation timestamp."
+              },
+              "updated_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "delete_webhook": {
+      "display_name": "Delete Webhook",
+      "description": "Delete a webhook subscription by its ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "webhook_id": {
+            "type": "string",
+            "description": "The ID of the webhook to delete.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          }
+        },
+        "required": [
+          "webhook_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "description": "True when the webhook was deleted."
+          },
+          "webhook_id": {
+            "type": "string",
+            "description": "The ID of the webhook that was deleted."
+          }
+        }
+      }
+    },
+    "list_time_categories": {
+      "display_name": "List Time Categories",
+      "description": "List the time categories configured in the workspace, including whether each is billable. Category IDs are needed when logging time.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of time categories to return.",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of time categories to skip, for pagination.",
+            "default": 0,
+            "minimum": 0
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "time_categories": {
+            "type": "array",
+            "description": "The matching time categories.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Time category ID."
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Category name."
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Category description."
+                },
+                "billable": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
+                  "description": "Whether time in this category is billable."
+                },
+                "billableRate": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Billable hourly rate for this category."
+                },
+                "createdDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Creation timestamp."
+                },
+                "updatedDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last update timestamp."
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total number of time categories matching the filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size used for this request."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used for this request."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when more time categories remain beyond this page."
+          }
+        }
+      }
+    },
+    "list_time_records": {
+      "display_name": "List Time Records",
+      "description": "Search logged time, optionally filtered by project, task, member, time category or the date the work was performed.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Only return time logged against this project."
+          },
+          "task_id": {
+            "type": "string",
+            "description": "Only return time logged against this task."
+          },
+          "member_id": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by the members who logged the time."
+          },
+          "time_category_id": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by time category IDs."
+          },
+          "worked_after": {
+            "type": "string",
+            "description": "Only return time worked on or after this ISO 8601 date."
+          },
+          "worked_before": {
+            "type": "string",
+            "description": "Only return time worked on or before this ISO 8601 date."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of time records to return.",
+            "default": 50,
+            "minimum": 1,
+            "maximum": 500
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Number of time records to skip, for pagination.",
+            "default": 0,
+            "minimum": 0
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "time_records": {
+            "type": "array",
+            "description": "The matching time records.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Time record ID."
+                },
+                "dateOfWork": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Date the work was performed."
+                },
+                "hoursWorked": {
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Hours logged."
+                },
+                "comment": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Comment on the time record."
+                },
+                "createdDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Creation timestamp."
+                },
+                "updatedDate": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Last update timestamp."
+                }
+              }
+            }
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Total number of time records matching the filters."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Page size used for this request."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Offset used for this request."
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "True when more time records remain beyond this page."
+          }
+        }
+      }
+    },
+    "log_task_time": {
+      "display_name": "Log Time on Task",
+      "description": "Log hours worked against a task. The time is attributed to the member given in member_id.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "The ID of the task to log time against.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "member_id": {
+            "type": "string",
+            "description": "The ID of the member who performed the work."
+          },
+          "hours_worked": {
+            "type": "number",
+            "description": "Number of hours to log."
+          },
+          "date_of_work": {
+            "type": "string",
+            "description": "The date the work was performed, as an ISO 8601 timestamp."
+          },
+          "comment": {
+            "type": "string",
+            "description": "Optional comment describing the work."
+          },
+          "time_category_id": {
+            "type": "string",
+            "description": "Optional time category ID. Use List Time Categories to find one."
+          }
+        },
+        "required": [
+          "task_id",
+          "member_id",
+          "hours_worked",
+          "date_of_work"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "time_record": {
+            "type": "object",
+            "description": "The created time record.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Time record ID."
+              },
+              "dateOfWork": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Date the work was performed."
+              },
+              "hoursWorked": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Hours logged."
+              },
+              "comment": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Comment on the time record."
+              },
+              "createdDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Creation timestamp."
+              },
+              "updatedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "log_project_time": {
+      "display_name": "Log Time on Project",
+      "description": "Log hours worked against a project rather than a specific task. Use this for work that is not tied to a single task. The time is attributed to the member given in member_id.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project to log time against.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "member_id": {
+            "type": "string",
+            "description": "The ID of the member who performed the work."
+          },
+          "hours_worked": {
+            "type": "number",
+            "description": "Number of hours to log."
+          },
+          "date_of_work": {
+            "type": "string",
+            "description": "The date the work was performed, as an ISO 8601 timestamp."
+          },
+          "comment": {
+            "type": "string",
+            "description": "Optional comment describing the work."
+          },
+          "time_category_id": {
+            "type": "string",
+            "description": "Optional time category ID. Use List Time Categories to find one."
+          }
+        },
+        "required": [
+          "project_id",
+          "member_id",
+          "hours_worked",
+          "date_of_work"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "time_record": {
+            "type": "object",
+            "description": "The created time record.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Time record ID."
+              },
+              "dateOfWork": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Date the work was performed."
+              },
+              "hoursWorked": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Hours logged."
+              },
+              "comment": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Comment on the time record."
+              },
+              "createdDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Creation timestamp."
+              },
+              "updatedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "create_project": {
+      "display_name": "Create Project",
+      "description": "Create an onboarding project. A customer can be created inline by passing customer_name, and the project manager is set by passing project_manager_id.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the project to create."
+          },
+          "template_id": {
+            "type": "string",
+            "description": "Optional project template ID. A template scaffolds the phases, milestones and tasks; without one the project is created empty."
+          },
+          "customer_id": {
+            "type": "string",
+            "description": "Optional ID of an existing customer to attach."
+          },
+          "customer_name": {
+            "type": "string",
+            "description": "Name for a new customer to create and attach. Requires customer_domain. Ignored when customer_id is given."
+          },
+          "customer_domain": {
+            "type": "string",
+            "description": "Email domain for the new customer. Requires customer_name. Ignored when customer_id is given."
+          },
+          "project_manager_id": {
+            "type": "string",
+            "description": "Optional member ID to assign as project manager."
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Optional project start date, as an ISO 8601 timestamp."
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Optional project end date, as an ISO 8601 timestamp."
+          },
+          "status": {
+            "type": "string",
+            "description": "Optional initial status label. Must exist in the workspace."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags to add. Tags are additive rather than a replacement set: existing tags are kept and duplicates are ignored. Pass an empty array to remove all tags."
+          },
+          "cash_value": {
+            "type": "number",
+            "description": "Optional contract value for the project."
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "if": {
+          "not": {
+            "required": [
+              "customer_id"
+            ]
+          }
+        },
+        "then": {
+          "dependencies": {
+            "customer_name": [
+              "customer_domain"
+            ],
+            "customer_domain": [
+              "customer_name"
+            ]
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "object",
+            "description": "The created project.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Project ID."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Project name."
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Workspace-specific status label."
+              },
+              "statusCategory": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Standard status category."
+              },
+              "startDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Project start date."
+              },
+              "endDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Project end date."
+              },
+              "forecastedEndDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Currently forecasted end date."
+              },
+              "completedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Date the project was completed."
+              },
+              "createdDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Creation timestamp."
+              },
+              "updatedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          },
+          "customer_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "ID of the attached customer, if the project has one."
+          }
+        }
+      }
+    },
+    "update_project": {
+      "display_name": "Update Project",
+      "description": "Update an existing project's name, dates, status, tags or contract value. Fields left unset are not modified.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project to update."
+          },
+          "name": {
+            "type": "string",
+            "description": "New project name."
+          },
+          "start_date": {
+            "type": "string",
+            "description": "New start date, as an ISO 8601 timestamp."
+          },
+          "end_date": {
+            "type": "string",
+            "description": "New end date, as an ISO 8601 timestamp."
+          },
+          "status": {
+            "type": "string",
+            "description": "New status label. Must exist in the workspace."
+          },
+          "status_explanation": {
+            "type": "string",
+            "description": "Optional explanation for the status change."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags to add. Tags are additive rather than a replacement set: existing tags are kept and duplicates are ignored. Pass an empty array to remove all tags."
+          },
+          "cash_value": {
+            "type": "number",
+            "description": "New contract value for the project."
+          }
+        },
+        "required": [
+          "project_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "project": {
+            "type": "object",
+            "description": "The updated project.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Project ID."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Project name."
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Workspace-specific status label."
+              },
+              "statusCategory": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Standard status category."
+              },
+              "startDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Project start date."
+              },
+              "endDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Project end date."
+              },
+              "forecastedEndDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Currently forecasted end date."
+              },
+              "completedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Date the project was completed."
+              },
+              "createdDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Creation timestamp."
+              },
+              "updatedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "create_phase": {
+      "display_name": "Create Phase",
+      "description": "Create a phase in a project. Phases are the top level of the project structure and hold milestones.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project to add the phase to.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the phase."
+          },
+          "template_id": {
+            "type": "string",
+            "description": "Optional phase template ID to build the phase from."
+          },
+          "placement": {
+            "type": "string",
+            "enum": [
+              "at_start",
+              "at_end"
+            ],
+            "description": "Where to insert the new item in its parent's ordering. Defaults to at_end.",
+            "default": "at_end"
+          }
+        },
+        "required": [
+          "project_id",
+          "name"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "phase": {
+            "type": "object",
+            "description": "The created phase.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Phase ID."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Phase name."
+              },
+              "sortOrder": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Display order within the project."
+              },
+              "createdDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Creation timestamp."
+              },
+              "updatedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "create_milestone": {
+      "display_name": "Create Milestone",
+      "description": "Create a milestone inside a phase. Milestones hold tasks, so one is required before tasks can be added to a project.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project the milestone belongs to.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "phase_id": {
+            "type": "string",
+            "description": "The ID of the phase to add the milestone to. Use List Phases to find one."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the milestone."
+          },
+          "template_id": {
+            "type": "string",
+            "description": "Optional milestone template ID to build the milestone from."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional milestone description."
+          },
+          "placement": {
+            "type": "string",
+            "enum": [
+              "at_start",
+              "at_end"
+            ],
+            "description": "Where to insert the new item in its parent's ordering. Defaults to at_end.",
+            "default": "at_end"
+          }
+        },
+        "required": [
+          "project_id",
+          "phase_id",
+          "name"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "milestone": {
+            "type": "object",
+            "description": "The created milestone.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Milestone ID."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Milestone name."
+              },
+              "startDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Milestone start date."
+              },
+              "endDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Milestone due date."
+              },
+              "sortOrder": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Display order within the project."
+              },
+              "formattedDescription": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Milestone description."
+              },
+              "createdDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Creation timestamp."
+              },
+              "updatedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "create_task": {
+      "display_name": "Create Task",
+      "description": "Create a task under a milestone. GUIDEcx requires every task to sit inside a milestone, so milestone_id is mandatory.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "The ID of the project the task belongs to.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+          },
+          "milestone_id": {
+            "type": "string",
+            "description": "The ID of the milestone to create the task under. Use List Milestones to find one."
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the task."
+          },
+          "description": {
+            "type": "string",
+            "description": "Optional task description. Supports basic HTML formatting."
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Optional start date, as an ISO 8601 timestamp."
+          },
+          "end_date": {
+            "type": "string",
+            "description": "Optional due date, as an ISO 8601 timestamp."
+          },
+          "assignee_id": {
+            "type": "string",
+            "description": "Optional member ID to assign the task to."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "description": "Optional task priority."
+          },
+          "responsibility": {
+            "type": "string",
+            "enum": [
+              "INTERNAL",
+              "CUSTOMER",
+              "PARTNER"
+            ],
+            "description": "Which party is responsible for the task. Defaults to INTERNAL.",
+            "default": "INTERNAL"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "VISIBLE",
+              "NAME_ONLY",
+              "HIDDEN"
+            ],
+            "description": "How much of the task the customer can see. Defaults to VISIBLE.",
+            "default": "VISIBLE"
+          },
+          "estimated_hours": {
+            "type": "number",
+            "description": "Optional estimated hours for the task."
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags to add. Tags are additive rather than a replacement set: existing tags are kept and duplicates are ignored. Pass an empty array to remove all tags."
+          },
+          "placement": {
+            "type": "string",
+            "enum": [
+              "at_start",
+              "at_end"
+            ],
+            "description": "Where to insert the new item in its parent's ordering. Defaults to at_end.",
+            "default": "at_end"
+          }
+        },
+        "required": [
+          "project_id",
+          "milestone_id",
+          "name"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "object",
+            "description": "The created task.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Task ID."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Task name."
+              },
+              "status": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Workspace-specific status label."
+              },
+              "statusCategory": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Standard status category."
+              },
+              "formattedDescription": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Task description."
+              },
+              "startDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Task start date."
+              },
+              "endDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Task due date."
+              },
+              "priority": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Task priority."
+              },
+              "responsibility": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Which party owns the task."
+              },
+              "visibility": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Customer visibility of the task."
+              },
+              "estimatedHours": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Estimated hours for the task."
+              },
+              "createdDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Creation timestamp."
+              },
+              "updatedDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Last update timestamp."
+              }
+            }
+          }
+        }
+      }
+    },
+    "list_dependencies": {
+      "display_name": "List Dependencies",
+      "description": "List task dependencies, filtered by project or by the items on either side of the dependency. This endpoint does not paginate.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "description": "Only return dependencies within this project."
+          },
+          "parent_id": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by the IDs of items that must complete first."
+          },
+          "dependent_id": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by the IDs of items that wait on a parent."
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "dependencies": {
+            "type": "array",
+            "description": "The matching dependencies.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "parentId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The ID of the item that must complete first."
+                },
+                "dependentId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The ID of the item that waits on the parent."
+                }
+              }
+            }
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of dependencies returned."
+          }
+        }
+      }
+    },
+    "add_dependency": {
+      "display_name": "Add Dependency",
+      "description": "Make one task depend on another, so the dependent cannot start until the parent completes.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "parent_id": {
+            "type": "string",
+            "description": "The ID of the task that must complete first."
+          },
+          "dependent_id": {
+            "type": "string",
+            "description": "The ID of the task that waits on the parent."
+          }
+        },
+        "required": [
+          "parent_id",
+          "dependent_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "dependency": {
+            "type": "object",
+            "description": "The created dependency.",
+            "properties": {
+              "parentId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The ID of the item that must complete first."
+              },
+              "dependentId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The ID of the item that waits on the parent."
+              }
+            }
+          }
+        }
+      }
+    },
+    "remove_dependency": {
+      "display_name": "Remove Dependency",
+      "description": "Remove a dependency between two tasks.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "parent_id": {
+            "type": "string",
+            "description": "The ID of the parent task in the dependency."
+          },
+          "dependent_id": {
+            "type": "string",
+            "description": "The ID of the dependent task in the dependency."
+          }
+        },
+        "required": [
+          "parent_id",
+          "dependent_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "removed": {
+            "type": "boolean",
+            "description": "True when the dependency was removed."
+          },
+          "parent_id": {
+            "type": "string",
+            "description": "The parent task ID."
+          },
+          "dependent_id": {
+            "type": "string",
+            "description": "The dependent task ID."
+          }
+        }
+      }
+    }
+  }
+}

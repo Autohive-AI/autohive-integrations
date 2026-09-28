@@ -1,33 +1,118 @@
+"""Live Microsoft Graph integration tests for all Microsoft 365 actions.
+
+Read-only tests require ``MICROSOFT365_ACCESS_TOKEN``. Tests marked
+``destructive`` create and clean up their own mail, calendar, or OneDrive data
+and must be explicitly selected with ``-m "integration and destructive"``.
+Mail tests require ``MICROSOFT365_TEST_MAILBOX_EMAIL`` to be the authenticated
+mailbox because they deliver to and clean up messages through ``/me``.
+"""
+
+import asyncio
+import base64
 import os
 import sys
 import time
+from unittest.mock import AsyncMock, MagicMock
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 import aiohttp
 import pytest
-from autohive_integrations_sdk import FetchResponse, ResultType
-from microsoft365.microsoft365 import microsoft365
+import pytest_asyncio
+from autohive_integrations_sdk import ExecutionContext, FetchResponse, ResultType
+from microsoft365.microsoft365 import _validate_graph_next_link, microsoft365
 
 pytestmark = pytest.mark.integration
 
 CRED = os.getenv("MICROSOFT365_ACCESS_TOKEN", "")
-TEST_RECIPIENT = os.getenv("MICROSOFT365_TEST_RECIPIENT_EMAIL", "")
+TEST_MAILBOX = os.getenv("MICROSOFT365_TEST_MAILBOX_EMAIL", "")
 TEST_ATTENDEE = os.getenv("MICROSOFT365_TEST_ATTENDEE_EMAIL", "")
 TEST_SCHEDULE_EMAIL = os.getenv("MICROSOFT365_TEST_SCHEDULE_EMAIL", "")
+TEST_SHAREPOINT_SITE_ID = os.getenv("MICROSOFT365_TEST_SHAREPOINT_SITE_ID", "")
+TEST_RUN_ID = str(int(time.time() * 1000))
+TEST_DRAFT_SUBJECT = f"[Autohive Integration Test {TEST_RUN_ID}] Draft"
+TEST_DIRECT_SUBJECT = f"[Autohive Integration Test {TEST_RUN_ID}] Direct Send"
+TEST_ATTACHMENT_SUBJECT = f"[Autohive Integration Test {TEST_RUN_ID}] Attachment"
 
 skip_if_no_creds = pytest.mark.skipif(not CRED, reason="MICROSOFT365_ACCESS_TOKEN required")
-skip_if_no_recipient = pytest.mark.skipif(not TEST_RECIPIENT, reason="MICROSOFT365_TEST_RECIPIENT_EMAIL required")
+skip_if_no_mailbox = pytest.mark.skipif(not TEST_MAILBOX, reason="MICROSOFT365_TEST_MAILBOX_EMAIL required")
 skip_if_no_attendee = pytest.mark.skipif(not TEST_ATTENDEE, reason="MICROSOFT365_TEST_ATTENDEE_EMAIL required")
 skip_if_no_schedule = pytest.mark.skipif(not TEST_SCHEDULE_EMAIL, reason="MICROSOFT365_TEST_SCHEDULE_EMAIL required")
 
 # Shared state for chained tests (create → use → delete).
 # Tests run in declaration order; dependent tests skip when a prior step failed.
-_state: dict = {}
+_state: dict = {"sharepoint_site_id": TEST_SHAREPOINT_SITE_ID} if TEST_SHAREPOINT_SITE_ID else {}
 
 
-@pytest.fixture
-def live_context(make_context):
+async def _wait_for_inbox_message(context, subject: str):
+    escaped_subject = subject.replace("'", "''")
+    for _ in range(15):
+        response = await context.fetch(
+            "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages",
+            params={
+                "$top": 10,
+                "$select": "id,subject",
+                "$filter": f"subject eq '{escaped_subject}'",
+            },
+        )
+        if response.status == 200 and isinstance(response.data, dict):
+            messages = response.data.get("value", [])
+            if messages:
+                return messages[0]
+        await asyncio.sleep(1)
+    return None
+
+
+async def _delete_test_messages(context, *, retry_attempts: int = 15, retry_delay: float = 1.0):
+    """Delete this run's mail, retrying to catch asynchronously delivered messages."""
+    deleted = 0
+    quiet_attempts = 0
+
+    for attempt in range(retry_attempts):
+        found_this_attempt = 0
+        for folder_id in ("inbox", "sentitems", "drafts", "deleteditems"):
+            next_url = f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages"
+            params = {
+                "$search": f'"subject:{TEST_RUN_ID}"',
+                "$top": 100,
+                "$select": "id,subject",
+            }
+            message_ids = []
+
+            while next_url:
+                response = await context.fetch(next_url, params=params)
+                params = None
+                if response.status != 200 or not isinstance(response.data, dict):
+                    raise AssertionError(f"Mail cleanup query failed for {folder_id}: HTTP {response.status}")
+
+                for message in response.data.get("value", []):
+                    if isinstance(message, dict) and TEST_RUN_ID in (message.get("subject") or ""):
+                        message_ids.append(message["id"])
+
+                next_url = _validate_graph_next_link(response.data.get("@odata.nextLink"))
+
+            for message_id in message_ids:
+                delete_response = await context.fetch(
+                    f"https://graph.microsoft.com/v1.0/me/messages/{message_id}",
+                    method="DELETE",
+                )
+                if delete_response.status in (200, 204, 404):
+                    found_this_attempt += 1
+                    deleted += 1
+                else:
+                    raise AssertionError(f"Mail cleanup delete failed with HTTP {delete_response.status}")
+
+        quiet_attempts = quiet_attempts + 1 if found_this_attempt == 0 else 0
+        if quiet_attempts >= 2 and attempt >= 4:
+            break
+        if attempt + 1 < retry_attempts:
+            await asyncio.sleep(retry_delay)
+
+    return deleted
+
+
+@pytest.fixture(scope="module")
+def live_context():
     async def real_fetch(url, *, method="GET", params=None, headers=None, json=None, body=None, **kwargs):
         # SDK may pass binary upload data as `data` kwarg rather than `body`
         payload = kwargs.get("data", body)
@@ -46,9 +131,19 @@ def live_context(make_context):
                     data = await resp.read()
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
-    ctx = make_context(auth={"auth_type": "PlatformOauth2", "credentials": {"access_token": CRED}})
+    ctx = MagicMock(spec=ExecutionContext)
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": CRED}}
+    ctx.fetch = AsyncMock()
     ctx.fetch.side_effect = real_fetch
     return ctx
+
+
+@pytest_asyncio.fixture(scope="module", loop_scope="module", autouse=True)
+async def cleanup_generated_mail(live_context):
+    """Always clean this run's generated mail, including after test failures."""
+    yield
+    if CRED and TEST_MAILBOX:
+        await _delete_test_messages(live_context)
 
 
 # ============================================================
@@ -121,17 +216,17 @@ async def test_search_emails_live(live_context):
 
 
 @skip_if_no_creds
-@skip_if_no_recipient
+@skip_if_no_mailbox
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_01_create_draft_email_live(live_context):
     result = await microsoft365.execute_action(
         "create_draft_email",
         {
-            "subject": "[Autohive Integration Test] Draft",
+            "subject": TEST_DRAFT_SUBJECT,
             "body": "This is an integration test draft. Safe to delete.",
             "body_type": "Text",
-            "to_recipients": [TEST_RECIPIENT],
+            "to_recipients": [TEST_MAILBOX],
         },
         live_context,
     )
@@ -161,18 +256,21 @@ async def test_03_send_draft_email_live(live_context):
     result = await microsoft365.execute_action("send_draft_email", {"draft_id": draft_id}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert result.result.data.get("sent") is True
+    received_message = await _wait_for_inbox_message(live_context, TEST_DRAFT_SUBJECT)
+    assert received_message, "self-addressed integration test message was not delivered to the inbox"
+    _state["test_email_id"] = received_message["id"]
 
 
 @skip_if_no_creds
-@skip_if_no_recipient
+@skip_if_no_mailbox
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_04_send_email_live(live_context):
     result = await microsoft365.execute_action(
         "send_email",
         {
-            "to": TEST_RECIPIENT,
-            "subject": "[Autohive Integration Test] Direct Send",
+            "to": TEST_MAILBOX,
+            "subject": TEST_DIRECT_SUBJECT,
             "body": "Integration test email — safe to delete.",
             "body_type": "Text",
         },
@@ -186,9 +284,9 @@ async def test_04_send_email_live(live_context):
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_05_reply_to_email_live(live_context):
-    email_id = _state.get("email_id")
+    email_id = _state.get("test_email_id")
     if not email_id:
-        pytest.skip("No email_id from test_list_emails_live")
+        pytest.skip("No self-addressed test email from test_03_send_draft_email_live")
     result = await microsoft365.execute_action(
         "reply_to_email",
         {"message_id": email_id, "comment": "Integration test reply — safe to ignore."},
@@ -199,18 +297,18 @@ async def test_05_reply_to_email_live(live_context):
 
 
 @skip_if_no_creds
-@skip_if_no_recipient
+@skip_if_no_mailbox
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_06_forward_email_live(live_context):
-    email_id = _state.get("email_id")
+    email_id = _state.get("test_email_id")
     if not email_id:
-        pytest.skip("No email_id from test_list_emails_live")
+        pytest.skip("No self-addressed test email from test_03_send_draft_email_live")
     result = await microsoft365.execute_action(
         "forward_email",
         {
             "message_id": email_id,
-            "to_recipients": [TEST_RECIPIENT],
+            "to_recipients": [TEST_MAILBOX],
             "comment": "Integration test forward — safe to ignore.",
         },
         live_context,
@@ -253,12 +351,12 @@ async def test_get_mail_folder_live(live_context):
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_move_email_live(live_context):
-    email_id = _state.get("email_id")
+    email_id = _state.get("test_email_id")
     if not email_id:
-        pytest.skip("No email_id from test_list_emails_live")
+        pytest.skip("No self-addressed test email from test_03_send_draft_email_live")
     result = await microsoft365.execute_action(
         "move_email",
-        {"email_id": email_id, "destination_folder_id": "drafts"},
+        {"email_id": email_id, "destination_folder_id": "deleteditems"},
         live_context,
     )
     assert result.type != ResultType.ACTION_ERROR, result.result.message
@@ -270,6 +368,7 @@ async def test_move_email_live(live_context):
         live_context,
     )
     assert back.type != ResultType.ACTION_ERROR, f"Move-back cleanup failed: {back.result.message}"
+    _state["test_email_id"] = back.result.data["id"]
 
 
 # ============================================================
@@ -306,6 +405,61 @@ async def test_download_email_attachment_live(live_context):
     assert "file" in result.result.data
     assert result.result.data["file"]["content"], "attachment content should be non-empty"
     assert "metadata" in result.result.data
+
+
+@skip_if_no_creds
+@skip_if_no_mailbox
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_download_email_attachment_round_trip_live(live_context):
+    attachment_bytes = bytes(range(256)) * 2
+    send_response = await live_context.fetch(
+        "https://graph.microsoft.com/v1.0/me/sendMail",
+        method="POST",
+        json={
+            "message": {
+                "subject": TEST_ATTACHMENT_SUBJECT,
+                "body": {"contentType": "Text", "content": "Attachment integration test."},
+                "toRecipients": [{"emailAddress": {"address": TEST_MAILBOX}}],
+                "attachments": [
+                    {
+                        "@odata.type": "#microsoft.graph.fileAttachment",
+                        "name": "autohive-integration-test.bin",
+                        "contentType": "application/octet-stream",
+                        "contentBytes": base64.b64encode(attachment_bytes).decode("ascii"),
+                    }
+                ],
+            },
+            "saveToSentItems": True,
+        },
+    )
+    assert send_response.status in (200, 202)
+
+    try:
+        received_message = await _wait_for_inbox_message(live_context, TEST_ATTACHMENT_SUBJECT)
+        assert received_message, "self-addressed attachment test message was not delivered"
+        attachments_response = await live_context.fetch(
+            f"https://graph.microsoft.com/v1.0/me/messages/{received_message['id']}/attachments",
+            params={"$select": "id,name,contentType,size"},
+        )
+        assert attachments_response.status == 200
+        attachments = attachments_response.data.get("value", [])
+        assert attachments, "attachment test message did not contain an attachment"
+
+        result = await microsoft365.execute_action(
+            "download_email_attachment",
+            {
+                "message_id": received_message["id"],
+                "attachment_id": attachments[0]["id"],
+                "include_content": True,
+            },
+            live_context,
+        )
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
+        actual_bytes = base64.b64decode(result.result.data["file"]["content"], validate=True)
+        assert actual_bytes == attachment_bytes
+    finally:
+        await _delete_test_messages(live_context)
 
 
 # ============================================================
@@ -415,12 +569,14 @@ async def test_get_schedule_live(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_list_files_live(live_context):
-    result = await microsoft365.execute_action("list_files", {"folder_path": "/"}, live_context)
+    result = await microsoft365.execute_action("list_files", {"folder_path": "/", "limit": 5}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     data = result.result.data
     assert "files" in data
-    if data["files"]:
-        _state["onedrive_file_id"] = data["files"][0]["id"]
+    assert len(data["files"]) <= 5
+    file_item = next((item for item in data["files"] if "folder" not in item), None)
+    if file_item:
+        _state["onedrive_file_id"] = file_item["id"]
 
 
 @skip_if_no_creds
@@ -428,28 +584,37 @@ async def test_list_files_live(live_context):
 async def test_search_onedrive_files_live(live_context):
     result = await microsoft365.execute_action("search_onedrive_files", {"query": "test", "limit": 5}, live_context)
     assert result.type != ResultType.ACTION_ERROR, result.result.message
-    assert "files" in result.result.data
+    files = result.result.data["files"]
+    file_item = next((item for item in files if "file" in item and "folder" not in item), None)
+    if file_item:
+        _state["onedrive_file_id"] = file_item["id"]
 
 
 @skip_if_no_creds
 @pytest.mark.destructive
 @pytest.mark.asyncio
 async def test_10_upload_file_live(live_context):
-    unique_name = f"autohive_integration_test_{int(time.time())}.txt"
+    unique_name = f"autohive_integration_test_{int(time.time())}.bin"
+    binary_content = bytes(range(256)) * 4
+    content = base64.b64encode(binary_content).decode("ascii")
     result = await microsoft365.execute_action(
         "upload_file",
         {
-            "filename": unique_name,
-            "content": "Integration test file — safe to delete.",
-            "content_type": "text/plain",
+            "file": {
+                "content": content,
+                "name": unique_name,
+                "contentType": "application/octet-stream",
+            },
             "folder_path": "/",
         },
         live_context,
     )
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "id" in result.result.data
+    assert result.result.data["size"] == len(binary_content)
     _state["uploaded_file_id"] = result.result.data["id"]
     _state["uploaded_file_name"] = unique_name
+    _state["uploaded_file_content"] = binary_content
 
 
 @skip_if_no_creds
@@ -463,6 +628,10 @@ async def test_read_onedrive_file_content_live(live_context):
     assert "file" in result.result.data
     assert result.result.data["file"]["content"], "file content should be non-empty"
     assert "metadata" in result.result.data
+    if expected_content := _state.get("uploaded_file_content"):
+        actual_content = base64.b64decode(result.result.data["file"]["content"], validate=True)
+        assert actual_content == expected_content, "downloaded bytes should exactly match uploaded bytes"
+        assert result.result.data["metadata"]["size"] == len(expected_content)
 
 
 @skip_if_no_creds
@@ -478,6 +647,8 @@ async def test_11_delete_uploaded_file_live(live_context):
     )
     assert resp.status in (204, 200), f"File cleanup failed: {resp.status}"
     _state.pop("uploaded_file_id", None)
+    _state.pop("uploaded_file_name", None)
+    _state.pop("uploaded_file_content", None)
 
 
 # ============================================================
@@ -548,6 +719,7 @@ async def test_search_sharepoint_documents_live(live_context):
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     data = result.result.data
     assert "files" in data
+    assert all("file" in item and "folder" not in item for item in data["files"])
     if data["files"]:
         _state["sharepoint_file_id"] = data["files"][0]["id"]
         _state["sharepoint_file_drive_id"] = data["files"][0].get("drive_id", "")
@@ -586,6 +758,23 @@ async def test_list_sharepoint_pages_live(live_context):
     assert "pages" in data
     if data["pages"]:
         _state["sharepoint_page_id"] = data["pages"][0]["id"]
+
+
+@skip_if_no_creds
+@pytest.mark.asyncio
+async def test_list_sharepoint_pages_honors_projection_live(live_context):
+    site_id = _state.get("sharepoint_site_id")
+    if not site_id:
+        pytest.skip("No sharepoint_site_id from test_search_sharepoint_sites_live")
+    result = await microsoft365.execute_action(
+        "list_sharepoint_pages",
+        {"site_id": site_id, "limit": 5, "select_fields": "id,title"},
+        live_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR, result.result.message
+    assert len(result.result.data["pages"]) <= 5
+    _, kwargs = live_context.fetch.await_args
+    assert kwargs["params"]["$select"] == "id,title"
 
 
 @skip_if_no_creds
@@ -645,9 +834,9 @@ async def test_list_rooms_live(live_context):
 @skip_if_no_creds
 @pytest.mark.asyncio
 async def test_check_room_availability_live(live_context):
-    room_email = _state.get("room_email")
+    room_email = _state.get("room_email") or TEST_SCHEDULE_EMAIL
     if not room_email:
-        pytest.skip("No room_email from test_list_rooms_live")
+        pytest.skip("No room or schedule email available")
     result = await microsoft365.execute_action(
         "check_room_availability",
         {

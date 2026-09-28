@@ -1033,11 +1033,32 @@ class AddContactToListActionHandler(ActionHandler):
         # Use v3 Lists API endpoint
         url = f"https://api.hubapi.com/crm/v3/lists/{list_id}/memberships/add"
 
-        payload = {"recordIds": [contact_id]}
+        # HubSpot expects the request body to be a JSON array of record IDs.
+        payload = [contact_id]
         response = await context.fetch(
             url,
             method="PUT",
             json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        result = await parse_response(response)
+        return ActionResult(data={"result": result}, cost_usd=None)
+
+
+@hubspot.action("remove_contact_from_list")
+class RemoveContactFromListActionHandler(ActionHandler):
+    """Remove a contact from a manual or snapshot HubSpot list."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        """Remove the supplied contact ID from the supplied list ID."""
+        list_id = inputs["list_id"]
+        contact_id = inputs["contact_id"]
+
+        url = f"https://api.hubapi.com/crm/lists/2026-03/{list_id}/memberships/remove"
+        response = await context.fetch(
+            url,
+            method="PUT",
+            json=[contact_id],
             headers={"Content-Type": "application/json"},
         )
         result = await parse_response(response)

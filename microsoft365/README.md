@@ -19,10 +19,12 @@ Required Microsoft Graph API permissions:
 - `Mail.Send` — Send emails on behalf of user
 - `Files.ReadWrite` — Access OneDrive files
 - `Calendars.ReadWrite` — Manage calendar events
+- `Calendars.Read.Shared` — Suggest meeting times with `findMeetingTimes`
 - `Contacts.Read` — Read user contacts
 - `Sites.Read.All` — Access SharePoint sites and document libraries
-- `Schedule.Read.All` — Read free/busy availability for users and rooms
 - `Place.Read.All` — List and query meeting rooms and room lists
+
+Version 3.0.0 changes the requested OAuth permissions. Existing connections must reconnect once so Microsoft can grant `Calendars.Read.Shared`.
 
 ## Actions
 
@@ -39,7 +41,7 @@ Send an email via Outlook with support for CC, BCC, and HTML content.
 - `bcc` (optional): BCC email addresses
 
 **Outputs:**
-- `status`: Confirmation string
+- `sent`: `true` when Microsoft Graph accepts the message
 
 ---
 
@@ -51,7 +53,7 @@ Returns full body HTML by default. Use the `fields` parameter to limit response 
 
 **Inputs:**
 - `start_datetime` (optional): Start datetime in UTC (ISO 8601, e.g. `2024-08-01T07:00:00Z`). Recommended over `start_date`.
-- `end_datetime` (optional): End datetime in UTC (ISO 8601). Defaults to `start_datetime` if omitted.
+- `end_datetime` (optional): End datetime in UTC (ISO 8601). Defaults to 24 hours after `start_datetime` when omitted.
 - `start_date` (optional): Legacy date-only parameter (e.g. `2024-08-01`)
 - `end_date` (optional): Legacy date-only parameter
 - `folder` (optional): Mail folder to query (default: `Inbox`)
@@ -60,7 +62,6 @@ Returns full body HTML by default. Use the `fields` parameter to limit response 
 
 **Outputs:**
 - `emails`: List of email objects
-- `count`: Number of emails returned
 
 > **Tip:** Using `fields` to exclude `body` reduces payload by ~65% on HTML-heavy inboxes.
 
@@ -186,7 +187,7 @@ Send a previously created draft email.
 
 **Outputs:**
 - `draft_id`: ID of the sent draft
-- `status`: Confirmation string
+- `sent`: `true` when Microsoft Graph accepts the message
 
 ---
 
@@ -201,7 +202,7 @@ Reply to an existing email message.
 **Outputs:**
 - `message_id`: ID of the original message
 - `operation`: `reply`
-- `status`: Confirmation string
+- `sent`: `true` when Microsoft Graph accepts the reply
 
 ---
 
@@ -217,7 +218,7 @@ Forward an existing email message to other recipients.
 **Outputs:**
 - `message_id`: ID of the original message
 - `operation`: `forward`
-- `status`: Confirmation string
+- `sent`: `true` when Microsoft Graph accepts the forward
 
 ---
 
@@ -231,8 +232,10 @@ Download the content of an email attachment. Returns the same file format as One
 - `include_content` (optional): Whether to include attachment content (default: `true`)
 
 **Outputs:**
-- `file`: Object with `content` (base64 encoded), `name`, `contentType`
+- `file`: Object with `content` (base64 encoded), `name`, `contentType`; present when `include_content=true`
 - `metadata`: Object with `id`, `name`, `size`, `contentType`, `message_id`, `is_inline`
+
+Content download failures return an action error. The action no longer reports a successful empty file.
 
 ---
 
@@ -294,11 +297,10 @@ List calendar events for a date range using Microsoft Graph `calendarView` for a
 
 **Inputs:**
 - `start_datetime` (optional): Start datetime in UTC (ISO 8601, e.g. `2024-08-01T00:00:00Z`). Recommended.
-- `end_datetime` (optional): End datetime in UTC (ISO 8601)
+- `end_datetime` (optional): End datetime in UTC (ISO 8601). Defaults to 24 hours after `start_datetime` when omitted.
 - `start_date` (optional): Legacy date-only parameter (e.g. `2024-08-01`)
 - `end_date` (optional): Legacy date-only parameter
 - `limit` (optional): Maximum number of events (default: 100)
-- `user_timezone` (optional): User's timezone for intelligent defaults
 
 **Outputs:**
 - `events`: List of calendar event objects with `subject`, `start`, `end`, `location`, `organizer`, `attendees`
@@ -320,10 +322,10 @@ Find available meeting time slots based on attendee availability, working hours,
 - `minimum_attendee_percentage` (optional): Minimum % of attendees that must be available (0–100, default: 100)
 
 **Outputs:**
-- `meeting_time_suggestions`: List of suggested time slots with confidence scores, availability info, and suggested locations
+- `meeting_time_suggestions`: List of suggested time slots with confidence scores, availability info, suggested locations, and Microsoft's suggestion reason
 - `empty_suggestions_reason`: Reason if no suggestions were returned
 
-Requires `Calendars.ReadWrite` and `Schedule.Read.All` scopes.
+Requires the delegated `Calendars.Read.Shared` scope.
 
 ---
 
@@ -344,7 +346,7 @@ Get the free/busy availability schedule for one or more users or rooms. Returns 
   - `schedule_items`: List of calendar items with status, start/end, subject, location
   - `working_hours`: Working hours configuration
 
-Requires `Schedule.Read.All` scope.
+The configured `Calendars.ReadWrite` permission is sufficient for the signed-in user's `getSchedule` calls.
 
 ---
 
@@ -379,7 +381,7 @@ Check if specific meeting rooms are available during a time range.
 - `available_rooms`: List of room emails that are fully free
 - `unavailable_rooms`: List of room emails that have conflicts
 
-Requires `Schedule.Read.All` scope.
+Uses the same `getSchedule` API and `Calendars.ReadWrite` permission as `get_schedule`.
 
 ---
 
@@ -387,11 +389,16 @@ Requires `Schedule.Read.All` scope.
 
 Upload a file to OneDrive.
 
+Accepts either an attached/generated file (uploaded byte-for-byte) or plain text content (written to a new text file). Provide one of `file` or `content`.
+
 **Inputs:**
-- `filename` (required): Name of the file (e.g. `report.txt`, `notes.md`)
-- `content` (required): Text content of the file
-- `content_type` (optional): MIME type
+- `file`: Platform file object — `content` (base64), `name`, `contentType`. The base64 is decoded to raw bytes before upload, so PDF, DOCX, XLSX, and image files keep their original format. Large files are delivered to the platform's Lambda wrapper as a pre-signed URL and hydrated into `content` before the action runs, so the action only ever sees `content`.
+- `content`: Text content for a new text file. Requires `filename`. This is the original text workflow and still behaves as before.
+- `filename` (optional with `file`, required with `content`): Name to save as in OneDrive; defaults to the file's own name.
+- `content_type` (optional): Override the MIME type. Defaults to the file's `contentType`, or `text/plain` for text content.
 - `folder_path` (optional): Destination folder path in OneDrive (default: root)
+
+Empty and invalid base64 content are rejected with a clear error rather than uploading a corrupt file. Uses Graph's simple upload (`PUT .../content`), which supports files up to 250 MB.
 
 **Outputs:**
 - `id`: ID of the uploaded file
@@ -410,7 +417,6 @@ List files and folders in a OneDrive folder.
 
 **Outputs:**
 - `files`: List of file and folder objects
-- `count`: Number of items returned
 
 ---
 
@@ -436,8 +442,10 @@ Read the content of a OneDrive file. Office documents (`.docx`, `.xlsx`, `.pptx`
 - `file_id` (required): File ID (from `search_onedrive_files` or `list_files`)
 
 **Outputs:**
-- `file`: Object with `content` (base64 encoded), `name`, `contentType` (`application/pdf` for converted Office docs)
-- `metadata`: File metadata with `id`, `size`, `webUrl`
+- `file`: Object with `content` (base64 encoded), `name`, `contentType` (`application/pdf` for converted documents). Converted filenames end in `.pdf`.
+- `metadata`: File metadata with `id`, original `name`, `size`, `mimeType`, `webUrl`, and `convertedToPdf`
+
+Content download failures return an action error instead of a successful empty file.
 
 ---
 
@@ -448,12 +456,14 @@ Read and search contacts from Outlook.
 **Inputs:**
 - `limit` (optional): Maximum number of contacts
 - `search` (optional): Filter contacts by name or company (case-insensitive, partial match)
+- `max_scan` (optional): Maximum contacts to inspect during a search; also caps pagination to one page per 100 requested contacts (default: 1000, maximum: 10000)
 
 **Outputs:**
 - `contacts`: List of contact objects with detailed information
 - `message`: Description of the search results
 - `search_term`: The search term used (when searching)
 - `total_searched`: Total contacts searched through (when searching)
+- `search_truncated`: Whether the scan or page limit was reached before enough matches were found
 
 ---
 
@@ -464,6 +474,7 @@ Search for SharePoint sites across your organization. Searches top-level site co
 **Inputs:**
 - `query` (required): Search query to find sites
 - `order_by_created` (optional): Sort by creation date, newest first
+- `limit` (optional): Maximum number of sites (default: 100)
 
 **Outputs:**
 - `query`: The search query executed
@@ -530,8 +541,10 @@ Read the content of a SharePoint document. Office documents are automatically co
 - `drive_id` (optional): ID of the specific document library containing the file. If not provided, uses the site's default drive.
 
 **Outputs:**
-- `file`: Object with `content` (base64 encoded), `name`, `contentType`
-- `metadata`: File metadata with `id`, `size`, `webUrl`, `site_id`, `drive_id`
+- `file`: Object with `content` (base64 encoded), `name`, `contentType`; converted filenames end in `.pdf`
+- `metadata`: File metadata with `id`, original `name`, `size`, `mimeType`, `webUrl`, `convertedToPdf`, `site_id`, and `drive_id`
+
+Content download failures return an action error instead of a successful empty file.
 
 ---
 
@@ -579,6 +592,7 @@ List all subsites (child sites) under a SharePoint site.
 - `site_id`: The parent site ID
 - `subsites`: List of subsite objects with `id`, `displayName`, `webUrl`, `description`
 - `total_subsites`: Total number of subsites found
+- `has_more`: Whether the requested limit stopped pagination before all subsites were returned
 
 ---
 
@@ -594,8 +608,9 @@ List files and folders within a SharePoint document library or subfolder. Use wi
 **Outputs:**
 - `drive_id`: The document library ID
 - `folder_id`: The folder ID browsed (if provided)
-- `items`: List of file and folder objects with `id`, `name`, `type`, `size`, `webUrl`, `lastModifiedDateTime`
+- `items`: List of file and folder objects with `id`, `name`, `is_folder`, `size`, `web_url`, and timestamps
 - `total_items`: Total number of items
+- `has_more`: Whether the requested limit stopped pagination before all items were returned
 
 ---
 
@@ -722,16 +737,17 @@ export MICROSOFT365_ACCESS_TOKEN="<your-access-token>"
 python -m pytest tests/test_microsoft365_integration.py -v -m "integration and not destructive"
 ```
 
-Run all live integration tests including destructive ones (creates/sends/deletes real data):
+Run only the destructive live integration tests (creates/sends/deletes real data):
 
 > **Warning:** Destructive tests send real emails, create calendar events, and upload files to the authenticated account. Only run against a test account.
 
 ```bash
 export MICROSOFT365_ACCESS_TOKEN="<your-access-token>"
-export MICROSOFT365_TEST_RECIPIENT_EMAIL="you@example.com"   # required for send/draft/forward tests
+export MICROSOFT365_TEST_MAILBOX_EMAIL="you@example.com"    # authenticated mailbox; required for mail tests
 export MICROSOFT365_TEST_ATTENDEE_EMAIL="you@example.com"    # required for find_meeting_times
 export MICROSOFT365_TEST_SCHEDULE_EMAIL="you@tenant.onmicrosoft.com"  # required for get_schedule
-python -m pytest tests/test_microsoft365_integration.py -v -m "integration"
+export MICROSOFT365_TEST_SHAREPOINT_SITE_ID="tenant.sharepoint.com,site-collection-id,site-id"  # optional stable test site
+python -m pytest tests/test_microsoft365_integration.py -v -m "integration and destructive"
 ```
 
-Obtain an access token from the Microsoft Azure portal or via the Autohive platform OAuth flow. Tokens expire after approximately 80 minutes.
+Obtain an access token from the Microsoft Azure portal or through the Autohive platform OAuth flow.

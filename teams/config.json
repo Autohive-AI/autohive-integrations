@@ -1,11 +1,11 @@
 {
     "name": "Teams",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "description": "An integration with Teams to interact with channels and messages.",
     "entry_point": "teams.py",
     "auth": {
         "type": "platform",
-        "provider": "teams",
+        "provider": "Microsoft Teams",
         "scopes": []
     },
     "actions": {

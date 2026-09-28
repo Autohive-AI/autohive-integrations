@@ -8,6 +8,9 @@ Read-only tests require specific object IDs set in environment variables:
     HUBSPOT_TEST_CONTACT_ID, HUBSPOT_TEST_COMPANY_ID, HUBSPOT_TEST_DEAL_ID,
     HUBSPOT_TEST_TICKET_ID, HUBSPOT_TEST_LIST_ID, HUBSPOT_TEST_OWNER_ID
 
+The list-membership tests require HUBSPOT_TEST_LIST_ID to identify a MANUAL or
+SNAPSHOT list and HUBSPOT_TEST_CONTACT_ID to identify the contact to update.
+
 Tests that create, update, or delete data are marked @pytest.mark.destructive
 and excluded by default. Run them explicitly with:
     pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive"
@@ -106,6 +109,15 @@ def require_list_id():
 def require_owner_id():
     if not TEST_OWNER_ID:
         pytest.skip("HUBSPOT_TEST_OWNER_ID not set")
+
+
+async def contact_is_in_test_list(context):
+    """Return whether the configured contact currently belongs to the configured list."""
+    response = await context.fetch(
+        f"https://api.hubapi.com/crm/lists/2026-03/records/0-1/{TEST_CONTACT_ID}/memberships",
+        method="GET",
+    )
+    return any(str(membership.get("listId")) == str(TEST_LIST_ID) for membership in response.data.get("results", []))
 
 
 # ---- Contact Management (Read-Only) ----
@@ -476,6 +488,69 @@ class TestGetDealCallsAndMeetings:
 # ---- Destructive Tests (Write Operations) ----
 # These create, update, or delete real data in HubSpot.
 # Only run with: pytest -m "integration and destructive"
+
+
+@pytest.mark.destructive
+class TestAddContactToList:
+    async def test_add_contact_to_static_list(self, live_context):
+        require_contact_id()
+        require_list_id()
+
+        was_member = await contact_is_in_test_list(live_context)
+        try:
+            result = await hubspot.execute_action(
+                "add_contact_to_list",
+                {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
+                live_context,
+            )
+            api_result = result.result.data["result"]
+
+            assert "category" not in api_result
+            assert any(
+                key in api_result
+                for key in ("recordIdsAdded", "recordsIdsAdded", "recordIdsMissing", "recordIdsRemoved")
+            )
+            assert await contact_is_in_test_list(live_context)
+        finally:
+            if not was_member:
+                await hubspot.execute_action(
+                    "remove_contact_from_list",
+                    {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
+                    live_context,
+                )
+
+
+@pytest.mark.destructive
+class TestRemoveContactFromList:
+    async def test_remove_contact_from_static_list(self, live_context):
+        require_contact_id()
+        require_list_id()
+
+        was_member = await contact_is_in_test_list(live_context)
+        try:
+            if not was_member:
+                await hubspot.execute_action(
+                    "add_contact_to_list",
+                    {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
+                    live_context,
+                )
+
+            result = await hubspot.execute_action(
+                "remove_contact_from_list",
+                {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
+                live_context,
+            )
+            api_result = result.result.data["result"]
+
+            assert TEST_CONTACT_ID in api_result.get("recordIdsRemoved", [])
+            assert not await contact_is_in_test_list(live_context)
+        finally:
+            restore_action = "add_contact_to_list" if was_member else "remove_contact_from_list"
+            await hubspot.execute_action(
+                restore_action,
+                {"list_id": TEST_LIST_ID, "contact_id": TEST_CONTACT_ID},
+                live_context,
+            )
 
 
 @pytest.mark.destructive
