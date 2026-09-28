@@ -301,18 +301,19 @@ class SearchTweetsAction(ActionHandler):
             response = await context.fetch(f"{X_API_BASE_URL}/tweets/search/recent", method="GET", params=params)
             body = response.data
 
+            posts = body.get("data") or []
+            includes = body.get("includes") or {}
+            users = includes.get("users") or []
+            cost_usd = len(posts) * SEARCH_POST_COST_USD + len(users) * SEARCH_USER_PROFILE_COST_USD
+
             if isinstance(body, dict) and "errors" in body:
                 error_msg = body.get("errors", [{}])[0].get("message", str(body))
-                return ActionError(message=error_msg)
-
-            posts = body.get("data", [])
-            users = body.get("includes", {}).get("users", [])
-            cost_usd = len(posts) * SEARCH_POST_COST_USD + len(users) * SEARCH_USER_PROFILE_COST_USD
+                return ActionError(message=error_msg, cost_usd=cost_usd)
 
             return ActionResult(
                 data={
                     "posts": posts,
-                    "includes": body.get("includes", {}),
+                    "includes": includes,
                     "meta": body.get("meta", {}),
                 },
                 cost_usd=cost_usd,

@@ -413,6 +413,20 @@ class TestSearchTweets:
         result = await x_integration.execute_action("search_tweets", {"query": "x"}, ctx)
         assert result.type == ResultType.ACTION_ERROR
         assert "forbidden" in result.result.message
+        assert result.result.cost_usd == 0.0
+
+    @pytest.mark.asyncio
+    async def test_partial_api_error_reports_cost_for_returned_items(self):
+        ctx = make_ctx(
+            {
+                "data": [{"id": "t1"}],
+                "includes": {"users": [{"id": "u1"}]},
+                "errors": [{"message": "Some expansions failed"}],
+            }
+        )
+        result = await x_integration.execute_action("search_tweets", {"query": "x"}, ctx)
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.cost_usd == 0.015
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self):
