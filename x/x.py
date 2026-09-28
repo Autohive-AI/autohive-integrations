@@ -21,6 +21,11 @@ X_API_BASE_URL = "https://api.x.com/2"
 # Media upload URL - X API v2
 X_MEDIA_UPLOAD_URL = "https://api.x.com/2/media/upload"
 
+# Search pricing effective September 21, 2026: $5 per 1,000 posts and
+# $10 per 1,000 user profiles returned.
+SEARCH_POST_COST_USD = 5 / 1000
+SEARCH_USER_PROFILE_COST_USD = 10 / 1000
+
 
 # ---- Connected Account Handler ----
 
@@ -300,13 +305,17 @@ class SearchTweetsAction(ActionHandler):
                 error_msg = body.get("errors", [{}])[0].get("message", str(body))
                 return ActionError(message=error_msg)
 
+            posts = body.get("data", [])
+            users = body.get("includes", {}).get("users", [])
+            cost_usd = len(posts) * SEARCH_POST_COST_USD + len(users) * SEARCH_USER_PROFILE_COST_USD
+
             return ActionResult(
                 data={
-                    "posts": body.get("data", []),
+                    "posts": posts,
                     "includes": body.get("includes", {}),
                     "meta": body.get("meta", {}),
                 },
-                cost_usd=0.0,
+                cost_usd=cost_usd,
             )
 
         except Exception as e:
