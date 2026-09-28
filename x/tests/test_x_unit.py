@@ -44,21 +44,21 @@ def ok(data, status=200):
 def make_ctx(response_data):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(return_value=ok(response_data))
-    ctx.auth = {}
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_access_token"}}  # nosec B105
     return ctx
 
 
 def make_ctx_multi(responses: list):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=[ok(r) for r in responses])
-    ctx.auth = {}
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_access_token"}}  # nosec B105
     return ctx
 
 
 def make_ctx_error(exc: Exception):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=exc)
-    ctx.auth = {}
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_access_token"}}  # nosec B105
     return ctx
 
 
