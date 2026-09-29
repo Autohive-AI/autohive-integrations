@@ -768,7 +768,7 @@ class TestAddTicketComment:
             assert data["result"]["success"] is True
             note_id = data["result"]["note"]["id"]
             assert note_id
-            assert data["result"]["association"] is not None
+            assert data["result"]["verification"] is not None
 
             verification_response = await live_context.fetch(
                 f"https://api.hubapi.com/crm/v3/objects/notes/{note_id}",
