@@ -21,6 +21,26 @@ MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
 DEFAULT_CONTACT_SEARCH_SCAN_LIMIT = 1000
 MAX_CONTACT_SEARCH_SCAN_LIMIT = 10000
 CONTACT_SEARCH_PAGE_SIZE = 100
+# https://learn.microsoft.com/en-us/graph/api/resources/mailfolder#well-known-folder-names
+WELL_KNOWN_MAIL_FOLDERS = {
+    "archive",
+    "clutter",
+    "conflicts",
+    "conversationhistory",
+    "deleteditems",
+    "drafts",
+    "inbox",
+    "junkemail",
+    "localfailures",
+    "msgfolderroot",
+    "outbox",
+    "recoverableitemsdeletions",
+    "scheduled",
+    "searchfolders",
+    "sentitems",
+    "serverfailures",
+    "syncissues",
+}
 PDF_CONVERTIBLE_EXTENSIONS = {
     ".doc",
     ".docx",
@@ -137,6 +157,19 @@ def _encode_path_segment(value: Any) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError("Microsoft Graph resource IDs and names must be non-empty strings")
     return urllib.parse.quote(value, safe="")
+
+
+def _resolve_mail_folder(folder: Any) -> str:
+    """Map a default folder's display name (e.g. "Sent Items") to its Graph well-known name.
+
+    Graph only accepts a folder ID or a well-known name in /me/mailFolders/{id}; display names
+    return ErrorInvalidIdMalformed. Anything that is not a well-known name is passed through as an ID.
+    """
+    if isinstance(folder, str):
+        well_known = folder.replace(" ", "").lower()
+        if well_known in WELL_KNOWN_MAIL_FOLDERS:
+            return well_known
+    return folder
 
 
 def _encode_drive_path(path: Any) -> str:
@@ -720,7 +753,7 @@ class ListEmailsAction(ActionHandler):
                 start_datetime = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
                 end_datetime = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-            folder = inputs.get("folder", "Inbox")
+            folder = _resolve_mail_folder(inputs.get("folder", "Inbox"))
             limit = inputs.get("limit", 50)
 
             requested_fields = inputs.get("fields")
@@ -792,7 +825,7 @@ class ListEmailsFromContactAction(ActionHandler):
         try:
             contact_email = inputs["contact_email"]
             limit = inputs.get("limit", 5)
-            folder = inputs.get("folder", "Inbox")
+            folder = _resolve_mail_folder(inputs.get("folder", "Inbox"))
 
             requested_fields = inputs.get("fields")
             if requested_fields:

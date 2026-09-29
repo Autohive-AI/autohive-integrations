@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Copilot 365",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, Calendar, SharePoint, and intelligent meeting scheduling",
   "entry_point": "microsoft365.py",
   "auth": {
@@ -459,7 +459,7 @@
           },
           "folder": {
             "type": "string",
-            "description": "Mail folder to query (default: Inbox)",
+            "description": "Mail folder to query (default: Inbox). Use a folder ID from list_mail_folders or a well-known name: inbox, sentitems, drafts, deleteditems, junkemail, archive, outbox. Display names of these folders (e.g. \"Sent Items\") are also accepted.",
             "default": "Inbox"
           },
           "limit": {
@@ -560,7 +560,7 @@
           },
           "folder": {
             "type": "string",
-            "description": "Mail folder to search in (default: Inbox)",
+            "description": "Mail folder to search in (default: Inbox). Use a folder ID from list_mail_folders or a well-known name: inbox, sentitems, drafts, deleteditems, junkemail, archive, outbox. Display names of these folders (e.g. \"Sent Items\") are also accepted.",
             "default": "Inbox"
           },
           "fields": {

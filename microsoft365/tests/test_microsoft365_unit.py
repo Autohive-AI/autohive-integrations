@@ -602,6 +602,35 @@ async def test_list_emails_rejects_end_without_start(mock_context):
     mock_context.fetch.assert_not_called()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "folder, path_segment",
+    [
+        ("Inbox", "inbox"),
+        ("Sent Items", "sentitems"),
+        ("sentitems", "sentitems"),
+        ("Deleted Items", "deleteditems"),
+        ("Junk Email", "junkemail"),
+        ("AQMkADYAAAIBXQAAAA==", "AQMkADYAAAIBXQAAAA%3D%3D"),
+        ("Projects", "Projects"),
+    ],
+)
+async def test_list_emails_resolves_folder_path(mock_context, folder, path_segment):
+    mock_context.fetch = make_fetch({"value": []})
+    result = await microsoft365.execute_action("list_emails", {"folder": folder}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_args.args[0] == (
+        f"https://graph.microsoft.com/v1.0/me/mailFolders/{path_segment}/messages"
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_emails_defaults_to_inbox(mock_context):
+    mock_context.fetch = make_fetch({"value": []})
+    await microsoft365.execute_action("list_emails", {}, mock_context)
+    assert mock_context.fetch.await_args.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages"
+
+
 # ---- list_emails_from_contact ----
 
 
@@ -664,6 +693,20 @@ async def test_list_emails_from_contact_error(mock_context):
         mock_context,
     )
     assert result.type == ResultType.ACTION_ERROR
+
+
+@pytest.mark.asyncio
+async def test_list_emails_from_contact_resolves_folder_display_name(mock_context):
+    mock_context.fetch = make_fetch({"value": []})
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact",
+        {"contact_email": "friend@b.com", "folder": "Sent Items"},
+        mock_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_args.args[0] == (
+        "https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages"
+    )
 
 
 # ---- mark_email_read ----
@@ -1808,7 +1851,7 @@ async def test_find_meeting_times_accepts_nullable_suggestion_details(mock_conte
 
 def test_find_meeting_times_declares_graph_permission_and_removes_shifts_scope():
     config = json.loads((Path(__file__).parents[1] / "config.json").read_text(encoding="utf-8"))
-    assert config["version"] == "3.0.0"
+    assert config["version"] == "3.0.1"
     assert "Calendars.Read.Shared" in config["auth"]["scopes"]
     assert "Schedule.Read.All" not in config["auth"]["scopes"]
 
