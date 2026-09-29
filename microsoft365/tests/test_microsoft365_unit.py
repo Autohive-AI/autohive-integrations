@@ -1966,7 +1966,7 @@ async def test_find_meeting_times_accepts_nullable_suggestion_details(mock_conte
 
 def test_find_meeting_times_declares_graph_permission_and_removes_shifts_scope():
     config = json.loads((Path(__file__).parents[1] / "config.json").read_text(encoding="utf-8"))
-    assert config["version"] == "3.0.1"
+    assert config["version"] == "3.1.0"
     assert "Calendars.Read.Shared" in config["auth"]["scopes"]
     assert "Schedule.Read.All" not in config["auth"]["scopes"]
 
