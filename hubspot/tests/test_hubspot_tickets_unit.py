@@ -463,9 +463,8 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "My comment"}},
         )
-        association_response = FetchResponse(status=200, headers={}, data={"id": "assoc-new"})
         verification_response = FetchResponse(status=200, headers={}, data={"results": [{"id": "note-new"}]})
-        mock_context.fetch.side_effect = [note_post_response, association_response, verification_response]
+        mock_context.fetch.side_effect = [note_post_response, verification_response]
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
@@ -479,23 +478,19 @@ class TestAddTicketComment:
         assert data["result"]["visibility"] == "internal_note"
         assert data["result"]["note"]["id"] == "note-new"
 
-        # Verify the POST payload
         post_call = mock_context.fetch.call_args_list[0]
         assert post_call.args[0] == "https://api.hubapi.com/crm/v3/objects/notes"
         assert post_call.kwargs["method"] == "POST"
         payload = post_call.kwargs["json"]
         assert payload["properties"]["hs_note_body"] == "My comment"
         assert isinstance(payload["properties"]["hs_timestamp"], int)
-        assert "associations" not in payload
+        assert payload["associations"][0]["to"]["id"] == "ticket-1"
+        assert payload["associations"][0]["types"][0] == {
+            "associationCategory": "HUBSPOT_DEFINED",
+            "associationTypeId": 228,
+        }
 
-        association_call = mock_context.fetch.call_args_list[1]
-        assert (
-            association_call.args[0]
-            == "https://api.hubapi.com/crm/v4/objects/notes/note-new/associations/default/tickets/ticket-1"
-        )
-        assert association_call.kwargs["method"] == "PUT"
-
-        verification_call = mock_context.fetch.call_args_list[2]
+        verification_call = mock_context.fetch.call_args_list[1]
         assert verification_call.args[0] == "https://api.hubapi.com/crm/v3/objects/notes/search"
         assert verification_call.kwargs["method"] == "POST"
         filters = verification_call.kwargs["json"]["filterGroups"][0]["filters"]
@@ -512,8 +507,6 @@ class TestAddTicketComment:
 
     @pytest.mark.asyncio
     async def test_parse_error_returns_action_error(self, mock_context):
-        # The try/except in add_ticket_comment wraps parse_response.
-        # Simulate a response whose .data property raises when accessed.
         bad_response = MagicMock()
         type(bad_response).data = property(lambda self: (_ for _ in ()).throw(ValueError("bad data")))
         mock_context.fetch.side_effect = [bad_response]
@@ -533,9 +526,8 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "test"}},
         )
-        association_response = FetchResponse(status=200, headers={}, data={"id": "assoc-new"})
         verification_response = FetchResponse(status=200, headers={}, data={"results": [{"id": "note-new"}]})
-        mock_context.fetch.side_effect = [note_post_response, association_response, verification_response]
+        mock_context.fetch.side_effect = [note_post_response, verification_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "test"}, mock_context)
 
@@ -549,15 +541,15 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "hello"}},
         )
-        association_response = FetchResponse(status=200, headers={}, data={"id": "assoc-new"})
         verification_response = FetchResponse(status=200, headers={}, data={"results": [{"id": "note-new"}]})
-        mock_context.fetch.side_effect = [note_post_response, association_response, verification_response]
+        mock_context.fetch.side_effect = [note_post_response, verification_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "hello"}, mock_context)
 
         payload = mock_context.fetch.call_args_list[0].kwargs["json"]
         assert payload["properties"]["hs_note_body"] == "hello"
-        assert "associations" not in payload
+        assert payload["associations"][0]["to"]["id"] == "t1"
+        assert payload["associations"][0]["types"][0]["associationTypeId"] == 228
 
     @pytest.mark.asyncio
     async def test_request_method_is_post(self, mock_context):
@@ -566,9 +558,8 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "x"}},
         )
-        association_response = FetchResponse(status=200, headers={}, data={"id": "assoc-new"})
         verification_response = FetchResponse(status=200, headers={}, data={"results": [{"id": "note-new"}]})
-        mock_context.fetch.side_effect = [note_post_response, association_response, verification_response]
+        mock_context.fetch.side_effect = [note_post_response, verification_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "x"}, mock_context)
 
@@ -581,28 +572,19 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "ok"}},
         )
-        association_response = FetchResponse(status=200, headers={}, data={"id": "assoc-new"})
         verification_response = FetchResponse(status=200, headers={}, data={"results": [{"id": "note-new"}]})
-        mock_context.fetch.side_effect = [note_post_response, association_response, verification_response]
+        mock_context.fetch.side_effect = [note_post_response, verification_response]
 
         result = await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "ok"}, mock_context)
 
         data = result.result.data
         assert data["result"]["success"] is True
         assert "message" in data["result"]
+        assert data["result"]["verification"]["results"]
 
     @pytest.mark.asyncio
-    async def test_association_failure_deletes_orphaned_note(self, mock_context):
-        note_post_response = FetchResponse(
-            status=200,
-            headers={},
-            data={"id": "note-new", "properties": {"hs_note_body": "orphan"}},
-        )
-        mock_context.fetch.side_effect = [
-            note_post_response,
-            ValueError("ticket association failed"),
-            FetchResponse(status=204, headers={}, data={}),
-        ]
+    async def test_note_create_failure_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = [ValueError("note create failed")]
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
@@ -611,9 +593,7 @@ class TestAddTicketComment:
         )
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "Failed to associate note note-new to ticket ticket-1" in result.result.message
-        assert mock_context.fetch.call_args_list[2].args[0] == "https://api.hubapi.com/crm/v3/objects/notes/note-new"
-        assert mock_context.fetch.call_args_list[2].kwargs["method"] == "DELETE"
+        assert "Failed to add note to ticket ticket-1" in result.result.message
 
     @pytest.mark.asyncio
     async def test_association_false_positive_deletes_orphaned_note(self, mock_context):
@@ -622,15 +602,9 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "orphan"}},
         )
-        association_response = FetchResponse(
-            status=200,
-            headers={},
-            data={"results": [{"fromObjectId": "note-new", "toObjectId": "ticket-1", "status": "COMPLETE"}]},
-        )
         verification_response = FetchResponse(status=200, headers={}, data={"results": []})
         mock_context.fetch.side_effect = [
             note_post_response,
-            association_response,
             verification_response,
             FetchResponse(status=204, headers={}, data={}),
         ]
@@ -644,8 +618,8 @@ class TestAddTicketComment:
         assert result.type == ResultType.ACTION_ERROR
         assert "Failed to verify note note-new is visible through ticket ticket-1" in result.result.message
         assert "note is not discoverable through the ticket association" in result.result.message
-        assert mock_context.fetch.call_args_list[3].args[0] == "https://api.hubapi.com/crm/v3/objects/notes/note-new"
-        assert mock_context.fetch.call_args_list[3].kwargs["method"] == "DELETE"
+        assert mock_context.fetch.call_args_list[2].args[0] == "https://api.hubapi.com/crm/v3/objects/notes/note-new"
+        assert mock_context.fetch.call_args_list[2].kwargs["method"] == "DELETE"
 
     @pytest.mark.asyncio
     async def test_missing_note_id_returns_action_error(self, mock_context):
