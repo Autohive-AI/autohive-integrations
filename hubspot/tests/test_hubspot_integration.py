@@ -771,29 +771,14 @@ class TestAddTicketComment:
             assert data["result"]["association"] is not None
 
             verification_response = await live_context.fetch(
-                "https://api.hubapi.com/crm/v3/objects/notes/search",
-                method="POST",
-                json={
-                    "filterGroups": [
-                        {
-                            "filters": [
-                                {
-                                    "propertyName": "hs_object_id",
-                                    "operator": "EQ",
-                                    "value": str(note_id),
-                                },
-                                {
-                                    "propertyName": "associations.ticket",
-                                    "operator": "EQ",
-                                    "value": str(TEST_TICKET_ID),
-                                },
-                            ]
-                        }
-                    ],
-                    "limit": 1,
-                },
+                f"https://api.hubapi.com/crm/v3/objects/notes/{note_id}",
+                method="GET",
+                params={"associations": "ticket"},
             )
-            assert verification_response.data.get("results")
+            association_results = verification_response.data.get("associations", {}).get("tickets", {}).get(
+                "results", []
+            ) or verification_response.data.get("associations", {}).get("ticket", {}).get("results", [])
+            assert any(str(association.get("id")) == str(TEST_TICKET_ID) for association in association_results)
         finally:
             if note_id:
                 await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)

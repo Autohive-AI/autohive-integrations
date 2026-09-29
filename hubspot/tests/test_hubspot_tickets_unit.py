@@ -117,7 +117,7 @@ class TestGetRecentTickets:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"results": []},
+            data={"associations": {"tickets": {"results": []}}},
         )
 
         await hubspot.execute_action(
@@ -138,7 +138,7 @@ class TestGetRecentTickets:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"results": []},
+            data={"associations": {"tickets": {"results": []}}},
         )
 
         await hubspot.execute_action(
@@ -153,7 +153,9 @@ class TestGetRecentTickets:
 
     @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": []}}}
+        )
 
         await hubspot.execute_action("get_recent_tickets", {}, mock_context)
 
@@ -163,7 +165,9 @@ class TestGetRecentTickets:
 
     @pytest.mark.asyncio
     async def test_request_properties_list(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": []}}}
+        )
 
         await hubspot.execute_action("get_recent_tickets", {}, mock_context)
 
@@ -180,7 +184,9 @@ class TestGetRecentTickets:
 
     @pytest.mark.asyncio
     async def test_default_limit(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": []}}}
+        )
 
         await hubspot.execute_action("get_recent_tickets", {}, mock_context)
 
@@ -188,7 +194,9 @@ class TestGetRecentTickets:
 
     @pytest.mark.asyncio
     async def test_default_sort_direction(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": []}}}
+        )
 
         await hubspot.execute_action("get_recent_tickets", {}, mock_context)
 
@@ -207,7 +215,9 @@ class TestGetRecentTickets:
 
     @pytest.mark.asyncio
     async def test_sort_direction_asc(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": []}}}
+        )
 
         await hubspot.execute_action("get_recent_tickets", {"sort_direction": "ASC"}, mock_context)
 
@@ -431,7 +441,7 @@ class TestGetTicketConversation:
 
     @pytest.mark.asyncio
     async def test_empty_messages(self, mock_context):
-        empty_response = FetchResponse(status=200, headers={}, data={"results": []})
+        empty_response = FetchResponse(status=200, headers={}, data={"associations": {"tickets": {"results": []}}})
         mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, empty_response]
 
         result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
@@ -463,7 +473,9 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "My comment"}},
         )
-        verification_response = FetchResponse(status=200, headers={}, data={"results": [{"id": "note-new"}]})
+        verification_response = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": [{"id": "ticket-1"}, {"id": "t1"}]}}}
+        )
         mock_context.fetch.side_effect = [note_post_response, verification_response]
 
         result = await hubspot.execute_action(
@@ -491,19 +503,9 @@ class TestAddTicketComment:
         }
 
         verification_call = mock_context.fetch.call_args_list[1]
-        assert verification_call.args[0] == "https://api.hubapi.com/crm/v3/objects/notes/search"
-        assert verification_call.kwargs["method"] == "POST"
-        filters = verification_call.kwargs["json"]["filterGroups"][0]["filters"]
-        assert {
-            "propertyName": "hs_object_id",
-            "operator": "EQ",
-            "value": "note-new",
-        } in filters
-        assert {
-            "propertyName": "associations.ticket",
-            "operator": "EQ",
-            "value": "ticket-1",
-        } in filters
+        assert verification_call.args[0] == "https://api.hubapi.com/crm/v3/objects/notes/note-new"
+        assert verification_call.kwargs["method"] == "GET"
+        assert verification_call.kwargs["params"] == {"associations": "ticket"}
 
     @pytest.mark.asyncio
     async def test_parse_error_returns_action_error(self, mock_context):
@@ -526,7 +528,9 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "test"}},
         )
-        verification_response = FetchResponse(status=200, headers={}, data={"results": [{"id": "note-new"}]})
+        verification_response = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": [{"id": "ticket-1"}, {"id": "t1"}]}}}
+        )
         mock_context.fetch.side_effect = [note_post_response, verification_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "test"}, mock_context)
@@ -541,7 +545,9 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "hello"}},
         )
-        verification_response = FetchResponse(status=200, headers={}, data={"results": [{"id": "note-new"}]})
+        verification_response = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": [{"id": "ticket-1"}, {"id": "t1"}]}}}
+        )
         mock_context.fetch.side_effect = [note_post_response, verification_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "hello"}, mock_context)
@@ -558,7 +564,9 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "x"}},
         )
-        verification_response = FetchResponse(status=200, headers={}, data={"results": [{"id": "note-new"}]})
+        verification_response = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": [{"id": "ticket-1"}, {"id": "t1"}]}}}
+        )
         mock_context.fetch.side_effect = [note_post_response, verification_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "x"}, mock_context)
@@ -572,7 +580,9 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "ok"}},
         )
-        verification_response = FetchResponse(status=200, headers={}, data={"results": [{"id": "note-new"}]})
+        verification_response = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": [{"id": "ticket-1"}, {"id": "t1"}]}}}
+        )
         mock_context.fetch.side_effect = [note_post_response, verification_response]
 
         result = await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "ok"}, mock_context)
@@ -580,7 +590,7 @@ class TestAddTicketComment:
         data = result.result.data
         assert data["result"]["success"] is True
         assert "message" in data["result"]
-        assert data["result"]["verification"]["results"]
+        assert data["result"]["verification"]["associations"]["tickets"]["results"]
 
     @pytest.mark.asyncio
     async def test_note_create_failure_returns_action_error(self, mock_context):
@@ -602,7 +612,9 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "orphan"}},
         )
-        verification_response = FetchResponse(status=200, headers={}, data={"results": []})
+        verification_response = FetchResponse(
+            status=200, headers={}, data={"associations": {"tickets": {"results": []}}}
+        )
         mock_context.fetch.side_effect = [
             note_post_response,
             verification_response,

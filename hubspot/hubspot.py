@@ -1321,36 +1321,20 @@ class AddTicketCommentActionHandler(ActionHandler):
         if not note_id:
             return ActionError(message=f"Failed to add note to ticket {ticket_id}: note was created without an id")
 
-        verification_url = "https://api.hubapi.com/crm/v3/objects/notes/search"
-        verification_payload = {
-            "filterGroups": [
-                {
-                    "filters": [
-                        {
-                            "propertyName": "hs_object_id",
-                            "operator": "EQ",
-                            "value": str(note_id),
-                        },
-                        {
-                            "propertyName": "associations.ticket",
-                            "operator": "EQ",
-                            "value": str(ticket_id),
-                        },
-                    ]
-                }
-            ],
-            "limit": 1,
-        }
+        verification_url = f"https://api.hubapi.com/crm/v3/objects/notes/{note_id}"
 
         try:
             verification_response = await context.fetch(
                 verification_url,
-                method="POST",
-                json=verification_payload,
+                method="GET",
+                params={"associations": "ticket"},
                 headers={"Content-Type": "application/json"},
             )
             verification_result = await parse_response(verification_response)
-            if not verification_result.get("results"):
+            association_results = verification_result.get("associations", {}).get("tickets", {}).get(
+                "results", []
+            ) or verification_result.get("associations", {}).get("ticket", {}).get("results", [])
+            if not any(str(association.get("id")) == str(ticket_id) for association in association_results):
                 raise ValueError("note is not discoverable through the ticket association")
         except Exception as e:
             cleanup_error = None
