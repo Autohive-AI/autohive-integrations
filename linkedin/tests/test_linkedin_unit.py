@@ -15,6 +15,7 @@ sys.path.insert(0, _parent)
 sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
+import yarl  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
@@ -471,6 +472,19 @@ class TestUpdatePost:
         assert call.kwargs["method"] == "POST"
         assert call.kwargs["headers"]["X-RestLi-Method"] == "PARTIAL_UPDATE"
 
+    async def test_post_urn_url_sent_pre_encoded(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+
+        await linkedin.execute_action(
+            "update_post",
+            {"post_urn": "urn:li:share:update123", "commentary": "Updated content"},
+            mock_context,
+        )
+
+        url = mock_context.fetch.call_args.args[0]
+        assert isinstance(url, yarl.URL)
+        assert str(url) == "https://api.linkedin.com/rest/posts/urn%3Ali%3Ashare%3Aupdate123"
+
     async def test_patch_payload_structure(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
 
@@ -524,7 +538,8 @@ class TestDeletePost:
         await linkedin.execute_action("delete_post", {"post_urn": "urn:li:share:abc"}, mock_context)
 
         url = mock_context.fetch.call_args.args[0]
-        assert "urn%3Ali%3Ashare%3Aabc" in url
+        assert isinstance(url, yarl.URL)
+        assert str(url) == "https://api.linkedin.com/rest/posts/urn%3Ali%3Ashare%3Aabc"
 
     async def test_error_status_returns_action_error(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=404, headers={}, data="Not Found")
@@ -573,3 +588,11 @@ class TestValidateFileInput:
 class TestEncodeUrn:
     def test_colons_encoded(self):
         assert _mod.encode_urn("urn:li:share:123") == "urn%3Ali%3Ashare%3A123"
+
+
+class TestPostResourceUrl:
+    def test_returns_pre_encoded_url(self):
+        url = _mod.post_resource_url("urn:li:share:123")
+
+        assert isinstance(url, yarl.URL)
+        assert str(url) == "https://api.linkedin.com/rest/posts/urn%3Ali%3Ashare%3A123"

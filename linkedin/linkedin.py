@@ -27,6 +27,7 @@ from urllib.parse import quote
 
 import base64
 import aiohttp
+import yarl
 
 linkedin = Integration.load()
 
@@ -46,6 +47,11 @@ def get_linkedin_headers():
 def encode_urn(urn: str) -> str:
     """URL-encode a LinkedIn URN for use in API paths."""
     return quote(urn, safe="")
+
+
+def post_resource_url(post_urn: str) -> yarl.URL:
+    """Build a pre-encoded LinkedIn Posts API entity URL."""
+    return yarl.URL(f"https://api.linkedin.com/rest/posts/{encode_urn(post_urn)}", encoded=True)
 
 
 async def get_current_user_urn(context: ExecutionContext) -> str:
@@ -476,8 +482,7 @@ class UpdatePostActionHandler(ActionHandler):
         post_urn = inputs["post_urn"]
         commentary = inputs["commentary"]
 
-        encoded_urn = encode_urn(post_urn)
-        url = f"https://api.linkedin.com/rest/posts/{encoded_urn}"
+        url = post_resource_url(post_urn)
 
         payload = {"patch": {"$set": {"commentary": commentary}}}
 
@@ -500,8 +505,7 @@ class DeletePostActionHandler(ActionHandler):
         """Delete a post."""
         post_urn = inputs["post_urn"]
 
-        encoded_urn = encode_urn(post_urn)
-        url = f"https://api.linkedin.com/rest/posts/{encoded_urn}"
+        url = post_resource_url(post_urn)
 
         headers = get_linkedin_headers()
         headers["X-RestLi-Method"] = "DELETE"
