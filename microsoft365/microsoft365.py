@@ -1578,7 +1578,7 @@ class SearchEmailsAction(ActionHandler):
             enable_top_results = inputs.get("enable_top_results", False)
 
             messages = []
-            total_results = 0
+            reported_total = 0
             offset = 0
 
             while len(messages) < limit:
@@ -1617,8 +1617,9 @@ class SearchEmailsAction(ActionHandler):
                     break
 
                 hits_container = _optional_object(hits[0], "search.hitsContainers[]")
-                # For messages, Graph's total is the number of results on this page, not all matches.
-                total_results += hits_container.get("total", 0)
+                # Graph documents total both as the query-wide match count (searchHitsContainer) and,
+                # for messages, as the count on this page, so keep the largest value rather than summing.
+                reported_total = max(reported_total, hits_container.get("total") or 0)
                 page_hits = _optional_list(hits_container.get("hits"), "search.hits")
 
                 for hit in page_hits:
@@ -1643,6 +1644,7 @@ class SearchEmailsAction(ActionHandler):
                 offset += len(page_hits)
 
             messages = messages[:limit]
+            total_results = max(reported_total, len(messages))
             return ActionResult(
                 data={
                     "query": query,

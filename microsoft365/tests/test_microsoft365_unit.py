@@ -1368,7 +1368,7 @@ async def test_search_emails_error(mock_context):
     assert result.type == ResultType.ACTION_ERROR
 
 
-def _search_page(ids, more):
+def _search_page(ids, more, total=None):
     return FetchResponse(
         status=200,
         headers={},
@@ -1377,7 +1377,7 @@ def _search_page(ids, more):
                 {
                     "hitsContainers": [
                         {
-                            "total": len(ids),
+                            "total": len(ids) if total is None else total,
                             "moreResultsAvailable": more,
                             "hits": [{"resource": {"id": i}} for i in ids],
                         }
@@ -1412,6 +1412,19 @@ async def test_search_emails_pages_large_limits_within_graph_max(mock_context):
     assert [(r["from"], r["size"]) for r in requests] == [(0, 500), (500, 500)]
     assert len(result.result.data["messages"]) == 1000
     assert result.result.data["total_results"] == 1000
+
+
+@pytest.mark.asyncio
+async def test_search_emails_keeps_query_total_across_pages(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            _search_page([f"a{i}" for i in range(500)], True, total=1234),
+            _search_page([f"b{i}" for i in range(500)], True, total=1234),
+        ]
+    )
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 1000}, mock_context)
+    assert len(result.result.data["messages"]) == 1000
+    assert result.result.data["total_results"] == 1234
 
 
 @pytest.mark.asyncio
