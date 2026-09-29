@@ -158,9 +158,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_KIND: ${{ steps.selection.outputs.release_kind }}
+          RELEASE_AUTHOR: ${{ github.event.head_commit.author.name || github.actor }}
         run: |
           set -euo pipefail
           tag="integration-packages-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          short_sha="${GITHUB_SHA::12}"
+          integration_names=$(python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          names = []
+          integration_paths = Path(os.environ["RUNNER_TEMP"]) / "integration-paths.txt"
+          for line in integration_paths.read_text().splitlines():
+              integration_path = line.strip()
+              if not integration_path:
+                  continue
+              config_path = Path(integration_path) / "config.json"
+              config = json.loads(config_path.read_text())
+              names.append(config.get("display_name") or config.get("name") or integration_path)
+          print(", ".join(names))
+          PY
+          )
+          release_title="Integration releases - ${RELEASE_AUTHOR:-$GITHUB_ACTOR} - ${integration_names} - ${short_sha}"
           assets=("dist/autohive-manifest.json")
           while IFS= read -r integration_path; do
             assets+=("dist/$integration_path.zip")
@@ -168,7 +188,7 @@ jobs:
           gh release create "$tag" "${assets[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Integration ${RELEASE_KIND} ${GITHUB_SHA::12}" \
+            --title "$release_title" \
             --notes "Integration ${RELEASE_KIND} packages built from ${GITHUB_SHA}. Autohive Admin reviews bindings and deploys these ZIPs; publication uses the existing integration publishing flow."
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "### Published [$tag]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$tag)" >> "$GITHUB_STEP_SUMMARY"
