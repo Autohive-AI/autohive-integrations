@@ -1368,6 +1368,67 @@ async def test_search_emails_error(mock_context):
     assert result.type == ResultType.ACTION_ERROR
 
 
+def _search_page(ids, more):
+    return FetchResponse(
+        status=200,
+        headers={},
+        data={
+            "value": [
+                {
+                    "hitsContainers": [
+                        {
+                            "total": len(ids),
+                            "moreResultsAvailable": more,
+                            "hits": [{"resource": {"id": i}} for i in ids],
+                        }
+                    ]
+                }
+            ]
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_search_emails_default_limit_sends_single_request(mock_context):
+    mock_context.fetch = AsyncMock(return_value=_search_page([f"a{i}" for i in range(25)], True))
+    await microsoft365.execute_action("search_emails", {"query": "test"}, mock_context)
+    assert mock_context.fetch.await_count == 1
+    request = mock_context.fetch.await_args.kwargs["json"]["requests"][0]
+    assert request["from"] == 0
+    assert request["size"] == 25
+
+
+@pytest.mark.asyncio
+async def test_search_emails_pages_large_limits_within_graph_max(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            _search_page([f"a{i}" for i in range(500)], True),
+            _search_page([f"b{i}" for i in range(500)], True),
+        ]
+    )
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 1000}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    requests = [c.kwargs["json"]["requests"][0] for c in mock_context.fetch.await_args_list]
+    assert [(r["from"], r["size"]) for r in requests] == [(0, 500), (500, 500)]
+    assert len(result.result.data["messages"]) == 1000
+    assert result.result.data["total_results"] == 1000
+
+
+@pytest.mark.asyncio
+async def test_search_emails_stops_when_no_more_results(mock_context):
+    mock_context.fetch = AsyncMock(return_value=_search_page([f"a{i}" for i in range(120)], False))
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 1000}, mock_context)
+    assert mock_context.fetch.await_count == 1
+    assert len(result.result.data["messages"]) == 120
+
+
+@pytest.mark.asyncio
+async def test_search_emails_trims_to_limit(mock_context):
+    mock_context.fetch = AsyncMock(return_value=_search_page([f"a{i}" for i in range(30)], True))
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 10}, mock_context)
+    assert len(result.result.data["messages"]) == 10
+
+
 # ---- search_sharepoint_sites ----
 
 

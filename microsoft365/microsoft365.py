@@ -21,6 +21,8 @@ MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
 DEFAULT_CONTACT_SEARCH_SCAN_LIMIT = 1000
 MAX_CONTACT_SEARCH_SCAN_LIMIT = 10000
 CONTACT_SEARCH_PAGE_SIZE = 100
+# Graph rejects message searches with size > 501 ("Max page size should be <= 501").
+MAX_MESSAGE_SEARCH_PAGE_SIZE = 500
 # https://learn.microsoft.com/en-us/graph/api/resources/mailfolder#well-known-folder-names
 WELL_KNOWN_MAIL_FOLDERS = {
     "archive",
@@ -1575,61 +1577,72 @@ class SearchEmailsAction(ActionHandler):
             limit = inputs.get("limit", 25)
             enable_top_results = inputs.get("enable_top_results", False)
 
-            search_request = {
-                "entityTypes": ["message"],
-                "query": {"queryString": query},
-                "from": 0,
-                "size": min(limit, 1000),
-                "fields": [
-                    "id",
-                    "subject",
-                    "from",
-                    "receivedDateTime",
-                    "bodyPreview",
-                    "hasAttachments",
-                ],
-            }
-
-            if enable_top_results:
-                search_request["enableTopResults"] = True
-
-            resp = await context.fetch(
-                "https://graph.microsoft.com/v1.0/search/query",
-                method="POST",
-                json={"requests": [search_request]},
-            )
-            response = resp.data
-            _check_response(response, "value")
-
             messages = []
             total_results = 0
+            offset = 0
 
-            search_results = _optional_list(response.get("value"), "search.value")
-            if search_results:
+            while len(messages) < limit:
+                search_request = {
+                    "entityTypes": ["message"],
+                    "query": {"queryString": query},
+                    "from": offset,
+                    "size": min(limit - len(messages), MAX_MESSAGE_SEARCH_PAGE_SIZE),
+                    "fields": [
+                        "id",
+                        "subject",
+                        "from",
+                        "receivedDateTime",
+                        "bodyPreview",
+                        "hasAttachments",
+                    ],
+                }
+
+                if enable_top_results:
+                    search_request["enableTopResults"] = True
+
+                resp = await context.fetch(
+                    "https://graph.microsoft.com/v1.0/search/query",
+                    method="POST",
+                    json={"requests": [search_request]},
+                )
+                response = resp.data
+                _check_response(response, "value")
+
+                search_results = _optional_list(response.get("value"), "search.value")
+                if not search_results:
+                    break
                 search_result = _optional_object(search_results[0], "search.value[]")
                 hits = _optional_list(search_result.get("hitsContainers"), "search.hitsContainers")
+                if not hits:
+                    break
 
-                if hits:
-                    hits_container = _optional_object(hits[0], "search.hitsContainers[]")
-                    total_results = hits_container.get("total", 0)
+                hits_container = _optional_object(hits[0], "search.hitsContainers[]")
+                # For messages, Graph's total is the number of results on this page, not all matches.
+                total_results += hits_container.get("total", 0)
+                page_hits = _optional_list(hits_container.get("hits"), "search.hits")
 
-                    for hit in _optional_list(hits_container.get("hits"), "search.hits"):
-                        hit = _optional_object(hit, "search.hits[]")
-                        message_data = _optional_object(hit.get("resource"), "search.hits[].resource")
+                for hit in page_hits:
+                    hit = _optional_object(hit, "search.hits[]")
+                    message_data = _optional_object(hit.get("resource"), "search.hits[].resource")
 
-                        sender = _optional_object(message_data.get("from"), "search.message.from")
+                    sender = _optional_object(message_data.get("from"), "search.message.from")
 
-                        messages.append(
-                            {
-                                "message_id": message_data.get("id") or "",
-                                "subject": message_data.get("subject") or "",
-                                "sender": sender,
-                                "received_datetime": message_data.get("receivedDateTime") or "",
-                                "body_preview": message_data.get("bodyPreview") or "",
-                                "has_attachments": message_data.get("hasAttachments", False),
-                            }
-                        )
+                    messages.append(
+                        {
+                            "message_id": message_data.get("id") or "",
+                            "subject": message_data.get("subject") or "",
+                            "sender": sender,
+                            "received_datetime": message_data.get("receivedDateTime") or "",
+                            "body_preview": message_data.get("bodyPreview") or "",
+                            "has_attachments": message_data.get("hasAttachments", False),
+                        }
+                    )
 
+                if not page_hits or hits_container.get("moreResultsAvailable") is not True:
+                    break
+                offset += len(page_hits)
+
+            messages = messages[:limit]
             return ActionResult(
                 data={
                     "query": query,
