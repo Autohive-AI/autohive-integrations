@@ -159,16 +159,28 @@ def _encode_path_segment(value: Any) -> str:
     return urllib.parse.quote(value, safe="")
 
 
-def _resolve_mail_folder(folder: Any) -> str:
-    """Map a default folder's display name (e.g. "Sent Items") to its Graph well-known name.
+async def _resolve_mail_folder(context: ExecutionContext, folder: Any) -> str:
+    """Resolve a mail folder input to something Graph accepts in /me/mailFolders/{id}.
 
-    Graph only accepts a folder ID or a well-known name in /me/mailFolders/{id}; display names
-    return ErrorInvalidIdMalformed. Anything that is not a well-known name is passed through as an ID.
+    Graph only accepts a folder ID or a well-known name there; display names return
+    ErrorInvalidIdMalformed. English default-folder names (e.g. "Sent Items") map to their
+    well-known name. Other values are matched against top-level folder display names, which
+    covers localized default folders and custom top-level folders. Anything else is treated as an ID.
     """
-    if isinstance(folder, str):
-        well_known = folder.replace(" ", "").lower()
-        if well_known in WELL_KNOWN_MAIL_FOLDERS:
-            return well_known
+    if not isinstance(folder, str) or not folder:
+        return folder
+    well_known = folder.replace(" ", "").lower()
+    if well_known in WELL_KNOWN_MAIL_FOLDERS:
+        return well_known
+
+    top_level_folders, _ = await _fetch_collection(
+        context, f"{GRAPH_API_BASE}/me/mailFolders", params={"$select": "id,displayName"}
+    )
+    wanted = folder.strip().casefold()
+    for candidate in top_level_folders:
+        if isinstance(candidate, dict) and (candidate.get("displayName") or "").strip().casefold() == wanted:
+            if candidate.get("id"):
+                return candidate["id"]
     return folder
 
 
@@ -753,7 +765,7 @@ class ListEmailsAction(ActionHandler):
                 start_datetime = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
                 end_datetime = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-            folder = _resolve_mail_folder(inputs.get("folder", "Inbox"))
+            folder = await _resolve_mail_folder(context, inputs.get("folder", "Inbox"))
             limit = inputs.get("limit", 50)
 
             requested_fields = inputs.get("fields")
@@ -825,7 +837,7 @@ class ListEmailsFromContactAction(ActionHandler):
         try:
             contact_email = inputs["contact_email"]
             limit = inputs.get("limit", 5)
-            folder = _resolve_mail_folder(inputs.get("folder", "Inbox"))
+            folder = await _resolve_mail_folder(context, inputs.get("folder", "Inbox"))
 
             requested_fields = inputs.get("fields")
             if requested_fields:

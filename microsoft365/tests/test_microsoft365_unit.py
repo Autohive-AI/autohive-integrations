@@ -611,17 +611,71 @@ async def test_list_emails_rejects_end_without_start(mock_context):
         ("sentitems", "sentitems"),
         ("Deleted Items", "deleteditems"),
         ("Junk Email", "junkemail"),
-        ("AQMkADYAAAIBXQAAAA==", "AQMkADYAAAIBXQAAAA%3D%3D"),
-        ("Projects", "Projects"),
     ],
 )
-async def test_list_emails_resolves_folder_path(mock_context, folder, path_segment):
+async def test_list_emails_maps_default_folder_names_without_lookup(mock_context, folder, path_segment):
     mock_context.fetch = make_fetch({"value": []})
     result = await microsoft365.execute_action("list_emails", {"folder": folder}, mock_context)
     assert result.type != ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_count == 1
     assert mock_context.fetch.await_args.args[0] == (
         f"https://graph.microsoft.com/v1.0/me/mailFolders/{path_segment}/messages"
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "folder, display_name",
+    [
+        ("Gesendete Elemente", "Gesendete Elemente"),
+        ("projects", "Projects"),
+    ],
+)
+async def test_list_emails_resolves_top_level_folder_display_name(mock_context, folder, display_name):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "value": [
+                        {"id": "AAMkOther=", "displayName": "Other"},
+                        {"id": "AAMkF1=", "displayName": display_name},
+                    ]
+                },
+            ),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+        ]
+    )
+    result = await microsoft365.execute_action("list_emails", {"folder": folder}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    lookup, messages = mock_context.fetch.await_args_list
+    assert lookup.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders"
+    assert lookup.kwargs["params"]["$select"] == "id,displayName"
+    assert messages.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders/AAMkF1%3D/messages"
+
+
+@pytest.mark.asyncio
+async def test_list_emails_passes_unmatched_folder_through_as_id(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=200, headers={}, data={"value": [{"id": "AAMkF1=", "displayName": "Projects"}]}),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+        ]
+    )
+    result = await microsoft365.execute_action("list_emails", {"folder": "AQMkADYAAAIBXQAAAA=="}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_args.args[0] == (
+        "https://graph.microsoft.com/v1.0/me/mailFolders/AQMkADYAAAIBXQAAAA%3D%3D/messages"
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_emails_folder_lookup_error_returns_action_error(mock_context):
+    mock_context.fetch = AsyncMock(side_effect=Exception("lookup failed"))
+    result = await microsoft365.execute_action("list_emails", {"folder": "Projects"}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "lookup failed" in result.result.message
 
 
 @pytest.mark.asyncio

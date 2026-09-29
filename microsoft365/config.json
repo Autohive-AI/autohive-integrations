@@ -459,7 +459,7 @@
           },
           "folder": {
             "type": "string",
-            "description": "Mail folder to query (default: Inbox). Use a folder ID from list_mail_folders or a well-known name: inbox, sentitems, drafts, deleteditems, junkemail, archive, outbox. Display names of these folders (e.g. \"Sent Items\") are also accepted.",
+            "description": "Mail folder to query (default: Inbox). Accepts a well-known name (inbox, sentitems, drafts, deleteditems, junkemail, archive, outbox), the display name of a top-level folder (e.g. \"Sent Items\"), or a folder ID from list_mail_folders. Well-known and English default names always mean the default folder; use the folder ID for a subfolder.",
             "default": "Inbox"
           },
           "limit": {
@@ -560,7 +560,7 @@
           },
           "folder": {
             "type": "string",
-            "description": "Mail folder to search in (default: Inbox). Use a folder ID from list_mail_folders or a well-known name: inbox, sentitems, drafts, deleteditems, junkemail, archive, outbox. Display names of these folders (e.g. \"Sent Items\") are also accepted.",
+            "description": "Mail folder to search in (default: Inbox). Accepts a well-known name (inbox, sentitems, drafts, deleteditems, junkemail, archive, outbox), the display name of a top-level folder (e.g. \"Sent Items\"), or a folder ID from list_mail_folders. Well-known and English default names always mean the default folder; use the folder ID for a subfolder.",
             "default": "Inbox"
           },
           "fields": {
