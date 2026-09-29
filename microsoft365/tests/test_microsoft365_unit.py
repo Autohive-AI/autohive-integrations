@@ -611,6 +611,11 @@ async def test_list_emails_rejects_end_without_start(mock_context):
         ("sentitems", "sentitems"),
         ("Deleted Items", "deleteditems"),
         ("Junk Email", "junkemail"),
+        ("SENT ITEMS", "sentitems"),
+        ("SentItems", "sentitems"),
+        (" Sent Items ", "sentitems"),
+        ("Archive", "archive"),
+        ("Drafts", "drafts"),
     ],
 )
 async def test_list_emails_maps_default_folder_names_without_lookup(mock_context, folder, path_segment):
@@ -676,6 +681,98 @@ async def test_list_emails_folder_lookup_error_returns_action_error(mock_context
     result = await microsoft365.execute_action("list_emails", {"folder": "Projects"}, mock_context)
     assert result.type == ResultType.ACTION_ERROR
     assert "lookup failed" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_list_emails_folder_lookup_keeps_message_query(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=200, headers={}, data={"value": [{"id": "AAMkF1=", "displayName": "Projects"}]}),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+        ]
+    )
+    await microsoft365.execute_action(
+        "list_emails",
+        {
+            "folder": "Projects",
+            "start_datetime": "2026-09-29T11:00:00Z",
+            "end_datetime": "2026-09-30T11:00:00Z",
+            "limit": 10,
+            "fields": ["id", "subject"],
+        },
+        mock_context,
+    )
+    params = mock_context.fetch.await_args.kwargs["params"]
+    assert params["$filter"] == "receivedDateTime ge 2026-09-29T11:00:00Z and receivedDateTime le 2026-09-30T11:00:00Z"
+    assert params["$top"] == 10
+    assert params["$select"] == "id,subject"
+
+
+@pytest.mark.asyncio
+async def test_list_emails_folder_lookup_ignores_surrounding_whitespace(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=200, headers={}, data={"value": [{"id": "AAMkF1=", "displayName": " Projects "}]}),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+        ]
+    )
+    await microsoft365.execute_action("list_emails", {"folder": "Projects  "}, mock_context)
+    assert mock_context.fetch.await_args.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders/AAMkF1%3D/messages"
+
+
+@pytest.mark.asyncio
+async def test_list_emails_folder_lookup_follows_next_link(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "value": [{"id": "AAMkF1=", "displayName": "Other"}],
+                    "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/mailFolders?$skiptoken=next",
+                },
+            ),
+            FetchResponse(status=200, headers={}, data={"value": [{"id": "AAMkF2=", "displayName": "Projects"}]}),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+        ]
+    )
+    result = await microsoft365.execute_action("list_emails", {"folder": "Projects"}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_args_list[1].args[0] == (
+        "https://graph.microsoft.com/v1.0/me/mailFolders?$skiptoken=next"
+    )
+    assert mock_context.fetch.await_args.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders/AAMkF2%3D/messages"
+
+
+@pytest.mark.asyncio
+async def test_list_emails_folder_lookup_skips_matches_without_id(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "value": [
+                        {"id": "AAMkNoName=", "displayName": None},
+                        {"id": None, "displayName": "Projects"},
+                        {"id": "AAMkF1=", "displayName": "Projects"},
+                    ]
+                },
+            ),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+        ]
+    )
+    result = await microsoft365.execute_action("list_emails", {"folder": "Projects"}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_args.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders/AAMkF1%3D/messages"
+
+
+@pytest.mark.asyncio
+async def test_list_emails_folder_lookup_rejects_unsafe_next_link(mock_context):
+    mock_context.fetch = make_fetch({"value": [], "@odata.nextLink": "https://attacker.example/collect-oauth-token"})
+    result = await microsoft365.execute_action("list_emails", {"folder": "Projects"}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_count == 1
 
 
 @pytest.mark.asyncio
@@ -747,6 +844,48 @@ async def test_list_emails_from_contact_error(mock_context):
         mock_context,
     )
     assert result.type == ResultType.ACTION_ERROR
+
+
+@pytest.mark.asyncio
+async def test_list_emails_from_contact_defaults_to_inbox_without_lookup(mock_context):
+    mock_context.fetch = make_fetch({"value": []})
+    await microsoft365.execute_action("list_emails_from_contact", {"contact_email": "friend@b.com"}, mock_context)
+    assert mock_context.fetch.await_count == 1
+    assert mock_context.fetch.await_args.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages"
+
+
+@pytest.mark.asyncio
+async def test_list_emails_from_contact_resolves_localized_folder_name(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=200, headers={}, data={"value": [{"id": "AAMkSent=", "displayName": "Éléments envoyés"}]}
+            ),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact",
+        {"contact_email": "friend@b.com", "folder": "Éléments envoyés"},
+        mock_context,
+    )
+    assert result.type != ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_args.args[0] == (
+        "https://graph.microsoft.com/v1.0/me/mailFolders/AAMkSent%3D/messages"
+    )
+    assert mock_context.fetch.await_args.kwargs["params"]["$search"] == '"from:friend@b.com"'
+
+
+@pytest.mark.asyncio
+async def test_list_emails_from_contact_folder_lookup_error_returns_action_error(mock_context):
+    mock_context.fetch = AsyncMock(side_effect=Exception("lookup failed"))
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact",
+        {"contact_email": "friend@b.com", "folder": "Projects"},
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "lookup failed" in result.result.message
 
 
 @pytest.mark.asyncio
@@ -1440,6 +1579,118 @@ async def test_search_emails_trims_to_limit(mock_context):
     mock_context.fetch = AsyncMock(return_value=_search_page([f"a{i}" for i in range(30)], True))
     result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 10}, mock_context)
     assert len(result.result.data["messages"]) == 10
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "limit, expected_pages",
+    [
+        (500, [(0, 500)]),
+        (501, [(0, 500), (500, 1)]),
+        (700, [(0, 500), (500, 200)]),
+    ],
+)
+async def test_search_emails_splits_limit_into_pages(mock_context, limit, expected_pages):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            _search_page([f"p{n}-{i}" for i in range(size)], True) for n, (_, size) in enumerate(expected_pages)
+        ]
+    )
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": limit}, mock_context)
+    requests = [c.kwargs["json"]["requests"][0] for c in mock_context.fetch.await_args_list]
+    assert [(r["from"], r["size"]) for r in requests] == expected_pages
+    assert len(result.result.data["messages"]) == limit
+
+
+@pytest.mark.asyncio
+async def test_search_emails_advances_offset_by_hits_returned(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            _search_page([f"a{i}" for i in range(300)], True),
+            _search_page([f"b{i}" for i in range(200)], False),
+        ]
+    )
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 1000}, mock_context)
+    requests = [c.kwargs["json"]["requests"][0] for c in mock_context.fetch.await_args_list]
+    assert [(r["from"], r["size"]) for r in requests] == [(0, 500), (300, 500)]
+    assert len(result.result.data["messages"]) == 500
+
+
+@pytest.mark.asyncio
+async def test_search_emails_stops_on_empty_page_even_if_more_available(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            _search_page([f"a{i}" for i in range(500)], True),
+            _search_page([], True),
+            _search_page([f"c{i}" for i in range(500)], True),
+        ]
+    )
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 1000}, mock_context)
+    assert mock_context.fetch.await_count == 2
+    assert len(result.result.data["messages"]) == 500
+
+
+@pytest.mark.asyncio
+async def test_search_emails_stops_when_more_results_flag_missing(mock_context):
+    page = _search_page([f"a{i}" for i in range(10)], True)
+    del page.data["value"][0]["hitsContainers"][0]["moreResultsAvailable"]
+    mock_context.fetch = AsyncMock(return_value=page)
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 1000}, mock_context)
+    assert mock_context.fetch.await_count == 1
+    assert len(result.result.data["messages"]) == 10
+
+
+@pytest.mark.asyncio
+async def test_search_emails_sends_top_results_flag_on_every_page(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            _search_page([f"a{i}" for i in range(500)], True),
+            _search_page([f"b{i}" for i in range(100)], False),
+        ]
+    )
+    await microsoft365.execute_action(
+        "search_emails", {"query": "test", "limit": 1000, "enable_top_results": True}, mock_context
+    )
+    requests = [c.kwargs["json"]["requests"][0] for c in mock_context.fetch.await_args_list]
+    assert [r.get("enableTopResults") for r in requests] == [True, True]
+    assert {r["query"]["queryString"] for r in requests} == {"test"}
+
+
+@pytest.mark.asyncio
+async def test_search_emails_error_on_later_page_returns_action_error(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[_search_page([f"a{i}" for i in range(500)], True), Exception("page two failed")]
+    )
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 1000}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "page two failed" in result.result.message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("data", [{"value": []}, {"value": [{"hitsContainers": []}]}])
+async def test_search_emails_handles_empty_search_containers(mock_context, data):
+    mock_context.fetch = make_fetch(data)
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 1000}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_count == 1
+    assert result.result.data["messages"] == []
+    assert result.result.data["total_results"] == 0
+
+
+@pytest.mark.asyncio
+async def test_search_emails_total_falls_back_to_collected_count(mock_context):
+    page = _search_page([f"a{i}" for i in range(3)], False)
+    page.data["value"][0]["hitsContainers"][0]["total"] = None
+    mock_context.fetch = AsyncMock(return_value=page)
+    result = await microsoft365.execute_action("search_emails", {"query": "test"}, mock_context)
+    assert result.result.data["total_results"] == 3
+
+
+@pytest.mark.asyncio
+async def test_search_emails_rejects_limit_above_schema_max(mock_context):
+    result = await microsoft365.execute_action("search_emails", {"query": "test", "limit": 1001}, mock_context)
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_context.fetch.assert_not_called()
 
 
 # ---- search_sharepoint_sites ----
