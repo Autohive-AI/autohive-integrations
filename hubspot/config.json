@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -9,7 +9,6 @@
     "provider": "hubspot",
     "scopes": [
       "conversations.read",
-      "conversations.write",
       "crm.objects.companies.read",
       "crm.objects.companies.write",
       "crm.objects.contacts.read",
@@ -1490,15 +1489,24 @@
                       "description": "Ticket properties",
                       "properties": {
                         "subject": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Ticket subject"
                         },
                         "content": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Ticket content/description"
                         },
                         "hs_pipeline_stage": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Current ticket stage ID"
                         },
                         "hs_ticket_priority": {
@@ -1523,15 +1531,24 @@
                           "description": "Ticket category"
                         },
                         "createdate": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Ticket creation date"
                         },
                         "hs_lastmodifieddate": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "Last modified date"
                         },
                         "hs_object_id": {
-                          "type": "string",
+                          "type": [
+                            "string",
+                            "null"
+                          ],
                           "description": "HubSpot object ID"
                         }
                       }
@@ -1604,7 +1621,7 @@
     },
     "add_ticket_comment": {
       "display_name": "Add Ticket Comment",
-      "description": "Add a comment to an existing HubSpot ticket.",
+      "description": "Add an internal note to an existing HubSpot ticket.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1615,10 +1632,6 @@
           "comment": {
             "type": "string",
             "description": "The comment text to add to the ticket."
-          },
-          "is_public": {
-            "type": "boolean",
-            "description": "Whether the comment should be visible to the customer (default: false)."
           }
         },
         "required": [
@@ -1631,7 +1644,7 @@
         "properties": {
           "result": {
             "type": "object",
-            "description": "Result of adding the comment to the ticket."
+            "description": "Result of adding the internal note to the ticket."
           }
         },
         "required": [

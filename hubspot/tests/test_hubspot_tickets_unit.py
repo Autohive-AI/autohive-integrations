@@ -21,6 +21,68 @@ def mock_context():
 
 class TestGetRecentTickets:
     @pytest.mark.asyncio
+    async def test_100_tickets_preserves_record_with_null_subject(self, mock_context):
+        tickets = [{"id": str(index), "properties": {"subject": f"Ticket {index}"}} for index in range(100)]
+        tickets[45]["properties"]["subject"] = None
+        response = {"total": 100, "results": tickets, "paging": {"next": {"after": "100"}}}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response)
+
+        result = await hubspot.execute_action("get_recent_tickets", {"limit": 100}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["tickets"] == response
+        assert len(result.result.data["tickets"]["results"]) == 100
+        assert result.result.data["tickets"]["results"][45]["properties"]["subject"] is None
+        assert mock_context.fetch.call_args.kwargs["json"]["limit"] == 100
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "property_name",
+        [
+            "subject",
+            "content",
+            "hs_pipeline_stage",
+            "hs_ticket_priority",
+            "hubspot_owner_id",
+            "hs_ticket_category",
+            "createdate",
+            "hs_lastmodifieddate",
+            "hs_object_id",
+        ],
+    )
+    @pytest.mark.parametrize("value", [None, "", "set value"])
+    async def test_preserves_nullable_and_empty_property_values(self, mock_context, property_name, value):
+        response = {"results": [{"id": "t-1", "properties": {property_name: value}}]}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response)
+
+        result = await hubspot.execute_action("get_recent_tickets", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["tickets"] == response
+
+    @pytest.mark.asyncio
+    async def test_preserves_ticket_without_subject_property(self, mock_context):
+        response = {"results": [{"id": "t-1", "properties": {"content": "No subject provided"}}]}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response)
+
+        result = await hubspot.execute_action("get_recent_tickets", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data["tickets"] == response
+        assert "subject" not in result.result.data["tickets"]["results"][0]["properties"]
+
+    @pytest.mark.asyncio
+    async def test_rejects_non_string_non_null_subject(self, mock_context):
+        response = {"results": [{"id": "t-1", "properties": {"subject": 123}}]}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=response)
+
+        result = await hubspot.execute_action("get_recent_tickets", {}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        assert result.result["source"] == "output"
+        assert "subject" in result.result["message"]
+
+    @pytest.mark.asyncio
     async def test_happy_path_defaults(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,
@@ -396,15 +458,12 @@ class TestGetTicketConversation:
 class TestAddTicketComment:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        comment_post_response = FetchResponse(
+        note_post_response = FetchResponse(
             status=200,
             headers={},
-            data={"id": "msg-new", "text": "My comment", "type": "COMMENT"},
+            data={"id": "note-new", "properties": {"hs_note_body": "My comment"}},
         )
-        mock_context.fetch.side_effect = [
-            TICKET_RESPONSE_WITH_THREAD,
-            comment_post_response,
-        ]
+        mock_context.fetch.side_effect = [note_post_response]
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
@@ -414,28 +473,22 @@ class TestAddTicketComment:
 
         data = result.result.data
         assert data["result"]["success"] is True
-        assert data["result"]["message"] == "Comment added successfully to the thread"
-        assert data["result"]["thread_message"]["id"] == "msg-new"
+        assert data["result"]["message"] == "Note added successfully to the ticket"
+        assert data["result"]["visibility"] == "internal_note"
+        assert data["result"]["note"]["id"] == "note-new"
 
         # Verify the POST payload
-        post_call = mock_context.fetch.call_args_list[1]
-        assert "thread-123/messages" in post_call.args[0]
+        post_call = mock_context.fetch.call_args_list[0]
+        assert post_call.args[0] == "https://api.hubapi.com/crm/v3/objects/notes"
         assert post_call.kwargs["method"] == "POST"
-        assert post_call.kwargs["json"] == {"type": "COMMENT", "text": "My comment"}
-
-    @pytest.mark.asyncio
-    async def test_no_thread_found(self, mock_context):
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_NO_THREAD]
-
-        result = await hubspot.execute_action(
-            "add_ticket_comment",
-            {"ticket_id": "ticket-2", "comment": "Hello"},
-            mock_context,
-        )
-
-        data = result.result.data
-        assert data["result"]["success"] is False
-        assert "No conversation thread found" in data["result"]["message"]
+        payload = post_call.kwargs["json"]
+        assert payload["properties"]["hs_note_body"] == "My comment"
+        assert isinstance(payload["properties"]["hs_timestamp"], int)
+        assert payload["associations"][0]["to"]["id"] == "ticket-1"
+        assert payload["associations"][0]["types"][0] == {
+            "associationCategory": "HUBSPOT_DEFINED",
+            "associationTypeId": 228,
+        }
 
     @pytest.mark.asyncio
     async def test_parse_error_returns_action_error(self, mock_context):
@@ -443,7 +496,7 @@ class TestAddTicketComment:
         # Simulate a response whose .data property raises when accessed.
         bad_response = MagicMock()
         type(bad_response).data = property(lambda self: (_ for _ in ()).throw(ValueError("bad data")))
-        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, bad_response]
+        mock_context.fetch.side_effect = [bad_response]
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
@@ -454,67 +507,55 @@ class TestAddTicketComment:
         assert result.type == ResultType.ACTION_ERROR
 
     @pytest.mark.asyncio
-    async def test_request_url_contains_thread_id(self, mock_context):
-        comment_post_response = FetchResponse(
+    async def test_request_url_is_notes_api(self, mock_context):
+        note_post_response = FetchResponse(
             status=200,
             headers={},
-            data={"id": "msg-new", "text": "test", "type": "COMMENT"},
+            data={"id": "note-new", "properties": {"hs_note_body": "test"}},
         )
-        mock_context.fetch.side_effect = [
-            TICKET_RESPONSE_WITH_THREAD,
-            comment_post_response,
-        ]
+        mock_context.fetch.side_effect = [note_post_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "test"}, mock_context)
 
-        post_url = mock_context.fetch.call_args_list[1].args[0]
-        assert "thread-123/messages" in post_url
+        post_url = mock_context.fetch.call_args_list[0].args[0]
+        assert post_url == "https://api.hubapi.com/crm/v3/objects/notes"
 
     @pytest.mark.asyncio
     async def test_request_payload(self, mock_context):
-        comment_post_response = FetchResponse(
+        note_post_response = FetchResponse(
             status=200,
             headers={},
-            data={"id": "msg-new", "text": "hello", "type": "COMMENT"},
+            data={"id": "note-new", "properties": {"hs_note_body": "hello"}},
         )
-        mock_context.fetch.side_effect = [
-            TICKET_RESPONSE_WITH_THREAD,
-            comment_post_response,
-        ]
+        mock_context.fetch.side_effect = [note_post_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "hello"}, mock_context)
 
-        payload = mock_context.fetch.call_args_list[1].kwargs["json"]
-        assert payload["type"] == "COMMENT"
-        assert payload["text"] == "hello"
+        payload = mock_context.fetch.call_args_list[0].kwargs["json"]
+        assert payload["properties"]["hs_note_body"] == "hello"
+        assert payload["associations"][0]["to"]["id"] == "t1"
 
     @pytest.mark.asyncio
     async def test_request_method_is_post(self, mock_context):
-        comment_post_response = FetchResponse(
+        note_post_response = FetchResponse(
             status=200,
             headers={},
-            data={"id": "msg-new", "text": "x", "type": "COMMENT"},
+            data={"id": "note-new", "properties": {"hs_note_body": "x"}},
         )
-        mock_context.fetch.side_effect = [
-            TICKET_RESPONSE_WITH_THREAD,
-            comment_post_response,
-        ]
+        mock_context.fetch.side_effect = [note_post_response]
 
         await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "x"}, mock_context)
 
-        assert mock_context.fetch.call_args_list[1].kwargs["method"] == "POST"
+        assert mock_context.fetch.call_args_list[0].kwargs["method"] == "POST"
 
     @pytest.mark.asyncio
     async def test_response_success_true(self, mock_context):
-        comment_post_response = FetchResponse(
+        note_post_response = FetchResponse(
             status=200,
             headers={},
-            data={"id": "msg-new", "text": "ok", "type": "COMMENT"},
+            data={"id": "note-new", "properties": {"hs_note_body": "ok"}},
         )
-        mock_context.fetch.side_effect = [
-            TICKET_RESPONSE_WITH_THREAD,
-            comment_post_response,
-        ]
+        mock_context.fetch.side_effect = [note_post_response]
 
         result = await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "ok"}, mock_context)
 

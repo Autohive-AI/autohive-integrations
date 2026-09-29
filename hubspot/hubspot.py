@@ -1268,9 +1268,11 @@ class GetTicketConversationActionHandler(ActionHandler):
 @hubspot.action("add_ticket_comment")
 class AddTicketCommentActionHandler(ActionHandler):
     """
-    Action handler to add a comment to a ticket's conversation thread.
+    Action handler to add an internal note to a ticket.
 
-    Retrieves the conversation thread ID from the ticket and posts a comment to that thread.
+    Creates a CRM note and associates it with the ticket. HubSpot does not
+    expose a stable ticket comments endpoint under the Conversations thread
+    route for this use case, so ticket comments are represented as CRM notes.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -1279,53 +1281,53 @@ class AddTicketCommentActionHandler(ActionHandler):
 
         :param inputs: Dictionary with keys "ticket_id" and "comment".
         :param context: Execution context containing authentication credentials.
-        :return: Dictionary with a "result" key indicating success or failure and the thread message details.
+        :return: Dictionary with a "result" key indicating success or failure and the note details.
         """
 
         ticket_id = inputs["ticket_id"]
         comment = inputs["comment"]
 
-        # Get the thread ID from the ticket
-        thread_id = await get_thread_id_from_ticket(ticket_id, context)
-        if not thread_id:
-            return ActionResult(
-                data={
-                    "result": {
-                        "success": False,
-                        "message": f"No conversation thread found for ticket {ticket_id}",
-                    }
-                },
-                cost_usd=None,
-            )
-
-        messages_url = f"https://api.hubapi.com/conversations/v3/conversations/threads/{thread_id}/messages"
-
-        message_payload = {"type": "COMMENT", "text": comment}
-
-        # Send the comment to the conversation thread
-        message_response = await context.fetch(
-            messages_url,
-            method="POST",
-            json=message_payload,
-            headers={"Content-Type": "application/json"},
-        )
+        notes_url = "https://api.hubapi.com/crm/v3/objects/notes"
+        note_payload = {
+            "properties": {
+                "hs_timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+                "hs_note_body": comment,
+            },
+            "associations": [
+                {
+                    "to": {"id": str(ticket_id)},
+                    "types": [
+                        {
+                            "associationCategory": "HUBSPOT_DEFINED",
+                            "associationTypeId": 228,
+                        }
+                    ],
+                }
+            ],
+        }
 
         try:
-            message_result = await parse_response(message_response)
-            return ActionResult(
-                data={
-                    "result": {
-                        "success": True,
-                        "message": "Comment added successfully to the thread",
-                        "thread_message": message_result,
-                    }
-                },
-                cost_usd=None,
+            note_response = await context.fetch(
+                notes_url,
+                method="POST",
+                json=note_payload,
+                headers={"Content-Type": "application/json"},
             )
+            note_result = await parse_response(note_response)
         except Exception as e:
-            return ActionError(
-                message=f"Failed to add comment to the thread: {str(e)}",
-            )
+            return ActionError(message=f"Failed to add note to ticket {ticket_id}: {str(e)}")
+
+        return ActionResult(
+            data={
+                "result": {
+                    "success": True,
+                    "message": "Note added successfully to the ticket",
+                    "visibility": "internal_note",
+                    "note": note_result,
+                }
+            },
+            cost_usd=None,
+        )
 
 
 # Company Management Actions
