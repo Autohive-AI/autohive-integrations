@@ -1340,6 +1340,58 @@ class AddTicketCommentActionHandler(ActionHandler):
                 message=(f"Failed to associate note {note_id} to ticket {ticket_id}: {str(e)}.{cleanup_message}")
             )
 
+        verification_url = "https://api.hubapi.com/crm/v3/objects/notes/search"
+        verification_payload = {
+            "filterGroups": [
+                {
+                    "filters": [
+                        {
+                            "propertyName": "hs_object_id",
+                            "operator": "EQ",
+                            "value": str(note_id),
+                        },
+                        {
+                            "propertyName": "associations.ticket",
+                            "operator": "EQ",
+                            "value": str(ticket_id),
+                        },
+                    ]
+                }
+            ],
+            "limit": 1,
+        }
+
+        try:
+            verification_response = await context.fetch(
+                verification_url,
+                method="POST",
+                json=verification_payload,
+                headers={"Content-Type": "application/json"},
+            )
+            verification_result = await parse_response(verification_response)
+            if not verification_result.get("results"):
+                raise ValueError("note is not discoverable through the ticket association")
+        except Exception as e:
+            cleanup_error = None
+            try:
+                await context.fetch(
+                    f"https://api.hubapi.com/crm/v3/objects/notes/{note_id}",
+                    method="DELETE",
+                    headers={"Content-Type": "application/json"},
+                )
+            except Exception as cleanup_exception:
+                cleanup_error = str(cleanup_exception)
+
+            cleanup_message = f" The created note {note_id} was deleted to avoid leaving an orphaned note."
+            if cleanup_error:
+                cleanup_message = f" Cleanup of orphaned note {note_id} also failed: {cleanup_error}"
+
+            return ActionError(
+                message=(
+                    f"Failed to verify note {note_id} is visible through ticket {ticket_id}: {str(e)}.{cleanup_message}"
+                )
+            )
+
         return ActionResult(
             data={
                 "result": {
@@ -1348,6 +1400,7 @@ class AddTicketCommentActionHandler(ActionHandler):
                     "visibility": "internal_note",
                     "note": note_result,
                     "association": association_result,
+                    "verification": verification_result,
                 }
             },
             cost_usd=None,
