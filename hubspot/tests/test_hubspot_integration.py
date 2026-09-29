@@ -71,7 +71,10 @@ def live_context(env_credentials):
             async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
                 if resp.status >= 400:
                     raise RuntimeError(f"HubSpot API returned HTTP {resp.status}")
-                data = await resp.json(content_type=None)
+                if resp.status == 204:
+                    data = {}
+                else:
+                    data = await resp.json(content_type=None)
                 api_responses.append(deepcopy(data))
                 return FetchResponse(
                     status=resp.status,
@@ -749,12 +752,32 @@ class TestNoteWorkflow:
 
 @pytest.mark.destructive
 class TestAddTicketComment:
-    async def test_adds_comment(self, live_context):
+    async def test_adds_internal_note_and_associates_it_to_ticket(self, live_context):
         require_ticket_id()
-        result = await hubspot.execute_action(
-            "add_ticket_comment",
-            {"ticket_id": TEST_TICKET_ID, "comment": "Integration test comment."},
-            live_context,
-        )
-        data = result.result.data
-        assert "result" in data
+        note_id = None
+        try:
+            result = await hubspot.execute_action(
+                "add_ticket_comment",
+                {
+                    "ticket_id": TEST_TICKET_ID,
+                    "comment": f"Integration test internal ticket note {os.getpid()}",
+                },
+                live_context,
+            )
+            data = result.result.data
+            assert data["result"]["success"] is True
+            note_id = data["result"]["note"]["id"]
+            assert note_id
+            assert data["result"]["association"] is not None
+
+            association_response = await live_context.fetch(
+                f"https://api.hubapi.com/crm/v4/objects/notes/{note_id}/associations/tickets",
+                method="GET",
+            )
+            associated_ticket_ids = {
+                str(result["toObjectId"]) for result in association_response.data.get("results", [])
+            }
+            assert str(TEST_TICKET_ID) in associated_ticket_ids
+        finally:
+            if note_id:
+                await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)
