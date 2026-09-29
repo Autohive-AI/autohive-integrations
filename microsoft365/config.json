@@ -1514,17 +1514,17 @@
     },
     "download_email_attachment": {
       "display_name": "Download Email Attachment",
-      "description": "Download the content of an email attachment",
+      "description": "Download the content of an Outlook email attachment. Only works for files attached to an email; to read a OneDrive or SharePoint file, use read_onedrive_file_content or read_sharepoint_document instead.",
       "input_schema": {
         "type": "object",
         "properties": {
           "message_id": {
             "type": "string",
-            "description": "ID of the message containing the attachment"
+            "description": "Outlook message ID of the email containing the attachment, exactly as returned by list_emails, search_emails, or read_email. OneDrive and SharePoint file IDs are not accepted."
           },
           "attachment_id": {
             "type": "string",
-            "description": "ID of the attachment to download"
+            "description": "Attachment ID from the attachments list returned by read_email for the same message."
           },
           "include_content": {
             "type": "boolean",
