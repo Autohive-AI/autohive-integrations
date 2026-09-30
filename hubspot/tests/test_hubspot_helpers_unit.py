@@ -8,6 +8,7 @@ from hubspot.hubspot import (
     parse_date_string_to_utc,
     convert_hubspot_timestamp_to_utc_string,
     convert_deal_dates_to_utc,
+    fetch_with_rate_limit_retries,
 )
 
 pytestmark = pytest.mark.unit
@@ -55,6 +56,34 @@ class TestParseResponse:
         response = FetchResponse(status=200, headers={}, data=data)
         result = await parse_response(response)
         assert result["contact"]["properties"]["email"] == "test@example.com"
+
+
+# ---- fetch_with_rate_limit_retries ----
+
+
+class TestFetchWithRateLimitRetries:
+    @pytest.mark.asyncio
+    async def test_uses_retry_after_when_available(self, mock_context, monkeypatch):
+        mock_sleep = AsyncMock()
+        monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", mock_sleep)
+
+        class RateLimitLikeError(Exception):
+            retry_after = 60
+
+        mock_context.fetch.side_effect = [
+            RateLimitLikeError("HTTP 429: Rate limit exceeded"),
+            FetchResponse(status=200, headers={}, data={"ok": True}),
+        ]
+
+        result = await fetch_with_rate_limit_retries(mock_context, "https://example.test")
+
+        assert result.data == {"ok": True}
+        mock_sleep.assert_awaited_once_with(60)
+
+    @pytest.mark.asyncio
+    async def test_rejects_negative_max_retries(self, mock_context):
+        with pytest.raises(ValueError, match="max_retries must be >= 0"):
+            await fetch_with_rate_limit_retries(mock_context, "https://example.test", max_retries=-1)
 
 
 # ---- parse_date_string_to_utc ----

@@ -634,6 +634,35 @@ class TestAddTicketComment:
         assert mock_context.fetch.call_args_list[2].kwargs["method"] == "DELETE"
 
     @pytest.mark.asyncio
+    async def test_verification_rate_limit_does_not_delete_created_note(self, mock_context, monkeypatch):
+        mock_sleep = AsyncMock()
+        monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", mock_sleep)
+        note_post_response = FetchResponse(
+            status=200,
+            headers={},
+            data={"id": "note-new", "properties": {"hs_note_body": "rate limited"}},
+        )
+        rate_limit_error = Exception("HTTP 429: Rate limit exceeded")
+        mock_context.fetch.side_effect = [
+            note_post_response,
+            rate_limit_error,
+            rate_limit_error,
+            rate_limit_error,
+            rate_limit_error,
+        ]
+
+        result = await hubspot.execute_action(
+            "add_ticket_comment",
+            {"ticket_id": "ticket-1", "comment": "rate limited"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "was not deleted because verification failed" in result.result.message
+        assert all(call.kwargs.get("method") != "DELETE" for call in mock_context.fetch.call_args_list)
+        assert mock_sleep.await_count == 3
+
+    @pytest.mark.asyncio
     async def test_missing_note_id_returns_action_error(self, mock_context):
         note_post_response = FetchResponse(
             status=200,

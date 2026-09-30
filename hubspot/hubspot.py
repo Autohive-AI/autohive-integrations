@@ -137,6 +137,17 @@ def is_rate_limit_error(error: Exception) -> bool:
     return "429" in error_text or "rate limit" in error_text
 
 
+def get_retry_after_seconds(error: Exception, fallback_seconds: int) -> int:
+    """Return provider-supplied retry delay when available."""
+    retry_after = getattr(error, "retry_after", None)
+    if retry_after is None:
+        return fallback_seconds
+    try:
+        return max(int(retry_after), 0)
+    except (TypeError, ValueError):
+        return fallback_seconds
+
+
 async def fetch_with_rate_limit_retries(context: ExecutionContext, url: str, max_retries: int = 3, **kwargs):
     """Fetch with a short exponential backoff for transient HubSpot 429 responses."""
     if max_retries < 0:
@@ -149,7 +160,7 @@ async def fetch_with_rate_limit_retries(context: ExecutionContext, url: str, max
         except Exception as e:
             if attempt == max_retries or not is_rate_limit_error(e):
                 raise
-            await asyncio.sleep(delay_seconds)
+            await asyncio.sleep(get_retry_after_seconds(e, delay_seconds))
             delay_seconds *= 2
 
 
@@ -1349,19 +1360,27 @@ class AddTicketCommentActionHandler(ActionHandler):
         verification_url = f"https://api.hubapi.com/crm/v3/objects/notes/{note_id}"
 
         try:
-            verification_response = await context.fetch(
+            verification_response = await fetch_with_rate_limit_retries(
+                context,
                 verification_url,
                 method="GET",
                 params={"associations": "ticket"},
                 headers={"Content-Type": "application/json"},
             )
             verification_result = await parse_response(verification_response)
-            association_results = verification_result.get("associations", {}).get("tickets", {}).get(
-                "results", []
-            ) or verification_result.get("associations", {}).get("ticket", {}).get("results", [])
-            if not any(str(association.get("id")) == str(ticket_id) for association in association_results):
-                raise ValueError("note is not discoverable through the ticket association")
         except Exception as e:
+            return ActionError(
+                message=(
+                    f"Failed to verify note {note_id} is visible through ticket {ticket_id}: {str(e)}. "
+                    f"The created note {note_id} was not deleted because verification failed before "
+                    "the ticket association could be checked."
+                )
+            )
+
+        association_results = verification_result.get("associations", {}).get("tickets", {}).get(
+            "results", []
+        ) or verification_result.get("associations", {}).get("ticket", {}).get("results", [])
+        if not any(str(association.get("id")) == str(ticket_id) for association in association_results):
             cleanup_error = None
             try:
                 await context.fetch(
@@ -1378,7 +1397,8 @@ class AddTicketCommentActionHandler(ActionHandler):
 
             return ActionError(
                 message=(
-                    f"Failed to verify note {note_id} is visible through ticket {ticket_id}: {str(e)}.{cleanup_message}"
+                    f"Failed to verify note {note_id} is visible through ticket {ticket_id}: "
+                    f"note is not discoverable through the ticket association.{cleanup_message}"
                 )
             )
 
