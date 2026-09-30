@@ -1730,40 +1730,54 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
         )
 
         try:
-            # Step 1: Get all owners from HubSpot
+            # Step 1: Page through owners from HubSpot until the requested owner is found
             retry_sleep_budget = {"remaining": 10}
             owners_url = "https://api.hubapi.com/crm/v3/owners/"
-            owners_response = await fetch_with_rate_limit_retries(
-                context,
-                owners_url,
-                retry_sleep_budget=retry_sleep_budget,
-                headers={"Content-Type": "application/json"},
-            )
-            owners_data = await parse_response(owners_response)
-
-            # Step 2: Find the owner ID by matching the name
             owner_id = None
             matched_owner = None
+            owners_after = None
 
-            for owner in owners_data.get("results", []):
-                # Check both firstName + lastName combination and full name
-                first_name = owner.get("firstName", "")
-                last_name = owner.get("lastName", "")
-                full_name = f"{first_name} {last_name}".strip()
+            while True:
+                owner_params = {"limit": 100}
+                if owners_after:
+                    owner_params["after"] = owners_after
 
-                # Case-insensitive matching
-                if (
-                    owner_name.lower() == full_name.lower()
-                    or owner_name.lower() == first_name.lower()
-                    or owner_name.lower() == last_name.lower()
-                ):
-                    owner_id = owner.get("id")
-                    matched_owner = {
-                        "id": owner_id,
-                        "firstName": first_name,
-                        "lastName": last_name,
-                        "email": owner.get("email"),
-                    }
+                owners_response = await fetch_with_rate_limit_retries(
+                    context,
+                    owners_url,
+                    retry_sleep_budget=retry_sleep_budget,
+                    params=owner_params,
+                    headers={"Content-Type": "application/json"},
+                )
+                owners_data = await parse_response(owners_response)
+
+                # Step 2: Find the owner ID by matching the name
+                for owner in owners_data.get("results", []):
+                    # Check both firstName + lastName combination and full name
+                    first_name = owner.get("firstName", "")
+                    last_name = owner.get("lastName", "")
+                    full_name = f"{first_name} {last_name}".strip()
+
+                    # Case-insensitive matching
+                    if (
+                        owner_name.lower() == full_name.lower()
+                        or owner_name.lower() == first_name.lower()
+                        or owner_name.lower() == last_name.lower()
+                    ):
+                        owner_id = owner.get("id")
+                        matched_owner = {
+                            "id": owner_id,
+                            "firstName": first_name,
+                            "lastName": last_name,
+                            "email": owner.get("email"),
+                        }
+                        break
+
+                if owner_id:
+                    break
+
+                owners_after = owners_data.get("paging", {}).get("next", {}).get("after")
+                if not owners_after:
                     break
 
             if not owner_id:
@@ -1802,6 +1816,8 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
             search_result = await parse_response(search_response)
 
             companies = search_result.get("results", [])
+            paging = search_result.get("paging")
+            has_more = bool(paging and paging.get("next", {}).get("after"))
 
             return ActionResult(
                 data={
@@ -1809,7 +1825,9 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
                     "owner": matched_owner,
                     "companies": companies,
                     "total": len(companies),
-                    "paging": search_result.get("paging"),
+                    "page_total": len(companies),
+                    "has_more": has_more,
+                    "paging": paging,
                 },
                 cost_usd=None,
             )
