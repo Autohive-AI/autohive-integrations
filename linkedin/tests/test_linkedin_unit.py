@@ -475,6 +475,20 @@ class TestResharePost:
         assert payload["reshareContext"]["parent"] == "urn:li:share:orig"
         assert payload["commentary"] == ""
 
+    @patch.object(_mod, "post_to_linkedin")
+    async def test_visibility_passed_through(self, mock_post, mock_context):
+        mock_post.return_value = (201, {"x-restli-id": "urn:li:share:1"}, None)
+        mock_context.fetch.return_value = USERINFO_RESPONSE
+
+        await linkedin.execute_action(
+            "reshare_post",
+            {"original_post_urn": "urn:li:share:orig", "visibility": "CONNECTIONS"},
+            mock_context,
+        )
+
+        payload = mock_post.call_args.args[1]
+        assert payload["visibility"] == "CONNECTIONS"
+
 
 # ---- update_post ----
 

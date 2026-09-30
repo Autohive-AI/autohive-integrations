@@ -69,6 +69,11 @@ Update the commentary/text of an existing post. The post URN is sent as a pre-en
 #### `delete_post`
 Delete an existing post. The post URN is sent as a pre-encoded Rest.li path segment, e.g. `urn%3Ali%3Ashare%3A123456`.
 
+#### `reshare_post`
+Reshare an existing public LinkedIn post with optional commentary.
+
+LinkedIn returns `403 FORBIDDEN` when the source post is not publicly accessible, including connections-only posts. Create the source post with `PUBLIC` visibility before resharing it.
+
 ---
 
 ## Required Permissions
