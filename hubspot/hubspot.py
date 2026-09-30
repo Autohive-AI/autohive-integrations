@@ -153,6 +153,7 @@ async def fetch_with_rate_limit_retries(
     url: str,
     max_retries: int = 3,
     max_total_sleep_seconds: int = 10,
+    retry_sleep_budget: Dict[str, int] | None = None,
     **kwargs,
 ):
     """Fetch with a bounded backoff for transient HubSpot 429 responses."""
@@ -162,19 +163,25 @@ async def fetch_with_rate_limit_retries(
         raise ValueError("max_total_sleep_seconds must be >= 0")
 
     delay_seconds = 1
-    total_sleep_seconds = 0
+    if retry_sleep_budget is None:
+        retry_sleep_budget = {"remaining": max_total_sleep_seconds}
+    retry_sleep_budget["remaining"] = min(
+        retry_sleep_budget.get("remaining", max_total_sleep_seconds),
+        max_total_sleep_seconds,
+    )
+
     for attempt in range(max_retries + 1):
         try:
             return await context.fetch(url, **kwargs)
         except Exception as e:
             if attempt == max_retries or not is_rate_limit_error(e):
                 raise
-            remaining_sleep_seconds = max_total_sleep_seconds - total_sleep_seconds
+            remaining_sleep_seconds = retry_sleep_budget.get("remaining", 0)
             if remaining_sleep_seconds <= 0:
                 raise
             sleep_seconds = min(get_retry_after_seconds(e, delay_seconds), remaining_sleep_seconds)
             await asyncio.sleep(sleep_seconds)
-            total_sleep_seconds += sleep_seconds
+            retry_sleep_budget["remaining"] = remaining_sleep_seconds - sleep_seconds
             delay_seconds *= 2
 
 
@@ -3703,6 +3710,7 @@ class GetCampaignPerformanceHandler(ActionHandler):
                 "blog_posts": {"assets": [], "totals": {}},
             },
         }
+        retry_sleep_budget = {"remaining": 10}
 
         # Fetch each asset type with pagination
         for asset_type, metrics in asset_types.items():
@@ -3724,7 +3732,12 @@ class GetCampaignPerformanceHandler(ActionHandler):
                     if after:
                         params["after"] = after
 
-                    response = await fetch_with_rate_limit_retries(context, base_url, params=params)
+                    response = await fetch_with_rate_limit_retries(
+                        context,
+                        base_url,
+                        retry_sleep_budget=retry_sleep_budget,
+                        params=params,
+                    )
                     data = await parse_response(response)
 
                     for asset in data.get("results", []):
