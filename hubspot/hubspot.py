@@ -137,15 +137,44 @@ def is_rate_limit_error(error: Exception) -> bool:
     return "429" in error_text or "rate limit" in error_text
 
 
+def get_error_headers(error: Exception) -> Dict[str, str]:
+    """Return response headers exposed by SDK/provider errors when available."""
+    headers = getattr(error, "headers", None)
+    if headers is None:
+        response = getattr(error, "response", None)
+        headers = getattr(response, "headers", None)
+    if not headers:
+        return {}
+    return {str(key).lower(): str(value) for key, value in dict(headers).items()}
+
+
+def parse_positive_int(value: Any) -> int | None:
+    """Parse a positive integer value, returning None for missing or invalid values."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 def get_retry_after_seconds(error: Exception, fallback_seconds: int, max_delay_seconds: int = 10) -> int:
     """Return provider-supplied retry delay when available."""
     retry_after = getattr(error, "retry_after", None)
-    if retry_after is None:
-        return min(fallback_seconds, max_delay_seconds)
-    try:
-        return min(max(int(retry_after), 0), max_delay_seconds)
-    except (TypeError, ValueError):
-        return min(fallback_seconds, max_delay_seconds)
+    retry_after_seconds = parse_positive_int(retry_after)
+    if retry_after_seconds is not None:
+        return min(retry_after_seconds, max_delay_seconds)
+
+    headers = get_error_headers(error)
+    retry_after_seconds = parse_positive_int(headers.get("retry-after"))
+    if retry_after_seconds is not None:
+        return min(retry_after_seconds, max_delay_seconds)
+
+    remaining = parse_positive_int(headers.get("x-hubspot-ratelimit-remaining"))
+    interval_ms = parse_positive_int(headers.get("x-hubspot-ratelimit-interval-milliseconds"))
+    if remaining is None and headers.get("x-hubspot-ratelimit-remaining") == "0" and interval_ms is not None:
+        return min(max((interval_ms + 999) // 1000, 1), max_delay_seconds)
+
+    return min(fallback_seconds, max_delay_seconds)
 
 
 async def fetch_with_rate_limit_retries(
