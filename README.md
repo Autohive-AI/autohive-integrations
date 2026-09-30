@@ -302,7 +302,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### LinkedIn
 
-[linkedin](linkedin): LinkedIn integration for content sharing and accessing user profile information. Supports posting text content to LinkedIn feed with PUBLIC or CONNECTIONS visibility, and retrieving authenticated user profile via OpenID Connect (sub, name, email, picture, locale). Features OAuth2 authentication with openid, profile, email, and w_member_social scopes, LinkedIn Posts API with versioned headers (202501), and comprehensive test suite. Includes 2 actions covering profile retrieval and content sharing. Ideal for social media automation, content publishing, and user identity workflows.
+[linkedin](linkedin): LinkedIn integration for content sharing, post management, and authenticated user profile access. Supports text, article, image, multi-image, and reshare post creation; update and delete operations for existing posts; PUBLIC or CONNECTIONS visibility; and OpenID Connect profile retrieval (sub, name, email, picture, locale). Features OAuth2 authentication with openid, profile, email, and w_member_social scopes, LinkedIn Posts API with versioned headers (202601), and pre-encoded Rest.li post URN paths for update/delete requests. Reshare/repost actions can still be rejected by LinkedIn with 403 when the connected Developer App or member token lacks the required LinkedIn product access. Includes 6 actions covering profile retrieval, content publishing, article sharing, resharing, and post lifecycle management. Ideal for social media automation, content publishing, and user identity workflows.
 
 ### LinkedIn Ads
 

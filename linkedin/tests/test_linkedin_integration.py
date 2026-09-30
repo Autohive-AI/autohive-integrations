@@ -48,6 +48,7 @@ pytestmark = pytest.mark.integration
 
 
 ACCESS_TOKEN = os.environ.get("LINKEDIN_ACCESS_TOKEN", "")
+RUN_RESHARE_INTEGRATION = os.environ.get("LINKEDIN_RUN_RESHARE_INTEGRATION") == "1"
 
 # 1x1 PNG (LinkedIn-acceptable image), small enough to upload quickly.
 SAMPLE_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
@@ -198,6 +199,13 @@ class TestShareArticle:
 
 
 @pytest.mark.destructive
+@pytest.mark.skipif(
+    not RUN_RESHARE_INTEGRATION,
+    reason=(
+        "LinkedIn reshare can require additional Developer App/product access; "
+        "set LINKEDIN_RUN_RESHARE_INTEGRATION=1 to run this live test."
+    ),
+)
 class TestResharePost:
     """create_post → reshare_post → delete both."""
 
