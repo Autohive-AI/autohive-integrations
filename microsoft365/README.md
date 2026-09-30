@@ -56,7 +56,7 @@ Returns full body HTML by default. Use the `fields` parameter to limit response 
 - `end_datetime` (optional): End datetime in UTC (ISO 8601). Defaults to 24 hours after `start_datetime` when omitted.
 - `start_date` (optional): Legacy date-only parameter (e.g. `2024-08-01`)
 - `end_date` (optional): Legacy date-only parameter
-- `folder` (optional): Mail folder to query (default: `Inbox`)
+- `folder` (optional): Mail folder to query (default: `Inbox`). Accepts a well-known name (`inbox`, `sentitems`, `drafts`, `deleteditems`, `junkemail`, `archive`, `outbox`), the display name of a top-level folder (e.g. `Sent Items`), or a folder ID from `list_mail_folders`. These seven names and their English display names always mean the default folder; use the folder ID for a subfolder.
 - `limit` (optional): Maximum number of emails to return
 - `fields` (optional): List of fields to return per email. When omitted, all fields including `body.content` (full HTML) are returned. Use to reduce payload — e.g. `["id", "subject", "sender", "receivedDateTime", "hasAttachments", "bodyPreview"]` for a lightweight metadata scan. Allowed values: `id`, `subject`, `sender`, `receivedDateTime`, `bodyPreview`, `body`, `hasAttachments`, `isRead`, `importance`.
 
@@ -74,7 +74,7 @@ Get the latest emails from a specific contact. Returns full body HTML by default
 **Inputs:**
 - `contact_email` (required): Email address of the contact
 - `limit` (optional): Maximum number of emails to return
-- `folder` (optional): Mail folder to search (default: `Inbox`)
+- `folder` (optional): Mail folder to search (default: `Inbox`). Accepts a well-known name (`inbox`, `sentitems`, `drafts`, `deleteditems`, `junkemail`, `archive`, `outbox`), the display name of a top-level folder (e.g. `Sent Items`), or a folder ID from `list_mail_folders`. These seven names and their English display names always mean the default folder; use the folder ID for a subfolder.
 - `fields` (optional): List of fields to return per email. Same allowed values as `list_emails` — omit `body` to reduce payload. E.g. `["id", "subject", "sender", "receivedDateTime", "hasAttachments", "bodyPreview"]`.
 
 **Outputs:**
@@ -224,11 +224,13 @@ Forward an existing email message to other recipients.
 
 ### `download_email_attachment`
 
-Download the content of an email attachment. Returns the same file format as OneDrive/SharePoint reads for consistent handling.
+Download the content of an Outlook email attachment. Returns the same file format as OneDrive/SharePoint reads for consistent handling.
+
+Only works for files attached to an email. To read a OneDrive or SharePoint file, use `read_onedrive_file_content` or `read_sharepoint_document` instead.
 
 **Inputs:**
-- `message_id` (required): ID of the message containing the attachment
-- `attachment_id` (required): ID of the attachment to download
+- `message_id` (required): Outlook message ID of the email containing the attachment, exactly as returned by `list_emails`, `search_emails`, or `read_email`. OneDrive and SharePoint file IDs are not accepted.
+- `attachment_id` (required): Attachment ID from the `attachments` list returned by `read_email` for the same message.
 - `include_content` (optional): Whether to include attachment content (default: `true`)
 
 **Outputs:**

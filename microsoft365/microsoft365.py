@@ -21,6 +21,42 @@ MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
 DEFAULT_CONTACT_SEARCH_SCAN_LIMIT = 1000
 MAX_CONTACT_SEARCH_SCAN_LIMIT = 10000
 CONTACT_SEARCH_PAGE_SIZE = 100
+# Graph rejects message searches with size > 501 ("Max page size should be <= 501").
+MAX_MESSAGE_SEARCH_PAGE_SIZE = 500
+# https://learn.microsoft.com/en-us/graph/api/resources/mailfolder#well-known-folder-names
+WELL_KNOWN_MAIL_FOLDERS = {
+    "archive",
+    "clutter",
+    "conflicts",
+    "conversationhistory",
+    "deleteditems",
+    "drafts",
+    "inbox",
+    "junkemail",
+    "localfailures",
+    "msgfolderroot",
+    "outbox",
+    "recoverableitemsdeletions",
+    "scheduled",
+    "searchfolders",
+    "sentitems",
+    "serverfailures",
+    "syncissues",
+}
+# Exact names (after collapsing whitespace, ignoring case) that skip the display-name lookup.
+# Every other well-known name goes through the lookup first so a same-named custom folder wins.
+DEFAULT_MAIL_FOLDER_ALIASES = {
+    "inbox": "inbox",
+    "sentitems": "sentitems",
+    "sent items": "sentitems",
+    "drafts": "drafts",
+    "deleteditems": "deleteditems",
+    "deleted items": "deleteditems",
+    "junkemail": "junkemail",
+    "junk email": "junkemail",
+    "archive": "archive",
+    "outbox": "outbox",
+}
 PDF_CONVERTIBLE_EXTENSIONS = {
     ".doc",
     ".docx",
@@ -137,6 +173,38 @@ def _encode_path_segment(value: Any) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError("Microsoft Graph resource IDs and names must be non-empty strings")
     return urllib.parse.quote(value, safe="")
+
+
+def _normalize_folder_name(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
+async def _resolve_mail_folder(context: ExecutionContext, folder: Any) -> str:
+    """Resolve a mail folder input to something Graph accepts in /me/mailFolders/{id}.
+
+    Graph only accepts a folder ID or a well-known name there; display names return
+    ErrorInvalidIdMalformed. Common default folders (e.g. "Sent Items") map to their well-known
+    name without a request. Other values are matched against top-level folder display names, which
+    covers localized default folders and custom top-level folders, then against the remaining
+    well-known names. Anything else is treated as an ID.
+    """
+    if not isinstance(folder, str) or not folder:
+        return folder
+    normalized = _normalize_folder_name(folder)
+    if normalized in DEFAULT_MAIL_FOLDER_ALIASES:
+        return DEFAULT_MAIL_FOLDER_ALIASES[normalized]
+
+    top_level_folders, _ = await _fetch_collection(
+        context, f"{GRAPH_API_BASE}/me/mailFolders", params={"$select": "id,displayName"}
+    )
+    for candidate in top_level_folders:
+        if isinstance(candidate, dict) and _normalize_folder_name(candidate.get("displayName") or "") == normalized:
+            if candidate.get("id"):
+                return candidate["id"]
+    well_known = normalized.replace(" ", "")
+    if well_known in WELL_KNOWN_MAIL_FOLDERS:
+        return well_known
+    return folder
 
 
 def _encode_drive_path(path: Any) -> str:
@@ -720,7 +788,7 @@ class ListEmailsAction(ActionHandler):
                 start_datetime = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
                 end_datetime = now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-            folder = inputs.get("folder", "Inbox")
+            folder = await _resolve_mail_folder(context, inputs.get("folder", "Inbox"))
             limit = inputs.get("limit", 50)
 
             requested_fields = inputs.get("fields")
@@ -792,7 +860,7 @@ class ListEmailsFromContactAction(ActionHandler):
         try:
             contact_email = inputs["contact_email"]
             limit = inputs.get("limit", 5)
-            folder = inputs.get("folder", "Inbox")
+            folder = await _resolve_mail_folder(context, inputs.get("folder", "Inbox"))
 
             requested_fields = inputs.get("fields")
             if requested_fields:
@@ -1530,61 +1598,74 @@ class SearchEmailsAction(ActionHandler):
             limit = inputs.get("limit", 25)
             enable_top_results = inputs.get("enable_top_results", False)
 
-            search_request = {
-                "entityTypes": ["message"],
-                "query": {"queryString": query},
-                "from": 0,
-                "size": min(limit, 1000),
-                "fields": [
-                    "id",
-                    "subject",
-                    "from",
-                    "receivedDateTime",
-                    "bodyPreview",
-                    "hasAttachments",
-                ],
-            }
-
-            if enable_top_results:
-                search_request["enableTopResults"] = True
-
-            resp = await context.fetch(
-                "https://graph.microsoft.com/v1.0/search/query",
-                method="POST",
-                json={"requests": [search_request]},
-            )
-            response = resp.data
-            _check_response(response, "value")
-
             messages = []
-            total_results = 0
+            reported_total = 0
+            offset = 0
 
-            search_results = _optional_list(response.get("value"), "search.value")
-            if search_results:
+            while len(messages) < limit:
+                search_request = {
+                    "entityTypes": ["message"],
+                    "query": {"queryString": query},
+                    "from": offset,
+                    "size": min(limit - len(messages), MAX_MESSAGE_SEARCH_PAGE_SIZE),
+                    "fields": [
+                        "id",
+                        "subject",
+                        "from",
+                        "receivedDateTime",
+                        "bodyPreview",
+                        "hasAttachments",
+                    ],
+                }
+
+                if enable_top_results:
+                    search_request["enableTopResults"] = True
+
+                resp = await context.fetch(
+                    "https://graph.microsoft.com/v1.0/search/query",
+                    method="POST",
+                    json={"requests": [search_request]},
+                )
+                response = resp.data
+                _check_response(response, "value")
+
+                search_results = _optional_list(response.get("value"), "search.value")
+                if not search_results:
+                    break
                 search_result = _optional_object(search_results[0], "search.value[]")
                 hits = _optional_list(search_result.get("hitsContainers"), "search.hitsContainers")
+                if not hits:
+                    break
 
-                if hits:
-                    hits_container = _optional_object(hits[0], "search.hitsContainers[]")
-                    total_results = hits_container.get("total", 0)
+                hits_container = _optional_object(hits[0], "search.hitsContainers[]")
+                # Graph documents total both as the query-wide match count (searchHitsContainer) and,
+                # for messages, as the count on this page, so keep the largest value rather than summing.
+                reported_total = max(reported_total, hits_container.get("total") or 0)
+                page_hits = _optional_list(hits_container.get("hits"), "search.hits")
 
-                    for hit in _optional_list(hits_container.get("hits"), "search.hits"):
-                        hit = _optional_object(hit, "search.hits[]")
-                        message_data = _optional_object(hit.get("resource"), "search.hits[].resource")
+                for hit in page_hits:
+                    hit = _optional_object(hit, "search.hits[]")
+                    message_data = _optional_object(hit.get("resource"), "search.hits[].resource")
 
-                        sender = _optional_object(message_data.get("from"), "search.message.from")
+                    sender = _optional_object(message_data.get("from"), "search.message.from")
 
-                        messages.append(
-                            {
-                                "message_id": message_data.get("id") or "",
-                                "subject": message_data.get("subject") or "",
-                                "sender": sender,
-                                "received_datetime": message_data.get("receivedDateTime") or "",
-                                "body_preview": message_data.get("bodyPreview") or "",
-                                "has_attachments": message_data.get("hasAttachments", False),
-                            }
-                        )
+                    messages.append(
+                        {
+                            "message_id": message_data.get("id") or "",
+                            "subject": message_data.get("subject") or "",
+                            "sender": sender,
+                            "received_datetime": message_data.get("receivedDateTime") or "",
+                            "body_preview": message_data.get("bodyPreview") or "",
+                            "has_attachments": message_data.get("hasAttachments", False),
+                        }
+                    )
 
+                if not page_hits or hits_container.get("moreResultsAvailable") is not True:
+                    break
+                offset += len(page_hits)
+
+            messages = messages[:limit]
+            total_results = max(reported_total, len(messages))
             return ActionResult(
                 data={
                     "query": query,
