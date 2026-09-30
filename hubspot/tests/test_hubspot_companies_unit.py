@@ -625,6 +625,36 @@ class TestSearchCompaniesByOwnerName:
 
         assert result.result.data["paging"] == {"next": {"after": "100"}}
 
+    @pytest.mark.asyncio
+    async def test_after_cursor_is_sent_to_company_search(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "results": [
+                        {
+                            "id": "o1",
+                            "firstName": "Jane",
+                            "lastName": "Doe",
+                            "email": "j@e.com",
+                        },
+                    ]
+                },
+            ),
+            FetchResponse(status=200, headers={}, data={"results": []}),
+        ]
+
+        await hubspot.execute_action(
+            "search_companies_by_owner_name",
+            {"owner_name": "Jane Doe", "after": "100"},
+            mock_context,
+        )
+
+        search_call = mock_context.fetch.call_args_list[1]
+        payload = search_call.kwargs["json"]
+        assert payload["after"] == "100"
+
 
 # ---- Get Company Properties ----
 

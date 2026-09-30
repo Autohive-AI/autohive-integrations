@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -2075,6 +2075,10 @@
             "minimum": 1,
             "maximum": 100,
             "default": 100
+          },
+          "after": {
+            "type": "string",
+            "description": "Pagination cursor returned from paging.next.after to retrieve the next page of owner-matched companies."
           },
           "properties": {
             "type": "array",

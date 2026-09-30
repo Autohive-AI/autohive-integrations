@@ -1712,6 +1712,7 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
 
         owner_name = inputs["owner_name"]
         limit = inputs.get("limit", 100)
+        after = inputs.get("after")
         properties = inputs.get(
             "properties",
             [
@@ -1787,6 +1788,8 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
                 "properties": properties,
                 "limit": limit,
             }
+            if after:
+                search_payload["after"] = after
 
             search_response = await fetch_with_rate_limit_retries(
                 context,
