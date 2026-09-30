@@ -51,6 +51,7 @@ class TestCreateNote:
 
         payload = call_kwargs.kwargs["json"]
         assert payload["properties"]["hs_note_body"] == "Follow up with client"
+        assert payload["properties"]["hs_timestamp"].isdigit()
         assert len(payload["associations"]) == 1
         assoc = payload["associations"][0]
         assert assoc["to"]["id"] == "501"
@@ -99,6 +100,19 @@ class TestCreateNote:
 
         payload = mock_context.fetch.call_args.kwargs["json"]
         assert payload["properties"]["hs_timestamp"] == "1700000000000"
+
+    @pytest.mark.asyncio
+    async def test_create_note_defaults_timestamp(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_NOTE_RESPONSE)
+
+        await hubspot.execute_action(
+            "create_note",
+            {"note_body": "Default timestamp note", "contact_id": "501"},
+            mock_context,
+        )
+
+        payload = mock_context.fetch.call_args.kwargs["json"]
+        assert payload["properties"]["hs_timestamp"].isdigit()
 
     @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):

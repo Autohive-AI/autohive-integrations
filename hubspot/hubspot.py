@@ -294,11 +294,10 @@ class CreateNoteActionHandler(ActionHandler):
         timestamp = inputs.get("timestamp")  # Optional custom timestamp in milliseconds
 
         # Build the note properties
-        properties = {"hs_note_body": note_body}
-
-        # Add timestamp if provided
-        if timestamp:
-            properties["hs_timestamp"] = str(timestamp)
+        properties = {
+            "hs_note_body": note_body,
+            "hs_timestamp": str(timestamp or int(datetime.now(timezone.utc).timestamp() * 1000)),
+        }
 
         # Build associations array
         associations = []
