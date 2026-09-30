@@ -1424,7 +1424,7 @@ class AddTicketCommentActionHandler(ActionHandler):
                 context,
                 verification_url,
                 method="GET",
-                params={"associations": "ticket"},
+                params={"associations": "tickets"},
                 headers={"Content-Type": "application/json"},
             )
             verification_result = await parse_response(verification_response)

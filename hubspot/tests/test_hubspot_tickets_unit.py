@@ -514,7 +514,7 @@ class TestAddTicketComment:
         verification_call = mock_context.fetch.call_args_list[1]
         assert verification_call.args[0] == "https://api.hubapi.com/crm/v3/objects/notes/note-new"
         assert verification_call.kwargs["method"] == "GET"
-        assert verification_call.kwargs["params"] == {"associations": "ticket"}
+        assert verification_call.kwargs["params"] == {"associations": "tickets"}
 
     @pytest.mark.asyncio
     async def test_uses_ticket_owner_when_owner_not_provided(self, mock_context):
