@@ -63,7 +63,7 @@ class TestParseResponse:
 
 class TestFetchWithRateLimitRetries:
     @pytest.mark.asyncio
-    async def test_uses_retry_after_when_available(self, mock_context, monkeypatch):
+    async def test_caps_retry_after_when_available(self, mock_context, monkeypatch):
         mock_sleep = AsyncMock()
         monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", mock_sleep)
 
@@ -78,12 +78,37 @@ class TestFetchWithRateLimitRetries:
         result = await fetch_with_rate_limit_retries(mock_context, "https://example.test")
 
         assert result.data == {"ok": True}
-        mock_sleep.assert_awaited_once_with(60)
+        mock_sleep.assert_awaited_once_with(10)
 
     @pytest.mark.asyncio
     async def test_rejects_negative_max_retries(self, mock_context):
         with pytest.raises(ValueError, match="max_retries must be >= 0"):
             await fetch_with_rate_limit_retries(mock_context, "https://example.test", max_retries=-1)
+
+    @pytest.mark.asyncio
+    async def test_enforces_cumulative_sleep_budget(self, mock_context, monkeypatch):
+        mock_sleep = AsyncMock()
+        monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", mock_sleep)
+
+        class RateLimitLikeError(Exception):
+            retry_after = 60
+
+        mock_context.fetch.side_effect = RateLimitLikeError("HTTP 429: Rate limit exceeded")
+
+        with pytest.raises(RateLimitLikeError):
+            await fetch_with_rate_limit_retries(mock_context, "https://example.test")
+
+        assert mock_context.fetch.await_count == 2
+        mock_sleep.assert_awaited_once_with(10)
+
+    @pytest.mark.asyncio
+    async def test_rejects_negative_total_sleep_budget(self, mock_context):
+        with pytest.raises(ValueError, match="max_total_sleep_seconds must be >= 0"):
+            await fetch_with_rate_limit_retries(
+                mock_context,
+                "https://example.test",
+                max_total_sleep_seconds=-1,
+            )
 
 
 # ---- parse_date_string_to_utc ----

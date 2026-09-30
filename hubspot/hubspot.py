@@ -137,30 +137,44 @@ def is_rate_limit_error(error: Exception) -> bool:
     return "429" in error_text or "rate limit" in error_text
 
 
-def get_retry_after_seconds(error: Exception, fallback_seconds: int) -> int:
+def get_retry_after_seconds(error: Exception, fallback_seconds: int, max_delay_seconds: int = 10) -> int:
     """Return provider-supplied retry delay when available."""
     retry_after = getattr(error, "retry_after", None)
     if retry_after is None:
-        return fallback_seconds
+        return min(fallback_seconds, max_delay_seconds)
     try:
-        return max(int(retry_after), 0)
+        return min(max(int(retry_after), 0), max_delay_seconds)
     except (TypeError, ValueError):
-        return fallback_seconds
+        return min(fallback_seconds, max_delay_seconds)
 
 
-async def fetch_with_rate_limit_retries(context: ExecutionContext, url: str, max_retries: int = 3, **kwargs):
-    """Fetch with a short exponential backoff for transient HubSpot 429 responses."""
+async def fetch_with_rate_limit_retries(
+    context: ExecutionContext,
+    url: str,
+    max_retries: int = 3,
+    max_total_sleep_seconds: int = 10,
+    **kwargs,
+):
+    """Fetch with a bounded backoff for transient HubSpot 429 responses."""
     if max_retries < 0:
         raise ValueError("max_retries must be >= 0")
+    if max_total_sleep_seconds < 0:
+        raise ValueError("max_total_sleep_seconds must be >= 0")
 
     delay_seconds = 1
+    total_sleep_seconds = 0
     for attempt in range(max_retries + 1):
         try:
             return await context.fetch(url, **kwargs)
         except Exception as e:
             if attempt == max_retries or not is_rate_limit_error(e):
                 raise
-            await asyncio.sleep(get_retry_after_seconds(e, delay_seconds))
+            remaining_sleep_seconds = max_total_sleep_seconds - total_sleep_seconds
+            if remaining_sleep_seconds <= 0:
+                raise
+            sleep_seconds = min(get_retry_after_seconds(e, delay_seconds), remaining_sleep_seconds)
+            await asyncio.sleep(sleep_seconds)
+            total_sleep_seconds += sleep_seconds
             delay_seconds *= 2
 
 
