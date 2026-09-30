@@ -1364,13 +1364,31 @@ class AddTicketCommentActionHandler(ActionHandler):
 
         ticket_id = inputs["ticket_id"]
         comment = inputs["comment"]
+        hubspot_owner_id = inputs.get("hubspot_owner_id")
+
+        if not hubspot_owner_id:
+            try:
+                ticket_response = await context.fetch(
+                    f"https://api.hubapi.com/crm/v3/objects/tickets/{ticket_id}",
+                    method="GET",
+                    params={"properties": "hubspot_owner_id"},
+                    headers={"Content-Type": "application/json"},
+                )
+                ticket_result = await parse_response(ticket_response)
+                hubspot_owner_id = ticket_result.get("properties", {}).get("hubspot_owner_id")
+            except Exception:
+                hubspot_owner_id = None
 
         notes_url = "https://api.hubapi.com/crm/v3/objects/notes"
+        note_properties = {
+            "hs_timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+            "hs_note_body": comment,
+        }
+        if hubspot_owner_id:
+            note_properties["hubspot_owner_id"] = str(hubspot_owner_id)
+
         note_payload = {
-            "properties": {
-                "hs_timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
-                "hs_note_body": comment,
-            },
+            "properties": note_properties,
             "associations": [
                 {
                     "to": {"id": str(ticket_id)},
@@ -1450,8 +1468,15 @@ class AddTicketCommentActionHandler(ActionHandler):
                     "success": True,
                     "message": "Note added successfully to the ticket",
                     "visibility": "internal_note",
+                    "hubspot_owner_id": hubspot_owner_id,
                     "note": note_result,
                     "verification": verification_result,
+                    "help_desk_visibility_hint": (
+                        "If the note is verified by the API but not visible in Help Desk, ask a HubSpot admin to "
+                        "check Settings > Objects > Activities > Associations with object Tickets and activity type "
+                        "Notes. Associated Tickets must not be set to None, and existing notes may need to be "
+                        "recreated after changing that setting."
+                    ),
                 }
             },
             cost_usd=None,

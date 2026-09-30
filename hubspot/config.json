@@ -1632,6 +1632,10 @@
           "comment": {
             "type": "string",
             "description": "The comment text to add to the ticket."
+          },
+          "hubspot_owner_id": {
+            "type": "string",
+            "description": "Optional HubSpot owner ID to assign to the internal note. When omitted, the action attempts to use the ticket owner."
           }
         },
         "required": [

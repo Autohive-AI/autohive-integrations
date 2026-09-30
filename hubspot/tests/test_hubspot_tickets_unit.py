@@ -466,6 +466,14 @@ class TestGetTicketConversation:
 
 
 class TestAddTicketComment:
+    @staticmethod
+    def _verification_response(ticket_id="ticket-1"):
+        return FetchResponse(
+            status=200,
+            headers={},
+            data={"associations": {"tickets": {"results": [{"id": ticket_id, "type": "note_to_ticket"}]}}},
+        )
+
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
         note_post_response = FetchResponse(
@@ -473,14 +481,11 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "My comment"}},
         )
-        verification_response = FetchResponse(
-            status=200, headers={}, data={"associations": {"tickets": {"results": [{"id": "ticket-1"}, {"id": "t1"}]}}}
-        )
-        mock_context.fetch.side_effect = [note_post_response, verification_response]
+        mock_context.fetch.side_effect = [note_post_response, self._verification_response()]
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
-            {"ticket_id": "ticket-1", "comment": "My comment"},
+            {"ticket_id": "ticket-1", "comment": "My comment", "hubspot_owner_id": "owner-123"},
             mock_context,
         )
 
@@ -488,13 +493,17 @@ class TestAddTicketComment:
         assert data["result"]["success"] is True
         assert data["result"]["message"] == "Note added successfully to the ticket"
         assert data["result"]["visibility"] == "internal_note"
+        assert data["result"]["hubspot_owner_id"] == "owner-123"
         assert data["result"]["note"]["id"] == "note-new"
+        assert data["result"]["verification"]["associations"]["tickets"]["results"]
+        assert "help_desk_visibility_hint" in data["result"]
 
         post_call = mock_context.fetch.call_args_list[0]
         assert post_call.args[0] == "https://api.hubapi.com/crm/v3/objects/notes"
         assert post_call.kwargs["method"] == "POST"
         payload = post_call.kwargs["json"]
         assert payload["properties"]["hs_note_body"] == "My comment"
+        assert payload["properties"]["hubspot_owner_id"] == "owner-123"
         assert isinstance(payload["properties"]["hs_timestamp"], int)
         assert payload["associations"][0]["to"]["id"] == "ticket-1"
         assert payload["associations"][0]["types"][0] == {
@@ -508,6 +517,37 @@ class TestAddTicketComment:
         assert verification_call.kwargs["params"] == {"associations": "ticket"}
 
     @pytest.mark.asyncio
+    async def test_uses_ticket_owner_when_owner_not_provided(self, mock_context):
+        ticket_response = FetchResponse(
+            status=200,
+            headers={},
+            data={"properties": {"hubspot_owner_id": "ticket-owner-1"}},
+        )
+        note_post_response = FetchResponse(
+            status=200,
+            headers={},
+            data={"id": "note-new", "properties": {"hs_note_body": "ok"}},
+        )
+        mock_context.fetch.side_effect = [ticket_response, note_post_response, self._verification_response()]
+
+        result = await hubspot.execute_action(
+            "add_ticket_comment",
+            {"ticket_id": "ticket-1", "comment": "ok"},
+            mock_context,
+        )
+
+        assert result.result.data["result"]["success"] is True
+        assert result.result.data["result"]["hubspot_owner_id"] == "ticket-owner-1"
+
+        ticket_call = mock_context.fetch.call_args_list[0]
+        assert ticket_call.args[0] == "https://api.hubapi.com/crm/v3/objects/tickets/ticket-1"
+        assert ticket_call.kwargs["method"] == "GET"
+        assert ticket_call.kwargs["params"] == {"properties": "hubspot_owner_id"}
+
+        payload = mock_context.fetch.call_args_list[1].kwargs["json"]
+        assert payload["properties"]["hubspot_owner_id"] == "ticket-owner-1"
+
+    @pytest.mark.asyncio
     async def test_parse_error_returns_action_error(self, mock_context):
         bad_response = MagicMock()
         type(bad_response).data = property(lambda self: (_ for _ in ()).throw(ValueError("bad data")))
@@ -515,7 +555,7 @@ class TestAddTicketComment:
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
-            {"ticket_id": "ticket-1", "comment": "Fail"},
+            {"ticket_id": "ticket-1", "comment": "Fail", "hubspot_owner_id": "owner-123"},
             mock_context,
         )
 
@@ -528,12 +568,13 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "test"}},
         )
-        verification_response = FetchResponse(
-            status=200, headers={}, data={"associations": {"tickets": {"results": [{"id": "ticket-1"}, {"id": "t1"}]}}}
-        )
-        mock_context.fetch.side_effect = [note_post_response, verification_response]
+        mock_context.fetch.side_effect = [note_post_response, self._verification_response("t1")]
 
-        await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "test"}, mock_context)
+        await hubspot.execute_action(
+            "add_ticket_comment",
+            {"ticket_id": "t1", "comment": "test", "hubspot_owner_id": "owner-123"},
+            mock_context,
+        )
 
         post_url = mock_context.fetch.call_args_list[0].args[0]
         assert post_url == "https://api.hubapi.com/crm/v3/objects/notes"
@@ -545,12 +586,13 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "hello"}},
         )
-        verification_response = FetchResponse(
-            status=200, headers={}, data={"associations": {"tickets": {"results": [{"id": "ticket-1"}, {"id": "t1"}]}}}
-        )
-        mock_context.fetch.side_effect = [note_post_response, verification_response]
+        mock_context.fetch.side_effect = [note_post_response, self._verification_response("t1")]
 
-        await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "hello"}, mock_context)
+        await hubspot.execute_action(
+            "add_ticket_comment",
+            {"ticket_id": "t1", "comment": "hello", "hubspot_owner_id": "owner-123"},
+            mock_context,
+        )
 
         payload = mock_context.fetch.call_args_list[0].kwargs["json"]
         assert payload["properties"]["hs_note_body"] == "hello"
@@ -564,12 +606,13 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "x"}},
         )
-        verification_response = FetchResponse(
-            status=200, headers={}, data={"associations": {"tickets": {"results": [{"id": "ticket-1"}, {"id": "t1"}]}}}
-        )
-        mock_context.fetch.side_effect = [note_post_response, verification_response]
+        mock_context.fetch.side_effect = [note_post_response, self._verification_response("t1")]
 
-        await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "x"}, mock_context)
+        await hubspot.execute_action(
+            "add_ticket_comment",
+            {"ticket_id": "t1", "comment": "x", "hubspot_owner_id": "owner-123"},
+            mock_context,
+        )
 
         assert mock_context.fetch.call_args_list[0].kwargs["method"] == "POST"
 
@@ -580,12 +623,13 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "ok"}},
         )
-        verification_response = FetchResponse(
-            status=200, headers={}, data={"associations": {"tickets": {"results": [{"id": "ticket-1"}, {"id": "t1"}]}}}
-        )
-        mock_context.fetch.side_effect = [note_post_response, verification_response]
+        mock_context.fetch.side_effect = [note_post_response, self._verification_response("t1")]
 
-        result = await hubspot.execute_action("add_ticket_comment", {"ticket_id": "t1", "comment": "ok"}, mock_context)
+        result = await hubspot.execute_action(
+            "add_ticket_comment",
+            {"ticket_id": "t1", "comment": "ok", "hubspot_owner_id": "owner-123"},
+            mock_context,
+        )
 
         data = result.result.data
         assert data["result"]["success"] is True
@@ -598,7 +642,7 @@ class TestAddTicketComment:
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
-            {"ticket_id": "ticket-1", "comment": "orphan"},
+            {"ticket_id": "ticket-1", "comment": "orphan", "hubspot_owner_id": "owner-123"},
             mock_context,
         )
 
@@ -623,7 +667,7 @@ class TestAddTicketComment:
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
-            {"ticket_id": "ticket-1", "comment": "orphan"},
+            {"ticket_id": "ticket-1", "comment": "orphan", "hubspot_owner_id": "owner-123"},
             mock_context,
         )
 
@@ -653,7 +697,7 @@ class TestAddTicketComment:
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
-            {"ticket_id": "ticket-1", "comment": "rate limited"},
+            {"ticket_id": "ticket-1", "comment": "rate limited", "hubspot_owner_id": "owner-123"},
             mock_context,
         )
 
@@ -673,7 +717,7 @@ class TestAddTicketComment:
 
         result = await hubspot.execute_action(
             "add_ticket_comment",
-            {"ticket_id": "ticket-1", "comment": "missing id"},
+            {"ticket_id": "ticket-1", "comment": "missing id", "hubspot_owner_id": "owner-123"},
             mock_context,
         )
 

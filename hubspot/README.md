@@ -548,9 +548,10 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Inputs:**
   - `ticket_id` (required): Ticket ID to add the note to
   - `comment` (required): Note text to add
+  - `hubspot_owner_id` (optional): HubSpot owner ID to assign to the note. If omitted, the action attempts to use the ticket owner.
 - **Outputs:** Operation result with success status, created note details, and the association verification response
 - **Verification:** The action verifies the created note is discoverable through the ticket association before returning success. If HubSpot creates the note but the ticket association cannot be verified, the action deletes the note and returns an error so workflows do not receive a false-positive success.
-- **Note:** HubSpot Help Desk internal comments are represented through CRM notes for this action. This does not use the deprecated Conversations thread comment write path.
+- **Note:** HubSpot Help Desk internal comments are represented through CRM notes for this action. This does not use the deprecated Conversations thread comment write path. If a verified note does not appear in Help Desk, check HubSpot's `Settings > Objects > Activities > Associations` settings for `Tickets` and `Notes`; `Associated Tickets` must not be set to `None`, and changes only apply to newly created notes.
 
 ### Marketing Emails
 
