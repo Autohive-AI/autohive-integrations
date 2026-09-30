@@ -1,6 +1,6 @@
 {
     "name": "LinkedIn",
-    "version": "3.1.0",
+    "version": "3.2.0",
     "description": "LinkedIn integration for content sharing and post management using API version 202601.",
     "entry_point": "linkedin.py",
     "auth": {
