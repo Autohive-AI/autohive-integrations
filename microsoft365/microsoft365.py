@@ -43,6 +43,20 @@ WELL_KNOWN_MAIL_FOLDERS = {
     "serverfailures",
     "syncissues",
 }
+# Exact names (after collapsing whitespace, ignoring case) that skip the display-name lookup.
+# Every other well-known name goes through the lookup first so a same-named custom folder wins.
+DEFAULT_MAIL_FOLDER_ALIASES = {
+    "inbox": "inbox",
+    "sentitems": "sentitems",
+    "sent items": "sentitems",
+    "drafts": "drafts",
+    "deleteditems": "deleteditems",
+    "deleted items": "deleteditems",
+    "junkemail": "junkemail",
+    "junk email": "junkemail",
+    "archive": "archive",
+    "outbox": "outbox",
+}
 PDF_CONVERTIBLE_EXTENSIONS = {
     ".doc",
     ".docx",
@@ -161,28 +175,35 @@ def _encode_path_segment(value: Any) -> str:
     return urllib.parse.quote(value, safe="")
 
 
+def _normalize_folder_name(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
 async def _resolve_mail_folder(context: ExecutionContext, folder: Any) -> str:
     """Resolve a mail folder input to something Graph accepts in /me/mailFolders/{id}.
 
     Graph only accepts a folder ID or a well-known name there; display names return
-    ErrorInvalidIdMalformed. English default-folder names (e.g. "Sent Items") map to their
-    well-known name. Other values are matched against top-level folder display names, which
-    covers localized default folders and custom top-level folders. Anything else is treated as an ID.
+    ErrorInvalidIdMalformed. Common default folders (e.g. "Sent Items") map to their well-known
+    name without a request. Other values are matched against top-level folder display names, which
+    covers localized default folders and custom top-level folders, then against the remaining
+    well-known names. Anything else is treated as an ID.
     """
     if not isinstance(folder, str) or not folder:
         return folder
-    well_known = folder.replace(" ", "").lower()
-    if well_known in WELL_KNOWN_MAIL_FOLDERS:
-        return well_known
+    normalized = _normalize_folder_name(folder)
+    if normalized in DEFAULT_MAIL_FOLDER_ALIASES:
+        return DEFAULT_MAIL_FOLDER_ALIASES[normalized]
 
     top_level_folders, _ = await _fetch_collection(
         context, f"{GRAPH_API_BASE}/me/mailFolders", params={"$select": "id,displayName"}
     )
-    wanted = folder.strip().casefold()
     for candidate in top_level_folders:
-        if isinstance(candidate, dict) and (candidate.get("displayName") or "").strip().casefold() == wanted:
+        if isinstance(candidate, dict) and _normalize_folder_name(candidate.get("displayName") or "") == normalized:
             if candidate.get("id"):
                 return candidate["id"]
+    well_known = normalized.replace(" ", "")
+    if well_known in WELL_KNOWN_MAIL_FOLDERS:
+        return well_known
     return folder
 
 

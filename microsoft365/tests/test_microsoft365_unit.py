@@ -614,7 +614,9 @@ async def test_list_emails_rejects_end_without_start(mock_context):
         ("SENT ITEMS", "sentitems"),
         ("SentItems", "sentitems"),
         (" Sent Items ", "sentitems"),
+        ("Sent  Items", "sentitems"),
         ("Archive", "archive"),
+        ("Outbox", "outbox"),
         ("Drafts", "drafts"),
     ],
 )
@@ -658,6 +660,43 @@ async def test_list_emails_resolves_top_level_folder_display_name(mock_context, 
     assert lookup.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders"
     assert lookup.kwargs["params"]["$select"] == "id,displayName"
     assert messages.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders/AAMkF1%3D/messages"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("folder", ["Scheduled", "Clutter", "Sent I tems"])
+async def test_list_emails_custom_folder_wins_over_well_known_name(mock_context, folder):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=200, headers={}, data={"value": [{"id": "AAMkF1=", "displayName": folder}]}),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+        ]
+    )
+    result = await microsoft365.execute_action("list_emails", {"folder": folder}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_args.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders/AAMkF1%3D/messages"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "folder, path_segment",
+    [
+        ("Scheduled", "scheduled"),
+        ("Sync Issues", "syncissues"),
+        ("conversationhistory", "conversationhistory"),
+    ],
+)
+async def test_list_emails_falls_back_to_well_known_name_after_lookup(mock_context, folder, path_segment):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=200, headers={}, data={"value": [{"id": "AAMkF1=", "displayName": "Projects"}]}),
+            FetchResponse(status=200, headers={}, data={"value": []}),
+        ]
+    )
+    result = await microsoft365.execute_action("list_emails", {"folder": folder}, mock_context)
+    assert result.type != ResultType.ACTION_ERROR
+    lookup, messages = mock_context.fetch.await_args_list
+    assert lookup.args[0] == "https://graph.microsoft.com/v1.0/me/mailFolders"
+    assert messages.args[0] == f"https://graph.microsoft.com/v1.0/me/mailFolders/{path_segment}/messages"
 
 
 @pytest.mark.asyncio
