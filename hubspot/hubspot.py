@@ -139,6 +139,9 @@ def is_rate_limit_error(error: Exception) -> bool:
 
 async def fetch_with_rate_limit_retries(context: ExecutionContext, url: str, max_retries: int = 3, **kwargs):
     """Fetch with a short exponential backoff for transient HubSpot 429 responses."""
+    if max_retries < 0:
+        raise ValueError("max_retries must be >= 0")
+
     delay_seconds = 1
     for attempt in range(max_retries + 1):
         try:
