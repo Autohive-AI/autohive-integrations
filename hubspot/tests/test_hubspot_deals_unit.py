@@ -650,6 +650,27 @@ class TestGetContactCallsAndMeetings:
         calls_payload = mock_context.fetch.call_args_list[0].kwargs["json"]
         assert calls_payload["limit"] == 80
 
+    @pytest.mark.asyncio
+    @patch("hubspot.hubspot.asyncio.sleep", new_callable=AsyncMock)
+    async def test_retries_rate_limit_for_composite_reads(self, mock_sleep, mock_context):
+        calls_response = FetchResponse(status=200, headers={}, data={"results": []})
+        meetings_response = FetchResponse(status=200, headers={}, data={"results": []})
+        mock_context.fetch.side_effect = [
+            Exception("HTTP 429: Rate limit exceeded"),
+            calls_response,
+            meetings_response,
+        ]
+
+        result = await hubspot.execute_action(
+            "get_contact_calls_and_meetings",
+            {"contact_id": "100"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.await_count == 3
+        mock_sleep.assert_awaited_once_with(1)
+
 
 # ---- get_deal_calls_and_meetings ----
 
@@ -714,6 +735,27 @@ class TestGetDealCallsAndMeetings:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "200" in result.result.message
+
+    @pytest.mark.asyncio
+    @patch("hubspot.hubspot.asyncio.sleep", new_callable=AsyncMock)
+    async def test_retries_rate_limit_for_composite_reads(self, mock_sleep, mock_context):
+        calls_response = FetchResponse(status=200, headers={}, data={"results": []})
+        meetings_response = FetchResponse(status=200, headers={}, data={"results": []})
+        mock_context.fetch.side_effect = [
+            calls_response,
+            Exception("HTTP 429: Rate limit exceeded"),
+            meetings_response,
+        ]
+
+        result = await hubspot.execute_action(
+            "get_deal_calls_and_meetings",
+            {"deal_id": "200"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.await_count == 3
+        mock_sleep.assert_awaited_once_with(1)
 
 
 # ---- get_call_transcript ----

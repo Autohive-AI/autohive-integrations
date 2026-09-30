@@ -1969,7 +1969,7 @@ async def fetch_transcript(transcript_id: str, context: ExecutionContext):
     """
     try:
         url = f"https://api.hubapi.com/crm/extensions/calling/2026-03/transcripts/{transcript_id}"
-        response = await context.fetch(url, method="GET")
+        response = await fetch_with_rate_limit_retries(context, url, method="GET")
         result = await parse_response(response)
         return result.get("transcriptUtterances", [])
     except Exception:
@@ -2001,7 +2001,8 @@ async def fetch_calls_with_transcripts(association_filter: dict, limit: int, con
         "limit": limit,
         "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
     }
-    response = await context.fetch(
+    response = await fetch_with_rate_limit_retries(
+        context,
         url,
         method="POST",
         json=body,
@@ -2073,7 +2074,8 @@ async def fetch_meetings(association_filter: dict, limit: int, context: Executio
         "limit": limit,
         "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
     }
-    response = await context.fetch(
+    response = await fetch_with_rate_limit_retries(
+        context,
         url,
         method="POST",
         json=body,
