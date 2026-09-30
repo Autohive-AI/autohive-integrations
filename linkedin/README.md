@@ -107,7 +107,12 @@ pytest linkedin/tests/test_linkedin_unit.py -v
 Integration tests call the real LinkedIn API and require `LINKEDIN_ACCESS_TOKEN`.
 
 ```bash
-pytest linkedin/tests/test_linkedin_integration.py -m integration
+pytest linkedin/tests/test_linkedin_integration.py -m "integration and not destructive"
+```
+
+Destructive integration tests create, update, and delete real LinkedIn posts:
+
+```bash
 pytest linkedin/tests/test_linkedin_integration.py -m "integration and destructive"
 ```
 
