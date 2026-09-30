@@ -270,13 +270,13 @@
         },
         "reshare_post": {
             "display_name": "Reshare Post",
-            "description": "Reshare an existing public LinkedIn post with optional commentary. LinkedIn returns 403 for connections-only source posts.",
+            "description": "Reshare an existing public LinkedIn post with optional commentary. LinkedIn returns 403 for connections-only source posts or posts whose author disabled reshares.",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "original_post_urn": {
                         "type": "string",
-                        "description": "The URN of the public post to reshare (e.g., urn:li:share:123456 or urn:li:ugcPost:123456). LinkedIn blocks reshares of connections-only source posts."
+                        "description": "The URN of the public post to reshare (e.g., urn:li:share:123456 or urn:li:ugcPost:123456). LinkedIn blocks reshares of connections-only source posts and posts whose author disabled reshares."
                     },
                     "commentary": {
                         "type": "string",

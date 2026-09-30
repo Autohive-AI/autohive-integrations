@@ -72,7 +72,7 @@ Delete an existing post. The post URN is sent as a pre-encoded Rest.li path segm
 #### `reshare_post`
 Reshare an existing public LinkedIn post with optional commentary.
 
-LinkedIn returns `403 FORBIDDEN` when the source post is not publicly accessible, including connections-only posts. Create the source post with `PUBLIC` visibility before resharing it.
+LinkedIn returns `403 FORBIDDEN` when the source post is not publicly accessible, including connections-only posts, or when the source author disabled reshares. Create the source post with `PUBLIC` visibility and leave reshares enabled before resharing it.
 
 ---
 
