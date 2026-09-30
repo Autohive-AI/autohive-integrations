@@ -25,11 +25,12 @@ def get_api_base_url(context: ExecutionContext) -> str:
 
 def _list_result(data: Any, key: str) -> ActionResult:
     payload = data if isinstance(data, dict) else {}
+    items = payload.get("items") or []
     return ActionResult(
         data={
-            key: payload.get("items") or [],
-            "total_count": payload.get("totalCount", 0),
-            "links": payload.get("links", {}),
+            key: items,
+            "total_count": payload.get("totalCount", len(items)),
+            "links": payload.get("links") or {},
         }
     )
 
@@ -38,8 +39,55 @@ def _pagination(inputs: dict[str, Any]) -> dict[str, Any]:
     return {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)}
 
 
+async def _fetch_list(
+    context: ExecutionContext,
+    path: str,
+    key: str,
+    params: dict[str, Any] | None = None,
+) -> ActionResult:
+    response = await context.fetch(f"{get_api_base_url(context)}{path}", method="GET", params=params)
+    return _list_result(response.data, key)
+
+
 def _boolean_query_value(value: bool | None) -> str | None:
     return str(value).lower() if value is not None else None
+
+
+def _date_range(start: str | None, end: str | None) -> list[str] | None:
+    values = []
+    if start:
+        values.append(f">{start}")
+    if end:
+        values.append(f"<{end}")
+    return values or None
+
+
+def _note_search_params(
+    *,
+    contact_id: int | list[int],
+    types: list[str] | None = None,
+    created_at_from: str | None = None,
+    created_at_to: str | None = None,
+    updated_at_from: str | None = None,
+    updated_at_to: str | None = None,
+    sort: str = "-createdAt",
+    offset: int = 0,
+    limit: int = 100,
+) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in {
+            "contactId": contact_id,
+            "type": types,
+            "createdAt": _date_range(created_at_from, created_at_to),
+            "updatedAt": _date_range(updated_at_from, updated_at_to),
+            "sort": sort,
+            "fields": ["text"],
+            "offset": offset,
+            "limit": limit,
+        }.items()
+        if value is not None
+    }
 
 
 @jobadder.action("get_current_user")
@@ -128,6 +176,535 @@ class GetCandidateAction(ActionHandler):
                 f"{get_api_base_url(context)}/candidates/{inputs['candidate_id']}", method="GET"
             )
             return ActionResult(data={"candidate": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_contacts")
+class ListContactsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            company_id: int | list[int] | None = inputs.get("company_id")
+            if company_id is None and inputs.get("company_name"):
+                company_response = await context.fetch(
+                    f"{get_api_base_url(context)}/companies",
+                    method="GET",
+                    params={"name": inputs["company_name"], "offset": 0, "limit": 1000},
+                )
+                company_payload = company_response.data if isinstance(company_response.data, dict) else {}
+                company_id = [
+                    company["companyId"]
+                    for company in company_payload.get("items") or []
+                    if isinstance(company, dict) and isinstance(company.get("companyId"), int)
+                ]
+                if not company_id:
+                    return ActionResult(data={"contacts": [], "total_count": 0, "links": {}})
+
+            params = _pagination(inputs)
+            params.update(
+                {
+                    key: value
+                    for key, value in {
+                        "name": inputs.get("name"),
+                        "email": inputs.get("email"),
+                        "phone": inputs.get("phone"),
+                        "companyId": company_id,
+                        "createdBy": inputs.get("created_by_user_id"),
+                        "statusId": inputs.get("status_id"),
+                        "hiringManager": _boolean_query_value(inputs.get("hiring_manager")),
+                        "createdAt": inputs.get("created_at"),
+                        "updatedAt": inputs.get("updated_at"),
+                    }.items()
+                    if value is not None
+                }
+            )
+
+            response = await context.fetch(f"{get_api_base_url(context)}/contacts", method="GET", params=params)
+            return _list_result(response.data, "contacts")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("get_contact")
+class GetContactAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(f"{get_api_base_url(context)}/contacts/{inputs['contact_id']}", method="GET")
+            return ActionResult(data={"contact": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_contact_notes")
+class ListContactNotesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/contacts/{inputs['contact_id']}/notes", method="GET"
+            )
+            return _list_result(response.data, "notes")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_contact_activities")
+class ListContactActivitiesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = _note_search_params(
+                contact_id=inputs["contact_id"],
+                types=inputs.get("types"),
+                created_at_from=inputs.get("created_at_from"),
+                created_at_to=inputs.get("created_at_to"),
+                updated_at_from=inputs.get("updated_at_from"),
+                updated_at_to=inputs.get("updated_at_to"),
+                sort=inputs.get("sort", "-createdAt"),
+                offset=inputs.get("offset", 0),
+                limit=inputs.get("limit", 100),
+            )
+            response = await context.fetch(f"{get_api_base_url(context)}/notes", method="GET", params=params)
+            return _list_result(response.data, "activities")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_all_contact_activities")
+class ListAllContactActivitiesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/notes",
+                method="GET",
+                params=_note_search_params(
+                    contact_id=inputs["contact_ids"],
+                    types=inputs.get("types"),
+                    created_at_from=inputs["created_at_from"],
+                    created_at_to=inputs["created_at_to"],
+                    updated_at_from=inputs.get("updated_at_from"),
+                    updated_at_to=inputs.get("updated_at_to"),
+                    sort=inputs.get("sort", "-createdAt"),
+                    offset=inputs.get("offset", 0),
+                    limit=inputs.get("limit", 100),
+                ),
+            )
+            return _list_result(response.data, "activities")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("get_note")
+class GetNoteAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(f"{get_api_base_url(context)}/notes/{inputs['note_id']}", method="GET")
+            return ActionResult(data={"note": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_contact_jobs")
+class ListContactJobsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/contacts/{inputs['contact_id']}/jobs", method="GET"
+            )
+            return _list_result(response.data, "jobs")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_companies")
+class ListCompaniesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = _pagination(inputs)
+            params.update(
+                {
+                    key: value
+                    for key, value in {
+                        "name": inputs.get("name"),
+                        "statusId": inputs.get("status_id"),
+                        "createdBy": inputs.get("created_by_user_id"),
+                        "createdAt": inputs.get("created_at"),
+                        "updatedAt": inputs.get("updated_at"),
+                    }.items()
+                    if value is not None
+                }
+            )
+            response = await context.fetch(f"{get_api_base_url(context)}/companies", method="GET", params=params)
+            return _list_result(response.data, "companies")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("get_company")
+class GetCompanyAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/companies/{inputs['company_id']}", method="GET"
+            )
+            return ActionResult(data={"company": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_candidate_applications")
+class ListCandidateApplicationsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/candidates/{inputs['candidate_id']}/applications",
+                "applications",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_candidate_active_applications")
+class ListCandidateActiveApplicationsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/candidates/{inputs['candidate_id']}/applications/active",
+                "applications",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_candidate_placements")
+class ListCandidatePlacementsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/candidates/{inputs['candidate_id']}/placements", "placements")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_candidate_approved_placements")
+class ListCandidateApprovedPlacementsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/candidates/{inputs['candidate_id']}/placements/approved", "placements")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_candidate_attachments")
+class ListCandidateAttachmentsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/candidates/{inputs['candidate_id']}/attachments",
+                "attachments",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_candidate_skills")
+class ListCandidateSkillsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/candidates/{inputs['candidate_id']}/skills", "skills")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("get_candidate_availability")
+class GetCandidateAvailabilityAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/candidates/{inputs['candidate_id']}/availability", method="GET"
+            )
+            return ActionResult(data={"availability": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_candidate_notes")
+class ListCandidateNotesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/candidates/{inputs['candidate_id']}/notes",
+                "notes",
+                {"fields": ["text"], "offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_applications")
+class ListJobApplicationsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/jobs/{inputs['job_id']}/applications",
+                "applications",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_active_applications")
+class ListJobActiveApplicationsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/jobs/{inputs['job_id']}/applications/active",
+                "applications",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_placements")
+class ListJobPlacementsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/jobs/{inputs['job_id']}/placements", "placements")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_approved_placements")
+class ListJobApprovedPlacementsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/jobs/{inputs['job_id']}/placements/approved", "placements")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_attachments")
+class ListJobAttachmentsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/jobs/{inputs['job_id']}/attachments",
+                "attachments",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_notes")
+class ListJobNotesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/jobs/{inputs['job_id']}/notes",
+                "notes",
+                {"fields": ["text"], "offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_activities")
+class ListJobActivitiesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/jobs/{inputs['job_id']}/activities", "activities")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_application_attachments")
+class ListApplicationAttachmentsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/applications/{inputs['application_id']}/attachments",
+                "attachments",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_application_notes")
+class ListApplicationNotesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/applications/{inputs['application_id']}/notes",
+                "notes",
+                {"fields": ["text"], "offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_application_activities")
+class ListApplicationActivitiesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/applications/{inputs['application_id']}/activities", "activities")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_placement_attachments")
+class ListPlacementAttachmentsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/placements/{inputs['placement_id']}/attachments",
+                "attachments",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_placement_notes")
+class ListPlacementNotesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/placements/{inputs['placement_id']}/notes",
+                "notes",
+                {"fields": ["text"], "offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_placement_timesheets")
+class ListPlacementTimesheetsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = {"period": _date_range(inputs.get("period_from"), inputs.get("period_to"))}
+            return await _fetch_list(
+                context,
+                f"/placements/{inputs['placement_id']}/timesheets",
+                "timesheets",
+                {key: value for key, value in params.items() if value is not None},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_placement_activities")
+class ListPlacementActivitiesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/placements/{inputs['placement_id']}/activities", "activities")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_company_contacts")
+class ListCompanyContactsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/companies/{inputs['company_id']}/contacts", "contacts")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_company_addresses")
+class ListCompanyAddressesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/companies/{inputs['company_id']}/addresses", "addresses")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_company_jobs")
+class ListCompanyJobsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/companies/{inputs['company_id']}/jobs",
+                "jobs",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_company_active_jobs")
+class ListCompanyActiveJobsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/companies/{inputs['company_id']}/jobs/active",
+                "jobs",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_company_placements")
+class ListCompanyPlacementsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/companies/{inputs['company_id']}/placements", "placements")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_company_approved_placements")
+class ListCompanyApprovedPlacementsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, f"/companies/{inputs['company_id']}/placements/approved", "placements")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_company_attachments")
+class ListCompanyAttachmentsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/companies/{inputs['company_id']}/attachments",
+                "attachments",
+                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_company_notes")
+class ListCompanyNotesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(
+                context,
+                f"/companies/{inputs['company_id']}/notes",
+                "notes",
+                {"fields": ["text"], "offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+            )
         except Exception as exc:
             return ActionError(message=str(exc))
 
