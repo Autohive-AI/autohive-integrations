@@ -52,7 +52,7 @@ Create a LinkedIn post as the authenticated user.
 |-------|-------------|
 | `result` | Status message |
 | `post_id` | URN of created post (e.g., `urn:li:share:123456`) |
-| `post_url` | Direct URL to the post on LinkedIn |
+| `post_url` | Browser permalink using LinkedIn's feed activity URN format |
 | `images_uploaded` | Number of images uploaded |
 
 #### `share_article`

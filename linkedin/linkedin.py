@@ -54,6 +54,14 @@ def post_resource_url(post_urn: str) -> yarl.URL:
     return yarl.URL(f"https://api.linkedin.com/rest/posts/{encode_urn(post_urn)}", encoded=True)
 
 
+def post_browser_url(post_urn: str | None) -> str | None:
+    """Build a LinkedIn feed URL from a post URN returned by the Posts API."""
+    if not post_urn or ":" not in post_urn:
+        return None
+    post_id = post_urn.rsplit(":", 1)[-1]
+    return f"https://www.linkedin.com/feed/update/urn:li:activity:{post_id}"
+
+
 async def get_current_user_urn(context: ExecutionContext) -> str:
     """Fetch the current authenticated user's URN."""
     user_info_url = "https://api.linkedin.com/v2/userinfo"
@@ -349,7 +357,7 @@ class CreatePostActionHandler(ActionHandler):
                 return ActionError(message=f"Failed to create post: HTTP {status} {body}")
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
-            post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
+            post_url = post_browser_url(post_id)
 
             return ActionResult(
                 data={
@@ -413,7 +421,7 @@ class ShareArticleActionHandler(ActionHandler):
                 return ActionError(message=f"Failed to share article: HTTP {status} {body}")
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
-            post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
+            post_url = post_browser_url(post_id)
 
             return ActionResult(
                 data={
@@ -468,7 +476,7 @@ class ResharePostActionHandler(ActionHandler):
                 return ActionError(message=f"Failed to reshare post: HTTP {status} {body}")
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
-            post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
+            post_url = post_browser_url(post_id)
 
             return ActionResult(
                 data={

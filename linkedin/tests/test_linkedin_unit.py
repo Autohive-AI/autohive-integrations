@@ -145,7 +145,7 @@ class TestCreatePost:
         data = result.result.data
         assert data["result"] == "Post created successfully."
         assert data["post_id"] == "urn:li:share:text123"
-        assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:share:text123"
+        assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:activity:text123"
         assert data["images_uploaded"] == 0
 
     @patch.object(_mod, "post_to_linkedin")
@@ -389,6 +389,7 @@ class TestShareArticle:
         data = result.result.data
         assert data["result"] == "Article shared successfully."
         assert data["post_id"] == "urn:li:share:article"
+        assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:activity:article"
 
     @patch.object(_mod, "post_to_linkedin")
     async def test_payload_has_article_content(self, mock_post, mock_context):
@@ -457,6 +458,7 @@ class TestResharePost:
         data = result.result.data
         assert data["result"] == "Post reshared successfully."
         assert data["post_id"] == "urn:li:share:reshare"
+        assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:activity:reshare"
 
     @patch.object(_mod, "post_to_linkedin")
     async def test_payload_has_reshare_context(self, mock_post, mock_context):
@@ -628,3 +630,14 @@ class TestPostResourceUrl:
 
         assert isinstance(url, yarl.URL)
         assert str(url) == "https://api.linkedin.com/rest/posts/urn%3Ali%3Ashare%3A123"
+
+
+class TestPostBrowserUrl:
+    def test_converts_share_urn_to_activity_url(self):
+        assert _mod.post_browser_url("urn:li:share:123") == "https://www.linkedin.com/feed/update/urn:li:activity:123"
+
+    def test_converts_ugc_post_urn_to_activity_url(self):
+        assert _mod.post_browser_url("urn:li:ugcPost:456") == "https://www.linkedin.com/feed/update/urn:li:activity:456"
+
+    def test_missing_post_urn_returns_none(self):
+        assert _mod.post_browser_url(None) is None
