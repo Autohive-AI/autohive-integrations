@@ -27,6 +27,7 @@ from urllib.parse import quote
 
 import base64
 import aiohttp
+import yarl
 
 linkedin = Integration.load()
 
@@ -46,6 +47,19 @@ def get_linkedin_headers():
 def encode_urn(urn: str) -> str:
     """URL-encode a LinkedIn URN for use in API paths."""
     return quote(urn, safe="")
+
+
+def post_resource_url(post_urn: str) -> yarl.URL:
+    """Build a pre-encoded LinkedIn Posts API entity URL."""
+    return yarl.URL(f"https://api.linkedin.com/rest/posts/{encode_urn(post_urn)}", encoded=True)
+
+
+def post_browser_url(post_urn: str | None) -> str | None:
+    """Build a LinkedIn feed URL from a post URN returned by the Posts API."""
+    if not post_urn or ":" not in post_urn:
+        return None
+    post_id = post_urn.rsplit(":", 1)[-1]
+    return f"https://www.linkedin.com/feed/update/urn:li:activity:{post_id}"
 
 
 async def get_current_user_urn(context: ExecutionContext) -> str:
@@ -74,15 +88,21 @@ async def post_to_linkedin(url: str, payload: dict, access_token: str) -> Tuple[
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=headers) as response:
-            # Get response body if any
-            body = None
-            if response.content_length and response.content_length > 0:
-                try:
-                    body = await response.json()
-                except Exception:
-                    body = await response.text()
+            body = await parse_response_body(response)
 
             return response.status, dict(response.headers), body
+
+
+async def parse_response_body(response: Any) -> Any:
+    """Read a provider response body when one is available."""
+    try:
+        return await response.json()
+    except Exception:
+        try:
+            text = await response.text()
+        except Exception:
+            return None
+        return text or None
 
 
 # =============================================================================
@@ -337,7 +357,7 @@ class CreatePostActionHandler(ActionHandler):
                 return ActionError(message=f"Failed to create post: HTTP {status} {body}")
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
-            post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
+            post_url = post_browser_url(post_id)
 
             return ActionResult(
                 data={
@@ -401,7 +421,7 @@ class ShareArticleActionHandler(ActionHandler):
                 return ActionError(message=f"Failed to share article: HTTP {status} {body}")
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
-            post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
+            post_url = post_browser_url(post_id)
 
             return ActionResult(
                 data={
@@ -456,7 +476,7 @@ class ResharePostActionHandler(ActionHandler):
                 return ActionError(message=f"Failed to reshare post: HTTP {status} {body}")
 
             post_id = headers.get("x-restli-id") or headers.get("X-RestLi-Id")
-            post_url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id else None
+            post_url = post_browser_url(post_id)
 
             return ActionResult(
                 data={
@@ -476,8 +496,7 @@ class UpdatePostActionHandler(ActionHandler):
         post_urn = inputs["post_urn"]
         commentary = inputs["commentary"]
 
-        encoded_urn = encode_urn(post_urn)
-        url = f"https://api.linkedin.com/rest/posts/{encoded_urn}"
+        url = post_resource_url(post_urn)
 
         payload = {"patch": {"$set": {"commentary": commentary}}}
 
@@ -500,8 +519,7 @@ class DeletePostActionHandler(ActionHandler):
         """Delete a post."""
         post_urn = inputs["post_urn"]
 
-        encoded_urn = encode_urn(post_urn)
-        url = f"https://api.linkedin.com/rest/posts/{encoded_urn}"
+        url = post_resource_url(post_urn)
 
         headers = get_linkedin_headers()
         headers["X-RestLi-Method"] = "DELETE"

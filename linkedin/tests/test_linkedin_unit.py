@@ -15,6 +15,7 @@ sys.path.insert(0, _parent)
 sys.path.insert(0, _deps)
 
 import pytest  # noqa: E402
+import yarl  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 
 from autohive_integrations_sdk import FetchResponse  # noqa: E402
@@ -66,6 +67,21 @@ def _image_init_response(image_urn: str = "urn:li:image:test") -> FetchResponse:
 
 def _image_upload_response() -> FetchResponse:
     return FetchResponse(status=201, headers={}, data=None)
+
+
+class _ResponseBody:
+    def __init__(self, json_body=None, text_body="", json_error: Exception | None = None):
+        self._json_body = json_body
+        self._text_body = text_body
+        self._json_error = json_error
+
+    async def json(self):
+        if self._json_error:
+            raise self._json_error
+        return self._json_body
+
+    async def text(self):
+        return self._text_body
 
 
 # ---- get_user_info ----
@@ -129,7 +145,7 @@ class TestCreatePost:
         data = result.result.data
         assert data["result"] == "Post created successfully."
         assert data["post_id"] == "urn:li:share:text123"
-        assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:share:text123"
+        assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:activity:text123"
         assert data["images_uploaded"] == 0
 
     @patch.object(_mod, "post_to_linkedin")
@@ -333,6 +349,23 @@ class TestCreatePost:
         assert "HTTP 500" in result.result.message
 
 
+class TestParseResponseBody:
+    async def test_reads_json_body(self):
+        body = await _mod.parse_response_body(_ResponseBody(json_body={"message": "Forbidden"}))
+
+        assert body == {"message": "Forbidden"}
+
+    async def test_falls_back_to_text_body(self):
+        body = await _mod.parse_response_body(_ResponseBody(text_body="Forbidden", json_error=ValueError("not json")))
+
+        assert body == "Forbidden"
+
+    async def test_empty_text_returns_none(self):
+        body = await _mod.parse_response_body(_ResponseBody(text_body="", json_error=ValueError("not json")))
+
+        assert body is None
+
+
 # ---- share_article ----
 
 
@@ -356,6 +389,7 @@ class TestShareArticle:
         data = result.result.data
         assert data["result"] == "Article shared successfully."
         assert data["post_id"] == "urn:li:share:article"
+        assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:activity:article"
 
     @patch.object(_mod, "post_to_linkedin")
     async def test_payload_has_article_content(self, mock_post, mock_context):
@@ -424,6 +458,7 @@ class TestResharePost:
         data = result.result.data
         assert data["result"] == "Post reshared successfully."
         assert data["post_id"] == "urn:li:share:reshare"
+        assert data["post_url"] == "https://www.linkedin.com/feed/update/urn:li:activity:reshare"
 
     @patch.object(_mod, "post_to_linkedin")
     async def test_payload_has_reshare_context(self, mock_post, mock_context):
@@ -470,6 +505,19 @@ class TestUpdatePost:
         call = mock_context.fetch.call_args
         assert call.kwargs["method"] == "POST"
         assert call.kwargs["headers"]["X-RestLi-Method"] == "PARTIAL_UPDATE"
+
+    async def test_post_urn_url_sent_pre_encoded(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
+
+        await linkedin.execute_action(
+            "update_post",
+            {"post_urn": "urn:li:share:update123", "commentary": "Updated content"},
+            mock_context,
+        )
+
+        url = mock_context.fetch.call_args.args[0]
+        assert isinstance(url, yarl.URL)
+        assert str(url) == "https://api.linkedin.com/rest/posts/urn%3Ali%3Ashare%3Aupdate123"
 
     async def test_patch_payload_structure(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=204, headers={}, data=None)
@@ -524,7 +572,8 @@ class TestDeletePost:
         await linkedin.execute_action("delete_post", {"post_urn": "urn:li:share:abc"}, mock_context)
 
         url = mock_context.fetch.call_args.args[0]
-        assert "urn%3Ali%3Ashare%3Aabc" in url
+        assert isinstance(url, yarl.URL)
+        assert str(url) == "https://api.linkedin.com/rest/posts/urn%3Ali%3Ashare%3Aabc"
 
     async def test_error_status_returns_action_error(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=404, headers={}, data="Not Found")
@@ -573,3 +622,22 @@ class TestValidateFileInput:
 class TestEncodeUrn:
     def test_colons_encoded(self):
         assert _mod.encode_urn("urn:li:share:123") == "urn%3Ali%3Ashare%3A123"
+
+
+class TestPostResourceUrl:
+    def test_returns_pre_encoded_url(self):
+        url = _mod.post_resource_url("urn:li:share:123")
+
+        assert isinstance(url, yarl.URL)
+        assert str(url) == "https://api.linkedin.com/rest/posts/urn%3Ali%3Ashare%3A123"
+
+
+class TestPostBrowserUrl:
+    def test_converts_share_urn_to_activity_url(self):
+        assert _mod.post_browser_url("urn:li:share:123") == "https://www.linkedin.com/feed/update/urn:li:activity:123"
+
+    def test_converts_ugc_post_urn_to_activity_url(self):
+        assert _mod.post_browser_url("urn:li:ugcPost:456") == "https://www.linkedin.com/feed/update/urn:li:activity:456"
+
+    def test_missing_post_urn_returns_none(self):
+        assert _mod.post_browser_url(None) is None
