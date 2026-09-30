@@ -294,7 +294,8 @@ class GetContactNotesActionHandler(ActionHandler):
                 "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
             }
 
-            response = await context.fetch(
+            response = await fetch_with_rate_limit_retries(
+                context,
                 search_url,
                 method="POST",
                 json=search_body,
@@ -781,7 +782,8 @@ class GetTaskActionHandler(ActionHandler):
                 "associations": "contacts,companies,deals",
             }
 
-            response = await context.fetch(
+            response = await fetch_with_rate_limit_retries(
+                context,
                 url,
                 params=params,
                 headers={"Content-Type": "application/json"},
@@ -834,7 +836,8 @@ class ListTasksActionHandler(ActionHandler):
             if after:
                 params["after"] = after
 
-            response = await context.fetch(
+            response = await fetch_with_rate_limit_retries(
+                context,
                 url,
                 params=params,
                 headers={"Content-Type": "application/json"},
@@ -880,9 +883,16 @@ class GetContactEmailsActionHandler(ActionHandler):
         email_limit = inputs.get("email_limit", 5)
 
         try:
+            retry_sleep_budget = {"remaining": 10}
+
             # Get associated emails using v4 associations API
             associations_url = f"https://api.hubapi.com/crm/v4/objects/contacts/{contact_id}/associations/emails"
-            associations_response = await context.fetch(associations_url, headers={"Content-Type": "application/json"})
+            associations_response = await fetch_with_rate_limit_retries(
+                context,
+                associations_url,
+                retry_sleep_budget=retry_sleep_budget,
+                headers={"Content-Type": "application/json"},
+            )
             associations_data = await parse_response(associations_response)
 
             recent_emails = []
@@ -901,8 +911,10 @@ class GetContactEmailsActionHandler(ActionHandler):
                 )
 
                 try:
-                    email_response = await context.fetch(
+                    email_response = await fetch_with_rate_limit_retries(
+                        context,
                         f"{email_url}?properties={properties_param}",
+                        retry_sleep_budget=retry_sleep_budget,
                         headers={"Content-Type": "application/json"},
                     )
                     email_data = await parse_response(email_response)
@@ -1053,7 +1065,8 @@ class SearchContactsActionHandler(ActionHandler):
         if after:
             payload["after"] = after
 
-        response = await context.fetch(
+        response = await fetch_with_rate_limit_retries(
+            context,
             url=url,
             method="POST",
             json=payload,
@@ -1162,7 +1175,11 @@ async def get_thread_id_from_ticket(ticket_id: str, context: ExecutionContext) -
     ticket_url = (
         f"https://api.hubapi.com/crm/v3/objects/tickets/{ticket_id}?properties=hs_conversations_originating_thread_id"
     )
-    ticket_response = await context.fetch(ticket_url, headers={"Content-Type": "application/json"})
+    ticket_response = await fetch_with_rate_limit_retries(
+        context,
+        ticket_url,
+        headers={"Content-Type": "application/json"},
+    )
     ticket_data = await parse_response(ticket_response)
     return ticket_data.get("properties", {}).get("hs_conversations_originating_thread_id")
 
@@ -1275,7 +1292,11 @@ class GetTicketConversationActionHandler(ActionHandler):
 
         try:
             conversation_url = f"https://api.hubapi.com/conversations/v3/conversations/threads/{thread_id}/messages"
-            conversation_response = await context.fetch(conversation_url, headers={"Content-Type": "application/json"})
+            conversation_response = await fetch_with_rate_limit_retries(
+                context,
+                conversation_url,
+                headers={"Content-Type": "application/json"},
+            )
             conversation_data = await parse_response(conversation_response)
 
             if conversation_data.get("results"):
@@ -1489,7 +1510,8 @@ class GetCompanyNotesActionHandler(ActionHandler):
                 "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
             }
 
-            response = await context.fetch(
+            response = await fetch_with_rate_limit_retries(
+                context,
                 search_url,
                 method="POST",
                 json=search_body,
@@ -1657,7 +1679,8 @@ class SearchCompaniesActionHandler(ActionHandler):
 
         payload = {"query": query, "limit": limit}
 
-        response = await context.fetch(
+        response = await fetch_with_rate_limit_retries(
+            context,
             url,
             method="POST",
             json=payload,
@@ -1707,9 +1730,13 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
 
         try:
             # Step 1: Get all owners from HubSpot
+            retry_sleep_budget = {"remaining": 10}
             owners_url = "https://api.hubapi.com/crm/v3/owners/"
             owners_response = await fetch_with_rate_limit_retries(
-                context, owners_url, headers={"Content-Type": "application/json"}
+                context,
+                owners_url,
+                retry_sleep_budget=retry_sleep_budget,
+                headers={"Content-Type": "application/json"},
             )
             owners_data = await parse_response(owners_response)
 
@@ -1761,8 +1788,10 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
                 "limit": limit,
             }
 
-            search_response = await context.fetch(
+            search_response = await fetch_with_rate_limit_retries(
+                context,
                 search_url,
+                retry_sleep_budget=retry_sleep_budget,
                 method="POST",
                 json=search_payload,
                 headers={"Content-Type": "application/json"},
@@ -1972,7 +2001,8 @@ class GetDealNotesActionHandler(ActionHandler):
                 "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
             }
 
-            response = await context.fetch(
+            response = await fetch_with_rate_limit_retries(
+                context,
                 search_url,
                 method="POST",
                 json=search_body,
@@ -2005,7 +2035,11 @@ class GetDealNotesActionHandler(ActionHandler):
             )
 
 
-async def fetch_transcript(transcript_id: str, context: ExecutionContext):
+async def fetch_transcript(
+    transcript_id: str,
+    context: ExecutionContext,
+    retry_sleep_budget: Dict[str, int] | None = None,
+):
     """
     Fetch transcript utterances from the HubSpot Calling Transcripts API.
     Google Meet transcripts are stored here, not on the call object properties.
@@ -2013,14 +2047,24 @@ async def fetch_transcript(transcript_id: str, context: ExecutionContext):
     """
     try:
         url = f"https://api.hubapi.com/crm/extensions/calling/2026-03/transcripts/{transcript_id}"
-        response = await fetch_with_rate_limit_retries(context, url, method="GET")
+        response = await fetch_with_rate_limit_retries(
+            context,
+            url,
+            retry_sleep_budget=retry_sleep_budget,
+            method="GET",
+        )
         result = await parse_response(response)
         return result.get("transcriptUtterances", [])
     except Exception:
         return None
 
 
-async def fetch_calls_with_transcripts(association_filter: dict, limit: int, context: ExecutionContext):
+async def fetch_calls_with_transcripts(
+    association_filter: dict,
+    limit: int,
+    context: ExecutionContext,
+    retry_sleep_budget: Dict[str, int] | None = None,
+):
     """
     Fetch calls for a given association filter, then enrich each call that has a transcript
     by fetching the full transcript utterances from the transcripts API.
@@ -2050,6 +2094,7 @@ async def fetch_calls_with_transcripts(association_filter: dict, limit: int, con
         url,
         method="POST",
         json=body,
+        retry_sleep_budget=retry_sleep_budget,
         headers={"Content-Type": "application/json"},
     )
     result = await parse_response(response)
@@ -2078,11 +2123,11 @@ async def fetch_calls_with_transcripts(association_filter: dict, limit: int, con
         has_transcript = props.get("hs_call_has_transcript") == "true"
 
         if transcript_id:
-            transcript_tasks.append(fetch_transcript(transcript_id, context))
+            transcript_tasks.append(fetch_transcript(transcript_id, context, retry_sleep_budget))
             calls_needing_transcripts.append(call)
         elif has_transcript:
             # Fallback for HubSpot bug: try the call ID itself as the transcript ID
-            transcript_tasks.append(fetch_transcript(call["id"], context))
+            transcript_tasks.append(fetch_transcript(call["id"], context, retry_sleep_budget))
             calls_needing_transcripts.append(call)
 
     if transcript_tasks:
@@ -2094,7 +2139,12 @@ async def fetch_calls_with_transcripts(association_filter: dict, limit: int, con
     return calls
 
 
-async def fetch_meetings(association_filter: dict, limit: int, context: ExecutionContext):
+async def fetch_meetings(
+    association_filter: dict,
+    limit: int,
+    context: ExecutionContext,
+    retry_sleep_budget: Dict[str, int] | None = None,
+):
     """
     Fetch meetings for a given association filter.
     Note: Google Meet transcripts are stored on call records, not meeting records.
@@ -2123,6 +2173,7 @@ async def fetch_meetings(association_filter: dict, limit: int, context: Executio
         url,
         method="POST",
         json=body,
+        retry_sleep_budget=retry_sleep_budget,
         headers={"Content-Type": "application/json"},
     )
     result = await parse_response(response)
@@ -2164,10 +2215,9 @@ class GetContactCallsAndMeetingsActionHandler(ActionHandler):
         }
 
         try:
-            calls, meetings = await asyncio.gather(
-                fetch_calls_with_transcripts(association_filter, limit, context),
-                fetch_meetings(association_filter, limit, context),
-            )
+            retry_sleep_budget = {"remaining": 10}
+            calls = await fetch_calls_with_transcripts(association_filter, limit, context, retry_sleep_budget)
+            meetings = await fetch_meetings(association_filter, limit, context, retry_sleep_budget)
 
             return ActionResult(
                 data={
@@ -2205,10 +2255,9 @@ class GetDealCallsAndMeetingsActionHandler(ActionHandler):
         }
 
         try:
-            calls, meetings = await asyncio.gather(
-                fetch_calls_with_transcripts(association_filter, limit, context),
-                fetch_meetings(association_filter, limit, context),
-            )
+            retry_sleep_budget = {"remaining": 10}
+            calls = await fetch_calls_with_transcripts(association_filter, limit, context, retry_sleep_budget)
+            meetings = await fetch_meetings(association_filter, limit, context, retry_sleep_budget)
 
             return ActionResult(
                 data={
@@ -2261,6 +2310,7 @@ class GetDealsActionHandler(ActionHandler):
         max_total = inputs.get("max_total", user_limit if not fetch_all else 100)
 
         url = "https://api.hubapi.com/crm/v3/objects/deals/search"
+        retry_sleep_budget = {"remaining": 10}
 
         # Use custom properties if provided, otherwise use standard properties
         properties = inputs.get(
@@ -2386,6 +2436,7 @@ class GetDealsActionHandler(ActionHandler):
             response = await fetch_with_rate_limit_retries(
                 context,
                 url,
+                retry_sleep_budget=retry_sleep_budget,
                 method="POST",
                 json=request_body,
                 headers={"Content-Type": "application/json"},
@@ -3100,34 +3151,32 @@ class GetListMembershipsHandler(ActionHandler):
         all_memberships = []
         after_token = None
         total_retrieved = 0
+        retry_sleep_budget = {"remaining": 10}
 
         while total_retrieved < limit:
             params = {"limit": min(batch_size, limit - total_retrieved)}
             if after_token:
                 params["after"] = after_token
 
-            try:
-                response = await fetch_with_rate_limit_retries(context, url, params=params)
-                data = await parse_response(response)
+            response = await fetch_with_rate_limit_retries(
+                context,
+                url,
+                retry_sleep_budget=retry_sleep_budget,
+                params=params,
+            )
+            data = await parse_response(response)
 
-                batch_memberships = data.get("results", [])
-                all_memberships.extend(batch_memberships)
-                total_retrieved += len(batch_memberships)
+            batch_memberships = data.get("results", [])
+            all_memberships.extend(batch_memberships)
+            total_retrieved += len(batch_memberships)
 
-                # Check for more pages
-                paging = data.get("paging", {})
-                next_page = paging.get("next", {})
-                after_token = next_page.get("after")
+            # Check for more pages
+            paging = data.get("paging", {})
+            next_page = paging.get("next", {})
+            after_token = next_page.get("after")
 
-                if not after_token or len(batch_memberships) == 0:
-                    break
-
-            except Exception as e:
-                if "rate limit" in str(e).lower() or "429" in str(e):
-                    # Basic retry with exponential backoff
-                    await asyncio.sleep(2)
-                    continue
-                raise e
+            if not after_token or len(batch_memberships) == 0:
+                break
 
         return ActionResult(
             data={
@@ -3152,6 +3201,7 @@ class GetContactAssociationsHandler(ActionHandler):
         associations = {}
         total_count = 0
         summary = {}
+        retry_sleep_budget = {"remaining": 10}
 
         # Fetch associations for each type in parallel
         for assoc_type in association_types:
@@ -3159,7 +3209,12 @@ class GetContactAssociationsHandler(ActionHandler):
                 url = f"https://api.hubapi.com/crm/v4/objects/contacts/{contact_id}/associations/{assoc_type}"
                 params = {"limit": limit}
 
-                response = await fetch_with_rate_limit_retries(context, url, params=params)
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    url,
+                    retry_sleep_budget=retry_sleep_budget,
+                    params=params,
+                )
                 data = await parse_response(response)
 
                 results = data.get("results", [])
@@ -3195,6 +3250,7 @@ class GetCompanyAssociationsHandler(ActionHandler):
         associations = {}
         total_count = 0
         summary = {}
+        retry_sleep_budget = {"remaining": 10}
 
         # Fetch associations for each type
         for assoc_type in association_types:
@@ -3202,7 +3258,12 @@ class GetCompanyAssociationsHandler(ActionHandler):
                 url = f"https://api.hubapi.com/crm/v4/objects/companies/{company_id}/associations/{assoc_type}"
                 params = {"limit": limit}
 
-                response = await fetch_with_rate_limit_retries(context, url, params=params)
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    url,
+                    retry_sleep_budget=retry_sleep_budget,
+                    params=params,
+                )
                 data = await parse_response(response)
 
                 results = data.get("results", [])
@@ -3238,6 +3299,7 @@ class GetDealAssociationsHandler(ActionHandler):
         associations = {}
         total_count = 0
         summary = {}
+        retry_sleep_budget = {"remaining": 10}
 
         # Fetch associations for each type
         for assoc_type in association_types:
@@ -3245,7 +3307,12 @@ class GetDealAssociationsHandler(ActionHandler):
                 url = f"https://api.hubapi.com/crm/v4/objects/deals/{deal_id}/associations/{assoc_type}"
                 params = {"limit": limit}
 
-                response = await fetch_with_rate_limit_retries(context, url, params=params)
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    url,
+                    retry_sleep_budget=retry_sleep_budget,
+                    params=params,
+                )
                 data = await parse_response(response)
 
                 results = data.get("results", [])
@@ -3287,10 +3354,15 @@ class GetListMembersHandler(ActionHandler):
         include_timestamps = inputs.get("include_membership_timestamps", True)
 
         total_api_calls = 0
+        retry_sleep_budget = {"remaining": 10}
 
         # Step 1: Get list metadata
         list_url = f"https://api.hubapi.com/crm/v3/lists/{list_id}"
-        list_response = await fetch_with_rate_limit_retries(context, list_url)
+        list_response = await fetch_with_rate_limit_retries(
+            context,
+            list_url,
+            retry_sleep_budget=retry_sleep_budget,
+        )
         list_data = await parse_response(list_response)
         total_api_calls += 1
 
@@ -3315,28 +3387,26 @@ class GetListMembersHandler(ActionHandler):
             if after_token:
                 params["after"] = after_token
 
-            try:
-                response = await fetch_with_rate_limit_retries(context, memberships_url, params=params)
-                data = await parse_response(response)
-                total_api_calls += 1
+            response = await fetch_with_rate_limit_retries(
+                context,
+                memberships_url,
+                retry_sleep_budget=retry_sleep_budget,
+                params=params,
+            )
+            data = await parse_response(response)
+            total_api_calls += 1
 
-                batch_memberships = data.get("results", [])
-                all_memberships.extend(batch_memberships)
-                total_retrieved += len(batch_memberships)
+            batch_memberships = data.get("results", [])
+            all_memberships.extend(batch_memberships)
+            total_retrieved += len(batch_memberships)
 
-                # Check pagination
-                paging = data.get("paging", {})
-                next_page = paging.get("next", {})
-                after_token = next_page.get("after")
+            # Check pagination
+            paging = data.get("paging", {})
+            next_page = paging.get("next", {})
+            after_token = next_page.get("after")
 
-                if not after_token or len(batch_memberships) == 0:
-                    break
-
-            except Exception as e:
-                if "429" in str(e) or "rate limit" in str(e).lower():
-                    await asyncio.sleep(1)  # Simple rate limit handling
-                    continue
-                raise e
+            if not after_token or len(batch_memberships) == 0:
+                break
 
         # Step 3: Batch fetch contact details
         contact_ids = [m["recordId"] for m in all_memberships]
@@ -3358,6 +3428,7 @@ class GetListMembersHandler(ActionHandler):
                 contacts_response = await fetch_with_rate_limit_retries(
                     context,
                     contacts_url,
+                    retry_sleep_budget=retry_sleep_budget,
                     method="POST",
                     json=batch_request,
                     headers={"Content-Type": "application/json"},
@@ -3370,8 +3441,7 @@ class GetListMembersHandler(ActionHandler):
 
             except Exception as e:
                 if "429" in str(e) or "rate limit" in str(e).lower():
-                    await asyncio.sleep(1)
-                    continue
+                    raise
                 # Continue even if some contacts fail to load
                 continue
 
@@ -3813,7 +3883,7 @@ class GetCallTranscriptActionHandler(ActionHandler):
 
         try:
             url = f"https://api.hubapi.com/crm/extensions/calling/2026-03/transcripts/{transcript_id}"
-            response = await context.fetch(url, method="GET")
+            response = await fetch_with_rate_limit_retries(context, url, method="GET")
             result = await parse_response(response)
 
             utterances = result.get("transcriptUtterances", [])
