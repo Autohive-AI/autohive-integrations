@@ -324,6 +324,21 @@ class TestSearchDeals:
         assert payload["query"] == "Search Hit"
 
     @pytest.mark.asyncio
+    @patch("hubspot.hubspot.asyncio.sleep", new_callable=AsyncMock)
+    async def test_retries_rate_limit_and_returns_deals(self, mock_sleep, mock_context):
+        deal_data = {"id": "s1", "properties": {"dealname": "Search Hit"}}
+        mock_context.fetch.side_effect = [
+            Exception("RateLimitError: HTTP 429: Rate limit exceeded"),
+            FetchResponse(status=200, headers={}, data={"results": [deal_data]}),
+        ]
+
+        result = await hubspot.execute_action("search_deals", {"query": "Search Hit"}, mock_context)
+
+        assert result.result.data["results"] == [deal_data]
+        assert mock_context.fetch.call_count == 2
+        mock_sleep.assert_awaited_once_with(1)
+
+    @pytest.mark.asyncio
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_request_payload(self, mock_sleep, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})

@@ -131,6 +131,25 @@ async def parse_response(response):
     return response.data
 
 
+def is_rate_limit_error(error: Exception) -> bool:
+    """Return whether an exception looks like a HubSpot rate-limit response."""
+    error_text = str(error).lower()
+    return "429" in error_text or "rate limit" in error_text
+
+
+async def fetch_with_rate_limit_retries(context: ExecutionContext, url: str, max_retries: int = 3, **kwargs):
+    """Fetch with a short exponential backoff for transient HubSpot 429 responses."""
+    delay_seconds = 1
+    for attempt in range(max_retries + 1):
+        try:
+            return await context.fetch(url, **kwargs)
+        except Exception as e:
+            if attempt == max_retries or not is_rate_limit_error(e):
+                raise
+            await asyncio.sleep(delay_seconds)
+            delay_seconds *= 2
+
+
 # Contact Management Actions
 
 
@@ -174,7 +193,8 @@ class GetContactActionHandler(ActionHandler):
             "limit": 1,
         }
 
-        search_response = await context.fetch(
+        search_response = await fetch_with_rate_limit_retries(
+            context,
             search_url,
             method="POST",
             json=search_body,
@@ -352,7 +372,8 @@ class CreateNoteActionHandler(ActionHandler):
             url = "https://api.hubapi.com/crm/v3/objects/notes"
             payload = {"properties": properties, "associations": associations}
 
-            response = await context.fetch(
+            response = await fetch_with_rate_limit_retries(
+                context,
                 url,
                 method="POST",
                 json=payload,
@@ -563,7 +584,8 @@ class CreateTaskActionHandler(ActionHandler):
             url = "https://api.hubapi.com/crm/v3/objects/tasks"
             payload = {"properties": properties, "associations": associations}
 
-            response = await context.fetch(
+            response = await fetch_with_rate_limit_retries(
+                context,
                 url,
                 method="POST",
                 json=payload,
@@ -1084,7 +1106,7 @@ class GetRecentContactsActionHandler(ActionHandler):
         limit = inputs.get("limit", 100)
         url = f"https://api.hubapi.com/crm/v3/objects/contacts?limit={limit}&sort=createdat"
 
-        response = await context.fetch(url, headers={"Content-Type": "application/json"})
+        response = await fetch_with_rate_limit_retries(context, url, headers={"Content-Type": "application/json"})
         recent_contacts = await parse_response(response)
         return ActionResult(data={"recent_contacts": recent_contacts}, cost_usd=None)
 
@@ -1167,7 +1189,8 @@ class GetRecentTicketsActionHandler(ActionHandler):
                 }
             ]
 
-        response = await context.fetch(
+        response = await fetch_with_rate_limit_retries(
+            context,
             url,
             method="POST",
             json=request_body,
@@ -1492,7 +1515,7 @@ class GetCompanyActionHandler(ActionHandler):
             )
 
         url += f"?properties={properties_param}"
-        response = await context.fetch(url, headers={"Content-Type": "application/json"})
+        response = await fetch_with_rate_limit_retries(context, url, headers={"Content-Type": "application/json"})
         company = await parse_response(response)
 
         return ActionResult(data={"company": company}, cost_usd=None)
@@ -1641,7 +1664,9 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
         try:
             # Step 1: Get all owners from HubSpot
             owners_url = "https://api.hubapi.com/crm/v3/owners/"
-            owners_response = await context.fetch(owners_url, headers={"Content-Type": "application/json"})
+            owners_response = await fetch_with_rate_limit_retries(
+                context, owners_url, headers={"Content-Type": "application/json"}
+            )
             owners_data = await parse_response(owners_response)
 
             # Step 2: Find the owner ID by matching the name
@@ -1727,7 +1752,7 @@ class GetCompanyPropertiesActionHandler(ActionHandler):
         include_details = inputs.get("include_details", False)
         url = "https://api.hubapi.com/crm/v3/properties/companies"
 
-        response = await context.fetch(url, headers={"Content-Type": "application/json"})
+        response = await fetch_with_rate_limit_retries(context, url, headers={"Content-Type": "application/json"})
         properties_data = await parse_response(response)
 
         results = properties_data.get("results", [])
@@ -1771,7 +1796,7 @@ class GetDealPropertiesActionHandler(ActionHandler):
         include_details = inputs.get("include_details", False)
         url = "https://api.hubapi.com/crm/v3/properties/deals"
 
-        response = await context.fetch(url, headers={"Content-Type": "application/json"})
+        response = await fetch_with_rate_limit_retries(context, url, headers={"Content-Type": "application/json"})
         properties_data = await parse_response(response)
 
         results = properties_data.get("results", [])
@@ -1815,7 +1840,7 @@ class GetContactPropertiesActionHandler(ActionHandler):
         include_details = inputs.get("include_details", False)
         url = "https://api.hubapi.com/crm/v3/properties/contacts"
 
-        response = await context.fetch(url, headers={"Content-Type": "application/json"})
+        response = await fetch_with_rate_limit_retries(context, url, headers={"Content-Type": "application/json"})
         properties_data = await parse_response(response)
 
         results = properties_data.get("results", [])
@@ -2312,7 +2337,8 @@ class GetDealsActionHandler(ActionHandler):
             if all_filters:
                 request_body["filterGroups"] = [{"filters": all_filters}]
 
-            response = await context.fetch(
+            response = await fetch_with_rate_limit_retries(
+                context,
                 url,
                 method="POST",
                 json=request_body,
@@ -2472,7 +2498,7 @@ class GetDealActionHandler(ActionHandler):
         properties_param = ",".join(properties)
         url = f"https://api.hubapi.com/crm/v3/objects/deals/{deal_id}?properties={properties_param}"
 
-        response = await context.fetch(url, headers={"Content-Type": "application/json"})
+        response = await fetch_with_rate_limit_retries(context, url, headers={"Content-Type": "application/json"})
         deal = await parse_response(response)
 
         # Convert deal dates from UTC timestamps to readable UTC strings
@@ -2652,7 +2678,8 @@ class SearchDealsActionHandler(ActionHandler):
                     }
                 ]
 
-            response = await context.fetch(
+            response = await fetch_with_rate_limit_retries(
+                context,
                 url,
                 method="POST",
                 json=request_body,
@@ -2862,7 +2889,8 @@ class GetRecentDealsActionHandler(ActionHandler):
             "sorts": [{"propertyName": sort_property, "direction": sort_direction}],
         }
 
-        response = await context.fetch(
+        response = await fetch_with_rate_limit_retries(
+            context,
             url,
             method="POST",
             json=request_body,
@@ -2899,7 +2927,7 @@ class GetDealPipelinesActionHandler(ActionHandler):
 
         url = "https://api.hubapi.com/crm/v3/pipelines/deals"
 
-        response = await context.fetch(url, headers={"Content-Type": "application/json"})
+        response = await fetch_with_rate_limit_retries(context, url, headers={"Content-Type": "application/json"})
         pipelines_data = await parse_response(response)
 
         return ActionResult(data={"pipelines": pipelines_data.get("results", [])}, cost_usd=None)
@@ -2928,7 +2956,8 @@ class GetListsHandler(ActionHandler):
         # Note: includeFilters is not supported in search endpoint
         # We'll get filters in individual list calls if needed
 
-        response = await context.fetch(
+        response = await fetch_with_rate_limit_retries(
+            context,
             url,
             method="POST",
             json=search_body,
@@ -2967,7 +2996,7 @@ class GetListHandler(ActionHandler):
         if include_filters:
             params["includeFilters"] = "true"
 
-        response = await context.fetch(url, params=params)
+        response = await fetch_with_rate_limit_retries(context, url, params=params)
         data = await parse_response(response)
 
         return ActionResult(data={"list": data.get("list", {})}, cost_usd=None)
@@ -2990,7 +3019,8 @@ class SearchListsHandler(ActionHandler):
         if inputs.get("processing_types"):
             search_body["processingTypes"] = inputs["processing_types"]
 
-        response = await context.fetch(
+        response = await fetch_with_rate_limit_retries(
+            context,
             url,
             method="POST",
             json=search_body,
@@ -3031,7 +3061,7 @@ class GetListMembershipsHandler(ActionHandler):
                 params["after"] = after_token
 
             try:
-                response = await context.fetch(url, params=params)
+                response = await fetch_with_rate_limit_retries(context, url, params=params)
                 data = await parse_response(response)
 
                 batch_memberships = data.get("results", [])
@@ -3083,7 +3113,7 @@ class GetContactAssociationsHandler(ActionHandler):
                 url = f"https://api.hubapi.com/crm/v4/objects/contacts/{contact_id}/associations/{assoc_type}"
                 params = {"limit": limit}
 
-                response = await context.fetch(url, params=params)
+                response = await fetch_with_rate_limit_retries(context, url, params=params)
                 data = await parse_response(response)
 
                 results = data.get("results", [])
@@ -3126,7 +3156,7 @@ class GetCompanyAssociationsHandler(ActionHandler):
                 url = f"https://api.hubapi.com/crm/v4/objects/companies/{company_id}/associations/{assoc_type}"
                 params = {"limit": limit}
 
-                response = await context.fetch(url, params=params)
+                response = await fetch_with_rate_limit_retries(context, url, params=params)
                 data = await parse_response(response)
 
                 results = data.get("results", [])
@@ -3169,7 +3199,7 @@ class GetDealAssociationsHandler(ActionHandler):
                 url = f"https://api.hubapi.com/crm/v4/objects/deals/{deal_id}/associations/{assoc_type}"
                 params = {"limit": limit}
 
-                response = await context.fetch(url, params=params)
+                response = await fetch_with_rate_limit_retries(context, url, params=params)
                 data = await parse_response(response)
 
                 results = data.get("results", [])
@@ -3214,7 +3244,7 @@ class GetListMembersHandler(ActionHandler):
 
         # Step 1: Get list metadata
         list_url = f"https://api.hubapi.com/crm/v3/lists/{list_id}"
-        list_response = await context.fetch(list_url)
+        list_response = await fetch_with_rate_limit_retries(context, list_url)
         list_data = await parse_response(list_response)
         total_api_calls += 1
 
@@ -3240,7 +3270,7 @@ class GetListMembersHandler(ActionHandler):
                 params["after"] = after_token
 
             try:
-                response = await context.fetch(memberships_url, params=params)
+                response = await fetch_with_rate_limit_retries(context, memberships_url, params=params)
                 data = await parse_response(response)
                 total_api_calls += 1
 
@@ -3279,7 +3309,8 @@ class GetListMembersHandler(ActionHandler):
 
             try:
                 contacts_url = "https://api.hubapi.com/crm/v3/objects/contacts/batch/read"
-                contacts_response = await context.fetch(
+                contacts_response = await fetch_with_rate_limit_retries(
+                    context,
                     contacts_url,
                     method="POST",
                     json=batch_request,
@@ -3365,7 +3396,7 @@ class GetOwnerActionHandler(ActionHandler):
         url = f"https://api.hubapi.com/crm/v3/owners/{owner_id}"
 
         try:
-            response = await context.fetch(url, headers={"Content-Type": "application/json"})
+            response = await fetch_with_rate_limit_retries(context, url, headers={"Content-Type": "application/json"})
             owner = await parse_response(response)
 
             return ActionResult(data={"owner": owner}, cost_usd=None)
@@ -3394,7 +3425,7 @@ class GetMarketingEmailsHandler(ActionHandler):
         if after:
             params["after"] = after
 
-        response = await context.fetch(url, params=params)
+        response = await fetch_with_rate_limit_retries(context, url, params=params)
         data = await parse_response(response)
 
         emails = []
@@ -3447,7 +3478,7 @@ class GetCampaignsHandler(ActionHandler):
         if name_filter:
             params["name"] = name_filter
 
-        response = await context.fetch(url, params=params)
+        response = await fetch_with_rate_limit_retries(context, url, params=params)
         data = await parse_response(response)
 
         campaigns = []
@@ -3505,7 +3536,7 @@ class GetCampaignHandler(ActionHandler):
         if end_date:
             params["endDate"] = end_date
 
-        response = await context.fetch(url, params=params)
+        response = await fetch_with_rate_limit_retries(context, url, params=params)
         data = await parse_response(response)
 
         properties_data = data.get("properties", {})
@@ -3558,7 +3589,7 @@ class GetCampaignAssetsHandler(ActionHandler):
         if after:
             params["after"] = after
 
-        response = await context.fetch(url, params=params)
+        response = await fetch_with_rate_limit_retries(context, url, params=params)
         data = await parse_response(response)
 
         assets = []
@@ -3654,7 +3685,7 @@ class GetCampaignPerformanceHandler(ActionHandler):
                     if after:
                         params["after"] = after
 
-                    response = await context.fetch(base_url, params=params)
+                    response = await fetch_with_rate_limit_retries(context, base_url, params=params)
                     data = await parse_response(response)
 
                     for asset in data.get("results", []):
