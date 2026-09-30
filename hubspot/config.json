@@ -2061,7 +2061,7 @@
     },
     "search_companies_by_owner_name": {
       "display_name": "Search Companies by Owner Name",
-      "description": "Search for companies in HubSpot by owner name. First looks up the owner ID by name from the Owners API, then retrieves all companies associated with that owner.",
+      "description": "Search for companies in HubSpot by owner name. First looks up the owner ID by name from the Owners API, then retrieves one page of companies associated with that owner. Follow paging.next.after while has_more is true for additional pages.",
       "input_schema": {
         "type": "object",
         "properties": {

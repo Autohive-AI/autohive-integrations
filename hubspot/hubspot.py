@@ -1736,8 +1736,10 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
             owner_id = None
             matched_owner = None
             owners_after = None
+            owner_pages_checked = 0
+            max_owner_pages = 10
 
-            while True:
+            while owner_pages_checked < max_owner_pages:
                 owner_params = {"limit": 100}
                 if owners_after:
                     owner_params["after"] = owners_after
@@ -1750,6 +1752,7 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
                     headers={"Content-Type": "application/json"},
                 )
                 owners_data = await parse_response(owners_response)
+                owner_pages_checked += 1
 
                 # Step 2: Find the owner ID by matching the name
                 for owner in owners_data.get("results", []):
@@ -1781,6 +1784,15 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
                     break
 
             if not owner_id:
+                if owners_after:
+                    return ActionError(
+                        message=(
+                            f"Owner with name '{owner_name}' not found in the first "
+                            f"{max_owner_pages} owner pages. Use the exact owner name "
+                            "or owner ID for large HubSpot portals."
+                        ),
+                    )
+
                 return ActionError(
                     message=f"Owner with name '{owner_name}' not found",
                 )

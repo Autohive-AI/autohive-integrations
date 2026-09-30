@@ -688,6 +688,37 @@ class TestSearchCompaniesByOwnerName:
         assert payload["filterGroups"][0]["filters"][0]["value"] == "o2"
 
     @pytest.mark.asyncio
+    async def test_owner_lookup_stops_after_page_cap(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "results": [
+                        {
+                            "id": f"o{index}",
+                            "firstName": "Other",
+                            "lastName": f"Owner {index}",
+                            "email": f"other{index}@example.com",
+                        },
+                    ],
+                    "paging": {"next": {"after": f"owners-page-{index + 1}"}},
+                },
+            )
+            for index in range(10)
+        ]
+
+        result = await hubspot.execute_action(
+            "search_companies_by_owner_name",
+            {"owner_name": "Missing Owner"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "not found in the first 10 owner pages" in result.result.message
+        assert mock_context.fetch.call_count == 10
+
+    @pytest.mark.asyncio
     async def test_after_cursor_is_sent_to_company_search(self, mock_context):
         mock_context.fetch.side_effect = [
             FetchResponse(
