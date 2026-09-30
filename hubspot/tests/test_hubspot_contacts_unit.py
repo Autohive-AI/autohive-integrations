@@ -44,6 +44,34 @@ class TestGetContact:
         assert call_kwargs.kwargs["method"] == "POST"
 
     @pytest.mark.asyncio
+    async def test_retries_rate_limit_and_returns_contact(self, mock_context, monkeypatch):
+        sleep_mock = AsyncMock()
+        monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", sleep_mock)
+        contact_data = {"id": "123", "properties": {"email": "test@example.com"}}
+        mock_context.fetch.side_effect = [
+            Exception("RateLimitError: HTTP 429: Rate limit exceeded"),
+            FetchResponse(status=200, headers={}, data={"results": [contact_data]}),
+        ]
+
+        result = await hubspot.execute_action("get_contact", {"email": "test@example.com"}, mock_context)
+
+        assert result.result.data["contact"] == contact_data
+        assert mock_context.fetch.call_count == 2
+        sleep_mock.assert_awaited_once_with(1)
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_exhaustion_surfaces_error(self, mock_context, monkeypatch):
+        sleep_mock = AsyncMock()
+        monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", sleep_mock)
+        mock_context.fetch.side_effect = Exception("RateLimitError: HTTP 429: Rate limit exceeded")
+
+        with pytest.raises(Exception, match="RateLimitError"):
+            await hubspot.execute_action("get_contact", {"email": "test@example.com"}, mock_context)
+
+        assert mock_context.fetch.call_count == 4
+        assert sleep_mock.await_count == 3
+
+    @pytest.mark.asyncio
     async def test_contact_not_found(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
 

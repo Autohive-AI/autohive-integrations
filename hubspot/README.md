@@ -523,40 +523,6 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `hs_object_id`: HubSpot task record ID that was deleted
   - `message`: Success or error message
 
-### Event Management
-
-#### Action: `create_event`
-- **Description:** Creates a new calendar event/meeting
-- **Inputs:**
-  - `Event_Title` (required): Event name
-  - `Start_DateTime` (required): Event start time
-  - `End_DateTime` (required): Event end time
-  - `Venue`: Event location
-  - `What_Id`: Related record ID
-  - `Participants`: List of participants
-  - `Description`: Event description
-- **Outputs:** Event object with `id` and event details
-
-#### Action: `get_event`, `update_event`, `delete_event`, `list_events`, `search_events`
-- **Description:** Standard CRUD operations for events
-
-### Call Management
-
-#### Action: `create_call`
-- **Description:** Logs a call activity
-- **Inputs:**
-  - `Subject` (required): Call subject
-  - `Call_Type`: Type of call (Inbound, Outbound)
-  - `Call_Start_Time`: When the call started
-  - `Call_Duration`: Duration in minutes
-  - `What_Id`: Related record ID
-  - `Who_Id`: Contact/lead called
-  - `Description`: Call notes
-- **Outputs:** Call object with `id` and call details
-
-#### Action: `get_call`, `update_call`, `delete_call`, `list_calls`, `search_calls`
-- **Description:** Standard CRUD operations for calls
-
 ### Advanced Operations
 
 ### Ticket Management
@@ -582,7 +548,9 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Inputs:**
   - `ticket_id` (required): Ticket ID to add the note to
   - `comment` (required): Note text to add
-- **Outputs:** Operation result with success status and created note details
+- **Outputs:** Operation result with success status, created note details, and the association verification response
+- **Verification:** The action verifies the created note is discoverable through the ticket association before returning success. If HubSpot creates the note but the ticket association cannot be verified, the action deletes the note and returns an error so workflows do not receive a false-positive success.
+- **Note:** HubSpot Help Desk internal comments are represented through CRM notes for this action. This does not use the deprecated Conversations thread comment write path.
 
 ### Marketing Emails
 
@@ -1062,8 +1030,9 @@ To run the tests included with the integration:
 2. Run mocked unit tests with `pytest hubspot/`
 3. For live tests, configure the HubSpot variables documented in `.env.example`
 4. Run read-only live tests with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and not destructive"`
-5. To run only the ticket tests, append `-k TestGetRecentTickets` to the read-only command. These request pages of 5 and 100 tickets, check limits/sorting and response structure, and compare the action output with the raw API response so missing/null values or records cannot silently be dropped. An empty account skips ticket-record coverage rather than claiming it was exercised.
+5. To run only the read-only ticket tests, append `-k TestGetRecentTickets` to the read-only command. These request pages of 5 and 100 tickets, check limits/sorting and response structure, and compare the action output with the raw API response so missing/null values or records cannot silently be dropped. An empty account skips ticket-record coverage rather than claiming it was exercised.
 6. Optionally set `HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID` to a dedicated test ticket within the latest 100 modified tickets whose search response contains an explicit `subject: null`. This enables the targeted live regression; it fails if the configured fixture is absent or no longer null, and skips if the variable is unset. Tests do not create or modify the fixture.
+7. To run the destructive ticket-note test, set `HUBSPOT_TEST_TICKET_ID` to a test ticket and run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k TestAddTicketComment`. The test creates an internal note, verifies it is associated with the ticket through HubSpot's associations API, then deletes the note.
 
 Use a current HubSpot OAuth access token for a dedicated test account, with the `tickets` scope for ticket tests. Missing credentials skip live tests; expired tokens, permission errors, and API failures fail rather than passing. Refresh expired tokens through your HubSpot OAuth app's token-refresh flow and update the local `.env`; never commit tokens.
 
@@ -1091,7 +1060,7 @@ The test suite includes:
 ## API Limitations and Best Practices
 
 - HubSpot API has rate limits (100 requests per 10 seconds for most endpoints)
-- The integration includes built-in rate limiting and retry logic
+- The integration includes built-in retry/backoff for transient `429` rate-limit responses on high-volume read/search/list paths, including composite calls/meetings actions and transcript fetches
 - Large deal retrievals should use `get_deals` with `delay_between_requests` to avoid rate limits
 - Date filtering works best with the integration's client-side post-processing
 - All dates are returned in UTC format for consistency
