@@ -80,15 +80,21 @@ async def post_to_linkedin(url: str, payload: dict, access_token: str) -> Tuple[
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=headers) as response:
-            # Get response body if any
-            body = None
-            if response.content_length and response.content_length > 0:
-                try:
-                    body = await response.json()
-                except Exception:
-                    body = await response.text()
+            body = await parse_response_body(response)
 
             return response.status, dict(response.headers), body
+
+
+async def parse_response_body(response: Any) -> Any:
+    """Read a provider response body when one is available."""
+    try:
+        return await response.json()
+    except Exception:
+        try:
+            text = await response.text()
+        except Exception:
+            return None
+        return text or None
 
 
 # =============================================================================

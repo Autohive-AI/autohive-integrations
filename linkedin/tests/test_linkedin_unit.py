@@ -69,6 +69,21 @@ def _image_upload_response() -> FetchResponse:
     return FetchResponse(status=201, headers={}, data=None)
 
 
+class _ResponseBody:
+    def __init__(self, json_body=None, text_body="", json_error: Exception | None = None):
+        self._json_body = json_body
+        self._text_body = text_body
+        self._json_error = json_error
+
+    async def json(self):
+        if self._json_error:
+            raise self._json_error
+        return self._json_body
+
+    async def text(self):
+        return self._text_body
+
+
 # ---- get_user_info ----
 
 
@@ -332,6 +347,23 @@ class TestCreatePost:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "HTTP 500" in result.result.message
+
+
+class TestParseResponseBody:
+    async def test_reads_json_body(self):
+        body = await _mod.parse_response_body(_ResponseBody(json_body={"message": "Forbidden"}))
+
+        assert body == {"message": "Forbidden"}
+
+    async def test_falls_back_to_text_body(self):
+        body = await _mod.parse_response_body(_ResponseBody(text_body="Forbidden", json_error=ValueError("not json")))
+
+        assert body == "Forbidden"
+
+    async def test_empty_text_returns_none(self):
+        body = await _mod.parse_response_body(_ResponseBody(text_body="", json_error=ValueError("not json")))
+
+        assert body is None
 
 
 # ---- share_article ----
