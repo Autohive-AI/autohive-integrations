@@ -44,10 +44,7 @@
                   "description": "Channel position in the server"
                 },
                 "parent_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
+                  "type": ["string", "null"],
                   "description": "ID of the parent category (if any)"
                 },
                 "guild_id": {
@@ -63,10 +60,7 @@
                   "description": "Whether the channel is NSFW"
                 },
                 "topic": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
+                  "type": ["string", "null"],
                   "description": "Channel topic"
                 },
                 "rate_limit_per_user": {
@@ -74,17 +68,11 @@
                   "description": "Rate limit per user in seconds"
                 },
                 "last_message_id": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
+                  "type": ["string", "null"],
                   "description": "ID of the last message in the channel"
                 },
                 "last_pin_timestamp": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
+                  "type": ["string", "null"],
                   "description": "Timestamp of the last pinned message"
                 },
                 "permission_overwrites": {
@@ -113,21 +101,12 @@
                   }
                 }
               },
-              "required": [
-                "id",
-                "name",
-                "type",
-                "position",
-                "guild_id",
-                "flags"
-              ]
+              "required": ["id", "name", "type", "position", "guild_id", "flags"]
             },
             "description": "List of channels in the server"
           }
         },
-        "required": [
-          "channels"
-        ]
+        "required": ["channels"]
       }
     },
     "get_message_history": {
@@ -138,8 +117,7 @@
         "properties": {
           "channel": {
             "type": "string",
-            "description": "The ID of the Discord channel",
-            "pattern": "^[0-9]{17,20}$"
+            "description": "The ID of the Discord channel"
           },
           "limit": {
             "type": "number",
@@ -150,9 +128,7 @@
             "description": "Get messages before this message ID"
           }
         },
-        "required": [
-          "channel"
-        ]
+        "required": ["channel"]
       },
       "output_schema": {
         "type": "object",
@@ -166,10 +142,7 @@
             "description": "Indicates if there are more messages that can be retrieved"
           }
         },
-        "required": [
-          "messages",
-          "has_more"
-        ]
+        "required": ["messages", "has_more"]
       }
     },
     "send_message": {
@@ -180,8 +153,7 @@
         "properties": {
           "channel": {
             "type": "string",
-            "description": "The ID of the Discord channel",
-            "pattern": "^[0-9]{17,20}$"
+            "description": "The ID of the Discord channel"
           },
           "text": {
             "type": "string",
@@ -192,10 +164,7 @@
             "description": "Message ID to reply to"
           }
         },
-        "required": [
-          "channel",
-          "text"
-        ]
+        "required": ["channel", "text"]
       },
       "output_schema": {
         "type": "object",
@@ -209,10 +178,7 @@
             "description": "ID of the channel where the message was sent"
           }
         },
-        "required": [
-          "id",
-          "channel_id"
-        ]
+        "required": ["id", "channel_id"]
       }
     },
     "add_reaction": {
@@ -223,24 +189,18 @@
         "properties": {
           "channel": {
             "type": "string",
-            "description": "The ID of the Discord channel",
-            "pattern": "^[0-9]{17,20}$"
+            "description": "The ID of the Discord channel"
           },
           "message_id": {
             "type": "string",
-            "description": "The ID of the message to add a reaction to",
-            "pattern": "^[0-9]{17,20}$"
+            "description": "The ID of the message to add a reaction to"
           },
           "reaction": {
             "type": "string",
             "description": "The emoji to react with: a Unicode emoji, a custom emoji as name:id, or a custom emoji ID from this server"
           }
         },
-        "required": [
-          "channel",
-          "message_id",
-          "reaction"
-        ]
+        "required": ["channel", "message_id", "reaction"]
       },
       "output_schema": {
         "type": "object",
@@ -250,9 +210,7 @@
             "description": "Whether the reaction was successfully added"
           }
         },
-        "required": [
-          "success"
-        ]
+        "required": ["success"]
       }
     },
     "remove_reaction": {
@@ -263,24 +221,18 @@
         "properties": {
           "channel": {
             "type": "string",
-            "description": "The ID of the Discord channel",
-            "pattern": "^[0-9]{17,20}$"
+            "description": "The ID of the Discord channel"
           },
           "message_id": {
             "type": "string",
-            "description": "The ID of the message to remove a reaction from",
-            "pattern": "^[0-9]{17,20}$"
+            "description": "The ID of the message to remove a reaction from"
           },
           "reaction": {
             "type": "string",
             "description": "The emoji to remove: a Unicode emoji, a custom emoji as name:id, or a custom emoji ID from this server"
           }
         },
-        "required": [
-          "channel",
-          "message_id",
-          "reaction"
-        ]
+        "required": ["channel", "message_id", "reaction"]
       },
       "output_schema": {
         "type": "object",
@@ -290,9 +242,7 @@
             "description": "Whether the reaction was successfully removed"
           }
         },
-        "required": [
-          "success"
-        ]
+        "required": ["success"]
       }
     }
   }
