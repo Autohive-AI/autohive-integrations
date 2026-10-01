@@ -44,21 +44,21 @@ def ok(data, status=200):
 def make_ctx(response_data):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(return_value=ok(response_data))
-    ctx.auth = {}
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_access_token"}}  # nosec B105
     return ctx
 
 
 def make_ctx_multi(responses: list):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=[ok(r) for r in responses])
-    ctx.auth = {}
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_access_token"}}  # nosec B105
     return ctx
 
 
 def make_ctx_error(exc: Exception):
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=exc)
-    ctx.auth = {}
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_access_token"}}  # nosec B105
     return ctx
 
 
@@ -358,11 +358,18 @@ class TestDeleteTweet:
 class TestSearchTweets:
     @pytest.mark.asyncio
     async def test_happy_path(self):
-        ctx = make_ctx({"data": [{"id": "t1"}, {"id": "t2"}], "includes": {"users": []}, "meta": {"result_count": 2}})
+        ctx = make_ctx(
+            {
+                "data": [{"id": "t1"}, {"id": "t2"}],
+                "includes": {"users": [{"id": "u1"}]},
+                "meta": {"result_count": 2},
+            }
+        )
         result = await x_integration.execute_action("search_tweets", {"query": "#ai"}, ctx)
         data = result.result.data
         assert len(data["posts"]) == 2
         assert data["meta"]["result_count"] == 2
+        assert result.result.cost_usd == 0.02
 
     @pytest.mark.asyncio
     async def test_max_results_clamped_to_100(self):
@@ -387,6 +394,18 @@ class TestSearchTweets:
         ctx = make_ctx({"data": []})
         result = await x_integration.execute_action("search_tweets", {"query": "nothing"}, ctx)
         assert result.result.data["posts"] == []
+        assert result.result.cost_usd == 0.0
+
+    @pytest.mark.asyncio
+    async def test_cost_uses_each_returned_item(self):
+        ctx = make_ctx(
+            {
+                "data": [{"id": f"t{i}"} for i in range(1000)],
+                "includes": {"users": [{"id": f"u{i}"} for i in range(1000)]},
+            }
+        )
+        result = await x_integration.execute_action("search_tweets", {"query": "x"}, ctx)
+        assert result.result.cost_usd == 15.0
 
     @pytest.mark.asyncio
     async def test_api_error_returns_action_error(self):
@@ -394,6 +413,20 @@ class TestSearchTweets:
         result = await x_integration.execute_action("search_tweets", {"query": "x"}, ctx)
         assert result.type == ResultType.ACTION_ERROR
         assert "forbidden" in result.result.message
+        assert result.result.cost_usd == 0.0
+
+    @pytest.mark.asyncio
+    async def test_partial_api_error_reports_cost_for_returned_items(self):
+        ctx = make_ctx(
+            {
+                "data": [{"id": "t1"}],
+                "includes": {"users": [{"id": "u1"}]},
+                "errors": [{"message": "Some expansions failed"}],
+            }
+        )
+        result = await x_integration.execute_action("search_tweets", {"query": "x"}, ctx)
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.cost_usd == 0.015
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self):

@@ -1,8 +1,9 @@
 {
     "name": "X",
     "display_name": "X (formerly Twitter)",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "X integration for posting, managing interactions, and engaging with users",
+    "supports_billing": true,
     "entry_point": "x.py",
     "supports_connected_account": true,
     "auth": {

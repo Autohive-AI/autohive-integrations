@@ -8,6 +8,13 @@ This integration provides a comprehensive connection to X's social media platfor
 
 The integration uses X API v2 with OAuth 2.0 authentication and implements 15 actions covering posts, bookmarks, reposts, and users.
 
+### Search pricing
+
+The `search_tweets` action reports its cost through Autohive billing based on
+the items returned: $0.005 per post and $0.01 per included user profile
+($5 and $10 per 1,000 items, respectively), effective September 21, 2026.
+Other X actions retain their existing cost reporting.
+
 ## Setup & Authentication
 
 This integration uses **OAuth 2.0** authentication for secure access to your X account.

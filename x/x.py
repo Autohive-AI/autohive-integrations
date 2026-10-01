@@ -21,6 +21,11 @@ X_API_BASE_URL = "https://api.x.com/2"
 # Media upload URL - X API v2
 X_MEDIA_UPLOAD_URL = "https://api.x.com/2/media/upload"
 
+# Search pricing effective September 21, 2026: $5 per 1,000 posts and
+# $10 per 1,000 user profiles returned.
+SEARCH_POST_COST_USD = 5 / 1000
+SEARCH_USER_PROFILE_COST_USD = 10 / 1000
+
 
 # ---- Connected Account Handler ----
 
@@ -296,17 +301,22 @@ class SearchTweetsAction(ActionHandler):
             response = await context.fetch(f"{X_API_BASE_URL}/tweets/search/recent", method="GET", params=params)
             body = response.data
 
+            posts = body.get("data") or []
+            includes = body.get("includes") or {}
+            users = includes.get("users") or []
+            cost_usd = len(posts) * SEARCH_POST_COST_USD + len(users) * SEARCH_USER_PROFILE_COST_USD
+
             if isinstance(body, dict) and "errors" in body:
                 error_msg = body.get("errors", [{}])[0].get("message", str(body))
-                return ActionError(message=error_msg)
+                return ActionError(message=error_msg, cost_usd=cost_usd)
 
             return ActionResult(
                 data={
-                    "posts": body.get("data", []),
-                    "includes": body.get("includes", {}),
+                    "posts": posts,
+                    "includes": includes,
                     "meta": body.get("meta", {}),
                 },
-                cost_usd=0.0,
+                cost_usd=cost_usd,
             )
 
         except Exception as e:
