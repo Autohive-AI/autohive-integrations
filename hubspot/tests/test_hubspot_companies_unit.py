@@ -468,6 +468,8 @@ class TestSearchCompaniesByOwnerName:
         assert data["owner"]["id"] == "owner-1"
         assert data["owner"]["firstName"] == "Jane"
         assert data["total"] == 1
+        assert data["page_total"] == 1
+        assert data["has_more"] is False
         assert data["companies"][0]["properties"]["name"] == "Company A"
 
     @pytest.mark.asyncio
@@ -624,6 +626,127 @@ class TestSearchCompaniesByOwnerName:
         )
 
         assert result.result.data["paging"] == {"next": {"after": "100"}}
+        assert result.result.data["total"] == 1
+        assert result.result.data["page_total"] == 1
+        assert result.result.data["has_more"] is True
+
+    @pytest.mark.asyncio
+    async def test_owner_lookup_paginates_until_owner_found(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "results": [
+                        {
+                            "id": "o1",
+                            "firstName": "Jane",
+                            "lastName": "Doe",
+                            "email": "j@e.com",
+                        },
+                    ],
+                    "paging": {"next": {"after": "owners-page-2"}},
+                },
+            ),
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "results": [
+                        {
+                            "id": "o2",
+                            "firstName": "Julianna",
+                            "lastName": "Vlasich",
+                            "email": "julianna@example.com",
+                        },
+                    ],
+                },
+            ),
+            FetchResponse(status=200, headers={}, data={"results": []}),
+        ]
+
+        result = await hubspot.execute_action(
+            "search_companies_by_owner_name",
+            {"owner_name": "Julianna Vlasich"},
+            mock_context,
+        )
+
+        assert result.result.data["success"] is True
+        assert result.result.data["owner"]["id"] == "o2"
+
+        first_owner_call = mock_context.fetch.call_args_list[0]
+        second_owner_call = mock_context.fetch.call_args_list[1]
+        search_call = mock_context.fetch.call_args_list[2]
+
+        assert first_owner_call.kwargs["params"] == {"limit": 100}
+        assert second_owner_call.kwargs["params"] == {
+            "limit": 100,
+            "after": "owners-page-2",
+        }
+
+        payload = search_call.kwargs["json"]
+        assert payload["filterGroups"][0]["filters"][0]["value"] == "o2"
+
+    @pytest.mark.asyncio
+    async def test_owner_lookup_stops_after_page_cap(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "results": [
+                        {
+                            "id": f"o{index}",
+                            "firstName": "Other",
+                            "lastName": f"Owner {index}",
+                            "email": f"other{index}@example.com",
+                        },
+                    ],
+                    "paging": {"next": {"after": f"owners-page-{index + 1}"}},
+                },
+            )
+            for index in range(10)
+        ]
+
+        result = await hubspot.execute_action(
+            "search_companies_by_owner_name",
+            {"owner_name": "Missing Owner"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "not found in the first 10 owner pages" in result.result.message
+        assert mock_context.fetch.call_count == 10
+
+    @pytest.mark.asyncio
+    async def test_after_cursor_is_sent_to_company_search(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(
+                status=200,
+                headers={},
+                data={
+                    "results": [
+                        {
+                            "id": "o1",
+                            "firstName": "Jane",
+                            "lastName": "Doe",
+                            "email": "j@e.com",
+                        },
+                    ]
+                },
+            ),
+            FetchResponse(status=200, headers={}, data={"results": []}),
+        ]
+
+        await hubspot.execute_action(
+            "search_companies_by_owner_name",
+            {"owner_name": "Jane Doe", "after": "100"},
+            mock_context,
+        )
+
+        search_call = mock_context.fetch.call_args_list[1]
+        payload = search_call.kwargs["json"]
+        assert payload["after"] == "100"
 
 
 # ---- Get Company Properties ----

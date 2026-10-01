@@ -264,6 +264,15 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `limit` (optional): Maximum results (default: 100)
 - **Outputs:** Array of matching company objects
 
+#### Action: `search_companies_by_owner_name`
+- **Description:** Search companies assigned to a HubSpot owner by first/last/full owner name. Owner lookup paginates through HubSpot owners before searching companies.
+- **Inputs:**
+  - `owner_name` (required): HubSpot owner name to match case-insensitively
+  - `limit` (optional): Maximum results for this page (default: 100, max: 100)
+  - `after` (optional): Cursor from `paging.next.after` to retrieve the next page
+  - `properties` (optional): Company properties to return
+- **Outputs:** Matched owner, companies for the requested page, `total`/`page_total` for the current page count, `has_more`, and `paging.next.after` when more owner-matched companies are available
+
 #### Action: `get_company_properties`
 - **Description:** Retrieve all available company properties (including custom) from HubSpot with detailed metadata
 - **Inputs:**
