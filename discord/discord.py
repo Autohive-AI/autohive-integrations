@@ -4,7 +4,8 @@ SECURITY MODEL:
 ---------------
 This integration uses Autohive's registered Discord bot credentials.
 The bot token is NOT stored in this source code. It MUST be injected at
-deployment time via the DISCORD_BOT_TOKEN environment variable.
+deployment time via the DISCORD_BOT_TOKEN environment variable, which is
+provisioned from AWS SSM by the Autohive platform.
 
 The OAuth flow (platform auth) handles adding the bot to the user's server
 and provides the guild_id via metadata. The bot token is a static credential
@@ -31,7 +32,13 @@ DISCORD_API_BASE = "https://discord.com/api/v10"
 
 def _get_bot_token() -> str:
     """Read Discord bot token from environment at call time."""
-    return os.environ.get("DISCORD_BOT_TOKEN", "")
+    token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
+    if not token:
+        raise EnvironmentError(
+            "Discord bot token is not configured: set DISCORD_BOT_TOKEN in the environment "
+            "(provisioned via AWS SSM in production)."
+        )
+    return token
 
 
 def _bot_headers() -> Dict[str, str]:

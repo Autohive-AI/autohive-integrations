@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 import pytest  # noqa: E402
 from unittest.mock import AsyncMock, MagicMock, patch  # noqa: E402
 from autohive_integrations_sdk import FetchResponse, ResultType  # noqa: E402
-from discord.discord import discord  # noqa: E402
+from discord.discord import discord, _get_bot_token  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
@@ -49,6 +49,17 @@ def mock_context():
 
 def _channel_response(channel_id=CHANNEL_ID, guild_id=GUILD_ID):
     return FetchResponse(status=200, headers={}, data={"id": channel_id, "guild_id": guild_id})
+
+
+class TestBotTokenEnv:
+    def test_reads_and_trims_discord_bot_token(self):
+        with patch.dict(os.environ, {"DISCORD_BOT_TOKEN": "  test_bot_token  "}):  # nosec B105
+            assert _get_bot_token() == "test_bot_token"
+
+    def test_missing_discord_bot_token_raises_clear_error(self):
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(EnvironmentError, match="DISCORD_BOT_TOKEN"):
+                _get_bot_token()
 
 
 class TestListChannels:
