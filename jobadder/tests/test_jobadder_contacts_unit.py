@@ -1,4 +1,5 @@
 from unittest.mock import AsyncMock
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from autohive_integrations_sdk import FetchResponse
@@ -91,8 +92,10 @@ class TestListContacts:
             "offset": 0,
             "limit": 1000,
         }
-        assert mock_context.fetch.await_args_list[1].args[0].endswith("/contacts")
-        assert mock_context.fetch.await_args_list[1].kwargs["params"]["companyId"] == [9, 10]
+        contact_call = mock_context.fetch.await_args_list[1]
+        assert urlparse(contact_call.args[0]).path.endswith("/contacts")
+        assert parse_qs(urlparse(contact_call.args[0]).query) == {"companyId": ["9", "10"]}
+        assert contact_call.kwargs["params"] == {"offset": 0, "limit": 100}
 
     @pytest.mark.asyncio
     async def test_company_name_with_no_matches_skips_contact_request(self, mock_context):
@@ -144,7 +147,11 @@ class TestListContactNotes:
         result = await jobadder.execute_action("list_contact_notes", {"contact_id": 51}, mock_context)
 
         assert result.result.data["notes"] == notes
-        mock_context.fetch.assert_awaited_once_with("https://au-api.jobadder.com/v2/contacts/51/notes", method="GET")
+        mock_context.fetch.assert_awaited_once_with(
+            "https://au-api.jobadder.com/v2/contacts/51/notes?fields=text",
+            method="GET",
+            params={"sort": "-createdAt", "offset": 0, "limit": 100},
+        )
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
@@ -175,15 +182,18 @@ class TestListContactActivities:
         )
 
         call = mock_context.fetch.call_args
-        assert call.args[0].endswith("/notes")
+        query = parse_qs(urlparse(call.args[0]).query)
+        assert urlparse(call.args[0]).path.endswith("/notes")
         assert call.kwargs["method"] == "GET"
-        assert call.kwargs["params"] == {
-            "contactId": 51,
+        assert query == {
             "type": ["Phone Call", "Meeting"],
             "createdAt": [">2026-09-01T00:00:00Z", "<2026-09-30T23:59:59Z"],
             "updatedAt": [">2026-09-15T00:00:00Z", "<2026-09-30T23:59:59Z"],
-            "sort": "createdAt",
             "fields": ["text"],
+        }
+        assert call.kwargs["params"] == {
+            "contactId": 51,
+            "sort": "createdAt",
             "offset": 10,
             "limit": 25,
         }
@@ -196,10 +206,11 @@ class TestListContactActivities:
         result = await jobadder.execute_action("list_contact_activities", {"contact_id": 51}, mock_context)
 
         assert result.result.data["activities"] == activities
-        assert mock_context.fetch.call_args.kwargs["params"] == {
+        call = mock_context.fetch.call_args
+        assert parse_qs(urlparse(call.args[0]).query) == {"fields": ["text"]}
+        assert call.kwargs["params"] == {
             "contactId": 51,
             "sort": "-createdAt",
-            "fields": ["text"],
             "offset": 0,
             "limit": 100,
         }
@@ -229,11 +240,14 @@ class TestListAllContactActivities:
         )
 
         assert result.result.data["activities"] == activities
-        assert mock_context.fetch.call_args.kwargs["params"] == {
-            "contactId": [51, 52],
+        call = mock_context.fetch.call_args
+        assert parse_qs(urlparse(call.args[0]).query) == {
+            "contactId": ["51", "52"],
             "createdAt": [">2026-09-01T00:00:00Z", "<2026-09-30T23:59:59Z"],
-            "sort": "-createdAt",
             "fields": ["text"],
+        }
+        assert call.kwargs["params"] == {
+            "sort": "-createdAt",
             "offset": 0,
             "limit": 500,
         }
@@ -252,8 +266,8 @@ class TestListAllContactActivities:
         }
         provider_notes = [contact_note, candidate_note]
 
-        async def fetch_filtered_notes(_url, *, params, **_kwargs):
-            requested_contact_ids = set(params["contactId"])
+        async def fetch_filtered_notes(url, *, params, **_kwargs):
+            requested_contact_ids = {int(value) for value in parse_qs(urlparse(url).query)["contactId"]}
             filtered_notes = [
                 note for note in provider_notes if requested_contact_ids.intersection(note.get("contactIds", []))
             ]

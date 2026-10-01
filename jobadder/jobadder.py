@@ -1,10 +1,16 @@
+import base64
+import binascii
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse
 
+import aiohttp
 from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, Integration
 
 
 jobadder = Integration.load()
+
+MAX_CANDIDATE_ATTACHMENT_BYTES = 5 * 1024 * 1024
+_DOWNLOAD_CHUNK_BYTES = 64 * 1024
 
 
 def get_api_base_url(context: ExecutionContext) -> str:
@@ -45,8 +51,32 @@ async def _fetch_list(
     key: str,
     params: dict[str, Any] | None = None,
 ) -> ActionResult:
-    response = await context.fetch(f"{get_api_base_url(context)}{path}", method="GET", params=params)
+    response = await _fetch_get(context, f"{get_api_base_url(context)}{path}", params)
     return _list_result(response.data, key)
+
+
+async def _fetch_get(
+    context: ExecutionContext,
+    url: str,
+    params: dict[str, Any] | None = None,
+):
+    """GET with OpenAPI form/explode encoding for array query parameters."""
+    scalar_params: dict[str, Any] = {}
+    array_params: dict[str, list[Any]] = {}
+    for key, value in (params or {}).items():
+        if isinstance(value, list):
+            if value:
+                array_params[key] = value
+        elif value is not None:
+            scalar_params[key] = value
+
+    if array_params:
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}{urlencode(array_params, doseq=True)}"
+
+    if scalar_params:
+        return await context.fetch(url, method="GET", params=scalar_params)
+    return await context.fetch(url, method="GET")
 
 
 def _boolean_query_value(value: bool | None) -> str | None:
@@ -88,6 +118,126 @@ def _note_search_params(
         }.items()
         if value is not None
     }
+
+
+def _record_note_params(
+    *,
+    types: list[str] | None = None,
+    references: list[str] | None = None,
+    created_at_from: str | None = None,
+    created_at_to: str | None = None,
+    updated_at_from: str | None = None,
+    updated_at_to: str | None = None,
+    sort: str = "-createdAt",
+    offset: int = 0,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """Build the common query supported by record-specific note endpoints."""
+    return {
+        key: value
+        for key, value in {
+            "type": types,
+            "reference": references,
+            "createdAt": _date_range(created_at_from, created_at_to),
+            "updatedAt": _date_range(updated_at_from, updated_at_to),
+            "sort": sort,
+            "fields": ["text"],
+            "offset": offset,
+            "limit": limit,
+        }.items()
+        if value is not None
+    }
+
+
+def _decode_file(file: dict[str, Any]) -> tuple[bytes, str, str]:
+    """Decode an Autohive file object and return bytes, filename, and MIME type."""
+    content = file.get("content")
+    if not isinstance(content, str) or not content:
+        raise ValueError("The uploaded file must include non-empty base64 content.")
+
+    max_encoded_chars = 4 * ((MAX_CANDIDATE_ATTACHMENT_BYTES + 2) // 3)
+    max_input_chars = max_encoded_chars + max_encoded_chars // 20
+    if len(content) > max_input_chars:
+        raise ValueError(
+            f"Candidate attachment exceeds the {MAX_CANDIDATE_ATTACHMENT_BYTES // (1024 * 1024)} MiB upload limit."
+        )
+
+    normalized_content = "".join(content.split())
+    if len(normalized_content) > max_encoded_chars:
+        raise ValueError(
+            f"Candidate attachment exceeds the {MAX_CANDIDATE_ATTACHMENT_BYTES // (1024 * 1024)} MiB upload limit."
+        )
+
+    try:
+        file_bytes = base64.b64decode(normalized_content, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise ValueError("The uploaded file content is not valid base64.") from exc
+
+    if not file_bytes:
+        raise ValueError("The uploaded file is empty.")
+    if len(file_bytes) > MAX_CANDIDATE_ATTACHMENT_BYTES:
+        raise ValueError(
+            f"Candidate attachment exceeds the {MAX_CANDIDATE_ATTACHMENT_BYTES // (1024 * 1024)} MiB upload limit."
+        )
+
+    file_name = file.get("name")
+    if not isinstance(file_name, str) or not file_name:
+        raise ValueError("The uploaded file must include a name.")
+
+    content_type = file.get("contentType") or "application/octet-stream"
+    return file_bytes, file_name, content_type
+
+
+def _access_token(context: ExecutionContext) -> str:
+    credentials = (context.auth or {}).get("credentials") or {}
+    token = credentials.get("access_token")
+    if not isinstance(token, str) or not token:
+        raise ValueError("JobAdder access token is missing. Please reconnect the account.")
+    return token
+
+
+async def _download_candidate_attachment(
+    context: ExecutionContext,
+    candidate_id: int,
+    attachment_id: int,
+    accept: str,
+) -> tuple[bytes, dict[str, str]]:
+    """Download binary content, which ExecutionContext.fetch does not preserve as bytes."""
+    url = f"{get_api_base_url(context)}/candidates/{candidate_id}/attachments/{attachment_id}"
+    headers = {"Authorization": f"Bearer {_access_token(context)}", "Accept": accept}
+    timeout = aiohttp.ClientTimeout(total=30)
+
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with session.get(url, headers=headers, ssl=True) as response:
+            if response.status < 200 or response.status >= 300:
+                raise RuntimeError(f"JobAdder attachment download failed with HTTP {response.status}.")
+
+            content_length = response.headers.get("Content-Length")
+            if content_length:
+                try:
+                    declared_size = int(content_length)
+                except ValueError:
+                    declared_size = None
+                if declared_size is not None and declared_size > MAX_CANDIDATE_ATTACHMENT_BYTES:
+                    raise ValueError(
+                        f"Candidate attachment exceeds the {MAX_CANDIDATE_ATTACHMENT_BYTES // (1024 * 1024)} MiB "
+                        "download limit."
+                    )
+
+            content = bytearray()
+            while True:
+                remaining = MAX_CANDIDATE_ATTACHMENT_BYTES + 1 - len(content)
+                chunk = await response.content.read(min(_DOWNLOAD_CHUNK_BYTES, remaining))
+                if not chunk:
+                    break
+                content.extend(chunk)
+                if len(content) > MAX_CANDIDATE_ATTACHMENT_BYTES:
+                    raise ValueError(
+                        f"Candidate attachment exceeds the {MAX_CANDIDATE_ATTACHMENT_BYTES // (1024 * 1024)} MiB "
+                        "download limit."
+                    )
+
+            return bytes(content), dict(response.headers)
 
 
 @jobadder.action("get_current_user")
@@ -219,7 +369,7 @@ class ListContactsAction(ActionHandler):
                 }
             )
 
-            response = await context.fetch(f"{get_api_base_url(context)}/contacts", method="GET", params=params)
+            response = await _fetch_get(context, f"{get_api_base_url(context)}/contacts", params)
             return _list_result(response.data, "contacts")
         except Exception as exc:
             return ActionError(message=str(exc))
@@ -239,10 +389,22 @@ class GetContactAction(ActionHandler):
 class ListContactNotesAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(
-                f"{get_api_base_url(context)}/contacts/{inputs['contact_id']}/notes", method="GET"
+            return await _fetch_list(
+                context,
+                f"/contacts/{inputs['contact_id']}/notes",
+                "notes",
+                _record_note_params(
+                    types=inputs.get("types"),
+                    references=inputs.get("references"),
+                    created_at_from=inputs.get("created_at_from"),
+                    created_at_to=inputs.get("created_at_to"),
+                    updated_at_from=inputs.get("updated_at_from"),
+                    updated_at_to=inputs.get("updated_at_to"),
+                    sort=inputs.get("sort", "-createdAt"),
+                    offset=inputs.get("offset", 0),
+                    limit=inputs.get("limit", 100),
+                ),
             )
-            return _list_result(response.data, "notes")
         except Exception as exc:
             return ActionError(message=str(exc))
 
@@ -262,7 +424,7 @@ class ListContactActivitiesAction(ActionHandler):
                 offset=inputs.get("offset", 0),
                 limit=inputs.get("limit", 100),
             )
-            response = await context.fetch(f"{get_api_base_url(context)}/notes", method="GET", params=params)
+            response = await _fetch_get(context, f"{get_api_base_url(context)}/notes", params)
             return _list_result(response.data, "activities")
         except Exception as exc:
             return ActionError(message=str(exc))
@@ -272,10 +434,10 @@ class ListContactActivitiesAction(ActionHandler):
 class ListAllContactActivitiesAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(
+            response = await _fetch_get(
+                context,
                 f"{get_api_base_url(context)}/notes",
-                method="GET",
-                params=_note_search_params(
+                _note_search_params(
                     contact_id=inputs["contact_ids"],
                     types=inputs.get("types"),
                     created_at_from=inputs["created_at_from"],
@@ -298,6 +460,56 @@ class GetNoteAction(ActionHandler):
         try:
             response = await context.fetch(f"{get_api_base_url(context)}/notes/{inputs['note_id']}", method="GET")
             return ActionResult(data={"note": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_candidate_note_types")
+class ListCandidateNoteTypesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = {"name": inputs["name"]} if inputs.get("name") else None
+            return await _fetch_list(context, "/candidates/lists/notetype", "note_types", params)
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_contact_note_types")
+class ListContactNoteTypesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = {"name": inputs["name"]} if inputs.get("name") else None
+            return await _fetch_list(context, "/contacts/lists/notetype", "note_types", params)
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_note_types")
+class ListJobNoteTypesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = {"name": inputs["name"]} if inputs.get("name") else None
+            return await _fetch_list(context, "/jobs/lists/notetype", "note_types", params)
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_placement_note_types")
+class ListPlacementNoteTypesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = {"name": inputs["name"]} if inputs.get("name") else None
+            return await _fetch_list(context, "/placements/lists/notetype", "note_types", params)
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_company_note_types")
+class ListCompanyNoteTypesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = {"name": inputs["name"]} if inputs.get("name") else None
+            return await _fetch_list(context, "/companies/lists/notetype", "note_types", params)
         except Exception as exc:
             return ActionError(message=str(exc))
 
@@ -400,12 +612,104 @@ class ListCandidateApprovedPlacementsAction(ActionHandler):
 class ListCandidateAttachmentsAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
+            params = {
+                key: value
+                for key, value in {
+                    "type": inputs.get("types"),
+                    "category": inputs.get("categories"),
+                    "latest": _boolean_query_value(inputs.get("latest")),
+                    "offset": inputs.get("offset", 0),
+                    "limit": inputs.get("limit", 100),
+                }.items()
+                if value is not None
+            }
             return await _fetch_list(
                 context,
                 f"/candidates/{inputs['candidate_id']}/attachments",
                 "attachments",
-                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+                params,
             )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_candidate_attachment_categories")
+class ListCandidateAttachmentCategoriesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = {"type": inputs["types"]} if inputs.get("types") else None
+            return await _fetch_list(context, "/candidates/lists/attachmentcategory", "categories", params)
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("download_candidate_attachment")
+class DownloadCandidateAttachmentAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            content, headers = await _download_candidate_attachment(
+                context,
+                inputs["candidate_id"],
+                inputs["attachment_id"],
+                inputs.get("accept", "application/octet-stream"),
+            )
+            content_type = headers.get("Content-Type") or headers.get("content-type") or "application/octet-stream"
+            file_name = inputs.get("file_name") or (
+                f"candidate-{inputs['candidate_id']}-attachment-{inputs['attachment_id']}"
+            )
+            return ActionResult(
+                data={
+                    "file": {
+                        "name": file_name,
+                        "contentType": content_type.split(";", 1)[0],
+                        "content": base64.b64encode(content).decode("ascii"),
+                    }
+                }
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("upload_candidate_attachment")
+class UploadCandidateAttachmentAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            file_bytes, file_name, content_type = _decode_file(inputs["file"])
+            form = aiohttp.FormData()
+            form.add_field("fileData", file_bytes, filename=file_name, content_type=content_type)
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/candidates/{inputs['candidate_id']}/attachments/{inputs['attachment_type']}",
+                method="POST",
+                data=form,
+            )
+            return ActionResult(data={"attachment": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("update_candidate_attachment")
+class UpdateCandidateAttachmentAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            body = {
+                key: value
+                for key, value in {
+                    "type": inputs.get("type"),
+                    "category": inputs.get("category"),
+                    "expiry": inputs.get("expiry"),
+                }.items()
+                if key in inputs
+            }
+            if not body:
+                return ActionError(message="Provide at least one of type, category, or expiry.")
+
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/candidates/{inputs['candidate_id']}/attachments/{inputs['attachment_id']}",
+                method="PUT",
+                headers={"Content-Type": "application/json"},
+                json=body,
+            )
+            return ActionResult(data={"attachment": response.data})
         except Exception as exc:
             return ActionError(message=str(exc))
 
@@ -439,7 +743,17 @@ class ListCandidateNotesAction(ActionHandler):
                 context,
                 f"/candidates/{inputs['candidate_id']}/notes",
                 "notes",
-                {"fields": ["text"], "offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+                _record_note_params(
+                    types=inputs.get("types"),
+                    references=inputs.get("references"),
+                    created_at_from=inputs.get("created_at_from"),
+                    created_at_to=inputs.get("created_at_to"),
+                    updated_at_from=inputs.get("updated_at_from"),
+                    updated_at_to=inputs.get("updated_at_to"),
+                    sort=inputs.get("sort", "-createdAt"),
+                    offset=inputs.get("offset", 0),
+                    limit=inputs.get("limit", 100),
+                ),
             )
         except Exception as exc:
             return ActionError(message=str(exc))
@@ -513,7 +827,17 @@ class ListJobNotesAction(ActionHandler):
                 context,
                 f"/jobs/{inputs['job_id']}/notes",
                 "notes",
-                {"fields": ["text"], "offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+                _record_note_params(
+                    types=inputs.get("types"),
+                    references=inputs.get("references"),
+                    created_at_from=inputs.get("created_at_from"),
+                    created_at_to=inputs.get("created_at_to"),
+                    updated_at_from=inputs.get("updated_at_from"),
+                    updated_at_to=inputs.get("updated_at_to"),
+                    sort=inputs.get("sort", "-createdAt"),
+                    offset=inputs.get("offset", 0),
+                    limit=inputs.get("limit", 100),
+                ),
             )
         except Exception as exc:
             return ActionError(message=str(exc))
@@ -587,7 +911,17 @@ class ListPlacementNotesAction(ActionHandler):
                 context,
                 f"/placements/{inputs['placement_id']}/notes",
                 "notes",
-                {"fields": ["text"], "offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+                _record_note_params(
+                    types=inputs.get("types"),
+                    references=inputs.get("references"),
+                    created_at_from=inputs.get("created_at_from"),
+                    created_at_to=inputs.get("created_at_to"),
+                    updated_at_from=inputs.get("updated_at_from"),
+                    updated_at_to=inputs.get("updated_at_to"),
+                    sort=inputs.get("sort", "-createdAt"),
+                    offset=inputs.get("offset", 0),
+                    limit=inputs.get("limit", 100),
+                ),
             )
         except Exception as exc:
             return ActionError(message=str(exc))
@@ -703,7 +1037,17 @@ class ListCompanyNotesAction(ActionHandler):
                 context,
                 f"/companies/{inputs['company_id']}/notes",
                 "notes",
-                {"fields": ["text"], "offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+                _record_note_params(
+                    types=inputs.get("types"),
+                    references=inputs.get("references"),
+                    created_at_from=inputs.get("created_at_from"),
+                    created_at_to=inputs.get("created_at_to"),
+                    updated_at_from=inputs.get("updated_at_from"),
+                    updated_at_to=inputs.get("updated_at_to"),
+                    sort=inputs.get("sort", "-createdAt"),
+                    offset=inputs.get("offset", 0),
+                    limit=inputs.get("limit", 100),
+                ),
             )
         except Exception as exc:
             return ActionError(message=str(exc))

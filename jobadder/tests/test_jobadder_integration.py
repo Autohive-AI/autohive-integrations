@@ -7,11 +7,13 @@ the corresponding JOBADDER_TEST_*_ID value.
 Run safely with:
     pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 
-The write actions are intentionally excluded because JobAdder has no delete
-endpoint for reliably cleaning up candidates or applications created by tests.
+The four write actions are intentionally excluded because JobAdder has no delete
+endpoint for reliably cleaning up candidates, applications, or candidate
+attachments created by tests, and attachment updates cannot be safely restored.
 """
 
 import asyncio
+import base64
 from unittest.mock import AsyncMock
 
 import pytest
@@ -124,6 +126,52 @@ class TestCandidates:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["candidate"]["candidateId"] == candidate_id
+
+    async def test_list_candidate_attachment_categories(self, live_context):
+        result = await jobadder.execute_action("list_candidate_attachment_categories", {}, live_context)
+        assert_list_result(result, "categories", max_items=None)
+
+    async def test_download_candidate_attachment(self, live_context, resource_ids):
+        candidate_id = require_integer_id(resource_ids["candidate"], "JOBADDER_TEST_CANDIDATE_ID")
+        list_result = await jobadder.execute_action(
+            "list_candidate_attachments", {"candidate_id": candidate_id, "limit": 1}, live_context
+        )
+        attachments = list_result.result.data["attachments"]
+        if not attachments:
+            pytest.skip("The configured candidate has no attachments")
+
+        attachment = attachments[0]
+        result = await jobadder.execute_action(
+            "download_candidate_attachment",
+            {
+                "candidate_id": candidate_id,
+                "attachment_id": attachment["attachmentId"],
+                "file_name": attachment.get("fileName") or "candidate-attachment",
+            },
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        file = result.result.data["file"]
+        assert file["name"]
+        assert file["contentType"]
+        assert base64.b64decode(file["content"], validate=True)
+
+
+NOTE_TYPE_ACTIONS = [
+    "list_candidate_note_types",
+    "list_contact_note_types",
+    "list_job_note_types",
+    "list_placement_note_types",
+    "list_company_note_types",
+]
+
+
+class TestNoteTypes:
+    @pytest.mark.parametrize("action", NOTE_TYPE_ACTIONS)
+    async def test_list_note_types(self, live_context, action):
+        result = await jobadder.execute_action(action, {}, live_context)
+        assert_list_result(result, "note_types", max_items=None)
 
 
 class TestContactsAndActivities:

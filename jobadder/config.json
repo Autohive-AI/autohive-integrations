@@ -1,7 +1,7 @@
 {
   "name": "JobAdder",
   "display_name": "JobAdder",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "JobAdder recruitment integration for jobs, candidates, contacts, companies, notes, applications, placements, and connected-user discovery.",
   "entry_point": "jobadder.py",
   "auth": {
@@ -191,11 +191,20 @@
     },
     "list_contact_notes": {
       "display_name": "List Contact Notes",
-      "description": "Lists notes attached to one contact, including note type, text preview, date, and the creating consultant.",
+      "description": "Lists full-text notes attached to one contact, including note type, dates, and the creating consultant.",
       "input_schema": {
         "type": "object",
         "properties": {
-          "contact_id": {"type": "integer", "description": "JobAdder contact ID"}
+          "contact_id": {"type": "integer", "description": "JobAdder contact ID"},
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note types to include"},
+          "references": {"type": "array", "items": {"type": "string"}, "description": "Note references to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
+          "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset"},
+          "limit": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 100, "description": "Maximum results to return; 0 returns only the count"}
         },
         "required": ["contact_id"]
       },
@@ -281,6 +290,76 @@
           "note": {"type": "object", "description": "Complete note details"}
         },
         "required": ["note"]
+      }
+    },
+    "list_candidate_note_types": {
+      "display_name": "List Candidate Note Types",
+      "description": "Lists the note types configured for candidate records.",
+      "input_schema": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional note-type name filter"}}, "required": []},
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note_types": {"type": "array", "items": {"type": "object"}, "description": "Configured candidate note types"},
+          "total_count": {"type": "integer", "description": "Number of note types returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["note_types", "total_count", "links"]
+      }
+    },
+    "list_contact_note_types": {
+      "display_name": "List Contact Note Types",
+      "description": "Lists the note types configured for contact records.",
+      "input_schema": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional note-type name filter"}}, "required": []},
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note_types": {"type": "array", "items": {"type": "object"}, "description": "Configured contact note types"},
+          "total_count": {"type": "integer", "description": "Number of note types returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["note_types", "total_count", "links"]
+      }
+    },
+    "list_job_note_types": {
+      "display_name": "List Job Note Types",
+      "description": "Lists the note types configured for job records.",
+      "input_schema": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional note-type name filter"}}, "required": []},
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note_types": {"type": "array", "items": {"type": "object"}, "description": "Configured job note types"},
+          "total_count": {"type": "integer", "description": "Number of note types returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["note_types", "total_count", "links"]
+      }
+    },
+    "list_placement_note_types": {
+      "display_name": "List Placement Note Types",
+      "description": "Lists the note types configured for placement records.",
+      "input_schema": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional note-type name filter"}}, "required": []},
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note_types": {"type": "array", "items": {"type": "object"}, "description": "Configured placement note types"},
+          "total_count": {"type": "integer", "description": "Number of note types returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["note_types", "total_count", "links"]
+      }
+    },
+    "list_company_note_types": {
+      "display_name": "List Company Note Types",
+      "description": "Lists the note types configured for company records.",
+      "input_schema": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional note-type name filter"}}, "required": []},
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note_types": {"type": "array", "items": {"type": "object"}, "description": "Configured company note types"},
+          "total_count": {"type": "integer", "description": "Number of note types returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["note_types", "total_count", "links"]
       }
     },
     "list_contact_jobs": {
@@ -539,13 +618,27 @@
     },
     "list_candidate_attachments": {
       "display_name": "List Candidate Attachments",
-      "description": "Lists attachments for a candidate.",
+      "description": "Lists candidate attachments with optional native type, tenant category, and latest-version filters.",
       "input_schema": {
         "type": "object",
         "properties": {
           "candidate_id": {
             "type": "integer",
             "description": "JobAdder candidate ID"
+          },
+          "types": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["Other", "Resume", "CoverLetter", "FormattedResume", "Screening", "Check", "Reference", "License"]},
+            "description": "Native JobAdder attachment types to include"
+          },
+          "categories": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Tenant-specific attachment categories to include"
+          },
+          "latest": {
+            "type": "boolean",
+            "description": "Return only the latest attachment for each type/category when true"
           },
           "offset": {
             "type": "integer",
@@ -589,6 +682,103 @@
           "total_count",
           "links"
         ]
+      }
+    },
+    "list_candidate_attachment_categories": {
+      "display_name": "List Candidate Attachment Categories",
+      "description": "Lists tenant-specific candidate attachment categories, optionally filtered by native attachment type.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "types": {"type": "array", "items": {"type": "string", "enum": ["Other", "Resume", "CoverLetter", "FormattedResume", "Screening", "Check", "Reference", "License"]}, "description": "Native attachment types whose categories should be returned"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "categories": {"type": "array", "items": {"type": "object"}, "description": "Configured candidate attachment categories"},
+          "total_count": {"type": "integer", "description": "Number of categories returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["categories", "total_count", "links"]
+      }
+    },
+    "download_candidate_attachment": {
+      "display_name": "Download Candidate Attachment",
+      "description": "Downloads one candidate attachment up to 5 MiB as an Autohive file object with base64 content.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "JobAdder candidate ID"},
+          "attachment_id": {"type": "integer", "description": "JobAdder candidate attachment ID"},
+          "file_name": {"type": "string", "description": "Filename to use in the returned file object; use the filename from list_candidate_attachments when available"},
+          "accept": {"type": "string", "default": "application/octet-stream", "description": "Requested MIME type; JobAdder may convert supported files"}
+        },
+        "required": ["candidate_id", "attachment_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "contentType": {"type": "string"},
+              "content": {"type": "string", "description": "Base64-encoded file content"}
+            },
+            "required": ["name", "contentType", "content"]
+          }
+        },
+        "required": ["file"]
+      }
+    },
+    "upload_candidate_attachment": {
+      "display_name": "Upload Candidate Attachment",
+      "description": "Uploads one file up to 5 MiB to a candidate using a native JobAdder attachment type.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "JobAdder candidate ID"},
+          "attachment_type": {"type": "string", "enum": ["Other", "Resume", "FormattedResume", "CoverLetter", "Screening", "Check", "Reference", "License"], "description": "Native JobAdder attachment type"},
+          "file": {
+            "type": "object",
+            "description": "Autohive file object",
+            "properties": {
+              "content": {"type": "string", "description": "Base64-encoded file content"},
+              "name": {"type": "string", "description": "Filename"},
+              "contentType": {"type": "string", "description": "MIME type"}
+            },
+            "required": ["content", "name", "contentType"]
+          }
+        },
+        "required": ["candidate_id", "attachment_type", "file"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"attachment": {"type": "object", "description": "Created candidate attachment"}},
+        "required": ["attachment"]
+      }
+    },
+    "update_candidate_attachment": {
+      "display_name": "Update Candidate Attachment",
+      "description": "Updates a candidate attachment's native type, tenant-specific category, or expiry date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "JobAdder candidate ID"},
+          "attachment_id": {"type": "integer", "description": "JobAdder candidate attachment ID"},
+          "type": {"type": "string", "enum": ["Other", "Resume", "CoverLetter", "FormattedResume", "Screening", "Check", "Reference", "License"], "description": "Replacement native attachment type"},
+          "category": {"type": ["string", "null"], "description": "Tenant-specific category; null clears it"},
+          "expiry": {"type": ["string", "null"], "format": "date", "description": "Document expiry date; null clears it"}
+        },
+        "required": ["candidate_id", "attachment_id"],
+        "anyOf": [{"required": ["type"]}, {"required": ["category"]}, {"required": ["expiry"]}]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"attachment": {"type": "object", "description": "Updated candidate attachment"}},
+        "required": ["attachment"]
       }
     },
     "list_candidate_skills": {
@@ -670,6 +860,13 @@
             "type": "integer",
             "description": "JobAdder candidate ID"
           },
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note types to include"},
+          "references": {"type": "array", "items": {"type": "string"}, "description": "Note references to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
           "offset": {
             "type": "integer",
             "minimum": 0,
@@ -968,6 +1165,13 @@
             "type": "integer",
             "description": "JobAdder job ID"
           },
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note types to include"},
+          "references": {"type": "array", "items": {"type": "string"}, "description": "Note references to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
           "offset": {
             "type": "integer",
             "minimum": 0,
@@ -1266,6 +1470,13 @@
             "type": "integer",
             "description": "JobAdder placement ID"
           },
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note types to include"},
+          "references": {"type": "array", "items": {"type": "string"}, "description": "Note references to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
           "offset": {
             "type": "integer",
             "minimum": 0,
@@ -1738,6 +1949,13 @@
             "type": "integer",
             "description": "JobAdder company ID"
           },
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note types to include"},
+          "references": {"type": "array", "items": {"type": "string"}, "description": "Note references to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
           "offset": {
             "type": "integer",
             "minimum": 0,

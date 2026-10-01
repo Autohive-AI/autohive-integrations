@@ -31,7 +31,8 @@ API access requires a JobAdder developer application and approval. See the [JobA
 - `get_job` — retrieve full details for one job.
 - `list_job_applications` and `list_job_active_applications` — list all or only active applications for a job.
 - `list_job_placements` and `list_job_approved_placements` — list all or only approved placements for a job.
-- `list_job_attachments`, `list_job_notes`, and `list_job_activities` — retrieve a job's related files, full-text notes, and activity records.
+- `list_job_attachments`, `list_job_notes`, and `list_job_activities` — retrieve a job's related files, full-text notes, and activity records. Note lists support type, reference, creation/update date, sorting, and pagination filters.
+- `list_job_note_types` — list the note types configured for job records.
 
 ### Candidates
 
@@ -40,7 +41,14 @@ API access requires a JobAdder developer application and approval. See the [JobA
 - `create_candidate` — create a candidate with optional identity, contact, status, source, skills, recruiter, employment, availability, education, address, social, and custom-field data. JobAdder does not require first and last names in its published request schema. A duplicate override code from a prior HTTP 409 response can be supplied when duplication is intentional.
 - `list_candidate_applications` and `list_candidate_active_applications` — list all or only active applications for a candidate.
 - `list_candidate_placements` and `list_candidate_approved_placements` — list all or only approved placements for a candidate.
-- `list_candidate_attachments`, `list_candidate_skills`, `get_candidate_availability`, and `list_candidate_notes` — retrieve supporting candidate records and full-text notes.
+- `list_candidate_attachments` — list candidate documents by native type, tenant category, latest-version flag, and pagination.
+- `list_candidate_attachment_categories` — discover tenant-specific document categories such as Cultivate Candidate Form or Work Rights.
+- `download_candidate_attachment` — download a candidate document up to 5 MiB as an Autohive file object containing its name, MIME type, and base64 content. An optional `accept` value asks JobAdder to convert supported documents.
+- `upload_candidate_attachment` — upload an Autohive file object up to 5 MiB using one of JobAdder's native types: `Other`, `Resume`, `FormattedResume`, `CoverLetter`, `Screening`, `Check`, `Reference`, or `License`.
+- `update_candidate_attachment` — assign or clear a document's native type, tenant category, or expiry date. To upload a custom-category document, upload it first and then update the returned attachment ID.
+- `list_candidate_skills` and `get_candidate_availability` — retrieve supporting candidate records.
+- `list_candidate_notes` — list full-text candidate notes with type, reference, creation/update date, sorting, and pagination filters.
+- `list_candidate_note_types` — list the note types configured for candidate records.
 
 ### Contacts and companies
 
@@ -52,11 +60,12 @@ API access requires a JobAdder developer application and approval. See the [JobA
 - `list_company_contacts` and `list_company_addresses` — retrieve a company's people and locations.
 - `list_company_jobs` and `list_company_active_jobs` — list all or only active jobs for a company.
 - `list_company_placements` and `list_company_approved_placements` — list all or only approved placements for a company.
-- `list_company_attachments` and `list_company_notes` — retrieve company files and full-text notes.
+- `list_company_attachments` and `list_company_notes` — retrieve company files and full-text notes. Company note lists support type, reference, creation/update date, sorting, and pagination filters.
+- `list_contact_note_types` and `list_company_note_types` — discover the note types configured for contact and company records.
 
 ### Contact notes and activities
 
-- `list_contact_notes` — return the notes attached to one contact. JobAdder returns note summaries here, including type, text preview, created date, and creating consultant.
+- `list_contact_notes` — return full-text notes attached to one contact, optionally filtered by type, reference, creation/update date, sorting, and pagination. Results include the note type, dates, and creating consultant.
 - `list_contact_activities` — search one contact's activities through JobAdder's global notes API, optionally filtering by activity type and creation/update date ranges. Full note text is requested, and results default to newest first.
 - `list_all_contact_activities` — search activities linked to up to 100 supplied contact IDs over a required creation date range. This reporting-oriented action supports type filters, pagination, and sorting.
 - `get_note` — retrieve one complete note/activity record, including full text and linked records.
@@ -74,7 +83,8 @@ The contact reporting actions treat contact-linked notes as CRM activity. `list_
 
 - `list_placements` — filter placements by candidate, job, company, status, approval state, and creation/update time.
 - `get_placement` — retrieve one placement.
-- `list_placement_attachments`, `list_placement_notes`, and `list_placement_activities` — retrieve a placement's related files, full-text notes, and activity records.
+- `list_placement_attachments`, `list_placement_notes`, and `list_placement_activities` — retrieve a placement's related files, full-text notes, and activity records. Placement note lists support type, reference, creation/update date, sorting, and pagination filters.
+- `list_placement_note_types` — list the note types configured for placement records.
 - `list_placement_timesheets` — list placement timesheets, optionally constrained to an inclusive date range.
 
 ## Pagination and date filters
@@ -111,11 +121,11 @@ Read-only live tests are opt-in and require the `JOBADDER_ACCESS_TOKEN` and `JOB
 pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 ```
 
-The two write actions are deliberately excluded from live tests. JobAdder does not expose matching delete operations for candidates or applications, so a test could not reliably clean up the records it creates.
+The four write actions are deliberately excluded from live tests. JobAdder does not expose matching delete operations for candidates, applications, or candidate attachments, and updating an existing attachment would mutate persistent customer data, so these tests could not reliably restore the account to its original state.
 
 ## Important limitations
 
 - API access is controlled by JobAdder and may require partner/developer approval.
 - Rate limits are applied per JobAdder account. The SDK handles ordinary request transport and errors, but workflows should avoid unnecessarily aggressive polling.
-- Related-record actions are read-only. The integration does not create or update contacts, companies, notes, activities, attachments, placements, or timesheets.
+- Candidate attachments can be uploaded and updated. Other related-record actions remain read-only; the integration does not create or update contacts, companies, notes, activities, non-candidate attachments, placements, or timesheets.
 - The integration does not manage job records, application statuses, requisitions, job ads, partner actions, or webhooks.

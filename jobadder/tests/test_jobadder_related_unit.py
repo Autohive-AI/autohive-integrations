@@ -1,6 +1,7 @@
 import pytest
 from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
+from urllib.parse import parse_qs, urlparse
 
 from jobadder.jobadder import jobadder
 
@@ -63,7 +64,7 @@ RELATED_ACTION_CASES = [
         {"candidate_id": 21, "offset": 5, "limit": 10},
         "/candidates/21/notes",
         "notes",
-        {"fields": ["text"], "offset": 5, "limit": 10},
+        {"sort": "-createdAt", "offset": 5, "limit": 10},
     ),
     (
         "list_job_applications",
@@ -99,7 +100,7 @@ RELATED_ACTION_CASES = [
         {"job_id": 11, "offset": 5, "limit": 10},
         "/jobs/11/notes",
         "notes",
-        {"fields": ["text"], "offset": 5, "limit": 10},
+        {"sort": "-createdAt", "offset": 5, "limit": 10},
     ),
     ("list_job_activities", {"job_id": 11}, "/jobs/11/activities", "activities", None),
     (
@@ -114,7 +115,7 @@ RELATED_ACTION_CASES = [
         {"application_id": 31, "offset": 5, "limit": 10},
         "/applications/31/notes",
         "notes",
-        {"fields": ["text"], "offset": 5, "limit": 10},
+        {"offset": 5, "limit": 10},
     ),
     (
         "list_application_activities",
@@ -135,7 +136,7 @@ RELATED_ACTION_CASES = [
         {"placement_id": 41, "offset": 5, "limit": 10},
         "/placements/41/notes",
         "notes",
-        {"fields": ["text"], "offset": 5, "limit": 10},
+        {"sort": "-createdAt", "offset": 5, "limit": 10},
     ),
     (
         "list_placement_timesheets",
@@ -187,7 +188,7 @@ RELATED_ACTION_CASES = [
         {"company_id": 51, "offset": 5, "limit": 10},
         "/companies/51/notes",
         "notes",
-        {"fields": ["text"], "offset": 5, "limit": 10},
+        {"sort": "-createdAt", "offset": 5, "limit": 10},
     ),
 ]
 
@@ -211,12 +212,24 @@ async def test_related_action_returns_data_and_maps_request(mock_context, action
         assert result.result.data["total_count"] == 1
 
     call = mock_context.fetch.call_args
-    assert call.args[0] == f"https://au-api.jobadder.com/v2{path}"
+    request_url = urlparse(call.args[0])
+    assert f"{request_url.scheme}://{request_url.netloc}{request_url.path}" == (f"https://au-api.jobadder.com/v2{path}")
+    expected_query = {"fields": ["text"]} if action.endswith("_notes") else {}
+    expected_scalar_params = {}
+    params_to_split = expected_params if isinstance(expected_params, dict) else {}
+    for param_name, param_value in params_to_split.items():
+        if isinstance(param_value, list):
+            expected_query[param_name] = [str(value) for value in param_value]
+        else:
+            expected_scalar_params[param_name] = param_value
+    assert parse_qs(request_url.query) == expected_query
     assert call.kwargs["method"] == "GET"
     if expected_params == "no_params":
         assert "params" not in call.kwargs
+    elif expected_scalar_params:
+        assert call.kwargs["params"] == expected_scalar_params
     else:
-        assert call.kwargs["params"] == expected_params
+        assert "params" not in call.kwargs
 
 
 @pytest.mark.parametrize("action,inputs,_path,_key,_expected_params", RELATED_ACTION_CASES)
