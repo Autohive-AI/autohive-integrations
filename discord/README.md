@@ -21,7 +21,7 @@ Authentication is handled by the Autohive platform using Discord's OAuth flow. I
 
 **Scopes:** `bot`
 
-The bot's own token is supplied to the runtime through the `DISCORD_BOT_TOKEN` environment variable and is never stored in this repository. All API calls authenticate with that bot token, so what an action may do is governed by the bot's permissions in the server, not by OAuth scopes. The bot needs these Discord permissions in any channel it is used against:
+The bot's own token is supplied to the runtime through the `DISCORD_BOT_TOKEN` environment variable and is never stored in this repository. In production this value is provisioned via AWS SSM, following the same platform-managed credential pattern as integrations such as NZBN and Teams. All API calls authenticate with that bot token, so what an action may do is governed by the bot's permissions in the server, not by OAuth scopes. The bot needs these Discord permissions in any channel it is used against:
 
 | Action | Required bot permission |
 | --- | --- |
@@ -146,4 +146,4 @@ Unit tests mock the Discord API and cover every action, the guild-authorization 
 pytest discord/ -v
 ```
 
-Live testing needs `DISCORD_BOT_TOKEN` set in your environment, plus a server the bot has been installed into.
+Live testing needs `DISCORD_BOT_TOKEN` set in your environment, plus a server the bot has been installed into. In deployed environments, `DISCORD_BOT_TOKEN` should be injected from AWS SSM rather than bundled in the package.
