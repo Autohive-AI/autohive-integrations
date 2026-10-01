@@ -1,7 +1,7 @@
 {
   "name": "discord",
   "display_name": "Discord",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "entry_point": "discord.py",
   "description": "Send messages, retrieve message history, and manage reactions.",
   "auth": {
