@@ -19,6 +19,10 @@ This repository hosts Autohive integrations made and maintained by the Autohive 
 
 [agno-agent](agno-agent): AI data agent that answers natural language questions about your data via an [Agno AgentOS](https://docs.agno.com/agent-os/api) agent, providing insights not just query results. Sends a query to a configured AgentOS agent — which discovers the database schema, writes and executes SQL, and interprets the results — and parses the streamed SSE response, with automatic retry on transient gateway errors. Includes 1 action. Supports custom authentication (base URL, optional bearer token, agent ID), so it works with any Agno AgentOS deployment.
 
+### Discord
+
+[discord](discord): Discord integration for reading and posting in server channels via the Discord REST API v10. Supports listing the channels of the connected server, reading channel message history with paging, sending messages either standalone or as threaded replies, and adding or removing reactions using Unicode or custom emoji. Every channel-scoped action verifies the target channel belongs to the authorized server before acting, so a workflow cannot reach into an unrelated guild. Acts as a bot: the user installs Autohive's Discord bot through platform OAuth (`bot` scope), and calls authenticate with the bot's own token, meaning capability is governed by the bot's channel permissions. Includes 5 actions: list_channels, get_message_history, send_message, add_reaction, and remove_reaction. Ideal for team notification automation, channel monitoring, and community engagement workflows.
+
 ### Notion
 
 [notion](notion): Enhanced integration with Notion API featuring comprehensive workspace management capabilities. Supports searching pages and databases, querying database entries with advanced filtering, creating and managing pages, updating page properties, retrieving and modifying block content, and managing database schemas. Includes robust error handling and pagination support for large datasets.
