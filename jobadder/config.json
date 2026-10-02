@@ -1,8 +1,8 @@
 {
   "name": "JobAdder",
   "display_name": "JobAdder",
-  "version": "1.0.0",
-  "description": "JobAdder recruitment integration for jobs, candidates, applications, placements, and connected-user discovery.",
+  "version": "1.1.0",
+  "description": "JobAdder recruitment integration for jobs, candidates, contacts, companies, notes, applications, placements, and connected-user discovery.",
   "entry_point": "jobadder.py",
   "auth": {
     "type": "platform",
@@ -13,6 +13,15 @@
       "read_job",
       "read_candidate",
       "write_candidate",
+      "read_contact",
+      "read_company",
+      "read_note",
+      "read_contact_note",
+      "read_candidate_note",
+      "read_job_note",
+      "read_jobapplication_note",
+      "read_placement_note",
+      "read_company_note",
       "read_jobapplication",
       "write_jobapplication",
       "read_placement"
@@ -129,6 +138,1866 @@
           "candidate": {"type": "object", "description": "Candidate profile"}
         },
         "required": ["candidate"]
+      }
+    },
+    "list_contacts": {
+      "display_name": "List Contacts",
+      "description": "Finds contacts by company, name, contact details, creator/consultant, status, hiring-manager flag, and audit dates.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {"type": "integer", "description": "Filter by JobAdder company ID"},
+          "company_name": {"type": "string", "description": "Filter by company name; ignored when company_id is supplied"},
+          "name": {"type": "string", "description": "Filter by contact name"},
+          "email": {"type": "string", "description": "Filter by contact email"},
+          "phone": {"type": "string", "description": "Filter by phone or mobile number"},
+          "created_by_user_id": {"type": "integer", "description": "Filter by the JobAdder user/consultant who created the contact"},
+          "status_id": {"type": "integer", "description": "Filter by contact status ID"},
+          "hiring_manager": {"type": "boolean", "description": "Filter by hiring-manager status"},
+          "created_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "updated_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset"},
+          "limit": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 100, "description": "Maximum results to return; 0 returns only the count"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contacts": {"type": "array", "items": {"type": "object"}, "description": "Matching contacts"},
+          "total_count": {"type": "integer", "description": "Total number of matching contacts"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["contacts", "total_count", "links"]
+      }
+    },
+    "get_contact": {
+      "display_name": "Get Contact",
+      "description": "Retrieves a contact by its JobAdder ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {"type": "integer", "description": "JobAdder contact ID"}
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contact": {"type": "object", "description": "Contact details"}
+        },
+        "required": ["contact"]
+      }
+    },
+    "list_contact_notes": {
+      "display_name": "List Contact Notes",
+      "description": "Lists full-text notes attached to one contact, including note type, dates, and the creating consultant.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {"type": "integer", "description": "JobAdder contact ID"},
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note types to include"},
+          "references": {"type": "array", "items": {"type": "string"}, "description": "Note references to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
+          "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset"},
+          "limit": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 100, "description": "Maximum results to return; 0 returns only the count"}
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "notes": {"type": "array", "items": {"type": "object"}, "description": "Contact notes"},
+          "total_count": {"type": "integer", "description": "Total number of notes"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["notes", "total_count", "links"]
+      }
+    },
+    "list_contact_activities": {
+      "display_name": "List Contact Activities",
+      "description": "Searches the JobAdder notes that form one contact's activity log, with full text, type, audit dates, consultant, and pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {"type": "integer", "description": "JobAdder contact ID"},
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note/activity types to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive activity creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive activity creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive activity update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive activity update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
+          "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset"},
+          "limit": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 100, "description": "Maximum results to return; 0 returns only the count"}
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "activities": {"type": "array", "items": {"type": "object"}, "description": "Matching contact activities/notes"},
+          "total_count": {"type": "integer", "description": "Total number of matching activities"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["activities", "total_count", "links"]
+      }
+    },
+    "list_all_contact_activities": {
+      "display_name": "List All Contact Activities",
+      "description": "Searches activities linked to a supplied set of JobAdder contacts over a required creation date range.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_ids": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"type": "integer"}, "description": "Contact IDs whose linked activities should be included"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive activity creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive activity creation range end"},
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note/activity types to include"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive activity update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive activity update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
+          "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset"},
+          "limit": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 100, "description": "Maximum results to return; 0 returns only the count"}
+        },
+        "required": ["contact_ids", "created_at_from", "created_at_to"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "activities": {"type": "array", "items": {"type": "object"}, "description": "Matching activities/notes linked to the supplied contacts"},
+          "total_count": {"type": "integer", "description": "Total number of matching activities"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["activities", "total_count", "links"]
+      }
+    },
+    "get_note": {
+      "display_name": "Get Note",
+      "description": "Retrieves a complete JobAdder note/activity record, including full text and linked records.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "note_id": {"type": "string", "format": "uuid", "description": "JobAdder note UUID"}
+        },
+        "required": ["note_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note": {"type": "object", "description": "Complete note details"}
+        },
+        "required": ["note"]
+      }
+    },
+    "list_candidate_note_types": {
+      "display_name": "List Candidate Note Types",
+      "description": "Lists the note types configured for candidate records.",
+      "input_schema": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional note-type name filter"}}, "required": []},
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note_types": {"type": "array", "items": {"type": "object"}, "description": "Configured candidate note types"},
+          "total_count": {"type": "integer", "description": "Number of note types returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["note_types", "total_count", "links"]
+      }
+    },
+    "list_contact_note_types": {
+      "display_name": "List Contact Note Types",
+      "description": "Lists the note types configured for contact records.",
+      "input_schema": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional note-type name filter"}}, "required": []},
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note_types": {"type": "array", "items": {"type": "object"}, "description": "Configured contact note types"},
+          "total_count": {"type": "integer", "description": "Number of note types returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["note_types", "total_count", "links"]
+      }
+    },
+    "list_job_note_types": {
+      "display_name": "List Job Note Types",
+      "description": "Lists the note types configured for job records.",
+      "input_schema": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional note-type name filter"}}, "required": []},
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note_types": {"type": "array", "items": {"type": "object"}, "description": "Configured job note types"},
+          "total_count": {"type": "integer", "description": "Number of note types returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["note_types", "total_count", "links"]
+      }
+    },
+    "list_placement_note_types": {
+      "display_name": "List Placement Note Types",
+      "description": "Lists the note types configured for placement records.",
+      "input_schema": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional note-type name filter"}}, "required": []},
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note_types": {"type": "array", "items": {"type": "object"}, "description": "Configured placement note types"},
+          "total_count": {"type": "integer", "description": "Number of note types returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["note_types", "total_count", "links"]
+      }
+    },
+    "list_company_note_types": {
+      "display_name": "List Company Note Types",
+      "description": "Lists the note types configured for company records.",
+      "input_schema": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional note-type name filter"}}, "required": []},
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "note_types": {"type": "array", "items": {"type": "object"}, "description": "Configured company note types"},
+          "total_count": {"type": "integer", "description": "Number of note types returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["note_types", "total_count", "links"]
+      }
+    },
+    "list_contact_jobs": {
+      "display_name": "List Contact Jobs",
+      "description": "Lists jobs associated with a contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {"type": "integer", "description": "JobAdder contact ID"}
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "jobs": {"type": "array", "items": {"type": "object"}, "description": "Jobs associated with the contact"},
+          "total_count": {"type": "integer", "description": "Total number of associated jobs"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["jobs", "total_count", "links"]
+      }
+    },
+    "list_companies": {
+      "display_name": "List Companies",
+      "description": "Finds companies by name, status, creator/consultant, audit dates, and pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "Filter by company name"},
+          "status_id": {"type": "integer", "description": "Filter by company status ID"},
+          "created_by_user_id": {"type": "integer", "description": "Filter by the JobAdder user/consultant who created the company"},
+          "created_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "updated_at": {"type": "string", "description": "ISO 8601 timestamp; prefix with > or < for an inclusive boundary"},
+          "offset": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset"},
+          "limit": {"type": "integer", "minimum": 0, "maximum": 1000, "default": 100, "description": "Maximum results to return; 0 returns only the count"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "companies": {"type": "array", "items": {"type": "object"}, "description": "Matching companies"},
+          "total_count": {"type": "integer", "description": "Total number of matching companies"},
+          "links": {"type": "object", "description": "Pagination links returned by JobAdder"}
+        },
+        "required": ["companies", "total_count", "links"]
+      }
+    },
+    "get_company": {
+      "display_name": "Get Company",
+      "description": "Retrieves a company by its JobAdder ID.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {"type": "integer", "description": "JobAdder company ID"}
+        },
+        "required": ["company_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "company": {"type": "object", "description": "Company details"}
+        },
+        "required": ["company"]
+      }
+    },
+    "list_candidate_applications": {
+      "display_name": "List Candidate Applications",
+      "description": "Lists all applications for a candidate.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {
+            "type": "integer",
+            "description": "JobAdder candidate ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "candidate_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "applications": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Candidate applications"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of candidate applications returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "applications",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_candidate_active_applications": {
+      "display_name": "List Candidate Active Applications",
+      "description": "Lists active applications for a candidate.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {
+            "type": "integer",
+            "description": "JobAdder candidate ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "candidate_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "applications": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Active candidate applications"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of active candidate applications returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "applications",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_candidate_placements": {
+      "display_name": "List Candidate Placements",
+      "description": "Lists placements for a candidate.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {
+            "type": "integer",
+            "description": "JobAdder candidate ID"
+          }
+        },
+        "required": [
+          "candidate_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "placements": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Candidate placements"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of candidate placements returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "placements",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_candidate_approved_placements": {
+      "display_name": "List Candidate Approved Placements",
+      "description": "Lists approved placements for a candidate.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {
+            "type": "integer",
+            "description": "JobAdder candidate ID"
+          }
+        },
+        "required": [
+          "candidate_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "placements": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Approved candidate placements"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of approved candidate placements returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "placements",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_candidate_attachments": {
+      "display_name": "List Candidate Attachments",
+      "description": "Lists candidate attachments with optional native type, tenant category, and latest-version filters.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {
+            "type": "integer",
+            "description": "JobAdder candidate ID"
+          },
+          "types": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["Other", "Resume", "CoverLetter", "FormattedResume", "Screening", "Check", "Reference", "License"]},
+            "description": "Native JobAdder attachment types to include"
+          },
+          "categories": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Tenant-specific attachment categories to include"
+          },
+          "latest": {
+            "type": "boolean",
+            "description": "Return only the latest attachment for each type/category when true"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "candidate_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Candidate attachments"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of candidate attachments returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "attachments",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_candidate_attachment_categories": {
+      "display_name": "List Candidate Attachment Categories",
+      "description": "Lists tenant-specific candidate attachment categories, optionally filtered by native attachment type.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "types": {"type": "array", "items": {"type": "string", "enum": ["Other", "Resume", "CoverLetter", "FormattedResume", "Screening", "Check", "Reference", "License"]}, "description": "Native attachment types whose categories should be returned"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "categories": {"type": "array", "items": {"type": "object"}, "description": "Configured candidate attachment categories"},
+          "total_count": {"type": "integer", "description": "Number of categories returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["categories", "total_count", "links"]
+      }
+    },
+    "download_candidate_attachment": {
+      "display_name": "Download Candidate Attachment",
+      "description": "Downloads one candidate attachment up to 5 MiB as an Autohive file object with base64 content.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "JobAdder candidate ID"},
+          "attachment_id": {"type": "integer", "description": "JobAdder candidate attachment ID"},
+          "file_name": {"type": "string", "description": "Filename to use in the returned file object; use the filename from list_candidate_attachments when available"},
+          "accept": {"type": "string", "default": "application/octet-stream", "description": "Requested MIME type; JobAdder may convert supported files"}
+        },
+        "required": ["candidate_id", "attachment_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "contentType": {"type": "string"},
+              "content": {"type": "string", "description": "Base64-encoded file content"}
+            },
+            "required": ["name", "contentType", "content"]
+          }
+        },
+        "required": ["file"]
+      }
+    },
+    "upload_candidate_attachment": {
+      "display_name": "Upload Candidate Attachment",
+      "description": "Uploads one file up to 5 MiB to a candidate using a native JobAdder attachment type.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "JobAdder candidate ID"},
+          "attachment_type": {"type": "string", "enum": ["Other", "Resume", "FormattedResume", "CoverLetter", "Screening", "Check", "Reference", "License"], "description": "Native JobAdder attachment type"},
+          "file": {
+            "type": "object",
+            "description": "Autohive file object",
+            "properties": {
+              "content": {"type": "string", "description": "Base64-encoded file content"},
+              "name": {"type": "string", "description": "Filename"},
+              "contentType": {"type": "string", "description": "MIME type"}
+            },
+            "required": ["content", "name", "contentType"]
+          }
+        },
+        "required": ["candidate_id", "attachment_type", "file"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"attachment": {"type": "object", "description": "Created candidate attachment"}},
+        "required": ["attachment"]
+      }
+    },
+    "update_candidate_attachment": {
+      "display_name": "Update Candidate Attachment",
+      "description": "Updates a candidate attachment's native type, tenant-specific category, or expiry date.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "JobAdder candidate ID"},
+          "attachment_id": {"type": "integer", "description": "JobAdder candidate attachment ID"},
+          "type": {"type": "string", "enum": ["Other", "Resume", "CoverLetter", "FormattedResume", "Screening", "Check", "Reference", "License"], "description": "Replacement native attachment type"},
+          "category": {"type": ["string", "null"], "description": "Tenant-specific category; null clears it"},
+          "expiry": {"type": ["string", "null"], "format": "date", "description": "Document expiry date; null clears it"}
+        },
+        "required": ["candidate_id", "attachment_id"],
+        "anyOf": [{"required": ["type"]}, {"required": ["category"]}, {"required": ["expiry"]}]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"attachment": {"type": "object", "description": "Updated candidate attachment"}},
+        "required": ["attachment"]
+      }
+    },
+    "list_candidate_skills": {
+      "display_name": "List Candidate Skills",
+      "description": "Lists skill categories assigned to a candidate.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {
+            "type": "integer",
+            "description": "JobAdder candidate ID"
+          }
+        },
+        "required": [
+          "candidate_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Candidate skill categories"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of candidate skill categories returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "skills",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "get_candidate_availability": {
+      "display_name": "Get Candidate Availability",
+      "description": "Retrieves a candidate's availability details.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {
+            "type": "integer",
+            "description": "JobAdder candidate ID"
+          }
+        },
+        "required": [
+          "candidate_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "availability": {
+            "type": "object",
+            "description": "Candidate availability details"
+          }
+        },
+        "required": [
+          "availability"
+        ]
+      }
+    },
+    "list_candidate_notes": {
+      "display_name": "List Candidate Notes",
+      "description": "Lists candidate notes with full text.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {
+            "type": "integer",
+            "description": "JobAdder candidate ID"
+          },
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note types to include"},
+          "references": {"type": "array", "items": {"type": "string"}, "description": "Note references to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "candidate_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Candidate notes"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of candidate notes returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "notes",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_job_applications": {
+      "display_name": "List Job Applications",
+      "description": "Lists applications associated with a job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "applications": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Job applications"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of job applications returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "applications",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_job_active_applications": {
+      "display_name": "List Job Active Applications",
+      "description": "Lists active applications associated with a job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "applications": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Active job applications"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of active job applications returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "applications",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_job_placements": {
+      "display_name": "List Job Placements",
+      "description": "Lists placements associated with a job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "placements": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Job placements"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of job placements returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "placements",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_job_approved_placements": {
+      "display_name": "List Job Approved Placements",
+      "description": "Lists approved placements associated with a job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "placements": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Approved job placements"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of approved job placements returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "placements",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_job_attachments": {
+      "display_name": "List Job Attachments",
+      "description": "Lists attachments for a job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Job attachments"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of job attachments returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "attachments",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_job_notes": {
+      "display_name": "List Job Notes",
+      "description": "Lists job notes with full text.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note types to include"},
+          "references": {"type": "array", "items": {"type": "string"}, "description": "Note references to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Job notes"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of job notes returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "notes",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_job_activities": {
+      "display_name": "List Job Activities",
+      "description": "Lists the activity records associated with a job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "activities": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Job activities"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of job activities returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "activities",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_application_attachments": {
+      "display_name": "List Application Attachments",
+      "description": "Lists attachments for a job application.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "application_id": {
+            "type": "integer",
+            "description": "JobAdder application ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "application_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Application attachments"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of application attachments returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "attachments",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_application_notes": {
+      "display_name": "List Application Notes",
+      "description": "Lists job-application notes with full text.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "application_id": {
+            "type": "integer",
+            "description": "JobAdder application ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "application_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Application notes"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of application notes returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "notes",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_application_activities": {
+      "display_name": "List Application Activities",
+      "description": "Lists activity records for a job application.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "application_id": {
+            "type": "integer",
+            "description": "JobAdder application ID"
+          }
+        },
+        "required": [
+          "application_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "activities": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Application activities"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of application activities returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "activities",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_placement_attachments": {
+      "display_name": "List Placement Attachments",
+      "description": "Lists attachments for a placement.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "placement_id": {
+            "type": "integer",
+            "description": "JobAdder placement ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "placement_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Placement attachments"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of placement attachments returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "attachments",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_placement_notes": {
+      "display_name": "List Placement Notes",
+      "description": "Lists placement notes with full text.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "placement_id": {
+            "type": "integer",
+            "description": "JobAdder placement ID"
+          },
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note types to include"},
+          "references": {"type": "array", "items": {"type": "string"}, "description": "Note references to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "placement_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Placement notes"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of placement notes returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "notes",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_placement_timesheets": {
+      "display_name": "List Placement Timesheets",
+      "description": "Lists timesheets for a placement, optionally constrained to a date range.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "placement_id": {
+            "type": "integer",
+            "description": "JobAdder placement ID"
+          },
+          "period_from": {
+            "type": "string",
+            "format": "date",
+            "description": "Inclusive timesheet period start"
+          },
+          "period_to": {
+            "type": "string",
+            "format": "date",
+            "description": "Inclusive timesheet period end"
+          }
+        },
+        "required": [
+          "placement_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "timesheets": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Placement timesheets"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of timesheets returned"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "timesheets",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_placement_activities": {
+      "display_name": "List Placement Activities",
+      "description": "Lists activity records for a placement.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "placement_id": {
+            "type": "integer",
+            "description": "JobAdder placement ID"
+          }
+        },
+        "required": [
+          "placement_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "activities": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Placement activities"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of placement activities returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "activities",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_company_contacts": {
+      "display_name": "List Company Contacts",
+      "description": "Lists contacts associated with a company.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "integer",
+            "description": "JobAdder company ID"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Company contacts"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of company contacts returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "contacts",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_company_addresses": {
+      "display_name": "List Company Addresses",
+      "description": "Lists addresses associated with a company.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "integer",
+            "description": "JobAdder company ID"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "addresses": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Company addresses"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of company addresses returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "addresses",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_company_jobs": {
+      "display_name": "List Company Jobs",
+      "description": "Lists jobs associated with a company.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "integer",
+            "description": "JobAdder company ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Company jobs"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of company jobs returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "jobs",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_company_active_jobs": {
+      "display_name": "List Company Active Jobs",
+      "description": "Lists active jobs associated with a company.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "integer",
+            "description": "JobAdder company ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Active company jobs"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of active company jobs returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "jobs",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_company_placements": {
+      "display_name": "List Company Placements",
+      "description": "Lists placements associated with a company.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "integer",
+            "description": "JobAdder company ID"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "placements": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Company placements"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of company placements returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "placements",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_company_approved_placements": {
+      "display_name": "List Company Approved Placements",
+      "description": "Lists approved placements associated with a company.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "integer",
+            "description": "JobAdder company ID"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "placements": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Approved company placements"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of approved company placements returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "placements",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_company_attachments": {
+      "display_name": "List Company Attachments",
+      "description": "Lists attachments for a company.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "integer",
+            "description": "JobAdder company ID"
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Company attachments"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of company attachments returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "attachments",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_company_notes": {
+      "display_name": "List Company Notes",
+      "description": "Lists company notes with full text.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "company_id": {
+            "type": "integer",
+            "description": "JobAdder company ID"
+          },
+          "types": {"type": "array", "items": {"type": "string"}, "description": "Note types to include"},
+          "references": {"type": "array", "items": {"type": "string"}, "description": "Note references to include"},
+          "created_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note creation range start"},
+          "created_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note creation range end"},
+          "updated_at_from": {"type": "string", "format": "date-time", "description": "Inclusive note update range start"},
+          "updated_at_to": {"type": "string", "format": "date-time", "description": "Inclusive note update range end"},
+          "sort": {"type": "string", "default": "-createdAt", "description": "Sort by type, createdAt, or updatedAt; prefix with - for descending"},
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Zero-based result offset"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000,
+            "default": 100,
+            "description": "Maximum results to return; 0 returns only the count"
+          }
+        },
+        "required": [
+          "company_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Company notes"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Number of company notes returned or reported"
+          },
+          "links": {
+            "type": "object",
+            "description": "Links returned by JobAdder"
+          }
+        },
+        "required": [
+          "notes",
+          "total_count",
+          "links"
+        ]
       }
     },
     "create_candidate": {

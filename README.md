@@ -386,7 +386,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### JobAdder
 
-[jobadder](jobadder): Recruitment management integration for JobAdder's v2 API. Supports connected-user discovery, job search and retrieval, candidate search and creation, application search and candidate submission to jobs, and placement reporting. Features OAuth 2.0 platform authentication with least-privilege scopes, tenant-specific API URL handling, pagination, date and status filters, and duplicate-candidate override support. Includes 11 actions spanning the core recruitment lifecycle from open role to placement.
+[jobadder](jobadder): Recruitment management integration for JobAdder's v2 API. Supports connected-user discovery; search and retrieval across jobs, candidates, contacts, companies, applications, and placements; candidate creation and submission to jobs; and related records including notes, activities, attachments, skills, availability, addresses, and timesheets. Includes full-text note filtering and note-type discovery, plus candidate attachment category discovery, download, upload, and metadata updates. Features OAuth 2.0 platform authentication with least-privilege scopes, tenant-specific API URL validation, pagination, date and status filters, duplicate-candidate override support, and bounded 5 MiB attachment transfers. Includes 59 actions spanning recruitment, CRM reporting, document management, and placement workflows.
 
 ### Companies Register
 
