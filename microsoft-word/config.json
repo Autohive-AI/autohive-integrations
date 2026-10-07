@@ -1,7 +1,7 @@
 {
   "name": "Microsoft Word",
   "display_name": "Microsoft Word",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "entry_point": "microsoft_word.py",
   "description": "Read, create, and manipulate Word documents (.docx) stored in OneDrive for Business, SharePoint, or Group drives via Microsoft Graph API.",
   "auth": {

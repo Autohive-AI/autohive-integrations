@@ -1,7 +1,7 @@
 {
     "name": "Microsoft PowerPoint",
     "display_name": "Microsoft PowerPoint",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Microsoft PowerPoint integration for reading, creating, and manipulating presentations in OneDrive/SharePoint via Microsoft Graph API",
     "entry_point": "microsoft_powerpoint.py",
     "auth": {

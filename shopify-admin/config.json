@@ -1,7 +1,7 @@
 {
     "name": "Shopify Admin",
     "display_name": "Shopify Admin API",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Shopify Admin API integration for store management - customers, orders, products, inventory, locations, fulfillments, and draft orders",
     "entry_point": "shopify_admin.py",
     "auth": {
