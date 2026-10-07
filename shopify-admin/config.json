@@ -331,7 +331,7 @@
                     "tags": {"type": "string", "description": "Comma-separated tags", "label": "Tags"},
                     "status": {"type": "string", "description": "Status", "label": "Status", "enum": ["active", "archived", "draft"], "default": "draft"},
                     "variants": {"type": "array", "items": {"type": "object", "additionalProperties": true}, "description": "Product variants with price, compare_at_price, sku, barcode, weight, weight_unit, and option_values", "label": "Variants"},
-                    "options": {"type": "array", "items": {"type": "object", "additionalProperties": true}, "description": "Product options (e.g., Size, Color)", "label": "Options"}
+                    "options": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": true}]}, "description": "Product option names or objects (e.g., Size, Color)", "label": "Options"}
                 },
                 "required": ["title"]
             },

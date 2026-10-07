@@ -135,8 +135,8 @@ Create a new post in Ghost.
 | `html` | string | No | Post body as HTML (automatically sets `?source=html` on the API request) |
 | `lexical` | string | No | Post body in Lexical JSON format |
 | `status` | string | No | `draft` or `published` (default: `draft`) |
-| `tags` | array | No | Tag objects, e.g. `[{"name": "news"}]` |
-| `authors` | array | No | Author objects, e.g. `[{"email": "author@example.com"}]` |
+| `tags` | array | No | Tag names or objects, e.g. `["news"]` or `[{"name": "news"}]` |
+| `authors` | array | No | Author emails or objects, e.g. `["author@example.com"]` or `[{"email": "author@example.com"}]` |
 | `feature_image` | string | No | URL of the feature image |
 | `excerpt` | string | No | Post excerpt |
 

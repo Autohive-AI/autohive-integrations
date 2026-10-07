@@ -320,28 +320,42 @@
                     "tags": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {
+                            "oneOf": [
+                                {
                                     "type": "string"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
                                 }
-                            },
-                            "additionalProperties": true
+                            ]
                         },
-                        "description": "List of tag objects, e.g. [{\"name\": \"news\"}]"
+                        "description": "List of tag names or objects, e.g. [\"news\"] or [{\"name\": \"news\"}]"
                     },
                     "authors": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "email": {
+                            "oneOf": [
+                                {
                                     "type": "string"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "email": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
                                 }
-                            },
-                            "additionalProperties": true
+                            ]
                         },
-                        "description": "List of author objects, e.g. [{\"email\": \"author@example.com\"}]"
+                        "description": "List of author emails or objects, e.g. [\"author@example.com\"] or [{\"email\": \"author@example.com\"}]"
                     },
                     "feature_image": {
                         "type": "string",
@@ -398,25 +412,39 @@
                     "tags": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {
+                            "oneOf": [
+                                {
                                     "type": "string"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
                                 }
-                            },
-                            "additionalProperties": true
+                            ]
                         }
                     },
                     "authors": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "properties": {
-                                "email": {
+                            "oneOf": [
+                                {
                                     "type": "string"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "email": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "additionalProperties": true
                                 }
-                            },
-                            "additionalProperties": true
+                            ]
                         }
                     },
                     "feature_image": {
