@@ -21,6 +21,7 @@ Key features:
 - List per-send-as default signatures via `list_send_as_signatures`
 - Archive and mark as read/unread in batch
 - Pagination via `nextPageToken` on all list endpoints
+- Token-conscious reads: list actions return 25 emails per page by default, and `read_email` converts HTML-only bodies to text and caps the body at 20,000 characters (see [Result size limits](#result-size-limits))
 
 ## Setup & Authentication
 
@@ -43,9 +44,9 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | Action | Description |
 |---|---|
 | `send_email` | Send a new email (text or HTML) with optional CC/BCC and attachments |
-| `read_email` | Retrieve a single message by ID, including body, headers, and attachments |
-| `read_inbox` | List inbox messages, filtered by read/unread, with pagination |
-| `read_all_mail` | List messages across the entire mailbox with read/unread filtering and pagination |
+| `read_email` | Retrieve a single message by ID, including body (plain text, capped at 20,000 characters), headers, and attachments |
+| `read_inbox` | List inbox messages, filtered by read/unread, with pagination (25 per page by default) |
+| `read_all_mail` | List messages across the entire mailbox with read/unread filtering and pagination (25 per page by default) |
 | `mark_emails_as_read` | Mark one or more messages as read |
 | `mark_emails_as_unread` | Mark one or more messages as unread |
 | `archive_emails` | Remove messages from the inbox (archive) |
@@ -77,7 +78,7 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | `create_label` | Create a new user label |
 | `add_labels_to_emails` | Apply one or more labels to one or more messages |
 | `remove_labels_from_emails` | Remove one or more labels from one or more messages |
-| `list_emails_by_label` | List messages with a given label, paginated |
+| `list_emails_by_label` | List messages with a given label, paginated (25 per page by default) |
 
 ### Settings
 
@@ -86,6 +87,23 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | `list_send_as_signatures` | List the user's send-as addresses (primary + aliases) with the signature bound to each as the new-mail default. The Gmail API does not expose the user's full saved-signatures library — only the per-send-as default. |
 
 See [`config.json`](config.json) for the full input/output schema of every action.
+
+## Result size limits
+
+Every action result is read by the calling agent, so the size of a result is a token cost. Two limits keep the
+message-reading actions small:
+
+- **Page size.** `read_inbox`, `read_all_mail` and `list_emails_by_label` take an optional `maxResults` input. It
+  defaults to 25 (`DEFAULT_LIST_MAX_RESULTS`) rather than Gmail's default page of up to 100, and is clamped to 1–100.
+  When more emails match, the response includes a `nextPageToken`; pass it back as `pageToken` for the next page.
+  Narrowing with `scope`, `after` / `before` or `q` is cheaper than paging through everything.
+- **Body size.** `read_email` returns the message's `text/plain` part. When there is none, the HTML part is converted
+  to text with `html2text` (images dropped, links kept). The body is then capped at 20,000 characters
+  (`MAX_READ_EMAIL_BODY_CHARS`); a longer body is cut and ends with `[Body truncated: N more characters]`. Attachments
+  in `files` are not affected.
+
+The list actions fetch each message with `format=metadata`, requesting only the `Subject`, `From`, `To`, `Cc` and
+`Date` headers, since they only return headers and the snippet.
 
 ## HTML Email Notes
 
@@ -181,7 +199,8 @@ Pinned in [`requirements.txt`](requirements.txt):
 ```json
 {
   "user_id": "me",
-  "scope": "unread"
+  "scope": "unread",
+  "maxResults": 25
 }
 ```
 
@@ -191,6 +210,7 @@ Then on the next call, pass the `nextPageToken` from the previous response:
 {
   "user_id": "me",
   "scope": "unread",
+  "maxResults": 25,
   "pageToken": "0987654321"
 }
 ```

@@ -20,6 +20,7 @@ from gmail.gmail import (
     build_date_clause,
     append_signature,
     compose_messages_query,
+    MAX_READ_EMAIL_BODY_CHARS,
 )
 
 pytestmark = pytest.mark.unit
@@ -740,6 +741,47 @@ def _sample_message(msg_id="m1", thread_id="t1", subject="Hello", body="Body tex
     }
 
 
+def _b64(text):
+    return base64.urlsafe_b64encode(text.encode()).decode()
+
+
+def _html_only_message(html):
+    """A multipart/alternative message whose only body part is text/html."""
+    message = _sample_message()
+    message["payload"] = {
+        "headers": message["payload"]["headers"],
+        "mimeType": "multipart/alternative",
+        "body": {"size": 0},
+        "parts": [{"mimeType": "text/html", "body": {"data": _b64(html)}}],
+    }
+    return message
+
+
+def _metadata_get_calls(service):
+    """messages.get calls made with arguments (excludes the bare chain setup calls)."""
+    return [c for c in service.users().messages().get.call_args_list if c.kwargs]
+
+
+def _assert_metadata_gets(service, expected_ids):
+    calls = _metadata_get_calls(service)
+    assert [c.kwargs["id"] for c in calls] == expected_ids
+    for c in calls:
+        assert c.kwargs["format"] == "metadata"
+        assert c.kwargs["metadataHeaders"] == ["Subject", "From", "To", "Cc", "Date"]
+
+
+EXPECTED_PARSED_SAMPLE = {
+    "id": "m1",
+    "thread_id": "t1",
+    "subject": "Hello",
+    "from": "sender@example.com",
+    "to": "me@example.com",
+    "cc": [],
+    "date": "Mon, 1 Jan 2024 10:00:00 +0000",
+    "snippet": "snippet",
+}
+
+
 class TestReadEmail:
     @pytest.mark.asyncio
     async def test_returns_email_object(self, mock_context):
@@ -761,6 +803,88 @@ class TestReadEmail:
             service.users().messages().get().execute.side_effect = Exception("not found")
             result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": "missing"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_html_only_body_is_converted_to_text(self, mock_context):
+        html = (
+            "<html><body><h1>Big news</h1>"
+            "<p>Hello <b>there</b>, <a href='https://example.com'>read more</a>.</p>"
+            "<img src='https://t.example.com/p.gif'></body></html>"
+        )
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().get().execute.return_value = _html_only_message(html)
+            result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": "m1"}, mock_context)
+        body = result.result.data["email"]["body"]
+        assert "Big news" in body
+        assert "Hello **there**" in body
+        assert "https://example.com" in body
+        assert "<" not in body and ">" not in body
+        assert "p.gif" not in body
+
+    @pytest.mark.asyncio
+    async def test_plain_text_part_preferred_over_html(self, mock_context):
+        message = _sample_message()
+        message["payload"] = {
+            "headers": message["payload"]["headers"],
+            "mimeType": "multipart/alternative",
+            "body": {"size": 0},
+            "parts": [
+                {"mimeType": "text/html", "body": {"data": _b64("<p>html version</p>")}},
+                {"mimeType": "text/plain", "body": {"data": _b64("plain version")}},
+            ],
+        }
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().get().execute.return_value = message
+            result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": "m1"}, mock_context)
+        assert result.result.data["email"]["body"] == "plain version"
+
+    @pytest.mark.asyncio
+    async def test_long_body_truncated_with_marker(self, mock_context):
+        body = "a" * (MAX_READ_EMAIL_BODY_CHARS + 1234)
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().get().execute.return_value = _sample_message(body=body)
+            result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": "m1"}, mock_context)
+        returned = result.result.data["email"]["body"]
+        assert returned == "a" * MAX_READ_EMAIL_BODY_CHARS + "\n\n[Body truncated: 1234 more characters]"
+
+    @pytest.mark.asyncio
+    async def test_long_html_body_truncated_after_conversion(self, mock_context):
+        html = "<p>" + "word " * (MAX_READ_EMAIL_BODY_CHARS // 2) + "</p>"
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().get().execute.return_value = _html_only_message(html)
+            result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": "m1"}, mock_context)
+        returned = result.result.data["email"]["body"]
+        head, marker = returned.split("\n\n[Body truncated: ")
+        assert len(head) == MAX_READ_EMAIL_BODY_CHARS
+        assert "<p>" not in head
+        assert marker.endswith(" more characters]")
+
+    @pytest.mark.asyncio
+    async def test_body_at_cap_is_not_truncated(self, mock_context):
+        body = "a" * MAX_READ_EMAIL_BODY_CHARS
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().get().execute.return_value = _sample_message(body=body)
+            result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": "m1"}, mock_context)
+        assert result.result.data["email"]["body"] == body
+
+    @pytest.mark.asyncio
+    async def test_short_body_has_no_marker(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().get().execute.return_value = _sample_message(body="Short body")
+            result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": "m1"}, mock_context)
+        assert result.result.data["email"]["body"] == "Short body"
 
 
 class TestReadInbox:
@@ -890,6 +1014,52 @@ class TestReadInbox:
         assert result.type == ResultType.ACTION_ERROR
         assert "after" in result.result.message.lower()
 
+    @pytest.mark.asyncio
+    async def test_default_max_results_is_25(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action("read_inbox", {"user_id": "me", "scope": "all"}, mock_context)
+        assert service.users().messages().list.call_args.kwargs["maxResults"] == 25
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("requested, sent", [(10, 10), (100, 100), (0, 1), (-5, 1), (500, 100)])
+    async def test_max_results_passed_through_and_clamped(self, mock_context, requested, sent):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "read_inbox", {"user_id": "me", "scope": "all", "maxResults": requested}, mock_context
+            )
+        assert service.users().messages().list.call_args.kwargs["maxResults"] == sent
+
+    @pytest.mark.asyncio
+    async def test_page_token_passed_with_max_results(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": [], "nextPageToken": "next"}
+            result = await gmail.execute_action(
+                "read_inbox", {"user_id": "me", "scope": "all", "pageToken": "tok", "maxResults": 5}, mock_context
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["pageToken"] == "tok"
+        assert call.kwargs["maxResults"] == 5
+        assert result.result.data["nextPageToken"] == "next"
+
+    @pytest.mark.asyncio
+    async def test_fetches_metadata_only_and_output_unchanged(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": [{"id": "m1"}]}
+            service.users().messages().get().execute.return_value = _sample_message()
+            result = await gmail.execute_action("read_inbox", {"user_id": "me", "scope": "all"}, mock_context)
+        _assert_metadata_gets(service, ["m1"])
+        assert result.result.data["emails"] == [EXPECTED_PARSED_SAMPLE]
+
 
 class TestReadAllMail:
     @pytest.mark.asyncio
@@ -992,6 +1162,54 @@ class TestReadAllMail:
             )
         assert result.type == ResultType.ACTION_ERROR
         assert "before" in result.result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_default_max_results_is_25(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action("read_all_mail", {"user_id": "me", "scope": "all"}, mock_context)
+        assert service.users().messages().list.call_args.kwargs["maxResults"] == 25
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("requested, sent", [(10, 10), (100, 100), (0, 1), (-5, 1), (500, 100)])
+    async def test_max_results_passed_through_and_clamped(self, mock_context, requested, sent):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "read_all_mail", {"user_id": "me", "scope": "all", "maxResults": requested}, mock_context
+            )
+        assert service.users().messages().list.call_args.kwargs["maxResults"] == sent
+
+    @pytest.mark.asyncio
+    async def test_page_token_passed_with_max_results(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": [], "nextPageToken": "next"}
+            result = await gmail.execute_action(
+                "read_all_mail",
+                {"user_id": "me", "scope": "all", "pageToken": "tok", "maxResults": 5},
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["pageToken"] == "tok"
+        assert call.kwargs["maxResults"] == 5
+        assert result.result.data["nextPageToken"] == "next"
+
+    @pytest.mark.asyncio
+    async def test_fetches_metadata_only_and_output_unchanged(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": [{"id": "m1"}]}
+            service.users().messages().get().execute.return_value = _sample_message()
+            result = await gmail.execute_action("read_all_mail", {"user_id": "me", "scope": "all"}, mock_context)
+        _assert_metadata_gets(service, ["m1"])
+        assert result.result.data["emails"] == [EXPECTED_PARSED_SAMPLE]
 
 
 # ============================================================
@@ -1346,6 +1564,60 @@ class TestListEmailsByLabel:
             )
         assert result.type == ResultType.ACTION_ERROR
         assert "after" in result.result.message.lower()
+
+    @pytest.mark.asyncio
+    async def test_default_max_results_is_25(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "list_emails_by_label", {"user_id": "me", "label_names": ["MyLabel"]}, mock_context
+            )
+        assert service.users().messages().list.call_args.kwargs["maxResults"] == 25
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("requested, sent", [(10, 10), (100, 100), (0, 1), (-5, 1), (500, 100)])
+    async def test_max_results_passed_through_and_clamped(self, mock_context, requested, sent):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": []}
+            await gmail.execute_action(
+                "list_emails_by_label",
+                {"user_id": "me", "label_names": ["MyLabel"], "maxResults": requested},
+                mock_context,
+            )
+        assert service.users().messages().list.call_args.kwargs["maxResults"] == sent
+
+    @pytest.mark.asyncio
+    async def test_page_token_passed_with_max_results(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": [], "nextPageToken": "next"}
+            result = await gmail.execute_action(
+                "list_emails_by_label",
+                {"user_id": "me", "label_names": ["MyLabel"], "pageToken": "tok", "maxResults": 5},
+                mock_context,
+            )
+        call = service.users().messages().list.call_args
+        assert call.kwargs["pageToken"] == "tok"
+        assert call.kwargs["maxResults"] == 5
+        assert result.result.data["nextPageToken"] == "next"
+
+    @pytest.mark.asyncio
+    async def test_fetches_metadata_only_and_output_unchanged(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": [{"id": "m1"}]}
+            service.users().messages().get().execute.return_value = _sample_message()
+            result = await gmail.execute_action(
+                "list_emails_by_label", {"user_id": "me", "label_names": ["MyLabel"]}, mock_context
+            )
+        _assert_metadata_gets(service, ["m1"])
+        assert result.result.data["emails"] == [EXPECTED_PARSED_SAMPLE]
 
 
 # ============================================================

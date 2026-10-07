@@ -1,7 +1,7 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -167,6 +167,44 @@ class EmailCSSSanitizer(CSSSanitizer):
             kept.append(declaration.strip())
 
         return "; ".join(kept) + ";" if kept else ""
+
+
+# Every list call's result lands in the calling agent's context, so page size
+# is a token cost. Gmail's own default page is up to 100 messages, so the list
+# actions default to a smaller page and cap any requested size.
+DEFAULT_LIST_MAX_RESULTS = 25
+MAX_LIST_MAX_RESULTS = 100
+
+# The list actions only return headers and the snippet, so fetching each message
+# as ``metadata`` (instead of the full MIME tree) saves latency and API quota.
+LIST_METADATA_HEADERS = ["Subject", "From", "To", "Cc", "Date"]
+
+# Upper bound on the ``body`` returned by read_email. HTML-only newsletters can
+# run to hundreds of KB, all of which would otherwise go into the agent context.
+MAX_READ_EMAIL_BODY_CHARS = 20000
+
+
+def resolve_max_results(inputs: Dict[str, Any]) -> int:
+    """Return the ``maxResults`` for a messages.list call: the caller's value
+    clamped to 1..MAX_LIST_MAX_RESULTS, or DEFAULT_LIST_MAX_RESULTS when omitted."""
+    max_results = inputs.get("maxResults")
+    if max_results is None:
+        return DEFAULT_LIST_MAX_RESULTS
+    return max(1, min(MAX_LIST_MAX_RESULTS, int(max_results)))
+
+
+def fetch_message_metadata(service, user_id: str, message_id: str) -> Dict[str, Any]:
+    """Fetch one message with only the headers the list actions return.
+
+    A ``metadata`` response still carries ``id``, ``threadId``, ``snippet`` and
+    ``payload.headers``, which is everything ``parse_message_with_snippet`` reads.
+    """
+    return (
+        service.users()
+        .messages()
+        .get(userId=user_id, id=message_id, format="metadata", metadataHeaders=LIST_METADATA_HEADERS)
+        .execute()
+    )
 
 
 def build_date_clause(after: str = "", before: str = "") -> str:
@@ -517,8 +555,11 @@ class GmailMessageParser:
             return ""
 
     @staticmethod
-    def extract_plain_text(payload: Dict[str, Any], depth: int = 0, max_depth: int = 5) -> str:
-        """Extract plain text content from message payload.
+    def find_body(payload: Dict[str, Any], depth: int = 0, max_depth: int = 5) -> Tuple[str, str]:
+        """Find the message body, preferring a text/plain part.
+
+        Returns ``(text, mime_type)``. When there is no text/plain part this is
+        the first part that has data, which for HTML-only mail is raw HTML.
 
         Args:
             payload: The message payload to extract text from
@@ -527,30 +568,50 @@ class GmailMessageParser:
         """
         # Prevent excessive recursion
         if depth > max_depth:
-            return "[Email content too deeply nested to extract]"
+            return "[Email content too deeply nested to extract]", "text/plain"
 
         # Case 1: Body data directly in the payload (simple emails)
         if "body" in payload and "data" in payload["body"]:
-            return GmailMessageParser.decode_body(payload["body"]["data"])
+            return GmailMessageParser.decode_body(payload["body"]["data"]), payload.get("mimeType", "")
 
-        # Case 2: Simple email with mimeType text/plain
-        if payload.get("mimeType") == "text/plain" and "body" in payload and "data" in payload["body"]:
-            return GmailMessageParser.decode_body(payload["body"]["data"])
-
-        # Case 3: Handle multipart messages recursively
+        # Case 2: Handle multipart messages recursively
         if "parts" in payload:
             # First, try to find a text/plain part
             for part in payload["parts"]:
                 if part.get("mimeType") == "text/plain" and "body" in part and "data" in part["body"]:
-                    return GmailMessageParser.decode_body(part["body"]["data"])
+                    return GmailMessageParser.decode_body(part["body"]["data"]), "text/plain"
 
             # If no text/plain, try to find content recursively in each part
             for part in payload["parts"]:
-                text = GmailMessageParser.extract_plain_text(part, depth + 1, max_depth)
+                text, mime_type = GmailMessageParser.find_body(part, depth + 1, max_depth)
                 if text:
-                    return text
+                    return text, mime_type
 
-        return ""
+        return "", ""
+
+    @staticmethod
+    def extract_plain_text(payload: Dict[str, Any], depth: int = 0, max_depth: int = 5) -> str:
+        """Extract the message body text as found (HTML is not converted)."""
+        return GmailMessageParser.find_body(payload, depth, max_depth)[0]
+
+    @staticmethod
+    def extract_readable_body(payload: Dict[str, Any], max_chars: int = MAX_READ_EMAIL_BODY_CHARS) -> str:
+        """Extract the body as plain text, converting HTML, capped at ``max_chars``.
+
+        A truncation marker is appended when the body is cut, so the reader
+        knows it did not get the whole message.
+        """
+        text, mime_type = GmailMessageParser.find_body(payload)
+        if mime_type == "text/html":
+            h = html2text.HTML2Text()
+            h.body_width = 0  # No line wrapping
+            h.ignore_images = True  # Image markup (often tracking pixels) is noise to a reader
+            text = h.handle(text).strip()
+
+        if len(text) > max_chars:
+            remaining = len(text) - max_chars
+            text = f"{text[:max_chars]}\n\n[Body truncated: {remaining} more characters]"
+        return text
 
     @staticmethod
     def get_header_value(headers: list, name: str) -> str:
@@ -659,7 +720,7 @@ class GmailMessageParser:
             "to": GmailMessageParser.get_header_value(headers, "To"),
             "cc": GmailMessageParser.parse_email_list(cc_header),
             "date": GmailMessageParser.get_header_value(headers, "Date"),
-            "body": GmailMessageParser.extract_plain_text(raw_message["payload"]),
+            "body": GmailMessageParser.extract_readable_body(raw_message["payload"]),
         }
 
 
@@ -841,7 +902,7 @@ class ReadInbox(ActionHandler):
 
             query = compose_messages_query(scope_clause, inputs)
 
-            request_params = {"userId": user_id, "q": query}
+            request_params = {"userId": user_id, "q": query, "maxResults": resolve_max_results(inputs)}
             page_token = inputs.get("pageToken")
             if page_token is not None:
                 request_params["pageToken"] = page_token
@@ -853,8 +914,7 @@ class ReadInbox(ActionHandler):
             inbox_emails = []
             for message in messages.get("messages", []):
                 # Get individual message details
-                message_request = service.users().messages().get(userId=user_id, id=message["id"])
-                email_with_id = message_request.execute()
+                email_with_id = fetch_message_metadata(service, user_id, message["id"])
 
                 inbox_emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
 
@@ -891,7 +951,11 @@ class ReadAllMail(ActionHandler):
 
             query = compose_messages_query(scope_clause, inputs)
 
-            request_params = {"userId": user_id, "includeSpamTrash": include_spam_trash}
+            request_params = {
+                "userId": user_id,
+                "includeSpamTrash": include_spam_trash,
+                "maxResults": resolve_max_results(inputs),
+            }
             if query:
                 request_params["q"] = query
             page_token = inputs.get("pageToken")
@@ -905,8 +969,7 @@ class ReadAllMail(ActionHandler):
             all_emails = []
             for message in messages.get("messages", []):
                 # Get individual message details
-                message_request = service.users().messages().get(userId=user_id, id=message["id"])
-                email_with_id = message_request.execute()
+                email_with_id = fetch_message_metadata(service, user_id, message["id"])
 
                 all_emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
 
@@ -981,14 +1044,11 @@ class ListEmailsByLabel(ActionHandler):
             query = compose_messages_query(label_query, inputs)
 
             # Build request parameters
-            request_params = {"userId": user_id, "q": query}
+            request_params = {"userId": user_id, "q": query, "maxResults": resolve_max_results(inputs)}
 
             page_token = inputs.get("pageToken")
             if page_token is not None:
                 request_params["pageToken"] = page_token
-            max_results = inputs.get("maxResults")
-            if max_results is not None:
-                request_params["maxResults"] = max_results
 
             # Get list of messages
             request = service.users().messages().list(**request_params)
@@ -997,8 +1057,7 @@ class ListEmailsByLabel(ActionHandler):
             emails = []
             for message in messages.get("messages", []):
                 # Get individual message details
-                message_request = service.users().messages().get(userId=user_id, id=message["id"])
-                email_with_id = message_request.execute()
+                email_with_id = fetch_message_metadata(service, user_id, message["id"])
 
                 # Trust the Gmail API query - no additional filtering needed
                 emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
