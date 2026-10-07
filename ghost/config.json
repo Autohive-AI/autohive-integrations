@@ -1,7 +1,7 @@
 {
     "name": "ghost",
     "display_name": "Ghost",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Ghost CMS integration for reading and managing posts, pages, members, and newsletters",
     "entry_point": "ghost.py",
     "auth": {
@@ -202,7 +202,16 @@
                 "type": "object",
                 "properties": {
                     "tags": {
-                        "type": "array"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": true
+                        }
                     },
                     "meta": {
                         "type": "object"
@@ -232,7 +241,16 @@
                 "type": "object",
                 "properties": {
                     "authors": {
-                        "type": "array"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "email": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": true
+                        }
                     },
                     "meta": {
                         "type": "object"
@@ -301,10 +319,28 @@
                     },
                     "tags": {
                         "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": true
+                        },
                         "description": "List of tag objects, e.g. [{\"name\": \"news\"}]"
                     },
                     "authors": {
                         "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "email": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": true
+                        },
                         "description": "List of author objects, e.g. [{\"email\": \"author@example.com\"}]"
                     },
                     "feature_image": {
@@ -360,10 +396,28 @@
                         "type": "string"
                     },
                     "tags": {
-                        "type": "array"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": true
+                        }
                     },
                     "authors": {
-                        "type": "array"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "email": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": true
+                        }
                     },
                     "feature_image": {
                         "type": "string"
@@ -475,10 +529,23 @@
                     },
                     "labels": {
                         "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": true
+                        },
                         "description": "List of label objects, e.g. [{\"name\": \"vip\"}]"
                     },
                     "newsletters": {
                         "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
                         "description": "List of newsletter objects to subscribe to"
                     },
                     "note": {
@@ -519,10 +586,23 @@
                         "type": "string"
                     },
                     "labels": {
-                        "type": "array"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                }
+                            },
+                            "additionalProperties": true
+                        }
                     },
                     "newsletters": {
-                        "type": "array"
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     },
                     "note": {
                         "type": "string"
