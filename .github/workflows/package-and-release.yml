@@ -95,6 +95,7 @@ jobs:
               exit 1
             fi
             release_kind="incremental"
+            release_baseline_kind="incremental"
             hiveup release-changes \
               --repository-root . \
               --config .github/autohive-release.json \
@@ -102,9 +103,10 @@ jobs:
           else
             previous_commit_sha="$(git rev-parse "$GITHUB_SHA^")"
             release_kind="snapshot"
+            release_baseline_kind="snapshot"
             normalized_selection="$(printf '%s' "$MANUAL_SELECTION" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
             if [[ "$normalized_selection" == "all" ]]; then
-              release_kind="bootstrap"
+              release_baseline_kind="bootstrap"
             fi
             hiveup release-plan \
               --repository-root . \
@@ -123,6 +125,7 @@ jobs:
           echo "release_selection=$release_selection" >> "$GITHUB_OUTPUT"
           echo "previous_commit_sha=$previous_commit_sha" >> "$GITHUB_OUTPUT"
           echo "release_kind=$release_kind" >> "$GITHUB_OUTPUT"
+          echo "release_baseline_kind=$release_baseline_kind" >> "$GITHUB_OUTPUT"
           cat "$RUNNER_TEMP/integration-paths.txt"
 
       - name: Package integrations
@@ -143,6 +146,7 @@ jobs:
           RELEASE_SELECTION: ${{ steps.selection.outputs.release_selection }}
           PREVIOUS_COMMIT_SHA: ${{ steps.selection.outputs.previous_commit_sha }}
           RELEASE_KIND: ${{ steps.selection.outputs.release_kind }}
+          RELEASE_BASELINE_KIND: ${{ steps.selection.outputs.release_baseline_kind }}
         run: |
           set -euo pipefail
           hiveup release-manifest \
@@ -164,6 +168,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_KIND: ${{ steps.selection.outputs.release_kind }}
+          RELEASE_BASELINE_KIND: ${{ steps.selection.outputs.release_baseline_kind }}
           RELEASE_AUTHOR: ${{ github.event.head_commit.author.name || github.actor }}
         run: |
           set -euo pipefail
@@ -195,7 +200,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "$release_title" \
-            --notes "Integration ${RELEASE_KIND} packages built from ${GITHUB_SHA}. Autohive Admin reviews bindings and deploys these ZIPs; publication uses the existing integration publishing flow."
+            --notes "Integration ${RELEASE_BASELINE_KIND:-$RELEASE_KIND} packages built from ${GITHUB_SHA}. Autohive Admin reviews bindings and deploys these ZIPs; publication uses the existing integration publishing flow."
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "### Published [$tag]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$tag)" >> "$GITHUB_STEP_SUMMARY"
 

@@ -145,7 +145,9 @@ class PackageReleasePipelineTests(unittest.TestCase):
         self.environment.update(EVENT_NAME="workflow_dispatch", MANUAL_SELECTION="all", GH_RELEASES_EXIT="1")
         result = self.run_selection()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("release_kind=bootstrap", (self.root / "outputs").read_text())
+        outputs = (self.root / "outputs").read_text()
+        self.assertIn("release_kind=snapshot", outputs)
+        self.assertIn("release_baseline_kind=bootstrap", outputs)
 
     def test_no_version_bumps_creates_no_release(self):
         self.git("commit", "--allow-empty", "-q", "-m", "no version bumps")
