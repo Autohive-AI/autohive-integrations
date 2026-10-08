@@ -1,7 +1,7 @@
 {
     "name": "Gmail",
     "display_name": "Gmail",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "description": "Send, read, and manage emails with labels and threads.",
     "entry_point": "gmail.py",
     "auth": {
@@ -233,7 +233,7 @@
         },
         "read_email": {
             "display_name": "Read Email",
-            "description": "Read an email",
+            "description": "Read an email by ID, including its body, headers and attachments. HTML-only emails are converted to Markdown-formatted text (links kept, images dropped). The body is capped at 20,000 characters; a longer body is cut and ends with '[Body truncated: N more characters]'.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -292,7 +292,7 @@
                             },
                             "body": {
                                 "type": "string",
-                                "description": "Body contents of the email"
+                                "description": "Body contents of the email: the text/plain part, or for HTML-only emails the HTML converted to Markdown-formatted text. Capped at 20,000 characters; a truncated body ends with '[Body truncated: N more characters]'."
                             }
                         },
                         "required": [
@@ -437,7 +437,7 @@
         },
         "read_inbox": {
             "display_name": "Read Inbox",
-            "description": "List emails in the user's inbox, filtered by read status. Results are paginated - use the nextPageToken from a previous response to retrieve the next page.",
+            "description": "List emails in the user's inbox, filtered by read status. Returns up to 25 emails per page by default (set maxResults, 1-100, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with scope, after/before or q rather than paging through the whole inbox.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -457,6 +457,10 @@
                     "pageToken": {
                         "type": "string",
                         "description": "An optional parameter: The page token to get the next page of results. Use the nextPageToken from a previous response."
+                    },
+                    "maxResults": {
+                        "type": "integer",
+                        "description": "Optional: maximum number of emails to return in this page, 1-100. Defaults to 25 when omitted. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with scope, after/before or q over raising this or paging through everything."
                     },
                     "after": {
                         "type": "string",
@@ -545,7 +549,7 @@
         },
         "read_all_mail": {
             "display_name": "Read All Mail",
-            "description": "List all emails across the entire mailbox regardless of labels, filtered by read status. Results are paginated - use the nextPageToken from a previous response to retrieve the next page.",
+            "description": "List all emails across the entire mailbox regardless of labels, filtered by read status. Returns up to 25 emails per page by default (set maxResults, 1-100, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with scope, after/before or q rather than paging through the whole mailbox.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -565,6 +569,10 @@
                     "pageToken": {
                         "type": "string",
                         "description": "An optional parameter: The page token to get the next page of results. Use the nextPageToken from a previous response."
+                    },
+                    "maxResults": {
+                        "type": "integer",
+                        "description": "Optional: maximum number of emails to return in this page, 1-100. Defaults to 25 when omitted. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with scope, after/before or q over raising this or paging through everything."
                     },
                     "include_spam_trash": {
                         "type": "boolean",
@@ -723,7 +731,7 @@
         },
         "list_emails_by_label": {
             "display_name": "List Emails by Label",
-            "description": "List emails that have specific Gmail labels (folders). By default, only returns emails in the inbox (excludes archived emails) unless include_archived is true or INBOX label is explicitly specified. Supports pagination and can filter by multiple labels. Uses label names (not IDs) for filtering.",
+            "description": "List emails that have specific Gmail labels (folders). By default, only returns emails in the inbox (excludes archived emails) unless include_archived is true or INBOX label is explicitly specified. Can filter by multiple labels. Uses label names (not IDs) for filtering. Returns up to 25 emails per page by default (set maxResults, 1-100, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with label_names, after/before or q rather than paging through every labelled email.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -753,7 +761,7 @@
                     },
                     "maxResults": {
                         "type": "integer",
-                        "description": "Maximum number of emails to return (default is Gmail API default)"
+                        "description": "Optional: maximum number of emails to return in this page, 1-100. Defaults to 25 when omitted. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with label_names, after/before or q over raising this or paging through everything."
                     },
                     "include_archived": {
                         "type": "boolean",
