@@ -1,7 +1,7 @@
 {
   "name": "Supabase",
   "display_name": "Supabase",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Integration with Supabase for database operations, storage, and authentication management",
   "entry_point": "supabase.py",
   "auth": {
@@ -86,6 +86,10 @@
           },
           "records": {
             "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
             "description": "Array of record objects to insert"
           },
           "return_records": {
@@ -288,6 +292,9 @@
           },
           "allowed_mime_types": {
             "type": "array",
+            "items": {
+              "type": "string"
+            },
             "description": "Array of allowed MIME types (optional)"
           }
         },
@@ -383,6 +390,9 @@
           },
           "paths": {
             "type": "array",
+            "items": {
+              "type": "string"
+            },
             "description": "Array of file paths to delete"
           }
         },

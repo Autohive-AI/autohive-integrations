@@ -1,7 +1,7 @@
 {
     "name": "YouTube",
     "display_name": "YouTube",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Complete YouTube Data API v3 integration for managing videos, channels, playlists, comments, and more.",
     "entry_point": "youtube.py",
     "auth": {
@@ -258,6 +258,10 @@
                     },
                     "files": {
                         "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
                         "description": "Array of chat-uploaded file objects (will use first file if multiple provided)"
                     }
                 },

@@ -1,7 +1,7 @@
 {
     "name": "Stripe",
     "display_name": "Stripe",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "description": "Stripe integration for managing customers, invoices, products, prices, subscriptions, payment methods and invoice items via the Stripe API",
     "entry_point": "stripe.py",
     "supports_billing": true,
@@ -1362,6 +1362,10 @@
                     },
                     "tiers": {
                         "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
                         "description": "Pricing tiers for tiered billing"
                     },
                     "tiers_mode": {

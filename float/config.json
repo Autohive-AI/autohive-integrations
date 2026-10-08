@@ -1,6 +1,6 @@
 {
   "name": "Float",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Comprehensive Float API integration for resource management, project scheduling, time tracking, and team management. Supports people, projects, tasks/allocations, time off, logged time, clients, departments, and roles.",
   "entry_point": "float.py",
   "supports_billing": false,
@@ -806,6 +806,9 @@
           },
           "project_team": {
             "type": "array",
+            "items": {
+              "type": "integer"
+            },
             "description": "Project team members"
           },
           "status": {
