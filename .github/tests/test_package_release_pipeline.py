@@ -59,7 +59,7 @@ class PackageReleasePipelineTests(unittest.TestCase):
             GITHUB_REF_NAME="master",
             GITHUB_REPOSITORY="example/integrations",
             GH_HISTORY="",
-            GH_RELEASES=f"integration-packages-1-1\t{self.base}",
+            GH_RELEASES=f"integration-packages-1-1\t{self.base}\tIntegration incremental packages built from {self.base}.",
             RUNNER_TEMP=str(self.root),
             GITHUB_OUTPUT=str(self.root / "outputs"),
         )
@@ -106,12 +106,33 @@ class PackageReleasePipelineTests(unittest.TestCase):
     def test_truncated_workflow_history_does_not_drop_unreleased_bumps(self):
         self.environment.update(
             GH_HISTORY=f"{self.before}\tsuccess",
-            GH_RELEASES=f"integration-packages-1-1\t{self.base}",
+            GH_RELEASES=f"integration-packages-1-1\t{self.base}\tIntegration incremental packages built from {self.base}.",
         )
         result = self.run_selection()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["first", "second"])
         self.assertIn(f"previous_commit_sha={self.base}", (self.root / "outputs").read_text())
+
+    def test_partial_snapshot_does_not_advance_incremental_baseline(self):
+        self.environment.update(
+            GH_RELEASES="\n".join(
+                [
+                    f"integration-packages-2-1\t{self.before}\tIntegration snapshot packages built from {self.before}.",
+                    f"integration-packages-1-1\t{self.base}\tIntegration incremental packages built from {self.base}.",
+                ]
+            )
+        )
+        result = self.run_selection()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["first", "second"])
+        self.assertIn(f"previous_commit_sha={self.base}", (self.root / "outputs").read_text())
+
+    def test_push_without_bootstrap_or_incremental_release_fails(self):
+        self.environment["GH_RELEASES"] = ""
+        result = self.run_selection()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("No prior integration bootstrap or incremental release was found", result.stderr)
+        self.assertFalse((self.root / "integration-paths.txt").exists())
 
     def test_manual_selection_creates_snapshot_without_reading_push_history(self):
         self.environment.update(EVENT_NAME="workflow_dispatch", MANUAL_SELECTION="second", GH_RELEASES_EXIT="1")
@@ -120,9 +141,20 @@ class PackageReleasePipelineTests(unittest.TestCase):
         self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["second"])
         self.assertIn("release_kind=snapshot", (self.root / "outputs").read_text())
 
+    def test_manual_all_selection_creates_bootstrap_release(self):
+        self.environment.update(EVENT_NAME="workflow_dispatch", MANUAL_SELECTION="all", GH_RELEASES_EXIT="1")
+        result = self.run_selection()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("release_kind=bootstrap", (self.root / "outputs").read_text())
+
     def test_no_version_bumps_creates_no_release(self):
-        self.environment["GH_RELEASES"] = ""
-        self.environment["EVENT_BEFORE"] = self.current
+        self.git("commit", "--allow-empty", "-q", "-m", "no version bumps")
+        nochange = self.git("rev-parse", "HEAD")
+        self.environment.update(
+            GITHUB_SHA=nochange,
+            EVENT_BEFORE=self.current,
+            GH_RELEASES=f"integration-packages-2-1\t{self.current}\tIntegration incremental packages built from {self.current}.",
+        )
         result = self.run_selection()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("has_changes=false", (self.root / "outputs").read_text())

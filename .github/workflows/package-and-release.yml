@@ -72,9 +72,12 @@ jobs:
             gh api \
               --paginate \
               "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-              --jq '.[] | select(.draft | not) | [.tag_name, .target_commitish] | @tsv' > "$RUNNER_TEMP/integration-releases.txt"
-            while IFS=$'\t' read -r release_tag release_target; do
+              --jq '.[] | select(.draft | not) | [.tag_name, .target_commitish, ((.body // "") | split("\n")[0])] | @tsv' > "$RUNNER_TEMP/integration-releases.txt"
+            while IFS=$'\t' read -r release_tag release_target release_summary; do
               if [[ "$release_tag" != integration-packages-* || -z "$release_target" ]]; then
+                continue
+              fi
+              if [[ "$release_summary" != "Integration incremental packages"* && "$release_summary" != "Integration bootstrap packages"* ]]; then
                 continue
               fi
               if ! release_sha="$(git rev-parse --verify --quiet "${release_target}^{commit}")"; then
@@ -86,9 +89,11 @@ jobs:
                 break
               fi
             done < "$RUNNER_TEMP/integration-releases.txt"
-            # The first package release has no durable release baseline yet. In
-            # that case the push event's before SHA is the only bounded baseline.
-            previous_commit_sha="${previous_commit_sha:-$EVENT_BEFORE}"
+            if [[ -z "$previous_commit_sha" ]]; then
+              echo "No prior integration bootstrap or incremental release was found." >&2
+              echo "Run this workflow manually with integrations=all once to create the bootstrap release before incremental push releases." >&2
+              exit 1
+            fi
             release_kind="incremental"
             hiveup release-changes \
               --repository-root . \
@@ -97,6 +102,10 @@ jobs:
           else
             previous_commit_sha="$(git rev-parse "$GITHUB_SHA^")"
             release_kind="snapshot"
+            normalized_selection="$(printf '%s' "$MANUAL_SELECTION" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+            if [[ "$normalized_selection" == "all" ]]; then
+              release_kind="bootstrap"
+            fi
             hiveup release-plan \
               --repository-root . \
               --config .github/autohive-release.json \
