@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "integrations": {
+    "code-analysis": {
+      "package_type": "container"
+    },
+    "google-ads": {
+      "package_type": "container"
+    }
+  }
+}
