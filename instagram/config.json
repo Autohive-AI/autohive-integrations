@@ -1,6 +1,6 @@
 {
     "name": "Instagram",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "description": "Instagram Business/Creator integration for managing posts, comments, and insights",
     "supports_connected_account": true,
     "entry_point": "instagram.py",
@@ -160,7 +160,7 @@
         },
         "create_post": {
             "display_name": "Create Post",
-            "description": "Publish content to Instagram. Supports images, videos, reels, and carousel posts.",
+            "description": "Publish content to Instagram. Supports images, reels, and carousel posts. VIDEO input is supported as an alias for REELS.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -172,7 +172,7 @@
                             "REELS",
                             "CAROUSEL"
                         ],
-                        "description": "Type of post to publish"
+                        "description": "Type of post to publish. VIDEO is a compatibility alias and is published as REELS."
                     },
                     "media_url": {
                         "type": "string",

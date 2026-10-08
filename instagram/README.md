@@ -5,7 +5,7 @@ Instagram Business/Creator integration for Autohive, providing comprehensive man
 ## Features
 
 - **Connected Account**: Displays authorized user's profile info (username, name, avatar)
-- **Post Publishing**: Create images, videos, reels, carousels, and stories
+- **Post Publishing**: Create images, reels, carousels, and stories
 - **Comment Moderation**: Read, reply, hide/unhide, and delete comments
 - **Insights & Analytics**: Account and post performance metrics
 
@@ -30,7 +30,7 @@ This integration uses **Business Login for Instagram** (users log in with Instag
 |--------|-------------|
 | `get_account` | Get Instagram Business/Creator account details |
 | `get_posts` | Retrieve posts (images, videos, reels, carousels) |
-| `create_post` | Publish images, videos, reels, or carousels |
+| `create_post` | Publish images, reels, or carousels (`VIDEO` input is published as a reel) |
 | `create_story` | Publish a story (24hr lifespan) |
 | `get_comments` | Get comments on a post |
 | `manage_comment` | Reply, hide, or unhide comments |
@@ -64,6 +64,7 @@ The `get_posts` and `get_comments` actions support cursor-based pagination for a
 - Media must be hosted on a publicly accessible URL for publishing
 - Stories are only available for 24 hours; insights expire after 24hrs
 - Carousel posts require 2-10 items
+- Standalone video posts are published as reels; the legacy `VIDEO` input remains available as an alias for `REELS`
 - Video processing may take time before publishing completes
 
 ## API Version

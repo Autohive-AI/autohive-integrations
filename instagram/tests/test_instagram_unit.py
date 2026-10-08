@@ -416,7 +416,7 @@ async def test_create_post_image_with_alt_text():
 
 
 @pytest.mark.asyncio
-async def test_create_post_video():
+async def test_create_post_video_alias_uses_reels():
     ctx = make_ctx_multi(
         [
             {"id": "17841400000000000"},
@@ -436,6 +436,9 @@ async def test_create_post_video():
         ctx,
     )
     assert result.result.data["media_id"] == "published_vid"
+    create_call_data = ctx.fetch.call_args_list[1].kwargs.get("data", {})
+    assert create_call_data["media_type"] == "REELS"
+    assert create_call_data["video_url"] == "https://example.com/video.mp4"
 
 
 @pytest.mark.asyncio

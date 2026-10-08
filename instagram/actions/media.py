@@ -121,28 +121,14 @@ class CreatePostAction(ActionHandler):
             )
             container_id = r.data.get("id")
 
-        elif media_type == "REELS":
+        elif media_type in {"VIDEO", "REELS"}:
             if not media_url:
-                raise Exception("media_url is required for REELS")
+                raise Exception(f"media_url is required for {media_type}")
             r = await context.fetch(
                 f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media",
                 method="POST",
                 data={
                     "media_type": "REELS",
-                    "video_url": media_url,
-                    "caption": caption,
-                },
-            )
-            container_id = r.data.get("id")
-
-        elif media_type == "VIDEO":
-            if not media_url:
-                raise Exception("media_url is required for VIDEO")
-            r = await context.fetch(
-                f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media",
-                method="POST",
-                data={
-                    "media_type": "VIDEO",
                     "video_url": media_url,
                     "caption": caption,
                 },
