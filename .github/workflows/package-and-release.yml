@@ -64,38 +64,11 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "push" ]]; then
-            # Use the last published integration package release as the durable
-            # baseline. Workflow run history is capped by GitHub search windows,
-            # so deriving the baseline from Actions history can silently miss
-            # unreleased version bumps after a long or busy period.
-            previous_commit_sha=""
-            gh api \
-              --paginate \
-              "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-              --jq '.[] | select(.draft | not) | [.tag_name, .target_commitish, ((.body // "") | split("\n")[0])] | @tsv' > "$RUNNER_TEMP/integration-releases.txt"
-            while IFS=$'\t' read -r release_tag release_target release_summary; do
-              if [[ "$release_tag" != integration-packages-* || -z "$release_target" ]]; then
-                continue
-              fi
-              if [[ "$release_summary" != "Integration incremental packages"* && "$release_summary" != "Integration bootstrap packages"* ]]; then
-                continue
-              fi
-              if ! release_sha="$(git rev-parse --verify --quiet "${release_target}^{commit}")"; then
-                echo "Release $release_tag points at $release_target, which is not present in the checkout history." >&2
-                exit 1
-              fi
-              if [[ "$release_sha" != "$GITHUB_SHA" ]] && git merge-base --is-ancestor "$release_sha" "$GITHUB_SHA"; then
-                previous_commit_sha="$release_sha"
-                break
-              fi
-            done < "$RUNNER_TEMP/integration-releases.txt"
-            if [[ -z "$previous_commit_sha" ]]; then
-              echo "No prior integration bootstrap or incremental release was found." >&2
-              echo "Run this workflow manually with integrations=all once to create the bootstrap release before incremental push releases." >&2
-              exit 1
-            fi
+            # Package only integrations whose config.json version changed in
+            # this push. Failed runs can be rerun directly; the workflow does not
+            # need a bootstrap release or cross-run recovery baseline.
+            previous_commit_sha="$EVENT_BEFORE"
             release_kind="incremental"
-            release_baseline_kind="incremental"
             hiveup release-changes \
               --repository-root . \
               --config .github/autohive-release.json \
@@ -103,11 +76,6 @@ jobs:
           else
             previous_commit_sha="$(git rev-parse "$GITHUB_SHA^")"
             release_kind="snapshot"
-            release_baseline_kind="snapshot"
-            normalized_selection="$(printf '%s' "$MANUAL_SELECTION" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
-            if [[ "$normalized_selection" == "all" ]]; then
-              release_baseline_kind="bootstrap"
-            fi
             hiveup release-plan \
               --repository-root . \
               --config .github/autohive-release.json \
@@ -125,7 +93,6 @@ jobs:
           echo "release_selection=$release_selection" >> "$GITHUB_OUTPUT"
           echo "previous_commit_sha=$previous_commit_sha" >> "$GITHUB_OUTPUT"
           echo "release_kind=$release_kind" >> "$GITHUB_OUTPUT"
-          echo "release_baseline_kind=$release_baseline_kind" >> "$GITHUB_OUTPUT"
           cat "$RUNNER_TEMP/integration-paths.txt"
 
       - name: Package integrations
@@ -146,7 +113,6 @@ jobs:
           RELEASE_SELECTION: ${{ steps.selection.outputs.release_selection }}
           PREVIOUS_COMMIT_SHA: ${{ steps.selection.outputs.previous_commit_sha }}
           RELEASE_KIND: ${{ steps.selection.outputs.release_kind }}
-          RELEASE_BASELINE_KIND: ${{ steps.selection.outputs.release_baseline_kind }}
         run: |
           set -euo pipefail
           hiveup release-manifest \
@@ -168,7 +134,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_KIND: ${{ steps.selection.outputs.release_kind }}
-          RELEASE_BASELINE_KIND: ${{ steps.selection.outputs.release_baseline_kind }}
           RELEASE_AUTHOR: ${{ github.event.head_commit.author.name || github.actor }}
         run: |
           set -euo pipefail
@@ -200,7 +165,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "$release_title" \
-            --notes "Integration ${RELEASE_BASELINE_KIND:-$RELEASE_KIND} packages built from ${GITHUB_SHA}. Autohive Admin reviews bindings and deploys these ZIPs; publication uses the existing integration publishing flow."
+            --notes "Integration ${RELEASE_KIND} packages built from ${GITHUB_SHA}. Autohive Admin reviews bindings and deploys these ZIPs; publication uses the existing integration publishing flow."
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "### Published [$tag]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$tag)" >> "$GITHUB_STEP_SUMMARY"
 

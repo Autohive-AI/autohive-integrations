@@ -303,17 +303,15 @@ All CI checks must pass before merge.
 ## Deployment packages
 
 Every merge to `master` runs `Package integrations for Autohive`. The workflow
-compares `config.json` versions with the newest successfully processed
-default-branch commit and creates a GitHub Release only when at least one
-integration is new or has a higher semantic version. The release contains only
-those changed integration ZIPs plus an integrity manifest. Manual workflow runs
-remain available for a selected or full snapshot repackage.
+compares `config.json` versions in the current push range and creates a GitHub
+Release only when at least one integration is new or has a higher semantic
+version. The release contains only those changed integration ZIPs plus an
+integrity manifest. Manual workflow runs remain available for a selected or
+full snapshot repackage.
 
-If several merges arrive while packaging is already running, GitHub may replace
-an older pending workflow run. The next surviving push run compares against the
-newest successful ancestral push run across paginated workflow history, so it
-catches every still-unreleased version bump in the skipped commit range after
-either a short burst or a long broken-workflow period.
+If packaging fails, rerun the failed workflow run for that merge. The next merge
+packages only the versions changed by that next push; it does not create or
+require a full bootstrap release.
 Both pull-request validation and release packaging use the immutable HiveUp
 `2.5.0` tag, so the tooling release must exist before this workflow change is
 merged.
@@ -327,7 +325,7 @@ manifest entry retains its own `config.json` version and repository folder
 path. Autohive stores a release cursor, pulls every later batch, and keeps the
 newest entry if the same repository path occurs in multiple releases.
 
-The workflow has GitHub `contents: write` for releases and `actions: read` for packaging history. It does not contain
+The workflow has GitHub `contents: write` for releases. It does not contain
 an Autohive URL or deploy credential. Autohive must pull, verify, and deploy the
 assets from its authenticated Admin UI, and deployment never publishes a
 version to end users.
