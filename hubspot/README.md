@@ -547,10 +547,18 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **API:** [Ticket property behavior](https://developers.hubspot.com/docs/api-reference/legacy/crm/objects/tickets/guide#retrieve-tickets) and [CRM search](https://developers.hubspot.com/docs/api-reference/legacy/crm/search-the-crm)
 
 #### Action: `get_ticket_conversation`
-- **Description:** Retrieve the complete conversation thread associated with a support ticket
+- **Description:** Retrieve every message in the conversation thread associated with a support ticket, oldest first
 - **Inputs:**
   - `ticket_id` (required): ID of the ticket to retrieve conversation for
-- **Outputs:** Sorted conversation messages with sender information, timestamps, and message types
+- **Outputs:** A `conversation` object containing:
+  - `results`: messages with `sender`, `sender_name`, `sender_actor_id`, `sender_address`, `message`, `text_source`, `timestamp`, `message_id`, `type`, `direction` (`INCOMING` from the customer, `OUTGOING` from the team), `channel_id`, and `truncation_status`
+  - `ticket_id`, `thread_id`, `total_messages`, `returned_messages`, `skipped_messages` (with reasons), `pages_fetched`, and `has_more`
+- **Behaviour:**
+  - Follows HubSpot pagination (100 messages per page, up to 10 pages) and sets `has_more` if the thread is longer
+  - Uses `richText` (converted to plain text) when a message has no plain `text`, which is common for help desk email
+  - Returns an action error if HubSpot can't be read (for example a missing `conversations.read` scope) instead of an empty conversation
+  - Retries transient `429` rate-limit responses
+- **API:** [Conversations API](https://developers.hubspot.com/docs/api-reference/legacy/conversations/guide)
 
 #### Action: `add_ticket_comment`
 - **Description:** Add an internal CRM note to an existing ticket

@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -1593,13 +1593,13 @@
     },
     "get_ticket_conversation": {
       "display_name": "Get Ticket Conversation",
-      "description": "Retrieve the conversation thread associated with a ticket.",
+      "description": "Retrieve every message in the conversation thread associated with a ticket, oldest first. Each message includes its direction (INCOMING from the customer, OUTGOING from the team), sender, and timestamp. Returns an error if HubSpot cannot be read, rather than an empty conversation.",
       "input_schema": {
         "type": "object",
         "properties": {
           "ticket_id": {
             "type": "string",
-            "description": "The ID of the thread to retrieve conversation for."
+            "description": "The ID of the ticket to retrieve the conversation for."
           }
         },
         "required": [
@@ -1611,7 +1611,134 @@
         "properties": {
           "conversation": {
             "type": "object",
-            "description": "The conversation thread for the ticket."
+            "description": "The conversation thread for the ticket.",
+            "properties": {
+              "ticket_id": {
+                "type": "string",
+                "description": "The ticket ID that was requested."
+              },
+              "thread_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The conversation thread ID, or null when the ticket has no thread."
+              },
+              "results": {
+                "type": "array",
+                "description": "Messages with readable content, sorted oldest first.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "sender": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Sender name, or 'Private Note' for internal comments."
+                    },
+                    "sender_name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Sender name as reported by HubSpot."
+                    },
+                    "sender_actor_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "HubSpot actor ID of the sender (e.g. A-123 for agents, V-123 for visitors)."
+                    },
+                    "sender_address": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Sender delivery address, such as an email address, when available."
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Message text. Falls back to plain text converted from richText when text is empty."
+                    },
+                    "text_source": {
+                      "type": "string",
+                      "description": "Where the message text came from: 'text' or 'richText'."
+                    },
+                    "timestamp": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "When the message was created (ISO 8601)."
+                    },
+                    "message_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "HubSpot message ID."
+                    },
+                    "type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Message type, e.g. MESSAGE or COMMENT."
+                    },
+                    "direction": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "INCOMING (from the customer) or OUTGOING (from the team)."
+                    },
+                    "channel_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "HubSpot channel ID the message was sent through."
+                    },
+                    "truncation_status": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "HubSpot truncation status, e.g. NOT_TRUNCATED or TRUNCATED_TO_MOST_RECENT_REPLY."
+                    }
+                  }
+                }
+              },
+              "total_messages": {
+                "type": "integer",
+                "description": "Number of messages HubSpot returned for the thread, before skipping messages without readable content."
+              },
+              "returned_messages": {
+                "type": "integer",
+                "description": "Number of messages included in results."
+              },
+              "skipped_messages": {
+                "type": "array",
+                "description": "Messages left out of results, with the reason (for example, system events with no text).",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "pages_fetched": {
+                "type": "integer",
+                "description": "Number of message pages read from HubSpot."
+              },
+              "has_more": {
+                "type": "boolean",
+                "description": "True if the thread has more messages than the page limit allowed."
+              },
+              "message": {
+                "type": "string",
+                "description": "Explanation when no conversation thread is linked to the ticket."
+              }
+            }
           }
         },
         "required": [

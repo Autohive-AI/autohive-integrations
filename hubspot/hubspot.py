@@ -1,6 +1,8 @@
 """HubSpot Integration Actions Module"""
 
 from typing import Dict, Any
+import html
+import re
 from datetime import datetime, timezone
 import asyncio
 
@@ -1254,12 +1256,59 @@ class GetRecentTicketsActionHandler(ActionHandler):
         return ActionResult(data={"tickets": tickets}, cost_usd=None)
 
 
+TICKET_CONVERSATION_PAGE_SIZE = 100
+TICKET_CONVERSATION_MAX_PAGES = 10
+
+_HTML_BLOCK_BREAK = re.compile(r"<\s*(br|/p|/div|/li|/tr|/h[1-6]|/blockquote)\b[^>]*>", re.IGNORECASE)
+_HTML_DROP_BLOCKS = re.compile(r"<\s*(script|style)\b[^>]*>.*?<\s*/\s*\1\s*>", re.IGNORECASE | re.DOTALL)
+_HTML_TAG = re.compile(r"<[^>]+>")
+
+
+def html_to_text(rich_text: str) -> str:
+    """Convert HubSpot richText HTML into readable plain text."""
+    if not rich_text:
+        return ""
+    text = _HTML_DROP_BLOCKS.sub("", rich_text)
+    text = _HTML_BLOCK_BREAK.sub("\n", text)
+    text = _HTML_TAG.sub("", text)
+    text = html.unescape(text).replace("\xa0", " ")
+    lines = [line.strip() for line in text.splitlines()]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def extract_message_text(message: Dict[str, Any]) -> tuple:
+    """Return (text, source) for a Conversations message, falling back to richText."""
+    text = message.get("text")
+    if isinstance(text, str) and text.strip():
+        return text, "text"
+    rich_text = message.get("richText")
+    if isinstance(rich_text, str) and rich_text.strip():
+        converted = html_to_text(rich_text)
+        if converted:
+            return converted, "richText"
+    return None, None
+
+
+def summarize_sender(message: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract sender name, actor ID and delivery address from a Conversations message."""
+    senders = message.get("senders") or []
+    sender_info = senders[0] if senders and isinstance(senders[0], dict) else {}
+    delivery = sender_info.get("deliveryIdentifier") or {}
+    return {
+        "name": sender_info.get("name"),
+        "actor_id": sender_info.get("actorId"),
+        "address": delivery.get("value") if isinstance(delivery, dict) else None,
+    }
+
+
 @hubspot.action("get_ticket_conversation")
 class GetTicketConversationActionHandler(ActionHandler):
     """
     Action handler to retrieve the conversation thread for a specific ticket.
 
-    Retrieves the thread ID for the ticket, then fetches and sorts the conversation messages.
+    Retrieves the thread ID for the ticket, then fetches every page of thread messages and returns
+    them in chronological order. HubSpot API failures are returned as action errors rather than
+    an empty conversation, so callers can tell "no messages" apart from "could not read messages".
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -1273,10 +1322,11 @@ class GetTicketConversationActionHandler(ActionHandler):
 
         ticket_id = inputs["ticket_id"]
 
-        conversation_results = []
+        try:
+            thread_id = await get_thread_id_from_ticket(ticket_id, context)
+        except Exception as e:
+            return ActionError(message=f"Failed to look up the conversation thread for ticket {ticket_id}: {str(e)}")
 
-        # Retrieve the correct thread ID using the helper function.
-        thread_id = await get_thread_id_from_ticket(ticket_id, context)
         if not thread_id:
             return ActionResult(
                 data={
@@ -1290,46 +1340,82 @@ class GetTicketConversationActionHandler(ActionHandler):
                 cost_usd=None,
             )
 
+        conversation_url = f"https://api.hubapi.com/conversations/v3/conversations/threads/{thread_id}/messages"
+        retry_sleep_budget = {"remaining": 10}
+        raw_messages = []
+        after = None
+        pages_fetched = 0
+        has_more = False
+
         try:
-            conversation_url = f"https://api.hubapi.com/conversations/v3/conversations/threads/{thread_id}/messages"
-            conversation_response = await fetch_with_rate_limit_retries(
-                context,
-                conversation_url,
-                headers={"Content-Type": "application/json"},
+            while True:
+                params = {"limit": TICKET_CONVERSATION_PAGE_SIZE}
+                if after:
+                    params["after"] = after
+                conversation_response = await fetch_with_rate_limit_retries(
+                    context,
+                    conversation_url,
+                    retry_sleep_budget=retry_sleep_budget,
+                    params=params,
+                    headers={"Content-Type": "application/json"},
+                )
+                conversation_data = await parse_response(conversation_response)
+                pages_fetched += 1
+                if not isinstance(conversation_data, dict):
+                    raise ValueError(f"Unexpected response from HubSpot: {type(conversation_data).__name__}")
+
+                raw_messages.extend(conversation_data.get("results") or [])
+                after = ((conversation_data.get("paging") or {}).get("next") or {}).get("after")
+                if not after:
+                    break
+                if pages_fetched >= TICKET_CONVERSATION_MAX_PAGES:
+                    has_more = True
+                    break
+        except Exception as e:
+            hint = ""
+            error_text = str(e).lower()
+            if "403" in error_text or "401" in error_text or "scope" in error_text or "permission" in error_text:
+                hint = (
+                    " The HubSpot connection may be missing the conversations.read scope or access to this inbox;"
+                    " try re-authorising the HubSpot connection."
+                )
+            return ActionError(
+                message=(
+                    f"Failed to retrieve conversation messages for ticket {ticket_id} (thread {thread_id}): "
+                    f"{str(e)}.{hint}"
+                )
             )
-            conversation_data = await parse_response(conversation_response)
 
-            if conversation_data.get("results"):
-                for message in conversation_data["results"]:
-                    message_content = message.get("text")
-                    if not message_content:
-                        continue
+        conversation_results = []
+        skipped = []
+        for message in raw_messages:
+            if not isinstance(message, dict):
+                continue
+            message_type = message.get("type", "")
+            message_content, text_source = extract_message_text(message)
+            if not message_content:
+                skipped.append({"message_id": message.get("id"), "type": message_type, "reason": "no_text_content"})
+                continue
 
-                    message_type = message.get("type", "")
-                    if message_type == "COMMENT":
-                        sender = "Private Note"
-                    else:
-                        sender = None
-                        if message.get("senders") and len(message["senders"]) > 0:
-                            sender_info = message["senders"][0]
-                            sender = sender_info.get("name", "Unknown Sender")
+            sender = summarize_sender(message)
+            conversation_results.append(
+                {
+                    "sender": "Private Note" if message_type == "COMMENT" else sender["name"],
+                    "sender_name": sender["name"],
+                    "sender_actor_id": sender["actor_id"],
+                    "sender_address": sender["address"],
+                    "message": message_content,
+                    "text_source": text_source,
+                    "timestamp": message.get("createdAt"),
+                    "message_id": message.get("id"),
+                    "type": message_type,
+                    "direction": message.get("direction"),
+                    "channel_id": message.get("channelId"),
+                    "truncation_status": message.get("truncationStatus"),
+                }
+            )
 
-                    conversation_results.append(
-                        {
-                            "sender": sender,
-                            "message": message_content,
-                            "timestamp": message.get("createdAt"),
-                            "message_id": message.get("id"),
-                            "type": message_type,
-                        }
-                    )
-        except Exception:  # nosec B110
-            pass
-
-        try:
-            sorted_conversation = sorted(conversation_results, key=lambda x: x.get("timestamp", ""))
-        except Exception:
-            sorted_conversation = conversation_results
+        sorted_conversation = sorted(conversation_results, key=lambda x: x.get("timestamp") or "")
 
         return ActionResult(
             data={
@@ -1337,6 +1423,11 @@ class GetTicketConversationActionHandler(ActionHandler):
                     "results": sorted_conversation,
                     "ticket_id": ticket_id,
                     "thread_id": thread_id,
+                    "total_messages": len(raw_messages),
+                    "returned_messages": len(sorted_conversation),
+                    "skipped_messages": skipped,
+                    "pages_fetched": pages_fetched,
+                    "has_more": has_more,
                 }
             },
             cost_usd=None,
