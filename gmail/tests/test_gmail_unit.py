@@ -770,6 +770,26 @@ def _assert_metadata_gets(service, expected_ids):
         assert c.kwargs["metadataHeaders"] == ["Subject", "From", "To", "Cc", "Date"]
 
 
+def _metadata_message(msg_id="m1", thread_id="t1", subject="Hello"):
+    """A ``format=metadata`` response: headers only, no body data or parts."""
+    return {
+        "id": msg_id,
+        "threadId": thread_id,
+        "labelIds": ["INBOX", "UNREAD"],
+        "snippet": "snippet",
+        "internalDate": "1700000000000",
+        "payload": {
+            "mimeType": "multipart/alternative",
+            "headers": [
+                {"name": "From", "value": "sender@example.com"},
+                {"name": "To", "value": "me@example.com"},
+                {"name": "Subject", "value": subject},
+                {"name": "Date", "value": "Mon, 1 Jan 2024 10:00:00 +0000"},
+            ],
+        },
+    }
+
+
 EXPECTED_PARSED_SAMPLE = {
     "id": "m1",
     "thread_id": "t1",
@@ -895,8 +915,8 @@ class TestReadInbox:
             mock_build.return_value = service
             service.users().messages().list().execute.return_value = {"messages": [{"id": "m1"}, {"id": "m2"}]}
             service.users().messages().get().execute.side_effect = [
-                _sample_message(msg_id="m1"),
-                _sample_message(msg_id="m2"),
+                _metadata_message(msg_id="m1"),
+                _metadata_message(msg_id="m2"),
             ]
             result = await gmail.execute_action("read_inbox", {"user_id": "me", "scope": "all"}, mock_context)
         assert result.type == ResultType.ACTION
@@ -1055,10 +1075,26 @@ class TestReadInbox:
             service = _make_service()
             mock_build.return_value = service
             service.users().messages().list().execute.return_value = {"messages": [{"id": "m1"}]}
-            service.users().messages().get().execute.return_value = _sample_message()
+            service.users().messages().get().execute.return_value = _metadata_message()
             result = await gmail.execute_action("read_inbox", {"user_id": "me", "scope": "all"}, mock_context)
         _assert_metadata_gets(service, ["m1"])
         assert result.result.data["emails"] == [EXPECTED_PARSED_SAMPLE]
+
+    @pytest.mark.asyncio
+    async def test_metadata_response_without_headers_is_listed(self, mock_context):
+        # payload.headers might be absent when none of the requested headers exist.
+        message = _metadata_message()
+        del message["payload"]["headers"]
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().messages().list().execute.return_value = {"messages": [{"id": "m1"}]}
+            service.users().messages().get().execute.return_value = message
+            result = await gmail.execute_action("read_inbox", {"user_id": "me", "scope": "all"}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["emails"] == [
+            {**EXPECTED_PARSED_SAMPLE, "subject": "", "from": "", "to": "", "date": ""}
+        ]
 
 
 class TestReadAllMail:
@@ -1068,7 +1104,7 @@ class TestReadAllMail:
             service = _make_service()
             mock_build.return_value = service
             service.users().messages().list().execute.return_value = {"messages": [{"id": "m1"}]}
-            service.users().messages().get().execute.return_value = _sample_message()
+            service.users().messages().get().execute.return_value = _metadata_message()
             result = await gmail.execute_action("read_all_mail", {"user_id": "me", "scope": "all"}, mock_context)
         assert result.type == ResultType.ACTION
         assert len(result.result.data["emails"]) == 1
@@ -1206,7 +1242,7 @@ class TestReadAllMail:
             service = _make_service()
             mock_build.return_value = service
             service.users().messages().list().execute.return_value = {"messages": [{"id": "m1"}]}
-            service.users().messages().get().execute.return_value = _sample_message()
+            service.users().messages().get().execute.return_value = _metadata_message()
             result = await gmail.execute_action("read_all_mail", {"user_id": "me", "scope": "all"}, mock_context)
         _assert_metadata_gets(service, ["m1"])
         assert result.result.data["emails"] == [EXPECTED_PARSED_SAMPLE]
@@ -1442,7 +1478,7 @@ class TestListEmailsByLabel:
             service = _make_service()
             mock_build.return_value = service
             service.users().messages().list().execute.return_value = {"messages": [{"id": "m1"}]}
-            service.users().messages().get().execute.return_value = _sample_message()
+            service.users().messages().get().execute.return_value = _metadata_message()
             result = await gmail.execute_action(
                 "list_emails_by_label",
                 {"user_id": "me", "label_names": ["MyLabel"]},
@@ -1612,7 +1648,7 @@ class TestListEmailsByLabel:
             service = _make_service()
             mock_build.return_value = service
             service.users().messages().list().execute.return_value = {"messages": [{"id": "m1"}]}
-            service.users().messages().get().execute.return_value = _sample_message()
+            service.users().messages().get().execute.return_value = _metadata_message()
             result = await gmail.execute_action(
                 "list_emails_by_label", {"user_id": "me", "label_names": ["MyLabel"]}, mock_context
             )

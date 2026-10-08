@@ -176,7 +176,8 @@ DEFAULT_LIST_MAX_RESULTS = 25
 MAX_LIST_MAX_RESULTS = 100
 
 # The list actions only return headers and the snippet, so fetching each message
-# as ``metadata`` (instead of the full MIME tree) saves latency and API quota.
+# as ``metadata`` (instead of the full MIME tree) cuts payload size and latency.
+# Gmail charges the same quota for messages.get whatever the format.
 LIST_METADATA_HEADERS = ["Subject", "From", "To", "Cc", "Date"]
 
 # Upper bound on the ``body`` returned by read_email. HTML-only newsletters can
@@ -196,8 +197,10 @@ def resolve_max_results(inputs: Dict[str, Any]) -> int:
 def fetch_message_metadata(service, user_id: str, message_id: str) -> Dict[str, Any]:
     """Fetch one message with only the headers the list actions return.
 
-    A ``metadata`` response still carries ``id``, ``threadId``, ``snippet`` and
+    A ``metadata`` response carries ``id``, ``threadId``, ``snippet`` and usually
     ``payload.headers``, which is everything ``parse_message_with_snippet`` reads.
+    Google's JSON may leave out empty repeated fields, so ``headers`` might be
+    absent when none of the requested headers exist; the parser does not assume it.
     """
     return (
         service.users()
@@ -596,7 +599,7 @@ class GmailMessageParser:
 
     @staticmethod
     def extract_readable_body(payload: Dict[str, Any], max_chars: int = MAX_READ_EMAIL_BODY_CHARS) -> str:
-        """Extract the body as plain text, converting HTML, capped at ``max_chars``.
+        """Extract the body as text, converting HTML to Markdown, capped at ``max_chars``.
 
         A truncation marker is appended when the body is cut, so the reader
         knows it did not get the whole message.
@@ -692,7 +695,7 @@ class GmailMessageParser:
     @staticmethod
     def parse_message_with_snippet(raw_message: Dict[str, Any]) -> Dict[str, Any]:
         """Parse raw Gmail message into standardized format."""
-        headers = raw_message["payload"]["headers"]
+        headers = raw_message["payload"].get("headers", [])
         cc_header = GmailMessageParser.get_header_value(headers, "Cc")
 
         return {

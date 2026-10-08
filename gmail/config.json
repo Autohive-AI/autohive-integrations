@@ -233,7 +233,7 @@
         },
         "read_email": {
             "display_name": "Read Email",
-            "description": "Read an email by ID, including its body, headers and attachments. HTML-only emails are converted to plain text. The body is capped at 20,000 characters; a longer body is cut and ends with '[Body truncated: N more characters]'.",
+            "description": "Read an email by ID, including its body, headers and attachments. HTML-only emails are converted to Markdown-formatted text (links kept, images dropped). The body is capped at 20,000 characters; a longer body is cut and ends with '[Body truncated: N more characters]'.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -292,7 +292,7 @@
                             },
                             "body": {
                                 "type": "string",
-                                "description": "Body contents of the email as plain text (HTML-only emails are converted). Capped at 20,000 characters; a truncated body ends with '[Body truncated: N more characters]'."
+                                "description": "Body contents of the email: the text/plain part, or for HTML-only emails the HTML converted to Markdown-formatted text. Capped at 20,000 characters; a truncated body ends with '[Body truncated: N more characters]'."
                             }
                         },
                         "required": [
@@ -437,7 +437,7 @@
         },
         "read_inbox": {
             "display_name": "Read Inbox",
-            "description": "List emails in the user's inbox, filtered by read status. Returns up to 25 emails per page by default (set maxResults, 1-100, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with scope, after/before or q rather than paging through the whole mailbox.",
+            "description": "List emails in the user's inbox, filtered by read status. Returns up to 25 emails per page by default (set maxResults, 1-100, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with scope, after/before or q rather than paging through the whole inbox.",
             "input_schema": {
                 "type": "object",
                 "properties": {
