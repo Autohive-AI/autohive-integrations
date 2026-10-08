@@ -1593,7 +1593,7 @@
     },
     "get_ticket_conversation": {
       "display_name": "Get Ticket Conversation",
-      "description": "Retrieve every message in the conversation thread associated with a ticket, oldest first. Each message includes its direction (INCOMING from the customer, OUTGOING from the team), sender, and timestamp. Returns an error if HubSpot cannot be read, rather than an empty conversation.",
+      "description": "Retrieve the conversation thread associated with a ticket, oldest first, including message direction. Returns an error if HubSpot cannot be read.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1637,34 +1637,9 @@
                       ],
                       "description": "Sender name, or 'Private Note' for internal comments."
                     },
-                    "sender_name": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "description": "Sender name as reported by HubSpot."
-                    },
-                    "sender_actor_id": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "description": "HubSpot actor ID of the sender (e.g. A-123 for agents, V-123 for visitors)."
-                    },
-                    "sender_address": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "description": "Sender delivery address, such as an email address, when available."
-                    },
                     "message": {
                       "type": "string",
                       "description": "Message text. Falls back to plain text converted from richText when text is empty."
-                    },
-                    "text_source": {
-                      "type": "string",
-                      "description": "Where the message text came from: 'text' or 'richText'."
                     },
                     "timestamp": {
                       "type": [
@@ -1693,46 +1668,9 @@
                         "null"
                       ],
                       "description": "INCOMING (from the customer) or OUTGOING (from the team)."
-                    },
-                    "channel_id": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "description": "HubSpot channel ID the message was sent through."
-                    },
-                    "truncation_status": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
-                      "description": "HubSpot truncation status, e.g. NOT_TRUNCATED or TRUNCATED_TO_MOST_RECENT_REPLY."
                     }
                   }
                 }
-              },
-              "total_messages": {
-                "type": "integer",
-                "description": "Number of messages HubSpot returned for the thread, before skipping messages without readable content."
-              },
-              "returned_messages": {
-                "type": "integer",
-                "description": "Number of messages included in results."
-              },
-              "skipped_messages": {
-                "type": "array",
-                "description": "Messages left out of results, with the reason (for example, system events with no text).",
-                "items": {
-                  "type": "object"
-                }
-              },
-              "pages_fetched": {
-                "type": "integer",
-                "description": "Number of message pages read from HubSpot."
-              },
-              "has_more": {
-                "type": "boolean",
-                "description": "True if the thread has more messages than the page limit allowed."
               },
               "message": {
                 "type": "string",

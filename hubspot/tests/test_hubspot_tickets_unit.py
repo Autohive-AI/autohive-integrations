@@ -441,7 +441,7 @@ class TestGetTicketConversation:
 
     @pytest.mark.asyncio
     async def test_empty_messages(self, mock_context):
-        empty_response = FetchResponse(status=200, headers={}, data={"associations": {"tickets": {"results": []}}})
+        empty_response = FetchResponse(status=200, headers={}, data={"results": []})
         mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, empty_response]
 
         result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
@@ -474,29 +474,15 @@ def _messages_page(messages, after=None):
 
 class TestGetTicketConversationReliability:
     @pytest.mark.asyncio
-    async def test_messages_api_error_returns_action_error_not_empty_conversation(self, mock_context):
-        mock_context.fetch.side_effect = [
-            TICKET_RESPONSE_WITH_THREAD,
-            Exception("HTTP 500: Internal Server Error"),
-        ]
+    @pytest.mark.parametrize("error", ["HTTP 500: Internal Server Error", "HTTP 403: Missing scopes"])
+    async def test_messages_api_error_returns_action_error(self, mock_context, error):
+        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, Exception(error)]
 
         result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "thread-123" in result.result.message
-        assert "HTTP 500" in result.result.message
-
-    @pytest.mark.asyncio
-    async def test_permission_error_includes_reauthorise_hint(self, mock_context):
-        mock_context.fetch.side_effect = [
-            TICKET_RESPONSE_WITH_THREAD,
-            Exception("HTTP 403: This app hasn't been granted all required scopes"),
-        ]
-
-        result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
-
-        assert result.type == ResultType.ACTION_ERROR
-        assert "conversations.read" in result.result.message
+        assert "t1" in result.result.message
+        assert error in result.result.message
 
     @pytest.mark.asyncio
     async def test_thread_lookup_error_returns_action_error(self, mock_context):
@@ -506,9 +492,11 @@ class TestGetTicketConversationReliability:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "missing" in result.result.message
+        assert "HTTP 404" in result.result.message
 
     @pytest.mark.asyncio
-    async def test_rich_text_used_when_plain_text_missing(self, mock_context):
+    @pytest.mark.parametrize("text", [None, "", "   "])
+    async def test_rich_text_used_when_plain_text_missing(self, mock_context, text):
         mock_context.fetch.side_effect = [
             TICKET_RESPONSE_WITH_THREAD,
             _messages_page(
@@ -516,7 +504,7 @@ class TestGetTicketConversationReliability:
                     {
                         "id": "email-1",
                         "type": "MESSAGE",
-                        "text": "",
+                        "text": text,
                         "richText": "<div>Hi team,</div><div>Our APM traces have <b>flatlined</b> &amp; stopped.</div>",
                         "direction": "INCOMING",
                         "createdAt": "2026-10-05T16:24:56Z",
@@ -537,11 +525,8 @@ class TestGetTicketConversationReliability:
         assert result.type == ResultType.ACTION
         msg = result.result.data["conversation"]["results"][0]
         assert msg["message"] == "Hi team,\nOur APM traces have flatlined & stopped."
-        assert msg["text_source"] == "richText"
         assert msg["direction"] == "INCOMING"
         assert msg["sender"] == "Edmond"
-        assert msg["sender_actor_id"] == "V-1"
-        assert msg["sender_address"] == "edmond@example.com"
 
     @pytest.mark.asyncio
     async def test_follows_pagination_and_sorts_across_pages(self, mock_context):
@@ -558,49 +543,40 @@ class TestGetTicketConversationReliability:
 
         conv = result.result.data["conversation"]
         assert [m["message"] for m in conv["results"]] == ["First", "Second"]
-        assert conv["pages_fetched"] == 2
-        assert conv["has_more"] is False
         first_params = mock_context.fetch.call_args_list[1].kwargs["params"]
         second_params = mock_context.fetch.call_args_list[2].kwargs["params"]
         assert "after" not in first_params
         assert second_params["after"] == "cursor-1"
 
     @pytest.mark.asyncio
-    async def test_page_cap_reports_has_more(self, mock_context, monkeypatch):
-        monkeypatch.setattr("hubspot.hubspot.TICKET_CONVERSATION_MAX_PAGES", 2)
-        mock_context.fetch.side_effect = [
-            TICKET_RESPONSE_WITH_THREAD,
-            _messages_page([{"id": "m1", "type": "MESSAGE", "text": "a", "createdAt": "1"}], after="c1"),
-            _messages_page([{"id": "m2", "type": "MESSAGE", "text": "b", "createdAt": "2"}], after="c2"),
+    async def test_reads_past_ten_pages(self, mock_context):
+        pages = [
+            _messages_page(
+                [{"id": f"m{i}", "type": "MESSAGE", "text": f"Message {i}", "createdAt": f"{i:02d}"}],
+                after=f"cursor-{i}" if i < 10 else None,
+            )
+            for i in range(11)
         ]
+        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, *pages]
 
         result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
 
-        conv = result.result.data["conversation"]
-        assert conv["has_more"] is True
-        assert conv["pages_fetched"] == 2
-        assert mock_context.fetch.call_count == 3
+        assert result.type == ResultType.ACTION
+        assert len(result.result.data["conversation"]["results"]) == 11
+        assert result.result.data["conversation"]["results"][-1]["message"] == "Message 10"
 
     @pytest.mark.asyncio
-    async def test_skipped_messages_are_reported(self, mock_context):
+    async def test_later_page_failure_returns_error_instead_of_partial_conversation(self, mock_context):
         mock_context.fetch.side_effect = [
             TICKET_RESPONSE_WITH_THREAD,
-            _messages_page(
-                [
-                    {"id": "m1", "type": "MESSAGE", "text": "Hello", "createdAt": "2026-10-01T00:00:00Z"},
-                    {"id": "s1", "type": "THREAD_STATUS_CHANGE", "createdAt": "2026-10-01T01:00:00Z"},
-                ]
-            ),
+            _messages_page([{"id": "m1", "type": "MESSAGE", "text": "Hello"}], after="cursor-1"),
+            Exception("HTTP 500: Internal Server Error"),
         ]
 
         result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
 
-        conv = result.result.data["conversation"]
-        assert conv["total_messages"] == 2
-        assert conv["returned_messages"] == 1
-        assert conv["skipped_messages"] == [
-            {"message_id": "s1", "type": "THREAD_STATUS_CHANGE", "reason": "no_text_content"}
-        ]
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 500" in result.result.message
 
     @pytest.mark.asyncio
     async def test_rate_limit_on_messages_is_retried(self, mock_context, monkeypatch):
@@ -615,7 +591,7 @@ class TestGetTicketConversationReliability:
         result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
 
         assert result.type == ResultType.ACTION
-        assert result.result.data["conversation"]["returned_messages"] == 1
+        assert result.result.data["conversation"]["results"][0]["message"] == "Hi"
         sleep_mock.assert_awaited_once_with(1)
 
 
