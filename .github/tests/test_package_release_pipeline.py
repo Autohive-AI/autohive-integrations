@@ -31,7 +31,15 @@ class PackageReleasePipelineTests(unittest.TestCase):
         self.bin = self.root / "bin"
         self.bin.mkdir()
         fake_gh = self.bin / "gh"
-        fake_gh.write_text('#!/bin/bash\nprintf "%s\\n" "$GH_HISTORY"\nexit "${GH_HISTORY_EXIT:-0}"\n')
+        fake_gh.write_text(textwrap.dedent("""\
+            #!/bin/bash
+            if [[ "$*" == *"/releases?"* || "$*" == *"/releases?per_page=100"* ]]; then
+              printf "%s\n" "$GH_RELEASES"
+              exit "${GH_RELEASES_EXIT:-0}"
+            fi
+            printf "%s\n" "$GH_HISTORY"
+            exit "${GH_HISTORY_EXIT:-0}"
+        """))
         fake_gh.chmod(0o755)
         # Extract the real workflow's selection step. No copy of its logic is tested.
         workflow = Path(__file__).resolve().parents[1] / "workflows" / "package-and-release.yml"
@@ -50,7 +58,8 @@ class PackageReleasePipelineTests(unittest.TestCase):
             GITHUB_SHA=self.current,
             GITHUB_REF_NAME="master",
             GITHUB_REPOSITORY="example/integrations",
-            GH_HISTORY=f"{self.base}\tsuccess",
+            GH_HISTORY="",
+            GH_RELEASES=f"integration-packages-1-1\t{self.base}",
             RUNNER_TEMP=str(self.root),
             GITHUB_OUTPUT=str(self.root / "outputs"),
         )
@@ -81,35 +90,38 @@ class PackageReleasePipelineTests(unittest.TestCase):
             check=False,
         )
 
-    def test_surviving_run_includes_bumps_from_skipped_intermediate_merge(self):
+    def test_release_baseline_includes_bumps_from_skipped_intermediate_merge(self):
         result = self.run_selection()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["first", "second"])
         self.assertIn(f"previous_commit_sha={self.base}", (self.root / "outputs").read_text())
 
-    def test_history_api_failure_blocks_incomplete_release(self):
-        self.environment.update(GH_HISTORY="", GH_HISTORY_EXIT="1")
+    def test_release_api_failure_blocks_incomplete_release(self):
+        self.environment.update(GH_RELEASES="", GH_RELEASES_EXIT="1")
         result = self.run_selection()
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse((self.root / "integration-paths.txt").exists())
         self.assertFalse((self.root / "outputs").exists())
 
-    def test_first_successful_run_includes_earlier_failed_merge(self):
-        self.environment["GH_HISTORY"] = f"{self.current}\tpending\n{self.before}\tfailure"
+    def test_truncated_workflow_history_does_not_drop_unreleased_bumps(self):
+        self.environment.update(
+            GH_HISTORY=f"{self.before}\tsuccess",
+            GH_RELEASES=f"integration-packages-1-1\t{self.base}",
+        )
         result = self.run_selection()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["first", "second"])
         self.assertIn(f"previous_commit_sha={self.base}", (self.root / "outputs").read_text())
 
     def test_manual_selection_creates_snapshot_without_reading_push_history(self):
-        self.environment.update(EVENT_NAME="workflow_dispatch", MANUAL_SELECTION="second", GH_HISTORY_EXIT="1")
+        self.environment.update(EVENT_NAME="workflow_dispatch", MANUAL_SELECTION="second", GH_RELEASES_EXIT="1")
         result = self.run_selection()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["second"])
         self.assertIn("release_kind=snapshot", (self.root / "outputs").read_text())
 
     def test_no_version_bumps_creates_no_release(self):
-        self.environment["GH_HISTORY"] = ""
+        self.environment["GH_RELEASES"] = ""
         self.environment["EVENT_BEFORE"] = self.current
         result = self.run_selection()
         self.assertEqual(result.returncode, 0, result.stderr)

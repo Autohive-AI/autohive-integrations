@@ -64,33 +64,30 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "push" ]]; then
-            # A concurrency group can replace an older pending run when several
-            # merges land quickly. Compare with the newest successful push run
-            # that is an ancestor of this commit so the surviving run packages
-            # every version bump that an intermediate cancelled run would have
-            # handled.
+            # Use the last published integration package release as the durable
+            # baseline. Workflow run history is capped by GitHub search windows,
+            # so deriving the baseline from Actions history can silently miss
+            # unreleased version bumps after a long or busy period.
             previous_commit_sha=""
-            oldest_push_sha=""
-            # Fail if history cannot be read. Falling back after an API error
-            # could omit version bumps from failed or replaced intermediate runs.
             gh api \
               --paginate \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/package-and-release.yml/runs?branch=$GITHUB_REF_NAME&event=push&per_page=100" \
-              --jq '.workflow_runs[] | [.head_sha, (.conclusion // "pending")] | @tsv' > "$RUNNER_TEMP/push-runs.txt"
-            while IFS=$'\t' read -r candidate_sha conclusion; do
-              if [[ -n "$candidate_sha" ]] && git merge-base --is-ancestor "$candidate_sha" "$GITHUB_SHA"; then
-                oldest_push_sha="$candidate_sha"
-                if [[ "$conclusion" == "success" && "$candidate_sha" != "$GITHUB_SHA" ]]; then
-                  previous_commit_sha="$candidate_sha"
-                  break
-                fi
+              "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+              --jq '.[] | select(.draft | not) | [.tag_name, .target_commitish] | @tsv' > "$RUNNER_TEMP/integration-releases.txt"
+            while IFS=$'\t' read -r release_tag release_target; do
+              if [[ "$release_tag" != integration-packages-* || -z "$release_target" ]]; then
+                continue
               fi
-            done < "$RUNNER_TEMP/push-runs.txt"
-            # Before the first successful run, include every attempted merge.
-            # The current event's parent alone would omit earlier failed runs.
-            if [[ -z "$previous_commit_sha" && -n "$oldest_push_sha" ]]; then
-              previous_commit_sha="$(git rev-parse "${oldest_push_sha}^")"
-            fi
+              if ! release_sha="$(git rev-parse --verify --quiet "${release_target}^{commit}")"; then
+                echo "Release $release_tag points at $release_target, which is not present in the checkout history." >&2
+                exit 1
+              fi
+              if [[ "$release_sha" != "$GITHUB_SHA" ]] && git merge-base --is-ancestor "$release_sha" "$GITHUB_SHA"; then
+                previous_commit_sha="$release_sha"
+                break
+              fi
+            done < "$RUNNER_TEMP/integration-releases.txt"
+            # The first package release has no durable release baseline yet. In
+            # that case the push event's before SHA is the only bounded baseline.
             previous_commit_sha="${previous_commit_sha:-$EVENT_BEFORE}"
             release_kind="incremental"
             hiveup release-changes \
