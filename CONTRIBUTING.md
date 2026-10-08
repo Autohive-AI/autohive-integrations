@@ -309,9 +309,10 @@ version. The release contains only those changed integration ZIPs plus an
 integrity manifest. Manual workflow runs remain available for a selected or
 full snapshot repackage.
 
-If packaging fails, rerun the failed workflow run for that merge. The next merge
-packages only the versions changed by that next push; it does not create or
-require a full bootstrap release.
+Each push gets its own packaging run so rapid merges do not replace pending
+release jobs. If packaging fails, rerun the failed workflow run for that merge.
+The next merge packages only the versions changed by that next push; it does not
+create or require a full bootstrap release.
 Both pull-request validation and release packaging use the immutable HiveUp
 `2.5.0` tag, so the tooling release must exist before this workflow change is
 merged.

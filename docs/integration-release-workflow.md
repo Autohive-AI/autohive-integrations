@@ -30,9 +30,10 @@ Packaging targets Python 3.13 / Linux x86_64 and ignores local `dependencies/`.
 Check resolved dependencies and AWS findings after deployment.
 
 The workflow selects new folders and version increases from the current push
-range. Commits without config version bumps create no release. If a packaging
-run fails, rerun that failed workflow run rather than relying on a later merge to
-recover the missed package.
+range. Each push gets its own packaging run, so rapid merges do not replace
+pending release jobs. Commits without config version bumps create no release. If
+a packaging run fails, rerun that failed workflow run rather than relying on a
+later merge to recover the missed package.
 
 Admin keeps the newest ZIP per folder across unseen releases. Folder bindings
 point to backend IDs, so database name changes do not create duplicates after

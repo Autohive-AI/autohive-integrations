@@ -16,10 +16,6 @@ permissions:
   actions: read
   contents: write
 
-concurrency:
-  group: package-integrations-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   package-and-release:
     if: github.ref_name == github.event.repository.default_branch
