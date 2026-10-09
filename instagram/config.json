@@ -186,28 +186,37 @@
                     "children": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "description": "An image or video carousel item.",
-                            "properties": {
-                                "media_type": {
+                            "oneOf": [
+                                {
                                     "type": "string",
-                                    "enum": [
-                                        "IMAGE",
-                                        "VIDEO"
-                                    ],
-                                    "description": "Type of carousel item."
-                                },
-                                "media_url": {
-                                    "type": "string",
-                                    "description": "Public URL of the image or video. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                                    "description": "Public URL of an image carousel item. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
                                     "x-autohive-input": "file-public-url"
+                                },
+                                {
+                                    "type": "object",
+                                    "description": "An image or video carousel item.",
+                                    "properties": {
+                                        "media_type": {
+                                            "type": "string",
+                                            "enum": [
+                                                "IMAGE",
+                                                "VIDEO"
+                                            ],
+                                            "description": "Type of carousel item."
+                                        },
+                                        "media_url": {
+                                            "type": "string",
+                                            "description": "Public URL of the image or video. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                                            "x-autohive-input": "file-public-url"
+                                        }
+                                    },
+                                    "required": [
+                                        "media_type",
+                                        "media_url"
+                                    ],
+                                    "additionalProperties": false
                                 }
-                            },
-                            "required": [
-                                "media_type",
-                                "media_url"
-                            ],
-                            "additionalProperties": false
+                            ]
                         },
                         "description": "Required for CAROUSEL: Ordered array of 2-10 image or video items, each with media_type and media_url. You may attach files in the chat — the platform will upload them to public URLs automatically.",
                         "minItems": 2,

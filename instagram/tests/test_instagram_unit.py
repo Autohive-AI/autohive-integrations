@@ -346,9 +346,9 @@ def test_chat_file_upload_metadata_present_on_instagram_media_inputs():
     create_post_properties = config["actions"]["create_post"]["input_schema"]["properties"]
     assert create_post_properties["media_url"]["x-autohive-input"] == "file-public-url"
     assert create_post_properties["children"]["type"] == "array"
-    child_schema = create_post_properties["children"]["items"]
-    assert child_schema["type"] == "object"
-    assert child_schema["properties"]["media_url"]["x-autohive-input"] == "file-public-url"
+    string_child_schema, object_child_schema = create_post_properties["children"]["items"]["oneOf"]
+    assert string_child_schema["x-autohive-input"] == "file-public-url"
+    assert object_child_schema["properties"]["media_url"]["x-autohive-input"] == "file-public-url"
 
     create_story_properties = config["actions"]["create_story"]["input_schema"]["properties"]
     assert create_story_properties["media_url"]["x-autohive-input"] == "file-public-url"
@@ -364,8 +364,9 @@ def test_chat_file_upload_descriptions_are_user_facing():
 
     assert "attach a file" in create_post_properties["media_url"]["description"]
     assert "attach files" in create_post_properties["children"]["description"]
-    child_schema = create_post_properties["children"]["items"]
-    assert "attach a file" in child_schema["properties"]["media_url"]["description"]
+    string_child_schema, object_child_schema = create_post_properties["children"]["items"]["oneOf"]
+    assert "attach a file" in string_child_schema["description"]
+    assert "attach a file" in object_child_schema["properties"]["media_url"]["description"]
     assert "attach a file" in create_story_properties["media_url"]["description"]
 
 
@@ -509,12 +510,14 @@ async def test_create_post_carousel_success():
             "media_type": "CAROUSEL",
             "caption": "Multi",
             "children": [
-                {"media_type": "IMAGE", "media_url": "https://example.com/img1.jpg"},
-                {"media_type": "IMAGE", "media_url": "https://example.com/img2.jpg"},
+                "https://example.com/img1.jpg",
+                "https://example.com/img2.jpg",
             ],
         },
         ctx,
     )
+    assert ctx.fetch.call_args_list[1].kwargs["data"]["image_url"] == "https://example.com/img1.jpg"
+    assert ctx.fetch.call_args_list[2].kwargs["data"]["image_url"] == "https://example.com/img2.jpg"
     assert result.result.data["media_id"] == "carousel_published"
 
 

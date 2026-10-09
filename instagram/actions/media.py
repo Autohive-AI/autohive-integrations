@@ -70,17 +70,20 @@ async def _poll_container_ids(
         statuses = await asyncio.gather(
             *[_get_container_status(context, container_id) for container_id in container_ids]
         )
-        all_finished = True
+        all_ready = True
+        any_published = False
         for data in statuses:
             status_code = data.get("status_code", "").upper()
             if status_code in {"ERROR", "EXPIRED", "FAILED"}:
                 detail = data.get("status", "Unknown error")
                 return "FAILED", f"Media container {status_code.lower()}: {detail}"
-            if status_code != "FINISHED":
-                all_finished = False
+            if status_code == "PUBLISHED":
+                any_published = True
+            elif status_code != "FINISHED":
+                all_ready = False
 
-        if all_finished:
-            return "FINISHED", ""
+        if all_ready:
+            return ("PUBLISHED" if any_published else "FINISHED"), ""
         if poll_attempt < ASYNC_POLL_ATTEMPTS - 1:
             await asyncio.sleep(ASYNC_POLL_DELAY_SECONDS)
 
@@ -155,8 +158,8 @@ class CreatePostAction(ActionHandler):
 
             child_container_ids = []
             for index, child in enumerate(children):
-                child_url = child.get("media_url")
-                child_type = child.get("media_type", "IMAGE").upper()
+                child_url = child.get("media_url") if isinstance(child, dict) else child
+                child_type = child.get("media_type", "IMAGE").upper() if isinstance(child, dict) else "IMAGE"
                 if not child_url:
                     raise Exception(f"Carousel item {index + 1} requires a media_url")
                 if child_type not in {"IMAGE", "VIDEO"}:
@@ -360,6 +363,8 @@ class CompletePostAction(ActionHandler):
             processing_status, error = await _poll_container_ids(context, publish_state["child_container_ids"])
             if processing_status == "FAILED":
                 return ActionError(message=error)
+            if processing_status == "PUBLISHED":
+                return ActionError(message="A carousel child has already been published and cannot be reused")
             if processing_status == "PROCESSING":
                 return _async_post_result(
                     "PROCESSING",
@@ -399,6 +404,15 @@ class CompletePostAction(ActionHandler):
         processing_status, error = await _poll_container_ids(context, [publish_state["container_id"]])
         if processing_status == "FAILED":
             return ActionError(message=error)
+        if processing_status == "PUBLISHED":
+            return _async_post_result(
+                "PUBLISHED",
+                publish_state,
+                message=(
+                    "Instagram reports that this media container was already published. "
+                    "The media ID and permalink were not available from the previous publish response."
+                ),
+            )
         if processing_status == "PROCESSING":
             return _async_post_result(
                 "PROCESSING",
@@ -416,6 +430,16 @@ class CompletePostAction(ActionHandler):
         )
         media_id = publish_response.data.get("id", "")
         if not media_id:
+            status_data = await _get_container_status(context, publish_state["container_id"])
+            if status_data.get("status_code", "").upper() == "PUBLISHED":
+                return _async_post_result(
+                    "PUBLISHED",
+                    publish_state,
+                    message=(
+                        "Instagram published the post but did not return its media ID. "
+                        "The permalink could not be retrieved."
+                    ),
+                )
             return ActionError(message="Instagram did not return a published media ID")
 
         permalink = ""

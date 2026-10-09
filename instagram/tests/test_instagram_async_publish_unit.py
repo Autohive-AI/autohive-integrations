@@ -253,6 +253,31 @@ async def test_complete_post_publishes_ready_single_media():
 
 
 @pytest.mark.asyncio
+async def test_complete_post_recovers_when_container_was_already_published():
+    ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {"status_code": "PUBLISHED"},
+        ]
+    )
+
+    result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": publish_state()},
+        ctx,
+    )
+
+    data = result.result.data
+    assert result.type == ResultType.ACTION
+    assert data["status"] == "PUBLISHED"
+    assert data["media_id"] == ""
+    assert data["permalink"] == ""
+    assert data["next_action"] == ""
+    assert "already published" in data["message"]
+    assert ctx.fetch.call_count == 2
+
+
+@pytest.mark.asyncio
 async def test_complete_post_preserves_success_when_permalink_lookup_fails():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(
@@ -459,6 +484,7 @@ async def test_complete_post_returns_action_error_when_publish_has_no_media_id()
             {"id": "17841400000000000"},
             {"status_code": "FINISHED"},
             {},
+            {"status_code": "FINISHED"},
         ]
     )
 
@@ -470,6 +496,32 @@ async def test_complete_post_returns_action_error_when_publish_has_no_media_id()
 
     assert result.type == ResultType.ACTION_ERROR
     assert result.result.message == "Instagram did not return a published media ID"
+
+
+@pytest.mark.asyncio
+async def test_complete_post_preserves_success_when_publish_response_has_no_media_id():
+    ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {"status_code": "FINISHED"},
+            {},
+            {"status_code": "PUBLISHED"},
+        ]
+    )
+
+    result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": publish_state()},
+        ctx,
+    )
+
+    data = result.result.data
+    assert result.type == ResultType.ACTION
+    assert data["status"] == "PUBLISHED"
+    assert data["media_id"] == ""
+    assert data["permalink"] == ""
+    assert data["next_action"] == ""
+    assert "did not return its media ID" in data["message"]
 
 
 @pytest.mark.asyncio
