@@ -9,6 +9,7 @@ import sys
 import pytest
 from unittest.mock import MagicMock, AsyncMock
 from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, _parent)
@@ -345,8 +346,9 @@ def test_chat_file_upload_metadata_present_on_instagram_media_inputs():
     create_post_properties = config["actions"]["create_post"]["input_schema"]["properties"]
     assert create_post_properties["media_url"]["x-autohive-input"] == "file-public-url"
     assert create_post_properties["children"]["type"] == "array"
-    assert create_post_properties["children"]["items"]["type"] == "string"
-    assert create_post_properties["children"]["items"]["x-autohive-input"] == "file-public-url"
+    child_schema = create_post_properties["children"]["items"]
+    assert child_schema["type"] == "object"
+    assert child_schema["properties"]["media_url"]["x-autohive-input"] == "file-public-url"
 
     create_story_properties = config["actions"]["create_story"]["input_schema"]["properties"]
     assert create_story_properties["media_url"]["x-autohive-input"] == "file-public-url"
@@ -362,7 +364,8 @@ def test_chat_file_upload_descriptions_are_user_facing():
 
     assert "attach a file" in create_post_properties["media_url"]["description"]
     assert "attach files" in create_post_properties["children"]["description"]
-    assert "attach a file" in create_post_properties["children"]["items"]["description"]
+    child_schema = create_post_properties["children"]["items"]
+    assert "attach a file" in child_schema["properties"]["media_url"]["description"]
     assert "attach a file" in create_story_properties["media_url"]["description"]
 
 
@@ -506,8 +509,8 @@ async def test_create_post_carousel_success():
             "media_type": "CAROUSEL",
             "caption": "Multi",
             "children": [
-                "https://example.com/img1.jpg",
-                "https://example.com/img2.jpg",
+                {"media_type": "IMAGE", "media_url": "https://example.com/img1.jpg"},
+                {"media_type": "IMAGE", "media_url": "https://example.com/img2.jpg"},
             ],
         },
         ctx,
@@ -516,28 +519,78 @@ async def test_create_post_carousel_success():
 
 
 @pytest.mark.asyncio
-async def test_create_post_carousel_too_few_raises():
-    ctx = make_ctx_multi([{"id": "17841400000000000"}])
-    with pytest.raises(Exception, match="at least 2"):
-        await instagram_integration.execute_action(
-            "create_post",
-            {"media_type": "CAROUSEL", "children": ["https://example.com/img.jpg"]},
-            ctx,
-        )
+async def test_create_post_carousel_with_image_and_video():
+    ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {"id": "image_child"},
+            {"id": "video_child"},
+            {"status_code": "FINISHED"},
+            {"status_code": "FINISHED"},
+            {"id": "carousel_container"},
+            {"status_code": "FINISHED"},
+            {"id": "carousel_published"},
+            {"permalink": "https://www.instagram.com/p/MIXED/"},
+        ]
+    )
+
+    result = await instagram_integration.execute_action(
+        "create_post",
+        {
+            "media_type": "CAROUSEL",
+            "caption": "Mixed media",
+            "children": [
+                {"media_type": "IMAGE", "media_url": "https://example.com/photo.jpg"},
+                {"media_type": "VIDEO", "media_url": "https://example.com/video.mp4"},
+            ],
+        },
+        ctx,
+    )
+
+    image_data = ctx.fetch.call_args_list[1].kwargs["data"]
+    video_data = ctx.fetch.call_args_list[2].kwargs["data"]
+    carousel_data = ctx.fetch.call_args_list[5].kwargs["data"]
+    assert image_data == {
+        "is_carousel_item": "true",
+        "image_url": "https://example.com/photo.jpg",
+    }
+    assert video_data == {
+        "is_carousel_item": "true",
+        "media_type": "VIDEO",
+        "video_url": "https://example.com/video.mp4",
+    }
+    assert carousel_data["children"] == "image_child,video_child"
+    assert result.result.data["media_id"] == "carousel_published"
 
 
 @pytest.mark.asyncio
-async def test_create_post_carousel_too_many_raises():
+async def test_create_post_carousel_rejects_too_few_items():
     ctx = make_ctx_multi([{"id": "17841400000000000"}])
-    with pytest.raises(Exception, match="maximum 10"):
-        await instagram_integration.execute_action(
-            "create_post",
-            {
-                "media_type": "CAROUSEL",
-                "children": [f"https://example.com/img{i}.jpg" for i in range(11)],
-            },
-            ctx,
-        )
+    result = await instagram_integration.execute_action(
+        "create_post",
+        {
+            "media_type": "CAROUSEL",
+            "children": [{"media_type": "IMAGE", "media_url": "https://example.com/img.jpg"}],
+        },
+        ctx,
+    )
+    assert result.type == ResultType.VALIDATION_ERROR
+    ctx.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_post_carousel_rejects_too_many_items():
+    ctx = make_ctx_multi([{"id": "17841400000000000"}])
+    result = await instagram_integration.execute_action(
+        "create_post",
+        {
+            "media_type": "CAROUSEL",
+            "children": [{"media_type": "IMAGE", "media_url": f"https://example.com/img{i}.jpg"} for i in range(11)],
+        },
+        ctx,
+    )
+    assert result.type == ResultType.VALIDATION_ERROR
+    ctx.fetch.assert_not_called()
 
 
 # =============================================================================

@@ -1,6 +1,6 @@
 {
     "name": "Instagram",
-    "version": "2.1.1",
+    "version": "2.2.0",
     "description": "Instagram Business/Creator integration for managing posts, comments, and insights",
     "supports_connected_account": true,
     "entry_point": "instagram.py",
@@ -186,11 +186,32 @@
                     "children": {
                         "type": "array",
                         "items": {
-                            "type": "string",
-                            "description": "Public URL of a carousel media item. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
-                            "x-autohive-input": "file-public-url"
+                            "type": "object",
+                            "description": "An image or video carousel item.",
+                            "properties": {
+                                "media_type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "IMAGE",
+                                        "VIDEO"
+                                    ],
+                                    "description": "Type of carousel item."
+                                },
+                                "media_url": {
+                                    "type": "string",
+                                    "description": "Public URL of the image or video. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                                    "x-autohive-input": "file-public-url"
+                                }
+                            },
+                            "required": [
+                                "media_type",
+                                "media_url"
+                            ],
+                            "additionalProperties": false
                         },
-                        "description": "Required for CAROUSEL: Array of media URLs for carousel items. You may attach files in the chat — the platform will upload them to public URLs automatically."
+                        "description": "Required for CAROUSEL: Ordered array of 2-10 image or video items, each with media_type and media_url. You may attach files in the chat — the platform will upload them to public URLs automatically.",
+                        "minItems": 2,
+                        "maxItems": 10
                     },
                     "alt_text": {
                         "type": "string",

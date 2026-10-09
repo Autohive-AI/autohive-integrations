@@ -91,9 +91,14 @@ class CreatePostAction(ActionHandler):
                 raise Exception("Carousel supports maximum 10 media items")
 
             child_container_ids = []
-            for child in children:
-                child_url = child.get("media_url") if isinstance(child, dict) else child
-                child_type = child.get("media_type", "IMAGE").upper() if isinstance(child, dict) else "IMAGE"
+            for index, child in enumerate(children):
+                child_url = child.get("media_url")
+                child_type = child.get("media_type", "IMAGE").upper()
+                if not child_url:
+                    raise Exception(f"Carousel item {index + 1} requires a media_url")
+                if child_type not in {"IMAGE", "VIDEO"}:
+                    raise Exception(f"Carousel item {index + 1} media_type must be IMAGE or VIDEO")
+
                 child_data = {"is_carousel_item": "true"}
                 if child_type == "VIDEO":
                     child_data["media_type"] = "VIDEO"
