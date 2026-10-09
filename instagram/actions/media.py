@@ -240,7 +240,7 @@ class CreatePostAction(ActionHandler):
 
 @instagram.action("start_post")
 class StartPostAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
         media_type = inputs["media_type"].upper()
         media_url = inputs.get("media_url")
         caption = inputs.get("caption", "")
@@ -249,11 +249,16 @@ class StartPostAction(ActionHandler):
 
         if media_type == "CAROUSEL":
             if not children or len(children) < 2:
-                raise Exception("Carousel requires at least 2 media items in 'children' array")
+                return ActionError(message="Carousel requires at least 2 media items in 'children' array")
             if len(children) > 10:
-                raise Exception("Carousel supports maximum 10 media items")
+                return ActionError(message="Carousel supports maximum 10 media items")
+        elif not media_url:
+            return ActionError(message=f"media_url is required for {media_type}")
 
-        account_id = await get_instagram_account_id(context)
+        try:
+            account_id = await get_instagram_account_id(context)
+        except Exception as exc:
+            return ActionError(message=str(exc))
 
         if media_type == "CAROUSEL":
 
@@ -275,7 +280,10 @@ class StartPostAction(ActionHandler):
                     raise Exception("Instagram did not return a carousel child container ID")
                 return container_id
 
-            child_container_ids = await asyncio.gather(*[create_child(child) for child in children])
+            try:
+                child_container_ids = await asyncio.gather(*[create_child(child) for child in children])
+            except Exception as exc:
+                return ActionError(message=str(exc))
             publish_state = {
                 "media_type": "CAROUSEL",
                 "phase": "CHILDREN",
@@ -285,8 +293,6 @@ class StartPostAction(ActionHandler):
                 "attempt": 0,
             }
         else:
-            if not media_url:
-                raise Exception(f"media_url is required for {media_type}")
             normalized_media_type = "REELS" if media_type in {"VIDEO", "REELS"} else "IMAGE"
             if normalized_media_type == "REELS":
                 post_data = {
@@ -299,14 +305,17 @@ class StartPostAction(ActionHandler):
                 if alt_text:
                     post_data["alt_text"] = alt_text
 
-            response = await context.fetch(
-                f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media",
-                method="POST",
-                data=post_data,
-            )
+            try:
+                response = await context.fetch(
+                    f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media",
+                    method="POST",
+                    data=post_data,
+                )
+            except Exception as exc:
+                return ActionError(message=str(exc))
             container_id = response.data.get("id")
             if not container_id:
-                raise Exception("Instagram did not return a media container ID")
+                return ActionError(message="Instagram did not return a media container ID")
             publish_state = {
                 "media_type": normalized_media_type,
                 "phase": "MEDIA",

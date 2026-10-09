@@ -64,13 +64,14 @@ def test_start_post_file_inputs_are_public_url_annotated():
 async def test_start_post_carousel_requires_children_before_fetching_account():
     ctx = make_ctx_multi([])
 
-    with pytest.raises(Exception, match="at least 2"):
-        await instagram_integration.execute_action(
-            "start_post",
-            {"media_type": "CAROUSEL"},
-            ctx,
-        )
+    result = await instagram_integration.execute_action(
+        "start_post",
+        {"media_type": "CAROUSEL"},
+        ctx,
+    )
 
+    assert result.type == ResultType.ACTION_ERROR
+    assert "at least 2" in result.result.message
     ctx.fetch.assert_not_called()
 
 
@@ -90,6 +91,66 @@ async def test_start_post_carousel_rejects_out_of_range_child_counts(child_count
 
     assert result.type == ResultType.VALIDATION_ERROR
     ctx.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_start_post_returns_action_error_when_media_url_is_missing():
+    ctx = make_ctx_multi([])
+
+    result = await instagram_integration.execute_action(
+        "start_post",
+        {"media_type": "REELS"},
+        ctx,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == "media_url is required for REELS"
+    ctx.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_start_post_returns_action_error_when_carousel_child_has_no_container_id():
+    ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {},
+            {"id": "video_child"},
+        ]
+    )
+
+    result = await instagram_integration.execute_action(
+        "start_post",
+        {
+            "media_type": "CAROUSEL",
+            "children": [
+                {"media_type": "IMAGE", "media_url": "https://example.com/image.jpg"},
+                {"media_type": "VIDEO", "media_url": "https://example.com/video.mp4"},
+            ],
+        },
+        ctx,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == "Instagram did not return a carousel child container ID"
+
+
+@pytest.mark.asyncio
+async def test_start_post_returns_action_error_when_media_container_id_is_missing():
+    ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {},
+        ]
+    )
+
+    result = await instagram_integration.execute_action(
+        "start_post",
+        {"media_type": "IMAGE", "media_url": "https://example.com/image.jpg"},
+        ctx,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == "Instagram did not return a media container ID"
 
 
 @pytest.mark.asyncio
