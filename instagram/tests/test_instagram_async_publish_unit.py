@@ -357,6 +357,7 @@ async def test_complete_post_publishes_carousel_across_continuation_calls():
         container_id="",
         child_container_ids=["image_child", "video_child"],
         caption="Mixed",
+        attempt=11,
     )
 
     parent_result = await instagram_integration.execute_action(
@@ -368,7 +369,7 @@ async def test_complete_post_publishes_carousel_across_continuation_calls():
     parent_state = parent_result.result.data["publish_state"]
     assert parent_result.result.data["status"] == "PROCESSING"
     assert parent_state["phase"] == "PARENT"
-    assert parent_state["attempt"] == 1
+    assert parent_state["attempt"] == 0
 
     parent_ctx = make_ctx_multi(
         [
@@ -389,7 +390,7 @@ async def test_complete_post_publishes_carousel_across_continuation_calls():
     assert published_data["status"] == "PUBLISHED"
     assert published_data["media_id"] == "published_carousel"
     assert published_data["permalink"] == "https://www.instagram.com/p/CAROUSEL/"
-    assert published_data["publish_state"]["attempt"] == 2
+    assert published_data["publish_state"]["attempt"] == 1
     assert parent_ctx.fetch.call_args_list[2].kwargs["data"] == {"creation_id": "parent_container"}
 
 

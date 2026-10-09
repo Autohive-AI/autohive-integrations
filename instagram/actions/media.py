@@ -389,6 +389,7 @@ class CompletePostAction(ActionHandler):
                 return ActionError(message="Instagram did not return a carousel container ID")
             publish_state["container_id"] = parent_container_id
             publish_state["phase"] = "PARENT"
+            publish_state["attempt"] = 0
             return _async_post_result(
                 "PROCESSING",
                 publish_state,
