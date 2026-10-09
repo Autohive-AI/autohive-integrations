@@ -367,9 +367,6 @@
                     },
                     "permalink": {
                         "type": "string"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 },
                 "required": [
@@ -379,8 +376,7 @@
                     "next_action",
                     "message",
                     "media_id",
-                    "permalink",
-                    "error"
+                    "permalink"
                 ]
             }
         },
@@ -444,8 +440,7 @@
                         "type": "string",
                         "enum": [
                             "PROCESSING",
-                            "PUBLISHED",
-                            "FAILED"
+                            "PUBLISHED"
                         ]
                     },
                     "publish_state": {
@@ -502,9 +497,6 @@
                     },
                     "permalink": {
                         "type": "string"
-                    },
-                    "error": {
-                        "type": "string"
                     }
                 },
                 "required": [
@@ -514,8 +506,7 @@
                     "next_action",
                     "message",
                     "media_id",
-                    "permalink",
-                    "error"
+                    "permalink"
                 ]
             }
         },

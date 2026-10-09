@@ -1,6 +1,6 @@
 import asyncio
 
-from autohive_integrations_sdk import ActionHandler, ActionResult, ExecutionContext
+from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext
 from typing import Dict, Any
 
 from instagram import instagram
@@ -38,7 +38,6 @@ def _async_post_result(
     message: str,
     media_id: str = "",
     permalink: str = "",
-    error: str = "",
 ) -> ActionResult:
     is_processing = status == "PROCESSING"
     return ActionResult(
@@ -50,7 +49,6 @@ def _async_post_result(
             "message": message,
             "media_id": media_id,
             "permalink": permalink,
-            "error": error,
         }
     )
 
@@ -248,6 +246,13 @@ class StartPostAction(ActionHandler):
         caption = inputs.get("caption", "")
         children = inputs.get("children", [])
         alt_text = inputs.get("alt_text")
+
+        if media_type == "CAROUSEL":
+            if not children or len(children) < 2:
+                raise Exception("Carousel requires at least 2 media items in 'children' array")
+            if len(children) > 10:
+                raise Exception("Carousel supports maximum 10 media items")
+
         account_id = await get_instagram_account_id(context)
 
         if media_type == "CAROUSEL":
@@ -323,17 +328,14 @@ class StartPostAction(ActionHandler):
 
 @instagram.action("complete_post")
 class CompletePostAction(ActionHandler):
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
         publish_state = dict(inputs["publish_state"])
         publish_state["child_container_ids"] = list(publish_state.get("child_container_ids", []))
         publish_state["attempt"] = int(publish_state.get("attempt", 0)) + 1
 
         if publish_state["attempt"] > ASYNC_MAX_COMPLETION_CALLS:
-            return _async_post_result(
-                "FAILED",
-                publish_state,
-                message="Instagram media processing did not finish in time.",
-                error="Maximum automatic completion attempts exceeded",
+            return ActionError(
+                message="Instagram media processing did not finish after the maximum automatic completion attempts."
             )
 
         account_id = await get_instagram_account_id(context)
@@ -342,7 +344,7 @@ class CompletePostAction(ActionHandler):
         if phase == "CHILDREN":
             processing_status, error = await _poll_container_ids(context, publish_state["child_container_ids"])
             if processing_status == "FAILED":
-                return _async_post_result("FAILED", publish_state, message=error, error=error)
+                return ActionError(message=error)
             if processing_status == "PROCESSING":
                 return _async_post_result(
                     "PROCESSING",
@@ -364,12 +366,7 @@ class CompletePostAction(ActionHandler):
             )
             parent_container_id = response.data.get("id")
             if not parent_container_id:
-                return _async_post_result(
-                    "FAILED",
-                    publish_state,
-                    message="Instagram did not create the carousel container.",
-                    error="Instagram did not return a carousel container ID",
-                )
+                return ActionError(message="Instagram did not return a carousel container ID")
             publish_state["container_id"] = parent_container_id
             publish_state["phase"] = "PARENT"
             return _async_post_result(
@@ -382,16 +379,11 @@ class CompletePostAction(ActionHandler):
             )
 
         if phase not in {"MEDIA", "PARENT"} or not publish_state.get("container_id"):
-            return _async_post_result(
-                "FAILED",
-                publish_state,
-                message="The publishing state is invalid.",
-                error="publish_state must identify a media or parent container",
-            )
+            return ActionError(message="publish_state must identify a media or parent container")
 
         processing_status, error = await _poll_container_ids(context, [publish_state["container_id"]])
         if processing_status == "FAILED":
-            return _async_post_result("FAILED", publish_state, message=error, error=error)
+            return ActionError(message=error)
         if processing_status == "PROCESSING":
             return _async_post_result(
                 "PROCESSING",
@@ -409,12 +401,7 @@ class CompletePostAction(ActionHandler):
         )
         media_id = publish_response.data.get("id", "")
         if not media_id:
-            return _async_post_result(
-                "FAILED",
-                publish_state,
-                message="Instagram did not publish the media container.",
-                error="Instagram did not return a published media ID",
-            )
+            return ActionError(message="Instagram did not return a published media ID")
 
         details_response = await context.fetch(
             f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}",

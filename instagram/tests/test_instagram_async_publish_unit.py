@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, _parent)
@@ -57,6 +58,38 @@ def test_start_post_file_inputs_are_public_url_annotated():
 
     assert properties["media_url"]["x-autohive-input"] == "file-public-url"
     assert properties["children"]["items"]["properties"]["media_url"]["x-autohive-input"] == "file-public-url"
+
+
+@pytest.mark.asyncio
+async def test_start_post_carousel_requires_children_before_fetching_account():
+    ctx = make_ctx_multi([])
+
+    with pytest.raises(Exception, match="at least 2"):
+        await instagram_integration.execute_action(
+            "start_post",
+            {"media_type": "CAROUSEL"},
+            ctx,
+        )
+
+    ctx.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("child_count", [1, 11])
+async def test_start_post_carousel_rejects_out_of_range_child_counts(child_count):
+    ctx = make_ctx_multi([])
+    children = [
+        {"media_type": "IMAGE", "media_url": f"https://example.com/image-{index}.jpg"} for index in range(child_count)
+    ]
+
+    result = await instagram_integration.execute_action(
+        "start_post",
+        {"media_type": "CAROUSEL", "children": children},
+        ctx,
+    )
+
+    assert result.type == ResultType.VALIDATION_ERROR
+    ctx.fetch.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -192,6 +225,58 @@ async def test_complete_post_creates_parent_after_carousel_children_finish():
 
 
 @pytest.mark.asyncio
+async def test_complete_post_publishes_carousel_across_continuation_calls():
+    children_ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {"status_code": "FINISHED"},
+            {"status_code": "FINISHED"},
+            {"id": "parent_container"},
+        ]
+    )
+    initial_state = publish_state(
+        media_type="CAROUSEL",
+        phase="CHILDREN",
+        container_id="",
+        child_container_ids=["image_child", "video_child"],
+        caption="Mixed",
+    )
+
+    parent_result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": initial_state},
+        children_ctx,
+    )
+
+    parent_state = parent_result.result.data["publish_state"]
+    assert parent_result.result.data["status"] == "PROCESSING"
+    assert parent_state["phase"] == "PARENT"
+    assert parent_state["attempt"] == 1
+
+    parent_ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {"status_code": "FINISHED"},
+            {"id": "published_carousel"},
+            {"permalink": "https://www.instagram.com/p/CAROUSEL/"},
+        ]
+    )
+
+    published_result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": parent_state},
+        parent_ctx,
+    )
+
+    published_data = published_result.result.data
+    assert published_data["status"] == "PUBLISHED"
+    assert published_data["media_id"] == "published_carousel"
+    assert published_data["permalink"] == "https://www.instagram.com/p/CAROUSEL/"
+    assert published_data["publish_state"]["attempt"] == 2
+    assert parent_ctx.fetch.call_args_list[2].kwargs["data"] == {"creation_id": "parent_container"}
+
+
+@pytest.mark.asyncio
 @patch("actions.media.asyncio.sleep", new_callable=AsyncMock)
 async def test_complete_post_returns_processing_and_updated_state_when_not_ready(mock_sleep):
     ctx = make_ctx_multi(
@@ -216,7 +301,7 @@ async def test_complete_post_returns_processing_and_updated_state_when_not_ready
 
 
 @pytest.mark.asyncio
-async def test_complete_post_returns_failed_for_terminal_meta_status():
+async def test_complete_post_returns_action_error_for_terminal_meta_status():
     ctx = make_ctx_multi(
         [
             {"id": "17841400000000000"},
@@ -230,10 +315,69 @@ async def test_complete_post_returns_failed_for_terminal_meta_status():
         ctx,
     )
 
-    data = result.result.data
-    assert data["status"] == "FAILED"
-    assert "Video could not be processed" in data["error"]
-    assert data["next_action"] == ""
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Video could not be processed" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_complete_post_returns_action_error_when_carousel_parent_is_not_created():
+    ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {"status_code": "FINISHED"},
+            {"status_code": "FINISHED"},
+            {},
+        ]
+    )
+    state = publish_state(
+        media_type="CAROUSEL",
+        phase="CHILDREN",
+        container_id="",
+        child_container_ids=["image_child", "video_child"],
+    )
+
+    result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": state},
+        ctx,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == "Instagram did not return a carousel container ID"
+
+
+@pytest.mark.asyncio
+async def test_complete_post_returns_action_error_for_invalid_state():
+    ctx = make_ctx_multi([{"id": "17841400000000000"}])
+
+    result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": publish_state(container_id="")},
+        ctx,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == "publish_state must identify a media or parent container"
+
+
+@pytest.mark.asyncio
+async def test_complete_post_returns_action_error_when_publish_has_no_media_id():
+    ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {"status_code": "FINISHED"},
+            {},
+        ]
+    )
+
+    result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": publish_state()},
+        ctx,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == "Instagram did not return a published media ID"
 
 
 @pytest.mark.asyncio
@@ -246,7 +390,6 @@ async def test_complete_post_stops_after_maximum_automatic_attempts():
         ctx,
     )
 
-    data = result.result.data
-    assert data["status"] == "FAILED"
-    assert data["error"] == "Maximum automatic completion attempts exceeded"
+    assert result.type == ResultType.ACTION_ERROR
+    assert "maximum automatic completion attempts" in result.result.message
     ctx.fetch.assert_not_called()
