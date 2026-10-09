@@ -1,6 +1,6 @@
 {
     "name": "Instagram",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "description": "Instagram Business/Creator integration for managing posts, comments, and insights",
     "supports_connected_account": true,
     "entry_point": "instagram.py",
@@ -159,8 +159,8 @@
             }
         },
         "create_post": {
-            "display_name": "Create Post",
-            "description": "Publish content to Instagram. Supports images, videos, reels, and carousel posts.",
+            "display_name": "Create Post and Wait",
+            "description": "Creates and publishes an image, video, reel, or mixed carousel. Works well for small media files.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -172,7 +172,7 @@
                             "REELS",
                             "CAROUSEL"
                         ],
-                        "description": "Type of post to publish"
+                        "description": "Type of post to publish. VIDEO is a compatibility alias and is published as REELS."
                     },
                     "media_url": {
                         "type": "string",
@@ -186,11 +186,41 @@
                     "children": {
                         "type": "array",
                         "items": {
-                            "type": "string",
-                            "description": "Public URL of a carousel media item. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
-                            "x-autohive-input": "file-public-url"
+                            "oneOf": [
+                                {
+                                    "type": "string",
+                                    "description": "Public URL of an image carousel item. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                                    "x-autohive-input": "file-public-url"
+                                },
+                                {
+                                    "type": "object",
+                                    "description": "An image or video carousel item.",
+                                    "properties": {
+                                        "media_type": {
+                                            "type": "string",
+                                            "enum": [
+                                                "IMAGE",
+                                                "VIDEO"
+                                            ],
+                                            "description": "Type of carousel item."
+                                        },
+                                        "media_url": {
+                                            "type": "string",
+                                            "description": "Public URL of the image or video. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                                            "x-autohive-input": "file-public-url"
+                                        }
+                                    },
+                                    "required": [
+                                        "media_type",
+                                        "media_url"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            ]
                         },
-                        "description": "Required for CAROUSEL: Array of media URLs for carousel items. You may attach files in the chat — the platform will upload them to public URLs automatically."
+                        "description": "Required for CAROUSEL: Ordered array of 2-10 image or video items, each with media_type and media_url. You may attach files in the chat — the platform will upload them to public URLs automatically.",
+                        "minItems": 2,
+                        "maxItems": 10
                     },
                     "alt_text": {
                         "type": "string",
@@ -215,6 +245,277 @@
                 },
                 "required": [
                     "media_id"
+                ]
+            }
+        },
+        "start_post": {
+            "display_name": "Create Post in Background",
+            "description": "Creates an image, video, reel, or mixed carousel in the background. Recommended for large media uploads that may take longer to process. The agent continues checking automatically until the post is published.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "media_type": {
+                        "type": "string",
+                        "enum": [
+                            "IMAGE",
+                            "VIDEO",
+                            "REELS",
+                            "CAROUSEL"
+                        ],
+                        "description": "Type of post to publish. VIDEO is published as REELS."
+                    },
+                    "media_url": {
+                        "type": "string",
+                        "description": "Required for IMAGE, VIDEO, and REELS. Public URL of the media file. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                        "x-autohive-input": "file-public-url"
+                    },
+                    "caption": {
+                        "type": "string",
+                        "description": "Caption for the post."
+                    },
+                    "children": {
+                        "type": "array",
+                        "description": "Required for CAROUSEL: Ordered array of 2-10 image or video items.",
+                        "minItems": 2,
+                        "maxItems": 10,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "media_type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "IMAGE",
+                                        "VIDEO"
+                                    ],
+                                    "description": "Type of carousel item."
+                                },
+                                "media_url": {
+                                    "type": "string",
+                                    "description": "Public URL of the image or video. You may attach a file in the chat — the platform will upload it to a public URL automatically.",
+                                    "x-autohive-input": "file-public-url"
+                                }
+                            },
+                            "required": [
+                                "media_type",
+                                "media_url"
+                            ],
+                            "additionalProperties": false
+                        }
+                    },
+                    "alt_text": {
+                        "type": "string",
+                        "description": "Optional alt text for an image post."
+                    }
+                },
+                "required": [
+                    "media_type"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "PROCESSING"
+                        ],
+                        "description": "Current publishing status."
+                    },
+                    "publish_state": {
+                        "type": "object",
+                        "description": "Pass this entire object unchanged to complete_post.",
+                        "properties": {
+                            "media_type": {
+                                "type": "string"
+                            },
+                            "phase": {
+                                "type": "string",
+                                "enum": [
+                                    "MEDIA",
+                                    "CHILDREN",
+                                    "PARENT"
+                                ]
+                            },
+                            "container_id": {
+                                "type": "string"
+                            },
+                            "child_container_ids": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "caption": {
+                                "type": "string"
+                            },
+                            "attempt": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "media_type",
+                            "phase",
+                            "container_id",
+                            "child_container_ids",
+                            "caption",
+                            "attempt"
+                        ],
+                        "additionalProperties": false
+                    },
+                    "retry_after_seconds": {
+                        "type": "integer"
+                    },
+                    "next_action": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "media_id": {
+                        "type": "string"
+                    },
+                    "permalink": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "status",
+                    "publish_state",
+                    "retry_after_seconds",
+                    "next_action",
+                    "message",
+                    "media_id",
+                    "permalink"
+                ]
+            }
+        },
+        "complete_post": {
+            "display_name": "Complete Post",
+            "description": "Checks the progress of a background Instagram post and publishes it when ready. The agent continues checking automatically until the post is published or cannot be completed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "publish_state": {
+                        "type": "object",
+                        "description": "The complete publish_state returned by start_post or the previous complete_post call.",
+                        "properties": {
+                            "media_type": {
+                                "type": "string"
+                            },
+                            "phase": {
+                                "type": "string",
+                                "enum": [
+                                    "MEDIA",
+                                    "CHILDREN",
+                                    "PARENT"
+                                ]
+                            },
+                            "container_id": {
+                                "type": "string"
+                            },
+                            "child_container_ids": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "caption": {
+                                "type": "string"
+                            },
+                            "attempt": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        },
+                        "required": [
+                            "media_type",
+                            "phase",
+                            "container_id",
+                            "child_container_ids",
+                            "caption",
+                            "attempt"
+                        ],
+                        "additionalProperties": false
+                    }
+                },
+                "required": [
+                    "publish_state"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "PROCESSING",
+                            "PUBLISHED"
+                        ]
+                    },
+                    "publish_state": {
+                        "type": "object",
+                        "properties": {
+                            "media_type": {
+                                "type": "string"
+                            },
+                            "phase": {
+                                "type": "string",
+                                "enum": [
+                                    "MEDIA",
+                                    "CHILDREN",
+                                    "PARENT"
+                                ]
+                            },
+                            "container_id": {
+                                "type": "string"
+                            },
+                            "child_container_ids": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "caption": {
+                                "type": "string"
+                            },
+                            "attempt": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "media_type",
+                            "phase",
+                            "container_id",
+                            "child_container_ids",
+                            "caption",
+                            "attempt"
+                        ],
+                        "additionalProperties": false
+                    },
+                    "retry_after_seconds": {
+                        "type": "integer"
+                    },
+                    "next_action": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "media_id": {
+                        "type": "string"
+                    },
+                    "permalink": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "status",
+                    "publish_state",
+                    "retry_after_seconds",
+                    "next_action",
+                    "message",
+                    "media_id",
+                    "permalink"
                 ]
             }
         },
