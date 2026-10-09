@@ -30,7 +30,9 @@ This integration uses **Business Login for Instagram** (users log in with Instag
 |--------|-------------|
 | `get_account` | Get Instagram Business/Creator account details |
 | `get_posts` | Retrieve posts (images, videos, reels, carousels) |
-| `create_post` | Publish images, reels, or mixed image/video carousels (`VIDEO` input is published as a reel) |
+| `start_post` | Start background publishing for images, reels, or mixed image/video carousels |
+| `complete_post` | Automatically poll and publish a post started by `start_post` |
+| `create_post` | Publish a post while waiting for Instagram processing to finish (`VIDEO` input is published as a reel) |
 | `create_story` | Publish a story (24hr lifespan) |
 | `get_comments` | Get comments on a post |
 | `manage_comment` | Reply, hide, or unhide comments |
@@ -69,6 +71,14 @@ Set `media_type` to `CAROUSEL` and provide 2-10 ordered `children`. Each child d
 }
 ```
 
+## Asynchronous Publishing
+
+`start_post` creates the Meta media containers and returns a `publish_state` without waiting for processing to finish. The agent then calls `complete_post` automatically with that state. This flow is recommended for large media uploads, including larger videos and carousels that may take longer to process.
+
+`complete_post` polls Meta for a bounded period within each invocation. When processing is not finished, it returns an updated `publish_state` and instructs the agent to call it again immediately. Once the container is ready, it publishes the post and returns the media ID and permalink. The agent continues this loop without asking the user to send another message.
+
+`create_post` publishes in a single action and waits for processing to finish before returning. It works well for images and smaller media that complete within the action time limit.
+
 ## Rate Limits
 
 - **Content Publishing**: 100 posts per 24 hours (carousels count as 1)
@@ -79,7 +89,7 @@ Set `media_type` to `CAROUSEL` and provide 2-10 ordered `children`. Each child d
 - Media must be hosted on a publicly accessible URL for publishing
 - Stories are only available for 24 hours; insights expire after 24hrs
 - Carousel posts require 2-10 image or video items
-- Standalone video posts are published as reels; the legacy `VIDEO` input remains available as an alias for `REELS`
+- Standalone video posts are published as reels; the `VIDEO` input remains available as an alias for `REELS`
 - Video processing may take time before publishing completes
 
 ## API Version
