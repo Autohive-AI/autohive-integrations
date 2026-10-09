@@ -338,7 +338,13 @@ class StartPostAction(ActionHandler):
 @instagram.action("complete_post")
 class CompletePostAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
-        publish_state = dict(inputs["publish_state"])
+        try:
+            publish_state = dict(inputs["publish_state"])
+            return await self._execute(publish_state, context)
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+    async def _execute(self, publish_state: Dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
         publish_state["child_container_ids"] = list(publish_state.get("child_container_ids", []))
         publish_state["attempt"] = int(publish_state.get("attempt", 0)) + 1
 
@@ -412,17 +418,26 @@ class CompletePostAction(ActionHandler):
         if not media_id:
             return ActionError(message="Instagram did not return a published media ID")
 
-        details_response = await context.fetch(
-            f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}",
-            method="GET",
-            params={"fields": "permalink"},
-        )
+        permalink = ""
+        message = "Instagram post published successfully."
+        try:
+            details_response = await context.fetch(
+                f"{INSTAGRAM_GRAPH_API_BASE}/{media_id}",
+                method="GET",
+                params={"fields": "permalink"},
+            )
+            permalink = details_response.data.get("permalink", "")
+        except Exception:
+            # Publishing is irreversible. A best-effort details lookup must not
+            # turn a successfully published post into a failed, unsafe-to-retry action.
+            message = "Instagram post published successfully, but its permalink could not be retrieved."
+
         return _async_post_result(
             "PUBLISHED",
             publish_state,
-            message="Instagram post published successfully.",
+            message=message,
             media_id=media_id,
-            permalink=details_response.data.get("permalink", ""),
+            permalink=permalink,
         )
 
 

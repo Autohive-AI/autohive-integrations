@@ -23,7 +23,9 @@ def ok(data):
 
 def make_ctx_multi(responses):
     ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock(side_effect=[ok(response) for response in responses])
+    ctx.fetch = AsyncMock(
+        side_effect=[response if isinstance(response, Exception) else ok(response) for response in responses]
+    )
     ctx.auth = {}
     return ctx
 
@@ -251,6 +253,35 @@ async def test_complete_post_publishes_ready_single_media():
 
 
 @pytest.mark.asyncio
+async def test_complete_post_preserves_success_when_permalink_lookup_fails():
+    ctx = MagicMock(name="ExecutionContext")
+    ctx.fetch = AsyncMock(
+        side_effect=[
+            ok({"id": "17841400000000000"}),
+            ok({"status_code": "FINISHED"}),
+            ok({"id": "published_456"}),
+            Exception("details lookup failed"),
+        ]
+    )
+    ctx.auth = {}
+
+    result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": publish_state()},
+        ctx,
+    )
+
+    data = result.result.data
+    assert result.type == ResultType.ACTION
+    assert data["status"] == "PUBLISHED"
+    assert data["media_id"] == "published_456"
+    assert data["permalink"] == ""
+    assert data["next_action"] == ""
+    assert "permalink could not be retrieved" in data["message"]
+    assert ctx.fetch.call_count == 4
+
+
+@pytest.mark.asyncio
 async def test_complete_post_creates_parent_after_carousel_children_finish():
     ctx = make_ctx_multi(
         [
@@ -439,6 +470,62 @@ async def test_complete_post_returns_action_error_when_publish_has_no_media_id()
 
     assert result.type == ResultType.ACTION_ERROR
     assert result.result.message == "Instagram did not return a published media ID"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "responses,state,error_message",
+    [
+        (
+            [Exception("account lookup failed")],
+            publish_state(),
+            "account lookup failed",
+        ),
+        (
+            [
+                {"id": "17841400000000000"},
+                Exception("status polling failed"),
+            ],
+            publish_state(),
+            "status polling failed",
+        ),
+        (
+            [
+                {"id": "17841400000000000"},
+                {"status_code": "FINISHED"},
+                {"status_code": "FINISHED"},
+                Exception("parent creation failed"),
+            ],
+            publish_state(
+                media_type="CAROUSEL",
+                phase="CHILDREN",
+                container_id="",
+                child_container_ids=["image_child", "video_child"],
+            ),
+            "parent creation failed",
+        ),
+        (
+            [
+                {"id": "17841400000000000"},
+                {"status_code": "FINISHED"},
+                Exception("publishing failed"),
+            ],
+            publish_state(),
+            "publishing failed",
+        ),
+    ],
+)
+async def test_complete_post_returns_action_error_for_provider_failures(responses, state, error_message):
+    ctx = make_ctx_multi(responses)
+
+    result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": state},
+        ctx,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == error_message
 
 
 @pytest.mark.asyncio
