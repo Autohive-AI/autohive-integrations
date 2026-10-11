@@ -479,7 +479,7 @@ async def test_complete_post_returns_action_error_for_invalid_state():
 
 
 @pytest.mark.asyncio
-async def test_complete_post_returns_action_error_when_publish_has_no_media_id():
+async def test_complete_post_reconciles_when_publish_has_no_media_id():
     ctx = make_ctx_multi(
         [
             {"id": "17841400000000000"},
@@ -495,8 +495,13 @@ async def test_complete_post_returns_action_error_when_publish_has_no_media_id()
         ctx,
     )
 
-    assert result.type == ResultType.ACTION_ERROR
-    assert result.result.message == "Instagram did not return a published media ID"
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert data["status"] == "PROCESSING"
+    assert data["publish_state"]["phase"] == "PUBLISHING"
+    assert data["publish_state"]["container_id"] == "container_123"
+    assert data["next_action"] == "complete_post"
+    assert "do not start a new post" in data["message"]
 
 
 @pytest.mark.asyncio
@@ -526,12 +531,16 @@ async def test_complete_post_preserves_success_when_publish_response_has_no_medi
 
 
 @pytest.mark.asyncio
-async def test_complete_post_reconciles_accepted_publish_after_response_timeout():
+@pytest.mark.parametrize(
+    "publish_error",
+    [TimeoutError("publish response timed out"), HTTPError(400, "retry rejected"), HTTPError(500, "server error")],
+)
+async def test_complete_post_reconciles_accepted_publish_after_request_error(publish_error):
     ctx = make_ctx_multi(
         [
             {"id": "17841400000000000"},
             {"status_code": "FINISHED"},
-            TimeoutError("publish response timed out"),
+            publish_error,
             {"status_code": "PUBLISHED"},
         ]
     )
@@ -546,17 +555,18 @@ async def test_complete_post_reconciles_accepted_publish_after_response_timeout(
     assert result.type == ResultType.ACTION
     assert data["status"] == "PUBLISHED"
     assert data["next_action"] == ""
-    assert "response was lost" in data["message"]
-    assert ctx.fetch.call_count == 4
+    assert data["media_id"] == ""
+    assert data["permalink"] == ""
 
 
 @pytest.mark.asyncio
-async def test_complete_post_returns_resumable_state_when_publish_outcome_is_uncertain():
+@pytest.mark.parametrize("publish_error", [TimeoutError("publish response timed out"), HTTPError(500, "server error")])
+async def test_complete_post_returns_resumable_state_when_publish_outcome_is_uncertain(publish_error):
     initial_ctx = make_ctx_multi(
         [
             {"id": "17841400000000000"},
             {"status_code": "FINISHED"},
-            TimeoutError("publish response timed out"),
+            publish_error,
             TimeoutError("status check timed out"),
         ]
     )
@@ -590,6 +600,67 @@ async def test_complete_post_returns_resumable_state_when_publish_outcome_is_unc
 
     assert published_result.result.data["status"] == "PUBLISHED"
     assert reconciliation_ctx.fetch.call_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure_at", ["account", "container"])
+async def test_complete_post_resumes_after_a_later_reconciliation_error(failure_at):
+    responses = [TimeoutError("account check timed out")]
+    if failure_at == "container":
+        responses = [{"id": "17841400000000000"}, TimeoutError("status check timed out")]
+    failed_ctx = make_ctx_multi(responses)
+    state = publish_state(phase="PUBLISHING", attempt=3)
+
+    result = await instagram_integration.execute_action("complete_post", {"publish_state": state}, failed_ctx)
+
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert data["status"] == "PROCESSING"
+    assert data["publish_state"] == {**state, "attempt": 4}
+    assert data["next_action"] == "complete_post"
+    assert "do not start a new post" in data["message"]
+    assert state["attempt"] == 3
+
+    recovered_ctx = make_ctx_multi([{"id": "17841400000000000"}, {"status_code": "PUBLISHED"}])
+    recovered = await instagram_integration.execute_action(
+        "complete_post", {"publish_state": data["publish_state"]}, recovered_ctx
+    )
+
+    assert recovered.type == ResultType.ACTION
+    assert recovered.result.data["status"] == "PUBLISHED"
+    assert recovered.result.data["next_action"] == ""
+
+
+@pytest.mark.asyncio
+async def test_complete_post_stops_reconciliation_with_an_unknown_outcome():
+    failed_ctx = make_ctx_multi([{"id": "17841400000000000"}, TimeoutError("status check timed out")])
+    state = publish_state(phase="PUBLISHING", attempt=11)
+
+    last_check = await instagram_integration.execute_action("complete_post", {"publish_state": state}, failed_ctx)
+
+    assert last_check.type == ResultType.ACTION
+    assert last_check.result.data["status"] == "PROCESSING"
+    assert last_check.result.data["publish_state"]["attempt"] == 12
+
+    exhausted_ctx = make_ctx_multi([])
+    result = await instagram_integration.execute_action(
+        "complete_post", {"publish_state": last_check.result.data["publish_state"]}, exhausted_ctx
+    )
+
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert data["status"] == "UNKNOWN"
+    assert data["publish_state"] == {**state, "attempt": 13}
+    assert data["next_action"] == ""
+    assert data["retry_after_seconds"] == 0
+    assert data["media_id"] == ""
+    assert "do not start a new post" in data["message"]
+
+    from jsonschema import validate
+
+    with open(os.path.join(_parent, "config.json"), encoding="utf-8") as config_file:
+        output_schema = json.load(config_file)["actions"]["complete_post"]["output_schema"]
+    validate(data, output_schema)
 
 
 @pytest.mark.asyncio
@@ -629,9 +700,10 @@ async def test_complete_post_returns_resumable_state_when_publish_outcome_is_unc
                 {"id": "17841400000000000"},
                 {"status_code": "FINISHED"},
                 HTTPError(400, "publishing rejected"),
+                {"status_code": "ERROR", "status": "Video could not be processed"},
             ],
             publish_state(),
-            "HTTP 400: publishing rejected",
+            "Media container error: Video could not be processed",
         ),
     ],
 )

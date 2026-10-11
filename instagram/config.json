@@ -392,7 +392,7 @@
         },
         "complete_post": {
             "display_name": "Complete Post",
-            "description": "Checks the progress of a background Instagram post and publishes it when ready. The agent continues checking automatically until the post is published or cannot be completed.",
+            "description": "Checks the progress of a background Instagram post and publishes it when ready. The agent continues checking automatically while status is PROCESSING. If status is UNKNOWN, stop automatic checks and verify the existing container or account's published posts; do not start a new post while the publication outcome is unknown.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -451,8 +451,10 @@
                         "type": "string",
                         "enum": [
                             "PROCESSING",
-                            "PUBLISHED"
-                        ]
+                            "PUBLISHED",
+                            "UNKNOWN"
+                        ],
+                        "description": "PROCESSING means continue with publish_state. PUBLISHED confirms publication. UNKNOWN means the reconciliation budget is exhausted without confirming publication; stop automatic checks and verify the existing post before attempting a new publication."
                     },
                     "publish_state": {
                         "type": "object",
