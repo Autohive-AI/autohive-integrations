@@ -253,7 +253,10 @@ class TestReadEmailChained:
         emails = inbox.result.data.get("emails", [])
         if not emails:
             pytest.skip("Inbox is empty — cannot exercise read_email")
-        marker_allowance = len("\n\n[Body truncated: 9999999999 more characters]")
+        marker_allowance = len(
+            "\n\n[Body truncated: 9999999999 more characters. "
+            "Call read_email again with body_offset=9999999999 to continue.]"
+        )
         for email in emails:
             result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": email["id"]}, live_context)
             assert result.type == ResultType.ACTION

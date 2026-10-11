@@ -233,7 +233,7 @@
         },
         "read_email": {
             "display_name": "Read Email",
-            "description": "Read an email by ID, including its body, headers and attachments. HTML-only emails are converted to Markdown-formatted text (links kept, images dropped). The body is capped at 20,000 characters; a longer body is cut and ends with '[Body truncated: N more characters]'.",
+            "description": "Read an email by ID, including its body, headers and attachments. HTML-only emails are converted to Markdown-formatted text (links kept, images dropped). Each call returns at most 20,000 characters of the body. When more remains, the body ends with '[Body truncated: N more characters. Call read_email again with body_offset=X to continue.]'; call read_email again with that body_offset to read the next part.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -244,6 +244,10 @@
                     "user_id": {
                         "type": "string",
                         "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "body_offset": {
+                        "type": "integer",
+                        "description": "Optional: character offset into the body to start reading from. Defaults to 0. Use the body_offset value given in a truncation marker to read the next part of a long body."
                     }
                 },
                 "required": [
@@ -292,7 +296,7 @@
                             },
                             "body": {
                                 "type": "string",
-                                "description": "Body contents of the email: the text/plain part, or for HTML-only emails the HTML converted to Markdown-formatted text. Capped at 20,000 characters; a truncated body ends with '[Body truncated: N more characters]'."
+                                "description": "Body contents of the email: the text/plain part, or for HTML-only emails the HTML converted to Markdown-formatted text. At most 20,000 characters starting at body_offset; when more remains it ends with '[Body truncated: N more characters. Call read_email again with body_offset=X to continue.]'."
                             }
                         },
                         "required": [

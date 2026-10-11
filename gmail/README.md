@@ -21,7 +21,7 @@ Key features:
 - List per-send-as default signatures via `list_send_as_signatures`
 - Archive and mark as read/unread in batch
 - Pagination via `nextPageToken` on all list endpoints
-- Token-conscious reads: `read_inbox`, `read_all_mail` and `list_emails_by_label` return 25 emails per page by default, and `read_email` converts HTML-only bodies to Markdown-formatted text and caps the body at 20,000 characters (see [Result size limits](#result-size-limits))
+- Token-conscious reads: `read_inbox`, `read_all_mail` and `list_emails_by_label` return 25 emails per page by default, and `read_email` converts HTML-only bodies to Markdown-formatted text and returns the body in chunks of up to 20,000 characters (see [Result size limits](#result-size-limits))
 
 ## Setup & Authentication
 
@@ -44,7 +44,7 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | Action | Description |
 |---|---|
 | `send_email` | Send a new email (text or HTML) with optional CC/BCC and attachments |
-| `read_email` | Retrieve a single message by ID, including body (text/plain part, or HTML converted to Markdown-formatted text; capped at 20,000 characters), headers, and attachments |
+| `read_email` | Retrieve a single message by ID, including body (text/plain part, or HTML converted to Markdown-formatted text; 20,000 characters per call, with `body_offset` to read on), headers, and attachments |
 | `read_inbox` | List inbox messages, filtered by read/unread, with pagination (25 per page by default) |
 | `read_all_mail` | List messages across the entire mailbox with read/unread filtering and pagination (25 per page by default) |
 | `mark_emails_as_read` | Mark one or more messages as read |
@@ -100,9 +100,11 @@ message-reading actions small:
   Narrowing with `scope` (or `label_names` for `list_emails_by_label`), `after` / `before` or `q` is cheaper than
   paging through everything.
 - **Body size.** `read_email` returns the message's `text/plain` part. When there is none, the HTML part is converted
-  to Markdown-formatted text with `html2text` (images dropped, links kept). The body is then capped at 20,000 characters
-  (`MAX_READ_EMAIL_BODY_CHARS`); a longer body is cut and ends with `[Body truncated: N more characters]`. Attachments
-  in `files` are not affected.
+  to Markdown-formatted text with `html2text` (images dropped, links kept). Each call returns at most 20,000 characters
+  (`MAX_READ_EMAIL_BODY_CHARS`) of the body. When more remains, the body ends with
+  `[Body truncated: N more characters. Call read_email again with body_offset=X to continue.]`, and passing that
+  `body_offset` returns the next chunk, so the whole body can be read without gaps or overlap. Attachments in `files`
+  are not affected.
 
 The list actions fetch each message with `format=metadata`, requesting only the `Subject`, `From`, `To`, `Cc` and
 `Date` headers, since they only return headers and the snippet.

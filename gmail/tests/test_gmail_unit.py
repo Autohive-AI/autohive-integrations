@@ -6,6 +6,7 @@ the `build` call to return a configured MagicMock service.
 """
 
 import base64
+import re
 import warnings
 from unittest.mock import MagicMock, patch
 
@@ -790,6 +791,42 @@ def _metadata_message(msg_id="m1", thread_id="t1", subject="Hello"):
     }
 
 
+_MARKER_RE = re.compile(
+    r"\n\n\[Body truncated: (?P<remaining>\d+) more characters\. "
+    r"Call read_email again with body_offset=(?P<offset>\d+) to continue\.\]$"
+)
+
+
+async def _read_body(mock_context, message, body_offset=None):
+    """Run read_email once against ``message``; return (body, result)."""
+    inputs = {"user_id": "me", "email_id": "m1"}
+    if body_offset is not None:
+        inputs["body_offset"] = body_offset
+    with _patched_service() as mock_build:
+        service = _make_service()
+        mock_build.return_value = service
+        service.users().messages().get().execute.return_value = message
+        result = await gmail.execute_action("read_email", inputs, mock_context)
+    assert result.type == ResultType.ACTION
+    return result.result.data["email"]["body"], result
+
+
+async def _read_all_chunks(mock_context, message):
+    """Follow truncation markers from offset 0; return (reassembled body, call count)."""
+    parts, offset, calls = [], 0, 0
+    while True:
+        body, _ = await _read_body(mock_context, message, body_offset=offset)
+        calls += 1
+        match = _MARKER_RE.search(body)
+        if not match:
+            parts.append(body)
+            return "".join(parts), calls
+        chunk = body[: match.start()]
+        assert offset + len(chunk) == int(match.group("offset"))
+        parts.append(chunk)
+        offset = int(match.group("offset"))
+
+
 EXPECTED_PARSED_SAMPLE = {
     "id": "m1",
     "thread_id": "t1",
@@ -871,7 +908,10 @@ class TestReadEmail:
             service.users().messages().get().execute.return_value = _sample_message(body=body)
             result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": "m1"}, mock_context)
         returned = result.result.data["email"]["body"]
-        assert returned == "a" * MAX_READ_EMAIL_BODY_CHARS + "\n\n[Body truncated: 1234 more characters]"
+        assert returned == "a" * MAX_READ_EMAIL_BODY_CHARS + (
+            f"\n\n[Body truncated: 1234 more characters. "
+            f"Call read_email again with body_offset={MAX_READ_EMAIL_BODY_CHARS} to continue.]"
+        )
 
     @pytest.mark.asyncio
     async def test_long_html_body_truncated_after_conversion(self, mock_context):
@@ -885,7 +925,7 @@ class TestReadEmail:
         head, marker = returned.split("\n\n[Body truncated: ")
         assert len(head) == MAX_READ_EMAIL_BODY_CHARS
         assert "<p>" not in head
-        assert marker.endswith(" more characters]")
+        assert marker.endswith(f"Call read_email again with body_offset={MAX_READ_EMAIL_BODY_CHARS} to continue.]")
 
     @pytest.mark.asyncio
     async def test_body_at_cap_is_not_truncated(self, mock_context):
@@ -905,6 +945,35 @@ class TestReadEmail:
             service.users().messages().get().execute.return_value = _sample_message(body="Short body")
             result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": "m1"}, mock_context)
         assert result.result.data["email"]["body"] == "Short body"
+
+    @pytest.mark.asyncio
+    async def test_chunks_reassemble_full_plain_body(self, mock_context):
+        # A decision at the very end must be recoverable by following the markers.
+        body = "".join(str(i % 10) for i in range(MAX_READ_EMAIL_BODY_CHARS * 2 + 500)) + " DECISION: ship it"
+        reassembled, calls = await _read_all_chunks(mock_context, _sample_message(body=body))
+        assert reassembled == body
+        assert calls == 3
+
+    @pytest.mark.asyncio
+    async def test_chunks_reassemble_full_html_body(self, mock_context):
+        html = "".join(f"<p>Paragraph {i} of the newsletter.</p>" for i in range(2000)) + "<p>FINAL LINE</p>"
+        first, _ = await _read_body(mock_context, _html_only_message(html))
+        total = MAX_READ_EMAIL_BODY_CHARS + int(_MARKER_RE.search(first).group("remaining"))
+        reassembled, calls = await _read_all_chunks(mock_context, _html_only_message(html))
+        assert len(reassembled) == total
+        assert reassembled.endswith("FINAL LINE")
+        assert reassembled.count("Paragraph 1999 of") == 1
+        assert calls > 1
+
+    @pytest.mark.asyncio
+    async def test_offset_past_end_returns_empty_body(self, mock_context):
+        body, _ = await _read_body(mock_context, _sample_message(body="Short body"), body_offset=500)
+        assert body == ""
+
+    @pytest.mark.asyncio
+    async def test_negative_offset_reads_from_start(self, mock_context):
+        body, _ = await _read_body(mock_context, _sample_message(body="Short body"), body_offset=-5)
+        assert body == "Short body"
 
 
 class TestReadInbox:

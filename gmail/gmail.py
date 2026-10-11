@@ -181,8 +181,9 @@ MAX_LIST_MAX_RESULTS = 500
 # Gmail charges the same quota for messages.get whatever the format.
 LIST_METADATA_HEADERS = ["Subject", "From", "To", "Cc", "Date"]
 
-# Upper bound on the ``body`` returned by read_email. HTML-only newsletters can
-# run to hundreds of KB, all of which would otherwise go into the agent context.
+# Upper bound on the ``body`` returned by one read_email call. HTML-only
+# newsletters can run to hundreds of KB, all of which would otherwise go into the
+# agent context. Longer bodies are returned in chunks via the ``body_offset`` input.
 MAX_READ_EMAIL_BODY_CHARS = 20000
 
 
@@ -599,11 +600,15 @@ class GmailMessageParser:
         return GmailMessageParser.find_body(payload, depth, max_depth)[0]
 
     @staticmethod
-    def extract_readable_body(payload: Dict[str, Any], max_chars: int = MAX_READ_EMAIL_BODY_CHARS) -> str:
-        """Extract the body as text, converting HTML to Markdown, capped at ``max_chars``.
+    def extract_readable_body(
+        payload: Dict[str, Any], offset: int = 0, max_chars: int = MAX_READ_EMAIL_BODY_CHARS
+    ) -> str:
+        """Extract up to ``max_chars`` of the body text starting at ``offset``,
+        converting HTML to Markdown.
 
-        A truncation marker is appended when the body is cut, so the reader
-        knows it did not get the whole message.
+        When more text follows the chunk, a marker is appended that gives the
+        offset to pass next, so the whole body can be read without gaps or
+        overlap. The conversion is deterministic, so offsets are stable across calls.
         """
         text, mime_type = GmailMessageParser.find_body(payload)
         if mime_type == "text/html":
@@ -612,10 +617,16 @@ class GmailMessageParser:
             h.ignore_images = True  # Image markup (often tracking pixels) is noise to a reader
             text = h.handle(text).strip()
 
-        if len(text) > max_chars:
-            remaining = len(text) - max_chars
-            text = f"{text[:max_chars]}\n\n[Body truncated: {remaining} more characters]"
-        return text
+        offset = max(0, offset)
+        end = offset + max_chars
+        chunk = text[offset:end]
+        remaining = len(text) - end
+        if remaining > 0:
+            chunk += (
+                f"\n\n[Body truncated: {remaining} more characters. "
+                f"Call read_email again with body_offset={end} to continue.]"
+            )
+        return chunk
 
     @staticmethod
     def get_header_value(headers: list, name: str) -> str:
@@ -711,7 +722,7 @@ class GmailMessageParser:
         }
 
     @staticmethod
-    def parse_message_with_body(raw_message: Dict[str, Any]) -> Dict[str, Any]:
+    def parse_message_with_body(raw_message: Dict[str, Any], body_offset: int = 0) -> Dict[str, Any]:
         """Parse raw Gmail message into standardized format."""
         headers = raw_message["payload"]["headers"]
         cc_header = GmailMessageParser.get_header_value(headers, "Cc")
@@ -724,7 +735,7 @@ class GmailMessageParser:
             "to": GmailMessageParser.get_header_value(headers, "To"),
             "cc": GmailMessageParser.parse_email_list(cc_header),
             "date": GmailMessageParser.get_header_value(headers, "Date"),
-            "body": GmailMessageParser.extract_readable_body(raw_message["payload"]),
+            "body": GmailMessageParser.extract_readable_body(raw_message["payload"], body_offset),
         }
 
 
@@ -799,12 +810,13 @@ class ReadEmail(ActionHandler):
             service = build_gmail_service(context)
             user_id = inputs["user_id"]
             email_id = inputs["email_id"]
+            body_offset = int(inputs.get("body_offset", 0))
 
             # Fetch the full email message
             message_data = service.users().messages().get(userId=user_id, id=email_id, format="full").execute()
 
             # Parse the main email fields (without files)
-            email_object = GmailMessageParser.parse_message_with_body(message_data)
+            email_object = GmailMessageParser.parse_message_with_body(message_data, body_offset)
 
             # Extract files separately
             extracted_files = GmailMessageParser.extract_files(
