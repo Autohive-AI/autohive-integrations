@@ -33,7 +33,7 @@ import os
 import pytest
 from autohive_integrations_sdk.integration import ResultType
 
-from gmail.gmail import gmail, DEFAULT_LIST_MAX_RESULTS, MAX_READ_EMAIL_BODY_CHARS
+from gmail.gmail import gmail, DEFAULT_LIST_MAX_RESULTS, DEFAULT_THREAD_MAX_MESSAGES, MAX_READ_EMAIL_BODY_CHARS
 
 pytestmark = pytest.mark.integration
 
@@ -285,6 +285,36 @@ class TestGetThreadEmailsChained:
         assert result.type == ResultType.ACTION
         assert result.result.data["thread_id"] == thread_id
         assert isinstance(result.result.data["emails"], list)
+        assert len(result.result.data["emails"]) <= DEFAULT_THREAD_MAX_MESSAGES
+        assert result.result.data["total_messages"] >= len(result.result.data["emails"])
+
+    @pytest.mark.asyncio
+    async def test_one_message_batches_cover_whole_thread(self, live_context):
+        thread_id = TEST_THREAD_ID
+        if not thread_id:
+            inbox = await gmail.execute_action("read_inbox", {"user_id": "me", "scope": "all"}, live_context)
+            emails = inbox.result.data.get("emails", [])
+            if not emails:
+                pytest.skip("Inbox is empty — cannot exercise get_thread_emails")
+            thread_id = emails[0]["thread_id"]
+
+        seen, offset, total = [], 0, None
+        while True:
+            result = await gmail.execute_action(
+                "get_thread_emails",
+                {"user_id": "me", "thread_id": thread_id, "max_messages": 1, "message_offset": offset},
+                live_context,
+            )
+            assert result.type == ResultType.ACTION
+            data = result.result.data
+            total = data["total_messages"]
+            seen.extend(e["id"] for e in data["emails"])
+            if "next_message_offset" not in data:
+                break
+            offset = data["next_message_offset"]
+
+        assert len(seen) == total
+        assert len(set(seen)) == total
 
 
 class TestListDrafts:

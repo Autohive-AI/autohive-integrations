@@ -1024,7 +1024,7 @@
         },
         "get_thread_emails": {
             "display_name": "Get Thread Emails",
-            "description": "Get all emails in a thread, returned as snippets in chronological order",
+            "description": "Get the emails in a thread as snippets, in chronological order. Returns the newest 25 messages by default (set max_messages, 1-100, to change this). total_messages gives the size of the whole thread. When older messages remain, the response includes next_message_offset; pass it as message_offset to get the next older batch.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1035,6 +1035,14 @@
                     "thread_id": {
                         "type": "string",
                         "description": "The ID of the thread to retrieve emails from"
+                    },
+                    "max_messages": {
+                        "type": "integer",
+                        "description": "Optional: maximum number of messages to return, 1-100. Defaults to 25 when omitted. The newest messages are returned first; use next_message_offset to read older ones."
+                    },
+                    "message_offset": {
+                        "type": "integer",
+                        "description": "Optional: number of the newest messages to skip. Defaults to 0. Use the next_message_offset from a previous response to get the next older batch."
                     }
                 },
                 "required": [
@@ -1049,9 +1057,17 @@
                         "type": "string",
                         "description": "The ID of the thread"
                     },
+                    "total_messages": {
+                        "type": "integer",
+                        "description": "Number of messages in the whole thread, which may be more than are returned"
+                    },
+                    "next_message_offset": {
+                        "type": "integer",
+                        "description": "Present when older messages remain: pass it as message_offset to get the next older batch"
+                    },
                     "emails": {
                         "type": "array",
-                        "description": "List of email messages in the thread, ordered chronologically",
+                        "description": "Messages in this batch, ordered chronologically (oldest first)",
                         "items": {
                             "type": "object",
                             "properties": {
@@ -1106,7 +1122,8 @@
                 },
                 "required": [
                     "thread_id",
-                    "emails"
+                    "emails",
+                    "total_messages"
                 ]
             }
         },

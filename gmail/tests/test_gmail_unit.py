@@ -22,6 +22,7 @@ from gmail.gmail import (
     append_signature,
     compose_messages_query,
     MAX_READ_EMAIL_BODY_CHARS,
+    DEFAULT_THREAD_MAX_MESSAGES,
 )
 
 pytestmark = pytest.mark.unit
@@ -1736,6 +1737,29 @@ class TestListEmailsByLabel:
 # ============================================================
 
 
+def _thread_messages(count):
+    """``count`` metadata messages m0..m{count-1}, received one second apart."""
+    messages = []
+    for i in range(count):
+        message = _metadata_message(msg_id=f"m{i}")
+        message["internalDate"] = str(1700000000000 + i * 1000)
+        messages.append(message)
+    return messages
+
+
+async def _get_thread(mock_context, messages, **inputs):
+    """Run get_thread_emails against ``messages``; return (data, service)."""
+    with _patched_service() as mock_build:
+        service = _make_service()
+        mock_build.return_value = service
+        service.users().threads().get().execute.return_value = {"id": "t1", "messages": messages}
+        result = await gmail.execute_action(
+            "get_thread_emails", {"user_id": "me", "thread_id": "t1", **inputs}, mock_context
+        )
+    assert result.type == ResultType.ACTION
+    return result.result.data, service
+
+
 class TestGetThreadEmails:
     @pytest.mark.asyncio
     async def test_returns_thread_emails(self, mock_context):
@@ -1750,6 +1774,8 @@ class TestGetThreadEmails:
         assert result.type == ResultType.ACTION
         assert result.result.data["thread_id"] == "t1"
         assert len(result.result.data["emails"]) == 2
+        assert result.result.data["total_messages"] == 2
+        assert "next_message_offset" not in result.result.data
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
@@ -1759,6 +1785,72 @@ class TestGetThreadEmails:
             service.users().threads().get().execute.side_effect = Exception("not found")
             result = await gmail.execute_action("get_thread_emails", {"user_id": "me", "thread_id": "t1"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_fetches_thread_as_metadata(self, mock_context):
+        _, service = await _get_thread(mock_context, _thread_messages(2))
+        call = service.users().threads().get.call_args
+        assert call.kwargs == {
+            "userId": "me",
+            "id": "t1",
+            "format": "metadata",
+            "metadataHeaders": ["Subject", "From", "To", "Cc", "Date"],
+        }
+
+    @pytest.mark.asyncio
+    async def test_default_returns_newest_batch_in_chronological_order(self, mock_context):
+        data, _ = await _get_thread(mock_context, _thread_messages(30))
+        assert [e["id"] for e in data["emails"]] == [f"m{i}" for i in range(5, 30)]
+        assert len(data["emails"]) == DEFAULT_THREAD_MAX_MESSAGES
+        assert data["total_messages"] == 30
+        assert data["next_message_offset"] == 25
+
+    @pytest.mark.asyncio
+    async def test_following_offsets_returns_every_message_once(self, mock_context):
+        messages = _thread_messages(11)
+        batches, offset = [], 0
+        while True:
+            data, _ = await _get_thread(mock_context, messages, max_messages=3, message_offset=offset)
+            batches.append([e["id"] for e in data["emails"]])
+            assert data["total_messages"] == 11
+            if "next_message_offset" not in data:
+                break
+            assert data["next_message_offset"] == offset + len(data["emails"])
+            offset = data["next_message_offset"]
+        assert batches == [["m8", "m9", "m10"], ["m5", "m6", "m7"], ["m2", "m3", "m4"], ["m0", "m1"]]
+
+    @pytest.mark.asyncio
+    async def test_orders_by_internal_date_not_gmail_order_or_date_header(self, mock_context):
+        # Gmail order is shuffled and the Date headers mix unparseable, naive and
+        # aware values, which the previous Date-header sort could not compare.
+        messages = _thread_messages(3)
+        dates = ["not a date", "Mon, 1 Jan 2024 10:00:00", "Mon, 1 Jan 2024 10:00:00 +0000"]
+        for message, date in zip(messages, dates):
+            for header in message["payload"]["headers"]:
+                if header["name"] == "Date":
+                    header["value"] = date
+        data, _ = await _get_thread(mock_context, [messages[2], messages[0], messages[1]])
+        assert [e["id"] for e in data["emails"]] == ["m0", "m1", "m2"]
+
+    @pytest.mark.asyncio
+    async def test_offset_past_end_returns_no_emails(self, mock_context):
+        data, _ = await _get_thread(mock_context, _thread_messages(4), message_offset=10)
+        assert data["emails"] == []
+        assert data["total_messages"] == 4
+        assert "next_message_offset" not in data
+
+    @pytest.mark.asyncio
+    async def test_negative_offset_reads_from_newest(self, mock_context):
+        data, _ = await _get_thread(mock_context, _thread_messages(4), max_messages=2, message_offset=-3)
+        assert [e["id"] for e in data["emails"]] == ["m2", "m3"]
+        assert data["next_message_offset"] == 2
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("requested, returned", [(0, 1), (-5, 1), (100, 100), (101, 100), (1000, 100)])
+    async def test_max_messages_is_clamped(self, mock_context, requested, returned):
+        data, _ = await _get_thread(mock_context, _thread_messages(120), max_messages=requested)
+        assert len(data["emails"]) == returned
+        assert data["next_message_offset"] == returned
 
 
 # ============================================================

@@ -176,9 +176,9 @@ class EmailCSSSanitizer(CSSSanitizer):
 DEFAULT_LIST_MAX_RESULTS = 25
 MAX_LIST_MAX_RESULTS = 500
 
-# The list actions only return headers and the snippet, so fetching each message
-# as ``metadata`` (instead of the full MIME tree) cuts payload size and latency.
-# Gmail charges the same quota for messages.get whatever the format.
+# The list actions and get_thread_emails only return headers and the snippet, so
+# fetching messages as ``metadata`` (instead of the full MIME tree) cuts payload
+# size and latency. Gmail charges the same quota whatever the format.
 LIST_METADATA_HEADERS = ["Subject", "From", "To", "Cc", "Date"]
 
 # Upper bound on the ``body`` returned by one read_email call. HTML-only
@@ -186,14 +186,24 @@ LIST_METADATA_HEADERS = ["Subject", "From", "To", "Cc", "Date"]
 # agent context. Longer bodies are returned in chunks via the ``body_offset`` input.
 MAX_READ_EMAIL_BODY_CHARS = 20000
 
+# get_thread_emails returns the newest messages of a thread first, in batches.
+# threads.get has no pagination, so batching is done here; older messages are
+# reached with the ``message_offset`` input.
+DEFAULT_THREAD_MAX_MESSAGES = 25
+MAX_THREAD_MAX_MESSAGES = 100
+
+
+def clamp_count(value: Any, default: int, maximum: int) -> int:
+    """Return ``value`` clamped to 1..maximum, or ``default`` when it is None."""
+    if value is None:
+        return default
+    return max(1, min(maximum, int(value)))
+
 
 def resolve_max_results(inputs: Dict[str, Any]) -> int:
     """Return the ``maxResults`` for a messages.list call: the caller's value
     clamped to 1..MAX_LIST_MAX_RESULTS, or DEFAULT_LIST_MAX_RESULTS when omitted."""
-    max_results = inputs.get("maxResults")
-    if max_results is None:
-        return DEFAULT_LIST_MAX_RESULTS
-    return max(1, min(MAX_LIST_MAX_RESULTS, int(max_results)))
+    return clamp_count(inputs.get("maxResults"), DEFAULT_LIST_MAX_RESULTS, MAX_LIST_MAX_RESULTS)
 
 
 def fetch_message_metadata(service, user_id: str, message_id: str) -> Dict[str, Any]:
@@ -1186,32 +1196,32 @@ class GetThreadEmails(ActionHandler):
             service = build_gmail_service(context)
             user_id = inputs["user_id"]
             thread_id = inputs["thread_id"]
+            max_messages = clamp_count(inputs.get("max_messages"), DEFAULT_THREAD_MAX_MESSAGES, MAX_THREAD_MAX_MESSAGES)
+            message_offset = max(0, int(inputs.get("message_offset", 0)))
 
-            # Get the thread with all messages
-            thread_request = service.users().threads().get(userId=user_id, id=thread_id)
-            thread_data = thread_request.execute()
+            thread_data = (
+                service.users()
+                .threads()
+                .get(userId=user_id, id=thread_id, format="metadata", metadataHeaders=LIST_METADATA_HEADERS)
+                .execute()
+            )
 
-            thread_emails = []
-            for message in thread_data.get("messages", []):
-                # Parse each message in the thread
-                parsed_email = GmailMessageParser.parse_message_with_snippet(message)
-                thread_emails.append(parsed_email)
+            # Order by internalDate (when Gmail received the message, epoch ms) so
+            # offsets are stable. The sort is stable, so ties keep Gmail's order.
+            messages = sorted(thread_data.get("messages", []), key=lambda m: int(m.get("internalDate", 0)))
+            total = len(messages)
 
-            # Sort emails by date to ensure chronological order
-            # Parse the date string and sort by it
-            def parse_date_for_sorting(email):
-                try:
-                    # Gmail date format is typically: "Mon, 1 Jan 2024 12:00:00 +0000"
-                    from email.utils import parsedate_to_datetime
+            # Take the newest ``max_messages`` after skipping ``message_offset`` of
+            # the newest ones, keeping chronological order within the batch.
+            end = max(0, total - message_offset)
+            start = max(0, end - max_messages)
+            thread_emails = [GmailMessageParser.parse_message_with_snippet(m) for m in messages[start:end]]
 
-                    return parsedate_to_datetime(email["date"])
-                except Exception:
-                    # Fallback: use the email ID as a rough ordering mechanism
-                    return email["id"]
+            response = {"thread_id": thread_id, "emails": thread_emails, "total_messages": total}
+            if start > 0:
+                response["next_message_offset"] = total - start
 
-            thread_emails.sort(key=parse_date_for_sorting)
-
-            return ActionResult(data={"thread_id": thread_id, "emails": thread_emails}, cost_usd=0.0)
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))

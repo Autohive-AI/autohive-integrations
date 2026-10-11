@@ -21,7 +21,7 @@ Key features:
 - List per-send-as default signatures via `list_send_as_signatures`
 - Archive and mark as read/unread in batch
 - Pagination via `nextPageToken` on all list endpoints
-- Token-conscious reads: `read_inbox`, `read_all_mail` and `list_emails_by_label` return 25 emails per page by default, and `read_email` converts HTML-only bodies to Markdown-formatted text and returns the body in chunks of up to 20,000 characters (see [Result size limits](#result-size-limits))
+- Token-conscious reads: `read_inbox`, `read_all_mail` and `list_emails_by_label` return 25 emails per page by default, `get_thread_emails` returns the newest 25 messages of a thread by default, and `read_email` converts HTML-only bodies to Markdown-formatted text and returns the body in chunks of up to 20,000 characters (see [Result size limits](#result-size-limits))
 
 ## Setup & Authentication
 
@@ -57,7 +57,7 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | Action | Description |
 |---|---|
 | `reply_to_thread` | Reply to an existing thread, with text/HTML body, attachments, and optional additional recipients |
-| `get_thread_emails` | Retrieve all messages in a thread |
+| `get_thread_emails` | Retrieve the messages in a thread as snippets, newest 25 by default, with `message_offset` to read older ones |
 
 ### Drafts
 
@@ -90,7 +90,7 @@ See [`config.json`](config.json) for the full input/output schema of every actio
 
 ## Result size limits
 
-Every action result is read by the calling agent, so the size of a result is a token cost. Two limits keep the
+Every action result is read by the calling agent, so the size of a result is a token cost. These limits keep the
 message-reading actions small:
 
 - **Page size.** `read_inbox`, `read_all_mail` and `list_emails_by_label` take an optional `maxResults` input. It
@@ -105,9 +105,13 @@ message-reading actions small:
   `[Body truncated: N more characters. Call read_email again with body_offset=X to continue.]`, and passing that
   `body_offset` returns the next chunk, so the whole body can be read without gaps or overlap. Attachments in `files`
   are not affected.
+- **Thread size.** `get_thread_emails` returns at most 25 messages (`DEFAULT_THREAD_MAX_MESSAGES`) per call, the
+  newest first; set `max_messages` (1–100) to change this. Messages are ordered by when Gmail received them, and each
+  batch is returned oldest first. `total_messages` gives the size of the whole thread. When older messages remain,
+  the response includes `next_message_offset`; pass it as `message_offset` to get the next older batch.
 
-The list actions fetch each message with `format=metadata`, requesting only the `Subject`, `From`, `To`, `Cc` and
-`Date` headers, since they only return headers and the snippet.
+The list actions and `get_thread_emails` fetch messages with `format=metadata`, requesting only the `Subject`,
+`From`, `To`, `Cc` and `Date` headers, since they only return headers and the snippet.
 
 ## HTML Email Notes
 
