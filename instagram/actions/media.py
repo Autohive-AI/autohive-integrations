@@ -1,6 +1,6 @@
 import asyncio
 
-from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext
+from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, HTTPError
 from typing import Dict, Any
 
 from instagram import instagram
@@ -359,6 +359,29 @@ class CompletePostAction(ActionHandler):
         account_id = await get_instagram_account_id(context)
         phase = publish_state.get("phase", "")
 
+        if phase == "PUBLISHING":
+            processing_status, error = await _poll_container_ids(context, [publish_state["container_id"]])
+            if processing_status == "FAILED":
+                return ActionError(message=error)
+            if processing_status == "PUBLISHED":
+                return _async_post_result(
+                    "PUBLISHED",
+                    publish_state,
+                    message=(
+                        "Instagram reports that this media container was published. "
+                        "The media ID and permalink were not available from the lost publish response."
+                    ),
+                )
+            return _async_post_result(
+                "PROCESSING",
+                publish_state,
+                message=(
+                    "The previous publish response was lost and Instagram has not confirmed the outcome yet. "
+                    "Call complete_post again with this publish_state to check the same container; "
+                    "do not start a new post."
+                ),
+            )
+
         if phase == "CHILDREN":
             processing_status, error = await _poll_container_ids(context, publish_state["child_container_ids"])
             if processing_status == "FAILED":
@@ -424,11 +447,46 @@ class CompletePostAction(ActionHandler):
                 ),
             )
 
-        publish_response = await context.fetch(
-            f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media_publish",
-            method="POST",
-            data={"creation_id": publish_state["container_id"]},
-        )
+        try:
+            publish_response = await context.fetch(
+                f"{INSTAGRAM_GRAPH_API_BASE}/{account_id}/media_publish",
+                method="POST",
+                data={"creation_id": publish_state["container_id"]},
+            )
+        except HTTPError as exc:
+            return ActionError(message=str(exc))
+        except Exception:
+            try:
+                status_data = await _get_container_status(context, publish_state["container_id"])
+            except Exception:
+                status_data = {}
+
+            status_code = status_data.get("status_code", "").upper()
+            if status_code == "PUBLISHED":
+                return _async_post_result(
+                    "PUBLISHED",
+                    publish_state,
+                    message=(
+                        "Instagram published the post, but the publish response was lost. "
+                        "The media ID and permalink could not be retrieved."
+                    ),
+                )
+            if status_code in {"ERROR", "EXPIRED", "FAILED"}:
+                detail = status_data.get("status", "Unknown error")
+                return ActionError(message=f"Media container {status_code.lower()}: {detail}")
+
+            publish_state["phase"] = "PUBLISHING"
+            publish_state["attempt"] = 0
+            return _async_post_result(
+                "PROCESSING",
+                publish_state,
+                message=(
+                    "Instagram may have accepted the publish request, but its response was lost and the outcome "
+                    "could not be confirmed. Call complete_post again with this publish_state to check the same "
+                    "container; do not start a new post."
+                ),
+            )
+
         media_id = publish_response.data.get("id", "")
         if not media_id:
             status_data = await _get_container_status(context, publish_state["container_id"])

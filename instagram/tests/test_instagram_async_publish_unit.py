@@ -4,7 +4,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -526,6 +526,73 @@ async def test_complete_post_preserves_success_when_publish_response_has_no_medi
 
 
 @pytest.mark.asyncio
+async def test_complete_post_reconciles_accepted_publish_after_response_timeout():
+    ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {"status_code": "FINISHED"},
+            TimeoutError("publish response timed out"),
+            {"status_code": "PUBLISHED"},
+        ]
+    )
+
+    result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": publish_state()},
+        ctx,
+    )
+
+    data = result.result.data
+    assert result.type == ResultType.ACTION
+    assert data["status"] == "PUBLISHED"
+    assert data["next_action"] == ""
+    assert "response was lost" in data["message"]
+    assert ctx.fetch.call_count == 4
+
+
+@pytest.mark.asyncio
+async def test_complete_post_returns_resumable_state_when_publish_outcome_is_uncertain():
+    initial_ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {"status_code": "FINISHED"},
+            TimeoutError("publish response timed out"),
+            TimeoutError("status check timed out"),
+        ]
+    )
+
+    uncertain_result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": publish_state(attempt=11)},
+        initial_ctx,
+    )
+
+    uncertain_data = uncertain_result.result.data
+    uncertain_state = uncertain_data["publish_state"]
+    assert uncertain_result.type == ResultType.ACTION
+    assert uncertain_data["status"] == "PROCESSING"
+    assert uncertain_data["next_action"] == "complete_post"
+    assert uncertain_state["phase"] == "PUBLISHING"
+    assert uncertain_state["attempt"] == 0
+    assert "do not start a new post" in uncertain_data["message"]
+
+    reconciliation_ctx = make_ctx_multi(
+        [
+            {"id": "17841400000000000"},
+            {"status_code": "PUBLISHED"},
+        ]
+    )
+    published_result = await instagram_integration.execute_action(
+        "complete_post",
+        {"publish_state": uncertain_state},
+        reconciliation_ctx,
+    )
+
+    assert published_result.result.data["status"] == "PUBLISHED"
+    assert reconciliation_ctx.fetch.call_count == 2
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "responses,state,error_message",
     [
@@ -561,10 +628,10 @@ async def test_complete_post_preserves_success_when_publish_response_has_no_medi
             [
                 {"id": "17841400000000000"},
                 {"status_code": "FINISHED"},
-                Exception("publishing failed"),
+                HTTPError(400, "publishing rejected"),
             ],
             publish_state(),
-            "publishing failed",
+            "HTTP 400: publishing rejected",
         ),
     ],
 )
