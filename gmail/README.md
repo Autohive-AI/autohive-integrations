@@ -94,7 +94,8 @@ Every action result is read by the calling agent, so the size of a result is a t
 message-reading actions small:
 
 - **Page size.** `read_inbox`, `read_all_mail` and `list_emails_by_label` take an optional `maxResults` input. It
-  defaults to 25 (`DEFAULT_LIST_MAX_RESULTS`) rather than Gmail's default page of up to 100, and is clamped to 1–100.
+  defaults to 25 (`DEFAULT_LIST_MAX_RESULTS`) rather than Gmail's default page of up to 100, and is clamped to 1–500
+  (Gmail's maximum). Each listed email is fetched with its own request, so large pages are slower.
   When more emails match, the response includes a `nextPageToken`; pass it back as `pageToken` for the next page.
   Narrowing with `scope` (or `label_names` for `list_emails_by_label`), `after` / `before` or `q` is cheaper than
   paging through everything.

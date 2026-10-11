@@ -437,7 +437,7 @@
         },
         "read_inbox": {
             "display_name": "Read Inbox",
-            "description": "List emails in the user's inbox, filtered by read status. Returns up to 25 emails per page by default (set maxResults, 1-100, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with scope, after/before or q rather than paging through the whole inbox.",
+            "description": "List emails in the user's inbox, filtered by read status. Returns up to 25 emails per page by default (set maxResults, 1-500, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with scope, after/before or q rather than paging through the whole inbox.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -460,7 +460,7 @@
                     },
                     "maxResults": {
                         "type": "integer",
-                        "description": "Optional: maximum number of emails to return in this page, 1-100. Defaults to 25 when omitted. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with scope, after/before or q over raising this or paging through everything."
+                        "description": "Optional: maximum number of emails to return in this page, 1-500. Defaults to 25 when omitted. Each email is fetched separately, so large pages are slower and return more data. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with scope, after/before or q over raising this or paging through everything."
                     },
                     "after": {
                         "type": "string",
@@ -549,7 +549,7 @@
         },
         "read_all_mail": {
             "display_name": "Read All Mail",
-            "description": "List all emails across the entire mailbox regardless of labels, filtered by read status. Returns up to 25 emails per page by default (set maxResults, 1-100, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with scope, after/before or q rather than paging through the whole mailbox.",
+            "description": "List all emails across the entire mailbox regardless of labels, filtered by read status. Returns up to 25 emails per page by default (set maxResults, 1-500, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with scope, after/before or q rather than paging through the whole mailbox.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -572,7 +572,7 @@
                     },
                     "maxResults": {
                         "type": "integer",
-                        "description": "Optional: maximum number of emails to return in this page, 1-100. Defaults to 25 when omitted. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with scope, after/before or q over raising this or paging through everything."
+                        "description": "Optional: maximum number of emails to return in this page, 1-500. Defaults to 25 when omitted. Each email is fetched separately, so large pages are slower and return more data. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with scope, after/before or q over raising this or paging through everything."
                     },
                     "include_spam_trash": {
                         "type": "boolean",
@@ -731,7 +731,7 @@
         },
         "list_emails_by_label": {
             "display_name": "List Emails by Label",
-            "description": "List emails that have specific Gmail labels (folders). By default, only returns emails in the inbox (excludes archived emails) unless include_archived is true or INBOX label is explicitly specified. Can filter by multiple labels. Uses label names (not IDs) for filtering. Returns up to 25 emails per page by default (set maxResults, 1-100, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with label_names, after/before or q rather than paging through every labelled email.",
+            "description": "List emails that have specific Gmail labels (folders). By default, only returns emails in the inbox (excludes archived emails) unless include_archived is true or INBOX label is explicitly specified. Can filter by multiple labels. Uses label names (not IDs) for filtering. Returns up to 25 emails per page by default (set maxResults, 1-500, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with label_names, after/before or q rather than paging through every labelled email.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -761,7 +761,7 @@
                     },
                     "maxResults": {
                         "type": "integer",
-                        "description": "Optional: maximum number of emails to return in this page, 1-100. Defaults to 25 when omitted. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with label_names, after/before or q over raising this or paging through everything."
+                        "description": "Optional: maximum number of emails to return in this page, 1-500. Defaults to 25 when omitted. Each email is fetched separately, so large pages are slower and return more data. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with label_names, after/before or q over raising this or paging through everything."
                     },
                     "include_archived": {
                         "type": "boolean",

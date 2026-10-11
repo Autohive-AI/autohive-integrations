@@ -171,9 +171,10 @@ class EmailCSSSanitizer(CSSSanitizer):
 
 # Every list call's result lands in the calling agent's context, so page size
 # is a token cost. Gmail's own default page is up to 100 messages, so the list
-# actions default to a smaller page and cap any requested size.
+# actions default to a smaller page. An explicit request may go up to Gmail's own
+# maximum of 500.
 DEFAULT_LIST_MAX_RESULTS = 25
-MAX_LIST_MAX_RESULTS = 100
+MAX_LIST_MAX_RESULTS = 500
 
 # The list actions only return headers and the snippet, so fetching each message
 # as ``metadata`` (instead of the full MIME tree) cuts payload size and latency.

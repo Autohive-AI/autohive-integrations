@@ -1044,7 +1044,9 @@ class TestReadInbox:
         assert service.users().messages().list.call_args.kwargs["maxResults"] == 25
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("requested, sent", [(10, 10), (100, 100), (0, 1), (-5, 1), (500, 100)])
+    @pytest.mark.parametrize(
+        "requested, sent", [(10, 10), (100, 100), (250, 250), (500, 500), (0, 1), (-5, 1), (501, 500), (1000, 500)]
+    )
     async def test_max_results_passed_through_and_clamped(self, mock_context, requested, sent):
         with _patched_service() as mock_build:
             service = _make_service()
@@ -1209,7 +1211,9 @@ class TestReadAllMail:
         assert service.users().messages().list.call_args.kwargs["maxResults"] == 25
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("requested, sent", [(10, 10), (100, 100), (0, 1), (-5, 1), (500, 100)])
+    @pytest.mark.parametrize(
+        "requested, sent", [(10, 10), (100, 100), (250, 250), (500, 500), (0, 1), (-5, 1), (501, 500), (1000, 500)]
+    )
     async def test_max_results_passed_through_and_clamped(self, mock_context, requested, sent):
         with _patched_service() as mock_build:
             service = _make_service()
@@ -1613,7 +1617,9 @@ class TestListEmailsByLabel:
         assert service.users().messages().list.call_args.kwargs["maxResults"] == 25
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("requested, sent", [(10, 10), (100, 100), (0, 1), (-5, 1), (500, 100)])
+    @pytest.mark.parametrize(
+        "requested, sent", [(10, 10), (100, 100), (250, 250), (500, 500), (0, 1), (-5, 1), (501, 500), (1000, 500)]
+    )
     async def test_max_results_passed_through_and_clamped(self, mock_context, requested, sent):
         with _patched_service() as mock_build:
             service = _make_service()
