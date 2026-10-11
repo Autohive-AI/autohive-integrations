@@ -1,10 +1,12 @@
+import asyncio
 import json
 import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from autohive_integrations_sdk import FetchResponse, HTTPError
+from aiohttp import web
+from autohive_integrations_sdk import ExecutionContext, FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -557,6 +559,103 @@ async def test_complete_post_reconciles_accepted_publish_after_request_error(pub
     assert data["next_action"] == ""
     assert data["media_id"] == ""
     assert data["permalink"] == ""
+
+
+@pytest.mark.asyncio
+async def test_complete_post_reconciles_real_sdk_timeout_then_retry_rejection(unused_tcp_port, monkeypatch):
+    """Local repro: accept publication, lose the response, then reject the SDK retry."""
+    publish_requests = []
+    publications = []
+    release_publish_response = asyncio.Event()
+
+    async def account(request):
+        return web.json_response({"id": "account_123"})
+
+    async def container_status(request):
+        return web.json_response({"status_code": "PUBLISHED" if publications else "FINISHED"})
+
+    async def publish(request):
+        creation_id = (await request.post())["creation_id"]
+        publish_requests.append(creation_id)
+        if publications:
+            return web.json_response({"error": {"message": "Already published"}}, status=400)
+        publications.append(creation_id)
+        await release_publish_response.wait()
+        return web.json_response({"id": "published_123"})
+
+    server = web.Application()
+    server.router.add_get("/me", account)
+    server.router.add_get("/container_123", container_status)
+    server.router.add_post("/account_123/media_publish", publish)
+    runner = web.AppRunner(server)
+    await runner.setup()
+    try:
+        await web.TCPSite(runner, "127.0.0.1", unused_tcp_port).start()
+        base_url = f"http://127.0.0.1:{unused_tcp_port}"
+        monkeypatch.setattr("helpers.INSTAGRAM_GRAPH_API_BASE", base_url)
+        monkeypatch.setattr("actions.media.INSTAGRAM_GRAPH_API_BASE", base_url)
+
+        async with ExecutionContext(request_config={"timeout": 1, "max_retries": 1}) as ctx:
+            result = await instagram_integration.execute_action(
+                "complete_post", {"publish_state": publish_state()}, ctx
+            )
+
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["status"] == "PUBLISHED"
+        assert data["media_id"] == ""
+        assert data["permalink"] == ""
+        assert data["next_action"] == ""
+        assert publish_requests == ["container_123", "container_123"]
+        assert publications == ["container_123"]
+    finally:
+        release_publish_response.set()
+        await runner.cleanup()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["MEDIA", "PUBLISHING"])
+@pytest.mark.parametrize("terminal_status", ["ERROR", "EXPIRED", "FAILED"])
+async def test_complete_post_reports_confirmed_failure_during_reconciliation(phase, terminal_status):
+    responses = [{"id": "17841400000000000"}]
+    if phase == "MEDIA":
+        responses.extend([{"status_code": "FINISHED"}, TimeoutError("publish response timed out")])
+    responses.append({"status_code": terminal_status, "status": "Container cannot be published"})
+    ctx = make_ctx_multi(responses)
+
+    result = await instagram_integration.execute_action(
+        "complete_post", {"publish_state": publish_state(phase=phase)}, ctx
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == f"Media container {terminal_status.lower()}: Container cannot be published"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status_code", ["FINISHED", "IN_PROGRESS"])
+@patch("actions.media.asyncio.sleep", new_callable=AsyncMock)
+async def test_complete_post_does_not_republish_an_uncertain_container(mock_sleep, status_code):
+    ctx = make_ctx_multi([{"id": "17841400000000000"}, *[{"status_code": status_code} for _ in range(6)]])
+    state = publish_state(phase="PUBLISHING", attempt=5)
+
+    result = await instagram_integration.execute_action("complete_post", {"publish_state": state}, ctx)
+
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert data["status"] == "PROCESSING"
+    assert data["publish_state"] == {**state, "attempt": 6}
+    assert data["next_action"] == "complete_post"
+    assert all(call.kwargs["method"] == "GET" for call in ctx.fetch.call_args_list)
+
+    recovered_ctx = make_ctx_multi([{"id": "17841400000000000"}, {"status_code": "PUBLISHED"}])
+    recovered = await instagram_integration.execute_action(
+        "complete_post", {"publish_state": data["publish_state"]}, recovered_ctx
+    )
+
+    assert recovered.type == ResultType.ACTION
+    assert recovered.result.data["status"] == "PUBLISHED"
+    assert recovered.result.data["next_action"] == ""
+    assert all(call.kwargs["method"] == "GET" for call in recovered_ctx.fetch.call_args_list)
 
 
 @pytest.mark.asyncio
