@@ -1,6 +1,6 @@
 import asyncio
 
-from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, HTTPError
+from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext
 from typing import Dict, Any
 
 from instagram import instagram
@@ -341,10 +341,20 @@ class StartPostAction(ActionHandler):
 @instagram.action("complete_post")
 class CompletePostAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
+        publish_state = dict(inputs["publish_state"])
         try:
-            publish_state = dict(inputs["publish_state"])
             return await self._execute(publish_state, context)
         except Exception as exc:
+            if publish_state.get("phase") == "PUBLISHING":
+                return _async_post_result(
+                    "PROCESSING",
+                    publish_state,
+                    message=(
+                        "The publication outcome is still unknown because the status check failed. "
+                        "Call complete_post again with this publish_state to check the same container; "
+                        "do not start a new post."
+                    ),
+                )
             return ActionError(message=str(exc))
 
     async def _execute(self, publish_state: Dict[str, Any], context: ExecutionContext) -> ActionResult | ActionError:
@@ -352,11 +362,20 @@ class CompletePostAction(ActionHandler):
         publish_state["attempt"] = int(publish_state.get("attempt", 0)) + 1
 
         if publish_state["attempt"] > ASYNC_MAX_COMPLETION_CALLS:
+            if publish_state.get("phase") == "PUBLISHING":
+                return _async_post_result(
+                    "UNKNOWN",
+                    publish_state,
+                    message=(
+                        "Automatic status checks have stopped, but Instagram's publication outcome remains unknown. "
+                        "Verify the existing container or the account's published posts before retrying publication; "
+                        "do not start a new post while the outcome is unknown."
+                    ),
+                )
             return ActionError(
                 message="Instagram media processing did not finish after the maximum automatic completion attempts."
             )
 
-        account_id = await get_instagram_account_id(context)
         phase = publish_state.get("phase", "")
 
         if phase == "PUBLISHING":
@@ -382,6 +401,7 @@ class CompletePostAction(ActionHandler):
                 ),
             )
 
+        account_id = await get_instagram_account_id(context)
         if phase == "CHILDREN":
             processing_status, error = await _poll_container_ids(context, publish_state["child_container_ids"])
             if processing_status == "FAILED":
@@ -453,9 +473,13 @@ class CompletePostAction(ActionHandler):
                 method="POST",
                 data={"creation_id": publish_state["container_id"]},
             )
-        except HTTPError as exc:
-            return ActionError(message=str(exc))
+            media_id = publish_response.data.get("id", "")
         except Exception:
+            # HTTP errors can follow an SDK retry of an accepted publish request.
+            # Reconcile the container before declaring any publish request failed.
+            media_id = ""
+
+        if not media_id:
             try:
                 status_data = await _get_container_status(context, publish_state["container_id"])
             except Exception:
@@ -467,8 +491,8 @@ class CompletePostAction(ActionHandler):
                     "PUBLISHED",
                     publish_state,
                     message=(
-                        "Instagram published the post, but the publish response was lost. "
-                        "The media ID and permalink could not be retrieved."
+                        "Instagram confirms that the post was published, but the publish request "
+                        "did not return its media ID. The permalink could not be retrieved."
                     ),
                 )
             if status_code in {"ERROR", "EXPIRED", "FAILED"}:
@@ -481,25 +505,11 @@ class CompletePostAction(ActionHandler):
                 "PROCESSING",
                 publish_state,
                 message=(
-                    "Instagram may have accepted the publish request, but its response was lost and the outcome "
-                    "could not be confirmed. Call complete_post again with this publish_state to check the same "
-                    "container; do not start a new post."
+                    "Instagram may have accepted the publish request, but its outcome could not be confirmed. "
+                    "Call complete_post again with this publish_state to check the same container; "
+                    "do not start a new post."
                 ),
             )
-
-        media_id = publish_response.data.get("id", "")
-        if not media_id:
-            status_data = await _get_container_status(context, publish_state["container_id"])
-            if status_data.get("status_code", "").upper() == "PUBLISHED":
-                return _async_post_result(
-                    "PUBLISHED",
-                    publish_state,
-                    message=(
-                        "Instagram published the post but did not return its media ID. "
-                        "The permalink could not be retrieved."
-                    ),
-                )
-            return ActionError(message="Instagram did not return a published media ID")
 
         permalink = ""
         message = "Instagram post published successfully."

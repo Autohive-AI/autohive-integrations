@@ -77,6 +77,10 @@ Set `media_type` to `CAROUSEL` and provide 2-10 ordered `children`. Each child d
 
 `complete_post` polls Meta for a bounded period within each invocation. When processing is not finished, it returns an updated `publish_state` and instructs the agent to call it again immediately. Once the container is ready, it publishes the post and returns the media ID and permalink. The agent continues this loop without asking the user to send another message.
 
+If a publish request fails without confirming its outcome, `complete_post` checks the existing container before reporting failure. An unconfirmed outcome returns a `PUBLISHING` phase in `publish_state`; subsequent calls only check that container and do not send another publish request. Temporary status-check failures remain resumable and consume the same bounded completion budget.
+
+Continue calling `complete_post` while `status` is `PROCESSING`. If the reconciliation budget is exhausted, the action returns `status: "UNKNOWN"`, retains `publish_state`, and clears `next_action` to stop automatic checks. This does not mean publication failed. Verify the existing container or the account's published posts before attempting a new publication; do not create a new post while the outcome remains unknown. A confirmed `PUBLISHED` result can have an empty media ID and permalink if the original publish response was unavailable.
+
 `create_post` publishes in a single action and waits for processing to finish before returning. It works well for images and smaller media that complete within the action time limit.
 
 ## Rate Limits
