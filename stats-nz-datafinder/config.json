@@ -43,7 +43,8 @@
                 "enum": ["Point", "Polygon", "MultiPolygon"]
               },
               "coordinates": {
-                "type": "array"
+                "type": "array",
+                "items": {}
               }
             },
             "required": ["type", "coordinates"],
@@ -265,7 +266,8 @@
                 "enum": ["Polygon", "MultiPolygon"]
               },
               "coordinates": {
-                "type": "array"
+                "type": "array",
+                "items": {}
               }
             },
             "required": ["type", "coordinates"],
