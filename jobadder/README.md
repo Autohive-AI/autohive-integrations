@@ -45,7 +45,7 @@ API access requires a JobAdder developer application and approval. See the [JobA
 - `list_candidate_attachment_categories` — discover tenant-specific document categories such as Cultivate Candidate Form or Work Rights.
 - `download_candidate_attachment` — download a candidate document up to 5 MiB as an Autohive file object containing its name, MIME type, and base64 content. An optional `accept` value asks JobAdder to convert supported documents.
 - `upload_candidate_attachment` — upload an Autohive file object up to 5 MiB using one of JobAdder's native types: `Other`, `Resume`, `FormattedResume`, `CoverLetter`, `Screening`, `Check`, `Reference`, or `License`.
-- `update_candidate_attachment` — assign or clear a document's native type, tenant category, or expiry date. To upload a custom-category document, upload it first and then update the returned attachment ID.
+- `update_candidate_attachment` — assign or clear a document's native type, tenant category, or expiry date. Provide at least one of `type`, `category`, or `expiry`; `null` clears category or expiry. Empty updates are rejected before calling JobAdder. To upload a custom-category document, upload it first and then update the returned attachment ID.
 - `list_candidate_skills` and `get_candidate_availability` — retrieve supporting candidate records.
 - `list_candidate_notes` — list full-text candidate notes with type, reference, creation/update date, sorting, and pagination filters.
 - `list_candidate_note_types` — list the note types configured for candidate records.
