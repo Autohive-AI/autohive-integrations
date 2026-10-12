@@ -617,9 +617,11 @@ async def test_complete_post_reconciles_real_sdk_timeout_then_retry_rejection(un
 @pytest.mark.parametrize("phase", ["MEDIA", "PUBLISHING"])
 @pytest.mark.parametrize("terminal_status", ["ERROR", "EXPIRED", "FAILED"])
 async def test_complete_post_reports_confirmed_failure_during_reconciliation(phase, terminal_status):
-    responses = [{"id": "17841400000000000"}]
+    responses = []
     if phase == "MEDIA":
-        responses.extend([{"status_code": "FINISHED"}, TimeoutError("publish response timed out")])
+        responses.extend(
+            [{"id": "17841400000000000"}, {"status_code": "FINISHED"}, TimeoutError("publish response timed out")]
+        )
     responses.append({"status_code": terminal_status, "status": "Container cannot be published"})
     ctx = make_ctx_multi(responses)
 
@@ -635,7 +637,7 @@ async def test_complete_post_reports_confirmed_failure_during_reconciliation(pha
 @pytest.mark.parametrize("status_code", ["FINISHED", "IN_PROGRESS"])
 @patch("actions.media.asyncio.sleep", new_callable=AsyncMock)
 async def test_complete_post_does_not_republish_an_uncertain_container(mock_sleep, status_code):
-    ctx = make_ctx_multi([{"id": "17841400000000000"}, *[{"status_code": status_code} for _ in range(6)]])
+    ctx = make_ctx_multi([{"status_code": status_code} for _ in range(6)])
     state = publish_state(phase="PUBLISHING", attempt=5)
 
     result = await instagram_integration.execute_action("complete_post", {"publish_state": state}, ctx)
@@ -647,7 +649,7 @@ async def test_complete_post_does_not_republish_an_uncertain_container(mock_slee
     assert data["next_action"] == "complete_post"
     assert all(call.kwargs["method"] == "GET" for call in ctx.fetch.call_args_list)
 
-    recovered_ctx = make_ctx_multi([{"id": "17841400000000000"}, {"status_code": "PUBLISHED"}])
+    recovered_ctx = make_ctx_multi([{"status_code": "PUBLISHED"}])
     recovered = await instagram_integration.execute_action(
         "complete_post", {"publish_state": data["publish_state"]}, recovered_ctx
     )
@@ -685,12 +687,7 @@ async def test_complete_post_returns_resumable_state_when_publish_outcome_is_unc
     assert uncertain_state["attempt"] == 0
     assert "do not start a new post" in uncertain_data["message"]
 
-    reconciliation_ctx = make_ctx_multi(
-        [
-            {"id": "17841400000000000"},
-            {"status_code": "PUBLISHED"},
-        ]
-    )
+    reconciliation_ctx = make_ctx_multi([{"status_code": "PUBLISHED"}])
     published_result = await instagram_integration.execute_action(
         "complete_post",
         {"publish_state": uncertain_state},
@@ -698,16 +695,35 @@ async def test_complete_post_returns_resumable_state_when_publish_outcome_is_unc
     )
 
     assert published_result.result.data["status"] == "PUBLISHED"
-    assert reconciliation_ctx.fetch.call_count == 2
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("failure_at", ["account", "container"])
-async def test_complete_post_resumes_after_a_later_reconciliation_error(failure_at):
-    responses = [TimeoutError("account check timed out")]
-    if failure_at == "container":
-        responses = [{"id": "17841400000000000"}, TimeoutError("status check timed out")]
-    failed_ctx = make_ctx_multi(responses)
+async def test_complete_post_reconciles_when_account_endpoint_is_unavailable():
+    ctx = make_ctx_multi([])
+
+    async def fetch(url, **kwargs):
+        if url.endswith("/me"):
+            raise HTTPError(503, "Account endpoint unavailable")
+        assert url.endswith("/container_123")
+        assert kwargs["method"] == "GET"
+        return ok({"status_code": "PUBLISHED"})
+
+    ctx.fetch.side_effect = fetch
+    result = await instagram_integration.execute_action(
+        "complete_post", {"publish_state": publish_state(phase="PUBLISHING", attempt=11)}, ctx
+    )
+
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert data["status"] == "PUBLISHED"
+    assert data["publish_state"]["container_id"] == "container_123"
+    assert data["publish_state"]["attempt"] == 12
+    assert data["next_action"] == ""
+
+
+@pytest.mark.asyncio
+async def test_complete_post_resumes_after_a_later_reconciliation_error():
+    failed_ctx = make_ctx_multi([TimeoutError("status check timed out")])
     state = publish_state(phase="PUBLISHING", attempt=3)
 
     result = await instagram_integration.execute_action("complete_post", {"publish_state": state}, failed_ctx)
@@ -720,7 +736,7 @@ async def test_complete_post_resumes_after_a_later_reconciliation_error(failure_
     assert "do not start a new post" in data["message"]
     assert state["attempt"] == 3
 
-    recovered_ctx = make_ctx_multi([{"id": "17841400000000000"}, {"status_code": "PUBLISHED"}])
+    recovered_ctx = make_ctx_multi([{"status_code": "PUBLISHED"}])
     recovered = await instagram_integration.execute_action(
         "complete_post", {"publish_state": data["publish_state"]}, recovered_ctx
     )
@@ -732,7 +748,7 @@ async def test_complete_post_resumes_after_a_later_reconciliation_error(failure_
 
 @pytest.mark.asyncio
 async def test_complete_post_stops_reconciliation_with_an_unknown_outcome():
-    failed_ctx = make_ctx_multi([{"id": "17841400000000000"}, TimeoutError("status check timed out")])
+    failed_ctx = make_ctx_multi([TimeoutError("status check timed out")])
     state = publish_state(phase="PUBLISHING", attempt=11)
 
     last_check = await instagram_integration.execute_action("complete_post", {"publish_state": state}, failed_ctx)

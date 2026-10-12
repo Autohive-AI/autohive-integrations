@@ -376,7 +376,6 @@ class CompletePostAction(ActionHandler):
                 message="Instagram media processing did not finish after the maximum automatic completion attempts."
             )
 
-        account_id = await get_instagram_account_id(context)
         phase = publish_state.get("phase", "")
 
         if phase == "PUBLISHING":
@@ -402,6 +401,7 @@ class CompletePostAction(ActionHandler):
                 ),
             )
 
+        account_id = await get_instagram_account_id(context)
         if phase == "CHILDREN":
             processing_status, error = await _poll_container_ids(context, publish_state["child_container_ids"])
             if processing_status == "FAILED":
