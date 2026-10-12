@@ -134,7 +134,7 @@ Downloads the canonical, date-specific XML source once and returns provisions ma
 - `section` (string, conditionally required) — Exact provision label, such as `35`, `231`, or `30A`.
 - `provision_id` (string, conditionally required) — Exact source ID returned by XML search, such as `DLM434650`.
 
-Provide exactly one of `section` or `provision_id`.
+Provide exactly one of `section` or `provision_id`. The action rejects missing or conflicting selectors before fetching the XML document.
 
 **Outputs**
 
