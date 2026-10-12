@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import json
+from pathlib import Path
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
@@ -2930,7 +2931,8 @@ class TestQueryAreaStatisticsFromGeojsonFile:
             {"layer_id": 123, "measures": [POPULATION]},
             mock_context,
         )
-        assert result.type == ResultType.VALIDATION_ERROR
+        assert result.type == ResultType.ACTION_ERROR
+        assert "missing_geometry" in result.result.message
         mock_context.fetch.assert_not_called()
         mock_wfs.assert_not_called()
 
@@ -2947,7 +2949,8 @@ class TestQueryAreaStatisticsFromGeojsonFile:
             },
             mock_context,
         )
-        assert result.type == ResultType.VALIDATION_ERROR
+        assert result.type == ResultType.ACTION_ERROR
+        assert "conflicting_geometry_source" in result.result.message
         mock_context.fetch.assert_not_called()
         mock_wfs.assert_not_called()
 
@@ -3073,3 +3076,11 @@ class TestQueryLayerFromGeojsonFile:
         assert result.type == ResultType.ACTION_ERROR
         assert "invalid_geometry" in result.result.message
         mock_context.fetch.assert_not_called()
+
+
+def test_action_schemas_support_claude_tool_catalogues():
+    # Claude rejects the entire request when any tool has a root schema combinator.
+    config = json.loads((Path(__file__).parent.parent / "config.json").read_text())
+    for name, action in config["actions"].items():
+        unsupported = {"oneOf", "allOf", "anyOf"}.intersection(action["input_schema"])
+        assert not unsupported, f"{name} has unsupported root keywords: {unsupported}"

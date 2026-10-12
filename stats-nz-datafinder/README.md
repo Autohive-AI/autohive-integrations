@@ -174,7 +174,7 @@ code and returns a compact result.
 
 **Inputs**
 
-- `layer_id` and a WGS84 Polygon or MultiPolygon, either as inline `geometry` or as `file` (same selection rules as Query Layer). Do not send both.
+- `layer_id` and a WGS84 Polygon or MultiPolygon, either as inline `geometry` or as `file` (same selection rules as Query Layer). Do not send both. Missing or conflicting sources are rejected before querying WFS.
 - `measures` — bounded list of additive counts. Each item has `key`, `label`,
   `field` (exact Datafinder name), `unit` (`count`), and `aggregation`
   (`additive_count`). Compute rates or percentages in the report from two counts.
