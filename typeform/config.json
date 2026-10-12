@@ -1,7 +1,7 @@
 {
   "name": "Typeform",
   "display_name": "Typeform",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Integration with Typeform for managing forms, responses, workspaces, themes, images, and webhooks. Rate limit handling: If an action returns error_type='rate_limit', wait retry_after_seconds and call the action again with _retry_attempt incremented. Maximum 3 retries recommended.",
   "entry_point": "typeform.py",
   "auth": {
@@ -146,6 +146,10 @@
           },
           "fields": {
             "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
             "description": "Array of field objects defining the form questions"
           },
           "settings": {
@@ -158,10 +162,18 @@
           },
           "welcome_screens": {
             "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
             "description": "Welcome screen configurations"
           },
           "thankyou_screens": {
             "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
             "description": "Thank you screen configurations"
           },
           "_retry_attempt": {
@@ -201,6 +213,10 @@
           },
           "fields": {
             "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
             "description": "Updated array of field objects"
           },
           "settings": {
@@ -213,10 +229,18 @@
           },
           "welcome_screens": {
             "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
             "description": "Updated welcome screen configurations"
           },
           "thankyou_screens": {
             "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
             "description": "Updated thank you screen configurations"
           },
           "_retry_attempt": {
