@@ -1024,7 +1024,7 @@
         },
         "get_thread_emails": {
             "display_name": "Get Thread Emails",
-            "description": "Get the emails in a thread as snippets, in chronological order. Returns the newest 25 messages by default (set max_messages, 1-100, to change this). total_messages gives the size of the whole thread. When older messages remain, the response includes next_message_offset; pass it as message_offset to get the next older batch.",
+            "description": "Get the emails in a thread as snippets, in chronological order. Returns the newest 25 messages by default (set max_messages, 1-100, to change this). total_messages gives the size of the whole thread. When older messages remain, the response includes a nextPageToken; pass it as pageToken to get the next older batch. Continuing with pageToken only moves to older messages, so replies that arrive in the meantime are not mixed in; call again without pageToken to see them.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1038,11 +1038,11 @@
                     },
                     "max_messages": {
                         "type": "integer",
-                        "description": "Optional: maximum number of messages to return, 1-100. Defaults to 25 when omitted. The newest messages are returned first; use next_message_offset to read older ones."
+                        "description": "Optional: maximum number of messages to return, 1-100. Defaults to 25 when omitted. The newest messages are returned first; use nextPageToken to read older ones."
                     },
-                    "message_offset": {
-                        "type": "integer",
-                        "description": "Optional: number of the newest messages to skip. Defaults to 0. Use the next_message_offset from a previous response to get the next older batch."
+                    "pageToken": {
+                        "type": "string",
+                        "description": "Optional: the nextPageToken from a previous get_thread_emails response for this thread, to get the next older batch. Omit to start from the newest message."
                     }
                 },
                 "required": [
@@ -1061,9 +1061,9 @@
                         "type": "integer",
                         "description": "Number of messages in the whole thread, which may be more than are returned"
                     },
-                    "next_message_offset": {
-                        "type": "integer",
-                        "description": "Present when older messages remain: pass it as message_offset to get the next older batch"
+                    "nextPageToken": {
+                        "type": "string",
+                        "description": "Present when older messages remain: pass it as pageToken to get the next older batch"
                     },
                     "emails": {
                         "type": "array",

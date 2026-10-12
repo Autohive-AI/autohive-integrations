@@ -1747,6 +1747,27 @@ def _thread_messages(count):
     return messages
 
 
+def _thread_token(i):
+    """The nextPageToken that points at message m{i} from ``_thread_messages``."""
+    return f"t1:{1700000000000 + i * 1000}:m{i}"
+
+
+async def _walk_thread(mock_context, current_messages, **inputs):
+    """Follow nextPageToken from the newest batch; return each batch's ids.
+
+    ``current_messages`` is called before every request, so a test can change
+    the thread between batches.
+    """
+    batches, token = [], None
+    while True:
+        extra = {"pageToken": token} if token else {}
+        data, _ = await _get_thread(mock_context, current_messages(), **inputs, **extra)
+        batches.append([e["id"] for e in data["emails"]])
+        token = data.get("nextPageToken")
+        if not token:
+            return batches
+
+
 async def _get_thread(mock_context, messages, **inputs):
     """Run get_thread_emails against ``messages``; return (data, service)."""
     with _patched_service() as mock_build:
@@ -1775,7 +1796,7 @@ class TestGetThreadEmails:
         assert result.result.data["thread_id"] == "t1"
         assert len(result.result.data["emails"]) == 2
         assert result.result.data["total_messages"] == 2
-        assert "next_message_offset" not in result.result.data
+        assert "nextPageToken" not in result.result.data
 
     @pytest.mark.asyncio
     async def test_exception_returns_action_error(self, mock_context):
@@ -1803,21 +1824,48 @@ class TestGetThreadEmails:
         assert [e["id"] for e in data["emails"]] == [f"m{i}" for i in range(5, 30)]
         assert len(data["emails"]) == DEFAULT_THREAD_MAX_MESSAGES
         assert data["total_messages"] == 30
-        assert data["next_message_offset"] == 25
+        assert data["nextPageToken"] == _thread_token(5)
 
     @pytest.mark.asyncio
-    async def test_following_offsets_returns_every_message_once(self, mock_context):
+    async def test_following_tokens_returns_every_message_once(self, mock_context):
         messages = _thread_messages(11)
-        batches, offset = [], 0
-        while True:
-            data, _ = await _get_thread(mock_context, messages, max_messages=3, message_offset=offset)
-            batches.append([e["id"] for e in data["emails"]])
-            assert data["total_messages"] == 11
-            if "next_message_offset" not in data:
-                break
-            assert data["next_message_offset"] == offset + len(data["emails"])
-            offset = data["next_message_offset"]
+        batches = await _walk_thread(mock_context, lambda: messages, max_messages=3)
         assert batches == [["m8", "m9", "m10"], ["m5", "m6", "m7"], ["m2", "m3", "m4"], ["m0", "m1"]]
+
+    @pytest.mark.asyncio
+    async def test_reply_arriving_between_batches_does_not_repeat_messages(self, mock_context):
+        messages = _thread_messages(6)
+        first, _ = await _get_thread(mock_context, messages, max_messages=2)
+        assert [e["id"] for e in first["emails"]] == ["m4", "m5"]
+        messages = _thread_messages(7)  # reply m6 arrives
+        second, _ = await _get_thread(mock_context, messages, max_messages=2, pageToken=first["nextPageToken"])
+        assert [e["id"] for e in second["emails"]] == ["m2", "m3"]
+        assert second["total_messages"] == 7
+
+    @pytest.mark.asyncio
+    async def test_deleting_returned_message_between_batches_does_not_skip(self, mock_context):
+        messages = _thread_messages(6)
+        first, _ = await _get_thread(mock_context, messages, max_messages=2)
+        remaining = [m for m in messages if m["id"] != "m5"]
+        second, _ = await _get_thread(mock_context, remaining, max_messages=2, pageToken=first["nextPageToken"])
+        assert [e["id"] for e in second["emails"]] == ["m2", "m3"]
+
+    @pytest.mark.asyncio
+    async def test_deleting_boundary_message_between_batches_does_not_skip(self, mock_context):
+        messages = _thread_messages(6)
+        first, _ = await _get_thread(mock_context, messages, max_messages=2)
+        assert first["nextPageToken"] == _thread_token(4)
+        remaining = [m for m in messages if m["id"] != "m4"]
+        second, _ = await _get_thread(mock_context, remaining, max_messages=2, pageToken=first["nextPageToken"])
+        assert [e["id"] for e in second["emails"]] == ["m2", "m3"]
+
+    @pytest.mark.asyncio
+    async def test_messages_with_same_internal_date_are_split_by_id(self, mock_context):
+        messages = _thread_messages(3)
+        for message in messages:
+            message["internalDate"] = "1700000000000"
+        batches = await _walk_thread(mock_context, lambda: [messages[2], messages[0], messages[1]], max_messages=1)
+        assert batches == [["m2"], ["m1"], ["m0"]]
 
     @pytest.mark.asyncio
     async def test_orders_by_internal_date_not_gmail_order_or_date_header(self, mock_context):
@@ -1833,24 +1881,83 @@ class TestGetThreadEmails:
         assert [e["id"] for e in data["emails"]] == ["m0", "m1", "m2"]
 
     @pytest.mark.asyncio
-    async def test_offset_past_end_returns_no_emails(self, mock_context):
-        data, _ = await _get_thread(mock_context, _thread_messages(4), message_offset=10)
+    async def test_token_older_than_every_message_returns_no_emails(self, mock_context):
+        data, _ = await _get_thread(mock_context, _thread_messages(4), pageToken="t1:1:m0")
         assert data["emails"] == []
         assert data["total_messages"] == 4
-        assert "next_message_offset" not in data
+        assert "nextPageToken" not in data
 
     @pytest.mark.asyncio
-    async def test_negative_offset_reads_from_newest(self, mock_context):
-        data, _ = await _get_thread(mock_context, _thread_messages(4), max_messages=2, message_offset=-3)
-        assert [e["id"] for e in data["emails"]] == ["m2", "m3"]
-        assert data["next_message_offset"] == 2
+    @pytest.mark.parametrize(
+        "token",
+        ["garbage", "1700000000000:m1", "t1:abc:m1", "t1:1700000000000:", "t1::m1", "t1:-5:m1", "t1:\u00b2:m1"],
+    )
+    async def test_malformed_token_returns_action_error(self, mock_context, token):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().threads().get().execute.return_value = {"id": "t1", "messages": _thread_messages(2)}
+            result = await gmail.execute_action(
+                "get_thread_emails", {"user_id": "me", "thread_id": "t1", "pageToken": token}, mock_context
+            )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Invalid pageToken" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_token_from_another_thread_returns_action_error(self, mock_context):
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().threads().get().execute.return_value = {"id": "t1", "messages": _thread_messages(2)}
+            result = await gmail.execute_action(
+                "get_thread_emails",
+                {"user_id": "me", "thread_id": "t1", "pageToken": "t2:1700000000000:m0"},
+                mock_context,
+            )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "belongs to a different thread, not 't1'" in result.result.message
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("token", ["x" * 500, "x" * 500 + ":1700000000000:m0"])
+    async def test_long_invalid_token_is_shortened_in_error(self, mock_context, token):
+        # The second token is well-formed but for another thread, so it fails the thread check.
+        with _patched_service() as mock_build:
+            service = _make_service()
+            mock_build.return_value = service
+            service.users().threads().get().execute.return_value = {"id": "t1", "messages": _thread_messages(2)}
+            result = await gmail.execute_action(
+                "get_thread_emails", {"user_id": "me", "thread_id": "t1", "pageToken": token}, mock_context
+            )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "x" * 64 + "..." in result.result.message
+        assert "x" * 65 not in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_walk_survives_reply_and_deletion_mid_walk(self, mock_context):
+        # m0..m9 in batches of 3. After the first batch a reply m10 arrives and the
+        # already-returned m8 is deleted; after the second, the unread m2 is deleted.
+        thread = _thread_messages(11)
+        calls = {"n": 0}
+
+        def current():
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return [m for m in thread if m["id"] != "m10"]
+            if calls["n"] == 2:
+                return [m for m in thread if m["id"] != "m8"]
+            return [m for m in thread if m["id"] not in ("m8", "m2")]
+
+        batches = await _walk_thread(mock_context, current, max_messages=3)
+        assert batches == [["m7", "m8", "m9"], ["m4", "m5", "m6"], ["m0", "m1", "m3"]]
+        seen = [i for batch in batches for i in batch]
+        assert len(seen) == len(set(seen))
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("requested, returned", [(0, 1), (-5, 1), (100, 100), (101, 100), (1000, 100)])
     async def test_max_messages_is_clamped(self, mock_context, requested, returned):
         data, _ = await _get_thread(mock_context, _thread_messages(120), max_messages=requested)
         assert len(data["emails"]) == returned
-        assert data["next_message_offset"] == returned
+        assert data["nextPageToken"] == _thread_token(120 - returned)
 
 
 # ============================================================

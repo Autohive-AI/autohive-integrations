@@ -188,9 +188,43 @@ MAX_READ_EMAIL_BODY_CHARS = 20000
 
 # get_thread_emails returns the newest messages of a thread first, in batches.
 # threads.get has no pagination, so batching is done here; older messages are
-# reached with the ``message_offset`` input.
+# reached with a ``pageToken`` cursor (see ``encode_thread_page_token``).
 DEFAULT_THREAD_MAX_MESSAGES = 25
 MAX_THREAD_MAX_MESSAGES = 100
+
+
+def thread_message_key(message: Dict[str, Any]) -> Tuple[int, str]:
+    """Total order for a thread's messages: when Gmail received them (epoch ms),
+    then message ID to break ties."""
+    return int(message.get("internalDate", 0)), message["id"]
+
+
+def encode_thread_page_token(thread_id: str, key: Tuple[int, str]) -> str:
+    """Cursor for the next older batch: the thread plus the key of the oldest
+    message returned.
+
+    The next call returns messages strictly older than this key. Anchoring to a
+    position rather than a count keeps continuation stable when replies arrive
+    or messages are deleted between calls, including the boundary message itself.
+    The thread ID lets a token passed for the wrong thread be rejected.
+    """
+    return f"{thread_id}:{key[0]}:{key[1]}"
+
+
+def decode_thread_page_token(token: str, thread_id: str) -> Tuple[int, str]:
+    """Return the message key in ``token``; raise ValueError if it is malformed
+    or belongs to a different thread."""
+    shown = token if len(token) <= 64 else token[:64] + "..."
+    parts = token.split(":", 2)
+    if len(parts) != 3 or not parts[2] or not (parts[1].isascii() and parts[1].isdigit()):
+        raise ValueError(f"Invalid pageToken '{shown}': use the nextPageToken from a previous get_thread_emails call")
+    token_thread_id, internal_date, message_id = parts
+    if token_thread_id != thread_id:
+        raise ValueError(
+            f"Invalid pageToken '{shown}': it belongs to a different thread, not '{thread_id}'. "
+            "Use the nextPageToken from a previous get_thread_emails call for this thread"
+        )
+    return int(internal_date), message_id
 
 
 def clamp_count(value: Any, default: int, maximum: int) -> int:
@@ -1197,7 +1231,7 @@ class GetThreadEmails(ActionHandler):
             user_id = inputs["user_id"]
             thread_id = inputs["thread_id"]
             max_messages = clamp_count(inputs.get("max_messages"), DEFAULT_THREAD_MAX_MESSAGES, MAX_THREAD_MAX_MESSAGES)
-            message_offset = max(0, int(inputs.get("message_offset", 0)))
+            page_token = inputs.get("pageToken")
 
             thread_data = (
                 service.users()
@@ -1206,20 +1240,20 @@ class GetThreadEmails(ActionHandler):
                 .execute()
             )
 
-            # Order by internalDate (when Gmail received the message, epoch ms) so
-            # offsets are stable. The sort is stable, so ties keep Gmail's order.
-            messages = sorted(thread_data.get("messages", []), key=lambda m: int(m.get("internalDate", 0)))
+            messages = sorted(thread_data.get("messages", []), key=thread_message_key)
             total = len(messages)
 
-            # Take the newest ``max_messages`` after skipping ``message_offset`` of
-            # the newest ones, keeping chronological order within the batch.
-            end = max(0, total - message_offset)
-            start = max(0, end - max_messages)
-            thread_emails = [GmailMessageParser.parse_message_with_snippet(m) for m in messages[start:end]]
+            # With a cursor, only messages strictly older than it remain; then take
+            # the newest ``max_messages`` of those, keeping chronological order.
+            if page_token:
+                cursor = decode_thread_page_token(page_token, thread_id)
+                messages = [m for m in messages if thread_message_key(m) < cursor]
+            batch = messages[-max_messages:]
+            thread_emails = [GmailMessageParser.parse_message_with_snippet(m) for m in batch]
 
             response = {"thread_id": thread_id, "emails": thread_emails, "total_messages": total}
-            if start > 0:
-                response["next_message_offset"] = total - start
+            if len(messages) > len(batch):
+                response["nextPageToken"] = encode_thread_page_token(thread_id, thread_message_key(batch[0]))
 
             return ActionResult(data=response, cost_usd=0.0)
 

@@ -57,7 +57,7 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | Action | Description |
 |---|---|
 | `reply_to_thread` | Reply to an existing thread, with text/HTML body, attachments, and optional additional recipients |
-| `get_thread_emails` | Retrieve the messages in a thread as snippets, newest 25 by default, with `message_offset` to read older ones |
+| `get_thread_emails` | Retrieve the messages in a thread as snippets, newest 25 by default, with `pageToken` to read older ones |
 
 ### Drafts
 
@@ -108,7 +108,10 @@ message-reading actions small:
 - **Thread size.** `get_thread_emails` returns at most 25 messages (`DEFAULT_THREAD_MAX_MESSAGES`) per call, the
   newest first; set `max_messages` (1–100) to change this. Messages are ordered by when Gmail received them, and each
   batch is returned oldest first. `total_messages` gives the size of the whole thread. When older messages remain,
-  the response includes `next_message_offset`; pass it as `message_offset` to get the next older batch.
+  the response includes a `nextPageToken`; pass it as `pageToken` to get the next older batch. The token marks the
+  oldest message returned, so continuing only moves to older messages: replies that arrive in the meantime don't
+  shift the position or repeat messages, and deleted messages don't cause skips. Call again without `pageToken` to
+  pick up new replies.
 
 The list actions and `get_thread_emails` fetch messages with `format=metadata`, requesting only the `Subject`,
 `From`, `To`, `Cc` and `Date` headers, since they only return headers and the snippet.

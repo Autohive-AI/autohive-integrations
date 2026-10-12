@@ -298,20 +298,19 @@ class TestGetThreadEmailsChained:
                 pytest.skip("Inbox is empty — cannot exercise get_thread_emails")
             thread_id = emails[0]["thread_id"]
 
-        seen, offset, total = [], 0, None
+        seen, token, total = [], None, None
         while True:
-            result = await gmail.execute_action(
-                "get_thread_emails",
-                {"user_id": "me", "thread_id": thread_id, "max_messages": 1, "message_offset": offset},
-                live_context,
-            )
+            inputs = {"user_id": "me", "thread_id": thread_id, "max_messages": 1}
+            if token:
+                inputs["pageToken"] = token
+            result = await gmail.execute_action("get_thread_emails", inputs, live_context)
             assert result.type == ResultType.ACTION
             data = result.result.data
             total = data["total_messages"]
             seen.extend(e["id"] for e in data["emails"])
-            if "next_message_offset" not in data:
+            token = data.get("nextPageToken")
+            if not token:
                 break
-            offset = data["next_message_offset"]
 
         assert len(seen) == total
         assert len(set(seen)) == total
