@@ -1,7 +1,7 @@
 {
   "name": "Calendly",
   "display_name": "Calendly",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Integration with Calendly for managing scheduled events, event types, invitees, availability, and webhooks",
   "entry_point": "calendly.py",
   "auth": {
@@ -537,6 +537,9 @@
           },
           "events": {
             "type": "array",
+            "items": {
+              "type": "string"
+            },
             "description": "Events to subscribe to: invitee.created, invitee.canceled, routing_form_submission.created"
           },
           "organization": {
