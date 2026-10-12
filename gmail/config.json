@@ -1,7 +1,7 @@
 {
     "name": "Gmail",
     "display_name": "Gmail",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "description": "Send, read, and manage emails with labels and threads.",
     "entry_point": "gmail.py",
     "auth": {
@@ -233,7 +233,7 @@
         },
         "read_email": {
             "display_name": "Read Email",
-            "description": "Read an email",
+            "description": "Read an email by ID, including its body, headers and attachments. HTML-only emails are converted to Markdown-formatted text (links kept, images dropped). Each call returns at most 20,000 characters of the body. When more remains, the body ends with '[Body truncated: N more characters. Call read_email again with body_offset=X to continue.]'; call read_email again with that body_offset to read the next part.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -244,6 +244,10 @@
                     "user_id": {
                         "type": "string",
                         "description": "The user's email address. Special value 'me' indicates the authenticated user."
+                    },
+                    "body_offset": {
+                        "type": "integer",
+                        "description": "Optional: character offset into the body to start reading from. Defaults to 0. Use the body_offset value given in a truncation marker to read the next part of a long body."
                     }
                 },
                 "required": [
@@ -292,7 +296,7 @@
                             },
                             "body": {
                                 "type": "string",
-                                "description": "Body contents of the email"
+                                "description": "Body contents of the email: the text/plain part, or for HTML-only emails the HTML converted to Markdown-formatted text. At most 20,000 characters starting at body_offset; when more remains it ends with '[Body truncated: N more characters. Call read_email again with body_offset=X to continue.]'."
                             }
                         },
                         "required": [
@@ -437,7 +441,7 @@
         },
         "read_inbox": {
             "display_name": "Read Inbox",
-            "description": "List emails in the user's inbox, filtered by read status. Results are paginated - use the nextPageToken from a previous response to retrieve the next page.",
+            "description": "List emails in the user's inbox, filtered by read status. Returns up to 25 emails per page by default (set maxResults, 1-500, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with scope, after/before or q rather than paging through the whole inbox.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -457,6 +461,10 @@
                     "pageToken": {
                         "type": "string",
                         "description": "An optional parameter: The page token to get the next page of results. Use the nextPageToken from a previous response."
+                    },
+                    "maxResults": {
+                        "type": "integer",
+                        "description": "Optional: maximum number of emails to return in this page, 1-500. Defaults to 25 when omitted. Each email is fetched separately, so large pages are slower and return more data. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with scope, after/before or q over raising this or paging through everything."
                     },
                     "after": {
                         "type": "string",
@@ -545,7 +553,7 @@
         },
         "read_all_mail": {
             "display_name": "Read All Mail",
-            "description": "List all emails across the entire mailbox regardless of labels, filtered by read status. Results are paginated - use the nextPageToken from a previous response to retrieve the next page.",
+            "description": "List all emails across the entire mailbox regardless of labels, filtered by read status. Returns up to 25 emails per page by default (set maxResults, 1-500, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with scope, after/before or q rather than paging through the whole mailbox.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -565,6 +573,10 @@
                     "pageToken": {
                         "type": "string",
                         "description": "An optional parameter: The page token to get the next page of results. Use the nextPageToken from a previous response."
+                    },
+                    "maxResults": {
+                        "type": "integer",
+                        "description": "Optional: maximum number of emails to return in this page, 1-500. Defaults to 25 when omitted. Each email is fetched separately, so large pages are slower and return more data. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with scope, after/before or q over raising this or paging through everything."
                     },
                     "include_spam_trash": {
                         "type": "boolean",
@@ -723,7 +735,7 @@
         },
         "list_emails_by_label": {
             "display_name": "List Emails by Label",
-            "description": "List emails that have specific Gmail labels (folders). By default, only returns emails in the inbox (excludes archived emails) unless include_archived is true or INBOX label is explicitly specified. Supports pagination and can filter by multiple labels. Uses label names (not IDs) for filtering.",
+            "description": "List emails that have specific Gmail labels (folders). By default, only returns emails in the inbox (excludes archived emails) unless include_archived is true or INBOX label is explicitly specified. Can filter by multiple labels. Uses label names (not IDs) for filtering. Returns up to 25 emails per page by default (set maxResults, 1-500, to change this). When more emails match, the response includes a nextPageToken; pass it as pageToken to get the next page. Narrow the search with label_names, after/before or q rather than paging through every labelled email.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -753,7 +765,7 @@
                     },
                     "maxResults": {
                         "type": "integer",
-                        "description": "Maximum number of emails to return (default is Gmail API default)"
+                        "description": "Optional: maximum number of emails to return in this page, 1-500. Defaults to 25 when omitted. Each email is fetched separately, so large pages are slower and return more data. Results are paginated: when more emails match, the response includes a nextPageToken. Prefer narrowing the search with label_names, after/before or q over raising this or paging through everything."
                     },
                     "include_archived": {
                         "type": "boolean",
@@ -1012,7 +1024,7 @@
         },
         "get_thread_emails": {
             "display_name": "Get Thread Emails",
-            "description": "Get all emails in a thread, returned as snippets in chronological order",
+            "description": "Get the emails in a thread as snippets, in chronological order. Returns the newest 25 messages by default (set max_messages, 1-100, to change this). total_messages gives the size of the whole thread. When older messages remain, the response includes a nextPageToken; pass it as pageToken to get the next older batch. Continuing with pageToken only moves to older messages, so replies that arrive in the meantime are not mixed in; call again without pageToken to see them.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1023,6 +1035,14 @@
                     "thread_id": {
                         "type": "string",
                         "description": "The ID of the thread to retrieve emails from"
+                    },
+                    "max_messages": {
+                        "type": "integer",
+                        "description": "Optional: maximum number of messages to return, 1-100. Defaults to 25 when omitted. The newest messages are returned first; use nextPageToken to read older ones."
+                    },
+                    "pageToken": {
+                        "type": "string",
+                        "description": "Optional: the nextPageToken from a previous get_thread_emails response for this thread, to get the next older batch. Omit to start from the newest message."
                     }
                 },
                 "required": [
@@ -1037,9 +1057,17 @@
                         "type": "string",
                         "description": "The ID of the thread"
                     },
+                    "total_messages": {
+                        "type": "integer",
+                        "description": "Number of messages in the whole thread, which may be more than are returned"
+                    },
+                    "nextPageToken": {
+                        "type": "string",
+                        "description": "Present when older messages remain: pass it as pageToken to get the next older batch"
+                    },
                     "emails": {
                         "type": "array",
-                        "description": "List of email messages in the thread, ordered chronologically",
+                        "description": "Messages in this batch, ordered chronologically (oldest first)",
                         "items": {
                             "type": "object",
                             "properties": {
@@ -1094,7 +1122,8 @@
                 },
                 "required": [
                     "thread_id",
-                    "emails"
+                    "emails",
+                    "total_messages"
                 ]
             }
         },

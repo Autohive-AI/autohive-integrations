@@ -33,7 +33,7 @@ import os
 import pytest
 from autohive_integrations_sdk.integration import ResultType
 
-from gmail.gmail import gmail
+from gmail.gmail import gmail, DEFAULT_LIST_MAX_RESULTS, DEFAULT_THREAD_MAX_MESSAGES, MAX_READ_EMAIL_BODY_CHARS
 
 pytestmark = pytest.mark.integration
 
@@ -156,6 +156,54 @@ class TestReadInbox:
         assert result.type == ResultType.ACTION
         assert isinstance(result.result.data["emails"], list)
 
+    @pytest.mark.asyncio
+    async def test_default_page_size_is_capped(self, live_context):
+        result = await gmail.execute_action("read_inbox", {"user_id": "me", "scope": "all"}, live_context)
+        assert result.type == ResultType.ACTION
+        emails = result.result.data["emails"]
+        assert len(emails) <= DEFAULT_LIST_MAX_RESULTS
+        # A full page is only guaranteed when Gmail says there is more.
+        if result.result.data.get("nextPageToken"):
+            assert len(emails) == DEFAULT_LIST_MAX_RESULTS
+
+    @pytest.mark.asyncio
+    async def test_small_pages_chain_without_overlap(self, live_context):
+        first = await gmail.execute_action(
+            "read_inbox", {"user_id": "me", "scope": "all", "maxResults": 2}, live_context
+        )
+        assert first.type == ResultType.ACTION
+        assert len(first.result.data["emails"]) <= 2
+        token = first.result.data.get("nextPageToken")
+        if not token:
+            pytest.skip("Inbox has 2 or fewer emails — pagination chain not exercised")
+        second = await gmail.execute_action(
+            "read_inbox", {"user_id": "me", "scope": "all", "maxResults": 2, "pageToken": token}, live_context
+        )
+        assert second.type == ResultType.ACTION
+        first_ids = {email["id"] for email in first.result.data["emails"]}
+        second_ids = {email["id"] for email in second.result.data["emails"]}
+        assert second_ids
+        assert first_ids.isdisjoint(second_ids)
+
+    @pytest.mark.asyncio
+    async def test_metadata_listing_matches_full_message(self, live_context):
+        # The list actions fetch format=metadata; read_email fetches format=full.
+        # The header fields both return must agree for the same message.
+        listing = await gmail.execute_action(
+            "read_inbox", {"user_id": "me", "scope": "all", "maxResults": 1}, live_context
+        )
+        emails = listing.result.data["emails"]
+        if not emails:
+            pytest.skip("Inbox is empty — cannot compare metadata and full parses")
+        listed = emails[0]
+
+        result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": listed["id"]}, live_context)
+        assert result.type == ResultType.ACTION
+        full = result.result.data["email"]
+        for field in ("id", "thread_id", "subject", "from", "to", "cc", "date"):
+            assert listed[field] == full[field], field
+        assert listed["snippet"]
+
 
 class TestReadAllMail:
     """Lists messages across the entire mailbox."""
@@ -165,6 +213,15 @@ class TestReadAllMail:
         result = await gmail.execute_action("read_all_mail", {"user_id": "me", "scope": "all"}, live_context)
         assert result.type == ResultType.ACTION
         assert isinstance(result.result.data["emails"], list)
+        assert len(result.result.data["emails"]) <= DEFAULT_LIST_MAX_RESULTS
+
+    @pytest.mark.asyncio
+    async def test_max_results_limits_page(self, live_context):
+        result = await gmail.execute_action(
+            "read_all_mail", {"user_id": "me", "scope": "all", "maxResults": 3}, live_context
+        )
+        assert result.type == ResultType.ACTION
+        assert len(result.result.data["emails"]) <= 3
 
 
 class TestReadEmailChained:
@@ -185,6 +242,25 @@ class TestReadEmailChained:
         assert result.type == ResultType.ACTION
         assert result.result.data["email"]["id"] == message_id
         assert "files" in result.result.data
+
+    @pytest.mark.asyncio
+    async def test_bodies_respect_the_cap(self, live_context):
+        # No fixed fixture can guarantee an oversized or HTML-only message, so
+        # check the bound holds across a few real inbox messages.
+        inbox = await gmail.execute_action(
+            "read_inbox", {"user_id": "me", "scope": "all", "maxResults": 5}, live_context
+        )
+        emails = inbox.result.data.get("emails", [])
+        if not emails:
+            pytest.skip("Inbox is empty — cannot exercise read_email")
+        marker_allowance = len(
+            "\n\n[Body truncated: 9999999999 more characters. "
+            "Call read_email again with body_offset=9999999999 to continue.]"
+        )
+        for email in emails:
+            result = await gmail.execute_action("read_email", {"user_id": "me", "email_id": email["id"]}, live_context)
+            assert result.type == ResultType.ACTION
+            assert len(result.result.data["email"]["body"]) <= MAX_READ_EMAIL_BODY_CHARS + marker_allowance
 
 
 class TestGetThreadEmailsChained:
@@ -209,6 +285,35 @@ class TestGetThreadEmailsChained:
         assert result.type == ResultType.ACTION
         assert result.result.data["thread_id"] == thread_id
         assert isinstance(result.result.data["emails"], list)
+        assert len(result.result.data["emails"]) <= DEFAULT_THREAD_MAX_MESSAGES
+        assert result.result.data["total_messages"] >= len(result.result.data["emails"])
+
+    @pytest.mark.asyncio
+    async def test_one_message_batches_cover_whole_thread(self, live_context):
+        thread_id = TEST_THREAD_ID
+        if not thread_id:
+            inbox = await gmail.execute_action("read_inbox", {"user_id": "me", "scope": "all"}, live_context)
+            emails = inbox.result.data.get("emails", [])
+            if not emails:
+                pytest.skip("Inbox is empty — cannot exercise get_thread_emails")
+            thread_id = emails[0]["thread_id"]
+
+        seen, token, total = [], None, None
+        while True:
+            inputs = {"user_id": "me", "thread_id": thread_id, "max_messages": 1}
+            if token:
+                inputs["pageToken"] = token
+            result = await gmail.execute_action("get_thread_emails", inputs, live_context)
+            assert result.type == ResultType.ACTION
+            data = result.result.data
+            total = data["total_messages"]
+            seen.extend(e["id"] for e in data["emails"])
+            token = data.get("nextPageToken")
+            if not token:
+                break
+
+        assert len(seen) == total
+        assert len(set(seen)) == total
 
 
 class TestListDrafts:
@@ -233,6 +338,17 @@ class TestListEmailsByLabelChained:
         )
         assert result.type == ResultType.ACTION
         assert isinstance(result.result.data["emails"], list)
+        assert len(result.result.data["emails"]) <= DEFAULT_LIST_MAX_RESULTS
+
+    @pytest.mark.asyncio
+    async def test_max_results_limits_page(self, live_context):
+        result = await gmail.execute_action(
+            "list_emails_by_label",
+            {"user_id": "me", "label_names": ["INBOX"], "maxResults": 3},
+            live_context,
+        )
+        assert result.type == ResultType.ACTION
+        assert len(result.result.data["emails"]) <= 3
 
 
 class TestListSendAsSignatures:

@@ -21,6 +21,7 @@ Key features:
 - List per-send-as default signatures via `list_send_as_signatures`
 - Archive and mark as read/unread in batch
 - Pagination via `nextPageToken` on all list endpoints
+- Token-conscious reads: `read_inbox`, `read_all_mail` and `list_emails_by_label` return 25 emails per page by default, `get_thread_emails` returns the newest 25 messages of a thread by default, and `read_email` converts HTML-only bodies to Markdown-formatted text and returns the body in chunks of up to 20,000 characters (see [Result size limits](#result-size-limits))
 
 ## Setup & Authentication
 
@@ -43,9 +44,9 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | Action | Description |
 |---|---|
 | `send_email` | Send a new email (text or HTML) with optional CC/BCC and attachments |
-| `read_email` | Retrieve a single message by ID, including body, headers, and attachments |
-| `read_inbox` | List inbox messages, filtered by read/unread, with pagination |
-| `read_all_mail` | List messages across the entire mailbox with read/unread filtering and pagination |
+| `read_email` | Retrieve a single message by ID, including body (text/plain part, or HTML converted to Markdown-formatted text; 20,000 characters per call, with `body_offset` to read on), headers, and attachments |
+| `read_inbox` | List inbox messages, filtered by read/unread, with pagination (25 per page by default) |
+| `read_all_mail` | List messages across the entire mailbox with read/unread filtering and pagination (25 per page by default) |
 | `mark_emails_as_read` | Mark one or more messages as read |
 | `mark_emails_as_unread` | Mark one or more messages as unread |
 | `archive_emails` | Remove messages from the inbox (archive) |
@@ -56,7 +57,7 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | Action | Description |
 |---|---|
 | `reply_to_thread` | Reply to an existing thread, with text/HTML body, attachments, and optional additional recipients |
-| `get_thread_emails` | Retrieve all messages in a thread |
+| `get_thread_emails` | Retrieve the messages in a thread as snippets, newest 25 by default, with `pageToken` to read older ones |
 
 ### Drafts
 
@@ -77,7 +78,7 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | `create_label` | Create a new user label |
 | `add_labels_to_emails` | Apply one or more labels to one or more messages |
 | `remove_labels_from_emails` | Remove one or more labels from one or more messages |
-| `list_emails_by_label` | List messages with a given label, paginated |
+| `list_emails_by_label` | List messages with a given label, paginated (25 per page by default) |
 
 ### Settings
 
@@ -86,6 +87,34 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | `list_send_as_signatures` | List the user's send-as addresses (primary + aliases) with the signature bound to each as the new-mail default. The Gmail API does not expose the user's full saved-signatures library — only the per-send-as default. |
 
 See [`config.json`](config.json) for the full input/output schema of every action.
+
+## Result size limits
+
+Every action result is read by the calling agent, so the size of a result is a token cost. These limits keep the
+message-reading actions small:
+
+- **Page size.** `read_inbox`, `read_all_mail` and `list_emails_by_label` take an optional `maxResults` input. It
+  defaults to 25 (`DEFAULT_LIST_MAX_RESULTS`) rather than Gmail's default page of up to 100, and is clamped to 1–500
+  (Gmail's maximum). Each listed email is fetched with its own request, so large pages are slower.
+  When more emails match, the response includes a `nextPageToken`; pass it back as `pageToken` for the next page.
+  Narrowing with `scope` (or `label_names` for `list_emails_by_label`), `after` / `before` or `q` is cheaper than
+  paging through everything.
+- **Body size.** `read_email` returns the message's `text/plain` part. When there is none, the HTML part is converted
+  to Markdown-formatted text with `html2text` (images dropped, links kept). Each call returns at most 20,000 characters
+  (`MAX_READ_EMAIL_BODY_CHARS`) of the body. When more remains, the body ends with
+  `[Body truncated: N more characters. Call read_email again with body_offset=X to continue.]`, and passing that
+  `body_offset` returns the next chunk, so the whole body can be read without gaps or overlap. Attachments in `files`
+  are not affected.
+- **Thread size.** `get_thread_emails` returns at most 25 messages (`DEFAULT_THREAD_MAX_MESSAGES`) per call, the
+  newest first; set `max_messages` (1–100) to change this. Messages are ordered by when Gmail received them, and each
+  batch is returned oldest first. `total_messages` gives the size of the whole thread. When older messages remain,
+  the response includes a `nextPageToken`; pass it as `pageToken` to get the next older batch. The token marks the
+  oldest message returned, so continuing only moves to older messages: replies that arrive in the meantime don't
+  shift the position or repeat messages, and deleted messages don't cause skips. Call again without `pageToken` to
+  pick up new replies.
+
+The list actions and `get_thread_emails` fetch messages with `format=metadata`, requesting only the `Subject`,
+`From`, `To`, `Cc` and `Date` headers, since they only return headers and the snippet.
 
 ## HTML Email Notes
 
@@ -181,7 +210,8 @@ Pinned in [`requirements.txt`](requirements.txt):
 ```json
 {
   "user_id": "me",
-  "scope": "unread"
+  "scope": "unread",
+  "maxResults": 25
 }
 ```
 
@@ -191,6 +221,7 @@ Then on the next call, pass the `nextPageToken` from the previous response:
 {
   "user_id": "me",
   "scope": "unread",
+  "maxResults": 25,
   "pageToken": "0987654321"
 }
 ```

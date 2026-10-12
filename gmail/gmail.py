@@ -1,7 +1,7 @@
 from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult, ActionError
 
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -167,6 +167,93 @@ class EmailCSSSanitizer(CSSSanitizer):
             kept.append(declaration.strip())
 
         return "; ".join(kept) + ";" if kept else ""
+
+
+# Every list call's result lands in the calling agent's context, so page size
+# is a token cost. Gmail's own default page is up to 100 messages, so the list
+# actions default to a smaller page. An explicit request may go up to Gmail's own
+# maximum of 500.
+DEFAULT_LIST_MAX_RESULTS = 25
+MAX_LIST_MAX_RESULTS = 500
+
+# The list actions and get_thread_emails only return headers and the snippet, so
+# fetching messages as ``metadata`` (instead of the full MIME tree) cuts payload
+# size and latency. Gmail charges the same quota whatever the format.
+LIST_METADATA_HEADERS = ["Subject", "From", "To", "Cc", "Date"]
+
+# Upper bound on the ``body`` returned by one read_email call. HTML-only
+# newsletters can run to hundreds of KB, all of which would otherwise go into the
+# agent context. Longer bodies are returned in chunks via the ``body_offset`` input.
+MAX_READ_EMAIL_BODY_CHARS = 20000
+
+# get_thread_emails returns the newest messages of a thread first, in batches.
+# threads.get has no pagination, so batching is done here; older messages are
+# reached with a ``pageToken`` cursor (see ``encode_thread_page_token``).
+DEFAULT_THREAD_MAX_MESSAGES = 25
+MAX_THREAD_MAX_MESSAGES = 100
+
+
+def thread_message_key(message: Dict[str, Any]) -> Tuple[int, str]:
+    """Total order for a thread's messages: when Gmail received them (epoch ms),
+    then message ID to break ties."""
+    return int(message.get("internalDate", 0)), message["id"]
+
+
+def encode_thread_page_token(thread_id: str, key: Tuple[int, str]) -> str:
+    """Cursor for the next older batch: the thread plus the key of the oldest
+    message returned.
+
+    The next call returns messages strictly older than this key. Anchoring to a
+    position rather than a count keeps continuation stable when replies arrive
+    or messages are deleted between calls, including the boundary message itself.
+    The thread ID lets a token passed for the wrong thread be rejected.
+    """
+    return f"{thread_id}:{key[0]}:{key[1]}"
+
+
+def decode_thread_page_token(token: str, thread_id: str) -> Tuple[int, str]:
+    """Return the message key in ``token``; raise ValueError if it is malformed
+    or belongs to a different thread."""
+    shown = token if len(token) <= 64 else token[:64] + "..."
+    parts = token.split(":", 2)
+    if len(parts) != 3 or not parts[2] or not (parts[1].isascii() and parts[1].isdigit()):
+        raise ValueError(f"Invalid pageToken '{shown}': use the nextPageToken from a previous get_thread_emails call")
+    token_thread_id, internal_date, message_id = parts
+    if token_thread_id != thread_id:
+        raise ValueError(
+            f"Invalid pageToken '{shown}': it belongs to a different thread, not '{thread_id}'. "
+            "Use the nextPageToken from a previous get_thread_emails call for this thread"
+        )
+    return int(internal_date), message_id
+
+
+def clamp_count(value: Any, default: int, maximum: int) -> int:
+    """Return ``value`` clamped to 1..maximum, or ``default`` when it is None."""
+    if value is None:
+        return default
+    return max(1, min(maximum, int(value)))
+
+
+def resolve_max_results(inputs: Dict[str, Any]) -> int:
+    """Return the ``maxResults`` for a messages.list call: the caller's value
+    clamped to 1..MAX_LIST_MAX_RESULTS, or DEFAULT_LIST_MAX_RESULTS when omitted."""
+    return clamp_count(inputs.get("maxResults"), DEFAULT_LIST_MAX_RESULTS, MAX_LIST_MAX_RESULTS)
+
+
+def fetch_message_metadata(service, user_id: str, message_id: str) -> Dict[str, Any]:
+    """Fetch one message with only the headers the list actions return.
+
+    A ``metadata`` response carries ``id``, ``threadId``, ``snippet`` and usually
+    ``payload.headers``, which is everything ``parse_message_with_snippet`` reads.
+    Google's JSON may leave out empty repeated fields, so ``headers`` might be
+    absent when none of the requested headers exist; the parser does not assume it.
+    """
+    return (
+        service.users()
+        .messages()
+        .get(userId=user_id, id=message_id, format="metadata", metadataHeaders=LIST_METADATA_HEADERS)
+        .execute()
+    )
 
 
 def build_date_clause(after: str = "", before: str = "") -> str:
@@ -517,8 +604,11 @@ class GmailMessageParser:
             return ""
 
     @staticmethod
-    def extract_plain_text(payload: Dict[str, Any], depth: int = 0, max_depth: int = 5) -> str:
-        """Extract plain text content from message payload.
+    def find_body(payload: Dict[str, Any], depth: int = 0, max_depth: int = 5) -> Tuple[str, str]:
+        """Find the message body, preferring a text/plain part.
+
+        Returns ``(text, mime_type)``. When there is no text/plain part this is
+        the first part that has data, which for HTML-only mail is raw HTML.
 
         Args:
             payload: The message payload to extract text from
@@ -527,30 +617,60 @@ class GmailMessageParser:
         """
         # Prevent excessive recursion
         if depth > max_depth:
-            return "[Email content too deeply nested to extract]"
+            return "[Email content too deeply nested to extract]", "text/plain"
 
         # Case 1: Body data directly in the payload (simple emails)
         if "body" in payload and "data" in payload["body"]:
-            return GmailMessageParser.decode_body(payload["body"]["data"])
+            return GmailMessageParser.decode_body(payload["body"]["data"]), payload.get("mimeType", "")
 
-        # Case 2: Simple email with mimeType text/plain
-        if payload.get("mimeType") == "text/plain" and "body" in payload and "data" in payload["body"]:
-            return GmailMessageParser.decode_body(payload["body"]["data"])
-
-        # Case 3: Handle multipart messages recursively
+        # Case 2: Handle multipart messages recursively
         if "parts" in payload:
             # First, try to find a text/plain part
             for part in payload["parts"]:
                 if part.get("mimeType") == "text/plain" and "body" in part and "data" in part["body"]:
-                    return GmailMessageParser.decode_body(part["body"]["data"])
+                    return GmailMessageParser.decode_body(part["body"]["data"]), "text/plain"
 
             # If no text/plain, try to find content recursively in each part
             for part in payload["parts"]:
-                text = GmailMessageParser.extract_plain_text(part, depth + 1, max_depth)
+                text, mime_type = GmailMessageParser.find_body(part, depth + 1, max_depth)
                 if text:
-                    return text
+                    return text, mime_type
 
-        return ""
+        return "", ""
+
+    @staticmethod
+    def extract_plain_text(payload: Dict[str, Any], depth: int = 0, max_depth: int = 5) -> str:
+        """Extract the message body text as found (HTML is not converted)."""
+        return GmailMessageParser.find_body(payload, depth, max_depth)[0]
+
+    @staticmethod
+    def extract_readable_body(
+        payload: Dict[str, Any], offset: int = 0, max_chars: int = MAX_READ_EMAIL_BODY_CHARS
+    ) -> str:
+        """Extract up to ``max_chars`` of the body text starting at ``offset``,
+        converting HTML to Markdown.
+
+        When more text follows the chunk, a marker is appended that gives the
+        offset to pass next, so the whole body can be read without gaps or
+        overlap. The conversion is deterministic, so offsets are stable across calls.
+        """
+        text, mime_type = GmailMessageParser.find_body(payload)
+        if mime_type == "text/html":
+            h = html2text.HTML2Text()
+            h.body_width = 0  # No line wrapping
+            h.ignore_images = True  # Image markup (often tracking pixels) is noise to a reader
+            text = h.handle(text).strip()
+
+        offset = max(0, offset)
+        end = offset + max_chars
+        chunk = text[offset:end]
+        remaining = len(text) - end
+        if remaining > 0:
+            chunk += (
+                f"\n\n[Body truncated: {remaining} more characters. "
+                f"Call read_email again with body_offset={end} to continue.]"
+            )
+        return chunk
 
     @staticmethod
     def get_header_value(headers: list, name: str) -> str:
@@ -631,7 +751,7 @@ class GmailMessageParser:
     @staticmethod
     def parse_message_with_snippet(raw_message: Dict[str, Any]) -> Dict[str, Any]:
         """Parse raw Gmail message into standardized format."""
-        headers = raw_message["payload"]["headers"]
+        headers = raw_message["payload"].get("headers", [])
         cc_header = GmailMessageParser.get_header_value(headers, "Cc")
 
         return {
@@ -646,7 +766,7 @@ class GmailMessageParser:
         }
 
     @staticmethod
-    def parse_message_with_body(raw_message: Dict[str, Any]) -> Dict[str, Any]:
+    def parse_message_with_body(raw_message: Dict[str, Any], body_offset: int = 0) -> Dict[str, Any]:
         """Parse raw Gmail message into standardized format."""
         headers = raw_message["payload"]["headers"]
         cc_header = GmailMessageParser.get_header_value(headers, "Cc")
@@ -659,7 +779,7 @@ class GmailMessageParser:
             "to": GmailMessageParser.get_header_value(headers, "To"),
             "cc": GmailMessageParser.parse_email_list(cc_header),
             "date": GmailMessageParser.get_header_value(headers, "Date"),
-            "body": GmailMessageParser.extract_plain_text(raw_message["payload"]),
+            "body": GmailMessageParser.extract_readable_body(raw_message["payload"], body_offset),
         }
 
 
@@ -734,12 +854,13 @@ class ReadEmail(ActionHandler):
             service = build_gmail_service(context)
             user_id = inputs["user_id"]
             email_id = inputs["email_id"]
+            body_offset = int(inputs.get("body_offset", 0))
 
             # Fetch the full email message
             message_data = service.users().messages().get(userId=user_id, id=email_id, format="full").execute()
 
             # Parse the main email fields (without files)
-            email_object = GmailMessageParser.parse_message_with_body(message_data)
+            email_object = GmailMessageParser.parse_message_with_body(message_data, body_offset)
 
             # Extract files separately
             extracted_files = GmailMessageParser.extract_files(
@@ -841,7 +962,7 @@ class ReadInbox(ActionHandler):
 
             query = compose_messages_query(scope_clause, inputs)
 
-            request_params = {"userId": user_id, "q": query}
+            request_params = {"userId": user_id, "q": query, "maxResults": resolve_max_results(inputs)}
             page_token = inputs.get("pageToken")
             if page_token is not None:
                 request_params["pageToken"] = page_token
@@ -853,8 +974,7 @@ class ReadInbox(ActionHandler):
             inbox_emails = []
             for message in messages.get("messages", []):
                 # Get individual message details
-                message_request = service.users().messages().get(userId=user_id, id=message["id"])
-                email_with_id = message_request.execute()
+                email_with_id = fetch_message_metadata(service, user_id, message["id"])
 
                 inbox_emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
 
@@ -891,7 +1011,11 @@ class ReadAllMail(ActionHandler):
 
             query = compose_messages_query(scope_clause, inputs)
 
-            request_params = {"userId": user_id, "includeSpamTrash": include_spam_trash}
+            request_params = {
+                "userId": user_id,
+                "includeSpamTrash": include_spam_trash,
+                "maxResults": resolve_max_results(inputs),
+            }
             if query:
                 request_params["q"] = query
             page_token = inputs.get("pageToken")
@@ -905,8 +1029,7 @@ class ReadAllMail(ActionHandler):
             all_emails = []
             for message in messages.get("messages", []):
                 # Get individual message details
-                message_request = service.users().messages().get(userId=user_id, id=message["id"])
-                email_with_id = message_request.execute()
+                email_with_id = fetch_message_metadata(service, user_id, message["id"])
 
                 all_emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
 
@@ -981,14 +1104,11 @@ class ListEmailsByLabel(ActionHandler):
             query = compose_messages_query(label_query, inputs)
 
             # Build request parameters
-            request_params = {"userId": user_id, "q": query}
+            request_params = {"userId": user_id, "q": query, "maxResults": resolve_max_results(inputs)}
 
             page_token = inputs.get("pageToken")
             if page_token is not None:
                 request_params["pageToken"] = page_token
-            max_results = inputs.get("maxResults")
-            if max_results is not None:
-                request_params["maxResults"] = max_results
 
             # Get list of messages
             request = service.users().messages().list(**request_params)
@@ -997,8 +1117,7 @@ class ListEmailsByLabel(ActionHandler):
             emails = []
             for message in messages.get("messages", []):
                 # Get individual message details
-                message_request = service.users().messages().get(userId=user_id, id=message["id"])
-                email_with_id = message_request.execute()
+                email_with_id = fetch_message_metadata(service, user_id, message["id"])
 
                 # Trust the Gmail API query - no additional filtering needed
                 emails.append(GmailMessageParser.parse_message_with_snippet(email_with_id))
@@ -1111,32 +1230,32 @@ class GetThreadEmails(ActionHandler):
             service = build_gmail_service(context)
             user_id = inputs["user_id"]
             thread_id = inputs["thread_id"]
+            max_messages = clamp_count(inputs.get("max_messages"), DEFAULT_THREAD_MAX_MESSAGES, MAX_THREAD_MAX_MESSAGES)
+            page_token = inputs.get("pageToken")
 
-            # Get the thread with all messages
-            thread_request = service.users().threads().get(userId=user_id, id=thread_id)
-            thread_data = thread_request.execute()
+            thread_data = (
+                service.users()
+                .threads()
+                .get(userId=user_id, id=thread_id, format="metadata", metadataHeaders=LIST_METADATA_HEADERS)
+                .execute()
+            )
 
-            thread_emails = []
-            for message in thread_data.get("messages", []):
-                # Parse each message in the thread
-                parsed_email = GmailMessageParser.parse_message_with_snippet(message)
-                thread_emails.append(parsed_email)
+            messages = sorted(thread_data.get("messages", []), key=thread_message_key)
+            total = len(messages)
 
-            # Sort emails by date to ensure chronological order
-            # Parse the date string and sort by it
-            def parse_date_for_sorting(email):
-                try:
-                    # Gmail date format is typically: "Mon, 1 Jan 2024 12:00:00 +0000"
-                    from email.utils import parsedate_to_datetime
+            # With a cursor, only messages strictly older than it remain; then take
+            # the newest ``max_messages`` of those, keeping chronological order.
+            if page_token:
+                cursor = decode_thread_page_token(page_token, thread_id)
+                messages = [m for m in messages if thread_message_key(m) < cursor]
+            batch = messages[-max_messages:]
+            thread_emails = [GmailMessageParser.parse_message_with_snippet(m) for m in batch]
 
-                    return parsedate_to_datetime(email["date"])
-                except Exception:
-                    # Fallback: use the email ID as a rough ordering mechanism
-                    return email["id"]
+            response = {"thread_id": thread_id, "emails": thread_emails, "total_messages": total}
+            if len(messages) > len(batch):
+                response["nextPageToken"] = encode_thread_page_token(thread_id, thread_message_key(batch[0]))
 
-            thread_emails.sort(key=parse_date_for_sorting)
-
-            return ActionResult(data={"thread_id": thread_id, "emails": thread_emails}, cost_usd=0.0)
+            return ActionResult(data=response, cost_usd=0.0)
 
         except Exception as e:
             return ActionError(message=str(e))
