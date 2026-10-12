@@ -580,46 +580,62 @@ Detach a payment method from a customer.
 
 ```python
 # 1. Create the invoice
-invoice = await stripe.execute_action("create_invoice", {
-    "customer": "cus_xxxxx",
-    "currency": "nzd",
-    "description": "RUC Purchase - GTR680 (John's BMW)\n5 units (5,000km)",
-    "auto_advance": False,
-    "collection_method": "send_invoice",
-    "days_until_due": 30
-}, context)
+invoice = await stripe.execute_action(
+    "create_invoice",
+    {
+        "customer": "cus_xxxxx",
+        "currency": "nzd",
+        "description": "RUC Purchase - GTR680 (John's BMW)\n5 units (5,000km)",
+        "auto_advance": False,
+        "collection_method": "send_invoice",
+        "days_until_due": 30,
+    },
+    context,
+)
 
 invoice_id = invoice.data["invoice"]["id"]
 
 # 2. Add RUC line item ($66.09 x 5 units)
-await stripe.execute_action("create_invoice_item", {
-    "customer": "cus_xxxxx",
-    "invoice": invoice_id,
-    "unit_amount": 6609,  # cents
-    "currency": "nzd",
-    "quantity": 5,
-    "description": "RUC - 5 units (5,000km)"
-}, context)
+await stripe.execute_action(
+    "create_invoice_item",
+    {
+        "customer": "cus_xxxxx",
+        "invoice": invoice_id,
+        "unit_amount": 6609,  # cents
+        "currency": "nzd",
+        "quantity": 5,
+        "description": "RUC - 5 units (5,000km)",
+    },
+    context,
+)
 
 # 3. Add NZTA Fee
-await stripe.execute_action("create_invoice_item", {
-    "customer": "cus_xxxxx",
-    "invoice": invoice_id,
-    "unit_amount": 1082,  # $10.82 in cents
-    "currency": "nzd",
-    "quantity": 1,
-    "description": "NZTA Administration Fee"
-}, context)
+await stripe.execute_action(
+    "create_invoice_item",
+    {
+        "customer": "cus_xxxxx",
+        "invoice": invoice_id,
+        "unit_amount": 1082,  # $10.82 in cents
+        "currency": "nzd",
+        "quantity": 1,
+        "description": "NZTA Administration Fee",
+    },
+    context,
+)
 
 # 4. Add BONNET Processing Fee
-await stripe.execute_action("create_invoice_item", {
-    "customer": "cus_xxxxx",
-    "invoice": invoice_id,
-    "unit_amount": 600,  # $6.00 in cents
-    "currency": "nzd",
-    "quantity": 1,
-    "description": "BONNET Processing Fee"
-}, context)
+await stripe.execute_action(
+    "create_invoice_item",
+    {
+        "customer": "cus_xxxxx",
+        "invoice": invoice_id,
+        "unit_amount": 600,  # $6.00 in cents
+        "currency": "nzd",
+        "quantity": 1,
+        "description": "BONNET Processing Fee",
+    },
+    context,
+)
 
 # Invoice is now ready as draft for review
 ```
@@ -627,14 +643,12 @@ await stripe.execute_action("create_invoice_item", {
 ### Example 2: List Draft Invoices for a Customer
 
 ```python
-result = await stripe.execute_action("list_invoices", {
-    "customer": "cus_xxxxx",
-    "status": "draft",
-    "limit": 10
-}, context)
+result = await stripe.execute_action(
+    "list_invoices", {"customer": "cus_xxxxx", "status": "draft", "limit": 10}, context
+)
 
 for invoice in result.data["invoices"]:
-    print(f"Invoice {invoice['id']}: ${invoice['total']/100:.2f}")
+    print(f"Invoice {invoice['id']}: ${invoice['total'] / 100:.2f}")
 ```
 
 ## Testing
