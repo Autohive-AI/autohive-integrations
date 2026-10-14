@@ -190,7 +190,7 @@ Retrieves posts liked by a user.
 Retrieves the authenticated user's bookmarked posts.
 
 **Inputs:**
-- `user_id` (required): The ID of the authenticated user
+- `user_id` (optional): Numeric X ID of the authenticated user. If omitted or set to `me`, the action resolves the authenticated account first.
 - `max_results` (optional): Maximum number of results (1-100, default: 10)
 - `pagination_token` (optional): Pagination token from previous response
 
@@ -379,6 +379,9 @@ If `X_ACCESS_TOKEN` is not set, the integration tests skip cleanly.
 4. Escalate issues based on keywords
 
 ## Version History
+
+- **2.0.2** - Hardened bookmark lookup
+  - `get_bookmarks` now resolves the authenticated numeric X user ID when `user_id` is omitted or set to `me`
 
 - **2.0.0** - Upgraded to Autohive Integrations SDK 2.0.0
   - Actions now return data-only results on success and raise an action error on failure (removed the `result`/`error` output fields)

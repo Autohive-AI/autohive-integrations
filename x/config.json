@@ -1,7 +1,7 @@
 {
     "name": "X",
     "display_name": "X (formerly Twitter)",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "description": "X integration for posting, managing interactions, and engaging with users",
     "supports_billing": true,
     "entry_point": "x.py",
@@ -269,13 +269,13 @@
         },
         "get_bookmarks": {
             "display_name": "Get Bookmarks",
-            "description": "Retrieves the authenticated user's bookmarked posts.",
+            "description": "Retrieves the authenticated user's bookmarked posts. If user_id is omitted or set to \"me\", the action resolves the authenticated user's numeric X ID first.",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "user_id": {
                         "type": "string",
-                        "description": "The ID of the authenticated user"
+                        "description": "The numeric ID of the authenticated user. Optional; omit or pass \"me\" to resolve it automatically."
                     },
                     "max_results": {
                         "type": "integer",
@@ -286,7 +286,7 @@
                         "description": "Pagination token from previous response"
                     }
                 },
-                "required": ["user_id"]
+                "required": []
             },
             "output_schema": {
                 "type": "object",

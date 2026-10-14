@@ -27,6 +27,14 @@ SEARCH_POST_COST_USD = 5 / 1000
 SEARCH_USER_PROFILE_COST_USD = 10 / 1000
 
 
+async def _resolve_authenticated_user_id(context: ExecutionContext) -> str:
+    response = await context.fetch(f"{X_API_BASE_URL}/users/me", method="GET")
+    user_id = response.data.get("data", {}).get("id")
+    if not user_id:
+        raise ValueError("Could not resolve the authenticated X user ID.")
+    return str(user_id)
+
+
 # ---- Connected Account Handler ----
 
 
@@ -396,7 +404,9 @@ class GetBookmarksAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            user_id = inputs["user_id"]
+            user_id = inputs.get("user_id")
+            if not user_id or str(user_id).lower() == "me":
+                user_id = await _resolve_authenticated_user_id(context)
             params = {
                 "tweet.fields": "created_at,public_metrics,author_id",
                 "expansions": "author_id",
