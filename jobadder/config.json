@@ -1,7 +1,7 @@
 {
   "name": "JobAdder",
   "display_name": "JobAdder",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "JobAdder recruitment integration for jobs, candidates, contacts, companies, notes, applications, placements, and connected-user discovery.",
   "entry_point": "jobadder.py",
   "auth": {
@@ -762,7 +762,7 @@
     },
     "update_candidate_attachment": {
       "display_name": "Update Candidate Attachment",
-      "description": "Updates a candidate attachment's native type, tenant-specific category, or expiry date.",
+      "description": "Updates a candidate attachment's native type, tenant-specific category, or expiry date. Provide at least one of type, category, or expiry; null clears category or expiry.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -772,8 +772,7 @@
           "category": {"type": ["string", "null"], "description": "Tenant-specific category; null clears it"},
           "expiry": {"type": ["string", "null"], "format": "date", "description": "Document expiry date; null clears it"}
         },
-        "required": ["candidate_id", "attachment_id"],
-        "anyOf": [{"required": ["type"]}, {"required": ["category"]}, {"required": ["expiry"]}]
+        "required": ["candidate_id", "attachment_id"]
       },
       "output_schema": {
         "type": "object",

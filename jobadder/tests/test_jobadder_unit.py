@@ -504,3 +504,44 @@ class TestGetPlacement:
         mock_context.fetch.side_effect = Exception("placement not found")
         result = await jobadder.execute_action("get_placement", {"placement_id": 41}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
+
+
+def test_action_schemas_support_claude_tool_catalogues():
+    # Claude rejects the entire request when any tool has a root schema combinator.
+    config = json.loads((Path(__file__).parent.parent / "config.json").read_text())
+    for name, action in config["actions"].items():
+        unsupported = {"oneOf", "allOf", "anyOf"}.intersection(action["input_schema"])
+        assert not unsupported, f"{name} has unsupported root keywords: {unsupported}"
+
+
+class TestUpdateCandidateAttachment:
+    async def test_missing_update_fields_fails_before_fetch(self, mock_context):
+        result = await jobadder.execute_action(
+            "update_candidate_attachment", {"candidate_id": 21, "attachment_id": 42}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Provide at least one of type, category, or expiry."
+        mock_context.fetch.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "update",
+        [
+            {"type": "Resume"},
+            {"category": "Licence"},
+            {"expiry": "2027-01-01"},
+            {"category": None},
+            {"expiry": None},
+            {"type": "Other", "category": None, "expiry": None},
+        ],
+    )
+    async def test_supplied_fields_are_sent_including_null_clears(self, mock_context, update):
+        mock_context.fetch.return_value = response({"attachmentId": 42})
+        result = await jobadder.execute_action(
+            "update_candidate_attachment", {"candidate_id": 21, "attachment_id": 42, **update}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["attachment"] == {"attachmentId": 42}
+        call = mock_context.fetch.call_args
+        assert call.args[0].endswith("/candidates/21/attachments/42")
+        assert call.kwargs["method"] == "PUT"
+        assert call.kwargs["json"] == update
