@@ -1,6 +1,6 @@
 {
   "name": "linz",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "display_name": "Land Information New Zealand",
   "description": "Read New Zealand property, title, ownership and parcel data from the LINZ Data Service (LDS) WFS API. Includes finding owner names that appear on more than one property title (a name match, not verified common ownership — LINZ exposes no cross-title owner identifier). Note: LINZ data does not classify properties as commercial vs residential — that lives in council/QV rating data.",
   "supports_connected_account": false,
