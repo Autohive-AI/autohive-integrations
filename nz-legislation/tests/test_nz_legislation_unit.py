@@ -1,6 +1,8 @@
 """Unit tests for the New Zealand Legislation integration."""
 
+import json
 from copy import deepcopy
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import aiohttp
@@ -666,7 +668,8 @@ class TestGetVersionProvision:
     async def test_requires_exactly_one_selector(self, mock_context, inputs):
         result = await nz_legislation.execute_action("get_version_provision", inputs, mock_context)
 
-        assert result.type == ResultType.VALIDATION_ERROR
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Provide exactly one of section or provision_id."
         mock_context.fetch.assert_not_called()
 
     async def test_whitespace_only_section_reports_empty_selector(self, mock_context):
@@ -813,3 +816,11 @@ class TestSearchVersionXml:
         assert result.type == ResultType.ACTION_ERROR
         assert "must include text" in result.result.message
         mock_context.fetch.assert_not_called()
+
+
+def test_action_schemas_support_claude_tool_catalogues():
+    # Claude rejects the entire request when any tool has a root schema combinator.
+    config = json.loads((Path(__file__).parent.parent / "config.json").read_text())
+    for name, action in config["actions"].items():
+        unsupported = {"oneOf", "allOf", "anyOf"}.intersection(action["input_schema"])
+        assert not unsupported, f"{name} has unsupported root keywords: {unsupported}"

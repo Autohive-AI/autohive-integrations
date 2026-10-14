@@ -1,6 +1,6 @@
 {
   "name": "nz-legislation",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "display_name": "New Zealand Legislation",
   "description": "Searches New Zealand legislation, retrieves version metadata, and reads official XML source documents.",
   "entry_point": "nz_legislation.py",
@@ -420,7 +420,7 @@
     },
     "get_version_provision": {
       "display_name": "Get Legislation Provision",
-      "description": "Downloads the official XML source for a specific version once and returns provisions matching an exact section label or source provision ID.",
+      "description": "Downloads the official XML source for a specific version once and returns provisions matching an exact section label or source provision ID. Provide exactly one of section or provision_id.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -435,21 +435,17 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 50,
-            "description": "Exact provision label, for example 35, 231, or 30A."
+            "description": "Exact provision label, for example 35, 231, or 30A. Required unless provision_id is supplied; do not send both."
           },
           "provision_id": {
             "type": "string",
             "minLength": 1,
             "maxLength": 100,
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Exact source provision ID returned by search_version_xml, for example DLM434650."
+            "description": "Exact source provision ID returned by search_version_xml, for example DLM434650. Required unless section is supplied; do not send both."
           }
         },
         "required": ["version_id"],
-        "oneOf": [
-          {"required": ["section"], "not": {"required": ["provision_id"]}},
-          {"required": ["provision_id"], "not": {"required": ["section"]}}
-        ],
         "additionalProperties": false
       },
       "output_schema": {
