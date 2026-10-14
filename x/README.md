@@ -380,7 +380,7 @@ If `X_ACCESS_TOKEN` is not set, the integration tests skip cleanly.
 
 ## Version History
 
-- **2.0.2** - Hardened bookmark lookup
+- **2.1.0** - Hardened bookmark lookup
   - `get_bookmarks` now resolves the authenticated numeric X user ID when `user_id` is omitted or set to `me`
 
 - **2.0.0** - Upgraded to Autohive Integrations SDK 2.0.0
