@@ -29,10 +29,11 @@ Exact pins remain pinned; update requirements when the security fix requires it.
 Packaging targets Python 3.13 / Linux x86_64 and ignores local `dependencies/`.
 Check resolved dependencies and AWS findings after deployment.
 
-The workflow selects new folders and version increases since the last successful
-ancestral push run, including bumps from skipped/failed merges. Before the first
-success, earlier attempted merges are included. History-read failures stop the
-workflow. Commits without bumps create no release.
+The workflow selects new folders and version increases from the current push
+range. Each push gets its own packaging run, so rapid merges do not replace
+pending release jobs. Commits without config version bumps create no release. If
+a packaging run fails, rerun that failed workflow run rather than relying on a
+later merge to recover the missed package.
 
 Admin keeps the newest ZIP per folder across unseen releases. Folder bindings
 point to backend IDs, so database name changes do not create duplicates after
@@ -41,7 +42,7 @@ repository/config renames retain the backend and create a replacement Lambda.
 
 ## Setup and recovery
 
-Publish the companion HiveUp `2.5.0` tag before merging this workflow. Follow the
+Publish the companion HiveUp `2.5.0` tag before running this workflow. Follow the
 [Admin rollout guide](https://github.com/Autohive-AI/autohive/blob/feat/github-integration-sync/docs/Integrations/GitHub%20integration%20release%20sync.md)
 for the existing migrations and environment prerequisites. Manual snapshot
 packaging is available directly in GitHub Actions for recovery.
