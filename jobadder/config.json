@@ -1,7 +1,7 @@
 {
   "name": "JobAdder",
   "display_name": "JobAdder",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "JobAdder recruitment integration for jobs, candidates, contacts, companies, notes, applications, placements, and connected-user discovery.",
   "entry_point": "jobadder.py",
   "auth": {
@@ -11,6 +11,7 @@
       "offline_access",
       "read_user",
       "read_job",
+      "write_job",
       "read_candidate",
       "write_candidate",
       "read_contact",
@@ -1102,13 +1103,22 @@
     },
     "list_job_attachments": {
       "display_name": "List Job Attachments",
-      "description": "Lists attachments for a job.",
+      "description": "Lists job attachments with optional native type and latest-version filters.",
       "input_schema": {
         "type": "object",
         "properties": {
           "job_id": {
             "type": "integer",
             "description": "JobAdder job ID"
+          },
+          "types": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["Other", "JobDescription"]},
+            "description": "Native JobAdder attachment types to include"
+          },
+          "latest": {
+            "type": "boolean",
+            "description": "Return only the latest attachment for each type when true"
           },
           "offset": {
             "type": "integer",
@@ -1152,6 +1162,106 @@
           "total_count",
           "links"
         ]
+      }
+    },
+    "list_job_attachment_categories": {
+      "display_name": "List Job Attachment Categories",
+      "description": "Lists tenant-specific job attachment categories, optionally filtered by native attachment type.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "types": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["Other", "JobDescription"]},
+            "description": "Native attachment types whose categories should be returned"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "categories": {"type": "array", "items": {"type": "object"}, "description": "Configured job attachment categories"},
+          "total_count": {"type": "integer", "description": "Number of categories returned"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["categories", "total_count", "links"]
+      }
+    },
+    "download_job_attachment": {
+      "display_name": "Download Job Attachment",
+      "description": "Downloads one job attachment up to 5 MiB as an Autohive file object with base64 content.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {"type": "integer", "description": "JobAdder job ID"},
+          "attachment_id": {"type": "integer", "description": "JobAdder job attachment ID"},
+          "file_name": {"type": "string", "description": "Filename to use in the returned file object; use the filename from list_job_attachments when available"},
+          "accept": {"type": "string", "default": "application/octet-stream", "description": "Requested MIME type; JobAdder may convert supported files"}
+        },
+        "required": ["job_id", "attachment_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "contentType": {"type": "string"},
+              "content": {"type": "string", "description": "Base64-encoded file content"}
+            },
+            "required": ["name", "contentType", "content"]
+          }
+        },
+        "required": ["file"]
+      }
+    },
+    "upload_job_attachment": {
+      "display_name": "Upload Job Attachment",
+      "description": "Uploads one file up to 5 MiB to a job using a native JobAdder attachment type.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {"type": "integer", "description": "JobAdder job ID"},
+          "attachment_type": {"type": "string", "enum": ["Other", "JobDescription"], "description": "Native JobAdder attachment type"},
+          "file": {
+            "type": "object",
+            "description": "Autohive file object, including a document supplied in agent chat",
+            "properties": {
+              "content": {"type": "string", "description": "Base64-encoded file content"},
+              "name": {"type": "string", "description": "Filename"},
+              "contentType": {"type": "string", "description": "MIME type"}
+            },
+            "required": ["content", "name", "contentType"]
+          }
+        },
+        "required": ["job_id", "attachment_type", "file"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"attachment": {"type": "object", "description": "Created job attachment"}},
+        "required": ["attachment"]
+      }
+    },
+    "update_job_attachment": {
+      "display_name": "Update Job Attachment",
+      "description": "Updates a job attachment's native type, tenant-specific category, or expiry date. Provide at least one of type, category, or expiry; null clears category or expiry.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {"type": "integer", "description": "JobAdder job ID"},
+          "attachment_id": {"type": "integer", "description": "JobAdder job attachment ID"},
+          "type": {"type": "string", "enum": ["Other", "JobDescription"], "description": "Replacement native JobAdder attachment type"},
+          "category": {"type": ["string", "null"], "description": "Tenant-specific category; null clears it"},
+          "expiry": {"type": ["string", "null"], "format": "date", "description": "Document expiry date; null clears it"}
+        },
+        "required": ["job_id", "attachment_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {"updated": {"type": "boolean", "description": "Whether JobAdder accepted the update"}},
+        "required": ["updated"]
       }
     },
     "list_job_notes": {

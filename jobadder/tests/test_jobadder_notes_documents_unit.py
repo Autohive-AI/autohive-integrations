@@ -6,7 +6,13 @@ import pytest
 from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
 
-from jobadder.jobadder import MAX_CANDIDATE_ATTACHMENT_BYTES, _decode_file, _download_candidate_attachment, jobadder
+from jobadder.jobadder import (
+    MAX_ATTACHMENT_BYTES,
+    _decode_file,
+    _download_candidate_attachment,
+    _download_job_attachment,
+    jobadder,
+)
 
 
 pytestmark = pytest.mark.unit
@@ -84,7 +90,7 @@ class TestDownloadCandidateAttachmentTransport:
 
     @pytest.mark.asyncio
     async def test_rejects_declared_oversized_download(self, mock_context):
-        response = FakeBinaryResponse(headers={"Content-Length": str(MAX_CANDIDATE_ATTACHMENT_BYTES + 1)})
+        response = FakeBinaryResponse(headers={"Content-Length": str(MAX_ATTACHMENT_BYTES + 1)})
         session = FakeBinarySession(response)
 
         with (
@@ -99,7 +105,7 @@ class TestDownloadCandidateAttachmentTransport:
         session = FakeBinarySession(response)
 
         with (
-            patch("jobadder.jobadder.MAX_CANDIDATE_ATTACHMENT_BYTES", 4),
+            patch("jobadder.jobadder.MAX_ATTACHMENT_BYTES", 4),
             patch("jobadder.jobadder.aiohttp.ClientSession", return_value=session),
             pytest.raises(ValueError, match="download limit"),
         ):
@@ -119,9 +125,30 @@ class TestDownloadCandidateAttachmentTransport:
         assert "Attachment not found" not in str(error.value)
 
 
+class TestDownloadJobAttachmentTransport:
+    @pytest.mark.asyncio
+    async def test_sends_auth_and_job_attachment_path(self, mock_context):
+        response = FakeBinaryResponse(
+            headers={"Content-Type": "application/pdf", "Content-Length": "3"},
+            chunks=[b"job"],
+        )
+        session = FakeBinarySession(response)
+
+        with patch("jobadder.jobadder.aiohttp.ClientSession", return_value=session):
+            content, headers = await _download_job_attachment(mock_context, 11, 7001, "application/pdf")
+
+        assert content == b"job"
+        assert headers["Content-Type"] == "application/pdf"
+        session.get.assert_called_once_with(
+            "https://au-api.jobadder.com/v2/jobs/11/attachments/7001",
+            headers={"Authorization": "Bearer test_access_token", "Accept": "application/pdf"},
+            ssl=True,
+        )
+
+
 class TestDecodeCandidateAttachment:
     def test_accepts_file_at_upload_limit(self):
-        with patch("jobadder.jobadder.MAX_CANDIDATE_ATTACHMENT_BYTES", 4):
+        with patch("jobadder.jobadder.MAX_ATTACHMENT_BYTES", 4):
             file_bytes, file_name, content_type = _decode_file(
                 {
                     "content": base64.b64encode(b"1234").decode("ascii"),
@@ -136,7 +163,7 @@ class TestDecodeCandidateAttachment:
 
     def test_rejects_oversized_encoded_input_before_decoding(self):
         with (
-            patch("jobadder.jobadder.MAX_CANDIDATE_ATTACHMENT_BYTES", 3),
+            patch("jobadder.jobadder.MAX_ATTACHMENT_BYTES", 3),
             patch("jobadder.jobadder.base64.b64decode") as decode_mock,
             pytest.raises(ValueError, match="upload limit"),
         ):
@@ -146,7 +173,7 @@ class TestDecodeCandidateAttachment:
 
     def test_rejects_decoded_file_over_upload_limit(self):
         with (
-            patch("jobadder.jobadder.MAX_CANDIDATE_ATTACHMENT_BYTES", 4),
+            patch("jobadder.jobadder.MAX_ATTACHMENT_BYTES", 4),
             pytest.raises(ValueError, match="upload limit"),
         ):
             _decode_file(
@@ -437,3 +464,220 @@ class TestCandidateAttachments:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "update unavailable" in result.result.message
+
+
+class TestJobAttachments:
+    @pytest.mark.asyncio
+    async def test_list_maps_type_and_latest_filters(self, mock_context):
+        mock_context.fetch.return_value = response(list_payload())
+
+        await jobadder.execute_action(
+            "list_job_attachments",
+            {
+                "job_id": 11,
+                "types": ["Other", "JobDescription"],
+                "latest": False,
+                "offset": 5,
+                "limit": 20,
+            },
+            mock_context,
+        )
+
+        call = mock_context.fetch.call_args
+        assert parse_qs(urlparse(call.args[0]).query) == {"type": ["Other", "JobDescription"]}
+        assert call.kwargs["params"] == {"latest": "false", "offset": 5, "limit": 20}
+
+    @pytest.mark.asyncio
+    async def test_list_categories_maps_type_filter(self, mock_context):
+        categories = [{"name": "Signed Job Description", "type": "JobDescription"}]
+        mock_context.fetch.return_value = response(list_payload(categories, 1))
+
+        result = await jobadder.execute_action(
+            "list_job_attachment_categories",
+            {"types": ["Other", "JobDescription"]},
+            mock_context,
+        )
+
+        assert result.result.data["categories"] == categories
+        mock_context.fetch.assert_awaited_once_with(
+            "https://au-api.jobadder.com/v2/jobs/lists/attachmentcategory?type=Other&type=JobDescription",
+            method="GET",
+        )
+
+    @pytest.mark.asyncio
+    async def test_list_categories_error_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = RuntimeError("categories unavailable")
+
+        result = await jobadder.execute_action("list_job_attachment_categories", {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "categories unavailable" in result.result.message
+
+    @pytest.mark.asyncio
+    @patch("jobadder.jobadder._download_job_attachment", new_callable=AsyncMock)
+    async def test_download_returns_autohive_file(self, download_mock, mock_context):
+        download_mock.return_value = (b"job description", {"Content-Type": "application/pdf; charset=binary"})
+
+        result = await jobadder.execute_action(
+            "download_job_attachment",
+            {
+                "job_id": 11,
+                "attachment_id": 7001,
+                "file_name": "job-description.pdf",
+                "accept": "application/pdf",
+            },
+            mock_context,
+        )
+
+        assert result.result.data["file"] == {
+            "name": "job-description.pdf",
+            "contentType": "application/pdf",
+            "content": base64.b64encode(b"job description").decode("ascii"),
+        }
+        download_mock.assert_awaited_once_with(mock_context, 11, 7001, "application/pdf")
+
+    @pytest.mark.asyncio
+    @patch("jobadder.jobadder._download_job_attachment", new_callable=AsyncMock)
+    async def test_download_error_returns_action_error(self, download_mock, mock_context):
+        download_mock.side_effect = RuntimeError("job attachment unavailable")
+
+        result = await jobadder.execute_action(
+            "download_job_attachment",
+            {"job_id": 11, "attachment_id": 7001},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "job attachment unavailable" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_upload_sends_multipart_file(self, mock_context):
+        attachment = {"attachmentId": 7001, "type": "JobDescription"}
+        mock_context.fetch.return_value = response(attachment, status=201)
+
+        result = await jobadder.execute_action(
+            "upload_job_attachment",
+            {
+                "job_id": 11,
+                "attachment_type": "JobDescription",
+                "file": {
+                    "name": "job-description.pdf",
+                    "contentType": "application/pdf",
+                    "content": base64.b64encode(b"job description").decode("ascii"),
+                },
+            },
+            mock_context,
+        )
+
+        assert result.result.data["attachment"] == attachment
+        call = mock_context.fetch.call_args
+        assert call.args[0].endswith("/jobs/11/attachments/JobDescription")
+        assert call.kwargs["method"] == "POST"
+        field_options, field_headers, field_value = call.kwargs["data"]._fields[0]
+        assert field_options["name"] == "fileData"
+        assert field_options["filename"] == "job-description.pdf"
+        assert field_headers["Content-Type"] == "application/pdf"
+        assert field_value == b"job description"
+
+    @pytest.mark.asyncio
+    async def test_upload_rejects_invalid_base64(self, mock_context):
+        result = await jobadder.execute_action(
+            "upload_job_attachment",
+            {
+                "job_id": 11,
+                "attachment_type": "Other",
+                "file": {"name": "brief.txt", "contentType": "text/plain", "content": "not-base64!"},
+            },
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "not valid base64" in result.result.message
+        mock_context.fetch.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_upload_provider_error_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = RuntimeError("job upload unavailable")
+
+        result = await jobadder.execute_action(
+            "upload_job_attachment",
+            {
+                "job_id": 11,
+                "attachment_type": "Other",
+                "file": {
+                    "name": "brief.txt",
+                    "contentType": "text/plain",
+                    "content": base64.b64encode(b"brief").decode("ascii"),
+                },
+            },
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "job upload unavailable" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_update_maps_metadata_body_and_handles_no_content(self, mock_context):
+        mock_context.fetch.return_value = response(None, status=204)
+
+        result = await jobadder.execute_action(
+            "update_job_attachment",
+            {
+                "job_id": 11,
+                "attachment_id": 7001,
+                "type": "JobDescription",
+                "category": "Signed Job Description",
+                "expiry": "2027-09-30",
+            },
+            mock_context,
+        )
+
+        assert result.result.data == {"updated": True}
+        mock_context.fetch.assert_awaited_once_with(
+            "https://au-api.jobadder.com/v2/jobs/11/attachments/7001",
+            method="PUT",
+            headers={"Content-Type": "application/json"},
+            json={"type": "JobDescription", "category": "Signed Job Description", "expiry": "2027-09-30"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_update_sends_nulls_to_clear_category_and_expiry(self, mock_context):
+        mock_context.fetch.return_value = response(None, status=204)
+
+        await jobadder.execute_action(
+            "update_job_attachment",
+            {"job_id": 11, "attachment_id": 7001, "category": None, "expiry": None},
+            mock_context,
+        )
+
+        mock_context.fetch.assert_awaited_once_with(
+            "https://au-api.jobadder.com/v2/jobs/11/attachments/7001",
+            method="PUT",
+            headers={"Content-Type": "application/json"},
+            json={"category": None, "expiry": None},
+        )
+
+    @pytest.mark.asyncio
+    async def test_update_provider_error_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = RuntimeError("job update unavailable")
+
+        result = await jobadder.execute_action(
+            "update_job_attachment",
+            {"job_id": 11, "attachment_id": 7001, "type": "Other"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "job update unavailable" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_update_requires_metadata_field(self, mock_context):
+        result = await jobadder.execute_action(
+            "update_job_attachment",
+            {"job_id": 11, "attachment_id": 7001},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Provide at least one of type, category, or expiry."
+        mock_context.fetch.assert_not_awaited()
