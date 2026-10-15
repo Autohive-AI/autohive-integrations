@@ -142,6 +142,131 @@ class GetProductAction(ActionHandler):
             return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
 
 
+# ---- Inventory Action Handlers ----
+
+
+@retail_express.action("list_inventory_levels")
+class ListInventoryLevelsAction(ActionHandler):
+    """Retrieve current inventory quantities by product and outlet."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            params = build_pagination_params(inputs)
+
+            sales_channel_id = inputs.get("sales_channel_id")
+            sku = inputs.get("sku")
+            outlet_id = inputs.get("outlet_id")
+            product_id = inputs.get("product_id")
+            modified_since = inputs.get("modified_since")
+            order_by = inputs.get("order_by")
+            filter_by = inputs.get("filter_by")
+
+            if sales_channel_id:
+                params["sales_channel_id"] = sales_channel_id
+            if sku:
+                params["sku"] = sku
+            if outlet_id:
+                params["outlet_id"] = outlet_id
+            if product_id:
+                params["product_id"] = product_id
+            if modified_since:
+                params["modified_since"] = modified_since
+            if order_by:
+                params["order_by"] = order_by
+            if filter_by:
+                params["filter_by"] = filter_by
+
+            headers = await get_auth_headers(context)
+            response = await context.fetch(
+                f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/inventory",
+                method="GET",
+                headers=headers,
+                params=params,
+            )
+
+            inventory_levels = response.get("data", [])
+            return ActionResult(
+                data={
+                    "inventory_levels": inventory_levels,
+                    "page_number": response.get("page_number", 1),
+                    "page_size": response.get("page_size", 20),
+                    "total_records": response.get("total_records", len(inventory_levels)),
+                    "result": True,
+                },
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            return ActionResult(
+                data={
+                    "inventory_levels": [],
+                    "page_number": 1,
+                    "page_size": 20,
+                    "total_records": 0,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
+
+
+@retail_express.action("list_inventory_movements")
+class ListInventoryMovementsAction(ActionHandler):
+    """Retrieve inventory movement history for reconciliation and auditing."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            params = build_pagination_params(inputs)
+
+            plu = inputs.get("plu")
+            reference_ids = inputs.get("reference_ids")
+            movement_types = inputs.get("movement_types")
+            filter_by = inputs.get("filter_by")
+            order_by = inputs.get("order_by")
+
+            if plu:
+                params["plu"] = plu
+            if reference_ids:
+                params["reference_ids"] = reference_ids
+            if movement_types:
+                params["movement_types"] = movement_types
+            if filter_by:
+                params["filter_by"] = filter_by
+            if order_by:
+                params["order_by"] = order_by
+
+            headers = await get_auth_headers(context)
+            response = await context.fetch(
+                f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/inventorymovementlogs",
+                method="GET",
+                headers=headers,
+                params=params,
+            )
+
+            inventory_movements = response.get("data", [])
+            return ActionResult(
+                data={
+                    "inventory_movements": inventory_movements,
+                    "page_number": response.get("page_number", 1),
+                    "page_size": response.get("page_size", 20),
+                    "total_records": response.get("total_records", len(inventory_movements)),
+                    "result": True,
+                },
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            return ActionResult(
+                data={
+                    "inventory_movements": [],
+                    "page_number": 1,
+                    "page_size": 20,
+                    "total_records": 0,
+                    "result": False,
+                    "error": str(e),
+                },
+                cost_usd=0.0,
+            )
+
+
 # ---- Customer Action Handlers ----
 
 

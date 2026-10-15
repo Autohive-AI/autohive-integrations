@@ -4,7 +4,7 @@ Integration with the Retail Express POS and retail management platform REST API.
 
 ## Overview
 
-Retail Express is an Australian-based point-of-sale (POS) and retail management system. This integration allows you to manage products, customers, orders, and outlets through the Retail Express REST API v2.1.
+Retail Express is an Australian-based point-of-sale (POS) and retail management system. This integration allows you to manage products, inventory, customers, orders, and outlets through the Retail Express REST API v2.1.
 
 ## Authentication
 
@@ -30,6 +30,13 @@ For sandbox/testing access, contact:
 |--------|-------------|
 | `list_products` | Retrieve a paginated list of products |
 | `get_product` | Get details of a specific product by ID |
+
+### Inventory
+
+| Action | Description |
+|--------|-------------|
+| `list_inventory_levels` | Retrieve current stock quantities by product and outlet, including available, stock-on-hand, allocated, on-order, picked, received, requested, faulty, and in-transit quantities |
+| `list_inventory_movements` | Retrieve stock movement history with before, delta, and after values for reconciliation and auditing |
 
 ### Customers
 
@@ -85,6 +92,31 @@ inputs = {
     "updated_since": "2024-01-01T00:00:00+10:00"
 }
 ```
+
+### Capture Inventory Levels for an Outlet
+
+```python
+inputs = {
+    "outlet_id": "10001",
+    "modified_since": "2026-01-01T00:00:00+13:00",
+    "page_size": 100
+}
+```
+
+Use `product_id`, `sku`, or `sales_channel_id` to narrow inventory further. Each inventory record identifies a product and outlet and includes the current quantity fields returned by Retail Express.
+
+### Capture Inventory Movements
+
+```python
+inputs = {
+    "plu": "SKU-123",
+    "movement_types": "PO,Invoice",
+    "order_by": "created_on desc",
+    "page_size": 100
+}
+```
+
+Movement records are useful for explaining changes in inventory levels because Retail Express returns quantity values before and after each movement, together with the delta.
 
 ### Create a Customer
 

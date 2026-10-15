@@ -1,8 +1,8 @@
 {
     "name": "RetailExpress",
     "display_name": "Retail Express",
-    "version": "1.0.0",
-    "description": "Retail Express integration for managing products, customers, orders, and outlets in the Retail Express POS platform",
+    "version": "1.1.0",
+    "description": "Retail Express integration for managing products, inventory, customers, orders, and outlets in the Retail Express POS platform",
     "entry_point": "retail_express.py",
     "supports_billing": true,
     "supports_connected_account": false,
@@ -99,6 +99,159 @@
                     "product": {
                         "type": "object",
                         "description": "Product details"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "list_inventory_levels": {
+            "display_name": "List Inventory Levels",
+            "description": "Retrieve current Retail Express inventory quantities by product and outlet.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "sales_channel_id": {
+                        "type": "string",
+                        "description": "Sales channel ID or comma-separated collection of sales channel IDs"
+                    },
+                    "sku": {
+                        "type": "string",
+                        "description": "Product SKU or comma-separated collection of product SKUs"
+                    },
+                    "outlet_id": {
+                        "type": "string",
+                        "description": "Outlet ID or comma-separated collection of outlet IDs"
+                    },
+                    "product_id": {
+                        "type": "string",
+                        "description": "Product ID or comma-separated collection of product IDs"
+                    },
+                    "modified_since": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Only return inventory modified since this ISO 8601 date-time"
+                    },
+                    "order_by": {
+                        "type": "string",
+                        "description": "Retail Express order expression, for example modified_on desc"
+                    },
+                    "filter_by": {
+                        "type": "string",
+                        "description": "Retail Express filter expression, for example stock_on_hand:gte:0"
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "default": 1,
+                        "minimum": 1
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page (max: 250)",
+                        "default": 20,
+                        "minimum": 1,
+                        "maximum": 250
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "inventory_levels": {
+                        "type": "array",
+                        "description": "Inventory levels containing product, outlet, availability, stock-on-hand, allocation, order, and transit quantities"
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Current page number"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page"
+                    },
+                    "total_records": {
+                        "type": "integer",
+                        "description": "Total number of records"
+                    },
+                    "result": {
+                        "type": "boolean",
+                        "description": "Whether the operation was successful"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Error message if the action failed"
+                    }
+                }
+            }
+        },
+        "list_inventory_movements": {
+            "display_name": "List Inventory Movements",
+            "description": "Retrieve inventory movement history for stock reconciliation and auditing.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "plu": {
+                        "type": "string",
+                        "description": "Product lookup code: product ID, supplier SKU, manufacturer SKU, supplier SKU 2, or barcode"
+                    },
+                    "reference_ids": {
+                        "type": "string",
+                        "description": "Reference ID or comma-separated collection of reference IDs"
+                    },
+                    "movement_types": {
+                        "type": "string",
+                        "description": "Movement type or comma-separated collection of movement types, for example PO,Invoice"
+                    },
+                    "filter_by": {
+                        "type": "string",
+                        "description": "Retail Express filter expression, for example created_on:gte:2026-01-01T00:00:00+13:00"
+                    },
+                    "order_by": {
+                        "type": "string",
+                        "description": "Retail Express order expression, for example created_on desc"
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Page number for pagination (default: 1)",
+                        "default": 1,
+                        "minimum": 1
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page (max: 250)",
+                        "default": 20,
+                        "minimum": 1,
+                        "maximum": 250
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "inventory_movements": {
+                        "type": "array",
+                        "description": "Inventory movement records with before, delta, and after quantities"
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "description": "Current page number"
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Number of items per page"
+                    },
+                    "total_records": {
+                        "type": "integer",
+                        "description": "Total number of records"
                     },
                     "result": {
                         "type": "boolean",
