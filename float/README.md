@@ -795,14 +795,7 @@ All action handlers now return `ActionResult` objects instead of plain dictionar
 
 Example response structure:
 ```python
-ActionResult(
-    data={
-        "people_id": 123,
-        "name": "John Doe",
-        "email": "john@example.com"
-    },
-    cost_usd=0.0
-)
+ActionResult(data={"people_id": 123, "name": "John Doe", "email": "john@example.com"}, cost_usd=0.0)
 ```
 
 ### Connected Account Information
