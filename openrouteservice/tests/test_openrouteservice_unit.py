@@ -18,6 +18,7 @@ from openrouteservice.openrouteservice import (
     MATRIX_TIMEOUT_SECONDS,
     MissingApiKeyError,
     _geojson_export_file,
+    _geometry_area_sq_km,
     _geometry_bbox,
     _match,
     _matrix_route_batches,
@@ -683,6 +684,25 @@ class TestGetIsochrone:
         data = _action_data(result)
         _assert_valid_isochrone_output(data)
         assert data["bands"][0]["area_sq_km"] == pytest.approx(1.0, abs=0.02)
+
+    def test_band_area_across_antimeridian_matches_same_size_square(self):
+        def wrap_lon(longitude: float) -> float:
+            return (longitude + 180.0) % 360.0 - 180.0
+
+        lat = -44.0
+        side_km = 1.0
+        dlat = side_km / 111.32
+        dlon = side_km / (111.32 * math.cos(math.radians(abs(lat))))
+        west = wrap_lon(180.0 - dlon / 2)
+        east = wrap_lon(180.0 + dlon / 2)
+        south = lat - dlat / 2
+        north = lat + dlat / 2
+        dateline = {"type": "Polygon", "coordinates": [_closed_ring(west, south, east, north)]}
+        mainland = {"type": "Polygon", "coordinates": [_square_around_km(lat, 174.76, side_km)]}
+        assert west > 0
+        assert east < 0
+        assert _geometry_area_sq_km(dateline) == pytest.approx(_geometry_area_sq_km(mainland), rel=0.02)
+        assert _geometry_area_sq_km(dateline) == pytest.approx(1.0, abs=0.02)
 
     def test_band_bbox_is_null_when_a_vertex_is_unusable(self):
         poisoned = {

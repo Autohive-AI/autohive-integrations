@@ -413,7 +413,9 @@ def _ring_area_m2(ring: Any) -> float | None:
         p1 = coords[lower]
         p2 = coords[middle]
         p3 = coords[upper]
-        area += math.radians(p3[0] - p1[0]) * math.sin(math.radians(p2[1]))
+        # Fold into [-180, 180] so a date-line hop is ~2°, not ~358°.
+        delta_lon = (p3[0] - p1[0] + 180.0) % 360.0 - 180.0
+        area += math.radians(delta_lon) * math.sin(math.radians(p2[1]))
     return area * _EARTH_RADIUS_M * _EARTH_RADIUS_M / 2.0
 
 
