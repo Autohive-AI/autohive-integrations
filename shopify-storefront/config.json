@@ -1,7 +1,7 @@
 {
     "name": "ShopifyStorefront",
     "display_name": "Shopify Storefront API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Shopify Storefront API integration for customer-facing e-commerce operations - products, collections, cart, and customer accounts",
     "entry_point": "shopify_storefront.py",
     "auth": {
@@ -138,7 +138,7 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "lines": {"type": "array", "description": "Initial cart items [{merchandiseId, quantity}]", "label": "Line Items"},
+                    "lines": {"type": "array", "items": {"type": "object", "properties": {"merchandiseId": {"type": "string"}, "quantity": {"type": "integer"}}, "required": ["merchandiseId"], "additionalProperties": true}, "description": "Initial cart items [{merchandiseId, quantity}]", "label": "Line Items"},
                     "buyer_identity": {"type": "object", "description": "Buyer info {email, countryCode}", "label": "Buyer Identity"}
                 },
                 "required": []
@@ -180,7 +180,7 @@
                 "type": "object",
                 "properties": {
                     "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
-                    "lines": {"type": "array", "description": "Items to add [{merchandiseId, quantity}]", "label": "Line Items"}
+                    "lines": {"type": "array", "items": {"type": "object", "properties": {"merchandiseId": {"type": "string"}, "quantity": {"type": "integer"}}, "required": ["merchandiseId"], "additionalProperties": true}, "description": "Items to add [{merchandiseId, quantity}]", "label": "Line Items"}
                 },
                 "required": ["cart_id", "lines"]
             },
@@ -201,7 +201,7 @@
                 "type": "object",
                 "properties": {
                     "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
-                    "lines": {"type": "array", "description": "Lines to update [{id, quantity}]", "label": "Line Updates"}
+                    "lines": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "quantity": {"type": "integer"}}, "required": ["id"], "additionalProperties": true}, "description": "Lines to update [{id, quantity}]", "label": "Line Updates"}
                 },
                 "required": ["cart_id", "lines"]
             },
