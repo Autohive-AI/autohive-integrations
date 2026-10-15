@@ -1,7 +1,7 @@
 {
     "name": "RetailExpress",
     "display_name": "Retail Express",
-    "version": "1.1.0",
+    "version": "2.0.0",
     "description": "Retail Express integration for managing products, inventory, customers, orders, and outlets in the Retail Express POS platform",
     "entry_point": "retail_express.py",
     "supports_billing": true,
@@ -72,10 +72,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -103,10 +99,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -184,10 +176,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -256,10 +244,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -314,10 +298,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -345,10 +325,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -420,10 +396,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -475,10 +447,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -537,10 +505,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -568,10 +532,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -618,10 +578,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }
@@ -649,10 +605,6 @@
                     "result": {
                         "type": "boolean",
                         "description": "Whether the operation was successful"
-                    },
-                    "error": {
-                        "type": "string",
-                        "description": "Error message if the action failed"
                     }
                 }
             }

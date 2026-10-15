@@ -4,6 +4,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from autohive_integrations_sdk import FetchResponse, ResultType
 
 _parent = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, _parent)
@@ -36,8 +37,12 @@ class TestListInventoryLevels:
             "on_order": 4,
         }
         mock_context.fetch.side_effect = [
-            {"access_token": "token"},  # nosec B105 - synthetic unit-test token
-            {"data": [level], "page_number": 2, "page_size": 50, "total_records": 51},
+            FetchResponse(status=200, headers={}, data={"access_token": "token"}),  # nosec B105
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"data": [level], "page_number": 2, "page_size": 50, "total_records": 51},
+            ),
         ]
 
         result = await retail_express.execute_action(
@@ -65,8 +70,12 @@ class TestListInventoryLevels:
 
     async def test_passes_incremental_sync_and_filter_parameters(self, mock_context):
         mock_context.fetch.side_effect = [
-            {"access_token": "token"},  # nosec B105 - synthetic unit-test token
-            {"data": [], "page_number": 1, "page_size": 20, "total_records": 0},
+            FetchResponse(status=200, headers={}, data={"access_token": "token"}),  # nosec B105
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"data": [], "page_number": 1, "page_size": 20, "total_records": 0},
+            ),
         ]
         inputs = {
             "sales_channel_id": "14,3",
@@ -86,9 +95,8 @@ class TestListInventoryLevels:
 
         result = await retail_express.execute_action("list_inventory_levels", {}, mock_context)
 
-        assert result.result.data["result"] is False
-        assert result.result.data["inventory_levels"] == []
-        assert result.result.data["error"] == "inventory unavailable"
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "inventory unavailable"
 
 
 class TestListInventoryMovements:
@@ -101,8 +109,12 @@ class TestListInventoryMovements:
             "quantity_available": {"before": 12, "delta": -1, "after": 11},
         }
         mock_context.fetch.side_effect = [
-            {"access_token": "token"},  # nosec B105 - synthetic unit-test token
-            {"data": [movement], "page_number": 1, "page_size": 20, "total_records": 1},
+            FetchResponse(status=200, headers={}, data={"access_token": "token"}),  # nosec B105
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"data": [movement], "page_number": 1, "page_size": 20, "total_records": 1},
+            ),
         ]
 
         result = await retail_express.execute_action(
@@ -119,8 +131,12 @@ class TestListInventoryMovements:
 
     async def test_passes_reference_filter_order_and_pagination(self, mock_context):
         mock_context.fetch.side_effect = [
-            {"access_token": "token"},  # nosec B105 - synthetic unit-test token
-            {"data": [], "page_number": 3, "page_size": 100, "total_records": 0},
+            FetchResponse(status=200, headers={}, data={"access_token": "token"}),  # nosec B105
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"data": [], "page_number": 3, "page_size": 100, "total_records": 0},
+            ),
         ]
         inputs = {
             "reference_ids": "1,5,23-00000001",
@@ -139,6 +155,5 @@ class TestListInventoryMovements:
 
         result = await retail_express.execute_action("list_inventory_movements", {}, mock_context)
 
-        assert result.result.data["result"] is False
-        assert result.result.data["inventory_movements"] == []
-        assert result.result.data["error"] == "movement log unavailable"
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "movement log unavailable"

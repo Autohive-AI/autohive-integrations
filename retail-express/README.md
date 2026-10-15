@@ -136,6 +136,16 @@ inputs = {
 }
 ```
 
+## Integration Tests
+
+Set `RETAIL_EXPRESS_API_KEY` in the repository-root `.env` file, then run the read-only live suite:
+
+```bash
+pytest retail-express/tests/test_retail_express_integration.py -m "integration and not destructive" -v
+```
+
+The suite covers every read-only action, including inventory levels and movement history. Customer creation and updates are intentionally excluded because the integration has no delete action for reliable cleanup, and updating an arbitrary existing customer cannot be safely restored.
+
 ## Notes
 
 - All date/time values are in Sydney (AEST/ADST) timezone
