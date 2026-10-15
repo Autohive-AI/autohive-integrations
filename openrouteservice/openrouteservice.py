@@ -491,16 +491,19 @@ def _vertex_count(geometry: dict[str, Any]) -> int:
 
 def _geometry_bbox(geometry: dict[str, Any]) -> list[float] | None:
     west = south = east = north = None
-    for ring in _iter_rings(geometry):
+    rings = _iter_rings(geometry)
+    if not rings:
+        return None
+    for ring in rings:
         if not isinstance(ring, list):
-            continue
+            return None
         for point in ring:
             if not isinstance(point, (list, tuple)) or len(point) < 2:
-                continue
+                return None
             longitude = _numeric_coordinate(point[0])
             latitude = _numeric_coordinate(point[1])
-            if longitude is None or latitude is None:
-                continue
+            if longitude is None or latitude is None or not math.isfinite(longitude) or not math.isfinite(latitude):
+                return None
             west = longitude if west is None else min(west, longitude)
             east = longitude if east is None else max(east, longitude)
             south = latitude if south is None else min(south, latitude)

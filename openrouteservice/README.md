@@ -43,7 +43,7 @@ Catchment pattern: `export_geojson=true` and `include_geojson=false`. `include_g
 **Outputs**
 
 - `geojson` — a GeoJSON FeatureCollection. The request sets HeiGIT `smoothing` to `0` so polygons are not generalised. Each feature includes a stable `time_minutes` property. Features are sorted in ascending time-band order. The integration parses a JSON-string response when the provider labels it `application/geo+json`. Null when `include_geojson` is false and the file export succeeded.
-- `bands` — one compact summary per feature, ascending by `time_minutes`, with no coordinates: `time_minutes`, `geometry_type`, `polygon_count`, `vertex_count`, approximate geodesic `area_sq_km` (holes subtracted; null if the calculation fails), and `bbox` as `[west, south, east, north]`.
+- `bands` — one compact summary per feature, ascending by `time_minutes`, with no coordinates: `time_minutes`, `geometry_type`, `polygon_count`, `vertex_count`, approximate geodesic `area_sq_km` (holes subtracted; null if the calculation fails), and `bbox` as `[west, south, east, north]` (null if any vertex is unusable; planar WGS84, no antimeridian wrap).
 - `provider_metadata` — unaltered provider metadata when present.
 - `profile` and `time_minutes` — the routing profile and requested bands (deduplicated, ascending).
 - `attribution`, `engine_version`, `build_date`, `graph_date`, `osm_date` — copied from provider metadata when supplied.

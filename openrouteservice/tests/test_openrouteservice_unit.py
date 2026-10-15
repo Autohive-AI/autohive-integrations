@@ -18,6 +18,7 @@ from openrouteservice.openrouteservice import (
     MATRIX_TIMEOUT_SECONDS,
     MissingApiKeyError,
     _geojson_export_file,
+    _geometry_bbox,
     _match,
     _matrix_route_batches,
     _normalize_isochrone_geojson,
@@ -622,7 +623,9 @@ class TestGetIsochrone:
         assert data["result"] is True
         assert data["geojson"]["features"]
         assert data["files"] == []
-        assert data["message"]
+        assert data["message"] == (
+            "GeoJSON file export failed, so the unsimplified geometry is returned inline in geojson."
+        )
 
     async def test_default_call_keeps_inline_geojson_and_adds_bands(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=ISOCHRONE_RESPONSE)
@@ -680,6 +683,18 @@ class TestGetIsochrone:
         data = _action_data(result)
         _assert_valid_isochrone_output(data)
         assert data["bands"][0]["area_sq_km"] == pytest.approx(1.0, abs=0.02)
+
+    def test_band_bbox_is_null_when_a_vertex_is_unusable(self):
+        poisoned = {
+            "type": "Polygon",
+            "coordinates": [[[174.76, -36.84], [float("nan"), -36.84], [174.77, -36.85], [174.76, -36.84]]],
+        }
+        truncated = {
+            "type": "Polygon",
+            "coordinates": [[[174.76, -36.84], [174.77], [174.77, -36.85], [174.76, -36.84]]],
+        }
+        assert _geometry_bbox(poisoned) is None
+        assert _geometry_bbox(truncated) is None
 
     def test_geojson_export_skips_non_finite_values(self):
         payload = {"type": "FeatureCollection", "features": [{"value": float("nan")}]}
