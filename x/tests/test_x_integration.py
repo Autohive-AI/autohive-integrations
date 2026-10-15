@@ -88,10 +88,10 @@ async def _get_me_id(live_context):
     return result.result.data["user"]["id"]
 
 
-def _skip_if_action_error(result, what):
-    """Skip when an action errors — useful for endpoints gated behind API access tiers."""
+def _fail_if_action_error(result, what):
+    """Fail when an action returns ActionError; live test inputs should be valid."""
     if result.type == ResultType.ACTION_ERROR:
-        pytest.skip(f"{what} unavailable on this account/tier: {result.result.message}")
+        pytest.fail(f"{what} returned ActionError: {result.result.message}")
 
 
 # =============================================================================
@@ -114,21 +114,21 @@ class TestConnectedAccount:
 class TestGetMe:
     async def test_returns_authenticated_user(self, live_context):
         result = await x_integration.execute_action("get_me", {}, live_context)
-        _skip_if_action_error(result, "get_me")
+        _fail_if_action_error(result, "get_me")
         user = result.result.data["user"]
         assert "id" in user
         assert "username" in user
 
     async def test_id_is_string(self, live_context):
         result = await x_integration.execute_action("get_me", {}, live_context)
-        _skip_if_action_error(result, "get_me")
+        _fail_if_action_error(result, "get_me")
         assert isinstance(result.result.data["user"]["id"], str)
 
 
 class TestGetUser:
     async def test_by_username(self, live_context):
         result = await x_integration.execute_action("get_user", {"username": "X"}, live_context)
-        _skip_if_action_error(result, "get_user")
+        _fail_if_action_error(result, "get_user")
         user = result.result.data["user"]
         assert user["username"].lower() == "x"
         assert "id" in user
@@ -144,15 +144,17 @@ class TestSearchTweets:
         result = await x_integration.execute_action(
             "search_tweets", {"query": "#AI -is:retweet lang:en", "max_results": 10}, live_context
         )
-        _skip_if_action_error(result, "search_tweets")
+        _fail_if_action_error(result, "search_tweets")
         data = result.result.data
         assert "posts" in data
         assert isinstance(data["posts"], list)
         assert len(data["posts"]) <= 10
 
     async def test_post_structure(self, live_context):
-        result = await x_integration.execute_action("search_tweets", {"query": "the", "max_results": 10}, live_context)
-        _skip_if_action_error(result, "search_tweets")
+        result = await x_integration.execute_action(
+            "search_tweets", {"query": "#AI -is:retweet lang:en", "max_results": 10}, live_context
+        )
+        _fail_if_action_error(result, "search_tweets")
         posts = result.result.data["posts"]
         if not posts:
             pytest.skip("No posts returned for query")
@@ -162,8 +164,10 @@ class TestSearchTweets:
 
 class TestGetTweet:
     async def test_get_single_post_by_id(self, live_context):
-        search = await x_integration.execute_action("search_tweets", {"query": "the", "max_results": 10}, live_context)
-        _skip_if_action_error(search, "search_tweets")
+        search = await x_integration.execute_action(
+            "search_tweets", {"query": "#AI -is:retweet lang:en", "max_results": 10}, live_context
+        )
+        _fail_if_action_error(search, "search_tweets")
         posts = search.result.data["posts"]
         if not posts:
             pytest.skip("No posts available to fetch by id")
@@ -172,7 +176,7 @@ class TestGetTweet:
         result = await x_integration.execute_action(
             "get_tweet", {"post_id": post_id, "include_user": True, "include_metrics": False}, live_context
         )
-        _skip_if_action_error(result, "get_tweet")
+        _fail_if_action_error(result, "get_tweet")
         assert result.result.data["post"]["id"] == post_id
 
 
@@ -182,7 +186,7 @@ class TestGetUserTweets:
         result = await x_integration.execute_action(
             "get_user_tweets", {"user_id": user_id, "max_results": 5}, live_context
         )
-        _skip_if_action_error(result, "get_user_tweets")
+        _fail_if_action_error(result, "get_user_tweets")
         data = result.result.data
         assert isinstance(data["posts"], list)
         assert len(data["posts"]) <= 5
@@ -194,7 +198,7 @@ class TestGetLikedTweets:
         result = await x_integration.execute_action(
             "get_liked_tweets", {"user_id": user_id, "max_results": 5}, live_context
         )
-        _skip_if_action_error(result, "get_liked_tweets")
+        _fail_if_action_error(result, "get_liked_tweets")
         assert isinstance(result.result.data["posts"], list)
 
 
@@ -204,7 +208,7 @@ class TestGetBookmarks:
         result = await x_integration.execute_action(
             "get_bookmarks", {"user_id": user_id, "max_results": 5}, live_context
         )
-        _skip_if_action_error(result, "get_bookmarks")
+        _fail_if_action_error(result, "get_bookmarks")
         assert isinstance(result.result.data["posts"], list)
 
 
@@ -222,12 +226,12 @@ class TestTweetLifecycle:
         create = await x_integration.execute_action(
             "create_tweet", {"text": f"Autohive X integration test {os.getpid()} — will be deleted"}, live_context
         )
-        _skip_if_action_error(create, "create_tweet")
+        _fail_if_action_error(create, "create_tweet")
         post_id = create.result.data["post"]["id"]
         assert post_id
 
         delete = await x_integration.execute_action("delete_tweet", {"post_id": post_id}, live_context)
-        _skip_if_action_error(delete, "delete_tweet")
+        _fail_if_action_error(delete, "delete_tweet")
         assert delete.result.data["deleted"] is True
 
 
@@ -241,20 +245,20 @@ class TestBookmarkLifecycle:
         create = await x_integration.execute_action(
             "create_tweet", {"text": f"Autohive bookmark test {os.getpid()} — will be deleted"}, live_context
         )
-        _skip_if_action_error(create, "create_tweet")
+        _fail_if_action_error(create, "create_tweet")
         post_id = create.result.data["post"]["id"]
 
         try:
             bookmark = await x_integration.execute_action(
                 "bookmark_tweet", {"user_id": user_id, "post_id": post_id}, live_context
             )
-            _skip_if_action_error(bookmark, "bookmark_tweet")
+            _fail_if_action_error(bookmark, "bookmark_tweet")
             assert bookmark.result.data["bookmarked"] is True
 
             remove = await x_integration.execute_action(
                 "remove_bookmark", {"user_id": user_id, "post_id": post_id}, live_context
             )
-            _skip_if_action_error(remove, "remove_bookmark")
+            _fail_if_action_error(remove, "remove_bookmark")
             assert remove.result.data["removed"] is True
         finally:
             await x_integration.execute_action("delete_tweet", {"post_id": post_id}, live_context)
@@ -268,22 +272,22 @@ class TestRepostLifecycle:
         user_id = await _get_me_id(live_context)
 
         search = await x_integration.execute_action(
-            "search_tweets", {"query": "the -is:retweet", "max_results": 10}, live_context
+            "search_tweets", {"query": "#AI -is:retweet lang:en", "max_results": 10}, live_context
         )
-        _skip_if_action_error(search, "search_tweets")
+        _fail_if_action_error(search, "search_tweets")
         posts = search.result.data["posts"]
         if not posts:
             pytest.skip("No posts available to repost")
         post_id = posts[0]["id"]
 
         repost = await x_integration.execute_action("retweet", {"user_id": user_id, "post_id": post_id}, live_context)
-        _skip_if_action_error(repost, "retweet")
+        _fail_if_action_error(repost, "retweet")
         assert repost.result.data["reposted"] is True
 
         unrepost = await x_integration.execute_action(
             "unretweet", {"user_id": user_id, "post_id": post_id}, live_context
         )
-        _skip_if_action_error(unrepost, "unretweet")
+        _fail_if_action_error(unrepost, "unretweet")
         assert unrepost.result.data["unreposted"] is True
 
 
@@ -299,11 +303,11 @@ class TestFollowLifecycle:
         follow = await x_integration.execute_action(
             "follow_user", {"source_user_id": user_id, "target_user_id": TEST_TARGET_USER_ID}, live_context
         )
-        _skip_if_action_error(follow, "follow_user")
+        _fail_if_action_error(follow, "follow_user")
         assert follow.result.data["followed"] is True
 
         unfollow = await x_integration.execute_action(
             "unfollow_user", {"source_user_id": user_id, "target_user_id": TEST_TARGET_USER_ID}, live_context
         )
-        _skip_if_action_error(unfollow, "unfollow_user")
+        _fail_if_action_error(unfollow, "unfollow_user")
         assert unfollow.result.data["unfollowed"] is True

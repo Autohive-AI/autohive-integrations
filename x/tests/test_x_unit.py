@@ -511,6 +511,31 @@ class TestGetBookmarks:
         assert result.result.data["posts"][0]["id"] == "t1"
 
     @pytest.mark.asyncio
+    async def test_resolves_me_to_authenticated_user_id(self):
+        ctx = make_ctx_multi(
+            [
+                {"data": {"id": "123456789"}},
+                {"data": [{"id": "t1"}], "includes": {}, "meta": {}},
+            ]
+        )
+        result = await x_integration.execute_action("get_bookmarks", {"user_id": "me"}, ctx)
+        assert result.result.data["posts"][0]["id"] == "t1"
+        assert ctx.fetch.call_args_list[0].args[0].endswith("/users/me")
+        assert ctx.fetch.call_args_list[1].args[0].endswith("/users/123456789/bookmarks")
+
+    @pytest.mark.asyncio
+    async def test_resolves_missing_user_id_to_authenticated_user_id(self):
+        ctx = make_ctx_multi(
+            [
+                {"data": {"id": "123456789"}},
+                {"data": [{"id": "t1"}], "includes": {}, "meta": {}},
+            ]
+        )
+        result = await x_integration.execute_action("get_bookmarks", {}, ctx)
+        assert result.result.data["posts"][0]["id"] == "t1"
+        assert ctx.fetch.call_args_list[1].args[0].endswith("/users/123456789/bookmarks")
+
+    @pytest.mark.asyncio
     async def test_api_error_returns_action_error(self):
         ctx = make_ctx({"errors": [{"message": "forbidden"}]})
         result = await x_integration.execute_action("get_bookmarks", {"user_id": "u1"}, ctx)
