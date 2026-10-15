@@ -1,6 +1,6 @@
 {
   "name": "Projectworks",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Projectworks integration for reading users, clients, projects, modules, tasks, resourcing, timesheets, leave, invoices, and expense claims from your professional services automation account.",
   "display_name": "Projectworks",
   "supports_connected_account": false,
@@ -2265,6 +2265,22 @@
           },
           "days": {
             "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string"
+                },
+                "typeID": {
+                  "type": "integer"
+                },
+                "hours": {
+                  "type": "number"
+                }
+              },
+              "required": ["date", "typeID", "hours"],
+              "additionalProperties": false
+            },
             "description": "Leave days, each an object with date (ISO 8601), typeID (integer), and hours (number)"
           },
           "request_comment": {
@@ -2323,6 +2339,22 @@
           },
           "days": {
             "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string"
+                },
+                "typeID": {
+                  "type": "integer"
+                },
+                "hours": {
+                  "type": "number"
+                }
+              },
+              "required": ["date", "typeID", "hours"],
+              "additionalProperties": false
+            },
             "description": "Leave days, each an object with date (ISO 8601), typeID (integer), and hours (number)"
           },
           "request_comment": {
