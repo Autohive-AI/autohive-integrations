@@ -6,7 +6,7 @@ Geocode addresses, generate drive-time catchment polygons, and calculate road-ne
 
 Create a free OpenRouteService API key at the [OpenRouteService developer portal](https://openrouteservice.org/dev/#/signup), then add it as the integration connection's **API Key**. The key is passed only in the `Authorization` header; it is never added to request URLs or returned in action output.
 
-Typical catchment workflow: call `geocode_address` for a place in New Zealand, confirm the match when `is_low_confidence` is true, then pass the returned coordinates to `get_isochrone` with the drive-time bands you need. `get_travel_time_matrix` is a labelled origin–destination table only; it does not select facilities or apply demographic rules.
+Typical catchment workflow: call `geocode_address` for a place in New Zealand, confirm the match when `is_low_confidence` is true, then pass the returned coordinates to `get_isochrone` with `export_geojson: true` and `include_geojson: false`. Pass the returned file into the next action or script and read `bands` instead of coordinates. `get_travel_time_matrix` is a labelled origin–destination table only; it does not select facilities or apply demographic rules.
 
 ## Actions
 
@@ -36,14 +36,18 @@ Generates one or more drive-time bands in a single request through the current H
 - `time_minutes` (integer array, required) — one to ten driving-time bands in whole minutes from 1 to 60, for example `[5, 10, 15, 30]`. Catchment workflows typically send one to five bands in one call. OpenRouteService rejects longer driving ranges and more than 10 intervals.
 - `travel_mode` (optional) — v1 supports `driving-car` only.
 - `export_geojson` (optional, default false) — if true, also return the FeatureCollection as a platform file object.
+- `include_geojson` (optional, default true) — if false, omit inline `geojson` and return only the exported file plus `bands`. Requires `export_geojson=true`. Use false whenever another action or script will read the file; unsimplified polygons can be hundreds of thousands of tokens.
+
+Catchment pattern: `export_geojson=true` and `include_geojson=false`. `include_geojson=false` without export is `invalid_request` (`field: include_geojson`) and does not call the provider. If file export fails, the action still returns inline `geojson` and sets `message`.
 
 **Outputs**
 
-- `geojson` — a GeoJSON FeatureCollection. The request sets HeiGIT `smoothing` to `0` so polygons are not generalised. Each feature includes a stable `time_minutes` property. Features are sorted in ascending time-band order. The integration parses a JSON-string response when the provider labels it `application/geo+json`.
+- `geojson` — a GeoJSON FeatureCollection. The request sets HeiGIT `smoothing` to `0` so polygons are not generalised. Each feature includes a stable `time_minutes` property. Features are sorted in ascending time-band order. The integration parses a JSON-string response when the provider labels it `application/geo+json`. Null when `include_geojson` is false and the file export succeeded.
+- `bands` — one compact summary per feature, ascending by `time_minutes`, with no coordinates: `time_minutes`, `geometry_type`, `polygon_count`, `vertex_count`, approximate geodesic `area_sq_km` (holes subtracted; null if the calculation fails), and `bbox` as `[west, south, east, north]`.
 - `provider_metadata` — unaltered provider metadata when present.
 - `profile` and `time_minutes` — the routing profile and requested bands (deduplicated, ascending).
 - `attribution`, `engine_version`, `build_date`, `graph_date`, `osm_date` — copied from provider metadata when supplied.
-- `files` — empty unless `export_geojson` is true. The SDK has no separate artifact API. Files go on `ActionResult.data["files"]` as `{name, contentType, content}` (standard base64), the same Autohive platform channel as Gmail and doc-maker. Autohive materialises that as a tool-output path such as `/tool-outputs/isochrones.geojson`; agents see the path, not the base64. The file never includes the API key.
+- `files` — empty unless `export_geojson` is true and serialization succeeds. The SDK has no separate artifact API. Files go on `ActionResult.data["files"]` as `{name, contentType, content}` (standard base64), the same Autohive platform channel as Gmail and doc-maker. Autohive materialises that as a tool-output path such as `/tool-outputs/isochrones.geojson`; agents see the path, not the base64. The file never includes the API key.
 
 ### `get_travel_time_matrix`
 
