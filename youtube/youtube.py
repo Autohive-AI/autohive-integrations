@@ -431,6 +431,11 @@ class GetChannel(ActionHandler):
 
             items = response.data.get("items", [])
             if not items:
+                if inputs.get("mine"):
+                    return ActionError(
+                        message="No YouTube channel was returned for the authenticated account. "
+                        "Create a YouTube channel or reconnect using the Google account that owns it."
+                    )
                 return ActionError(message="Channel not found")
 
             channel = YouTubeParser.parse_channel(items[0])
