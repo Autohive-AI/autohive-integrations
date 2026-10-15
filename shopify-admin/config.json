@@ -1,7 +1,7 @@
 {
     "name": "Shopify Admin",
     "display_name": "Shopify Admin API",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "description": "Shopify Admin API integration for store management - customers, orders, products, inventory, locations, fulfillments, and draft orders",
     "entry_point": "shopify_admin.py",
     "auth": {
@@ -218,7 +218,7 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "line_items": {"type": "array", "description": "Order line items", "label": "Line Items"},
+                    "line_items": {"type": "array", "items": {"type": "object", "additionalProperties": true}, "description": "Order line items", "label": "Line Items"},
                     "customer_id": {"type": "string", "description": "Customer ID", "label": "Customer ID"},
                     "email": {"type": "string", "format": "email", "description": "Customer email", "label": "Email"},
                     "financial_status": {"type": "string", "description": "Financial status", "label": "Financial Status", "enum": ["pending", "authorized", "partially_paid", "paid"], "default": "pending"},
@@ -330,8 +330,8 @@
                     "product_type": {"type": "string", "description": "Product type", "label": "Product Type"},
                     "tags": {"type": "string", "description": "Comma-separated tags", "label": "Tags"},
                     "status": {"type": "string", "description": "Status", "label": "Status", "enum": ["active", "archived", "draft"], "default": "draft"},
-                    "variants": {"type": "array", "description": "Product variants with price, compare_at_price, sku, barcode, weight, weight_unit, and option_values", "label": "Variants"},
-                    "options": {"type": "array", "description": "Product options (e.g., Size, Color)", "label": "Options"}
+                    "variants": {"type": "array", "items": {"type": "object", "additionalProperties": true}, "description": "Product variants with price, compare_at_price, sku, barcode, weight, weight_unit, and option_values", "label": "Variants"},
+                    "options": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": true}]}, "description": "Product option names or objects (e.g., Size, Color)", "label": "Options"}
                 },
                 "required": ["title"]
             },
@@ -507,7 +507,7 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "line_items": {"type": "array", "description": "Line items", "label": "Line Items"},
+                    "line_items": {"type": "array", "items": {"type": "object", "additionalProperties": true}, "description": "Line items", "label": "Line Items"},
                     "customer_id": {"type": "string", "description": "Customer ID", "label": "Customer ID"},
                     "email": {"type": "string", "format": "email", "description": "Email", "label": "Email"},
                     "note": {"type": "string", "description": "Note", "label": "Note"},
@@ -603,7 +603,7 @@
                     "tracking_company": {"type": "string", "description": "Shipping company", "label": "Tracking Company"},
                     "tracking_url": {"type": "string", "description": "Tracking URL", "label": "Tracking URL"},
                     "notify_customer": {"type": "boolean", "description": "Notify customer", "label": "Notify Customer", "default": true},
-                    "line_items": {"type": "array", "description": "Optional order line item IDs and quantities to fulfill; omit to fulfill everything assigned to the location", "label": "Line Items"}
+                    "line_items": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": ["string", "integer"]}, "line_item_id": {"type": ["string", "integer"]}, "quantity": {"type": "integer"}}, "additionalProperties": true}, "description": "Optional order line item IDs and quantities to fulfill; omit to fulfill everything assigned to the location", "label": "Line Items"}
                 },
                 "required": ["order_id", "location_id"]
             },
