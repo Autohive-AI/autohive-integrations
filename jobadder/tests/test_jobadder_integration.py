@@ -123,6 +123,7 @@ class TestJobs:
         list_result = await jobadder.execute_action(
             "list_job_attachments", {"job_id": job_id, "limit": 1}, live_context
         )
+        assert list_result.type == ResultType.ACTION
         attachments = list_result.result.data["attachments"]
         if not attachments:
             pytest.skip("The configured job has no attachments")
