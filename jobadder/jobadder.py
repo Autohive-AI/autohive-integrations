@@ -829,7 +829,7 @@ class ListJobAttachmentsAction(ActionHandler):
             params = {
                 key: value
                 for key, value in {
-                    "type": inputs.get("types"),
+                    "type": ",".join(inputs["types"]) if inputs.get("types") else None,
                     "latest": _boolean_query_value(inputs.get("latest")),
                     "offset": inputs.get("offset", 0),
                     "limit": inputs.get("limit", 100),
@@ -850,7 +850,7 @@ class ListJobAttachmentsAction(ActionHandler):
 class ListJobAttachmentCategoriesAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
-            params = {"type": inputs["types"]} if inputs.get("types") else None
+            params = {"type": ",".join(inputs["types"])} if inputs.get("types") else None
             return await _fetch_list(context, "/jobs/lists/attachmentcategory", "categories", params)
         except Exception as exc:
             return ActionError(message=str(exc))

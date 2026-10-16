@@ -484,8 +484,13 @@ class TestJobAttachments:
         )
 
         call = mock_context.fetch.call_args
-        assert parse_qs(urlparse(call.args[0]).query) == {"type": ["Other", "JobDescription"]}
-        assert call.kwargs["params"] == {"latest": "false", "offset": 5, "limit": 20}
+        assert call.args[0] == "https://au-api.jobadder.com/v2/jobs/11/attachments"
+        assert call.kwargs["params"] == {
+            "type": "Other,JobDescription",
+            "latest": "false",
+            "offset": 5,
+            "limit": 20,
+        }
 
     @pytest.mark.asyncio
     async def test_list_categories_maps_type_filter(self, mock_context):
@@ -500,8 +505,9 @@ class TestJobAttachments:
 
         assert result.result.data["categories"] == categories
         mock_context.fetch.assert_awaited_once_with(
-            "https://au-api.jobadder.com/v2/jobs/lists/attachmentcategory?type=Other&type=JobDescription",
+            "https://au-api.jobadder.com/v2/jobs/lists/attachmentcategory",
             method="GET",
+            params={"type": "Other,JobDescription"},
         )
 
     @pytest.mark.asyncio
