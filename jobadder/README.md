@@ -7,7 +7,7 @@ Connect Autohive workflows to JobAdder's recruitment management API. The integra
 This integration uses JobAdder OAuth 2.0 through Autohive. It requests only the scopes used by the shipped actions:
 
 - `read_user`
-- `read_job`
+- `read_job` and `write_job`
 - `read_candidate` and `write_candidate`
 - `read_contact`, `read_company`, and `read_note`
 - `read_contact_note`, `read_candidate_note`, `read_job_note`, `read_jobapplication_note`, `read_placement_note`, and `read_company_note`
@@ -31,7 +31,12 @@ API access requires a JobAdder developer application and approval. See the [JobA
 - `get_job` — retrieve full details for one job.
 - `list_job_applications` and `list_job_active_applications` — list all or only active applications for a job.
 - `list_job_placements` and `list_job_approved_placements` — list all or only approved placements for a job.
-- `list_job_attachments`, `list_job_notes`, and `list_job_activities` — retrieve a job's related files, full-text notes, and activity records. Note lists support type, reference, creation/update date, sorting, and pagination filters.
+- `list_job_attachments` — list job documents by native type, latest-version flag, and pagination.
+- `list_job_attachment_categories` — discover tenant-specific job document categories.
+- `download_job_attachment` — download a job document up to 5 MiB as an Autohive file object containing its name, MIME type, and base64 content. An optional `accept` value asks JobAdder to convert supported documents.
+- `upload_job_attachment` — upload an Autohive file object, including a document supplied in agent chat, up to 5 MiB using the `Other` or `JobDescription` native type.
+- `update_job_attachment` — assign or clear a job document's native type, tenant category, or expiry date. To upload a custom-category document, upload it first and then update the returned attachment ID.
+- `list_job_notes` and `list_job_activities` — retrieve a job's full-text notes and activity records. Note lists support type, reference, creation/update date, sorting, and pagination filters.
 - `list_job_note_types` — list the note types configured for job records.
 
 ### Candidates
@@ -121,11 +126,12 @@ Read-only live tests are opt-in and require the `JOBADDER_ACCESS_TOKEN` and `JOB
 pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 ```
 
-The four write actions are deliberately excluded from live tests. JobAdder does not expose matching delete operations for candidates, applications, or candidate attachments, and updating an existing attachment would mutate persistent customer data, so these tests could not reliably restore the account to its original state.
+The six write actions are deliberately excluded from live tests. JobAdder does not expose matching delete operations for candidates, applications, candidate attachments, or job attachments, and updating an existing attachment would mutate persistent customer data, so these tests could not reliably restore the account to its original state.
 
 ## Important limitations
 
 - API access is controlled by JobAdder and may require partner/developer approval.
 - Rate limits are applied per JobAdder account. The SDK handles ordinary request transport and errors, but workflows should avoid unnecessarily aggressive polling.
-- Candidate attachments can be uploaded and updated. Other related-record actions remain read-only; the integration does not create or update contacts, companies, notes, activities, non-candidate attachments, placements, or timesheets.
+- Candidate and job attachments can be uploaded and updated. Other related-record actions remain read-only; the integration does not create or update contacts, companies, notes, activities, application or placement attachments, placements, or timesheets.
+- JobAdder restricts attachment file extensions and returns HTTP 422 for unsupported files. See [Attachments - File Type restrictions](https://jobadderapi.zendesk.com/hc/en-us/articles/4407420419353-Attachments-File-Type-restrictions).
 - The integration does not manage job records, application statuses, requisitions, job ads, partner actions, or webhooks.
