@@ -7,7 +7,7 @@ token set in the YOUTUBE_ACCESS_TOKEN environment variable (via .env or export).
 Required env vars:
     YOUTUBE_ACCESS_TOKEN          OAuth2 access token with youtube + youtube.force-ssl scopes
 
-Optional env vars (skip the corresponding tests when missing):
+Optional env vars (override the shared test fixtures; unset fixtures skip):
     YOUTUBE_TEST_VIDEO_ID         A video ID the authenticated user can read/update
     YOUTUBE_TEST_CHANNEL_ID       A public channel ID to fetch
     YOUTUBE_TEST_PLAYLIST_ID      An existing playlist ID for list_playlist_items
@@ -31,6 +31,7 @@ import aiohttp
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk.integration import ResultType
 
 from youtube import youtube
 
@@ -38,9 +39,10 @@ pytestmark = pytest.mark.integration
 
 
 ACCESS_TOKEN = os.environ.get("YOUTUBE_ACCESS_TOKEN", "")
-TEST_VIDEO_ID = os.environ.get("YOUTUBE_TEST_VIDEO_ID", "")
-TEST_CHANNEL_ID = os.environ.get("YOUTUBE_TEST_CHANNEL_ID", "")
-TEST_PLAYLIST_ID = os.environ.get("YOUTUBE_TEST_PLAYLIST_ID", "")
+# Shared fixtures on the Autohive Engineering test channel; credentials stay in CI.
+TEST_VIDEO_ID = os.environ.get("YOUTUBE_TEST_VIDEO_ID", "cwKOKgSQ7PI")
+TEST_CHANNEL_ID = os.environ.get("YOUTUBE_TEST_CHANNEL_ID", "UCI_hP5lWa-yA9rzh8OqDRPA")
+TEST_PLAYLIST_ID = os.environ.get("YOUTUBE_TEST_PLAYLIST_ID", "PLPSQeeggLeyI")
 TEST_COMMENT_ID = os.environ.get("YOUTUBE_TEST_COMMENT_ID", "")
 TEST_THUMBNAIL_PATH = os.environ.get("YOUTUBE_TEST_THUMBNAIL_PATH", "")
 TEST_OWNED_VIDEO_ID = os.environ.get("YOUTUBE_TEST_OWNED_VIDEO_ID", "")
@@ -99,6 +101,7 @@ def live_context():
                     body = await resp.json(content_type=None)
                 except Exception:
                     body = await resp.text()
+                resp.raise_for_status()
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=body)
 
     ctx = MagicMock(name="ExecutionContext")
@@ -160,6 +163,7 @@ class TestGetVideo:
 class TestGetChannel:
     async def test_my_channel(self, live_context):
         result = await youtube.execute_action("get_channel", {"mine": True}, live_context)
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
         data = result.result.data
         assert "channel" in data
         assert isinstance(data["channel"]["id"], str)
@@ -168,6 +172,7 @@ class TestGetChannel:
     async def test_by_channel_id(self, live_context):
         require_channel_id()
         result = await youtube.execute_action("get_channel", {"channel_id": TEST_CHANNEL_ID}, live_context)
+        assert result.type != ResultType.ACTION_ERROR, result.result.message
         data = result.result.data
         assert data["channel"]["id"] == TEST_CHANNEL_ID
 

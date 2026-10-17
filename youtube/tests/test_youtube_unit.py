@@ -556,6 +556,22 @@ class TestGetChannel:
         assert result.type == ResultType.ACTION_ERROR
         assert "Channel not found" in result.result.message
 
+    @pytest.mark.asyncio
+    async def test_my_channel_not_found(self):
+        ctx = make_ctx({"items": []})
+        result = await youtube.execute_action("get_channel", {"mine": True}, ctx)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "No YouTube channel was returned" in result.result.message
+        assert "reconnect" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_api_error_is_preserved(self):
+        ctx = make_ctx({})
+        ctx.fetch.side_effect = RuntimeError("YouTube API HTTP 403: Insufficient Permission")
+        result = await youtube.execute_action("get_channel", {"mine": True}, ctx)
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "YouTube API HTTP 403: Insufficient Permission"
+
 
 # =============================================================================
 # PLAYLISTS
