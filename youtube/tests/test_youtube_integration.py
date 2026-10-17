@@ -7,7 +7,7 @@ token set in the YOUTUBE_ACCESS_TOKEN environment variable (via .env or export).
 Required env vars:
     YOUTUBE_ACCESS_TOKEN          OAuth2 access token with youtube + youtube.force-ssl scopes
 
-Optional env vars (skip the corresponding tests when missing):
+Optional env vars (override the shared test fixtures; unset fixtures skip):
     YOUTUBE_TEST_VIDEO_ID         A video ID the authenticated user can read/update
     YOUTUBE_TEST_CHANNEL_ID       A public channel ID to fetch
     YOUTUBE_TEST_PLAYLIST_ID      An existing playlist ID for list_playlist_items
@@ -39,9 +39,10 @@ pytestmark = pytest.mark.integration
 
 
 ACCESS_TOKEN = os.environ.get("YOUTUBE_ACCESS_TOKEN", "")
-TEST_VIDEO_ID = os.environ.get("YOUTUBE_TEST_VIDEO_ID", "")
-TEST_CHANNEL_ID = os.environ.get("YOUTUBE_TEST_CHANNEL_ID", "")
-TEST_PLAYLIST_ID = os.environ.get("YOUTUBE_TEST_PLAYLIST_ID", "")
+# Shared fixtures on the Autohive Engineering test channel; credentials stay in CI.
+TEST_VIDEO_ID = os.environ.get("YOUTUBE_TEST_VIDEO_ID", "cwKOKgSQ7PI")
+TEST_CHANNEL_ID = os.environ.get("YOUTUBE_TEST_CHANNEL_ID", "UCI_hP5lWa-yA9rzh8OqDRPA")
+TEST_PLAYLIST_ID = os.environ.get("YOUTUBE_TEST_PLAYLIST_ID", "PLPSQeeggLeyI")
 TEST_COMMENT_ID = os.environ.get("YOUTUBE_TEST_COMMENT_ID", "")
 TEST_THUMBNAIL_PATH = os.environ.get("YOUTUBE_TEST_THUMBNAIL_PATH", "")
 TEST_OWNED_VIDEO_ID = os.environ.get("YOUTUBE_TEST_OWNED_VIDEO_ID", "")
