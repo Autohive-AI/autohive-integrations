@@ -38,6 +38,8 @@ MATRIX_MAX_ROUTES = 3500
 MATRIX_MAX_PAIRS = 10000
 _BATCHED_METADATA_OMIT = frozenset({"query", "timestamp", "id"})
 _POLYGON_TYPES = {"Polygon", "MultiPolygon"}
+# Turf.js / WGS84 equatorial radius used by spherical-excess ring area.
+_EARTH_RADIUS_M = 6378137.0
 _RETRY_SAFE_ERRORS = {"rate_limit", "request_failed"}
 _ERROR_RECOVERY = {
     "rate_limit": "Wait retry_after_seconds, then retry the same request.",
@@ -58,6 +60,7 @@ _INVALID_REQUEST_RECOVERY = {
     "time_minutes": "Correct the coordinates or time bands, then send a new request.",
     "origins": "Correct the origin and destination coordinates, then send a new request.",
     "destinations": "Correct the origin and destination coordinates, then send a new request.",
+    "include_geojson": "Set export_geojson=true when include_geojson=false, or omit include_geojson.",
 }
 _SNAP_KEYS = ("snapped_latitude", "snapped_longitude", "snapped_distance_metres", "name")
 
@@ -383,6 +386,156 @@ def _geojson_export_file(geojson: dict[str, Any]) -> dict[str, str] | None:
         )
     except (TypeError, ValueError):
         return None
+
+
+def _ring_area_m2(ring: Any) -> float | None:
+    """Spherical-excess ring area (Turf ringArea). Positive or negative by winding."""
+    if not isinstance(ring, list) or len(ring) < 3:
+        return None
+    coords: list[tuple[float, float]] = []
+    for point in ring:
+        if not isinstance(point, (list, tuple)) or len(point) < 2:
+            return None
+        longitude = _numeric_coordinate(point[0])
+        latitude = _numeric_coordinate(point[1])
+        if longitude is None or latitude is None:
+            return None
+        coords.append((longitude, latitude))
+    count = len(coords)
+    area = 0.0
+    for index in range(count):
+        if index == count - 2:
+            lower, middle, upper = count - 2, count - 1, 0
+        elif index == count - 1:
+            lower, middle, upper = count - 1, 0, 1
+        else:
+            lower, middle, upper = index, index + 1, index + 2
+        p1 = coords[lower]
+        p2 = coords[middle]
+        p3 = coords[upper]
+        # Fold into [-180, 180] so a date-line hop is ~2°, not ~358°.
+        delta_lon = (p3[0] - p1[0] + 180.0) % 360.0 - 180.0
+        area += math.radians(delta_lon) * math.sin(math.radians(p2[1]))
+    return area * _EARTH_RADIUS_M * _EARTH_RADIUS_M / 2.0
+
+
+def _polygon_area_m2(coordinates: Any) -> float | None:
+    if not isinstance(coordinates, list) or not coordinates:
+        return None
+    total = 0.0
+    for index, ring in enumerate(coordinates):
+        ring_area = _ring_area_m2(ring)
+        if ring_area is None:
+            return None
+        if index == 0:
+            total += abs(ring_area)
+        else:
+            total -= abs(ring_area)
+    return total
+
+
+def _geometry_area_sq_km(geometry: dict[str, Any]) -> float | None:
+    geom_type = geometry.get("type")
+    coordinates = geometry.get("coordinates")
+    try:
+        if geom_type == "Polygon":
+            area_m2 = _polygon_area_m2(coordinates)
+        elif geom_type == "MultiPolygon":
+            if not isinstance(coordinates, list):
+                return None
+            total = 0.0
+            for polygon in coordinates:
+                part = _polygon_area_m2(polygon)
+                if part is None:
+                    return None
+                total += part
+            area_m2 = total
+        else:
+            return None
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if area_m2 is None or not math.isfinite(area_m2):
+        return None
+    return area_m2 / 1_000_000.0
+
+
+def _iter_rings(geometry: dict[str, Any]) -> list[Any]:
+    geom_type = geometry.get("type")
+    coordinates = geometry.get("coordinates")
+    if geom_type == "Polygon" and isinstance(coordinates, list):
+        return coordinates
+    if geom_type == "MultiPolygon" and isinstance(coordinates, list):
+        rings: list[Any] = []
+        for polygon in coordinates:
+            if isinstance(polygon, list):
+                rings.extend(polygon)
+        return rings
+    return []
+
+
+def _polygon_count(geometry: dict[str, Any]) -> int:
+    geom_type = geometry.get("type")
+    coordinates = geometry.get("coordinates")
+    if geom_type == "Polygon":
+        return 1 if isinstance(coordinates, list) and coordinates else 0
+    if geom_type == "MultiPolygon" and isinstance(coordinates, list):
+        return sum(1 for polygon in coordinates if isinstance(polygon, list))
+    return 0
+
+
+def _vertex_count(geometry: dict[str, Any]) -> int:
+    total = 0
+    for ring in _iter_rings(geometry):
+        if isinstance(ring, list):
+            total += len(ring)
+    return total
+
+
+def _geometry_bbox(geometry: dict[str, Any]) -> list[float] | None:
+    west = south = east = north = None
+    rings = _iter_rings(geometry)
+    if not rings:
+        return None
+    for ring in rings:
+        if not isinstance(ring, list):
+            return None
+        for point in ring:
+            if not isinstance(point, (list, tuple)) or len(point) < 2:
+                return None
+            longitude = _numeric_coordinate(point[0])
+            latitude = _numeric_coordinate(point[1])
+            if longitude is None or latitude is None or not math.isfinite(longitude) or not math.isfinite(latitude):
+                return None
+            west = longitude if west is None else min(west, longitude)
+            east = longitude if east is None else max(east, longitude)
+            south = latitude if south is None else min(south, latitude)
+            north = latitude if north is None else max(north, latitude)
+    if west is None or south is None or east is None or north is None:
+        return None
+    return [west, south, east, north]
+
+
+def _isochrone_bands(geojson: dict[str, Any]) -> list[dict[str, Any]]:
+    """Compact per-feature summary with no coordinates."""
+    bands: list[dict[str, Any]] = []
+    for feature in geojson.get("features") or []:
+        if not isinstance(feature, dict):
+            continue
+        geometry = feature.get("geometry")
+        if not isinstance(geometry, dict):
+            geometry = {}
+        properties = _as_dict(feature.get("properties"))
+        bands.append(
+            {
+                "time_minutes": properties.get("time_minutes"),
+                "geometry_type": geometry.get("type"),
+                "polygon_count": _polygon_count(geometry),
+                "vertex_count": _vertex_count(geometry),
+                "area_sq_km": _geometry_area_sq_km(geometry),
+                "bbox": _geometry_bbox(geometry),
+            }
+        )
+    return bands
 
 
 def _finite_or_none(value: Any) -> float | None:
@@ -753,6 +906,19 @@ class GetIsochrone(ActionHandler):
             time_minutes: list[int] = sorted(set(inputs["time_minutes"]))
             if not time_minutes:
                 raise ValueError("At least one time value is required.")
+            include_geojson = inputs.get("include_geojson", True)
+            export_geojson = bool(inputs.get("export_geojson"))
+            if include_geojson is False and not export_geojson:
+                return ActionResult(
+                    data=_error_payload(
+                        "invalid_request",
+                        "include_geojson=false requires export_geojson=true.",
+                        field="include_geojson",
+                        retry_safe=False,
+                        recovery=_INVALID_REQUEST_RECOVERY["include_geojson"],
+                    ),
+                    cost_usd=0.0,
+                )
 
             payload = {
                 "locations": [[inputs["longitude"], inputs["latitude"]]],
@@ -786,16 +952,23 @@ class GetIsochrone(ActionHandler):
             normalized = _normalize_isochrone_geojson(geojson, time_minutes)
             engine = _engine_fields(normalized.get("metadata"))
             files: list[dict[str, str]] = []
-            if inputs.get("export_geojson"):
+            message = None
+            inline_geojson: dict[str, Any] | None = normalized
+            if export_geojson:
                 exported = _geojson_export_file(normalized)
                 if exported is not None:
                     files.append(exported)
+                    if include_geojson is False:
+                        inline_geojson = None
+                elif include_geojson is False:
+                    message = "GeoJSON file export failed, so the unsimplified geometry is returned inline in geojson."
             return ActionResult(
                 data={
                     "result": True,
                     "profile": profile,
                     "time_minutes": time_minutes,
-                    "geojson": normalized,
+                    "geojson": inline_geojson,
+                    "bands": _isochrone_bands(normalized),
                     "provider_metadata": normalized.get("metadata"),
                     "attribution": engine["attribution"],
                     "engine_version": engine["engine_version"],
@@ -806,7 +979,7 @@ class GetIsochrone(ActionHandler):
                     "error_type": None,
                     "error_code": None,
                     "retry_after_seconds": None,
-                    "message": None,
+                    "message": message,
                     "field": None,
                     "valid_alternatives": None,
                     "recovery": None,

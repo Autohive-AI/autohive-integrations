@@ -137,6 +137,7 @@ class TestGetIsochrone:
         bands = [feature["properties"].get("time_minutes") for feature in data["geojson"]["features"]]
         assert all(isinstance(band, int) for band in bands)
         assert bands == sorted(bands)
+        assert [band["time_minutes"] for band in data["bands"]] == bands
         for feature in data["geojson"]["features"]:
             assert feature["geometry"]["type"] in {"Polygon", "MultiPolygon"}
         assert "attribution" in data
@@ -151,10 +152,13 @@ class TestGetIsochrone:
                 "longitude": AUCKLAND_LONGITUDE,
                 "time_minutes": [5],
                 "export_geojson": True,
+                "include_geojson": False,
             },
             live_context,
         )
         data = _require_provider_success(result)
+        assert data["geojson"] is None
+        assert data["bands"][0]["time_minutes"] == 5
         files = data["files"]
         assert len(files) == 1
         file_obj = files[0]

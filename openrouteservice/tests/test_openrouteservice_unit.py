@@ -2,11 +2,14 @@
 
 import base64
 import json
+import math
+from pathlib import Path
 
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
+from jsonschema import Draft7Validator
 
 from openrouteservice.openrouteservice import (
     GEOCODE_URL,
@@ -15,8 +18,11 @@ from openrouteservice.openrouteservice import (
     MATRIX_TIMEOUT_SECONDS,
     MissingApiKeyError,
     _geojson_export_file,
+    _geometry_area_sq_km,
+    _geometry_bbox,
     _match,
     _matrix_route_batches,
+    _normalize_isochrone_geojson,
     _provider_error,
     openrouteservice,
 )
@@ -86,6 +92,34 @@ def _isochrone_collection(*minute_bands, metadata=None):
 
 
 ISOCHRONE_INPUTS = {"latitude": -36.8485, "longitude": 174.7633, "time_minutes": [10]}
+_ISOCHRONE_OUTPUT_SCHEMA = json.loads(
+    Path(__file__).resolve().parents[1].joinpath("config.json").read_text(encoding="utf-8")
+)["actions"]["get_isochrone"]["output_schema"]
+
+
+def _assert_valid_isochrone_output(data):
+    Draft7Validator(_ISOCHRONE_OUTPUT_SCHEMA).validate(data)
+
+
+def _closed_ring(west, south, east, north):
+    return [[west, south], [east, south], [east, north], [west, north], [west, south]]
+
+
+def _square_around_km(lat, lon, side_km):
+    """Axis-aligned lon/lat square of roughly side_km × side_km."""
+    dlat = side_km / 111.32
+    dlon = side_km / (111.32 * math.cos(math.radians(abs(lat))))
+    half_lat = dlat / 2
+    half_lon = dlon / 2
+    return _closed_ring(lon - half_lon, lat - half_lat, lon + half_lon, lat + half_lat)
+
+
+def _feature_for_geometry(minutes, geometry):
+    return {
+        "type": "Feature",
+        "properties": {"group_index": 0, "value": minutes * 60},
+        "geometry": geometry,
+    }
 
 
 def _action_data(result):
@@ -534,6 +568,153 @@ class TestGetIsochrone:
         assert data["files"] == []
         assert "api key" not in (data.get("message") or "").lower()
         assert "api key" not in (data.get("recovery") or "").lower()
+
+    async def test_file_only_omits_inline_geojson_and_returns_bands(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=ISOCHRONE_RESPONSE)
+        result = await openrouteservice.execute_action(
+            "get_isochrone",
+            {**ISOCHRONE_INPUTS, "export_geojson": True, "include_geojson": False},
+            mock_context,
+        )
+        data = _action_data(result)
+        _assert_valid_isochrone_output(data)
+        assert data["result"] is True
+        assert data["geojson"] is None
+        assert len(data["files"]) == 1
+        exported = json.loads(base64.b64decode(data["files"][0]["content"]))
+        expected = _normalize_isochrone_geojson(ISOCHRONE_RESPONSE, [10])
+        assert exported == expected
+        assert len(data["bands"]) == 1
+        band = data["bands"][0]
+        assert band["time_minutes"] == 10
+        assert band["geometry_type"] == "Polygon"
+        assert band["polygon_count"] == 1
+        assert band["vertex_count"] == 3
+        assert band["bbox"] == [174.76, -36.84, 174.77, -36.84]
+        assert "coordinates" not in band
+
+    @pytest.mark.parametrize("export_geojson", [False, None])
+    async def test_include_geojson_false_without_export_is_invalid_request(self, mock_context, export_geojson):
+        inputs = {**ISOCHRONE_INPUTS, "include_geojson": False}
+        if export_geojson is not None:
+            inputs["export_geojson"] = export_geojson
+        result = await openrouteservice.execute_action("get_isochrone", inputs, mock_context)
+        data = _action_data(result)
+        _assert_valid_isochrone_output(data)
+        assert data["result"] is False
+        assert data["error_type"] == "invalid_request"
+        assert data["error_code"] == "invalid_request"
+        assert data["field"] == "include_geojson"
+        assert data["retry_safe"] is False
+        mock_context.fetch.assert_not_called()
+
+    async def test_file_only_export_failure_keeps_inline_geojson_and_message(self, mock_context, monkeypatch):
+        import sys
+
+        module = sys.modules["openrouteservice.openrouteservice"]
+        monkeypatch.setattr(module, "_geojson_export_file", lambda _geojson: None)
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=ISOCHRONE_RESPONSE)
+        result = await openrouteservice.execute_action(
+            "get_isochrone",
+            {**ISOCHRONE_INPUTS, "export_geojson": True, "include_geojson": False},
+            mock_context,
+        )
+        data = _action_data(result)
+        _assert_valid_isochrone_output(data)
+        assert data["result"] is True
+        assert data["geojson"]["features"]
+        assert data["files"] == []
+        assert data["message"] == (
+            "GeoJSON file export failed, so the unsimplified geometry is returned inline in geojson."
+        )
+
+    async def test_default_call_keeps_inline_geojson_and_adds_bands(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=ISOCHRONE_RESPONSE)
+        result = await openrouteservice.execute_action("get_isochrone", ISOCHRONE_INPUTS, mock_context)
+        data = _action_data(result)
+        _assert_valid_isochrone_output(data)
+        assert data["geojson"]["features"][0]["geometry"] == ISOCHRONE_POLYGON
+        assert data["geojson"]["features"][0]["properties"]["time_minutes"] == 10
+        assert data["files"] == []
+        assert [band["time_minutes"] for band in data["bands"]] == [10]
+
+    async def test_bands_count_multipolygon_parts_and_subtract_holes(self, mock_context):
+        outer = _square_around_km(-41.0, 174.76, 2.0)
+        hole = _square_around_km(-41.0, 174.76, 1.0)
+        second = _square_around_km(-41.05, 174.80, 1.0)
+        payload = {
+            "type": "FeatureCollection",
+            "features": [
+                _feature_for_geometry(15, {"type": "Polygon", "coordinates": [outer, hole]}),
+                _feature_for_geometry(30, {"type": "MultiPolygon", "coordinates": [[outer], [second]]}),
+            ],
+            "metadata": ISOCHRONE_RESPONSE["metadata"],
+        }
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
+        result = await openrouteservice.execute_action(
+            "get_isochrone",
+            {"latitude": -41.0, "longitude": 174.76, "time_minutes": [15, 30]},
+            mock_context,
+        )
+        data = _action_data(result)
+        _assert_valid_isochrone_output(data)
+        by_minutes = {band["time_minutes"]: band for band in data["bands"]}
+        hole_band = by_minutes[15]
+        multi_band = by_minutes[30]
+        assert hole_band["polygon_count"] == 1
+        assert hole_band["vertex_count"] == 10
+        assert hole_band["area_sq_km"] == pytest.approx(3.0, rel=0.05)
+        assert multi_band["geometry_type"] == "MultiPolygon"
+        assert multi_band["polygon_count"] == 2
+        assert multi_band["vertex_count"] == 10
+
+    async def test_band_area_of_one_square_kilometre_near_41s(self, mock_context):
+        ring = _square_around_km(-41.0, 174.76, 1.0)
+        payload = {
+            "type": "FeatureCollection",
+            "features": [_feature_for_geometry(10, {"type": "Polygon", "coordinates": [ring]})],
+            "metadata": ISOCHRONE_RESPONSE["metadata"],
+        }
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=payload)
+        result = await openrouteservice.execute_action(
+            "get_isochrone",
+            {"latitude": -41.0, "longitude": 174.76, "time_minutes": [10]},
+            mock_context,
+        )
+        data = _action_data(result)
+        _assert_valid_isochrone_output(data)
+        assert data["bands"][0]["area_sq_km"] == pytest.approx(1.0, abs=0.02)
+
+    def test_band_area_across_antimeridian_matches_same_size_square(self):
+        def wrap_lon(longitude: float) -> float:
+            return (longitude + 180.0) % 360.0 - 180.0
+
+        lat = -44.0
+        side_km = 1.0
+        dlat = side_km / 111.32
+        dlon = side_km / (111.32 * math.cos(math.radians(abs(lat))))
+        west = wrap_lon(180.0 - dlon / 2)
+        east = wrap_lon(180.0 + dlon / 2)
+        south = lat - dlat / 2
+        north = lat + dlat / 2
+        dateline = {"type": "Polygon", "coordinates": [_closed_ring(west, south, east, north)]}
+        mainland = {"type": "Polygon", "coordinates": [_square_around_km(lat, 174.76, side_km)]}
+        assert west > 0
+        assert east < 0
+        assert _geometry_area_sq_km(dateline) == pytest.approx(_geometry_area_sq_km(mainland), rel=0.02)
+        assert _geometry_area_sq_km(dateline) == pytest.approx(1.0, abs=0.02)
+
+    def test_band_bbox_is_null_when_a_vertex_is_unusable(self):
+        poisoned = {
+            "type": "Polygon",
+            "coordinates": [[[174.76, -36.84], [float("nan"), -36.84], [174.77, -36.85], [174.76, -36.84]]],
+        }
+        truncated = {
+            "type": "Polygon",
+            "coordinates": [[[174.76, -36.84], [174.77], [174.77, -36.85], [174.76, -36.84]]],
+        }
+        assert _geometry_bbox(poisoned) is None
+        assert _geometry_bbox(truncated) is None
 
     def test_geojson_export_skips_non_finite_values(self):
         payload = {"type": "FeatureCollection", "features": [{"value": float("nan")}]}
