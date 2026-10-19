@@ -669,11 +669,9 @@ class TestGetIsochrone:
         assert multi_band["vertex_count"] == 10
         # 4 km² outer component plus the separate 1 km² component; bbox must cover both.
         assert multi_band["area_sq_km"] == pytest.approx(5.0, rel=0.05)
-        west, south, east, north = multi_band["bbox"]
-        second_lons = [point[0] for point in second]
-        second_lats = [point[1] for point in second]
-        assert west <= min(second_lons) <= max(second_lons) <= east
-        assert south <= min(second_lats) <= max(second_lats) <= north
+        longitudes = [point[0] for point in outer + second]
+        latitudes = [point[1] for point in outer + second]
+        assert multi_band["bbox"] == [min(longitudes), min(latitudes), max(longitudes), max(latitudes)]
 
     async def test_band_area_of_one_square_kilometre_near_41s(self, mock_context):
         ring = _square_around_km(-41.0, 174.76, 1.0)
