@@ -94,6 +94,7 @@ No additional configuration fields are required as authentication is handled thr
   - `channel_id`: YouTube channel ID (optional)
   - `channel_handle`: Channel handle like @username (optional)
   - `mine`: Boolean to get authenticated user's channel (optional)
+- **Account requirement:** `mine=true` requires a YouTube channel owned by the connected account. If none is returned, create a channel or reconnect with the account that owns it.
 - **Outputs:**
   - `channel`: Complete channel object with id, title, description, custom_url, statistics (subscriber_count, video_count, view_count), thumbnails, and publication date
 
