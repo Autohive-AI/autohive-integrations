@@ -667,6 +667,11 @@ class TestGetIsochrone:
         assert multi_band["geometry_type"] == "MultiPolygon"
         assert multi_band["polygon_count"] == 2
         assert multi_band["vertex_count"] == 10
+        # 4 km² outer component plus the separate 1 km² component; bbox must cover both.
+        assert multi_band["area_sq_km"] == pytest.approx(5.0, rel=0.05)
+        longitudes = [point[0] for point in outer + second]
+        latitudes = [point[1] for point in outer + second]
+        assert multi_band["bbox"] == [min(longitudes), min(latitudes), max(longitudes), max(latitudes)]
 
     async def test_band_area_of_one_square_kilometre_near_41s(self, mock_context):
         ring = _square_around_km(-41.0, 174.76, 1.0)
