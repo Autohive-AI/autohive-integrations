@@ -40,6 +40,7 @@ class TestConfig:
             "offline_access",
             "read_user",
             "read_job",
+            "write_job",
             "read_candidate",
             "write_candidate",
             "read_contact",

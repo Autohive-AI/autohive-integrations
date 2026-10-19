@@ -7,9 +7,9 @@ the corresponding JOBADDER_TEST_*_ID value.
 Run safely with:
     pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 
-The four write actions are intentionally excluded because JobAdder has no delete
-endpoint for reliably cleaning up candidates, applications, or candidate
-attachments created by tests, and attachment updates cannot be safely restored.
+The six write actions are intentionally excluded because JobAdder has no delete
+endpoint for reliably cleaning up candidates, applications, candidate attachments,
+or job attachments created by tests, and attachment updates cannot be safely restored.
 """
 
 import asyncio
@@ -113,6 +113,37 @@ class TestJobs:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["job"]["jobId"] == job_id
+
+    async def test_list_job_attachment_categories(self, live_context):
+        result = await jobadder.execute_action("list_job_attachment_categories", {}, live_context)
+        assert_list_result(result, "categories", max_items=None)
+
+    async def test_download_job_attachment(self, live_context, resource_ids):
+        job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
+        list_result = await jobadder.execute_action(
+            "list_job_attachments", {"job_id": job_id, "limit": 1}, live_context
+        )
+        assert list_result.type == ResultType.ACTION
+        attachments = list_result.result.data["attachments"]
+        if not attachments:
+            pytest.skip("The configured job has no attachments")
+
+        attachment = attachments[0]
+        result = await jobadder.execute_action(
+            "download_job_attachment",
+            {
+                "job_id": job_id,
+                "attachment_id": attachment["attachmentId"],
+                "file_name": attachment.get("fileName") or "job-attachment",
+            },
+            live_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        file = result.result.data["file"]
+        assert file["name"]
+        assert file["contentType"]
+        assert base64.b64decode(file["content"], validate=True)
 
 
 class TestCandidates:
