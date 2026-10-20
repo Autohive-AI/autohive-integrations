@@ -6,7 +6,8 @@ set in the HUBSPOT_ACCESS_TOKEN environment variable (via .env or export).
 
 Read-only tests require specific object IDs set in environment variables:
     HUBSPOT_TEST_CONTACT_ID, HUBSPOT_TEST_COMPANY_ID, HUBSPOT_TEST_DEAL_ID,
-    HUBSPOT_TEST_TICKET_ID, HUBSPOT_TEST_LIST_ID, HUBSPOT_TEST_OWNER_ID
+    HUBSPOT_TEST_TICKET_ID, HUBSPOT_TEST_LIST_ID, HUBSPOT_TEST_OWNER_ID,
+    HUBSPOT_TEST_CONTACT_EMAIL
 
 The list-membership tests require HUBSPOT_TEST_LIST_ID to identify a MANUAL or
 SNAPSHOT list and HUBSPOT_TEST_CONTACT_ID to identify the contact to update.
@@ -32,7 +33,7 @@ from copy import deepcopy
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
@@ -70,7 +71,7 @@ def live_context(env_credentials):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
                 if resp.status >= 400:
-                    raise RuntimeError(f"HubSpot API returned HTTP {resp.status}")
+                    raise HTTPError(resp.status, f"HubSpot API returned HTTP {resp.status}")
                 if resp.status == 204:
                     data = {}
                 else:
@@ -801,8 +802,9 @@ class TestLinkedInMessageWorkflow:
                 live_context,
             )
             row = log_result.result.data["results"][0]
-            assert row["status"] == "logged", row
             communication_id = row["communication_id"]
+            assert row["status"] == "logged", row
+            assert communication_id
 
             get_result = await hubspot.execute_action(
                 "get_linkedin_message", {"communication_id": communication_id}, live_context
@@ -814,18 +816,35 @@ class TestLinkedInMessageWorkflow:
             ]
             assert str(TEST_CONTACT_ID) in contact_ids
 
+            updated_body = f"Updated integration test LinkedIn message {os.getpid()}."
             update_result = await hubspot.execute_action(
                 "update_linkedin_message",
-                {"communication_id": communication_id, "message_body": "Updated integration test LinkedIn message."},
+                {"communication_id": communication_id, "message_body": updated_body},
                 live_context,
             )
             assert update_result.result.data["success"] is True
+
+            reread = await hubspot.execute_action(
+                "get_linkedin_message", {"communication_id": communication_id}, live_context
+            )
+            assert reread.result.data["communication"]["properties"]["hs_communication_body"] == updated_body
+
+            delete_result = await hubspot.execute_action(
+                "delete_linkedin_message", {"communication_id": communication_id}, live_context
+            )
+            assert delete_result.result.data["success"] is True
+            deleted_id, communication_id = communication_id, None
+
+            # A deleted (archived) communication is no longer returned by a normal read
+            with pytest.raises(HTTPError, match="HTTP 404"):
+                await live_context.fetch(
+                    f"https://api.hubapi.com/crm/v3/objects/communications/{deleted_id}", method="GET"
+                )
         finally:
             if communication_id:
-                delete_result = await hubspot.execute_action(
+                await hubspot.execute_action(
                     "delete_linkedin_message", {"communication_id": communication_id}, live_context
                 )
-                assert delete_result.result.data["success"] is True
 
 
 @pytest.mark.destructive
@@ -860,17 +879,31 @@ class TestUpsertContacts:
 
 @pytest.mark.destructive
 class TestCreateAssociation:
-    async def test_links_test_contact_to_test_company(self, live_context):
+    async def test_links_unlinked_test_contact_and_company(self, live_context):
         require_contact_id()
         require_company_id()
-        result = await hubspot.execute_action(
-            "create_association",
-            {
-                "from_object_type": "contacts",
-                "from_object_id": TEST_CONTACT_ID,
-                "to_object_type": "companies",
-                "to_object_id": TEST_COMPANY_ID,
-            },
-            live_context,
-        )
-        assert result.result.data["success"] is True
+        associations_url = f"https://api.hubapi.com/crm/v4/objects/contacts/{TEST_CONTACT_ID}/associations/companies"
+
+        async def linked_company_ids():
+            response = await live_context.fetch(associations_url, method="GET", params={"limit": 500})
+            return {str(item["toObjectId"]) for item in response.data.get("results", [])}
+
+        if str(TEST_COMPANY_ID) in await linked_company_ids():
+            pytest.skip("HUBSPOT_TEST_CONTACT_ID is already linked to HUBSPOT_TEST_COMPANY_ID; use an unlinked pair")
+
+        try:
+            result = await hubspot.execute_action(
+                "create_association",
+                {
+                    "from_object_type": "contacts",
+                    "from_object_id": TEST_CONTACT_ID,
+                    "to_object_type": "companies",
+                    "to_object_id": TEST_COMPANY_ID,
+                },
+                live_context,
+            )
+            assert result.result.data["success"] is True
+            assert str(TEST_COMPANY_ID) in await linked_company_ids()
+        finally:
+            # Remove only the link this test created
+            await live_context.fetch(f"{associations_url}/{TEST_COMPANY_ID}", method="DELETE")

@@ -219,8 +219,8 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `not_found`: No contact matched the email or name. Nothing is created; run `upsert_contacts` first and pass the returned `contact_id`
   - `ambiguous`: More than one contact matched; the matching IDs are in `candidates`. The action never guesses between people with the same name. Re-run the row with a `contact_id`
   - `invalid`: The row has no identifier, or no message body and no `default_message_body`
-  - `failed`: The contact lookup or HubSpot's create call returned an error, shown in `error`
-- **Note:** All email rows are looked up in one contacts batch read, which finds contacts created moments ago. Name rows use HubSpot's exact (`EQ`) CRM search, one request per row, spaced to stay under HubSpot's limit of 5 searches per second. HubSpot's search index can lag behind newly created contacts, so after `upsert_contacts` pass the returned `contact_id` (or the email) rather than the name. All matched rows are created in a single [batch create](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/batch/post-crm-v3-objects-communications-batch-create) call.
+  - `failed`: The contact lookup or HubSpot's create call returned an error, shown in `error`. If HubSpot creates only some messages without saying which rows they belong to, the remaining rows are `failed` with a warning to check HubSpot before retrying, so a retry doesn't log duplicates
+- **Note:** All email rows are looked up in one contacts batch read, which finds contacts created moments ago. A match on one of a contact's additional emails (`hs_additional_emails`) counts too. Name rows use HubSpot's exact (`EQ`) CRM search, one request per row, spaced to stay under HubSpot's limit of 5 searches per second. HubSpot's search index can lag behind newly created contacts, so after `upsert_contacts` pass the returned `contact_id` (or the email) rather than the name. All matched rows are created in a single [batch create](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/batch/post-crm-v3-objects-communications-batch-create) call.
 
 #### Action: `get_linkedin_message`
 - **Description:** Get a logged LinkedIn message by ID
@@ -232,7 +232,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Description:** Update the text, timestamp, or owner of a logged LinkedIn message
 - **Inputs:**
   - `communication_id` (required): ID of the logged message
-  - `message_body`, `timestamp`, `hubspot_owner_id` (at least one required)
+  - `message_body`, `timestamp`, `hubspot_owner_id` (at least one required). An empty `message_body` or `hubspot_owner_id` clears that value
 - **Outputs:** `communication`, `success`, `message`, `updated_properties`
 
 #### Action: `delete_linkedin_message`
@@ -1101,18 +1101,24 @@ To run the tests included with the integration:
 5. To run only the read-only ticket tests, append `-k TestGetRecentTickets` to the read-only command. These request pages of 5 and 100 tickets, check limits/sorting and response structure, and compare the action output with the raw API response so missing/null values or records cannot silently be dropped. An empty account skips ticket-record coverage rather than claiming it was exercised.
 6. Optionally set `HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID` to a dedicated test ticket within the latest 100 modified tickets whose search response contains an explicit `subject: null`. This enables the targeted live regression; it fails if the configured fixture is absent or no longer null, and skips if the variable is unset. Tests do not create or modify the fixture.
 7. To run the destructive ticket-note test, set `HUBSPOT_TEST_TICKET_ID` to a test ticket and run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k TestAddTicketComment`. The test creates an internal note, verifies it is associated with the ticket through HubSpot's associations API, then deletes the note.
+8. To run the destructive LinkedIn message, contact upsert, and record-linking tests, run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k "LinkedInMessageWorkflow or UpsertContacts or CreateAssociation"`:
+   - `TestLinkedInMessageWorkflow` logs a LinkedIn message on `HUBSPOT_TEST_CONTACT_ID`, reads it, edits it, checks the edit saved, deletes it, and checks it is gone
+   - `TestUpsertContacts` changes the job title of the contact with `HUBSPOT_TEST_CONTACT_EMAIL`, checks it saved on the same contact, then restores the original value
+   - `TestCreateAssociation` links `HUBSPOT_TEST_CONTACT_ID` to `HUBSPOT_TEST_COMPANY_ID`, checks the link appears, then removes it. It skips if the two are already linked, so use an unlinked pair
 
 Use a current HubSpot OAuth access token for a dedicated test account, with the `tickets` scope for ticket tests. Missing credentials skip live tests; expired tokens, permission errors, and API failures fail rather than passing. Refresh expired tokens through your HubSpot OAuth app's token-refresh flow and update the local `.env`; never commit tokens.
 
 **Warning: destructive tests mutate real account data.** Run the list-membership tests deliberately on a test account with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k contact_to_static_list`.
 
-The list-membership tests reuse existing HubSpot test variables; this action does not introduce any new environment variables:
+The destructive tests use these HubSpot test variables, all listed in `.env.example`:
 
 | Variable | Purpose |
 | --- | --- |
 | `HUBSPOT_ACCESS_TOKEN` | OAuth access token for the live test account |
 | `HUBSPOT_TEST_LIST_ID` | ID of a manual or snapshot test list |
-| `HUBSPOT_TEST_CONTACT_ID` | Contact whose membership is added and removed during the test |
+| `HUBSPOT_TEST_CONTACT_ID` | Contact used for list-membership, LinkedIn message, and record-linking tests |
+| `HUBSPOT_TEST_CONTACT_EMAIL` | Email of an existing test contact, used by the contact upsert test |
+| `HUBSPOT_TEST_COMPANY_ID` | Company not yet linked to the test contact, used by the record-linking test |
 
 Both membership tests detect the contact's initial membership and restore that state in cleanup, including when an assertion fails.
 

@@ -190,6 +190,54 @@ class TestLogLinkedInMessages:
         assert [r["status"] for r in result.result.data["results"]] == ["logged", "not_found"]
 
     @pytest.mark.asyncio
+    async def test_additional_email_matches_its_contact(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok(
+                {
+                    "results": [
+                        {
+                            "id": "900",
+                            "properties": {"email": "jo@work.com", "hs_additional_emails": "jo@home.com;Jo@Old.com"},
+                        }
+                    ]
+                }
+            ),
+            batch_created("0"),
+        ]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"email": "jo@old.com"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert result.result.data["results"][0]["status"] == "logged"
+        assert result.result.data["results"][0]["contact_id"] == "900"
+        read_call = fetch_calls(mock_context, CONTACTS_BATCH_READ_URL)[0]
+        assert read_call.kwargs["json"]["properties"] == ["email", "hs_additional_emails"]
+
+    @pytest.mark.asyncio
+    async def test_primary_and_additional_emails_in_same_call_resolve_to_one_contact(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok(
+                {
+                    "results": [
+                        {"id": "900", "properties": {"email": "jo@work.com", "hs_additional_emails": "jo@home.com"}}
+                    ]
+                }
+            ),
+            batch_created("0", "1"),
+        ]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"email": "jo@work.com"}, {"email": "jo@home.com"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert [r["contact_id"] for r in result.result.data["results"]] == ["900", "900"]
+
+    @pytest.mark.asyncio
     async def test_batch_read_404_means_no_email_matched(self, mock_context):
         mock_context.fetch.side_effect = HTTPError(404, "Not found")
 
@@ -420,6 +468,46 @@ class TestLogLinkedInMessages:
         assert [call.args[0] for call in no_pacing_sleep.await_args_list] == [0.25, 0.25]
 
     @pytest.mark.asyncio
+    async def test_repeated_name_is_searched_once(self, mock_context, no_pacing_sleep):
+        mock_context.fetch.side_effect = [search_response("1"), batch_created("0", "1")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [
+                    {"first_name": "Jo", "last_name": "Bloggs"},
+                    {"first_name": " Jo ", "last_name": "Bloggs"},
+                ],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        assert [r["contact_id"] for r in result.result.data["results"]] == ["1", "1"]
+        assert len(fetch_calls(mock_context, CONTACTS_SEARCH_URL)) == 1
+        no_pacing_sleep.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_traced_rows_kept_when_other_results_are_untraced(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {"results": [{"id": "a", "objectWriteTraceId": "0"}, {"id": "b"}], "numErrors": 1}, status=207
+        )
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [{"contact_id": "1"}, {"contact_id": "2"}, {"contact_id": "3"}],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert (rows[0]["status"], rows[0]["communication_id"]) == ("logged", "a")
+        assert [r["status"] for r in rows[1:]] == ["failed", "failed"]
+        assert all("2 of 3" in r["error"] for r in rows[1:])
+
+    @pytest.mark.asyncio
     async def test_batch_errors_mapped_to_their_own_rows(self, mock_context):
         mock_context.fetch.return_value = batch_created(
             "0",
@@ -444,6 +532,72 @@ class TestLogLinkedInMessages:
             ("failed", "Owner 9 does not exist"),
             ("failed", "Deal 7 does not exist"),
         ]
+
+    @pytest.mark.asyncio
+    async def test_all_rows_created_without_trace_ids_are_logged(self, mock_context):
+        mock_context.fetch.return_value = ok({"results": [{"id": "a"}, {"id": "b"}]}, status=201)
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "2"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        data = result.result.data
+        assert [(r["status"], r["communication_id"]) for r in data["results"]] == [("logged", None), ("logged", None)]
+        assert data["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_partial_creates_without_trace_ids_warn_against_retrying(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {"results": [{"id": "a"}], "errors": [{"message": "Something went wrong"}], "numErrors": 1}, status=207
+        )
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "2"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert [r["status"] for r in rows] == ["failed", "failed"]
+        assert all("1 of 2" in r["error"] and "before retrying" in r["error"] for r in rows)
+
+    @pytest.mark.asyncio
+    async def test_partial_creates_warning_keeps_hubspot_error_text(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {"results": [{"id": "a"}], "errors": [{"message": "Property values were not valid"}]}, status=207
+        )
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "2"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        error = result.result.data["results"][0]["error"]
+        assert "before retrying" in error
+        assert "Property values were not valid" in error
+
+    @pytest.mark.asyncio
+    async def test_partial_creates_without_trace_ids_keep_row_specific_errors(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {
+                "results": [{"id": "a"}],
+                "errors": [{"message": "Deal 7 does not exist", "context": {"objectWriteTraceId": ["1"]}}],
+            },
+            status=207,
+        )
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "2", "deal_id": "7"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert "before retrying" in rows[0]["error"]
+        assert rows[1]["error"] == "Deal 7 does not exist"
 
     @pytest.mark.asyncio
     async def test_partial_batch_marks_missing_rows_failed(self, mock_context):
@@ -540,11 +694,26 @@ class TestGetLinkedInMessage:
 
         result = await hubspot.execute_action("get_linkedin_message", {"communication_id": "77"}, mock_context)
 
-        assert result.result.data == {"communication": communication, "success": True}
+        assert result.result.data["communication"] == communication
+        assert result.result.data["success"] is True
+        assert result.result.data["message"] == "LinkedIn message retrieved successfully"
         call = mock_context.fetch.call_args
         assert call.args[0] == f"{COMMUNICATIONS_API_URL}/77"
         assert "hs_communication_body" in call.kwargs["params"]["properties"]
         assert call.kwargs["params"]["associations"] == "contacts,companies,deals"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("action", ["get_linkedin_message", "update_linkedin_message", "delete_linkedin_message"])
+    @pytest.mark.parametrize("communication_id", ["1/../../contacts/12345", "77?archived=true", "abc", ""])
+    async def test_non_numeric_communication_id_rejected_before_any_request(
+        self, mock_context, action, communication_id
+    ):
+        result = await hubspot.execute_action(
+            action, {"communication_id": communication_id, "message_body": "x"}, mock_context
+        )
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_http_error_returns_action_error(self, mock_context):
@@ -582,6 +751,46 @@ class TestUpdateLinkedInMessage:
         )
 
         assert mock_context.fetch.call_args.kwargs["json"] == {"properties": {"hs_timestamp": "1700000000000"}}
+
+    @pytest.mark.asyncio
+    async def test_update_empty_body_clears_it(self, mock_context):
+        mock_context.fetch.return_value = ok({"id": "77"})
+
+        result = await hubspot.execute_action(
+            "update_linkedin_message", {"communication_id": "77", "message_body": ""}, mock_context
+        )
+
+        assert result.result.data["success"] is True
+        assert mock_context.fetch.call_args.kwargs["json"] == {"properties": {"hs_communication_body": ""}}
+
+    @pytest.mark.asyncio
+    async def test_update_empty_owner_removes_it(self, mock_context):
+        mock_context.fetch.return_value = ok({"id": "77"})
+
+        await hubspot.execute_action(
+            "update_linkedin_message", {"communication_id": "77", "hubspot_owner_id": ""}, mock_context
+        )
+
+        assert mock_context.fetch.call_args.kwargs["json"] == {"properties": {"hubspot_owner_id": ""}}
+
+    @pytest.mark.asyncio
+    async def test_update_empty_timestamp_is_not_sent(self, mock_context):
+        result = await hubspot.execute_action(
+            "update_linkedin_message", {"communication_id": "77", "timestamp": ""}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_update_timestamp_zero_is_sent(self, mock_context):
+        mock_context.fetch.return_value = ok({"id": "77"})
+
+        await hubspot.execute_action(
+            "update_linkedin_message", {"communication_id": "77", "timestamp": 0}, mock_context
+        )
+
+        assert mock_context.fetch.call_args.kwargs["json"] == {"properties": {"hs_timestamp": "0"}}
 
     @pytest.mark.asyncio
     async def test_update_without_changes_returns_action_error(self, mock_context):
@@ -732,6 +941,57 @@ class TestUpsertContacts:
         assert [r["error"] for r in result.result.data["results"]] == [None, "Bad phone", "Bad country"]
 
     @pytest.mark.asyncio
+    async def test_upsert_results_without_trace_ids_matched_by_email(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {
+                "results": [
+                    {"id": "2", "new": False, "properties": {"email": "old@example.com"}},
+                    {"id": "1", "new": True, "properties": {"email": "new@example.com"}},
+                ]
+            }
+        )
+
+        result = await hubspot.execute_action(
+            "upsert_contacts", {"contacts": [{"email": "New@example.com"}, {"email": "old@example.com"}]}, mock_context
+        )
+
+        assert [(r["status"], r["contact_id"]) for r in result.result.data["results"]] == [
+            ("created", "1"),
+            ("updated", "2"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_none_property_value_clears_it(self, mock_context):
+        mock_context.fetch.return_value = ok({"results": [{"id": "1", "new": False, "objectWriteTraceId": "0"}]})
+
+        await hubspot.execute_action(
+            "upsert_contacts", {"contacts": [{"email": "a@example.com", "properties": {"phone": None}}]}, mock_context
+        )
+
+        assert mock_context.fetch.call_args.kwargs["json"]["inputs"][0]["properties"]["phone"] == ""
+
+    @pytest.mark.asyncio
+    async def test_unattributable_upsert_result_is_failed_not_updated(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {"results": [{"id": "9", "new": True, "properties": {"email": "primary@x.com"}}]}
+        )
+
+        result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "alt@x.com"}]}, mock_context)
+
+        row = result.result.data["results"][0]
+        assert (row["status"], row["contact_id"]) == ("failed", None)
+        assert "retrying is safe" in row["error"]
+        assert result.result.data["success"] is False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("email", ["", "   "])
+    async def test_blank_email_rejected_by_schema(self, mock_context, email):
+        result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": email}]}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_duplicate_emails_rejected_before_calling_hubspot(self, mock_context):
         result = await hubspot.execute_action(
             "upsert_contacts", {"contacts": [{"email": "a@example.com"}, {"email": "A@example.com "}]}, mock_context
@@ -792,6 +1052,22 @@ class TestCreateAssociation:
             {"from_object_type": "widgets", "from_object_id": "1", "to_object_type": "companies", "to_object_id": "2"},
             mock_context,
         )
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("field", ["from_object_id", "to_object_id"])
+    async def test_non_numeric_record_id_rejected_before_any_request(self, mock_context, field):
+        inputs = {
+            "from_object_type": "contacts",
+            "from_object_id": "1",
+            "to_object_type": "companies",
+            "to_object_id": "2",
+        }
+        inputs[field] = "1/../../../../../v3/objects/deals/99"
+
+        result = await hubspot.execute_action("create_association", inputs, mock_context)
 
         assert result.type == ResultType.VALIDATION_ERROR
         mock_context.fetch.assert_not_called()

@@ -564,7 +564,8 @@
         "properties": {
           "communication_id": {
             "type": "string",
-            "description": "ID of the logged LinkedIn message"
+            "description": "ID of the logged LinkedIn message",
+            "pattern": "^[0-9]+$"
           }
         },
         "required": [
@@ -603,11 +604,12 @@
         "properties": {
           "communication_id": {
             "type": "string",
-            "description": "ID of the logged LinkedIn message"
+            "description": "ID of the logged LinkedIn message",
+            "pattern": "^[0-9]+$"
           },
           "message_body": {
             "type": "string",
-            "description": "New message text (optional)"
+            "description": "New message text (optional; an empty string clears it)"
           },
           "timestamp": {
             "type": [
@@ -618,7 +620,7 @@
           },
           "hubspot_owner_id": {
             "type": "string",
-            "description": "New owner ID (optional)"
+            "description": "New owner ID (optional; an empty string removes the owner)"
           }
         },
         "required": [
@@ -661,7 +663,8 @@
         "properties": {
           "communication_id": {
             "type": "string",
-            "description": "ID of the logged LinkedIn message"
+            "description": "ID of the logged LinkedIn message",
+            "pattern": "^[0-9]+$"
           }
         },
         "required": [
@@ -1350,7 +1353,8 @@
               "properties": {
                 "email": {
                   "type": "string",
-                  "description": "Contact email address, used to match existing contacts"
+                  "description": "Contact email address, used to match existing contacts",
+                  "pattern": "\\S"
                 },
                 "first_name": {
                   "type": "string",
@@ -1362,7 +1366,7 @@
                 },
                 "properties": {
                   "type": "object",
-                  "description": "Other HubSpot contact properties by internal name, e.g. {\"company\": \"Acme\", \"jobtitle\": \"CTO\"} (optional)"
+                  "description": "Other HubSpot contact properties by internal name, e.g. {\"company\": \"Acme\", \"jobtitle\": \"CTO\"}; null or \"\" clears a value (optional)"
                 }
               },
               "required": [
@@ -4297,7 +4301,8 @@
           },
           "from_object_id": {
             "type": "string",
-            "description": "ID of the first record"
+            "description": "ID of the first record",
+            "pattern": "^[0-9]+$"
           },
           "to_object_type": {
             "type": "string",
@@ -4311,7 +4316,8 @@
           },
           "to_object_id": {
             "type": "string",
-            "description": "ID of the record to link to"
+            "description": "ID of the record to link to",
+            "pattern": "^[0-9]+$"
           }
         },
         "required": [

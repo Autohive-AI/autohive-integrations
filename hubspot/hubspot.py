@@ -1,8 +1,10 @@
 """HubSpot Integration Actions Module"""
 
-from typing import Dict, Any
+from typing import Any, Callable, Dict
+from collections import Counter
 from datetime import datetime, timezone
 import asyncio
+import re
 
 from autohive_integrations_sdk import (
     Integration,
@@ -537,6 +539,7 @@ class DeleteNoteActionHandler(ActionHandler):
 COMMUNICATIONS_API_URL = "https://api.hubapi.com/crm/v3/objects/communications"
 CONTACTS_SEARCH_API_URL = "https://api.hubapi.com/crm/v3/objects/contacts/search"
 CONTACTS_BATCH_READ_API_URL = "https://api.hubapi.com/crm/v3/objects/contacts/batch/read"
+CONTACTS_BATCH_UPSERT_API_URL = "https://api.hubapi.com/crm/v3/objects/contacts/batch/upsert"
 
 # HubSpot-defined association type IDs from a communication to other records
 COMMUNICATION_TO_CONTACT_ASSOCIATION_ID = 81
@@ -566,60 +569,122 @@ def _timestamp_property(timestamp: Any) -> str:
     return str(timestamp)
 
 
-def _row_identifier(row: Dict[str, Any]) -> str | None:
-    """Describe how a message row identifies its contact, or None if it doesn't."""
+def _row_identifier(row: Dict[str, Any]) -> tuple[str, Any, str] | None:
+    """Return (kind, lookup key, label) for how a message row identifies its contact, or None.
+
+    kind is "contact_id", "email" (key is the lowercased email) or "name" (key is (first, last)).
+    """
     contact_id = (row.get("contact_id") or "").strip()
     if contact_id:
-        return f"contact_id:{contact_id}"
-    if (row.get("email") or "").strip():
-        return f"email:{row['email'].strip()}"
+        return "contact_id", contact_id, f"contact_id:{contact_id}"
+    email = (row.get("email") or "").strip()
+    if email:
+        return "email", email.lower(), f"email:{email}"
     first_name = (row.get("first_name") or "").strip()
     last_name = (row.get("last_name") or "").strip()
     if first_name and last_name:
-        return f"name:{first_name} {last_name}"
+        return "name", (first_name, last_name), f"name:{first_name} {last_name}"
     return None
 
 
-def _errors_by_trace_id(errors: list[Dict[str, Any]]) -> tuple[Dict[str, str], str | None]:
-    """Map batch errors to rows via context.objectWriteTraceId; return (per-row messages, unmapped message)."""
-    by_trace_id: Dict[str, list[str]] = {}
+def _status_counts(results: list[Dict[str, Any]], statuses: tuple[str, ...]) -> Dict[str, int]:
+    counts = Counter(result["status"] for result in results)
+    return {status: counts[status] for status in statuses}
+
+
+def _match_batch_results(
+    data: Dict[str, Any],
+    trace_ids: list[str],
+    missing_message: str,
+    trace_id_for: Callable[[Dict[str, Any]], str | None] | None = None,
+) -> tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
+    """Match a HubSpot batch response to its input rows.
+
+    Returns ({trace_id: returned item}, {trace_id: error}) so every trace ID lands in exactly one.
+    Results are matched on the echoed objectWriteTraceId, or on trace_id_for(item) when HubSpot
+    doesn't echo it. Errors are matched via context.objectWriteTraceId. If some results still
+    can't be attributed: when every row came back they all count as done (with an empty item);
+    otherwise the unmatched rows fail with a warning, because a blind retry could duplicate the
+    rows that did succeed.
+    """
+    items = data.get("results", [])
+    items_by_trace = {}
+    for item in items:
+        trace_id = item.get("objectWriteTraceId") or (trace_id_for(item) if trace_id_for else None)
+        if trace_id in trace_ids:
+            items_by_trace[trace_id] = item
+
+    messages_by_trace: Dict[str, list[str]] = {}
     unmapped = []
-    for error in errors:
+    for error in data.get("errors", []):
         message = error.get("message", "")
-        trace_ids = (error.get("context") or {}).get("objectWriteTraceId") or []
-        for trace_id in trace_ids:
-            by_trace_id.setdefault(str(trace_id), []).append(message)
-        if not trace_ids:
+        error_trace_ids = (error.get("context") or {}).get("objectWriteTraceId") or []
+        for trace_id in error_trace_ids:
+            messages_by_trace.setdefault(str(trace_id), []).append(message)
+        if not error_trace_ids:
             unmapped.append(message)
-    return {trace_id: "; ".join(messages) for trace_id, messages in by_trace_id.items()}, "; ".join(unmapped) or None
+    batch_error = "; ".join(unmapped) or None
+
+    if len(items_by_trace) < len(items):
+        if len(items) == len(trace_ids):
+            items_by_trace = {trace_id: items_by_trace.get(trace_id, {}) for trace_id in trace_ids}
+        else:
+            warning = (
+                f"HubSpot completed {len(items)} of {len(trace_ids)} rows without saying which; "
+                "check HubSpot before retrying"
+            )
+            batch_error = f"{warning}; {batch_error}" if batch_error else warning
+
+    errors_by_trace = {
+        trace_id: "; ".join(messages_by_trace.get(trace_id, [])) or batch_error or missing_message
+        for trace_id in trace_ids
+        if trace_id not in items_by_trace
+    }
+    return items_by_trace, errors_by_trace
 
 
-async def _find_contact_ids_by_email(emails: list[str], context: ExecutionContext) -> Dict[str, str]:
+async def _find_contact_ids_by_email(
+    emails: list[str], context: ExecutionContext, retry_sleep_budget: Dict[str, int]
+) -> Dict[str, str]:
     """Return {lowercased email: contact ID} for the given emails using one batch read.
 
     Batch read looks contacts up by their unique email directly, so it doesn't depend on the
     search index (which can lag behind newly created contacts) or the search rate limit.
     """
-    response = await fetch_with_rate_limit_retries(
-        context,
-        CONTACTS_BATCH_READ_API_URL,
-        method="POST",
-        json={
-            "idProperty": "email",
-            "inputs": [{"id": email} for email in emails],
-            "properties": ["email"],
-            "propertiesWithHistory": [],
-        },
-        headers={"Content-Type": "application/json"},
-    )
+    try:
+        response = await fetch_with_rate_limit_retries(
+            context,
+            CONTACTS_BATCH_READ_API_URL,
+            retry_sleep_budget=retry_sleep_budget,
+            method="POST",
+            json={
+                "idProperty": "email",
+                "inputs": [{"id": email} for email in emails],
+                "properties": ["email", "hs_additional_emails"],
+                "propertiesWithHistory": [],
+            },
+            headers={"Content-Type": "application/json"},
+        )
+    except HTTPError as e:
+        # HubSpot answers 404 when none of the emails match a contact
+        if e.status == 404:
+            return {}
+        raise
     data = await parse_response(response) or {}
-    return {
-        (contact.get("properties", {}).get("email") or "").lower(): str(contact["id"])
-        for contact in data.get("results", [])
-    }
+    contact_ids_by_email = {}
+    for contact in data.get("results", []):
+        properties = contact.get("properties") or {}
+        # A contact can be found by an additional email, which HubSpot returns in hs_additional_emails
+        additional_emails = re.split(r"[;,]", properties.get("hs_additional_emails") or "")
+        for address in [properties.get("email") or "", *additional_emails]:
+            if address.strip():
+                contact_ids_by_email[address.strip().lower()] = str(contact["id"])
+    return contact_ids_by_email
 
 
-async def _find_contact_ids_by_name(first_name: str, last_name: str, context: ExecutionContext) -> list[str]:
+async def _find_contact_ids_by_name(
+    first_name: str, last_name: str, context: ExecutionContext, retry_sleep_budget: Dict[str, int]
+) -> list[str]:
     """Return the IDs of contacts whose first and last name exactly match."""
     filters = [
         {"propertyName": "firstname", "operator": "EQ", "value": first_name},
@@ -628,6 +693,7 @@ async def _find_contact_ids_by_name(first_name: str, last_name: str, context: Ex
     response = await fetch_with_rate_limit_retries(
         context,
         CONTACTS_SEARCH_API_URL,
+        retry_sleep_budget=retry_sleep_budget,
         method="POST",
         json={"filterGroups": [{"filters": filters}], "properties": ["email"], "limit": CONTACT_MATCH_LIMIT},
         headers={"Content-Type": "application/json"},
@@ -670,15 +736,17 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         default_body = (inputs.get("default_message_body") or "").strip()
         owner_id = inputs.get("hubspot_owner_id")
+        # One rate-limit retry budget for the whole action, so repeated 429s can't stall it per request
+        retry_sleep_budget = {"remaining": 10}
 
         results = []
-        pending = []  # (row, result, body) for rows that passed validation
+        pending = []  # (row, result, body, kind, key) for rows that passed validation
         for row_index, row in enumerate(inputs["messages"]):
             identifier = _row_identifier(row)
             body = (row.get("message_body") or "").strip() or default_body
             result = {
                 "row_index": row_index,
-                "identifier": identifier,
+                "identifier": identifier[2] if identifier else None,
                 "status": None,
                 "contact_id": None,
                 "communication_id": None,
@@ -694,99 +762,78 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                 result["status"] = "invalid"
                 result["error"] = "Provide message_body for this row or default_message_body"
             else:
-                pending.append((row, result, body))
+                pending.append((row, result, body, identifier[0], identifier[1]))
 
-        emails = sorted(
-            {
-                result["identifier"].removeprefix("email:").lower()
-                for _, result, _ in pending
-                if result["identifier"].startswith("email:")
-            }
-        )
-        contact_ids_by_email: Dict[str, str] = {}
-        email_lookup_error = None
+        # Each lookup maps a key to its matching contact IDs, or to an error message
+        matches: Dict[Any, list[str] | str] = {}
+        emails = sorted({key for _, _, _, kind, key in pending if kind == "email"})
         if emails:
             try:
-                contact_ids_by_email = await _find_contact_ids_by_email(emails, context)
+                contact_ids_by_email = await _find_contact_ids_by_email(emails, context, retry_sleep_budget)
+                matches.update(
+                    {email: [contact_ids_by_email[email]] if email in contact_ids_by_email else [] for email in emails}
+                )
             except HTTPError as e:
-                # A 404 means none of the emails matched a contact; those rows become not_found
-                if e.status != 404:
-                    email_lookup_error = f"Contact lookup failed: {e}"
+                matches.update({email: f"Contact lookup failed: {e}" for email in emails})
+
+        names = list(dict.fromkeys(key for _, _, _, kind, key in pending if kind == "name"))
+        for index, (first_name, last_name) in enumerate(names):
+            if index:
+                await asyncio.sleep(NAME_SEARCH_INTERVAL_SECONDS)
+            try:
+                matches[(first_name, last_name)] = await _find_contact_ids_by_name(
+                    first_name, last_name, context, retry_sleep_budget
+                )
+            except HTTPError as e:
+                matches[(first_name, last_name)] = f"Contact lookup failed: {e}"
 
         batch_inputs = []
-        name_searches = 0
-        for row, result, body in pending:
-            kind, _, value = result["identifier"].partition(":")
-            if kind == "contact_id":
-                contact_ids = [value]
-            elif kind == "email":
-                if email_lookup_error:
-                    result["status"] = "failed"
-                    result["error"] = email_lookup_error
-                    continue
-                contact_id = contact_ids_by_email.get(value.lower())
-                contact_ids = [contact_id] if contact_id else []
-            else:
-                if name_searches:
-                    await asyncio.sleep(NAME_SEARCH_INTERVAL_SECONDS)
-                name_searches += 1
-                try:
-                    contact_ids = await _find_contact_ids_by_name(
-                        row["first_name"].strip(), row["last_name"].strip(), context
-                    )
-                except HTTPError as e:
-                    result["status"] = "failed"
-                    result["error"] = f"Contact lookup failed: {e}"
-                    continue
-
-            if not contact_ids:
+        for row, result, body, kind, key in pending:
+            contact_ids = [key] if kind == "contact_id" else matches[key]
+            if isinstance(contact_ids, str):
+                result["status"] = "failed"
+                result["error"] = contact_ids
+            elif not contact_ids:
                 result["status"] = "not_found"
-                continue
-            if len(contact_ids) > 1:
+            elif len(contact_ids) > 1:
                 result["status"] = "ambiguous"
                 result["candidates"] = contact_ids
-                continue
-
-            result["contact_id"] = contact_ids[0]
-            batch_inputs.append(_build_communication_input(row, result["row_index"], contact_ids[0], body, owner_id))
+            else:
+                result["contact_id"] = contact_ids[0]
+                batch_inputs.append(
+                    _build_communication_input(row, result["row_index"], contact_ids[0], body, owner_id)
+                )
 
         if batch_inputs:
-            created_by_row = {}
-            row_errors: Dict[str, str] = {}
-            batch_error = None
+            trace_ids = [batch_input["objectWriteTraceId"] for batch_input in batch_inputs]
             try:
                 response = await fetch_with_rate_limit_retries(
                     context,
                     f"{COMMUNICATIONS_API_URL}/batch/create",
+                    retry_sleep_budget=retry_sleep_budget,
                     method="POST",
                     json={"inputs": batch_inputs},
                     headers={"Content-Type": "application/json"},
                 )
-                data = await parse_response(response) or {}
-                created_by_row = {item.get("objectWriteTraceId"): item for item in data.get("results", [])}
-                row_errors, batch_error = _errors_by_trace_id(data.get("errors", []))
+                created_by_row, errors_by_row = _match_batch_results(
+                    await parse_response(response) or {},
+                    trace_ids,
+                    "HubSpot did not return a created message for this row",
+                )
             except HTTPError as e:
-                batch_error = str(e)
+                created_by_row, errors_by_row = {}, {trace_id: str(e) for trace_id in trace_ids}
 
-            for batch_input in batch_inputs:
-                trace_id = batch_input["objectWriteTraceId"]
+            for trace_id in trace_ids:
                 result = results[int(trace_id)]
-                created = created_by_row.get(trace_id)
-                if created:
+                if trace_id in created_by_row:
                     result["status"] = "logged"
-                    result["communication_id"] = str(created.get("id"))
+                    created_id = created_by_row[trace_id].get("id")
+                    result["communication_id"] = str(created_id) if created_id else None
                 else:
                     result["status"] = "failed"
-                    result["error"] = (
-                        row_errors.get(trace_id)
-                        or batch_error
-                        or "HubSpot did not return a created message for this row"
-                    )
+                    result["error"] = errors_by_row[trace_id]
 
-        counts = {
-            status: sum(1 for result in results if result["status"] == status)
-            for status in ("logged", "not_found", "ambiguous", "invalid", "failed")
-        }
+        counts = _status_counts(results, ("logged", "not_found", "ambiguous", "invalid", "failed"))
         return ActionResult(
             data={
                 "results": results,
@@ -812,7 +859,14 @@ class GetLinkedInMessageActionHandler(ActionHandler):
                     "associations": "contacts,companies,deals",
                 },
             )
-            return ActionResult(data={"communication": await parse_response(response), "success": True}, cost_usd=None)
+            return ActionResult(
+                data={
+                    "communication": await parse_response(response),
+                    "success": True,
+                    "message": "LinkedIn message retrieved successfully",
+                },
+                cost_usd=None,
+            )
         except HTTPError as e:
             return ActionError(message=f"Failed to get LinkedIn message: {e}")
 
@@ -824,19 +878,21 @@ class UpdateLinkedInMessageActionHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         communication_id = inputs["communication_id"]
 
+        # An empty string clears the body or owner in HubSpot, so check presence rather than truthiness
         properties = {}
-        if inputs.get("message_body"):
+        if inputs.get("message_body") is not None:
             properties["hs_communication_body"] = inputs["message_body"]
-        if inputs.get("timestamp"):
+        if inputs.get("timestamp") not in (None, ""):
             properties["hs_timestamp"] = _timestamp_property(inputs["timestamp"])
-        if inputs.get("hubspot_owner_id"):
+        if inputs.get("hubspot_owner_id") is not None:
             properties["hubspot_owner_id"] = str(inputs["hubspot_owner_id"])
 
         if not properties:
             return ActionError(message="Provide message_body, timestamp, or hubspot_owner_id to update")
 
         try:
-            response = await context.fetch(
+            response = await fetch_with_rate_limit_retries(
+                context,
                 f"{COMMUNICATIONS_API_URL}/{communication_id}",
                 method="PATCH",
                 json={"properties": properties},
@@ -862,7 +918,9 @@ class DeleteLinkedInMessageActionHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         communication_id = inputs["communication_id"]
         try:
-            await context.fetch(f"{COMMUNICATIONS_API_URL}/{communication_id}", method="DELETE")
+            await fetch_with_rate_limit_retries(
+                context, f"{COMMUNICATIONS_API_URL}/{communication_id}", method="DELETE"
+            )
             return ActionResult(
                 data={
                     "success": True,
@@ -1352,15 +1410,16 @@ class UpsertContactsActionHandler(ActionHandler):
         contacts = inputs["contacts"]
 
         emails = [contact["email"].strip().lower() for contact in contacts]
-        duplicates = sorted({email for email in emails if emails.count(email) > 1})
+        duplicates = sorted(email for email, count in Counter(emails).items() if count > 1)
         if duplicates:
             return ActionError(message=f"Each email can appear only once per call. Duplicates: {', '.join(duplicates)}")
+        trace_id_by_email = {email: str(row_index) for row_index, email in enumerate(emails)}
 
         batch_inputs = []
-        for row_index, (contact, email) in enumerate(zip(contacts, emails)):
-            # HubSpot property values are strings; booleans must be "true"/"false"
+        for contact, email in zip(contacts, emails):
+            # HubSpot property values are strings: booleans are "true"/"false" and "" clears a value
             properties = {
-                key: str(value).lower() if isinstance(value, bool) else str(value)
+                key: "" if value is None else str(value).lower() if isinstance(value, bool) else str(value)
                 for key, value in (contact.get("properties") or {}).items()
             }
             properties["email"] = email
@@ -1369,13 +1428,18 @@ class UpsertContactsActionHandler(ActionHandler):
             if contact.get("last_name"):
                 properties["lastname"] = contact["last_name"]
             batch_inputs.append(
-                {"id": email, "idProperty": "email", "objectWriteTraceId": str(row_index), "properties": properties}
+                {
+                    "id": email,
+                    "idProperty": "email",
+                    "objectWriteTraceId": trace_id_by_email[email],
+                    "properties": properties,
+                }
             )
 
         try:
             response = await fetch_with_rate_limit_retries(
                 context,
-                "https://api.hubapi.com/crm/v3/objects/contacts/batch/upsert",
+                CONTACTS_BATCH_UPSERT_API_URL,
                 method="POST",
                 json={"inputs": batch_inputs},
                 headers={"Content-Type": "application/json"},
@@ -1383,41 +1447,30 @@ class UpsertContactsActionHandler(ActionHandler):
         except HTTPError as e:
             return ActionError(message=f"Failed to upsert contacts: {e}")
 
-        data = await parse_response(response) or {}
-        upserted_by_row = {item.get("objectWriteTraceId"): item for item in data.get("results", [])}
-        row_errors, batch_error = _errors_by_trace_id(data.get("errors", []))
+        # Match on the echoed trace ID, or on the returned email if HubSpot doesn't echo it
+        upserted_by_row, errors_by_row = _match_batch_results(
+            await parse_response(response) or {},
+            list(trace_id_by_email.values()),
+            "HubSpot did not return a contact for this row",
+            trace_id_for=lambda item: trace_id_by_email.get(
+                ((item.get("properties") or {}).get("email") or "").lower()
+            ),
+        )
 
         results = []
-        for row_index, email in enumerate(emails):
-            upserted = upserted_by_row.get(str(row_index))
-            if upserted:
-                status = "created" if upserted.get("new") else "updated"
-                results.append(
-                    {
-                        "row_index": row_index,
-                        "email": email,
-                        "status": status,
-                        "contact_id": str(upserted.get("id")),
-                        "error": None,
-                    }
-                )
+        for email, trace_id in trace_id_by_email.items():
+            result = {"row_index": int(trace_id), "email": email, "status": "failed", "contact_id": None, "error": None}
+            upserted = upserted_by_row.get(trace_id)
+            if upserted is None:
+                result["error"] = errors_by_row[trace_id]
+            elif not upserted:
+                result["error"] = "HubSpot didn't say which contact this row matched; retrying is safe"
             else:
-                results.append(
-                    {
-                        "row_index": row_index,
-                        "email": email,
-                        "status": "failed",
-                        "contact_id": None,
-                        "error": row_errors.get(str(row_index))
-                        or batch_error
-                        or "HubSpot did not return a contact for this row",
-                    }
-                )
+                result["status"] = "created" if upserted.get("new") else "updated"
+                result["contact_id"] = str(upserted["id"]) if upserted.get("id") else None
+            results.append(result)
 
-        counts = {
-            status: sum(1 for result in results if result["status"] == status)
-            for status in ("created", "updated", "failed")
-        }
+        counts = _status_counts(results, ("created", "updated", "failed"))
         return ActionResult(
             data={"results": results, **counts, "success": counts["failed"] == 0},
             cost_usd=None,
