@@ -10,6 +10,7 @@ from autohive_integrations_sdk import (
     ActionHandler,
     ActionResult,
     ActionError,
+    HTTPError,
 )
 
 # HubSpot integration with UTC date handling
@@ -531,6 +532,271 @@ class DeleteNoteActionHandler(ActionHandler):
             return ActionError(message=f"Failed to delete note: {str(e)}")
 
 
+# Communications (LinkedIn messages)
+
+COMMUNICATIONS_API_URL = "https://api.hubapi.com/crm/v3/objects/communications"
+CONTACTS_SEARCH_API_URL = "https://api.hubapi.com/crm/v3/objects/contacts/search"
+
+# HubSpot-defined association type IDs from a communication to other records
+COMMUNICATION_TO_CONTACT_ASSOCIATION_ID = 81
+COMMUNICATION_TO_COMPANY_ASSOCIATION_ID = 87
+COMMUNICATION_TO_DEAL_ASSOCIATION_ID = 85
+
+# Number of matching contacts returned as candidates when a name or email is ambiguous
+CONTACT_MATCH_LIMIT = 5
+
+
+def _hubspot_defined_association(record_id: Any, association_type_id: int) -> Dict[str, Any]:
+    return {
+        "to": {"id": str(record_id)},
+        "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": association_type_id}],
+    }
+
+
+def _timestamp_property(timestamp: Any) -> str:
+    """Return hs_timestamp as HubSpot expects it: milliseconds or a UTC date string, defaulting to now."""
+    if timestamp is None or timestamp == "":
+        return str(int(datetime.now(timezone.utc).timestamp() * 1000))
+    if isinstance(timestamp, (int, float)):
+        return str(int(timestamp))
+    return str(timestamp)
+
+
+def _row_identifier(row: Dict[str, Any]) -> str | None:
+    """Describe how a message row identifies its contact, or None if it doesn't."""
+    contact_id = (row.get("contact_id") or "").strip()
+    if contact_id:
+        return f"contact_id:{contact_id}"
+    if (row.get("email") or "").strip():
+        return f"email:{row['email'].strip()}"
+    first_name = (row.get("first_name") or "").strip()
+    last_name = (row.get("last_name") or "").strip()
+    if first_name and last_name:
+        return f"name:{first_name} {last_name}"
+    return None
+
+
+async def _find_contact_ids(row: Dict[str, Any], context: ExecutionContext) -> list[str]:
+    """Return the IDs of contacts matching a row's email, or first and last name."""
+    if (row.get("email") or "").strip():
+        filters = [{"propertyName": "email", "operator": "EQ", "value": row["email"].strip()}]
+    else:
+        filters = [
+            {"propertyName": "firstname", "operator": "EQ", "value": row["first_name"].strip()},
+            {"propertyName": "lastname", "operator": "EQ", "value": row["last_name"].strip()},
+        ]
+
+    response = await fetch_with_rate_limit_retries(
+        context,
+        CONTACTS_SEARCH_API_URL,
+        method="POST",
+        json={"filterGroups": [{"filters": filters}], "properties": ["email"], "limit": CONTACT_MATCH_LIMIT},
+        headers={"Content-Type": "application/json"},
+    )
+    data = await parse_response(response) or {}
+    return [str(contact["id"]) for contact in data.get("results", [])]
+
+
+def _build_communication_input(
+    row: Dict[str, Any], row_index: int, contact_id: str, body: str, owner_id: Any
+) -> Dict[str, Any]:
+    properties = {
+        "hs_communication_channel_type": "LINKEDIN_MESSAGE",
+        "hs_communication_logged_from": "CRM",
+        "hs_communication_body": body,
+        "hs_timestamp": _timestamp_property(row.get("timestamp")),
+    }
+    if owner_id:
+        properties["hubspot_owner_id"] = str(owner_id)
+
+    associations = [_hubspot_defined_association(contact_id, COMMUNICATION_TO_CONTACT_ASSOCIATION_ID)]
+    if row.get("company_id"):
+        associations.append(_hubspot_defined_association(row["company_id"], COMMUNICATION_TO_COMPANY_ASSOCIATION_ID))
+    if row.get("deal_id"):
+        associations.append(_hubspot_defined_association(row["deal_id"], COMMUNICATION_TO_DEAL_ASSOCIATION_ID))
+
+    return {"properties": properties, "associations": associations, "objectWriteTraceId": str(row_index)}
+
+
+@hubspot.action("log_linkedin_messages")
+class LogLinkedInMessagesActionHandler(ActionHandler):
+    """
+    Action handler to log LinkedIn messages on HubSpot contacts in bulk.
+
+    Each row is matched to exactly one existing contact by contact ID, email, or first and last name.
+    Rows that match no contact, or more than one, are reported and not logged. Matched rows are
+    created in a single Communications batch create call.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        default_body = (inputs.get("default_message_body") or "").strip()
+        owner_id = inputs.get("hubspot_owner_id")
+
+        results = []
+        batch_inputs = []
+        for row_index, row in enumerate(inputs["messages"]):
+            identifier = _row_identifier(row)
+            body = (row.get("message_body") or "").strip() or default_body
+            result = {
+                "row_index": row_index,
+                "identifier": identifier,
+                "status": None,
+                "contact_id": None,
+                "communication_id": None,
+                "candidates": [],
+                "error": None,
+            }
+            results.append(result)
+
+            if identifier is None:
+                result["status"] = "invalid"
+                result["error"] = "Provide contact_id, email, or both first_name and last_name"
+                continue
+            if not body:
+                result["status"] = "invalid"
+                result["error"] = "Provide message_body for this row or default_message_body"
+                continue
+
+            if identifier.startswith("contact_id:"):
+                contact_ids = [identifier.removeprefix("contact_id:")]
+            else:
+                try:
+                    contact_ids = await _find_contact_ids(row, context)
+                except HTTPError as e:
+                    result["status"] = "failed"
+                    result["error"] = f"Contact lookup failed: {e}"
+                    continue
+
+            if not contact_ids:
+                result["status"] = "not_found"
+                continue
+            if len(contact_ids) > 1:
+                result["status"] = "ambiguous"
+                result["candidates"] = contact_ids
+                continue
+
+            result["contact_id"] = contact_ids[0]
+            batch_inputs.append(_build_communication_input(row, row_index, contact_ids[0], body, owner_id))
+
+        if batch_inputs:
+            batch_error = None
+            created_by_row = {}
+            try:
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    f"{COMMUNICATIONS_API_URL}/batch/create",
+                    method="POST",
+                    json={"inputs": batch_inputs},
+                    headers={"Content-Type": "application/json"},
+                )
+                data = await parse_response(response) or {}
+                created_by_row = {item.get("objectWriteTraceId"): item for item in data.get("results", [])}
+                batch_error = "; ".join(error.get("message", "") for error in data.get("errors", [])) or None
+            except HTTPError as e:
+                batch_error = str(e)
+
+            for batch_input in batch_inputs:
+                result = results[int(batch_input["objectWriteTraceId"])]
+                created = created_by_row.get(batch_input["objectWriteTraceId"])
+                if created:
+                    result["status"] = "logged"
+                    result["communication_id"] = str(created.get("id"))
+                else:
+                    result["status"] = "failed"
+                    result["error"] = batch_error or "HubSpot did not return a created message for this row"
+
+        counts = {
+            status: sum(1 for result in results if result["status"] == status)
+            for status in ("logged", "not_found", "ambiguous", "invalid", "failed")
+        }
+        return ActionResult(
+            data={
+                "results": results,
+                **counts,
+                "success": counts["logged"] == len(results),
+            },
+            cost_usd=None,
+        )
+
+
+@hubspot.action("get_linkedin_message")
+class GetLinkedInMessageActionHandler(ActionHandler):
+    """Action handler to read a logged LinkedIn message (communication) by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        communication_id = inputs["communication_id"]
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{COMMUNICATIONS_API_URL}/{communication_id}",
+                params={
+                    "properties": "hs_communication_channel_type,hs_communication_body,hs_timestamp,hubspot_owner_id",
+                    "associations": "contacts,companies,deals",
+                },
+            )
+            return ActionResult(data={"communication": await parse_response(response), "success": True}, cost_usd=None)
+        except HTTPError as e:
+            return ActionError(message=f"Failed to get LinkedIn message: {e}")
+
+
+@hubspot.action("update_linkedin_message")
+class UpdateLinkedInMessageActionHandler(ActionHandler):
+    """Action handler to update the body, timestamp, or owner of a logged LinkedIn message."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        communication_id = inputs["communication_id"]
+
+        properties = {}
+        if inputs.get("message_body"):
+            properties["hs_communication_body"] = inputs["message_body"]
+        if inputs.get("timestamp"):
+            properties["hs_timestamp"] = _timestamp_property(inputs["timestamp"])
+        if inputs.get("hubspot_owner_id"):
+            properties["hubspot_owner_id"] = str(inputs["hubspot_owner_id"])
+
+        if not properties:
+            return ActionError(message="Provide message_body, timestamp, or hubspot_owner_id to update")
+
+        try:
+            response = await context.fetch(
+                f"{COMMUNICATIONS_API_URL}/{communication_id}",
+                method="PATCH",
+                json={"properties": properties},
+                headers={"Content-Type": "application/json"},
+            )
+            return ActionResult(
+                data={
+                    "communication": await parse_response(response),
+                    "success": True,
+                    "message": "LinkedIn message updated successfully",
+                    "updated_properties": properties,
+                },
+                cost_usd=None,
+            )
+        except HTTPError as e:
+            return ActionError(message=f"Failed to update LinkedIn message: {e}")
+
+
+@hubspot.action("delete_linkedin_message")
+class DeleteLinkedInMessageActionHandler(ActionHandler):
+    """Action handler to delete (archive) a logged LinkedIn message."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        communication_id = inputs["communication_id"]
+        try:
+            await context.fetch(f"{COMMUNICATIONS_API_URL}/{communication_id}", method="DELETE")
+            return ActionResult(
+                data={
+                    "success": True,
+                    "message": f"LinkedIn message {communication_id} deleted successfully",
+                    "communication_id": communication_id,
+                },
+                cost_usd=None,
+            )
+        except HTTPError as e:
+            return ActionError(message=f"Failed to delete LinkedIn message: {e}")
+
+
 @hubspot.action("create_task")
 class CreateTaskActionHandler(ActionHandler):
     """
@@ -991,6 +1257,89 @@ class CreateContactActionHandler(ActionHandler):
         result = await parse_response(response)
         return ActionResult(
             data={"contact": result, "created_properties": properties},
+            cost_usd=None,
+        )
+
+
+@hubspot.action("upsert_contacts")
+class UpsertContactsActionHandler(ActionHandler):
+    """
+    Action handler to create or update up to 100 contacts in one call, matched on email.
+
+    Uses the CRM batch upsert endpoint with email as the unique ID property, so existing contacts are
+    updated instead of duplicated.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        contacts = inputs["contacts"]
+
+        emails = [contact["email"].strip().lower() for contact in contacts]
+        duplicates = sorted({email for email in emails if emails.count(email) > 1})
+        if duplicates:
+            return ActionError(message=f"Each email can appear only once per call. Duplicates: {', '.join(duplicates)}")
+
+        batch_inputs = []
+        for row_index, (contact, email) in enumerate(zip(contacts, emails)):
+            # HubSpot property values are strings; booleans must be "true"/"false"
+            properties = {
+                key: str(value).lower() if isinstance(value, bool) else str(value)
+                for key, value in (contact.get("properties") or {}).items()
+            }
+            properties["email"] = email
+            if contact.get("first_name"):
+                properties["firstname"] = contact["first_name"]
+            if contact.get("last_name"):
+                properties["lastname"] = contact["last_name"]
+            batch_inputs.append(
+                {"id": email, "idProperty": "email", "objectWriteTraceId": str(row_index), "properties": properties}
+            )
+
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                "https://api.hubapi.com/crm/v3/objects/contacts/batch/upsert",
+                method="POST",
+                json={"inputs": batch_inputs},
+                headers={"Content-Type": "application/json"},
+            )
+        except HTTPError as e:
+            return ActionError(message=f"Failed to upsert contacts: {e}")
+
+        data = await parse_response(response) or {}
+        upserted_by_row = {item.get("objectWriteTraceId"): item for item in data.get("results", [])}
+        batch_error = "; ".join(error.get("message", "") for error in data.get("errors", [])) or None
+
+        results = []
+        for row_index, email in enumerate(emails):
+            upserted = upserted_by_row.get(str(row_index))
+            if upserted:
+                status = "created" if upserted.get("new") else "updated"
+                results.append(
+                    {
+                        "row_index": row_index,
+                        "email": email,
+                        "status": status,
+                        "contact_id": str(upserted.get("id")),
+                        "error": None,
+                    }
+                )
+            else:
+                results.append(
+                    {
+                        "row_index": row_index,
+                        "email": email,
+                        "status": "failed",
+                        "contact_id": None,
+                        "error": batch_error or "HubSpot did not return a contact for this row",
+                    }
+                )
+
+        counts = {
+            status: sum(1 for result in results if result["status"] == status)
+            for status in ("created", "updated", "failed")
+        }
+        return ActionResult(
+            data={"results": results, **counts, "success": counts["failed"] == 0},
             cost_usd=None,
         )
 
@@ -3364,6 +3713,35 @@ class GetDealAssociationsHandler(ActionHandler):
                 "associations": associations,
                 "total_associations": total_count,
                 "summary": summary,
+            },
+            cost_usd=None,
+        )
+
+
+@hubspot.action("create_association")
+class CreateAssociationHandler(ActionHandler):
+    """Link two CRM records with HubSpot's default association type using the v4 Associations API"""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        from_type = inputs["from_object_type"]
+        from_id = inputs["from_object_id"]
+        to_type = inputs["to_object_type"]
+        to_id = inputs["to_object_id"]
+
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"https://api.hubapi.com/crm/v4/objects/{from_type}/{from_id}/associations/default/{to_type}/{to_id}",
+                method="PUT",
+            )
+        except HTTPError as e:
+            return ActionError(message=f"Failed to associate {from_type} {from_id} with {to_type} {to_id}: {e}")
+
+        return ActionResult(
+            data={
+                "success": True,
+                "message": f"Associated {from_type} {from_id} with {to_type} {to_id}",
+                "response": await parse_response(response),
             },
             cost_usd=None,
         )

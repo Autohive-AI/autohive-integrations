@@ -782,3 +782,77 @@ class TestAddTicketComment:
         finally:
             if note_id:
                 await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)
+
+
+@pytest.mark.destructive
+class TestLinkedInMessageWorkflow:
+    """End-to-end workflow: log → read → update → delete a LinkedIn message on the test contact."""
+
+    async def test_full_linkedin_message_lifecycle(self, live_context):
+        require_contact_id()
+        communication_id = None
+        try:
+            log_result = await hubspot.execute_action(
+                "log_linkedin_messages",
+                {
+                    "messages": [{"contact_id": TEST_CONTACT_ID}],
+                    "default_message_body": f"Integration test LinkedIn message {os.getpid()} — will be deleted.",
+                },
+                live_context,
+            )
+            row = log_result.result.data["results"][0]
+            assert row["status"] == "logged", row
+            communication_id = row["communication_id"]
+
+            get_result = await hubspot.execute_action(
+                "get_linkedin_message", {"communication_id": communication_id}, live_context
+            )
+            communication = get_result.result.data["communication"]
+            assert communication["properties"]["hs_communication_channel_type"] == "LINKEDIN_MESSAGE"
+            contact_ids = [
+                str(a["id"]) for a in communication.get("associations", {}).get("contacts", {}).get("results", [])
+            ]
+            assert str(TEST_CONTACT_ID) in contact_ids
+
+            update_result = await hubspot.execute_action(
+                "update_linkedin_message",
+                {"communication_id": communication_id, "message_body": "Updated integration test LinkedIn message."},
+                live_context,
+            )
+            assert update_result.result.data["success"] is True
+        finally:
+            if communication_id:
+                delete_result = await hubspot.execute_action(
+                    "delete_linkedin_message", {"communication_id": communication_id}, live_context
+                )
+                assert delete_result.result.data["success"] is True
+
+
+@pytest.mark.destructive
+class TestUpsertContacts:
+    async def test_upsert_existing_contact_by_email_updates_it(self, live_context):
+        require_contact_email()
+        result = await hubspot.execute_action(
+            "upsert_contacts", {"contacts": [{"email": TEST_CONTACT_EMAIL}]}, live_context
+        )
+        row = result.result.data["results"][0]
+        assert row["status"] == "updated", row
+        assert row["contact_id"]
+
+
+@pytest.mark.destructive
+class TestCreateAssociation:
+    async def test_links_test_contact_to_test_company(self, live_context):
+        require_contact_id()
+        require_company_id()
+        result = await hubspot.execute_action(
+            "create_association",
+            {
+                "from_object_type": "contacts",
+                "from_object_id": TEST_CONTACT_ID,
+                "to_object_type": "companies",
+                "to_object_id": TEST_COMPANY_ID,
+            },
+            live_context,
+        )
+        assert result.result.data["success"] is True
