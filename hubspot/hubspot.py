@@ -626,6 +626,10 @@ def _match_batch_results(
         if not error_trace_ids:
             unmapped.append(message)
     batch_error = "; ".join(unmapped) or None
+    if data.get("status") in ("PENDING", "PROCESSING"):
+        # The batch may still finish, so a retry now could write the same rows twice
+        warning = "HubSpot is still processing this batch; check HubSpot before retrying"
+        batch_error = f"{warning}; {batch_error}" if batch_error else warning
 
     if len(items_by_trace) < len(items):
         if len(items) == len(trace_ids):

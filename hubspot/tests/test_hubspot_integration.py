@@ -892,8 +892,15 @@ class TestCreateAssociation:
         associations_url = f"https://api.hubapi.com/crm/v4/objects/contacts/{TEST_CONTACT_ID}/associations/companies"
 
         async def linked_company_ids():
-            response = await live_context.fetch(associations_url, method="GET", params={"limit": 500})
-            return {str(item["toObjectId"]) for item in response.data.get("results", [])}
+            # Read every page, so an existing link past the first page isn't mistaken for ours and deleted
+            company_ids, after = set(), None
+            while True:
+                params = {"limit": 500, **({"after": after} if after else {})}
+                response = await live_context.fetch(associations_url, method="GET", params=params)
+                company_ids.update(str(item["toObjectId"]) for item in response.data.get("results", []))
+                after = ((response.data.get("paging") or {}).get("next") or {}).get("after")
+                if not after:
+                    return company_ids
 
         if str(TEST_COMPANY_ID) in await linked_company_ids():
             pytest.skip("HUBSPOT_TEST_CONTACT_ID is already linked to HUBSPOT_TEST_COMPANY_ID; use an unlinked pair")

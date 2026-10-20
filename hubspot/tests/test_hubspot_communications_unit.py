@@ -719,6 +719,21 @@ class TestLogLinkedInMessages:
         assert rows[1]["status"] == "logged"
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", ["PENDING", "PROCESSING"])
+    async def test_unfinished_batch_warns_to_check_before_retrying(self, mock_context, status):
+        mock_context.fetch.return_value = ok({"status": status, "results": []}, status=202)
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "2"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert [r["status"] for r in rows] == ["failed", "failed"]
+        assert all("still processing" in r["error"] and "before retrying" in r["error"] for r in rows)
+
+    @pytest.mark.asyncio
     async def test_more_than_100_rows_rejected_by_schema(self, mock_context):
         result = await hubspot.execute_action(
             "log_linkedin_messages",
