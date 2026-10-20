@@ -1353,7 +1353,7 @@
               "properties": {
                 "email": {
                   "type": "string",
-                  "description": "Contact email address, used to match existing contacts",
+                  "description": "Contact email address, used to match existing contacts. Use each contact once per call: two emails of the same contact, such as its primary and an additional email, are rejected",
                   "pattern": "\\S"
                 },
                 "first_name": {

@@ -6,8 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
-import hubspot.hubspot as hubspot_module
-from hubspot.hubspot import hubspot
+from hubspot.hubspot import fetch_with_rate_limit_retries, hubspot
 
 pytestmark = pytest.mark.unit
 
@@ -1212,9 +1211,7 @@ class TestUpsertContacts:
             ok({"results": [{"id": "9", "properties": {"email": "a@x.com"}}]}),
         ]
 
-        with patch(
-            "hubspot.hubspot.fetch_with_rate_limit_retries", wraps=hubspot_module.fetch_with_rate_limit_retries
-        ) as fetch:
+        with patch("hubspot.hubspot.fetch_with_rate_limit_retries", wraps=fetch_with_rate_limit_retries) as fetch:
             await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
 
         budgets = [call.kwargs["retry_sleep_budget"] for call in fetch.call_args_list]
@@ -1251,6 +1248,7 @@ class TestUpsertContacts:
     @pytest.mark.asyncio
     async def test_results_without_email_matched_by_reading_contacts_back(self, mock_context):
         mock_context.fetch.side_effect = [
+            HTTPError(404, "Not found"),
             ok({"results": [{"id": "9", "new": False, "properties": {"jobtitle": "CTO"}}]}),
             ok(
                 {
@@ -1276,12 +1274,14 @@ class TestUpsertContacts:
 
         await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
 
-        assert fetch_calls(mock_context, CONTACTS_BATCH_READ_URL) == []
+        # Only the lookup before the upsert; no read-back after it
+        assert len(fetch_calls(mock_context, CONTACTS_BATCH_READ_URL)) == 1
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("read_error", [HTTPError(500, "Server error"), aiohttp.ServerDisconnectedError()])
     async def test_unattributable_upsert_result_is_failed_not_updated(self, mock_context, read_error):
         mock_context.fetch.side_effect = [
+            ok({"results": []}),
             ok({"results": [{"id": "9", "new": True, "properties": {}}, {"id": "8", "new": False, "properties": {}}]}),
             read_error,
         ]
@@ -1312,6 +1312,48 @@ class TestUpsertContacts:
         assert result.type == ResultType.ACTION_ERROR
         assert "a@example.com" in result.result.message
         mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_emails_of_the_same_contact_rejected_before_upserting(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {"results": [{"id": "9", "properties": {"email": "jo@x.com", "hs_additional_emails": "jo@old.com"}}]}
+        )
+
+        result = await hubspot.execute_action(
+            "upsert_contacts", {"contacts": [{"email": "jo@x.com"}, {"email": "jo@old.com"}]}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "jo@x.com, jo@old.com" in result.result.message
+        assert fetch_calls(mock_context, CONTACTS_UPSERT_URL) == []
+
+    @pytest.mark.asyncio
+    async def test_existing_contacts_matched_without_a_read_back(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok({"results": [{"id": "9", "properties": {"email": "jo@x.com"}}]}),
+            ok({"results": [{"id": "9", "new": False, "properties": {"jobtitle": "CTO"}}]}),
+        ]
+
+        result = await hubspot.execute_action(
+            "upsert_contacts", {"contacts": [{"email": "jo@x.com", "properties": {"jobtitle": "CTO"}}]}, mock_context
+        )
+
+        assert (result.result.data["results"][0]["status"], result.result.data["results"][0]["contact_id"]) == (
+            "updated",
+            "9",
+        )
+        assert len(fetch_calls(mock_context, CONTACTS_BATCH_READ_URL)) == 1
+
+    @pytest.mark.asyncio
+    async def test_failed_pre_lookup_still_upserts(self, mock_context):
+        mock_context.fetch.side_effect = [
+            HTTPError(500, "Server error"),
+            ok({"results": [{"id": "1", "new": True, "properties": {"email": "a@x.com"}}]}),
+        ]
+
+        result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
+
+        assert result.result.data["results"][0]["status"] == "created"
 
     @pytest.mark.asyncio
     async def test_row_without_email_rejected_by_schema(self, mock_context):

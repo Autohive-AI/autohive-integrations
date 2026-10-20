@@ -82,7 +82,7 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Description:** Create or update up to 100 contacts in one call, matched on email. Existing contacts are updated instead of duplicated, so this is the step to run before `log_linkedin_messages` for people who aren't in HubSpot yet.
 - **Inputs:**
   - `contacts` (required): 1–100 rows, each with:
-    - `email` (required): Used to match an existing contact. Each email may appear only once per call
+    - `email` (required): Used to match an existing contact. Each contact may appear only once per call: repeating an email, or passing two emails of the same contact (for example its primary and an additional email), rejects the call before anything is written
     - `first_name`, `last_name` (optional)
     - `properties` (optional): Other contact properties by internal name, e.g. `{"jobtitle": "CTO"}`. `null` or `""` clears a value and a list sets multi-select options. `email` is ignored here: it only identifies the contact, so this action never changes a contact's primary email
 - **Outputs:**

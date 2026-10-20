@@ -1502,8 +1502,26 @@ class UpsertContactsActionHandler(ActionHandler):
             return ActionError(message=f"Each email can appear only once per call. Duplicates: {', '.join(duplicates)}")
         # HubSpot rejects objectWriteTraceId on email-keyed upserts, so rows are matched by email or contact ID
         row_key_by_email = {email: str(row_index) for row_index, email in enumerate(emails)}
-        # One rate-limit retry budget for the upsert and the read-back that matches its results
+        # One rate-limit retry budget for the upsert and the lookups that match its results
         retry_sleep_budget = {"remaining": 10}
+
+        # Look the emails up first: two rows can be one contact when one is that contact's additional email
+        try:
+            existing_ids_by_email, _ = await _find_contact_ids_by_email(emails, context, retry_sleep_budget)
+        except REQUEST_ERRORS:
+            existing_ids_by_email = {}  # results are still matched by the read-back below
+        emails_by_contact_id: Dict[str, list[str]] = {}
+        for email in emails:
+            if email in existing_ids_by_email:
+                emails_by_contact_id.setdefault(existing_ids_by_email[email], []).append(email)
+        shared = [", ".join(group) for group in emails_by_contact_id.values() if len(group) > 1]
+        if shared:
+            return ActionError(
+                message=f"These emails belong to the same HubSpot contact, pass only one of each: {' | '.join(shared)}"
+            )
+        row_key_by_contact_id = {
+            contact_id: row_key_by_email[group[0]] for contact_id, group in emails_by_contact_id.items()
+        }
 
         batch_inputs = []
         for contact, email in zip(contacts, emails):
@@ -1539,14 +1557,12 @@ class UpsertContactsActionHandler(ActionHandler):
                 message += "; HubSpot may have saved some of them, and retrying is safe"
             return ActionError(message=message)
 
-        row_key_by_contact_id: Dict[str, str] = {}
-
         def row_key_for(item: Dict[str, Any]) -> str | None:
             email = ((item.get("properties") or {}).get("email") or "").lower()
             return row_key_by_email.get(email) or row_key_by_contact_id.get(str(item.get("id")))
 
         data = await parse_response(response) or {}
-        # Updated contacts may come back without their email, so read them back by email to match on contact ID
+        # New contacts may come back without their email, so read them back by email to match on contact ID
         if any(row_key_for(item) is None for item in data.get("results", [])):
             try:
                 contact_ids_by_email, _ = await _find_contact_ids_by_email(emails, context, retry_sleep_budget)
