@@ -701,6 +701,24 @@ class TestLogLinkedInMessages:
         assert rows[1]["status"] == "logged"
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("error", [aiohttp.ServerDisconnectedError(), asyncio.TimeoutError()])
+    @pytest.mark.parametrize("row", [{"email": "jo@example.com"}, {"first_name": "Jo", "last_name": "Bloggs"}])
+    async def test_lookup_connection_error_fails_only_that_row(self, mock_context, row, error):
+        mock_context.fetch.side_effect = [error, batch_created("1")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [row, {"contact_id": "2"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert rows[0]["status"] == "failed"
+        assert rows[0]["error"].startswith("Contact lookup failed: ")
+        assert rows[0]["error"] != "Contact lookup failed: "
+        assert rows[1]["status"] == "logged"
+
+    @pytest.mark.asyncio
     async def test_more_than_100_rows_rejected_by_schema(self, mock_context):
         result = await hubspot.execute_action(
             "log_linkedin_messages",

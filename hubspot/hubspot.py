@@ -775,8 +775,8 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                 matches.update(
                     {email: [contact_ids_by_email[email]] if email in contact_ids_by_email else [] for email in emails}
                 )
-            except HTTPError as e:
-                matches.update({email: f"Contact lookup failed: {e}" for email in emails})
+            except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError) as e:
+                matches.update({email: f"Contact lookup failed: {str(e) or type(e).__name__}" for email in emails})
 
         names = list(dict.fromkeys(key for _, _, _, kind, key in pending if kind == "name"))
         for index, (first_name, last_name) in enumerate(names):
@@ -786,8 +786,8 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                 matches[(first_name, last_name)] = await _find_contact_ids_by_name(
                     first_name, last_name, context, retry_sleep_budget
                 )
-            except HTTPError as e:
-                matches[(first_name, last_name)] = f"Contact lookup failed: {e}"
+            except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError) as e:
+                matches[(first_name, last_name)] = f"Contact lookup failed: {str(e) or type(e).__name__}"
 
         batch_inputs = []
         for row, result, body, kind, key in pending:
