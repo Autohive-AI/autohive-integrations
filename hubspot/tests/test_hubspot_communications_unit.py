@@ -1,3 +1,6 @@
+import asyncio
+
+import aiohttp
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from autohive_integrations_sdk import FetchResponse, HTTPError
@@ -13,6 +16,7 @@ def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {}
+    ctx.config = {"max_retries": 3, "timeout": 30}
     return ctx
 
 
@@ -633,6 +637,37 @@ class TestLogLinkedInMessages:
         assert statuses == [("failed", "HTTP 400: Invalid input")] * 2
 
     @pytest.mark.asyncio
+    async def test_batch_create_is_not_resent_by_the_sdk(self, mock_context):
+        mock_context.fetch.return_value = batch_created("0")
+
+        await hubspot.execute_action(
+            "log_linkedin_messages", {"messages": [{"contact_id": "1"}], "default_message_body": "Hi"}, mock_context
+        )
+
+        # Starting at the SDK's retry limit stops it resending a create HubSpot may already have saved
+        assert fetch_calls(mock_context, BATCH_CREATE_URL)[0].kwargs["retry_count"] == 3
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error",
+        [aiohttp.ServerDisconnectedError(), asyncio.TimeoutError(), HTTPError(504, "Gateway timeout")],
+    )
+    async def test_ambiguous_batch_failure_warns_to_check_before_retrying(self, mock_context, error):
+        mock_context.fetch.side_effect = error
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "2"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        rows = result.result.data["results"]
+        assert [r["status"] for r in rows] == ["failed", "failed"]
+        assert all("check the contact's timeline before retrying" in r["error"] for r in rows)
+        assert len(fetch_calls(mock_context, BATCH_CREATE_URL)) == 1
+
+    @pytest.mark.asyncio
     async def test_search_http_error_fails_only_that_row(self, mock_context):
         mock_context.fetch.side_effect = [HTTPError(500, "Search unavailable"), batch_created("1")]
 
@@ -839,7 +874,9 @@ class TestDeleteLinkedInMessage:
 class TestUpsertContacts:
     @pytest.mark.asyncio
     async def test_upsert_payload_uses_email_as_id_property(self, mock_context):
-        mock_context.fetch.return_value = ok({"results": [{"id": "1", "new": True, "objectWriteTraceId": "0"}]})
+        mock_context.fetch.return_value = ok(
+            {"results": [{"id": "1", "new": True, "properties": {"email": "jo@example.com"}}]}
+        )
 
         await hubspot.execute_action(
             "upsert_contacts",
@@ -864,7 +901,6 @@ class TestUpsertContacts:
                 {
                     "id": "jo@example.com",
                     "idProperty": "email",
-                    "objectWriteTraceId": "0",
                     "properties": {
                         "jobtitle": "CTO",
                         "numemployees": "50",
@@ -882,8 +918,8 @@ class TestUpsertContacts:
         mock_context.fetch.return_value = ok(
             {
                 "results": [
-                    {"id": "2", "new": False, "objectWriteTraceId": "1"},
-                    {"id": "1", "new": True, "objectWriteTraceId": "0"},
+                    {"id": "2", "new": False, "properties": {"email": "old@example.com"}},
+                    {"id": "1", "new": True, "properties": {"email": "new@example.com"}},
                 ]
             }
         )
@@ -903,7 +939,7 @@ class TestUpsertContacts:
     async def test_partial_upsert_marks_missing_rows_failed(self, mock_context):
         mock_context.fetch.return_value = ok(
             {
-                "results": [{"id": "1", "new": True, "objectWriteTraceId": "0"}],
+                "results": [{"id": "1", "new": True, "properties": {"email": "a@example.com"}}],
                 "errors": [{"message": "Property values were not valid"}],
                 "numErrors": 1,
             },
@@ -920,28 +956,7 @@ class TestUpsertContacts:
         assert data["success"] is False
 
     @pytest.mark.asyncio
-    async def test_upsert_errors_mapped_to_their_own_rows(self, mock_context):
-        mock_context.fetch.return_value = ok(
-            {
-                "results": [{"id": "1", "new": True, "objectWriteTraceId": "0"}],
-                "errors": [
-                    {"message": "Bad phone", "context": {"objectWriteTraceId": ["1"]}},
-                    {"message": "Bad country", "context": {"objectWriteTraceId": ["2"]}},
-                ],
-            },
-            status=207,
-        )
-
-        result = await hubspot.execute_action(
-            "upsert_contacts",
-            {"contacts": [{"email": "a@example.com"}, {"email": "b@example.com"}, {"email": "c@example.com"}]},
-            mock_context,
-        )
-
-        assert [r["error"] for r in result.result.data["results"]] == [None, "Bad phone", "Bad country"]
-
-    @pytest.mark.asyncio
-    async def test_upsert_results_without_trace_ids_matched_by_email(self, mock_context):
+    async def test_upsert_results_matched_by_email_ignoring_case(self, mock_context):
         mock_context.fetch.return_value = ok(
             {
                 "results": [
@@ -962,7 +977,9 @@ class TestUpsertContacts:
 
     @pytest.mark.asyncio
     async def test_none_property_value_clears_it(self, mock_context):
-        mock_context.fetch.return_value = ok({"results": [{"id": "1", "new": False, "objectWriteTraceId": "0"}]})
+        mock_context.fetch.return_value = ok(
+            {"results": [{"id": "1", "new": False, "properties": {"email": "a@example.com"}}]}
+        )
 
         await hubspot.execute_action(
             "upsert_contacts", {"contacts": [{"email": "a@example.com", "properties": {"phone": None}}]}, mock_context

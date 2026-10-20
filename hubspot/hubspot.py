@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 import asyncio
 import re
 
+import aiohttp
+
 from autohive_integrations_sdk import (
     Integration,
     ExecutionContext,
@@ -811,6 +813,9 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                     context,
                     f"{COMMUNICATIONS_API_URL}/batch/create",
                     retry_sleep_budget=retry_sleep_budget,
+                    # Start at the SDK's retry limit so it doesn't resend after a dropped connection or
+                    # timeout: HubSpot may already have saved the batch, and a resend would duplicate it
+                    retry_count=context.config["max_retries"],
                     method="POST",
                     json={"inputs": batch_inputs},
                     headers={"Content-Type": "application/json"},
@@ -820,8 +825,13 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                     trace_ids,
                     "HubSpot did not return a created message for this row",
                 )
-            except HTTPError as e:
-                created_by_row, errors_by_row = {}, {trace_id: str(e) for trace_id in trace_ids}
+            except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError) as e:
+                error = str(e) or type(e).__name__
+                if not isinstance(e, HTTPError) or e.status >= 500:
+                    error = (
+                        f"{error}; HubSpot may have logged this message, check the contact's timeline before retrying"
+                    )
+                created_by_row, errors_by_row = {}, {trace_id: error for trace_id in trace_ids}
 
             for trace_id in trace_ids:
                 result = results[int(trace_id)]
@@ -1413,7 +1423,8 @@ class UpsertContactsActionHandler(ActionHandler):
         duplicates = sorted(email for email, count in Counter(emails).items() if count > 1)
         if duplicates:
             return ActionError(message=f"Each email can appear only once per call. Duplicates: {', '.join(duplicates)}")
-        trace_id_by_email = {email: str(row_index) for row_index, email in enumerate(emails)}
+        # HubSpot rejects objectWriteTraceId on email-keyed upserts, so rows are matched on the returned email
+        row_key_by_email = {email: str(row_index) for row_index, email in enumerate(emails)}
 
         batch_inputs = []
         for contact, email in zip(contacts, emails):
@@ -1431,7 +1442,6 @@ class UpsertContactsActionHandler(ActionHandler):
                 {
                     "id": email,
                     "idProperty": "email",
-                    "objectWriteTraceId": trace_id_by_email[email],
                     "properties": properties,
                 }
             )
@@ -1447,22 +1457,19 @@ class UpsertContactsActionHandler(ActionHandler):
         except HTTPError as e:
             return ActionError(message=f"Failed to upsert contacts: {e}")
 
-        # Match on the echoed trace ID, or on the returned email if HubSpot doesn't echo it
         upserted_by_row, errors_by_row = _match_batch_results(
             await parse_response(response) or {},
-            list(trace_id_by_email.values()),
+            list(row_key_by_email.values()),
             "HubSpot did not return a contact for this row",
-            trace_id_for=lambda item: trace_id_by_email.get(
-                ((item.get("properties") or {}).get("email") or "").lower()
-            ),
+            trace_id_for=lambda item: row_key_by_email.get(((item.get("properties") or {}).get("email") or "").lower()),
         )
 
         results = []
-        for email, trace_id in trace_id_by_email.items():
-            result = {"row_index": int(trace_id), "email": email, "status": "failed", "contact_id": None, "error": None}
-            upserted = upserted_by_row.get(trace_id)
+        for email, row_key in row_key_by_email.items():
+            result = {"row_index": int(row_key), "email": email, "status": "failed", "contact_id": None, "error": None}
+            upserted = upserted_by_row.get(row_key)
             if upserted is None:
-                result["error"] = errors_by_row[trace_id]
+                result["error"] = errors_by_row[row_key]
             elif not upserted:
                 result["error"] = "HubSpot didn't say which contact this row matched; retrying is safe"
             else:

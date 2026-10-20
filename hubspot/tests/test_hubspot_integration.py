@@ -791,16 +791,22 @@ class TestLinkedInMessageWorkflow:
 
     async def test_full_linkedin_message_lifecycle(self, live_context):
         require_contact_id()
-        communication_id = None
+        # IDs come from HubSpot's raw batch response, so cleanup doesn't depend on the action matching rows
+        created_ids = set()
+        responses_before = len(live_context.api_responses)
         try:
-            log_result = await hubspot.execute_action(
-                "log_linkedin_messages",
-                {
-                    "messages": [{"contact_id": TEST_CONTACT_ID}],
-                    "default_message_body": f"Integration test LinkedIn message {os.getpid()} — will be deleted.",
-                },
-                live_context,
-            )
+            try:
+                log_result = await hubspot.execute_action(
+                    "log_linkedin_messages",
+                    {
+                        "messages": [{"contact_id": TEST_CONTACT_ID}],
+                        "default_message_body": f"Integration test LinkedIn message {os.getpid()} — will be deleted.",
+                    },
+                    live_context,
+                )
+            finally:
+                for body in live_context.api_responses[responses_before:]:
+                    created_ids.update(str(item["id"]) for item in body.get("results", []) if item.get("id"))
             row = log_result.result.data["results"][0]
             communication_id = row["communication_id"]
             assert row["status"] == "logged", row
@@ -833,18 +839,16 @@ class TestLinkedInMessageWorkflow:
                 "delete_linkedin_message", {"communication_id": communication_id}, live_context
             )
             assert delete_result.result.data["success"] is True
-            deleted_id, communication_id = communication_id, None
+            created_ids.discard(communication_id)
 
             # A deleted (archived) communication is no longer returned by a normal read
             with pytest.raises(HTTPError, match="HTTP 404"):
                 await live_context.fetch(
-                    f"https://api.hubapi.com/crm/v3/objects/communications/{deleted_id}", method="GET"
+                    f"https://api.hubapi.com/crm/v3/objects/communications/{communication_id}", method="GET"
                 )
         finally:
-            if communication_id:
-                await hubspot.execute_action(
-                    "delete_linkedin_message", {"communication_id": communication_id}, live_context
-                )
+            for created_id in created_ids:
+                await hubspot.execute_action("delete_linkedin_message", {"communication_id": created_id}, live_context)
 
 
 @pytest.mark.destructive
