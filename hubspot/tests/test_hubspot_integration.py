@@ -6,8 +6,10 @@ set in the HUBSPOT_ACCESS_TOKEN environment variable (via .env or export).
 
 Read-only tests require specific object IDs set in environment variables:
     HUBSPOT_TEST_CONTACT_ID, HUBSPOT_TEST_COMPANY_ID, HUBSPOT_TEST_DEAL_ID,
-    HUBSPOT_TEST_TICKET_ID, HUBSPOT_TEST_LIST_ID, HUBSPOT_TEST_OWNER_ID,
-    HUBSPOT_TEST_CONTACT_EMAIL
+    HUBSPOT_TEST_TICKET_ID, HUBSPOT_TEST_LIST_ID, HUBSPOT_TEST_OWNER_ID
+
+Destructive tests also use HUBSPOT_TEST_CONTACT_EMAIL (contact upsert) and
+HUBSPOT_TEST_COMPANY_ID (record linking).
 
 The list-membership tests require HUBSPOT_TEST_LIST_ID to identify a MANUAL or
 SNAPSHOT list and HUBSPOT_TEST_CONTACT_ID to identify the contact to update.

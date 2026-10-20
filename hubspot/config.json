@@ -543,7 +543,7 @@
           },
           "failed": {
             "type": "integer",
-            "description": "Rows whose contact lookup or create failed; see each row's error"
+            "description": "Rows whose contact lookup or message create failed; see each row's error"
           },
           "success": {
             "type": "boolean",
@@ -1339,7 +1339,7 @@
     },
     "upsert_contacts": {
       "display_name": "Create or Update Contacts",
-      "description": "Create or update up to 100 contacts in one call, matched on email so existing contacts are updated instead of duplicated. Every row needs an email address.",
+      "description": "Create or update up to 100 contacts in one call, matched on email so existing contacts are updated instead of duplicated. Every row needs an email address. If HubSpot can't confirm the emails first, nothing is written and the call fails; retrying is safe.",
       "input_schema": {
         "type": "object",
         "properties": {

@@ -89,7 +89,7 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `results`: One row per input with `row_index`, `email`, `status` (`created`, `updated`, or `failed`), `contact_id`, and `error`. A row is `failed` when HubSpot rejected it or didn't say which contact it matched; retrying is safe
   - `created`, `updated`, `failed`: Counts
   - `success`: `true` when no rows failed
-- **Note:** People without an email address can't be matched or created by this action. Uses HubSpot's [contacts batch upsert](https://developers.hubspot.com/docs/api-reference/crm-contacts-v3/batch/post-crm-v3-objects-contacts-batch-upsert) endpoint.
+- **Note:** People without an email address can't be matched or created by this action. The emails are looked up before anything is written; if HubSpot can't confirm them, nothing is written and the call fails, and retrying is safe. Uses HubSpot's [contacts batch upsert](https://developers.hubspot.com/docs/api-reference/crm-contacts-v3/batch/post-crm-v3-objects-contacts-batch-upsert) endpoint.
 
 #### Action: `get_contact_emails`
 - **Description:** Retrieve recent email conversations for a contact using the v4 Associations API

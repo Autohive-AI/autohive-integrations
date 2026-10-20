@@ -15,7 +15,7 @@ pytestmark = pytest.mark.unit
 def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
-    ctx.auth = {}
+    ctx.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_token"}}  # nosec B105
     ctx.config = {"max_retries": 3, "timeout": 30}
     return ctx
 
@@ -1117,14 +1117,17 @@ class TestUpsertContacts:
 
     @pytest.mark.asyncio
     async def test_partial_upsert_marks_missing_rows_failed(self, mock_context):
-        mock_context.fetch.return_value = ok(
-            {
-                "results": [{"id": "1", "new": True, "properties": {"email": "a@example.com"}}],
-                "errors": [{"message": "Property values were not valid"}],
-                "numErrors": 1,
-            },
-            status=207,
-        )
+        mock_context.fetch.side_effect = [
+            ok({"results": []}),
+            ok(
+                {
+                    "results": [{"id": "1", "new": True, "properties": {"email": "a@example.com"}}],
+                    "errors": [{"message": "Property values were not valid"}],
+                    "numErrors": 1,
+                },
+                status=207,
+            ),
+        ]
 
         result = await hubspot.execute_action(
             "upsert_contacts", {"contacts": [{"email": "a@example.com"}, {"email": "b@example.com"}]}, mock_context
@@ -1171,7 +1174,7 @@ class TestUpsertContacts:
         "error", [aiohttp.ServerDisconnectedError(), asyncio.TimeoutError(), HTTPError(503, "Unavailable")]
     )
     async def test_ambiguous_upsert_failure_says_outcome_unknown(self, mock_context, error):
-        mock_context.fetch.side_effect = error
+        mock_context.fetch.side_effect = [ok({"results": []}), error]
 
         result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
 
@@ -1196,7 +1199,7 @@ class TestUpsertContacts:
 
     @pytest.mark.asyncio
     async def test_canceled_upsert_rows_fail(self, mock_context):
-        mock_context.fetch.return_value = ok({"status": "CANCELED", "results": []})
+        mock_context.fetch.side_effect = [ok({"results": []}), ok({"status": "CANCELED", "results": []})]
 
         result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
 
@@ -1207,16 +1210,24 @@ class TestUpsertContacts:
     @pytest.mark.asyncio
     async def test_upsert_and_read_back_share_one_rate_limit_budget(self, mock_context):
         mock_context.fetch.side_effect = [
-            ok({"results": [{"id": "9", "new": False, "properties": {}}]}),
+            ok({"results": []}),
+            ok({"results": [{"id": "9", "new": True, "properties": {}}]}),
             ok({"results": [{"id": "9", "properties": {"email": "a@x.com"}}]}),
         ]
 
         with patch("hubspot.hubspot.fetch_with_rate_limit_retries", wraps=fetch_with_rate_limit_retries) as fetch:
-            await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
+            result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
 
+        # Lookup, upsert, then the read-back that matches the new contact
+        assert [call.args[1] for call in fetch.call_args_list] == [
+            CONTACTS_BATCH_READ_URL,
+            CONTACTS_UPSERT_URL,
+            CONTACTS_BATCH_READ_URL,
+        ]
         budgets = [call.kwargs["retry_sleep_budget"] for call in fetch.call_args_list]
-        assert len(budgets) == 2
-        assert budgets[0] is budgets[1]
+        assert all(budget is budgets[0] for budget in budgets)
+        row = result.result.data["results"][0]
+        assert (row["status"], row["contact_id"]) == ("created", "9")
 
     @pytest.mark.asyncio
     async def test_none_property_value_clears_it(self, mock_context):
@@ -1345,9 +1356,36 @@ class TestUpsertContacts:
         assert len(fetch_calls(mock_context, CONTACTS_BATCH_READ_URL)) == 1
 
     @pytest.mark.asyncio
-    async def test_failed_pre_lookup_still_upserts(self, mock_context):
-        mock_context.fetch.side_effect = [
+    @pytest.mark.parametrize(
+        "lookup",
+        [
             HTTPError(500, "Server error"),
+            asyncio.TimeoutError(),
+            ok({"status": "CANCELED", "results": []}),
+            ok(
+                {
+                    "results": [],
+                    "errors": [{"category": "VALIDATION_ERROR", "message": "Bad", "context": {"ids": ["b@x.com"]}}],
+                },
+                status=207,
+            ),
+        ],
+    )
+    async def test_failed_pre_lookup_aborts_before_upserting(self, mock_context, lookup):
+        mock_context.fetch.side_effect = [lookup]
+
+        result = await hubspot.execute_action(
+            "upsert_contacts", {"contacts": [{"email": "a@x.com"}, {"email": "b@x.com"}]}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "nothing was written" in result.result.message
+        assert fetch_calls(mock_context, CONTACTS_UPSERT_URL) == []
+
+    @pytest.mark.asyncio
+    async def test_pre_lookup_with_no_matches_still_upserts(self, mock_context):
+        mock_context.fetch.side_effect = [
+            HTTPError(404, "Not found"),
             ok({"results": [{"id": "1", "new": True, "properties": {"email": "a@x.com"}}]}),
         ]
 

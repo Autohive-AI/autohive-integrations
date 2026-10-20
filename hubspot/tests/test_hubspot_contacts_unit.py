@@ -3,7 +3,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from autohive_integrations_sdk import FetchResponse, HTTPError
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
@@ -49,7 +49,7 @@ class TestGetContact:
         monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", sleep_mock)
         contact_data = {"id": "123", "properties": {"email": "test@example.com"}}
         mock_context.fetch.side_effect = [
-            HTTPError(429, "Rate limit exceeded"),
+            RateLimitError(1, 429, "Rate limit exceeded"),
             FetchResponse(status=200, headers={}, data={"results": [contact_data]}),
         ]
 
@@ -63,7 +63,7 @@ class TestGetContact:
     async def test_rate_limit_exhaustion_surfaces_error(self, mock_context, monkeypatch):
         sleep_mock = AsyncMock()
         monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", sleep_mock)
-        mock_context.fetch.side_effect = HTTPError(429, "Rate limit exceeded")
+        mock_context.fetch.side_effect = RateLimitError(1, 429, "Rate limit exceeded")
 
         with pytest.raises(HTTPError, match="HTTP 429"):
             await hubspot.execute_action("get_contact", {"email": "test@example.com"}, mock_context)

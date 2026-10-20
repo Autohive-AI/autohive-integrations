@@ -1505,11 +1505,16 @@ class UpsertContactsActionHandler(ActionHandler):
         # One rate-limit retry budget for the upsert and the lookups that match its results
         retry_sleep_budget = {"remaining": 10}
 
-        # Look the emails up first: two rows can be one contact when one is that contact's additional email
+        # Look the emails up first: two rows can be one contact when one is that contact's additional email.
+        # Without a complete lookup that can't be ruled out, so nothing is written
+        not_checked = "Could not check the emails before upserting, so nothing was written; retrying is safe"
         try:
-            existing_ids_by_email, _ = await _find_contact_ids_by_email(emails, context, retry_sleep_budget)
-        except REQUEST_ERRORS:
-            existing_ids_by_email = {}  # results are still matched by the read-back below
+            existing_ids_by_email, lookup_errors = await _find_contact_ids_by_email(emails, context, retry_sleep_budget)
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"{not_checked}: {_error_text(e)}")
+        if lookup_errors:
+            details = "; ".join(f"{email}: {error}" for email, error in lookup_errors.items())
+            return ActionError(message=f"{not_checked}: {details}")
         emails_by_contact_id: Dict[str, list[str]] = {}
         for email in emails:
             if email in existing_ids_by_email:
