@@ -734,6 +734,90 @@ class TestLogLinkedInMessages:
         assert all("still processing" in r["error"] and "before retrying" in r["error"] for r in rows)
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", ["PENDING", "PROCESSING"])
+    async def test_unfinished_email_lookup_fails_rows_not_found(self, mock_context, status):
+        mock_context.fetch.side_effect = [ok({"status": status, "results": []}, status=202), batch_created("1")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"email": "jo@example.com"}, {"contact_id": "2"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert rows[0]["status"] == "failed"
+        assert "still processing" in rows[0]["error"]
+        assert rows[1]["status"] == "logged"
+
+    @pytest.mark.asyncio
+    async def test_email_lookup_row_errors_fail_only_those_rows(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok(
+                {
+                    "status": "COMPLETE",
+                    "results": [{"id": "900", "properties": {"email": "found@example.com"}}],
+                    "errors": [
+                        {
+                            "category": "OBJECT_NOT_FOUND",
+                            "message": "Not found",
+                            "context": {"ids": ["gone@example.com"]},
+                        },
+                        {
+                            "category": "VALIDATION_ERROR",
+                            "message": "Bad email",
+                            "context": {"ids": ["Bad@example.com"]},
+                        },
+                    ],
+                },
+                status=207,
+            ),
+            batch_created("0"),
+        ]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [
+                    {"email": "found@example.com"},
+                    {"email": "gone@example.com"},
+                    {"email": "bad@example.com"},
+                ],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert [r["status"] for r in rows] == ["logged", "not_found", "failed"]
+        assert rows[2]["error"] == "Contact lookup failed: Bad email"
+
+    @pytest.mark.asyncio
+    async def test_email_lookup_error_without_ids_fails_unmatched_rows(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok(
+                {
+                    "results": [{"id": "900", "properties": {"email": "found@example.com"}}],
+                    "errors": [{"category": "INTERNAL_ERROR", "message": "Something broke"}],
+                },
+                status=207,
+            ),
+            batch_created("0"),
+        ]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [{"email": "found@example.com"}, {"email": "other@example.com"}],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert [r["status"] for r in rows] == ["logged", "failed"]
+        assert "Something broke" in rows[1]["error"]
+
+    @pytest.mark.asyncio
     async def test_more_than_100_rows_rejected_by_schema(self, mock_context):
         result = await hubspot.execute_action(
             "log_linkedin_messages",

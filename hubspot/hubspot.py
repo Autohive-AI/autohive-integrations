@@ -651,8 +651,8 @@ def _match_batch_results(
 
 async def _find_contact_ids_by_email(
     emails: list[str], context: ExecutionContext, retry_sleep_budget: Dict[str, int]
-) -> Dict[str, str]:
-    """Return {lowercased email: contact ID} for the given emails using one batch read.
+) -> tuple[Dict[str, str], Dict[str, str]]:
+    """Return ({lowercased email: contact ID}, {email: lookup error}) for the given emails using one batch read.
 
     Batch read looks contacts up by their unique email directly, so it doesn't depend on the
     search index (which can lag behind newly created contacts) or the search rate limit.
@@ -674,7 +674,7 @@ async def _find_contact_ids_by_email(
     except HTTPError as e:
         # HubSpot answers 404 when none of the emails match a contact
         if e.status == 404:
-            return {}
+            return {}, {}
         raise
     data = await parse_response(response) or {}
     contact_ids_by_email = {}
@@ -685,7 +685,20 @@ async def _find_contact_ids_by_email(
         for address in [properties.get("email") or "", *additional_emails]:
             if address.strip():
                 contact_ids_by_email[address.strip().lower()] = str(contact["id"])
-    return contact_ids_by_email
+
+    # Only OBJECT_NOT_FOUND means a contact is missing; an unfinished batch or any other error is a failed lookup
+    unmatched = [email for email in emails if email not in contact_ids_by_email]
+    errors_by_email: Dict[str, str] = {}
+    if data.get("status") in ("PENDING", "PROCESSING"):
+        errors_by_email.update({email: "HubSpot is still processing the lookup" for email in unmatched})
+    for error in data.get("errors", []):
+        if error.get("category") == "OBJECT_NOT_FOUND":
+            continue
+        error_emails = [str(i).lower() for i in (error.get("context") or {}).get("ids") or []] or unmatched
+        for email in error_emails:
+            if email in unmatched:
+                errors_by_email[email] = error.get("message") or "HubSpot could not look up this email"
+    return contact_ids_by_email, errors_by_email
 
 
 async def _find_contact_ids_by_name(
@@ -775,10 +788,16 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
         emails = sorted({key for _, _, _, kind, key in pending if kind == "email"})
         if emails:
             try:
-                contact_ids_by_email = await _find_contact_ids_by_email(emails, context, retry_sleep_budget)
-                matches.update(
-                    {email: [contact_ids_by_email[email]] if email in contact_ids_by_email else [] for email in emails}
+                contact_ids_by_email, errors_by_email = await _find_contact_ids_by_email(
+                    emails, context, retry_sleep_budget
                 )
+                for email in emails:
+                    if email in contact_ids_by_email:
+                        matches[email] = [contact_ids_by_email[email]]
+                    elif email in errors_by_email:
+                        matches[email] = f"Contact lookup failed: {errors_by_email[email]}"
+                    else:
+                        matches[email] = []
             except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError) as e:
                 matches.update({email: f"Contact lookup failed: {str(e) or type(e).__name__}" for email in emails})
 
@@ -1477,7 +1496,7 @@ class UpsertContactsActionHandler(ActionHandler):
         # Updated contacts may come back without their email, so read them back by email to match on contact ID
         if any(row_key_for(item) is None for item in data.get("results", [])):
             try:
-                contact_ids_by_email = await _find_contact_ids_by_email(emails, context, {"remaining": 10})
+                contact_ids_by_email, _ = await _find_contact_ids_by_email(emails, context, {"remaining": 10})
             except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError):
                 contact_ids_by_email = {}  # unmatched rows are reported as unattributed below
             row_key_by_contact_id.update(
