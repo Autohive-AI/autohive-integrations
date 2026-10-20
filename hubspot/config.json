@@ -400,7 +400,7 @@
     },
     "log_linkedin_messages": {
       "display_name": "Log LinkedIn Messages",
-      "description": "Log a LinkedIn message on up to 100 existing HubSpot contacts in one call, for example people who accepted a LinkedIn connection request. Each row is matched to exactly one contact by contact ID, email, or first and last name; rows that match no contact or several contacts are reported and not logged. Use upsert_contacts first to add people who are not in HubSpot yet.",
+      "description": "Log a LinkedIn message on up to 100 existing HubSpot contacts in one call, for example people who accepted a LinkedIn connection request. Each row is matched to exactly one contact by contact ID, email, or first and last name; rows that match no contact or several contacts are reported and not logged. To add people who are not in HubSpot yet, run upsert_contacts first and pass each returned contact_id in the message row.",
       "input_schema": {
         "type": "object",
         "properties": {

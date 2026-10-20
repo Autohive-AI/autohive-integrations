@@ -536,6 +536,7 @@ class DeleteNoteActionHandler(ActionHandler):
 
 COMMUNICATIONS_API_URL = "https://api.hubapi.com/crm/v3/objects/communications"
 CONTACTS_SEARCH_API_URL = "https://api.hubapi.com/crm/v3/objects/contacts/search"
+CONTACTS_BATCH_READ_API_URL = "https://api.hubapi.com/crm/v3/objects/contacts/batch/read"
 
 # HubSpot-defined association type IDs from a communication to other records
 COMMUNICATION_TO_CONTACT_ASSOCIATION_ID = 81
@@ -544,6 +545,9 @@ COMMUNICATION_TO_DEAL_ASSOCIATION_ID = 85
 
 # Number of matching contacts returned as candidates when a name or email is ambiguous
 CONTACT_MATCH_LIMIT = 5
+
+# HubSpot allows 5 CRM search requests per second per account; space name searches to stay under it
+NAME_SEARCH_INTERVAL_SECONDS = 0.25
 
 
 def _hubspot_defined_association(record_id: Any, association_type_id: int) -> Dict[str, Any]:
@@ -576,16 +580,51 @@ def _row_identifier(row: Dict[str, Any]) -> str | None:
     return None
 
 
-async def _find_contact_ids(row: Dict[str, Any], context: ExecutionContext) -> list[str]:
-    """Return the IDs of contacts matching a row's email, or first and last name."""
-    if (row.get("email") or "").strip():
-        filters = [{"propertyName": "email", "operator": "EQ", "value": row["email"].strip()}]
-    else:
-        filters = [
-            {"propertyName": "firstname", "operator": "EQ", "value": row["first_name"].strip()},
-            {"propertyName": "lastname", "operator": "EQ", "value": row["last_name"].strip()},
-        ]
+def _errors_by_trace_id(errors: list[Dict[str, Any]]) -> tuple[Dict[str, str], str | None]:
+    """Map batch errors to rows via context.objectWriteTraceId; return (per-row messages, unmapped message)."""
+    by_trace_id: Dict[str, list[str]] = {}
+    unmapped = []
+    for error in errors:
+        message = error.get("message", "")
+        trace_ids = (error.get("context") or {}).get("objectWriteTraceId") or []
+        for trace_id in trace_ids:
+            by_trace_id.setdefault(str(trace_id), []).append(message)
+        if not trace_ids:
+            unmapped.append(message)
+    return {trace_id: "; ".join(messages) for trace_id, messages in by_trace_id.items()}, "; ".join(unmapped) or None
 
+
+async def _find_contact_ids_by_email(emails: list[str], context: ExecutionContext) -> Dict[str, str]:
+    """Return {lowercased email: contact ID} for the given emails using one batch read.
+
+    Batch read looks contacts up by their unique email directly, so it doesn't depend on the
+    search index (which can lag behind newly created contacts) or the search rate limit.
+    """
+    response = await fetch_with_rate_limit_retries(
+        context,
+        CONTACTS_BATCH_READ_API_URL,
+        method="POST",
+        json={
+            "idProperty": "email",
+            "inputs": [{"id": email} for email in emails],
+            "properties": ["email"],
+            "propertiesWithHistory": [],
+        },
+        headers={"Content-Type": "application/json"},
+    )
+    data = await parse_response(response) or {}
+    return {
+        (contact.get("properties", {}).get("email") or "").lower(): str(contact["id"])
+        for contact in data.get("results", [])
+    }
+
+
+async def _find_contact_ids_by_name(first_name: str, last_name: str, context: ExecutionContext) -> list[str]:
+    """Return the IDs of contacts whose first and last name exactly match."""
+    filters = [
+        {"propertyName": "firstname", "operator": "EQ", "value": first_name},
+        {"propertyName": "lastname", "operator": "EQ", "value": last_name},
+    ]
     response = await fetch_with_rate_limit_retries(
         context,
         CONTACTS_SEARCH_API_URL,
@@ -633,7 +672,7 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
         owner_id = inputs.get("hubspot_owner_id")
 
         results = []
-        batch_inputs = []
+        pending = []  # (row, result, body) for rows that passed validation
         for row_index, row in enumerate(inputs["messages"]):
             identifier = _row_identifier(row)
             body = (row.get("message_body") or "").strip() or default_body
@@ -651,17 +690,50 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
             if identifier is None:
                 result["status"] = "invalid"
                 result["error"] = "Provide contact_id, email, or both first_name and last_name"
-                continue
-            if not body:
+            elif not body:
                 result["status"] = "invalid"
                 result["error"] = "Provide message_body for this row or default_message_body"
-                continue
-
-            if identifier.startswith("contact_id:"):
-                contact_ids = [identifier.removeprefix("contact_id:")]
             else:
+                pending.append((row, result, body))
+
+        emails = sorted(
+            {
+                result["identifier"].removeprefix("email:").lower()
+                for _, result, _ in pending
+                if result["identifier"].startswith("email:")
+            }
+        )
+        contact_ids_by_email: Dict[str, str] = {}
+        email_lookup_error = None
+        if emails:
+            try:
+                contact_ids_by_email = await _find_contact_ids_by_email(emails, context)
+            except HTTPError as e:
+                # A 404 means none of the emails matched a contact; those rows become not_found
+                if e.status != 404:
+                    email_lookup_error = f"Contact lookup failed: {e}"
+
+        batch_inputs = []
+        name_searches = 0
+        for row, result, body in pending:
+            kind, _, value = result["identifier"].partition(":")
+            if kind == "contact_id":
+                contact_ids = [value]
+            elif kind == "email":
+                if email_lookup_error:
+                    result["status"] = "failed"
+                    result["error"] = email_lookup_error
+                    continue
+                contact_id = contact_ids_by_email.get(value.lower())
+                contact_ids = [contact_id] if contact_id else []
+            else:
+                if name_searches:
+                    await asyncio.sleep(NAME_SEARCH_INTERVAL_SECONDS)
+                name_searches += 1
                 try:
-                    contact_ids = await _find_contact_ids(row, context)
+                    contact_ids = await _find_contact_ids_by_name(
+                        row["first_name"].strip(), row["last_name"].strip(), context
+                    )
                 except HTTPError as e:
                     result["status"] = "failed"
                     result["error"] = f"Contact lookup failed: {e}"
@@ -676,11 +748,12 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                 continue
 
             result["contact_id"] = contact_ids[0]
-            batch_inputs.append(_build_communication_input(row, row_index, contact_ids[0], body, owner_id))
+            batch_inputs.append(_build_communication_input(row, result["row_index"], contact_ids[0], body, owner_id))
 
         if batch_inputs:
-            batch_error = None
             created_by_row = {}
+            row_errors: Dict[str, str] = {}
+            batch_error = None
             try:
                 response = await fetch_with_rate_limit_retries(
                     context,
@@ -691,19 +764,24 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                 )
                 data = await parse_response(response) or {}
                 created_by_row = {item.get("objectWriteTraceId"): item for item in data.get("results", [])}
-                batch_error = "; ".join(error.get("message", "") for error in data.get("errors", [])) or None
+                row_errors, batch_error = _errors_by_trace_id(data.get("errors", []))
             except HTTPError as e:
                 batch_error = str(e)
 
             for batch_input in batch_inputs:
-                result = results[int(batch_input["objectWriteTraceId"])]
-                created = created_by_row.get(batch_input["objectWriteTraceId"])
+                trace_id = batch_input["objectWriteTraceId"]
+                result = results[int(trace_id)]
+                created = created_by_row.get(trace_id)
                 if created:
                     result["status"] = "logged"
                     result["communication_id"] = str(created.get("id"))
                 else:
                     result["status"] = "failed"
-                    result["error"] = batch_error or "HubSpot did not return a created message for this row"
+                    result["error"] = (
+                        row_errors.get(trace_id)
+                        or batch_error
+                        or "HubSpot did not return a created message for this row"
+                    )
 
         counts = {
             status: sum(1 for result in results if result["status"] == status)
@@ -1307,7 +1385,7 @@ class UpsertContactsActionHandler(ActionHandler):
 
         data = await parse_response(response) or {}
         upserted_by_row = {item.get("objectWriteTraceId"): item for item in data.get("results", [])}
-        batch_error = "; ".join(error.get("message", "") for error in data.get("errors", [])) or None
+        row_errors, batch_error = _errors_by_trace_id(data.get("errors", []))
 
         results = []
         for row_index, email in enumerate(emails):
@@ -1330,7 +1408,9 @@ class UpsertContactsActionHandler(ActionHandler):
                         "email": email,
                         "status": "failed",
                         "contact_id": None,
-                        "error": batch_error or "HubSpot did not return a contact for this row",
+                        "error": row_errors.get(str(row_index))
+                        or batch_error
+                        or "HubSpot did not return a contact for this row",
                     }
                 )
 

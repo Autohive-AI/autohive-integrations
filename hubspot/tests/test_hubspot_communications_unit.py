@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
@@ -20,6 +20,7 @@ COMMUNICATIONS_API_URL = "https://api.hubapi.com/crm/v3/objects/communications"
 BATCH_CREATE_URL = f"{COMMUNICATIONS_API_URL}/batch/create"
 CONTACTS_SEARCH_URL = "https://api.hubapi.com/crm/v3/objects/contacts/search"
 CONTACTS_UPSERT_URL = "https://api.hubapi.com/crm/v3/objects/contacts/batch/upsert"
+CONTACTS_BATCH_READ_URL = "https://api.hubapi.com/crm/v3/objects/contacts/batch/read"
 
 
 def ok(data, status=200):
@@ -28,6 +29,19 @@ def ok(data, status=200):
 
 def search_response(*contact_ids):
     return ok({"total": len(contact_ids), "results": [{"id": contact_id} for contact_id in contact_ids]})
+
+
+def batch_read_response(contacts_by_email, missing=()):
+    data = {"results": [{"id": cid, "properties": {"email": email}} for email, cid in contacts_by_email.items()]}
+    if missing:
+        data["errors"] = [{"category": "OBJECT_NOT_FOUND", "message": "Could not get some CONTACT objects"}]
+    return ok(data, status=207 if missing else 200)
+
+
+@pytest.fixture(autouse=True)
+def no_pacing_sleep():
+    with patch("hubspot.hubspot.asyncio.sleep", new=AsyncMock()) as sleep:
+        yield sleep
 
 
 def batch_created(*trace_ids, errors=None):
@@ -136,21 +150,57 @@ class TestLogLinkedInMessages:
         assert properties["hs_timestamp"] == "2026-10-20T09:30:00Z"
 
     @pytest.mark.asyncio
-    async def test_email_row_searches_by_email(self, mock_context):
-        mock_context.fetch.side_effect = [search_response("900"), batch_created("0")]
+    async def test_email_rows_resolved_with_one_batch_read_not_search(self, mock_context):
+        mock_context.fetch.side_effect = [
+            batch_read_response({"jo@example.com": "900", "al@example.com": "901"}),
+            batch_created("0", "1"),
+        ]
 
         result = await hubspot.execute_action(
             "log_linkedin_messages",
-            {"messages": [{"email": " jo@example.com "}], "default_message_body": "Hi"},
+            {
+                "messages": [{"email": " Jo@Example.com "}, {"email": "al@example.com"}],
+                "default_message_body": "Hi",
+            },
             mock_context,
         )
 
-        assert result.result.data["results"][0]["contact_id"] == "900"
-        assert result.result.data["results"][0]["identifier"] == "email:jo@example.com"
-        search_call = fetch_calls(mock_context, CONTACTS_SEARCH_URL)[0]
-        assert search_call.kwargs["json"]["filterGroups"] == [
-            {"filters": [{"propertyName": "email", "operator": "EQ", "value": "jo@example.com"}]}
+        rows = result.result.data["results"]
+        assert [r["contact_id"] for r in rows] == ["900", "901"]
+        assert rows[0]["identifier"] == "email:Jo@Example.com"
+        read_calls = fetch_calls(mock_context, CONTACTS_BATCH_READ_URL)
+        assert len(read_calls) == 1
+        assert read_calls[0].kwargs["json"]["idProperty"] == "email"
+        assert read_calls[0].kwargs["json"]["inputs"] == [{"id": "al@example.com"}, {"id": "jo@example.com"}]
+        assert fetch_calls(mock_context, CONTACTS_SEARCH_URL) == []
+
+    @pytest.mark.asyncio
+    async def test_email_missing_from_batch_read_is_not_found(self, mock_context):
+        mock_context.fetch.side_effect = [
+            batch_read_response({"jo@example.com": "900"}, missing=["new@example.com"]),
+            batch_created("0"),
         ]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"email": "jo@example.com"}, {"email": "new@example.com"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert [r["status"] for r in result.result.data["results"]] == ["logged", "not_found"]
+
+    @pytest.mark.asyncio
+    async def test_batch_read_404_means_no_email_matched(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "Not found")
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"email": "new@example.com"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert result.result.data["results"][0]["status"] == "not_found"
+        assert result.result.data["results"][0]["error"] is None
 
     @pytest.mark.asyncio
     async def test_name_row_searches_by_first_and_last_name(self, mock_context):
@@ -172,7 +222,7 @@ class TestLogLinkedInMessages:
 
     @pytest.mark.asyncio
     async def test_email_takes_priority_over_name(self, mock_context):
-        mock_context.fetch.side_effect = [search_response("900"), batch_created("0")]
+        mock_context.fetch.side_effect = [batch_read_response({"jo@example.com": "900"}), batch_created("0")]
 
         await hubspot.execute_action(
             "log_linkedin_messages",
@@ -183,8 +233,8 @@ class TestLogLinkedInMessages:
             mock_context,
         )
 
-        filters = fetch_calls(mock_context, CONTACTS_SEARCH_URL)[0].kwargs["json"]["filterGroups"][0]["filters"]
-        assert [f["propertyName"] for f in filters] == ["email"]
+        assert len(fetch_calls(mock_context, CONTACTS_BATCH_READ_URL)) == 1
+        assert fetch_calls(mock_context, CONTACTS_SEARCH_URL) == []
 
     @pytest.mark.asyncio
     async def test_unknown_person_is_not_found_and_not_logged(self, mock_context):
@@ -233,7 +283,7 @@ class TestLogLinkedInMessages:
 
     @pytest.mark.asyncio
     async def test_blank_contact_id_falls_back_to_email(self, mock_context):
-        mock_context.fetch.side_effect = [search_response("900"), batch_created("0")]
+        mock_context.fetch.side_effect = [batch_read_response({"jo@example.com": "900"}), batch_created("0")]
 
         result = await hubspot.execute_action(
             "log_linkedin_messages",
@@ -242,7 +292,7 @@ class TestLogLinkedInMessages:
         )
 
         assert result.result.data["results"][0]["contact_id"] == "900"
-        assert len(fetch_calls(mock_context, CONTACTS_SEARCH_URL)) == 1
+        assert len(fetch_calls(mock_context, CONTACTS_BATCH_READ_URL)) == 1
 
     @pytest.mark.asyncio
     async def test_contact_id_is_trimmed(self, mock_context):
@@ -291,7 +341,7 @@ class TestLogLinkedInMessages:
     @pytest.mark.asyncio
     async def test_mixed_rows_report_each_outcome_and_batch_only_resolved(self, mock_context):
         mock_context.fetch.side_effect = [
-            search_response("900"),  # row 1 email
+            batch_read_response({"jo@example.com": "900"}),  # row 1 email
             search_response(),  # row 2 name not found
             search_response("1", "2"),  # row 3 ambiguous
             batch_created("0", "1"),
@@ -347,6 +397,55 @@ class TestLogLinkedInMessages:
         assert [r["communication_id"] for r in result.result.data["results"]] == ["first", "second"]
 
     @pytest.mark.asyncio
+    async def test_name_searches_are_paced_under_hubspot_search_limit(self, mock_context, no_pacing_sleep):
+        mock_context.fetch.side_effect = [search_response("1"), search_response("2"), search_response("3")] + [
+            batch_created("0", "1", "2")
+        ]
+
+        await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [
+                    {"first_name": "A", "last_name": "One"},
+                    {"first_name": "B", "last_name": "Two"},
+                    {"first_name": "C", "last_name": "Three"},
+                ],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        assert len(fetch_calls(mock_context, CONTACTS_SEARCH_URL)) == 3
+        # No wait before the first search, then one wait before each following search (<= 4 per second)
+        assert [call.args[0] for call in no_pacing_sleep.await_args_list] == [0.25, 0.25]
+
+    @pytest.mark.asyncio
+    async def test_batch_errors_mapped_to_their_own_rows(self, mock_context):
+        mock_context.fetch.return_value = batch_created(
+            "0",
+            errors=[
+                {"message": "Owner 9 does not exist", "context": {"objectWriteTraceId": ["1"]}},
+                {"message": "Deal 7 does not exist", "context": {"objectWriteTraceId": ["2"]}},
+            ],
+        )
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [{"contact_id": "1"}, {"contact_id": "2"}, {"contact_id": "3", "deal_id": "7"}],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert [(r["status"], r["error"]) for r in rows] == [
+            ("logged", None),
+            ("failed", "Owner 9 does not exist"),
+            ("failed", "Deal 7 does not exist"),
+        ]
+
+    @pytest.mark.asyncio
     async def test_partial_batch_marks_missing_rows_failed(self, mock_context):
         mock_context.fetch.return_value = batch_created(
             "0", errors=[{"status": "error", "category": "VALIDATION_ERROR", "message": "Contact 2 does not exist"}]
@@ -382,6 +481,24 @@ class TestLogLinkedInMessages:
     @pytest.mark.asyncio
     async def test_search_http_error_fails_only_that_row(self, mock_context):
         mock_context.fetch.side_effect = [HTTPError(500, "Search unavailable"), batch_created("1")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [{"first_name": "Jo", "last_name": "Bloggs"}, {"contact_id": "2"}],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert rows[0]["status"] == "failed"
+        assert "Contact lookup failed" in rows[0]["error"]
+        assert rows[1]["status"] == "logged"
+
+    @pytest.mark.asyncio
+    async def test_email_lookup_http_error_fails_email_rows_only(self, mock_context):
+        mock_context.fetch.side_effect = [HTTPError(500, "Server error"), batch_created("1")]
 
         result = await hubspot.execute_action(
             "log_linkedin_messages",
@@ -592,6 +709,27 @@ class TestUpsertContacts:
         assert data["results"][1]["status"] == "failed"
         assert data["results"][1]["error"] == "Property values were not valid"
         assert data["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_upsert_errors_mapped_to_their_own_rows(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {
+                "results": [{"id": "1", "new": True, "objectWriteTraceId": "0"}],
+                "errors": [
+                    {"message": "Bad phone", "context": {"objectWriteTraceId": ["1"]}},
+                    {"message": "Bad country", "context": {"objectWriteTraceId": ["2"]}},
+                ],
+            },
+            status=207,
+        )
+
+        result = await hubspot.execute_action(
+            "upsert_contacts",
+            {"contacts": [{"email": "a@example.com"}, {"email": "b@example.com"}, {"email": "c@example.com"}]},
+            mock_context,
+        )
+
+        assert [r["error"] for r in result.result.data["results"]] == [None, "Bad phone", "Bad country"]
 
     @pytest.mark.asyncio
     async def test_duplicate_emails_rejected_before_calling_hubspot(self, mock_context):

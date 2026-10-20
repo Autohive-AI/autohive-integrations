@@ -830,14 +830,32 @@ class TestLinkedInMessageWorkflow:
 
 @pytest.mark.destructive
 class TestUpsertContacts:
-    async def test_upsert_existing_contact_by_email_updates_it(self, live_context):
+    async def test_upsert_existing_contact_by_email_updates_property(self, live_context):
         require_contact_email()
-        result = await hubspot.execute_action(
-            "upsert_contacts", {"contacts": [{"email": TEST_CONTACT_EMAIL}]}, live_context
-        )
-        row = result.result.data["results"][0]
-        assert row["status"] == "updated", row
-        assert row["contact_id"]
+        contact_url = f"https://api.hubapi.com/crm/v3/objects/contacts/{TEST_CONTACT_EMAIL}"
+        lookup_params = {"idProperty": "email", "properties": "jobtitle"}
+        before = await live_context.fetch(contact_url, method="GET", params=lookup_params)
+        original_job_title = before.data["properties"].get("jobtitle") or ""
+        marker = f"Integration test {os.getpid()}"
+        try:
+            result = await hubspot.execute_action(
+                "upsert_contacts",
+                {"contacts": [{"email": TEST_CONTACT_EMAIL, "properties": {"jobtitle": marker}}]},
+                live_context,
+            )
+            row = result.result.data["results"][0]
+            assert row["status"] == "updated", row
+            assert row["contact_id"] == str(before.data["id"])
+
+            after = await live_context.fetch(contact_url, method="GET", params=lookup_params)
+            assert str(after.data["id"]) == str(before.data["id"])
+            assert after.data["properties"]["jobtitle"] == marker
+        finally:
+            await hubspot.execute_action(
+                "upsert_contacts",
+                {"contacts": [{"email": TEST_CONTACT_EMAIL, "properties": {"jobtitle": original_job_title}}]},
+                live_context,
+            )
 
 
 @pytest.mark.destructive

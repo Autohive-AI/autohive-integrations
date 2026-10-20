@@ -216,11 +216,11 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `success`: `true` only when every row was logged
 - **Row statuses:**
   - `logged`: The message was created and associated with the contact (and the company/deal, if given)
-  - `not_found`: No contact matched the email or name. Nothing is created; run `upsert_contacts` first
+  - `not_found`: No contact matched the email or name. Nothing is created; run `upsert_contacts` first and pass the returned `contact_id`
   - `ambiguous`: More than one contact matched; the matching IDs are in `candidates`. The action never guesses between people with the same name. Re-run the row with a `contact_id`
   - `invalid`: The row has no identifier, or no message body and no `default_message_body`
   - `failed`: The contact lookup or HubSpot's create call returned an error, shown in `error`
-- **Note:** Matching on name uses HubSpot's exact (`EQ`) search on first and last name. Each email or name row makes one search request, and all matched rows are created in a single [batch create](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/batch/post-crm-v3-objects-communications-batch-create) call.
+- **Note:** All email rows are looked up in one contacts batch read, which finds contacts created moments ago. Name rows use HubSpot's exact (`EQ`) CRM search, one request per row, spaced to stay under HubSpot's limit of 5 searches per second. HubSpot's search index can lag behind newly created contacts, so after `upsert_contacts` pass the returned `contact_id` (or the email) rather than the name. All matched rows are created in a single [batch create](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/batch/post-crm-v3-objects-communications-batch-create) call.
 
 #### Action: `get_linkedin_message`
 - **Description:** Get a logged LinkedIn message by ID
@@ -1033,7 +1033,7 @@ The integration has the following dependencies:
 
 ### LinkedIn Connection Logging Workflow
 1. Add people who aren't in HubSpot yet with `upsert_contacts` (needs an email per person)
-2. Log the messages with `log_linkedin_messages`, using `default_message_body` such as "Accepted LinkedIn connection request"
+2. Log the messages with `log_linkedin_messages`, passing each `contact_id` returned by step 1 and a `default_message_body` such as "Accepted LinkedIn connection request"
 3. Re-run any `ambiguous` rows with the right `contact_id` from `candidates`
 4. Fix or remove a wrongly logged message with `update_linkedin_message` or `delete_linkedin_message`
 
