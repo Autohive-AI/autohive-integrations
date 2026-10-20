@@ -561,6 +561,34 @@ class TestLogLinkedInMessages:
         data = result.result.data
         assert [(r["status"], r["communication_id"]) for r in data["results"]] == [("logged", None), ("logged", None)]
         assert data["success"] is True
+        # HubSpot didn't say which ID is which row, so the IDs are returned instead of dropped
+        assert data["unmatched_communication_ids"] == ["a", "b"]
+
+    @pytest.mark.asyncio
+    async def test_some_rows_created_without_trace_ids_expose_their_ids(self, mock_context):
+        mock_context.fetch.return_value = ok({"results": [{"id": "a"}, {"id": "b"}]}, status=207)
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "2"}, {"contact_id": "3"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        data = result.result.data
+        assert [r["status"] for r in data["results"]] == ["failed", "failed", "failed"]
+        assert data["unmatched_communication_ids"] == ["a", "b"]
+
+    @pytest.mark.asyncio
+    async def test_traced_results_leave_no_unmatched_ids(self, mock_context):
+        mock_context.fetch.return_value = batch_created("0", "1")
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "2"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert result.result.data["unmatched_communication_ids"] == []
 
     @pytest.mark.asyncio
     async def test_partial_creates_without_trace_ids_warn_against_retrying(self, mock_context):
@@ -1134,8 +1162,14 @@ class TestUpsertContacts:
         )
 
         data = result.result.data
+        assert (data["results"][0]["status"], data["results"][0]["contact_id"], data["results"][0]["error"]) == (
+            "created",
+            "1",
+            None,
+        )
         assert data["results"][1]["status"] == "failed"
         assert data["results"][1]["error"] == "Property values were not valid"
+        assert (data["created"], data["updated"], data["failed"]) == (1, 0, 1)
         assert data["success"] is False
 
     @pytest.mark.asyncio

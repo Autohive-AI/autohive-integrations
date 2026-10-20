@@ -885,6 +885,7 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                     _build_communication_input(row, result["row_index"], contact_ids[0], body, owner_id)
                 )
 
+        returned_items: list[Dict[str, Any]] = []
         if batch_inputs:
             trace_ids = [batch_input["objectWriteTraceId"] for batch_input in batch_inputs]
             try:
@@ -897,10 +898,10 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                     json={"inputs": batch_inputs},
                     headers={"Content-Type": "application/json"},
                 )
+                data = await parse_response(response) or {}
+                returned_items = data.get("results", [])
                 created_by_row, errors_by_row = _match_batch_results(
-                    await parse_response(response) or {},
-                    trace_ids,
-                    "HubSpot did not return a created message for this row",
+                    data, trace_ids, "HubSpot did not return a created message for this row"
                 )
             except REQUEST_ERRORS as e:
                 error = _error_text(e)
@@ -920,11 +921,15 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                     result["status"] = "failed"
                     result["error"] = errors_by_row[trace_id]
 
+        # IDs HubSpot created but didn't tie to a row, so they can still be read, updated or deleted
+        attached_ids = {result["communication_id"] for result in results if result["communication_id"]}
+        unmatched_ids = [str(item["id"]) for item in returned_items if item.get("id")]
         counts = _status_counts(results, ("logged", "not_found", "ambiguous", "invalid", "failed"))
         return ActionResult(
             data={
                 "results": results,
                 **counts,
+                "unmatched_communication_ids": [i for i in unmatched_ids if i not in attached_ids],
                 "success": counts["logged"] == len(results),
             },
             cost_usd=None,

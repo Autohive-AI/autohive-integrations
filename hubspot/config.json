@@ -545,6 +545,13 @@
             "type": "integer",
             "description": "Rows whose contact lookup or message create failed; see each row's error"
           },
+          "unmatched_communication_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "IDs of messages HubSpot created without saying which row each belongs to. Those rows have communication_id null; use these IDs to read, update or delete the messages"
+          },
           "success": {
             "type": "boolean",
             "description": "True when every row was logged"

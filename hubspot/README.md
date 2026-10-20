@@ -213,6 +213,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Outputs:**
   - `results`: One row per input with `row_index`, `identifier`, `status`, `contact_id`, `communication_id`, `candidates`, and `error`
   - `logged`, `not_found`, `ambiguous`, `invalid`, `failed`: Counts
+  - `unmatched_communication_ids`: IDs of messages HubSpot created without saying which row each belongs to (those rows have `communication_id` null). Usually empty; use these IDs with the get/update/delete actions
   - `success`: `true` only when every row was logged
 - **Row statuses:**
   - `logged`: The message was created and associated with the contact (and the company/deal, if given)
