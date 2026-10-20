@@ -84,9 +84,9 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `contacts` (required): 1–100 rows, each with:
     - `email` (required): Used to match an existing contact. Each email may appear only once per call
     - `first_name`, `last_name` (optional)
-    - `properties` (optional): Other contact properties by internal name, e.g. `{"jobtitle": "CTO"}`
+    - `properties` (optional): Other contact properties by internal name, e.g. `{"jobtitle": "CTO"}`. `null` or `""` clears a value and a list sets multi-select options. `email` is ignored here: it only identifies the contact, so this action never changes a contact's primary email
 - **Outputs:**
-  - `results`: One row per input with `row_index`, `email`, `status` (`created`, `updated`, or `failed`), `contact_id`, and `error`
+  - `results`: One row per input with `row_index`, `email`, `status` (`created`, `updated`, or `failed`), `contact_id`, and `error`. A row is `failed` when HubSpot rejected it or didn't say which contact it matched; retrying is safe
   - `created`, `updated`, `failed`: Counts
   - `success`: `true` when no rows failed
 - **Note:** People without an email address can't be matched or created by this action. Uses HubSpot's [contacts batch upsert](https://developers.hubspot.com/docs/api-reference/crm-contacts-v3/batch/post-crm-v3-objects-contacts-batch-upsert) endpoint.
@@ -220,7 +220,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `ambiguous`: More than one contact matched; the matching IDs are in `candidates`. The action never guesses between people with the same name. Re-run the row with a `contact_id`
   - `invalid`: The row has no identifier, or no message body and no `default_message_body`
   - `failed`: The contact lookup or HubSpot's create call returned an error, shown in `error`. If HubSpot creates only some messages without saying which rows they belong to, the remaining rows are `failed` with a warning to check HubSpot before retrying, so a retry doesn't log duplicates
-- **Note:** All email rows are looked up in one contacts batch read, which finds contacts created moments ago. A match on one of a contact's additional emails (`hs_additional_emails`) counts too. Name rows use HubSpot's exact (`EQ`) CRM search, one request per row, spaced to stay under HubSpot's limit of 5 searches per second. HubSpot's search index can lag behind newly created contacts, so after `upsert_contacts` pass the returned `contact_id` (or the email) rather than the name. All matched rows are created in a single [batch create](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/batch/post-crm-v3-objects-communications-batch-create) call.
+- **Note:** All email rows are looked up in one contacts batch read, which finds contacts created moments ago. A match on one of a contact's additional emails (`hs_additional_emails`) counts too. Name rows use HubSpot's exact (`EQ`) CRM search, one request per unique name, spaced to stay under HubSpot's limit of 5 searches per second. HubSpot's search index can lag behind newly created contacts, so after `upsert_contacts` pass the returned `contact_id` (or the email) rather than the name. All matched rows are created in a single [batch create](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/batch/post-crm-v3-objects-communications-batch-create) call.
 
 #### Action: `get_linkedin_message`
 - **Description:** Get a logged LinkedIn message by ID

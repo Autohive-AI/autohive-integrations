@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
+import hubspot.hubspot as hubspot_module
 from hubspot.hubspot import hubspot
 
 pytestmark = pytest.mark.unit
@@ -679,6 +680,16 @@ class TestLogLinkedInMessages:
         assert len(fetch_calls(mock_context, BATCH_CREATE_URL)) == 1
 
     @pytest.mark.asyncio
+    async def test_server_error_mentioning_429_is_not_retried(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(500, "Internal error, correlationId 4291-abcd")
+
+        await hubspot.execute_action(
+            "log_linkedin_messages", {"messages": [{"contact_id": "1"}], "default_message_body": "Hi"}, mock_context
+        )
+
+        assert len(fetch_calls(mock_context, BATCH_CREATE_URL)) == 1
+
+    @pytest.mark.asyncio
     async def test_search_http_error_fails_only_that_row(self, mock_context):
         mock_context.fetch.side_effect = [HTTPError(500, "Search unavailable"), batch_created("1")]
 
@@ -745,7 +756,7 @@ class TestLogLinkedInMessages:
         assert all("still processing" in r["error"] and "before retrying" in r["error"] for r in rows)
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("status", ["PENDING", "PROCESSING"])
+    @pytest.mark.parametrize("status", ["PENDING", "PROCESSING", "CANCELED"])
     async def test_unfinished_email_lookup_fails_rows_not_found(self, mock_context, status):
         mock_context.fetch.side_effect = [ok({"status": status, "results": []}, status=202), batch_created("1")]
 
@@ -757,7 +768,7 @@ class TestLogLinkedInMessages:
 
         rows = result.result.data["results"]
         assert rows[0]["status"] == "failed"
-        assert "still processing" in rows[0]["error"]
+        assert rows[0]["error"].startswith("Contact lookup failed: HubSpot")
         assert rows[1]["status"] == "logged"
 
     @pytest.mark.asyncio
@@ -827,6 +838,49 @@ class TestLogLinkedInMessages:
         rows = result.result.data["results"]
         assert [r["status"] for r in rows] == ["logged", "failed"]
         assert "Something broke" in rows[1]["error"]
+
+    @pytest.mark.asyncio
+    async def test_canceled_batch_warns_to_check_before_retrying(self, mock_context):
+        mock_context.fetch.return_value = ok({"status": "CANCELED", "results": []})
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages", {"messages": [{"contact_id": "1"}], "default_message_body": "Hi"}, mock_context
+        )
+
+        error = result.result.data["results"][0]["error"]
+        assert "HubSpot canceled this batch" in error
+        assert "before retrying" in error
+
+    @pytest.mark.asyncio
+    async def test_comma_separated_additional_email_matches(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok(
+                {
+                    "results": [
+                        {"id": "900", "properties": {"email": "p@x.com", "hs_additional_emails": "a@x.com,b@x.com"}}
+                    ]
+                }
+            ),
+            batch_created("0"),
+        ]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages", {"messages": [{"email": "b@x.com"}], "default_message_body": "Hi"}, mock_context
+        )
+
+        assert result.result.data["results"][0]["contact_id"] == "900"
+
+    @pytest.mark.asyncio
+    async def test_name_search_asks_for_enough_candidates_to_spot_duplicates(self, mock_context):
+        mock_context.fetch.side_effect = [search_response("1"), batch_created("0")]
+
+        await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"first_name": "Jo", "last_name": "Bloggs"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert fetch_calls(mock_context, CONTACTS_SEARCH_URL)[0].kwargs["json"]["limit"] == 5
 
     @pytest.mark.asyncio
     async def test_more_than_100_rows_rejected_by_schema(self, mock_context):
@@ -1127,6 +1181,47 @@ class TestUpsertContacts:
         assert len(fetch_calls(mock_context, CONTACTS_UPSERT_URL)) == 1
 
     @pytest.mark.asyncio
+    async def test_list_property_value_sent_as_semicolon_options(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {"results": [{"id": "1", "new": False, "properties": {"email": "a@x.com"}}]}
+        )
+
+        await hubspot.execute_action(
+            "upsert_contacts",
+            {"contacts": [{"email": "a@x.com", "properties": {"hs_buying_role": ["BUDGET_HOLDER", "END_USER"]}}]},
+            mock_context,
+        )
+
+        properties = mock_context.fetch.call_args.kwargs["json"]["inputs"][0]["properties"]
+        assert properties["hs_buying_role"] == "BUDGET_HOLDER;END_USER"
+
+    @pytest.mark.asyncio
+    async def test_canceled_upsert_rows_fail(self, mock_context):
+        mock_context.fetch.return_value = ok({"status": "CANCELED", "results": []})
+
+        result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
+
+        row = result.result.data["results"][0]
+        assert row["status"] == "failed"
+        assert "HubSpot canceled this batch" in row["error"]
+
+    @pytest.mark.asyncio
+    async def test_upsert_and_read_back_share_one_rate_limit_budget(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok({"results": [{"id": "9", "new": False, "properties": {}}]}),
+            ok({"results": [{"id": "9", "properties": {"email": "a@x.com"}}]}),
+        ]
+
+        with patch(
+            "hubspot.hubspot.fetch_with_rate_limit_retries", wraps=hubspot_module.fetch_with_rate_limit_retries
+        ) as fetch:
+            await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
+
+        budgets = [call.kwargs["retry_sleep_budget"] for call in fetch.call_args_list]
+        assert len(budgets) == 2
+        assert budgets[0] is budgets[1]
+
+    @pytest.mark.asyncio
     async def test_none_property_value_clears_it(self, mock_context):
         mock_context.fetch.return_value = ok(
             {"results": [{"id": "1", "new": False, "properties": {"email": "a@example.com"}}]}
@@ -1301,3 +1396,35 @@ class TestCreateAssociation:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "contacts 1" in result.result.message
+
+
+# ---- Connection errors on single-record actions ----
+
+
+class TestConnectionErrors:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("error", [aiohttp.ServerDisconnectedError(), asyncio.TimeoutError()])
+    @pytest.mark.parametrize(
+        "action,inputs",
+        [
+            ("get_linkedin_message", {"communication_id": "1"}),
+            ("update_linkedin_message", {"communication_id": "1", "message_body": "x"}),
+            ("delete_linkedin_message", {"communication_id": "1"}),
+            (
+                "create_association",
+                {
+                    "from_object_type": "contacts",
+                    "from_object_id": "1",
+                    "to_object_type": "companies",
+                    "to_object_id": "2",
+                },
+            ),
+        ],
+    )
+    async def test_connection_error_returns_action_error(self, mock_context, action, inputs, error):
+        mock_context.fetch.side_effect = error
+
+        result = await hubspot.execute_action(action, inputs, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message.split(": ", 1)[1]

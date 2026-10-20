@@ -543,7 +543,7 @@
           },
           "failed": {
             "type": "integer",
-            "description": "Rows HubSpot rejected"
+            "description": "Rows whose contact lookup or create failed; see each row's error"
           },
           "success": {
             "type": "boolean",
@@ -1366,7 +1366,7 @@
                 },
                 "properties": {
                   "type": "object",
-                  "description": "Other HubSpot contact properties by internal name, e.g. {\"company\": \"Acme\", \"jobtitle\": \"CTO\"}; null or \"\" clears a value (optional)"
+                  "description": "Other HubSpot contact properties by internal name, e.g. {\"company\": \"Acme\", \"jobtitle\": \"CTO\"}; null or \"\" clears a value and a list sets multi-select options. email is ignored here, since it only identifies the contact (optional)"
                 }
               },
               "required": [
@@ -1432,7 +1432,7 @@
           },
           "failed": {
             "type": "integer",
-            "description": "Rows HubSpot rejected"
+            "description": "Rows HubSpot didn't confirm; see each row's error"
           },
           "success": {
             "type": "boolean",

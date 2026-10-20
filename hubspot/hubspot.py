@@ -137,9 +137,45 @@ async def parse_response(response):
 
 
 def is_rate_limit_error(error: Exception) -> bool:
-    """Return whether an exception looks like a HubSpot rate-limit response."""
-    error_text = str(error).lower()
-    return "429" in error_text or "rate limit" in error_text
+    """Return whether an exception is a HubSpot 429 response.
+
+    Checks the HTTP status, not the message, so a server error that mentions "429" isn't resent.
+    """
+    return getattr(error, "status", None) == 429
+
+
+# Errors from a request that may or may not have reached HubSpot
+REQUEST_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError, HTTPError)
+
+
+def _error_text(error: Exception) -> str:
+    """Return an error's message, or its type for errors like TimeoutError that have none."""
+    return str(error) or type(error).__name__
+
+
+def _outcome_unknown(error: Exception) -> bool:
+    """Return whether HubSpot may still have applied a write that failed with this error."""
+    return not isinstance(error, HTTPError) or error.status >= 500
+
+
+def _property_value(value: Any) -> str:
+    """Return a value in HubSpot's string form: "true"/"false", "" to clear, and "a;b" for multi-select options."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, list):
+        return ";".join(_property_value(item) for item in value)
+    return str(value)
+
+
+def _unfinished_batch_reason(data: Dict[str, Any]) -> str | None:
+    """Return why a HubSpot batch response is not final, or None when it completed."""
+    if data.get("status") == "CANCELED":
+        return "canceled"
+    if data.get("status") in ("PENDING", "PROCESSING"):
+        return "is still processing"
+    return None
 
 
 def get_retry_after_seconds(error: Exception, fallback_seconds: int, max_delay_seconds: int = 10) -> int:
@@ -159,9 +195,14 @@ async def fetch_with_rate_limit_retries(
     max_retries: int = 3,
     max_total_sleep_seconds: int = 10,
     retry_sleep_budget: Dict[str, int] | None = None,
+    resend_on_connection_error: bool = True,
     **kwargs,
 ):
-    """Fetch with a bounded backoff for transient HubSpot 429 responses."""
+    """Fetch with a bounded backoff for transient HubSpot 429 responses.
+
+    Pass resend_on_connection_error=False for writes that aren't safe to repeat. The SDK otherwise resends
+    the request after a dropped connection or timeout, when HubSpot may already have applied it.
+    """
     if max_retries < 0:
         raise ValueError("max_retries must be >= 0")
     if max_total_sleep_seconds < 0:
@@ -174,6 +215,10 @@ async def fetch_with_rate_limit_retries(
         retry_sleep_budget.get("remaining", max_total_sleep_seconds),
         max_total_sleep_seconds,
     )
+
+    if not resend_on_connection_error:
+        # Starting at the SDK's retry limit makes it raise instead of resending
+        kwargs["retry_count"] = context.config["max_retries"]
 
     for attempt in range(max_retries + 1):
         try:
@@ -610,11 +655,15 @@ def _match_batch_results(
     rows that did succeed.
     """
     items = data.get("results", [])
+    trace_id_set = set(trace_ids)
     items_by_trace = {}
+    leftover_items = []
     for item in items:
         trace_id = item.get("objectWriteTraceId") or (trace_id_for(item) if trace_id_for else None)
-        if trace_id in trace_ids:
+        if trace_id in trace_id_set:
             items_by_trace[trace_id] = item
+        else:
+            leftover_items.append(item)
 
     messages_by_trace: Dict[str, list[str]] = {}
     unmapped = []
@@ -625,27 +674,27 @@ def _match_batch_results(
             messages_by_trace.setdefault(str(trace_id), []).append(message)
         if not error_trace_ids:
             unmapped.append(message)
-    batch_error = "; ".join(unmapped) or None
-    if data.get("status") in ("PENDING", "PROCESSING"):
-        # The batch may still finish, so a retry now could write the same rows twice
-        warning = "HubSpot is still processing this batch; check HubSpot before retrying"
-        batch_error = f"{warning}; {batch_error}" if batch_error else warning
+    warnings = []
+    reason = _unfinished_batch_reason(data)
+    if reason:
+        # An unfinished or canceled batch may have written some rows, so a retry could write them twice
+        warnings.append(f"HubSpot {reason} this batch; check HubSpot before retrying")
 
     # One leftover result and one row with no result or error of its own can only belong together
-    leftover_items = [item for item in items if item not in items_by_trace.values()]
     leftover_trace_ids = [t for t in trace_ids if t not in items_by_trace and t not in messages_by_trace]
     if len(leftover_items) == 1 and len(leftover_trace_ids) == 1:
-        items_by_trace[leftover_trace_ids[0]] = leftover_items[0]
+        items_by_trace[leftover_trace_ids[0]] = leftover_items.pop()
 
-    if len(items_by_trace) < len(items):
+    if leftover_items:
         if len(items) == len(trace_ids):
             items_by_trace = {trace_id: items_by_trace.get(trace_id, {}) for trace_id in trace_ids}
         else:
-            warning = (
+            warnings.insert(
+                0,
                 f"HubSpot completed {len(items)} of {len(trace_ids)} rows without saying which; "
-                "check HubSpot before retrying"
+                "check HubSpot before retrying",
             )
-            batch_error = f"{warning}; {batch_error}" if batch_error else warning
+    batch_error = "; ".join(warnings + unmapped) or None
 
     errors_by_trace = {
         trace_id: "; ".join(messages_by_trace.get(trace_id, [])) or batch_error or missing_message
@@ -695,8 +744,9 @@ async def _find_contact_ids_by_email(
     # Only OBJECT_NOT_FOUND means a contact is missing; an unfinished batch or any other error is a failed lookup
     unmatched = [email for email in emails if email not in contact_ids_by_email]
     errors_by_email: Dict[str, str] = {}
-    if data.get("status") in ("PENDING", "PROCESSING"):
-        errors_by_email.update({email: "HubSpot is still processing the lookup" for email in unmatched})
+    reason = _unfinished_batch_reason(data)
+    if reason:
+        errors_by_email.update({email: f"HubSpot {reason} the lookup" for email in unmatched})
     for error in data.get("errors", []):
         if error.get("category") == "OBJECT_NOT_FOUND":
             continue
@@ -804,8 +854,8 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                         matches[email] = f"Contact lookup failed: {errors_by_email[email]}"
                     else:
                         matches[email] = []
-            except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError) as e:
-                matches.update({email: f"Contact lookup failed: {str(e) or type(e).__name__}" for email in emails})
+            except REQUEST_ERRORS as e:
+                matches.update({email: f"Contact lookup failed: {_error_text(e)}" for email in emails})
 
         names = list(dict.fromkeys(key for _, _, _, kind, key in pending if kind == "name"))
         for index, (first_name, last_name) in enumerate(names):
@@ -815,8 +865,8 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                 matches[(first_name, last_name)] = await _find_contact_ids_by_name(
                     first_name, last_name, context, retry_sleep_budget
                 )
-            except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError) as e:
-                matches[(first_name, last_name)] = f"Contact lookup failed: {str(e) or type(e).__name__}"
+            except REQUEST_ERRORS as e:
+                matches[(first_name, last_name)] = f"Contact lookup failed: {_error_text(e)}"
 
         batch_inputs = []
         for row, result, body, kind, key in pending:
@@ -842,9 +892,7 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                     context,
                     f"{COMMUNICATIONS_API_URL}/batch/create",
                     retry_sleep_budget=retry_sleep_budget,
-                    # Start at the SDK's retry limit so it doesn't resend after a dropped connection or
-                    # timeout: HubSpot may already have saved the batch, and a resend would duplicate it
-                    retry_count=context.config["max_retries"],
+                    resend_on_connection_error=False,
                     method="POST",
                     json={"inputs": batch_inputs},
                     headers={"Content-Type": "application/json"},
@@ -854,9 +902,9 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                     trace_ids,
                     "HubSpot did not return a created message for this row",
                 )
-            except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError) as e:
-                error = str(e) or type(e).__name__
-                if not isinstance(e, HTTPError) or e.status >= 500:
+            except REQUEST_ERRORS as e:
+                error = _error_text(e)
+                if _outcome_unknown(e):
                     error = (
                         f"{error}; HubSpot may have logged this message, check the contact's timeline before retrying"
                     )
@@ -906,8 +954,8 @@ class GetLinkedInMessageActionHandler(ActionHandler):
                 },
                 cost_usd=None,
             )
-        except HTTPError as e:
-            return ActionError(message=f"Failed to get LinkedIn message: {e}")
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to get LinkedIn message: {_error_text(e)}")
 
 
 @hubspot.action("update_linkedin_message")
@@ -946,8 +994,8 @@ class UpdateLinkedInMessageActionHandler(ActionHandler):
                 },
                 cost_usd=None,
             )
-        except HTTPError as e:
-            return ActionError(message=f"Failed to update LinkedIn message: {e}")
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to update LinkedIn message: {_error_text(e)}")
 
 
 @hubspot.action("delete_linkedin_message")
@@ -968,8 +1016,8 @@ class DeleteLinkedInMessageActionHandler(ActionHandler):
                 },
                 cost_usd=None,
             )
-        except HTTPError as e:
-            return ActionError(message=f"Failed to delete LinkedIn message: {e}")
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to delete LinkedIn message: {_error_text(e)}")
 
 
 @hubspot.action("create_task")
@@ -1454,14 +1502,12 @@ class UpsertContactsActionHandler(ActionHandler):
             return ActionError(message=f"Each email can appear only once per call. Duplicates: {', '.join(duplicates)}")
         # HubSpot rejects objectWriteTraceId on email-keyed upserts, so rows are matched by email or contact ID
         row_key_by_email = {email: str(row_index) for row_index, email in enumerate(emails)}
+        # One rate-limit retry budget for the upsert and the read-back that matches its results
+        retry_sleep_budget = {"remaining": 10}
 
         batch_inputs = []
         for contact, email in zip(contacts, emails):
-            # HubSpot property values are strings: booleans are "true"/"false" and "" clears a value
-            properties = {
-                key: "" if value is None else str(value).lower() if isinstance(value, bool) else str(value)
-                for key, value in (contact.get("properties") or {}).items()
-            }
+            properties = {key: _property_value(value) for key, value in (contact.get("properties") or {}).items()}
             # The email only identifies the contact. Writing it could make an additional email the primary one
             properties.pop("email", None)
             if contact.get("first_name"):
@@ -1480,15 +1526,16 @@ class UpsertContactsActionHandler(ActionHandler):
             response = await fetch_with_rate_limit_retries(
                 context,
                 CONTACTS_BATCH_UPSERT_API_URL,
-                # No SDK resend: a replay would see contacts this call created and report them as updated
-                retry_count=context.config["max_retries"],
+                retry_sleep_budget=retry_sleep_budget,
+                # A resend would see contacts this call created and report them as updated
+                resend_on_connection_error=False,
                 method="POST",
                 json={"inputs": batch_inputs},
                 headers={"Content-Type": "application/json"},
             )
-        except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError) as e:
-            message = f"Failed to upsert contacts: {str(e) or type(e).__name__}"
-            if not isinstance(e, HTTPError) or e.status >= 500:
+        except REQUEST_ERRORS as e:
+            message = f"Failed to upsert contacts: {_error_text(e)}"
+            if _outcome_unknown(e):
                 message += "; HubSpot may have saved some of them, and retrying is safe"
             return ActionError(message=message)
 
@@ -1502,8 +1549,8 @@ class UpsertContactsActionHandler(ActionHandler):
         # Updated contacts may come back without their email, so read them back by email to match on contact ID
         if any(row_key_for(item) is None for item in data.get("results", [])):
             try:
-                contact_ids_by_email, _ = await _find_contact_ids_by_email(emails, context, {"remaining": 10})
-            except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError):
+                contact_ids_by_email, _ = await _find_contact_ids_by_email(emails, context, retry_sleep_budget)
+            except REQUEST_ERRORS:
                 contact_ids_by_email = {}  # unmatched rows are reported as unattributed below
             row_key_by_contact_id.update(
                 {
@@ -3930,8 +3977,10 @@ class CreateAssociationHandler(ActionHandler):
                 f"https://api.hubapi.com/crm/v4/objects/{from_type}/{from_id}/associations/default/{to_type}/{to_id}",
                 method="PUT",
             )
-        except HTTPError as e:
-            return ActionError(message=f"Failed to associate {from_type} {from_id} with {to_type} {to_id}: {e}")
+        except REQUEST_ERRORS as e:
+            return ActionError(
+                message=f"Failed to associate {from_type} {from_id} with {to_type} {to_id}: {_error_text(e)}"
+            )
 
         return ActionResult(
             data={
