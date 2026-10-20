@@ -923,7 +923,6 @@ class TestUpsertContacts:
                         "jobtitle": "CTO",
                         "numemployees": "50",
                         "hs_marketable_status": "true",
-                        "email": "jo@example.com",
                         "firstname": "Jo",
                         "lastname": "Bloggs",
                     },
@@ -1006,10 +1005,57 @@ class TestUpsertContacts:
         assert mock_context.fetch.call_args.kwargs["json"]["inputs"][0]["properties"]["phone"] == ""
 
     @pytest.mark.asyncio
-    async def test_unattributable_upsert_result_is_failed_not_updated(self, mock_context):
+    async def test_upsert_never_writes_the_identifier_email(self, mock_context):
         mock_context.fetch.return_value = ok(
-            {"results": [{"id": "9", "new": True, "properties": {"email": "primary@x.com"}}]}
+            {"results": [{"id": "1", "new": False, "properties": {"email": "a@x.com"}}]}
         )
+
+        await hubspot.execute_action(
+            "upsert_contacts",
+            {"contacts": [{"email": "a@x.com", "properties": {"email": "other@x.com", "jobtitle": "CTO"}}]},
+            mock_context,
+        )
+
+        # The address only identifies the contact; writing it could replace the primary email of an alias match
+        assert mock_context.fetch.call_args.kwargs["json"]["inputs"][0]["properties"] == {"jobtitle": "CTO"}
+
+    @pytest.mark.asyncio
+    async def test_results_without_email_matched_by_reading_contacts_back(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok({"results": [{"id": "9", "new": False, "properties": {"jobtitle": "CTO"}}]}),
+            ok(
+                {
+                    "results": [
+                        {"id": "9", "properties": {"email": "primary@x.com", "hs_additional_emails": "alt@x.com"}}
+                    ]
+                }
+            ),
+        ]
+
+        result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "alt@x.com"}]}, mock_context)
+
+        row = result.result.data["results"][0]
+        assert (row["status"], row["contact_id"]) == ("updated", "9")
+        read_call = fetch_calls(mock_context, CONTACTS_BATCH_READ_URL)[0]
+        assert read_call.kwargs["json"]["inputs"] == [{"id": "alt@x.com"}]
+
+    @pytest.mark.asyncio
+    async def test_matched_results_skip_the_read_back(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {"results": [{"id": "1", "new": True, "properties": {"email": "a@x.com"}}]}
+        )
+
+        await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
+
+        assert fetch_calls(mock_context, CONTACTS_BATCH_READ_URL) == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("read_error", [HTTPError(500, "Server error"), aiohttp.ServerDisconnectedError()])
+    async def test_unattributable_upsert_result_is_failed_not_updated(self, mock_context, read_error):
+        mock_context.fetch.side_effect = [
+            ok({"results": [{"id": "9", "new": True, "properties": {"jobtitle": "CTO"}}]}),
+            read_error,
+        ]
 
         result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "alt@x.com"}]}, mock_context)
 

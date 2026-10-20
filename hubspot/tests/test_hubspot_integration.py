@@ -874,11 +874,14 @@ class TestUpsertContacts:
             assert str(after.data["id"]) == str(before.data["id"])
             assert after.data["properties"]["jobtitle"] == marker
         finally:
-            await hubspot.execute_action(
+            restore = await hubspot.execute_action(
                 "upsert_contacts",
                 {"contacts": [{"email": TEST_CONTACT_EMAIL, "properties": {"jobtitle": original_job_title}}]},
                 live_context,
             )
+            assert restore.type == ResultType.ACTION, f"Could not restore jobtitle: {restore.result}"
+            restored = await live_context.fetch(contact_url, method="GET", params=lookup_params)
+            assert (restored.data["properties"].get("jobtitle") or "") == original_job_title
 
 
 @pytest.mark.destructive

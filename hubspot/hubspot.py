@@ -1423,7 +1423,7 @@ class UpsertContactsActionHandler(ActionHandler):
         duplicates = sorted(email for email, count in Counter(emails).items() if count > 1)
         if duplicates:
             return ActionError(message=f"Each email can appear only once per call. Duplicates: {', '.join(duplicates)}")
-        # HubSpot rejects objectWriteTraceId on email-keyed upserts, so rows are matched on the returned email
+        # HubSpot rejects objectWriteTraceId on email-keyed upserts, so rows are matched by email or contact ID
         row_key_by_email = {email: str(row_index) for row_index, email in enumerate(emails)}
 
         batch_inputs = []
@@ -1433,7 +1433,8 @@ class UpsertContactsActionHandler(ActionHandler):
                 key: "" if value is None else str(value).lower() if isinstance(value, bool) else str(value)
                 for key, value in (contact.get("properties") or {}).items()
             }
-            properties["email"] = email
+            # The email only identifies the contact. Writing it could make an additional email the primary one
+            properties.pop("email", None)
             if contact.get("first_name"):
                 properties["firstname"] = contact["first_name"]
             if contact.get("last_name"):
@@ -1457,11 +1458,32 @@ class UpsertContactsActionHandler(ActionHandler):
         except HTTPError as e:
             return ActionError(message=f"Failed to upsert contacts: {e}")
 
+        row_key_by_contact_id: Dict[str, str] = {}
+
+        def row_key_for(item: Dict[str, Any]) -> str | None:
+            email = ((item.get("properties") or {}).get("email") or "").lower()
+            return row_key_by_email.get(email) or row_key_by_contact_id.get(str(item.get("id")))
+
+        data = await parse_response(response) or {}
+        # Updated contacts may come back without their email, so read them back by email to match on contact ID
+        if any(row_key_for(item) is None for item in data.get("results", [])):
+            try:
+                contact_ids_by_email = await _find_contact_ids_by_email(emails, context, {"remaining": 10})
+            except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError):
+                contact_ids_by_email = {}  # unmatched rows are reported as unattributed below
+            row_key_by_contact_id.update(
+                {
+                    contact_id: row_key_by_email[address]
+                    for address, contact_id in contact_ids_by_email.items()
+                    if address in row_key_by_email
+                }
+            )
+
         upserted_by_row, errors_by_row = _match_batch_results(
-            await parse_response(response) or {},
+            data,
             list(row_key_by_email.values()),
             "HubSpot did not return a contact for this row",
-            trace_id_for=lambda item: row_key_by_email.get(((item.get("properties") or {}).get("email") or "").lower()),
+            trace_id_for=row_key_for,
         )
 
         results = []
