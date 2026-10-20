@@ -1008,6 +1008,30 @@ class TestUpsertContacts:
         ]
 
     @pytest.mark.asyncio
+    async def test_upsert_is_not_resent_by_the_sdk(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {"results": [{"id": "1", "new": True, "properties": {"email": "a@x.com"}}]}
+        )
+
+        await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
+
+        # A resend would see the contact this call just created and report it as updated
+        assert fetch_calls(mock_context, CONTACTS_UPSERT_URL)[0].kwargs["retry_count"] == 3
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error", [aiohttp.ServerDisconnectedError(), asyncio.TimeoutError(), HTTPError(503, "Unavailable")]
+    )
+    async def test_ambiguous_upsert_failure_says_outcome_unknown(self, mock_context, error):
+        mock_context.fetch.side_effect = error
+
+        result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "may have saved" in result.result.message
+        assert len(fetch_calls(mock_context, CONTACTS_UPSERT_URL)) == 1
+
+    @pytest.mark.asyncio
     async def test_none_property_value_clears_it(self, mock_context):
         mock_context.fetch.return_value = ok(
             {"results": [{"id": "1", "new": False, "properties": {"email": "a@example.com"}}]}

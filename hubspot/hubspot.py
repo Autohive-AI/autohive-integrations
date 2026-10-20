@@ -1455,12 +1455,17 @@ class UpsertContactsActionHandler(ActionHandler):
             response = await fetch_with_rate_limit_retries(
                 context,
                 CONTACTS_BATCH_UPSERT_API_URL,
+                # No SDK resend: a replay would see contacts this call created and report them as updated
+                retry_count=context.config["max_retries"],
                 method="POST",
                 json={"inputs": batch_inputs},
                 headers={"Content-Type": "application/json"},
             )
-        except HTTPError as e:
-            return ActionError(message=f"Failed to upsert contacts: {e}")
+        except (aiohttp.ClientError, asyncio.TimeoutError, HTTPError) as e:
+            message = f"Failed to upsert contacts: {str(e) or type(e).__name__}"
+            if not isinstance(e, HTTPError) or e.status >= 500:
+                message += "; HubSpot may have saved some of them, and retrying is safe"
+            return ActionError(message=message)
 
         row_key_by_contact_id: Dict[str, str] = {}
 
