@@ -631,6 +631,12 @@ def _match_batch_results(
         warning = "HubSpot is still processing this batch; check HubSpot before retrying"
         batch_error = f"{warning}; {batch_error}" if batch_error else warning
 
+    # One leftover result and one row with no result or error of its own can only belong together
+    leftover_items = [item for item in items if item not in items_by_trace.values()]
+    leftover_trace_ids = [t for t in trace_ids if t not in items_by_trace and t not in messages_by_trace]
+    if len(leftover_items) == 1 and len(leftover_trace_ids) == 1:
+        items_by_trace[leftover_trace_ids[0]] = leftover_items[0]
+
     if len(items_by_trace) < len(items):
         if len(items) == len(trace_ids):
             items_by_trace = {trace_id: items_by_trace.get(trace_id, {}) for trace_id in trace_ids}

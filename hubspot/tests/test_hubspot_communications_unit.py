@@ -538,6 +538,17 @@ class TestLogLinkedInMessages:
         ]
 
     @pytest.mark.asyncio
+    async def test_single_row_created_without_trace_id_keeps_its_id(self, mock_context):
+        mock_context.fetch.return_value = ok({"results": [{"id": "a"}]}, status=201)
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages", {"messages": [{"contact_id": "1"}], "default_message_body": "Hi"}, mock_context
+        )
+
+        row = result.result.data["results"][0]
+        assert (row["status"], row["communication_id"]) == ("logged", "a")
+
+    @pytest.mark.asyncio
     async def test_all_rows_created_without_trace_ids_are_logged(self, mock_context):
         mock_context.fetch.return_value = ok({"results": [{"id": "a"}, {"id": "b"}]}, status=201)
 
@@ -584,7 +595,7 @@ class TestLogLinkedInMessages:
         assert "Property values were not valid" in error
 
     @pytest.mark.asyncio
-    async def test_partial_creates_without_trace_ids_keep_row_specific_errors(self, mock_context):
+    async def test_only_unexplained_row_gets_the_untraced_result(self, mock_context):
         mock_context.fetch.return_value = ok(
             {
                 "results": [{"id": "a"}],
@@ -600,7 +611,7 @@ class TestLogLinkedInMessages:
         )
 
         rows = result.result.data["results"]
-        assert "before retrying" in rows[0]["error"]
+        assert (rows[0]["status"], rows[0]["communication_id"]) == ("logged", "a")
         assert rows[1]["error"] == "Deal 7 does not exist"
 
     @pytest.mark.asyncio
@@ -1176,15 +1187,17 @@ class TestUpsertContacts:
     @pytest.mark.parametrize("read_error", [HTTPError(500, "Server error"), aiohttp.ServerDisconnectedError()])
     async def test_unattributable_upsert_result_is_failed_not_updated(self, mock_context, read_error):
         mock_context.fetch.side_effect = [
-            ok({"results": [{"id": "9", "new": True, "properties": {"jobtitle": "CTO"}}]}),
+            ok({"results": [{"id": "9", "new": True, "properties": {}}, {"id": "8", "new": False, "properties": {}}]}),
             read_error,
         ]
 
-        result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "alt@x.com"}]}, mock_context)
+        result = await hubspot.execute_action(
+            "upsert_contacts", {"contacts": [{"email": "a@x.com"}, {"email": "b@x.com"}]}, mock_context
+        )
 
-        row = result.result.data["results"][0]
-        assert (row["status"], row["contact_id"]) == ("failed", None)
-        assert "retrying is safe" in row["error"]
+        rows = result.result.data["results"]
+        assert [(r["status"], r["contact_id"]) for r in rows] == [("failed", None), ("failed", None)]
+        assert all("retrying is safe" in r["error"] for r in rows)
         assert result.result.data["success"] is False
 
     @pytest.mark.asyncio
