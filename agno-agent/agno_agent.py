@@ -91,7 +91,7 @@ class _SSEAnswerCollector:
         self._data_bytes = 0  # above MAX_EVENT_BYTES marks the current event as dropped
         self._completed: Optional[str] = None
         self._chunks: List[str] = []
-        self._chunk_chars = 0  # above MAX_EVENT_BYTES means the streamed answer was too large
+        self._chunk_bytes = 0  # above MAX_EVENT_BYTES means the streamed answer was too large
         self._completed_too_large = False
 
     def feed(self, chunk: bytes) -> None:
@@ -182,7 +182,7 @@ class _SSEAnswerCollector:
             # a too-large answer would overflow those as well.
             self._completed_too_large = True
         elif dropped and event_line in ANSWER_EVENTS:
-            self._chunk_chars = MAX_EVENT_BYTES + 1
+            self._chunk_bytes = MAX_EVENT_BYTES + 1
         if dropped or not data:
             return
         try:
@@ -197,9 +197,9 @@ class _SSEAnswerCollector:
             return
         if event == "RunCompleted":
             self._completed = content
-        elif event in ANSWER_EVENTS and self._chunk_chars <= MAX_EVENT_BYTES:
-            self._chunk_chars += len(content)
-            if self._chunk_chars > MAX_EVENT_BYTES:
+        elif event in ANSWER_EVENTS and self._chunk_bytes <= MAX_EVENT_BYTES:
+            self._chunk_bytes += len(content.encode("utf-8", "surrogatepass"))
+            if self._chunk_bytes > MAX_EVENT_BYTES:
                 # Bound memory like any single event, but report it instead of cutting the answer.
                 self._chunks.clear()
             else:
@@ -221,7 +221,7 @@ class _SSEAnswerCollector:
         self._dispatch()
         if self._completed:
             return self._completed
-        if self._chunk_chars > MAX_EVENT_BYTES or (self._completed_too_large and not self._chunks):
+        if self._chunk_bytes > MAX_EVENT_BYTES or (self._completed_too_large and not self._chunks):
             raise AnswerTooLargeError()
         return "".join(self._chunks)
 
@@ -265,10 +265,13 @@ async def _post_run(url: str, data: Dict[str, str], headers: Dict[str, str], tim
     async with aiohttp.ClientSession(timeout=client_timeout) as session:
         async with session.post(url, data=data, headers=headers) as response:
             if response.status >= 400:
-                body = await _read_capped(response.content, MAX_ERROR_BODY_BYTES)
+                body = bytearray()
+                # The body is only diagnostic; losing it mustn't hide a retryable gateway status.
+                with contextlib.suppress(aiohttp.ClientError, asyncio.TimeoutError):
+                    body = await _read_capped(response.content, MAX_ERROR_BODY_BYTES)
                 raise HTTPError(response.status, body.decode("utf-8", errors="replace"))
 
-            if "application/json" in response.headers.get("Content-Type", ""):
+            if response.content_type == "application/json":
                 # Some deployments or proxies answer with plain JSON despite stream=true.
                 raw = await _read_capped(response.content, MAX_EVENT_BYTES + 1)
                 if len(raw) > MAX_EVENT_BYTES:

@@ -78,13 +78,16 @@ class _FakeStreamReader:
         size = self._chunk_size if n < 0 else min(n, self._chunk_size)
         data = self._body[self._read_pos : self._read_pos + size]
         self._read_pos += len(data)
+        if not data and self._error:
+            raise self._error
         return data
 
 
 class _FakeResponse:
     def __init__(self, body: bytes, status: int, content_type: str, chunk_size: int, error: Exception | None):
         self.status = status
-        self.headers = {"Content-Type": content_type}
+        # aiohttp's parsed media type: lowercased, parameters stripped.
+        self.content_type = content_type.split(";")[0].strip().lower()
         self.content = _FakeStreamReader(body, chunk_size, error)
 
     async def __aenter__(self):
@@ -366,6 +369,23 @@ class TestAskAgentResponseParsing:
 
         assert result.result.data["response"] == "id: 42 name: Ada"
 
+    @pytest.mark.parametrize("content_type", ["Application/JSON", "APPLICATION/JSON; charset=utf-8"])
+    async def test_json_content_type_is_case_insensitive(self, mock_context, agentos, content_type: str):
+        agentos.queue(_reply('{"content": "case ok"}', content_type=content_type))
+
+        result = await _ask(mock_context)
+
+        assert result.result.data["response"] == "case ok"
+
+    @pytest.mark.parametrize("content_type", ["", "application/problem+json", "text/json"])
+    async def test_non_json_media_type_body_is_returned_as_text(self, mock_context, agentos, content_type: str):
+        """Only application/json is parsed as JSON; anything else is returned as plain text."""
+        agentos.queue(_reply('{"content": "x"}', content_type=content_type))
+
+        result = await _ask(mock_context)
+
+        assert result.result.data["response"] == '{"content": "x"}'
+
     async def test_invalid_json_body_falls_back_to_text(self, mock_context, agentos):
         agentos.queue(_reply("not json", content_type="application/json"))
 
@@ -480,6 +500,34 @@ class TestAskAgentRetry:
         assert exc_info.value.message == "bad request"
         assert len(agentos.calls) == 1
         no_sleep.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "error", [aiohttp.ClientPayloadError("Response payload is not completed"), asyncio.TimeoutError()]
+    )
+    async def test_gateway_status_kept_when_error_body_read_fails(
+        self, mock_context, agentos, no_sleep, error: Exception
+    ):
+        """A 503 that drops or times out while its error body is read is still a retryable gateway error."""
+        agentos.queue(
+            _reply("partial", status=503, content_type="text/html", error=error),
+            _reply(_sse('data: {"event": "RunCompleted", "content": "ok"}')),
+        )
+
+        result = await _ask(mock_context)
+
+        assert result.result.data["response"] == "ok"
+        assert len(agentos.calls) == 2
+
+    async def test_client_error_status_kept_when_error_body_read_fails(self, mock_context, agentos, no_sleep):
+        agentos.queue(
+            _reply("partial", status=400, content_type="text/plain", error=aiohttp.ClientPayloadError("cut off"))
+        )
+
+        with pytest.raises(HTTPError) as exc_info:
+            await _ask(mock_context)
+
+        assert exc_info.value.status == 400
+        assert len(agentos.calls) == 1
 
     async def test_retries_connection_failure(self, mock_context, agentos, no_sleep):
         agentos.queue(
@@ -655,6 +703,18 @@ class TestAskAgentMemoryBounds:
         assert "narrower" in result.result.message
         assert len(agentos.calls) == 1
         no_sleep.assert_not_awaited()
+
+    async def test_answer_limit_counts_utf8_bytes(self, mock_context, agentos):
+        """Emoji are 4 bytes each, so these chunks pass the byte limit while staying under it in characters."""
+        chunk = "😀" * 25_000
+        events = [json.dumps({"event": "RunContent", "content": chunk}) for _ in range(30)]
+        assert 30 * len(chunk) < MAX_EVENT_BYTES < 30 * len(chunk.encode())
+        agentos.queue(_reply(_sse(*[f"data: {e}" for e in events]), chunk_size=64 * 1024))
+
+        result = await _ask(mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "too large" in result.result.message
 
     async def test_run_completed_supersedes_chunk_overflow(self, mock_context, agentos):
         events = [*_overflowing_chunks(), 'data: {"event": "RunCompleted", "content": "final answer"}']
@@ -846,6 +906,22 @@ class TestSSEAnswerCollector:
         collector.feed(f'data: {{"event": "RunCompleted", "content": "{big}"}}\n\n'.encode())
 
         assert collector.finish() == ""
+
+    def test_lone_surrogates_count_toward_answer_limit(self):
+        """Each lone surrogate counts 3 bytes, so these chunks pass the bound and are reported."""
+        chunk = json.dumps({"content": "\ud83d" * 100_000})
+        collector = _SSEAnswerCollector()
+        for _ in range(8):
+            collector.feed(f"event: RunContent\ndata: {chunk}\n\n".encode())
+
+        with pytest.raises(AnswerTooLargeError):
+            collector.finish()
+
+    def test_lone_surrogate_in_streamed_chunk_is_counted(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(b'event: RunContent\ndata: {"content": "a\\ud83d"}\n\n')
+
+        assert collector.finish() == "a\ud83d"
 
     def test_oversized_plain_body_stops_reading_at_cap(self):
         """An endless plain answer fails as soon as it passes the cap, not at the read timeout."""
