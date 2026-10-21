@@ -50,7 +50,8 @@ from pyproj import Geod
 from shapely import make_valid
 from shapely.affinity import translate
 from shapely.errors import ShapelyError
-from shapely.geometry import shape
+from shapely.geometry import mapping, shape
+from shapely.ops import unary_union
 
 stats_nz_datafinder = Integration.load()
 
@@ -67,6 +68,8 @@ DEFAULT_MAX_SOURCE_FEATURES = 10_000
 OVERLAP_TOLERANCE = 1e-6
 MAX_DESCRIPTION_CHARS = 400
 GEOJSON_MAX_BYTES = 5 * 1024 * 1024
+# Matches the OpenRouteService isochrone band limit; each band rescans every fetched feature.
+MAX_BANDS = 10
 _AREA_GEOMETRY_TYPES = frozenset({"Polygon", "MultiPolygon"})
 _GEOD = Geod(ellps="WGS84")
 ADDITIVE_COUNT = "additive_count"
@@ -929,6 +932,181 @@ def _bind_geojson_file(inputs: dict[str, Any]) -> tuple[dict[str, Any] | None, d
     return geometry, None
 
 
+_BAND_PROPERTY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_STATUS_RANK = {"ok": 0, "partial": 1, "unavailable": 2}
+
+
+def _band_scalar(value: Any) -> Any | None:
+    """Numeric or string band value. Bools and non-finite numbers are not usable."""
+    if type(value) is bool:
+        return None
+    if isinstance(value, (int, float)):
+        return value if math.isfinite(value) else None
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _band_sort_key(value: Any) -> tuple[int, float | str]:
+    if isinstance(value, (int, float)) and type(value) is not bool:
+        return (0, float(value))
+    return (1, str(value))
+
+
+def _worst_validation_status(statuses: list[str]) -> str:
+    if not statuses:
+        return "unavailable"
+    return max(statuses, key=lambda status: _STATUS_RANK.get(status, 0))
+
+
+def _collect_band_polygons(features: list[Any], band_property: str) -> tuple[list[dict[str, Any]], list[str]]:
+    """Select every Polygon/MultiPolygon that has a usable band_property value."""
+    selected: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    polygon_count = 0
+    skipped = 0
+    for feature in features:
+        if _feature_area_geometry(feature) is None:
+            continue
+        polygon_count += 1
+        properties = _feature_properties(feature)
+        if band_property not in properties:
+            skipped += 1
+            continue
+        value = _band_scalar(properties[band_property])
+        if value is None:
+            skipped += 1
+            continue
+        # Fail before the duplicate scan so a huge file cannot make this loop quadratic.
+        if len(selected) >= MAX_BANDS:
+            raise _geojson_contract_error(
+                message=(
+                    f"More than {MAX_BANDS} band features have a usable '{band_property}' value; "
+                    f"at most {MAX_BANDS} bands are supported."
+                ),
+                error_code="too_many_bands",
+                field="band_property",
+                recovery=f"Keep at most {MAX_BANDS} band features with a unique '{band_property}' value per request.",
+            )
+        for existing in selected:
+            if _json_values_equal(existing["band_value"], value):
+                raise _geojson_contract_error(
+                    message="band_property has duplicate values across Polygon/MultiPolygon features.",
+                    error_code="duplicate_band_value",
+                    field="band_property",
+                    recovery="Give each catchment band a unique value, or select one feature with feature_filter.",
+                )
+        selected.append(
+            {
+                "band_value": value,
+                "geometry": _selected_area_geometry(feature, field="band_property"),
+            }
+        )
+    if polygon_count == 0:
+        raise _geojson_contract_error(
+            message="The GeoJSON file does not contain a Polygon or MultiPolygon feature.",
+            error_code="invalid_geometry",
+            recovery="Pass a file that contains a Polygon or MultiPolygon.",
+            valid_alternatives=["Polygon", "MultiPolygon"],
+        )
+    if not selected:
+        raise _geojson_contract_error(
+            message=f"No Polygon/MultiPolygon feature has a usable '{band_property}' value.",
+            error_code="band_property_not_found",
+            field="band_property",
+            recovery="Set the property on every catchment band, or omit band_property and select one feature.",
+        )
+    if skipped:
+        warnings.append(f"Skipped {skipped} Polygon/MultiPolygon feature(s) with no usable '{band_property}' value.")
+    selected.sort(key=lambda item: _band_sort_key(item["band_value"]))
+    return selected, warnings
+
+
+def _union_area_geometries(geometries: list[dict[str, Any]]) -> dict[str, Any]:
+    """Union catchment bands so WFS is fetched once for nested isochrones."""
+    shapes = []
+    for geometry in geometries:
+        item = _as_shapely(geometry)
+        if item is None:
+            continue
+        shapes.append(item)
+    if not shapes:
+        raise _geojson_contract_error(
+            message="The catchment bands could not be combined into a query geometry.",
+            error_code="invalid_geometry",
+            field="band_property",
+            recovery="Pass closed WGS84 Polygon or MultiPolygon bands.",
+        )
+    try:
+        unioned = shapes[0] if len(shapes) == 1 else unary_union(shapes)
+    except (ShapelyError, TypeError, ValueError) as exc:
+        raise _geojson_contract_error(
+            message="The catchment bands could not be combined into a query geometry.",
+            error_code="invalid_geometry",
+            field="band_property",
+            recovery="Pass closed WGS84 Polygon or MultiPolygon bands.",
+        ) from exc
+    if unioned is None or unioned.is_empty:
+        raise _geojson_contract_error(
+            message="The catchment bands could not be combined into a query geometry.",
+            error_code="invalid_geometry",
+            field="band_property",
+            recovery="Pass closed WGS84 Polygon or MultiPolygon bands.",
+        )
+    geojson = json.loads(json.dumps(mapping(unioned)))
+    if not isinstance(geojson, dict) or geojson.get("type") not in ("Polygon", "MultiPolygon"):
+        raise _geojson_contract_error(
+            message="The combined catchment is not a Polygon or MultiPolygon.",
+            error_code="invalid_geometry",
+            field="band_property",
+            recovery="Pass Polygon or MultiPolygon bands.",
+        )
+    return {"type": geojson["type"], "coordinates": geojson["coordinates"]}
+
+
+def _bind_band_property(inputs: dict[str, Any]) -> tuple[str, list[dict[str, Any]], list[str], dict[str, Any]] | None:
+    """Return band entries when band_property is set, else None."""
+    band_property = inputs.get("band_property")
+    if band_property is None:
+        return None
+    if not isinstance(band_property, str) or not _BAND_PROPERTY_PATTERN.fullmatch(band_property):
+        raise _geojson_contract_error(
+            message="band_property must be a GeoJSON property name.",
+            error_code="invalid_request",
+            field="band_property",
+            recovery="Pass a name matching [A-Za-z_][A-Za-z0-9_]*, for example time_minutes.",
+        )
+    if inputs.get("feature_index") is not None or inputs.get("feature_filter") is not None:
+        raise _geojson_contract_error(
+            message="band_property cannot be combined with feature_index or feature_filter.",
+            error_code="conflicting_geometry_source",
+            field="band_property",
+            recovery="Use band_property alone with file, or select one feature with feature_index/feature_filter.",
+        )
+    if inputs.get("file") is None:
+        raise _geojson_contract_error(
+            message="band_property is only valid with file.",
+            error_code="conflicting_geometry_source",
+            field="band_property",
+            recovery="Pass the isochrone FeatureCollection as file when using band_property.",
+        )
+    if inputs.get("geometry") is not None:
+        raise _geojson_contract_error(
+            message="Provide geometry or file, not both.",
+            error_code="conflicting_geometry_source",
+            recovery="Pass either inline geometry or a GeoJSON file, not both.",
+        )
+    document = _read_geojson_file(inputs["file"])
+    features, _is_collection = _geojson_features(document)
+    selected, warnings = _collect_band_polygons(features, band_property)
+    name = inputs["file"].get("name") if isinstance(inputs["file"], dict) else None
+    source = {
+        "name": name if isinstance(name, str) and name else None,
+        "feature_index": None,
+    }
+    return band_property, selected, warnings, source
+
+
 def _resolve_query_scope(inputs: dict[str, Any]) -> tuple[dict[str, Any] | None, str]:
     """Return (spatial GeoJSON or None, query kind). Reject unconstrained scans."""
     geometry = inputs.get("geometry")
@@ -1533,6 +1711,37 @@ def _duplicate_geography_codes(codes: list[str]) -> list[str]:
     return [code for code, count in counts.items() if count > 1]
 
 
+def _raise_on_duplicate_join(codes: list[str]) -> None:
+    duplicates = _duplicate_geography_codes(codes)
+    if duplicates:
+        raise DatafinderError(
+            _contract_error(
+                message="Duplicate geography codes remain after feature-id deduplication.",
+                error_code="duplicate_join",
+                field="geometry",
+                valid_alternatives=duplicates[:8],
+                recovery="Retry the query. If it persists, the layer is not a unique-join Census geography.",
+                retry_safe=False,
+            )
+        )
+
+
+def _check_union_duplicate_joins(features: list[Any], geography_field: str | None) -> None:
+    """Same scope as the single-catchment check: every fetched feature with polygon area."""
+    codes: list[str] = []
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        feature_geom = _as_shapely(feature.get("geometry"))
+        if feature_geom is None or _geodesic_area_m2(feature_geom) <= 0:
+            continue
+        properties = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
+        code = _geography_code(properties, geography_field)
+        if isinstance(code, str) and code:
+            codes.append(code)
+    _raise_on_duplicate_join(codes)
+
+
 def _search_layer(item: dict[str, Any]) -> dict[str, Any]:
     capabilities = item.get("user_capabilities")
     return {
@@ -1592,20 +1801,12 @@ def _geojson_feature_for_export(feature: dict[str, Any], record: dict[str, Any])
     return exported
 
 
-def _query_layer_geojson_file(layer_id: int, features: list[dict[str, Any]]) -> dict[str, str]:
+def _query_layer_geojson_file(layer_id: int, features: list[dict[str, Any]]) -> dict[str, str] | None:
     collection = {"type": "FeatureCollection", "features": features}
     try:
         body = json.dumps(collection, allow_nan=False)
-    except (TypeError, ValueError) as exc:
-        raise DatafinderError(
-            _contract_error(
-                message="The query GeoJSON export could not be serialised.",
-                error_code="geojson_export_failed",
-                field="export_geojson",
-                recovery="Retry the query, or omit export_geojson and inspect records.",
-                retry_safe=False,
-            )
-        ) from exc
+    except (TypeError, ValueError):
+        return None
     return _platform_file(f"layer-{layer_id}-query.geojson", "application/geo+json", body)
 
 
@@ -2095,8 +2296,19 @@ class QueryLayerByGeometryAction(ActionHandler):
         include_geometry = bool(inputs.get("include_geometry"))
         include_coded_fields = bool(inputs.get("include_coded_fields"))
         export_geojson = bool(inputs.get("export_geojson"))
+        include_records = inputs.get("include_records", True)
         fields = inputs.get("fields")
         try:
+            if include_records is False and not export_geojson:
+                raise DatafinderError(
+                    _contract_error(
+                        message="include_records=false requires export_geojson=true.",
+                        error_code="invalid_request",
+                        field="include_records",
+                        recovery="Set export_geojson=true when include_records=false, or omit include_records.",
+                        retry_safe=False,
+                    )
+                )
             if inputs.get("file") is not None and inputs.get("bbox") is not None:
                 raise _geojson_contract_error(
                     message="Provide only one spatial source: geometry, file, or bbox.",
@@ -2176,7 +2388,25 @@ class QueryLayerByGeometryAction(ActionHandler):
             if geometry_source:
                 payload["geometry_source"] = geometry_source
             if export_geojson:
-                payload["files"] = [_query_layer_geojson_file(layer_id, export_features)]
+                exported = _query_layer_geojson_file(layer_id, export_features)
+                if exported is not None:
+                    payload["files"] = [exported]
+                    if include_records is False:
+                        payload["records"] = []
+                else:
+                    # Only non-finite numbers fail serialisation, and they are not valid JSON inline either.
+                    raise DatafinderError(
+                        _contract_error(
+                            message=(
+                                "The query GeoJSON export could not be serialised: "
+                                "the layer returned NaN or infinite values."
+                            ),
+                            error_code="geojson_export_failed",
+                            field="export_geojson",
+                            recovery="Narrow fields to exclude the column with NaN or infinite values.",
+                            retry_safe=False,
+                        )
+                    )
             return ActionResult(data=payload)
         except DatafinderError as exc:
             return ActionError(message=_redact(exc))
@@ -2184,6 +2414,124 @@ class QueryLayerByGeometryAction(ActionHandler):
             return _http_action_error(exc, layer_id=layer_id)
         except Exception:
             return ActionError(message=_UNEXPECTED_ERROR)
+
+
+def _area_weighted_totals(
+    query_geom: Any,
+    collected: _CollectedFeatures,
+    measures: list[dict[str, Any]],
+    missing_values: list[Any],
+    geography_field: str | None,
+    *,
+    ignore_zero_overlap: bool = False,
+) -> dict[str, Any]:
+    totals: dict[str, dict[str, Any]] = {
+        item["key"]: {
+            "estimated_value": 0.0,
+            "included_feature_count": 0,
+            "unavailable_feature_count": 0,
+        }
+        for item in measures
+    }
+    geography_codes: list[str] = []
+    included_positions: set[int] = set()
+    skipped_no_area = 0
+    warnings: list[str] = []
+    if not geography_field:
+        warnings.append("No geography-code field was found, so duplicate SA1 joins were not checked.")
+    intersecting = 0
+    for position, feature in enumerate(collected.features):
+        if not isinstance(feature, dict):
+            raise DatafinderError(
+                _contract_error(
+                    message="Datafinder returned a malformed feature.",
+                    error_code="partial_provider_failure",
+                    field="geometry",
+                    recovery="Retry the request. If it persists, choose another layer.",
+                    retry_safe=True,
+                )
+            )
+        fraction = _raw_overlap_fraction(query_geom, feature.get("geometry"))
+        properties = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
+        if fraction is None:
+            skipped_no_area += 1
+            continue
+        if ignore_zero_overlap and fraction <= 0:
+            continue
+        intersecting += 1
+        has_included = False
+        for measure in measures:
+            key = measure["key"]
+            if measure["field"] not in properties:
+                number, status = None, "unavailable"
+            else:
+                number, status = _measure_source_value(properties.get(measure["field"]), missing_values)
+            if status == "included" and number is not None:
+                totals[key]["estimated_value"] += number * fraction
+                totals[key]["included_feature_count"] += 1
+                has_included = True
+            else:
+                totals[key]["unavailable_feature_count"] += 1
+        code = _geography_code(properties, geography_field)
+        if isinstance(code, str) and code:
+            geography_codes.append(code)
+        if has_included:
+            included_positions.add(position)
+    _raise_on_duplicate_join(geography_codes)
+    if not ignore_zero_overlap:
+        intersecting = len(collected.features)
+    if skipped_no_area:
+        warnings.append(f"Excluded {skipped_no_area} feature(s) with no polygon area.")
+    results = []
+    for measure in measures:
+        stats = totals[measure["key"]]
+        included = stats["included_feature_count"]
+        unavailable = stats["unavailable_feature_count"]
+        if included == 0:
+            status = "unavailable"
+            estimated: float | None = None
+            warnings.append(f"Measure '{measure['key']}' had no usable source values in this catchment.")
+        elif unavailable > 0:
+            status = "partial"
+            estimated = stats["estimated_value"]
+            warnings.append(
+                f"Measure '{measure['key']}' excluded {unavailable} feature(s) with missing or suppressed values."
+            )
+        else:
+            status = "ok"
+            estimated = stats["estimated_value"]
+        results.append(
+            {
+                "key": measure["key"],
+                "label": measure["label"],
+                "field": measure["field"],
+                "estimated_value": estimated,
+                "unit": measure["unit"],
+                "aggregation": measure["aggregation"],
+                "source_feature_count": intersecting,
+                "included_feature_count": included,
+                "unavailable_feature_count": unavailable,
+                "status": status,
+            }
+        )
+    statuses = [row["status"] for row in results]
+    if statuses and all(status == "unavailable" for status in statuses):
+        validation_status = "unavailable"
+    elif any(status in {"partial", "unavailable"} for status in statuses):
+        validation_status = "partial"
+    else:
+        validation_status = "ok"
+    return {
+        "results": results,
+        "geography_summary": {
+            "intersecting_feature_count": intersecting,
+            "included_feature_count": len(included_positions),
+            "duplicate_feature_count": collected.duplicate_count,
+        },
+        "warnings": warnings,
+        "validation_status": validation_status,
+        "included_positions": included_positions,
+    }
 
 
 @stats_nz_datafinder.action("query_area_statistics")
@@ -2197,7 +2545,13 @@ class QueryAreaStatisticsAction(ActionHandler):
         missing_values = inputs.get("missing_values", DEFAULT_MISSING_VALUES)
         max_source_features = inputs.get("max_source_features", DEFAULT_MAX_SOURCE_FEATURES)
         try:
-            geometry, geometry_source = _bind_geojson_file(inputs)
+            band_binding = _bind_band_property(inputs)
+            if band_binding is not None:
+                _band_property, band_entries, band_skip_warnings, geometry_source = band_binding
+                geometry = _union_area_geometries([item["geometry"] for item in band_entries])
+            else:
+                band_entries = None
+                geometry, geometry_source = _bind_geojson_file(inputs)
             if geometry is None:
                 raise DatafinderError(
                     _contract_error(
@@ -2264,136 +2618,84 @@ class QueryAreaStatisticsAction(ActionHandler):
                 fail_closed=True,
                 max_source_features=max_source_features,
             )
-            totals: dict[str, dict[str, Any]] = {
-                item["key"]: {
-                    "estimated_value": 0.0,
-                    "included_feature_count": 0,
-                    "unavailable_feature_count": 0,
-                }
-                for item in measures
+            method = {
+                "area_weighting": (
+                    "Additive counts are estimated as the unrounded sum of source_value × overlap_fraction. "
+                    "overlap_fraction is the geodesic intersection area divided by the geodesic feature area "
+                    "on the WGS84 ellipsoid (pyproj Geod). Areas are not computed in longitude/latitude degrees."
+                ),
+                "projected_crs": "WGS84 geodesic (pyproj Geod, ellps=WGS84); not a planar degree grid",
+                "overlap_tolerance": OVERLAP_TOLERANCE,
             }
-            geography_codes: list[str] = []
-            included_any = 0
-            skipped_no_area = 0
-            warnings: list[str] = []
-            if not geography_field:
-                warnings.append("No geography-code field was found, so duplicate SA1 joins were not checked.")
-            for feature in collected.features:
-                if not isinstance(feature, dict):
-                    raise DatafinderError(
-                        _contract_error(
-                            message="Datafinder returned a malformed feature.",
-                            error_code="partial_provider_failure",
-                            field="geometry",
-                            recovery="Retry the request. If it persists, choose another layer.",
-                            retry_safe=True,
+            layer = {
+                "layer_id": layer_id,
+                "title": metadata["title"],
+                "data_vintage": metadata["data_vintage"],
+                "licence": metadata["licence"],
+                "attribution": metadata["attribution"],
+                "catalogue_url": metadata["page_url"],
+            }
+            retrieved_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            if band_entries is not None:
+                # Per-band totals drop features outside each band, so check duplicates across the union first.
+                _check_union_duplicate_joins(collected.features, geography_field)
+                bands_out: list[dict[str, Any]] = []
+                included_in_any_band: set[int] = set()
+                for entry in band_entries:
+                    band_geom = _as_shapely(entry["geometry"])
+                    if band_geom is None:
+                        raise DatafinderError(
+                            _contract_error(
+                                message="A catchment band geometry is empty or invalid.",
+                                error_code="invalid_geometry",
+                                field="band_property",
+                                recovery="Supply closed WGS84 Polygon or MultiPolygon bands.",
+                                retry_safe=False,
+                            )
                         )
+                    summary = _area_weighted_totals(
+                        band_geom,
+                        collected,
+                        measures,
+                        missing_values,
+                        geography_field,
+                        ignore_zero_overlap=True,
                     )
-                fraction = _raw_overlap_fraction(query_geom, feature.get("geometry"))
-                properties = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
-                if fraction is None:
-                    skipped_no_area += 1
-                    continue
-                has_included = False
-                for measure in measures:
-                    key = measure["key"]
-                    if measure["field"] not in properties:
-                        number, status = None, "unavailable"
-                    else:
-                        number, status = _measure_source_value(properties.get(measure["field"]), missing_values)
-                    if status == "included" and number is not None:
-                        totals[key]["estimated_value"] += number * fraction
-                        totals[key]["included_feature_count"] += 1
-                        has_included = True
-                    else:
-                        totals[key]["unavailable_feature_count"] += 1
-                code = _geography_code(properties, geography_field)
-                if isinstance(code, str) and code:
-                    geography_codes.append(code)
-                if has_included:
-                    included_any += 1
-            duplicates = _duplicate_geography_codes(geography_codes)
-            if duplicates:
-                raise DatafinderError(
-                    _contract_error(
-                        message="Duplicate geography codes remain after feature-id deduplication.",
-                        error_code="duplicate_join",
-                        field="geometry",
-                        valid_alternatives=duplicates[:8],
-                        recovery="Retry the query. If it persists, the layer is not a unique-join Census geography.",
-                        retry_safe=False,
+                    included_in_any_band |= summary["included_positions"]
+                    bands_out.append(
+                        {
+                            "band_value": entry["band_value"],
+                            "results": summary["results"],
+                            "geography_summary": summary["geography_summary"],
+                            "validation_status": summary["validation_status"],
+                            "warnings": [*band_skip_warnings, *summary["warnings"]],
+                        }
                     )
-                )
-            intersecting = len(collected.features)
-            if skipped_no_area:
-                warnings.append(f"Excluded {skipped_no_area} feature(s) with no polygon area.")
-            results = []
-            for measure in measures:
-                stats = totals[measure["key"]]
-                included = stats["included_feature_count"]
-                unavailable = stats["unavailable_feature_count"]
-                if included == 0:
-                    status = "unavailable"
-                    estimated: float | None = None
-                    warnings.append(f"Measure '{measure['key']}' had no usable source values in this catchment.")
-                elif unavailable > 0:
-                    status = "partial"
-                    estimated = stats["estimated_value"]
-                    warnings.append(
-                        f"Measure '{measure['key']}' excluded {unavailable} feature(s) "
-                        "with missing or suppressed values."
-                    )
-                else:
-                    status = "ok"
-                    estimated = stats["estimated_value"]
-                result_row = {
-                    "key": measure["key"],
-                    "label": measure["label"],
-                    "field": measure["field"],
-                    "estimated_value": estimated,
-                    "unit": measure["unit"],
-                    "aggregation": measure["aggregation"],
-                    "source_feature_count": intersecting,
-                    "included_feature_count": included,
-                    "unavailable_feature_count": unavailable,
-                    "status": status,
+                output = {
+                    "results": [],
+                    "bands": bands_out,
+                    "geography_summary": {
+                        "intersecting_feature_count": len(collected.features),
+                        "included_feature_count": len(included_in_any_band),
+                        "duplicate_feature_count": collected.duplicate_count,
+                    },
+                    "method": method,
+                    "layer": layer,
+                    "retrieved_at": retrieved_at,
+                    "warnings": list(band_skip_warnings),
+                    "validation_status": _worst_validation_status([item["validation_status"] for item in bands_out]),
                 }
-                results.append(result_row)
-            statuses = [row["status"] for row in results]
-            if statuses and all(status == "unavailable" for status in statuses):
-                validation_status = "unavailable"
-            elif any(status in {"partial", "unavailable"} for status in statuses):
-                validation_status = "partial"
             else:
-                validation_status = "ok"
-            output: dict[str, Any] = {
-                "results": results,
-                "geography_summary": {
-                    "intersecting_feature_count": intersecting,
-                    "included_feature_count": included_any,
-                    "duplicate_feature_count": collected.duplicate_count,
-                },
-                "method": {
-                    "area_weighting": (
-                        "Additive counts are estimated as the unrounded sum of source_value × overlap_fraction. "
-                        "overlap_fraction is the geodesic intersection area divided by the geodesic feature area "
-                        "on the WGS84 ellipsoid (pyproj Geod). Areas are not computed in longitude/latitude degrees."
-                    ),
-                    "projected_crs": "WGS84 geodesic (pyproj Geod, ellps=WGS84); not a planar degree grid",
-                    "overlap_tolerance": OVERLAP_TOLERANCE,
-                },
-                "layer": {
-                    "layer_id": layer_id,
-                    "title": metadata["title"],
-                    "data_vintage": metadata["data_vintage"],
-                    "licence": metadata["licence"],
-                    "attribution": metadata["attribution"],
-                    "catalogue_url": metadata["page_url"],
-                },
-                "retrieved_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "warnings": warnings,
-                "validation_status": validation_status,
-            }
+                summary = _area_weighted_totals(query_geom, collected, measures, missing_values, geography_field)
+                output = {
+                    "results": summary["results"],
+                    "geography_summary": summary["geography_summary"],
+                    "method": method,
+                    "layer": layer,
+                    "retrieved_at": retrieved_at,
+                    "warnings": summary["warnings"],
+                    "validation_status": summary["validation_status"],
+                }
             if geometry_source:
                 output["geometry_source"] = geometry_source
             return ActionResult(data=output)

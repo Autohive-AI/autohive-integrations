@@ -15,8 +15,8 @@ Official documentation:
 
 | Action | What it does |
 |--------|--------------|
-| `query_area_statistics` | Area-weight explicitly configured additive Census counts for a Polygon/MultiPolygon catchment (inline geometry or a GeoJSON file). Returns compact totals, not raw SA1 records. |
-| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, a Polygon/MultiPolygon GeoJSON file, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. `export_geojson` returns all retrieved features as a platform GeoJSON file after a complete query. |
+| `query_area_statistics` | Area-weight explicitly configured additive Census counts for a Polygon/MultiPolygon catchment (inline geometry or a GeoJSON file). `band_property` scores every isochrone band in one WFS fetch. Returns compact totals, not raw SA1 records. |
+| `query_layer_by_geometry` | Query a layer by polygon, point, bbox, a Polygon/MultiPolygon GeoJSON file, and/or attribute filters. Returns compact attribute records. Census `VAR_*` columns are omitted unless requested. `export_geojson` returns all retrieved features as a platform GeoJSON file after a complete query. `include_records=false` omits inline rows when that file is enough. |
 | `get_layer_metadata` | Return a short description, field list (`coded` flags `VAR_*` columns, titles/measure/year from the lookup codebook when present), catalogue page URL, and codebook **download** links. |
 | `search_layers` | Search public vector layers. Compact cards: id, title, published_at, queryable. |
 
@@ -89,7 +89,12 @@ requested attributes, and `overlap_fraction` / `overlap_area_sq_km` /
 feature count matches `record_count`. Incomplete pagination fails closed
 instead of writing a partial file. Compact JSON records still omit geometry
 unless `include_geometry` is true. Export size follows `page_size` × `max_pages`
-(not a separate byte cap).
+(not a separate byte cap). `include_records: false` requires `export_geojson: true`,
+omits inline `records` (counts and metadata stay), and fails closed on incomplete
+pagination. If the file cannot be serialised (for example a NaN or infinite
+value), the call fails with `geojson_export_failed` whether or not records are
+inlined. `include_geometry` is not needed for the export: the file always
+contains full geometry.
 
 A GeoJSON file may be a FeatureCollection, a Feature, or a bare
 Polygon/MultiPolygon. If the file contains exactly one Polygon or
@@ -167,14 +172,15 @@ code and returns a compact result.
 
 **Suggested catchment sequence**
 
-1. OpenRouteService `geocode_address` then `get_isochrone` for 5/10/15/30-minute bands (`export_geojson: true` if the polygon is too large to inline).
+1. OpenRouteService `geocode_address` then `get_isochrone` with `export_geojson: true` and `include_geojson: false`.
 2. `search_layers` / `get_layer_metadata` to pick a Census SA1 layer and exact `VAR_*` field names.
-3. `query_area_statistics` once per isochrone band with those fields. Prefer `file` plus `feature_filter: {"property": "time_minutes", "equals": 10}` over inlining the polygon.
+3. `query_area_statistics` once with `file` (the isochrone file) and `band_property: "time_minutes"`. That fetches SA1 features once and returns one result set per band. `feature_filter` remains for a single band.
 4. Compute rates or percentages in the report from two additive counts if needed.
 
 **Inputs**
 
 - `layer_id` and a WGS84 Polygon or MultiPolygon, either as inline `geometry` or as `file` (same selection rules as Query Layer). Do not send both. Missing or conflicting sources are rejected before querying WFS.
+- `band_property` (optional) — with `file` only, and not with `feature_index` / `feature_filter`. Evaluates every Polygon/MultiPolygon that has a numeric or string value for that property. Duplicate values are an error. At most 10 bands are scored per call; more is an error. Missing on some features skips those features and warns; missing on all is an error. SA1 features are fetched once for the union of the bands.
 - `measures` — bounded list of additive counts. Each item has `key`, `label`,
   `field` (exact Datafinder name), `unit` (`count`), and `aggregation`
   (`additive_count`). Compute rates or percentages in the report from two counts.
@@ -185,7 +191,7 @@ code and returns a compact result.
   `max_pages` to 100 and **fails closed** if pagination is incomplete.
 - `max_source_features` — safety cap (default 10 000). Exceeding it fails closed.
 
-Example file input:
+Example multi-band file input:
 
 ```json
 {
@@ -195,7 +201,7 @@ Example file input:
     "contentType": "application/geo+json",
     "content": "<base64 GeoJSON>"
   },
-  "feature_filter": {"property": "time_minutes", "equals": 30},
+  "band_property": "time_minutes",
   "measures": [
     {
       "key": "population",
@@ -207,6 +213,8 @@ Example file input:
   ]
 }
 ```
+
+Single-band selection still uses `feature_filter: {"property": "time_minutes", "equals": 30}`.
 
 **Behaviour**
 
@@ -224,6 +232,10 @@ Example file input:
   warnings, `validation_status`. No raw features or geometry. File-backed
   queries add `geometry_source` (`name`, `feature_index`, matched properties)
   without echoing coordinates.
+- With `band_property`, top-level `results` is empty and `bands` holds one
+  item per band (`band_value`, `results`, `geography_summary`,
+  `validation_status`, `warnings`), ascending. Top-level `validation_status`
+  is the worst status across bands.
 - `validation_status` is `ok` only when every measure is fully included. It is
   `partial` if any measure has suppressed/missing values, and `unavailable` if
   no measure had a usable source value. Per-measure `status` is still on each
