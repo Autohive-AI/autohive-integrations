@@ -1443,13 +1443,14 @@ class TestUpsertContacts:
         assert result.type == ResultType.VALIDATION_ERROR
 
     @pytest.mark.asyncio
-    async def test_http_error_returns_action_error(self, mock_context):
-        mock_context.fetch.side_effect = HTTPError(400, "Invalid email")
+    async def test_rejected_upsert_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = [ok({"results": []}), HTTPError(400, "Invalid email")]
 
         result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "bad"}]}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "HTTP 400" in result.result.message
+        assert result.result.message == "Failed to upsert contacts: HTTP 400: Invalid email"
+        assert len(fetch_calls(mock_context, CONTACTS_UPSERT_URL)) == 1
 
 
 # ---- Create Association ----
