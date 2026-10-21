@@ -30,6 +30,7 @@ Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
+import asyncio
 import os
 from copy import deepcopy
 
@@ -717,40 +718,50 @@ class TestNoteWorkflow:
 
     async def test_full_note_lifecycle(self, live_context):
         require_contact_id()
+        note_id = None
+        try:
+            # Step 1: Create
+            create_result = await hubspot.execute_action(
+                "create_note",
+                {
+                    "note_body": "Integration test note — will be deleted.",
+                    "contact_id": TEST_CONTACT_ID,
+                },
+                live_context,
+            )
+            assert create_result.result.data["success"] is True
+            note_id = create_result.result.data["note"]["id"]
+            assert note_id is not None
 
-        # Step 1: Create
-        create_result = await hubspot.execute_action(
-            "create_note",
-            {
-                "note_body": "Integration test note — will be deleted.",
-                "contact_id": TEST_CONTACT_ID,
-            },
-            live_context,
-        )
-        assert create_result.result.data["success"] is True
-        note_id = create_result.result.data["note"]["id"]
-        assert note_id is not None
+            # Step 2: Read. get_contact_notes uses HubSpot search, which takes a few seconds to index a new note
+            note_ids = []
+            for _ in range(15):
+                read_result = await hubspot.execute_action(
+                    "get_contact_notes",
+                    {"contact_id": TEST_CONTACT_ID, "limit": 5},
+                    live_context,
+                )
+                note_ids = [n["id"] for n in read_result.result.data["notes"]]
+                if note_id in note_ids:
+                    break
+                await asyncio.sleep(2)
+            assert note_id in note_ids
 
-        # Step 2: Read
-        read_result = await hubspot.execute_action(
-            "get_contact_notes",
-            {"contact_id": TEST_CONTACT_ID, "limit": 5},
-            live_context,
-        )
-        note_ids = [n["id"] for n in read_result.result.data["notes"]]
-        assert note_id in note_ids
+            # Step 3: Update
+            update_result = await hubspot.execute_action(
+                "update_note",
+                {"note_id": note_id, "note_body": "Updated integration test note."},
+                live_context,
+            )
+            assert update_result.result.data["success"] is True
 
-        # Step 3: Update
-        update_result = await hubspot.execute_action(
-            "update_note",
-            {"note_id": note_id, "note_body": "Updated integration test note."},
-            live_context,
-        )
-        assert update_result.result.data["success"] is True
-
-        # Step 4: Delete (cleanup)
-        delete_result = await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)
-        assert delete_result.result.data["success"] is True
+            # Step 4: Delete
+            delete_result = await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)
+            assert delete_result.result.data["success"] is True
+            note_id = None
+        finally:
+            if note_id:
+                await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)
 
 
 @pytest.mark.destructive
