@@ -179,7 +179,7 @@ code and returns a compact result.
 **Inputs**
 
 - `layer_id` and a WGS84 Polygon or MultiPolygon, either as inline `geometry` or as `file` (same selection rules as Query Layer). Do not send both. Missing or conflicting sources are rejected before querying WFS.
-- `band_property` (optional) — with `file` only, and not with `feature_index` / `feature_filter`. Evaluates every Polygon/MultiPolygon that has a numeric or string value for that property. Duplicate values are an error. Missing on some features skips those features and warns; missing on all is an error. SA1 features are fetched once for the union of the bands.
+- `band_property` (optional) — with `file` only, and not with `feature_index` / `feature_filter`. Evaluates every Polygon/MultiPolygon that has a numeric or string value for that property. Duplicate values are an error. At most 10 bands are scored per call; more is an error. Missing on some features skips those features and warns; missing on all is an error. SA1 features are fetched once for the union of the bands.
 - `measures` — bounded list of additive counts. Each item has `key`, `label`,
   `field` (exact Datafinder name), `unit` (`count`), and `aggregation`
   (`additive_count`). Compute rates or percentages in the report from two counts.

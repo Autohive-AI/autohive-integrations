@@ -316,7 +316,7 @@
           "band_property": {
             "type": "string",
             "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
-            "description": "Score every Polygon/MultiPolygon in the file that has this property. Only valid with file. Mutually exclusive with feature_index and feature_filter. Fetches SA1 features once for the union of bands, then area-weights each band. Duplicate band values are rejected."
+            "description": "Score every Polygon/MultiPolygon in the file that has this property. Only valid with file. Mutually exclusive with feature_index and feature_filter. Fetches SA1 features once for the union of bands, then area-weights each band. Duplicate band values are rejected. At most 10 bands."
           },
           "measures": {
             "type": "array",

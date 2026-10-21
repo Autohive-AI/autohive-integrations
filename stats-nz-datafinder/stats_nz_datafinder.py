@@ -68,6 +68,8 @@ DEFAULT_MAX_SOURCE_FEATURES = 10_000
 OVERLAP_TOLERANCE = 1e-6
 MAX_DESCRIPTION_CHARS = 400
 GEOJSON_MAX_BYTES = 5 * 1024 * 1024
+# Matches the OpenRouteService isochrone band limit; each band rescans every fetched feature.
+MAX_BANDS = 10
 _AREA_GEOMETRY_TYPES = frozenset({"Polygon", "MultiPolygon"})
 _GEOD = Geod(ellps="WGS84")
 ADDITIVE_COUNT = "additive_count"
@@ -975,6 +977,17 @@ def _collect_band_polygons(features: list[Any], band_property: str) -> tuple[lis
         if value is None:
             skipped += 1
             continue
+        # Fail before the duplicate scan so a huge file cannot make this loop quadratic.
+        if len(selected) >= MAX_BANDS:
+            raise _geojson_contract_error(
+                message=(
+                    f"More than {MAX_BANDS} band features have a usable '{band_property}' value; "
+                    f"at most {MAX_BANDS} bands are supported."
+                ),
+                error_code="too_many_bands",
+                field="band_property",
+                recovery=f"Keep at most {MAX_BANDS} band features with a unique '{band_property}' value per request.",
+            )
         for existing in selected:
             if _json_values_equal(existing["band_value"], value):
                 raise _geojson_contract_error(

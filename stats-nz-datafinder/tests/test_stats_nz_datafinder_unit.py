@@ -11,7 +11,10 @@ import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
+from shapely import wkt as shapely_wkt
 from shapely.errors import ShapelyError
+from shapely.geometry import shape
+from shapely.ops import unary_union
 from stats_nz_datafinder import (
     DEFAULT_MISSING_VALUES,
     GEOJSON_MAX_BYTES,
@@ -3127,6 +3130,7 @@ class TestQueryAreaStatisticsBandProperty:
         assert data["results"] == []
         assert [band["band_value"] for band in data["bands"]] == [10, 15, 30]
         assert mock_wfs.call_count == 2
+        self._assert_queried_area(mock_wfs, [self.OUTER])
 
     @pytest.mark.asyncio
     async def test_multi_band_totals_match_separate_single_band_calls(self, mock_context, mock_wfs):
@@ -3266,6 +3270,14 @@ class TestQueryAreaStatisticsBandProperty:
     def _band_file(self, *features):
         return _geojson_file({"type": "FeatureCollection", "features": list(features)})
 
+    def _assert_queried_area(self, mock_wfs, expected_geometries):
+        cql = mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
+        prefix = "INTERSECTS(Shape, SRID=4326;"
+        assert cql.startswith(prefix) and cql.endswith(")"), cql
+        queried = shapely_wkt.loads(cql[len(prefix) : -1])
+        expected = unary_union([shape(geometry) for geometry in expected_geometries])
+        assert queried.symmetric_difference(expected).area == pytest.approx(0, abs=1e-12)
+
     @pytest.mark.asyncio
     async def test_bands_sorted_ascending_regardless_of_file_order(self, mock_context, mock_wfs):
         file_obj = self._band_file(
@@ -3374,7 +3386,7 @@ class TestQueryAreaStatisticsBandProperty:
         assert bands[1]["results"][0]["estimated_value"] == pytest.approx(10)
         assert bands[2]["results"][0]["estimated_value"] == pytest.approx(60)
         assert mock_wfs.call_count == 2
-        assert "MULTIPOLYGON" in mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
+        self._assert_queried_area(mock_wfs, [west, east])
 
     @pytest.mark.asyncio
     async def test_string_band_values_sort_after_numbers(self, mock_context, mock_wfs):
@@ -3407,6 +3419,42 @@ class TestQueryAreaStatisticsBandProperty:
         assert [band["band_value"] for band in data["bands"]] == [10, 15]
         assert any("Skipped 4" in warning for warning in data["warnings"])
         assert all(any("Skipped 4" in warning for warning in band["warnings"]) for band in data["bands"])
+
+    @pytest.mark.asyncio
+    async def test_more_than_ten_bands_fails_before_fetch(self, mock_context, mock_wfs):
+        file_obj = self._band_file(*[_gj_feature(self.OUTER, {"time_minutes": minutes}) for minutes in range(1, 12)])
+        result = await self._band_query(mock_context, file_obj)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "too_many_bands" in result.result.message
+        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
+
+    def test_band_cap_stops_scanning_a_large_file_early(self, monkeypatch):
+        import stats_nz_datafinder as module
+
+        comparisons = 0
+        real_equal = module._json_values_equal
+
+        def counting_equal(left, right):
+            nonlocal comparisons
+            comparisons += 1
+            return real_equal(left, right)
+
+        monkeypatch.setattr(module, "_json_values_equal", counting_equal)
+        features = [_gj_feature(self.OUTER, {"time_minutes": minutes}) for minutes in range(5000)]
+        with pytest.raises(DatafinderError, match="too_many_bands"):
+            module._collect_band_polygons(features, "time_minutes")
+        # Duplicate checks stop at the cap: 0 + 1 + ... + 9 comparisons, not ~12.5 million.
+        assert comparisons == 45
+
+    @pytest.mark.asyncio
+    async def test_ten_bands_are_scored(self, mock_context, mock_wfs):
+        file_obj = self._band_file(*[_gj_feature(self.OUTER, {"time_minutes": minutes}) for minutes in range(1, 11)])
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(self._all_sa1s())]
+        result = await self._band_query(mock_context, file_obj)
+        assert result.type == ResultType.ACTION, result.result
+        assert [band["band_value"] for band in result.result.data["bands"]] == list(range(1, 11))
 
     @pytest.mark.asyncio
     async def test_band_property_missing_on_every_feature_fails_before_fetch(self, mock_context, mock_wfs):
