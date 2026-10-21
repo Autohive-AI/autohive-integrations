@@ -96,6 +96,15 @@ def sdk_context():
 
 
 class TestLogLinkedInMessages:
+    @pytest.fixture(autouse=True)
+    def all_contact_ids_exist(self):
+        # The missing-contact check is covered in TestLogLinkedInMessagesContactCheck
+        async def every_id_exists(object_type, object_ids, *args):
+            return dict.fromkeys(object_ids)
+
+        with patch("hubspot.hubspot._check_object_ids", new=every_id_exists):
+            yield
+
     @pytest.mark.asyncio
     async def test_contact_id_row_is_logged_without_search(self, mock_context):
         mock_context.fetch.return_value = batch_created("0")
@@ -170,7 +179,7 @@ class TestLogLinkedInMessages:
         assert "hubspot_owner_id" not in properties
 
     @pytest.mark.asyncio
-    async def test_iso_timestamp_is_passed_through(self, mock_context):
+    async def test_iso_timestamp_is_sent_as_milliseconds(self, mock_context):
         mock_context.fetch.return_value = batch_created("0")
 
         await hubspot.execute_action(
@@ -180,7 +189,7 @@ class TestLogLinkedInMessages:
         )
 
         properties = mock_context.fetch.call_args.kwargs["json"]["inputs"][0]["properties"]
-        assert properties["hs_timestamp"] == "2026-10-20T09:30:00Z"
+        assert properties["hs_timestamp"] == "1792488600000"
 
     @pytest.mark.asyncio
     async def test_email_rows_resolved_with_one_batch_read_not_search(self, mock_context):
@@ -1005,6 +1014,351 @@ class TestLogLinkedInMessages:
         assert result.type == ResultType.VALIDATION_ERROR
 
 
+class TestLogLinkedInMessagesContactCheck:
+    @pytest.mark.asyncio
+    async def test_missing_contact_id_skipped_so_other_rows_still_log(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok(
+                {
+                    "status": "COMPLETE",
+                    "results": [{"id": "501"}],
+                    "errors": [{"category": "OBJECT_NOT_FOUND", "message": "Not found", "context": {"ids": ["1"]}}],
+                },
+                status=207,
+            ),
+            batch_created("0"),
+        ]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "501"}, {"contact_id": "1"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        data = result.result.data
+        assert [r["status"] for r in data["results"]] == ["logged", "not_found"]
+        read_call, create_call = mock_context.fetch.call_args_list
+        assert read_call.args[0] == CONTACTS_BATCH_READ_URL
+        assert read_call.kwargs["json"]["inputs"] == [{"id": "501"}, {"id": "1"}]
+        assert [i["associations"][0]["to"]["id"] for i in create_call.kwargs["json"]["inputs"]] == ["501"]
+
+    @pytest.mark.asyncio
+    async def test_every_contact_id_missing_skips_the_create(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "Not found")
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages", {"messages": [{"contact_id": "1"}], "default_message_body": "Hi"}, mock_context
+        )
+
+        assert result.result.data["results"][0]["status"] == "not_found"
+        assert len(fetch_calls(mock_context, BATCH_CREATE_URL)) == 0
+
+    @pytest.mark.asyncio
+    async def test_merged_contact_id_that_resolves_elsewhere_still_logs(self, mock_context):
+        # A merged contact's old ID returns the surviving record, so only a named not-found counts as missing
+        mock_context.fetch.side_effect = [ok({"status": "COMPLETE", "results": [{"id": "900"}]}), batch_created("0")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages", {"messages": [{"contact_id": "501"}], "default_message_body": "Hi"}, mock_context
+        )
+
+        assert result.result.data["results"][0]["status"] == "logged"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "lookup",
+        [
+            HTTPError(500, "Server error"),
+            ok({"status": "CANCELED", "results": []}),
+            ok({"results": [], "errors": [{"category": "RATE_LIMITS", "message": "Slow down"}]}, status=207),
+        ],
+    )
+    async def test_failed_contact_check_fails_id_rows_without_creating(self, mock_context, lookup):
+        mock_context.fetch.side_effect = [lookup]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages", {"messages": [{"contact_id": "1"}], "default_message_body": "Hi"}, mock_context
+        )
+
+        row = result.result.data["results"][0]
+        assert row["status"] == "failed"
+        assert row["error"].startswith("Contact lookup failed: ")
+        assert len(fetch_calls(mock_context, BATCH_CREATE_URL)) == 0
+
+    @pytest.mark.asyncio
+    async def test_returned_contact_not_marked_missing_by_an_error_without_ids(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok(
+                {
+                    "status": "COMPLETE",
+                    "results": [{"id": "501"}],
+                    "errors": [{"category": "OBJECT_NOT_FOUND", "message": "Some not found"}],
+                },
+                status=207,
+            ),
+            batch_created("0"),
+        ]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "501"}, {"contact_id": "9"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert [r["status"] for r in result.result.data["results"]] == ["logged", "not_found"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "lookup",
+        [
+            ok({"status": "CANCELED", "results": [{"id": "501"}]}),
+            ok({"results": [{"id": "501"}], "errors": [{"category": "RATE_LIMITS", "message": "Slow"}]}, status=207),
+        ],
+    )
+    async def test_lookup_error_only_fails_contacts_not_returned(self, mock_context, lookup):
+        mock_context.fetch.side_effect = [lookup, batch_created("0")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "501"}, {"contact_id": "9"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert rows[0]["status"] == "logged"
+        assert (rows[1]["status"], rows[1]["error"].startswith("Contact lookup failed: ")) == ("failed", True)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("contact_id", ["5\u00b2", "\u0663\u0663", "007", "0"])
+    async def test_non_plain_number_ids_are_not_sent(self, mock_context, contact_id):
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": contact_id}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert result.result.data["results"][0]["status"] == "not_found"
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_repeated_contact_id_checked_once(self, mock_context):
+        mock_context.fetch.side_effect = [ok({"status": "COMPLETE", "results": [{"id": "1"}]}), batch_created("0", "1")]
+
+        await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "1"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert fetch_calls(mock_context, CONTACTS_BATCH_READ_URL)[0].kwargs["json"]["inputs"] == [{"id": "1"}]
+
+
+COMPANIES_BATCH_READ_URL = "https://api.hubapi.com/crm/v3/objects/companies/batch/read"
+DEALS_BATCH_READ_URL = "https://api.hubapi.com/crm/v3/objects/deals/batch/read"
+
+
+def found(*ids):
+    return ok({"status": "COMPLETE", "results": [{"id": i} for i in ids]})
+
+
+def not_found(*ids):
+    return ok(
+        {
+            "status": "COMPLETE",
+            "results": [],
+            "errors": [{"category": "OBJECT_NOT_FOUND", "message": "Not found", "context": {"ids": list(ids)}}],
+        },
+        status=207,
+    )
+
+
+class TestLogLinkedInMessagesLinkedRecordCheck:
+    @pytest.mark.asyncio
+    async def test_missing_company_or_deal_skips_only_that_row(self, mock_context):
+        mock_context.fetch.side_effect = [found("1", "2", "3"), not_found("601"), not_found("701"), batch_created("0")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [
+                    {"contact_id": "1"},
+                    {"contact_id": "2", "company_id": "601"},
+                    {"contact_id": "3", "deal_id": "701"},
+                ],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        data = result.result.data
+        assert [(r["status"], r["error"]) for r in data["results"]] == [
+            ("logged", None),
+            ("invalid", "Company 601 does not exist"),
+            ("invalid", "Deal 701 does not exist"),
+        ]
+        assert [call.args[0] for call in mock_context.fetch.call_args_list] == [
+            CONTACTS_BATCH_READ_URL,
+            COMPANIES_BATCH_READ_URL,
+            DEALS_BATCH_READ_URL,
+            BATCH_CREATE_URL,
+        ]
+        assert len(mock_context.fetch.call_args.kwargs["json"]["inputs"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_existing_company_and_deal_are_linked(self, mock_context):
+        mock_context.fetch.side_effect = [found("1"), found("601"), found("701"), batch_created("0")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1", "company_id": " 601 ", "deal_id": "701"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert result.result.data["results"][0]["status"] == "logged"
+        associations = mock_context.fetch.call_args.kwargs["json"]["inputs"][0]["associations"]
+        assert [a["to"]["id"] for a in associations] == ["1", "601", "701"]
+
+    @pytest.mark.asyncio
+    async def test_company_check_error_fails_only_rows_with_a_company(self, mock_context):
+        mock_context.fetch.side_effect = [found("1", "2"), HTTPError(500, "Server error"), batch_created("0")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "2", "company_id": "601"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert rows[0]["status"] == "logged"
+        assert (rows[1]["status"], rows[1]["error"]) == ("failed", "Company lookup failed: HTTP 500: Server error")
+
+    @pytest.mark.asyncio
+    async def test_deal_check_error_fails_only_rows_with_a_deal(self, mock_context):
+        mock_context.fetch.side_effect = [found("1", "2"), HTTPError(503, "Unavailable"), batch_created("0")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1"}, {"contact_id": "2", "deal_id": "701"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert rows[0]["status"] == "logged"
+        assert (rows[1]["status"], rows[1]["error"]) == ("failed", "Deal lookup failed: HTTP 503: Unavailable")
+
+    @pytest.mark.asyncio
+    async def test_company_not_checked_for_rows_whose_contact_is_missing(self, mock_context):
+        mock_context.fetch.side_effect = [not_found("1")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1", "company_id": "601"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert result.result.data["results"][0]["status"] == "not_found"
+        assert [call.args[0] for call in mock_context.fetch.call_args_list] == [CONTACTS_BATCH_READ_URL]
+
+    @pytest.mark.asyncio
+    async def test_rows_without_company_or_deal_skip_those_checks(self, mock_context):
+        mock_context.fetch.side_effect = [found("1"), batch_created("0")]
+
+        await hubspot.execute_action(
+            "log_linkedin_messages", {"messages": [{"contact_id": "1"}], "default_message_body": "Hi"}, mock_context
+        )
+
+        assert [call.args[0] for call in mock_context.fetch.call_args_list] == [
+            CONTACTS_BATCH_READ_URL,
+            BATCH_CREATE_URL,
+        ]
+
+    @pytest.mark.asyncio
+    async def test_malformed_ids_never_reach_hubspot(self, mock_context):
+        mock_context.fetch.side_effect = [found("1"), batch_created("0")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [{"contact_id": "1"}, {"contact_id": "abc"}, {"contact_id": "1", "company_id": "acme"}],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert [(r["status"], r["error"]) for r in rows] == [
+            ("logged", None),
+            ("not_found", None),
+            ("invalid", "Company acme does not exist"),
+        ]
+        assert mock_context.fetch.call_args_list[0].kwargs["json"]["inputs"] == [{"id": "1"}]
+        assert [call.args[0] for call in mock_context.fetch.call_args_list] == [
+            CONTACTS_BATCH_READ_URL,
+            BATCH_CREATE_URL,
+        ]
+
+
+class TestLogLinkedInMessagesTimestampCheck:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timestamp", ["yesterday", "21/10/2026", "2026-13-01", "\u0663\u0663", -1, float("nan"), float("inf")]
+    )
+    async def test_unreadable_timestamp_marks_only_that_row_invalid(self, mock_context, timestamp):
+        mock_context.fetch.side_effect = [found("1", "2"), batch_created("0")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [{"contact_id": "1"}, {"contact_id": "2", "timestamp": timestamp}],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert rows[0]["status"] == "logged"
+        assert rows[1]["status"] == "invalid"
+        assert "timestamp" in rows[1]["error"]
+        assert len(mock_context.fetch.call_args.kwargs["json"]["inputs"]) == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timestamp", [1700000000000, "1700000000000", "2026-10-21", "2026-10-21T09:30:00Z", "2026-10-21T09:30:00+13:00"]
+    )
+    async def test_supported_timestamps_are_accepted(self, mock_context, timestamp):
+        mock_context.fetch.side_effect = [found("1"), batch_created("0")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1", "timestamp": timestamp}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert result.result.data["results"][0]["status"] == "logged"
+        assert mock_context.fetch.call_args.kwargs["json"]["inputs"][0]["properties"]["hs_timestamp"].isdigit()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "timestamp,expected",
+        [
+            (" 2026-10-20T09:30:00Z ", "1792488600000"),
+            ("2026-10-20T09:30:00", "1792488600000"),
+            ("2026-10-20T22:30:00+13:00", "1792488600000"),
+            (" 1700000000000 ", "1700000000000"),
+        ],
+    )
+    async def test_dates_are_sent_as_utc_milliseconds(self, mock_context, timestamp, expected):
+        mock_context.fetch.side_effect = [found("1"), batch_created("0")]
+
+        await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": "1", "timestamp": timestamp}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert mock_context.fetch.call_args.kwargs["json"]["inputs"][0]["properties"]["hs_timestamp"] == expected
+
+
 # ---- Get / Update / Delete LinkedIn Message ----
 
 
@@ -1073,6 +1427,28 @@ class TestUpdateLinkedInMessage:
         )
 
         assert mock_context.fetch.call_args.kwargs["json"] == {"properties": {"hs_timestamp": "1700000000000"}}
+
+    @pytest.mark.asyncio
+    async def test_update_date_sent_as_utc_milliseconds(self, mock_context):
+        mock_context.fetch.return_value = ok({"id": "77"})
+
+        await hubspot.execute_action(
+            "update_linkedin_message",
+            {"communication_id": "77", "timestamp": "2026-10-20T22:30:00+13:00"},
+            mock_context,
+        )
+
+        assert mock_context.fetch.call_args.kwargs["json"] == {"properties": {"hs_timestamp": "1792488600000"}}
+
+    @pytest.mark.asyncio
+    async def test_update_unreadable_timestamp_rejected_before_calling_hubspot(self, mock_context):
+        result = await hubspot.execute_action(
+            "update_linkedin_message", {"communication_id": "77", "timestamp": "yesterday"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "timestamp must be" in result.result.message
+        mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_update_empty_body_clears_it(self, mock_context):

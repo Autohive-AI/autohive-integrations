@@ -207,7 +207,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 #### Action: `log_linkedin_messages`
 - **Description:** Log a LinkedIn message on up to 100 existing contacts in one call, for example everyone who accepted a LinkedIn connection request this week
 - **Inputs:**
-  - `messages` (required): 1–100 rows. Each row identifies one person by `contact_id`, `email`, or both `first_name` and `last_name` (checked in that order). Optional per row: `message_body`, `timestamp` (Unix milliseconds or a UTC date string, defaults to now), `company_id`, `deal_id`
+  - `messages` (required): 1–100 rows. Each row identifies one person by `contact_id`, `email`, or both `first_name` and `last_name` (checked in that order). Optional per row: `message_body`, `timestamp` (Unix milliseconds, or an ISO 8601 date such as `2026-10-21T09:30:00Z` read as UTC when it has no time zone; between 1970 and 9999; defaults to now), `company_id`, `deal_id`
   - `default_message_body` (optional): Text used for rows without their own `message_body`, e.g. "Accepted LinkedIn connection request"
   - `hubspot_owner_id` (optional): Owner shown as the author of every logged message
 - **Outputs:**
@@ -217,11 +217,11 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `success`: `true` only when every row was logged
 - **Row statuses:**
   - `logged`: The message was created and associated with the contact (and the company/deal, if given)
-  - `not_found`: No contact matched the email or name. Nothing is created; run `upsert_contacts` first and pass the returned `contact_id`
+  - `not_found`: No contact matched the contact ID, email, or name. Nothing is created; run `upsert_contacts` first and pass the returned `contact_id`
   - `ambiguous`: More than one contact matched; the matching IDs are in `candidates`. The action never guesses between people with the same name. Re-run the row with a `contact_id`
-  - `invalid`: The row has no identifier, or no message body and no `default_message_body`
-  - `failed`: The contact lookup or HubSpot's create call returned an error, shown in `error`. If HubSpot creates only some messages without saying which rows they belong to, the remaining rows are `failed` with a warning to check HubSpot before retrying, so a retry doesn't log duplicates
-- **Note:** All email rows are looked up in one contacts batch read, which finds contacts created moments ago. A match on one of a contact's additional emails (`hs_additional_emails`) counts too. Name rows use HubSpot's exact (`EQ`) CRM search, one request per unique name, spaced to stay under HubSpot's limit of 5 searches per second. HubSpot's search index can lag behind newly created contacts, so after `upsert_contacts` pass the returned `contact_id` (or the email) rather than the name. All matched rows are created in a single [batch create](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/batch/post-crm-v3-objects-communications-batch-create) call.
+  - `invalid`: The row has no identifier, no message body and no `default_message_body`, an unreadable `timestamp`, or a `company_id`/`deal_id` that doesn't exist
+  - `failed`: The contact, company, or deal lookup or HubSpot's create call returned an error, shown in `error`. If HubSpot creates only some messages without saying which rows they belong to, the remaining rows are `failed` with a warning to check HubSpot before retrying, so a retry doesn't log duplicates
+- **Note:** All email rows are looked up in one contacts batch read, which finds contacts created moments ago. A match on one of a contact's additional emails (`hs_additional_emails`) counts too. Name rows use HubSpot's exact (`EQ`) CRM search, one request per unique name, spaced to stay under HubSpot's limit of 5 searches per second. HubSpot's search index can lag behind newly created contacts, so after `upsert_contacts` pass the returned `contact_id` (or the email) rather than the name. Contact IDs, company IDs, and deal IDs are each checked with one batch read first, because HubSpot rejects the whole create if one linked record is missing; only the affected rows are skipped. All matched rows are created in a single [batch create](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/batch/post-crm-v3-objects-communications-batch-create) call.
 
 #### Action: `get_linkedin_message`
 - **Description:** Get a logged LinkedIn message by ID
@@ -233,7 +233,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Description:** Update the text, timestamp, or owner of a logged LinkedIn message
 - **Inputs:**
   - `communication_id` (required): ID of the logged message
-  - `message_body`, `timestamp`, `hubspot_owner_id` (at least one required). An empty `message_body` or `hubspot_owner_id` clears that value
+  - `message_body`, `timestamp`, `hubspot_owner_id` (at least one required). `timestamp` takes the same formats as in `log_linkedin_messages`. An empty `message_body` or `hubspot_owner_id` clears that value
 - **Outputs:** `communication`, `success`, `message`, `updated_properties`
 
 #### Action: `delete_linkedin_message`

@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict
 from collections import Counter
 from datetime import datetime, timezone
 import asyncio
+import math
 import re
 
 import aiohttp
@@ -607,13 +608,45 @@ def _hubspot_defined_association(record_id: Any, association_type_id: int) -> Di
     }
 
 
-def _timestamp_property(timestamp: Any) -> str:
-    """Return hs_timestamp as HubSpot expects it: milliseconds or a UTC date string, defaulting to now."""
+def _linked_id(row: Dict[str, Any], field: str) -> str:
+    return str(row.get(field) or "").strip()
+
+
+# hs_timestamp must fall between 1970 and the end of year 9999
+MAX_TIMESTAMP_MS = 253402300800000
+TIMESTAMP_FORMAT_HINT = "Unix milliseconds or an ISO 8601 date such as 2026-10-21T09:30:00Z"
+
+
+def _timestamp_ms(timestamp: Any) -> str | None:
+    """Return a timestamp as Unix milliseconds (now when empty), or None if it can't be read.
+
+    Dates are converted here rather than sent as text, so HubSpot never sees a format it might reject
+    along with the whole batch. Plain digits are milliseconds; a date without a time zone is read as UTC.
+    """
     if timestamp is None or timestamp == "":
         return str(int(datetime.now(timezone.utc).timestamp() * 1000))
+    if isinstance(timestamp, bool):
+        return None
     if isinstance(timestamp, (int, float)):
-        return str(int(timestamp))
-    return str(timestamp)
+        if not math.isfinite(timestamp):
+            return None
+        milliseconds = int(timestamp)
+    else:
+        text = str(timestamp).strip()
+        if re.fullmatch(r"[0-9]+", text):
+            # Anything longer than MAX_TIMESTAMP_MS is out of range, and huge digit strings can't be converted
+            if len(text) > len(str(MAX_TIMESTAMP_MS)):
+                return None
+            milliseconds = int(text)
+        else:
+            try:
+                parsed = datetime.fromisoformat(re.sub(r"[zZ]$", "+00:00", text))
+            except ValueError:
+                return None
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            milliseconds = int(parsed.timestamp() * 1000)
+    return str(milliseconds) if 0 <= milliseconds < MAX_TIMESTAMP_MS else None
 
 
 def _row_identifier(row: Dict[str, Any]) -> tuple[str, Any, str] | None:
@@ -755,6 +788,54 @@ async def _find_contact_ids_by_email(
     return contact_ids_by_email, errors_by_email
 
 
+async def _check_object_ids(
+    object_type: str, object_ids: list[str], context: ExecutionContext, retry_sleep_budget: Dict[str, int]
+) -> Dict[str, str | None]:
+    """Return {ID: None if it exists, "missing", or a lookup error} for one object type using one batch read.
+
+    HubSpot rejects a whole batch create when one association points at a missing record, so
+    missing IDs are found first and only those rows are skipped.
+    """
+    # HubSpot record IDs are plain numbers; a malformed ID could fail the whole lookup, so it is never sent
+    checked: Dict[str, str | None] = {i: "missing" for i in object_ids if not re.fullmatch(r"[1-9][0-9]*", i)}
+    to_read = [object_id for object_id in object_ids if object_id not in checked]
+    if not to_read:
+        return checked
+    try:
+        response = await fetch_with_rate_limit_retries(
+            context,
+            f"https://api.hubapi.com/crm/v3/objects/{object_type}/batch/read",
+            retry_sleep_budget=retry_sleep_budget,
+            method="POST",
+            json={"inputs": [{"id": object_id} for object_id in to_read], "properties": []},
+            headers={"Content-Type": "application/json"},
+        )
+        data = await parse_response(response) or {}
+    except HTTPError as e:
+        # HubSpot answers 404 when none of the IDs match a record
+        if e.status == 404:
+            return {**checked, **dict.fromkeys(to_read, "missing")}
+        return {**checked, **dict.fromkeys(to_read, _error_text(e))}
+    except REQUEST_ERRORS as e:
+        return {**checked, **dict.fromkeys(to_read, _error_text(e))}
+
+    # Returned IDs exist. Of the rest, only IDs HubSpot names as not found are missing:
+    # a merged record's old ID still resolves, under the surviving record's ID
+    returned = {str(item.get("id")) for item in data.get("results", [])}
+    unreturned = [object_id for object_id in to_read if object_id not in returned]
+    checked.update(dict.fromkeys(to_read))
+    reason = _unfinished_batch_reason(data)
+    if reason:
+        checked.update(dict.fromkeys(unreturned, f"HubSpot {reason} the lookup"))
+    for error in data.get("errors", []):
+        error_ids = [str(i) for i in (error.get("context") or {}).get("ids") or []] or unreturned
+        for object_id in error_ids:
+            if object_id in unreturned:
+                is_missing = error.get("category") == "OBJECT_NOT_FOUND"
+                checked[object_id] = "missing" if is_missing else error.get("message") or "HubSpot lookup failed"
+    return checked
+
+
 async def _find_contact_ids_by_name(
     first_name: str, last_name: str, context: ExecutionContext, retry_sleep_budget: Dict[str, int]
 ) -> list[str]:
@@ -775,23 +856,29 @@ async def _find_contact_ids_by_name(
     return [str(contact["id"]) for contact in data.get("results", [])]
 
 
+# (row field, CRM object type, communication association type ID) for records a message can also link to
+LINKED_RECORD_TYPES = (
+    ("company_id", "companies", COMMUNICATION_TO_COMPANY_ASSOCIATION_ID),
+    ("deal_id", "deals", COMMUNICATION_TO_DEAL_ASSOCIATION_ID),
+)
+
+
 def _build_communication_input(
-    row: Dict[str, Any], row_index: int, contact_id: str, body: str, owner_id: Any
+    row: Dict[str, Any], row_index: int, contact_id: str, body: str, timestamp_ms: str, owner_id: Any
 ) -> Dict[str, Any]:
     properties = {
         "hs_communication_channel_type": "LINKEDIN_MESSAGE",
         "hs_communication_logged_from": "CRM",
         "hs_communication_body": body,
-        "hs_timestamp": _timestamp_property(row.get("timestamp")),
+        "hs_timestamp": timestamp_ms,
     }
     if owner_id:
         properties["hubspot_owner_id"] = str(owner_id)
 
     associations = [_hubspot_defined_association(contact_id, COMMUNICATION_TO_CONTACT_ASSOCIATION_ID)]
-    if row.get("company_id"):
-        associations.append(_hubspot_defined_association(row["company_id"], COMMUNICATION_TO_COMPANY_ASSOCIATION_ID))
-    if row.get("deal_id"):
-        associations.append(_hubspot_defined_association(row["deal_id"], COMMUNICATION_TO_DEAL_ASSOCIATION_ID))
+    for field, _, association_type_id in LINKED_RECORD_TYPES:
+        if _linked_id(row, field):
+            associations.append(_hubspot_defined_association(_linked_id(row, field), association_type_id))
 
     return {"properties": properties, "associations": associations, "objectWriteTraceId": str(row_index)}
 
@@ -813,10 +900,11 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
         retry_sleep_budget = {"remaining": 10}
 
         results = []
-        pending = []  # (row, result, body, kind, key) for rows that passed validation
+        pending = []  # (row, result, body, timestamp_ms, kind, key) for rows that passed validation
         for row_index, row in enumerate(inputs["messages"]):
             identifier = _row_identifier(row)
             body = (row.get("message_body") or "").strip() or default_body
+            timestamp_ms = _timestamp_ms(row.get("timestamp"))
             result = {
                 "row_index": row_index,
                 "identifier": identifier[2] if identifier else None,
@@ -834,12 +922,16 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
             elif not body:
                 result["status"] = "invalid"
                 result["error"] = "Provide message_body for this row or default_message_body"
+            elif timestamp_ms is None:
+                # HubSpot would reject the whole batch over one unreadable timestamp
+                result["status"] = "invalid"
+                result["error"] = f"timestamp must be {TIMESTAMP_FORMAT_HINT} (1970 to 9999)"
             else:
-                pending.append((row, result, body, identifier[0], identifier[1]))
+                pending.append((row, result, body, timestamp_ms, identifier[0], identifier[1]))
 
         # Each lookup maps a key to its matching contact IDs, or to an error message
         matches: Dict[Any, list[str] | str] = {}
-        emails = sorted({key for _, _, _, kind, key in pending if kind == "email"})
+        emails = sorted({key for _, _, _, _, kind, key in pending if kind == "email"})
         if emails:
             try:
                 contact_ids_by_email, errors_by_email = await _find_contact_ids_by_email(
@@ -855,7 +947,16 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
             except REQUEST_ERRORS as e:
                 matches.update({email: f"Contact lookup failed: {_error_text(e)}" for email in emails})
 
-        names = list(dict.fromkeys(key for _, _, _, kind, key in pending if kind == "name"))
+        direct_ids = list(dict.fromkeys(key for _, _, _, _, kind, key in pending if kind == "contact_id"))
+        for contact_id, problem in (
+            await _check_object_ids("contacts", direct_ids, context, retry_sleep_budget)
+        ).items():
+            if problem is None:
+                matches[contact_id] = [contact_id]
+            else:
+                matches[contact_id] = [] if problem == "missing" else f"Contact lookup failed: {problem}"
+
+        names = list(dict.fromkeys(key for _, _, _, _, kind, key in pending if kind == "name"))
         for index, (first_name, last_name) in enumerate(names):
             if index:
                 await asyncio.sleep(NAME_SEARCH_INTERVAL_SECONDS)
@@ -866,9 +967,9 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
             except REQUEST_ERRORS as e:
                 matches[(first_name, last_name)] = f"Contact lookup failed: {_error_text(e)}"
 
-        batch_inputs = []
-        for row, result, body, kind, key in pending:
-            contact_ids = [key] if kind == "contact_id" else matches[key]
+        matched = []  # (row, result, body, timestamp_ms) for rows matched to exactly one contact
+        for row, result, body, timestamp_ms, kind, key in pending:
+            contact_ids = matches[key]
             if isinstance(contact_ids, str):
                 result["status"] = "failed"
                 result["error"] = contact_ids
@@ -879,8 +980,36 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                 result["candidates"] = contact_ids
             else:
                 result["contact_id"] = contact_ids[0]
+                matched.append((row, result, body, timestamp_ms))
+
+        # A missing company or deal would also make HubSpot reject the whole batch, so check matched rows' ones
+        linked_problems = {}
+        for field, object_type, _ in LINKED_RECORD_TYPES:
+            linked_ids = list(dict.fromkeys(_linked_id(row, field) for row, *_ in matched if _linked_id(row, field)))
+            checked = await _check_object_ids(object_type, linked_ids, context, retry_sleep_budget)
+            linked_problems.update({(field, object_id): problem for object_id, problem in checked.items()})
+
+        batch_inputs = []
+        for row, result, body, timestamp_ms in matched:
+            problems = [
+                (field, _linked_id(row, field), linked_problems[(field, _linked_id(row, field))])
+                for field, _, _ in LINKED_RECORD_TYPES
+                if _linked_id(row, field) and linked_problems[(field, _linked_id(row, field))]
+            ]
+            if problems:
+                field, object_id, problem = problems[0]
+                label = "Company" if field == "company_id" else "Deal"
+                if problem == "missing":
+                    result["status"] = "invalid"
+                    result["error"] = f"{label} {object_id} does not exist"
+                else:
+                    result["status"] = "failed"
+                    result["error"] = f"{label} lookup failed: {problem}"
+            else:
                 batch_inputs.append(
-                    _build_communication_input(row, result["row_index"], contact_ids[0], body, owner_id)
+                    _build_communication_input(
+                        row, result["row_index"], result["contact_id"], body, timestamp_ms, owner_id
+                    )
                 )
 
         returned_items: list[Dict[str, Any]] = []
@@ -973,7 +1102,9 @@ class UpdateLinkedInMessageActionHandler(ActionHandler):
         if inputs.get("message_body") is not None:
             properties["hs_communication_body"] = inputs["message_body"]
         if inputs.get("timestamp") not in (None, ""):
-            properties["hs_timestamp"] = _timestamp_property(inputs["timestamp"])
+            properties["hs_timestamp"] = _timestamp_ms(inputs["timestamp"])
+            if properties["hs_timestamp"] is None:
+                return ActionError(message=f"timestamp must be {TIMESTAMP_FORMAT_HINT} (1970 to 9999)")
         if inputs.get("hubspot_owner_id") is not None:
             properties["hubspot_owner_id"] = str(inputs["hubspot_owner_id"])
 

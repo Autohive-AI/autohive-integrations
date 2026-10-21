@@ -16,7 +16,7 @@ from hubspot.hubspot import (
     _error_text,
     _outcome_unknown,
     _property_value,
-    _timestamp_property,
+    _timestamp_ms,
     _unfinished_batch_reason,
 )
 
@@ -269,21 +269,49 @@ class TestUnfinishedBatchReason:
         assert _unfinished_batch_reason({"status": status}) == expected
 
 
-class TestTimestampProperty:
+class TestTimestampMs:
     def test_float_milliseconds_truncated(self):
-        assert _timestamp_property(1700000000000.7) == "1700000000000"
+        assert _timestamp_ms(1700000000000.7) == "1700000000000"
 
     def test_int_milliseconds_kept(self):
-        assert _timestamp_property(1700000000000) == "1700000000000"
+        assert _timestamp_ms(1700000000000) == "1700000000000"
 
-    def test_date_string_passed_through(self):
-        assert _timestamp_property("2026-10-21T00:00:00Z") == "2026-10-21T00:00:00Z"
+    @pytest.mark.parametrize(
+        "timestamp,expected",
+        [
+            ("2026-10-21T00:00:00Z", "1792540800000"),
+            ("2026-10-21", "1792540800000"),
+            ("2026-10-21T13:00:00+13:00", "1792540800000"),
+            ("2026-10-21T00:00:00.250Z", "1792540800250"),
+            (" 1700000000000 ", "1700000000000"),
+            ("2026-10-21T00:00:00z", "1792540800000"),
+        ],
+    )
+    def test_strings_converted_to_utc_milliseconds(self, timestamp, expected):
+        assert _timestamp_ms(timestamp) == expected
+
+    @pytest.mark.parametrize(
+        "timestamp",
+        [
+            "yesterday",
+            "1969-12-31T23:59:59Z",
+            "99999999999999999999",
+            "9" * 5000,
+            1e20,
+            -1,
+            float("nan"),
+            float("inf"),
+            True,
+        ],
+    )
+    def test_unreadable_or_out_of_range_is_none(self, timestamp):
+        assert _timestamp_ms(timestamp) is None
 
     @pytest.mark.parametrize("timestamp", [None, ""])
     def test_missing_defaults_to_now(self, timestamp):
         before = int(datetime.now().timestamp() * 1000)
 
-        value = int(_timestamp_property(timestamp))
+        value = int(_timestamp_ms(timestamp))
 
         assert before <= value <= int(datetime.now().timestamp() * 1000)
 

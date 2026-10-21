@@ -854,7 +854,9 @@ async def log_and_collect_created_ids(context, inputs, created_ids):
 async def linked_contact_ids(context, communication_id):
     result = await hubspot.execute_action("get_linkedin_message", {"communication_id": communication_id}, context)
     communication = result.result.data["communication"]
-    contact_ids = {str(a["id"]) for a in communication.get("associations", {}).get("contacts", {}).get("results", [])}
+    contact_ids = frozenset(
+        str(a["id"]) for a in communication.get("associations", {}).get("contacts", {}).get("results", [])
+    )
     return communication["properties"]["hs_communication_body"], contact_ids
 
 
@@ -892,11 +894,13 @@ class TestBulkLinkedInMessages:
             )
 
             data = result.result.data
-            assert (data["logged"], data["success"], data["unmatched_communication_ids"]) == (3, True, []), data
-            assert len(created_ids) == 3
-            for (_, contact_id), body, row in zip(rows, bodies, data["results"]):
-                assert (row["status"], row["contact_id"]) == ("logged", contact_id), row
-                assert await linked_contact_ids(live_context, row["communication_id"]) == (body, {contact_id})
+            assert (data["logged"], data["success"]) == (3, True), data
+            assert [(r["status"], r["contact_id"]) for r in data["results"]] == [("logged", c) for _, c in rows]
+            # HubSpot may not say which ID is which row, so every created ID is on a row or listed as unmatched
+            reported_ids = [r["communication_id"] for r in data["results"] if r["communication_id"]]
+            assert sorted(reported_ids + data["unmatched_communication_ids"]) == sorted(created_ids)
+            saved = {await linked_contact_ids(live_context, created_id) for created_id in created_ids}
+            assert saved == {(body, frozenset({contact_id})) for (_, contact_id), body in zip(rows, bodies)}
         finally:
             for created_id in created_ids:
                 await hubspot.execute_action("delete_linkedin_message", {"communication_id": created_id}, live_context)
@@ -916,10 +920,13 @@ class TestBulkLinkedInMessages:
                 created_ids,
             )
 
-            # HubSpot rejects the whole batch when one association target is missing, so nothing is created
+            # HubSpot rejects a whole create batch that links a missing contact, so that row is skipped up front
             data = result.result.data
-            assert [r["status"] for r in data["results"]] == ["failed", "failed"], data
-            assert (data["success"], data["unmatched_communication_ids"], created_ids) == (False, [], set())
+            assert [r["status"] for r in data["results"]] == ["logged", "not_found"], data
+            assert data["success"] is False
+            assert data["results"][0]["communication_id"] in created_ids
+            assert len(created_ids) == 1
+            assert await linked_contact_ids(live_context, next(iter(created_ids))) == (body, frozenset({valid_id}))
         finally:
             for created_id in created_ids:
                 await hubspot.execute_action("delete_linkedin_message", {"communication_id": created_id}, live_context)

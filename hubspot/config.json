@@ -437,7 +437,7 @@
                     "string",
                     "number"
                   ],
-                  "description": "When the message was sent: Unix timestamp in milliseconds or a UTC date string (optional, defaults to now)"
+                  "description": "When the message was sent: Unix timestamp in milliseconds or an ISO 8601 date such as 2026-10-21T09:30:00Z, read as UTC when it has no time zone (optional, defaults to now)"
                 },
                 "company_id": {
                   "type": "string",
@@ -539,11 +539,11 @@
           },
           "invalid": {
             "type": "integer",
-            "description": "Rows missing an identifier or message body"
+            "description": "Rows missing an identifier or message body, with an unreadable timestamp, or linking a company or deal that does not exist"
           },
           "failed": {
             "type": "integer",
-            "description": "Rows whose contact lookup or message create failed; see each row's error"
+            "description": "Rows whose contact, company or deal lookup or message create failed; see each row's error"
           },
           "unmatched_communication_ids": {
             "type": "array",
@@ -623,7 +623,7 @@
               "string",
               "number"
             ],
-            "description": "New timestamp: Unix milliseconds or a UTC date string (optional)"
+            "description": "New timestamp: Unix milliseconds or an ISO 8601 date such as 2026-10-21T09:30:00Z, read as UTC when it has no time zone (optional)"
           },
           "hubspot_owner_id": {
             "type": "string",
