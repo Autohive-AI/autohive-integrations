@@ -1141,6 +1141,21 @@ class TestLogLinkedInMessagesContactCheck:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_failed_email_lookup_never_borrows_a_contact_id_rows_match(self, mock_context):
+        mock_context.fetch.side_effect = [HTTPError(500, "Server error"), found("501"), batch_created("1")]
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"email": "501"}, {"contact_id": "501"}], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        rows = result.result.data["results"]
+        assert (rows[0]["status"], rows[0]["contact_id"]) == ("failed", None)
+        assert (rows[1]["status"], rows[1]["contact_id"]) == ("logged", "501")
+        assert len(mock_context.fetch.call_args.kwargs["json"]["inputs"]) == 1
+
+    @pytest.mark.asyncio
     async def test_repeated_contact_id_checked_once(self, mock_context):
         mock_context.fetch.side_effect = [ok({"status": "COMPLETE", "results": [{"id": "1"}]}), batch_created("0", "1")]
 

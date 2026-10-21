@@ -627,7 +627,9 @@ def _timestamp_ms(timestamp: Any) -> str | None:
         return str(int(datetime.now(timezone.utc).timestamp() * 1000))
     if isinstance(timestamp, bool):
         return None
-    if isinstance(timestamp, (int, float)):
+    if isinstance(timestamp, int):
+        milliseconds = timestamp
+    elif isinstance(timestamp, float):
         if not math.isfinite(timestamp):
             return None
         milliseconds = int(timestamp)
@@ -929,8 +931,9 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
             else:
                 pending.append((row, result, body, timestamp_ms, identifier[0], identifier[1]))
 
-        # Each lookup maps a key to its matching contact IDs, or to an error message
-        matches: Dict[Any, list[str] | str] = {}
+        # Each lookup maps (kind, key) to its matching contact IDs, or to an error message. The kind keeps an
+        # email that looks like an ID from sharing another row's contact ID result
+        matches: Dict[tuple[str, Any], list[str] | str] = {}
         emails = sorted({key for _, _, _, _, kind, key in pending if kind == "email"})
         if emails:
             try:
@@ -939,37 +942,39 @@ class LogLinkedInMessagesActionHandler(ActionHandler):
                 )
                 for email in emails:
                     if email in contact_ids_by_email:
-                        matches[email] = [contact_ids_by_email[email]]
+                        matches[("email", email)] = [contact_ids_by_email[email]]
                     elif email in errors_by_email:
-                        matches[email] = f"Contact lookup failed: {errors_by_email[email]}"
+                        matches[("email", email)] = f"Contact lookup failed: {errors_by_email[email]}"
                     else:
-                        matches[email] = []
+                        matches[("email", email)] = []
             except REQUEST_ERRORS as e:
-                matches.update({email: f"Contact lookup failed: {_error_text(e)}" for email in emails})
+                matches.update({("email", email): f"Contact lookup failed: {_error_text(e)}" for email in emails})
 
         direct_ids = list(dict.fromkeys(key for _, _, _, _, kind, key in pending if kind == "contact_id"))
         for contact_id, problem in (
             await _check_object_ids("contacts", direct_ids, context, retry_sleep_budget)
         ).items():
             if problem is None:
-                matches[contact_id] = [contact_id]
+                matches[("contact_id", contact_id)] = [contact_id]
             else:
-                matches[contact_id] = [] if problem == "missing" else f"Contact lookup failed: {problem}"
+                matches[("contact_id", contact_id)] = (
+                    [] if problem == "missing" else f"Contact lookup failed: {problem}"
+                )
 
         names = list(dict.fromkeys(key for _, _, _, _, kind, key in pending if kind == "name"))
         for index, (first_name, last_name) in enumerate(names):
             if index:
                 await asyncio.sleep(NAME_SEARCH_INTERVAL_SECONDS)
             try:
-                matches[(first_name, last_name)] = await _find_contact_ids_by_name(
+                matches[("name", (first_name, last_name))] = await _find_contact_ids_by_name(
                     first_name, last_name, context, retry_sleep_budget
                 )
             except REQUEST_ERRORS as e:
-                matches[(first_name, last_name)] = f"Contact lookup failed: {_error_text(e)}"
+                matches[("name", (first_name, last_name))] = f"Contact lookup failed: {_error_text(e)}"
 
         matched = []  # (row, result, body, timestamp_ms) for rows matched to exactly one contact
         for row, result, body, timestamp_ms, kind, key in pending:
-            contact_ids = matches[key]
+            contact_ids = matches[(kind, key)]
             if isinstance(contact_ids, str):
                 result["status"] = "failed"
                 result["error"] = contact_ids
