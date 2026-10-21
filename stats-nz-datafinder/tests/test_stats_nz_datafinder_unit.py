@@ -3517,6 +3517,69 @@ class TestQueryAreaStatisticsBandProperty:
         assert result.type == ResultType.ACTION_ERROR
         assert "duplicate_join" in result.result.message
 
+    @pytest.mark.asyncio
+    async def test_feature_without_geometry_is_excluded_from_every_band(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("inner", self.SA_INNER, {"SA12023_V1_00": "7010001", "VAR_1_1": 100}),
+                    # Same code as "inner" but no area, so the duplicate-join check must ignore it.
+                    _feature("empty", None, {"SA12023_V1_00": "7010001", "VAR_1_1": 999}),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await self._band_query(mock_context, self._file())
+        assert result.type == ResultType.ACTION, result.result
+        for band in result.result.data["bands"]:
+            assert band["results"][0]["estimated_value"] == pytest.approx(100)
+            assert any("Excluded 1 feature(s) with no polygon area" in warning for warning in band["warnings"])
+
+    @pytest.mark.asyncio
+    async def test_malformed_feature_fails_as_provider_error(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("inner", self.SA_INNER, {"SA12023_V1_00": "7010001", "VAR_1_1": 100}),
+                    "not-a-feature",
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await self._band_query(mock_context, self._file())
+        assert result.type == ResultType.ACTION_ERROR
+        assert "partial_provider_failure" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_row_missing_the_measure_field_makes_its_bands_partial(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("inner", self.SA_INNER, {"SA12023_V1_00": "7010001", "VAR_1_1": 100}),
+                    _feature("mid", self.SA_MID, {"SA12023_V1_00": "7010002"}),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await self._band_query(mock_context, self._file())
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        bands = {band["band_value"]: band for band in data["bands"]}
+        assert bands[10]["results"][0]["status"] == "ok"
+        mid = bands[15]["results"][0]
+        assert mid["status"] == "partial"
+        assert mid["estimated_value"] == pytest.approx(100)
+        assert mid["included_feature_count"] == 1
+        assert mid["unavailable_feature_count"] == 1
+        assert bands[15]["validation_status"] == "partial"
+        assert data["validation_status"] == "partial"
+
 
 class TestQueryLayerIncludeRecords:
     @pytest.mark.asyncio
