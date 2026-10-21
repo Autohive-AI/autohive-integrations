@@ -2,8 +2,9 @@
 
 import asyncio
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
+import aiohttp
 from autohive_integrations_sdk import (
     ActionError,
     ActionHandler,
@@ -11,7 +12,6 @@ from autohive_integrations_sdk import (
     ConnectedAccountHandler,
     ConnectedAccountInfo,
     ExecutionContext,
-    FetchResponse,
     HTTPError,
     Integration,
     ValidationError,
@@ -21,6 +21,22 @@ agno_agent = Integration.load()
 
 RETRYABLE_STATUSES = {502, 503, 504}
 MAX_ATTEMPTS = 3
+
+# Memory bounds for reading the run stream. AgentOS always streams every run event,
+# and each ``ToolCallCompleted`` event carries the full result of the SQL the agent
+# ran — easily many MB for a "return the full table" question. Buffering that whole
+# body (as ``context.fetch`` does) OOM-killed the Lambda, so the stream is read in
+# chunks and only answer-bearing events are ever held in memory.
+STREAM_CHUNK_BYTES = 64 * 1024
+MAX_EVENT_BYTES = 2 * 1024 * 1024
+MAX_ERROR_BODY_BYTES = 4 * 1024
+MAX_RESPONSE_CHARS = 100_000
+TRUNCATION_NOTE = (
+    "\n\n[Response truncated: the agent's answer exceeded {limit:,} characters. "
+    "Ask for a narrower result, e.g. the top N rows.]"
+)
+UTF8_BOM = b"\xef\xbb\xbf"
+ANSWER_EVENTS = {"RunCompleted", "RunContent", "RunResponse", "RunResponseContent"}
 
 
 def _extract_credentials(context: ExecutionContext) -> tuple[str, str, str]:
@@ -35,106 +51,210 @@ def _extract_credentials(context: ExecutionContext) -> tuple[str, str, str]:
     return api_url.rstrip("/"), credentials.get("api_token", ""), agent_id
 
 
-def _parse_sse_response(body: Any) -> str:
-    """Extract the agent's final answer from an AgentOS SSE response body.
+def _truncate(content: str) -> str:
+    """Cap the answer so an oversized reply can't blow the action output."""
+    if len(content) <= MAX_RESPONSE_CHARS:
+        return content
+    return content[:MAX_RESPONSE_CHARS] + TRUNCATION_NOTE.format(limit=MAX_RESPONSE_CHARS)
 
-    Prefers the ``RunCompleted`` event's ``content`` (the final, fully-formed
-    answer). Falls back to concatenating streamed content chunks if no terminal
-    event is present — Agno emits these as ``RunContent`` by default (older
-    deployments use ``RunResponse``/``RunResponseContent``), and ``RunCompleted``
-    is only guaranteed when all events are streamed.
+
+class _SSEAnswerCollector:
+    """Incremental AgentOS SSE parser that keeps only the agent's answer in memory.
+
+    Fed raw byte chunks as they arrive. Prefers the ``RunCompleted`` event's
+    ``content`` (the final answer) and falls back to concatenating streamed chunks —
+    ``RunContent`` by default, ``RunResponse``/``RunResponseContent`` on older
+    deployments. The event type is read from the payload's ``event`` field or, failing
+    that, the SSE ``event:`` line.
+
+    Lines of an event whose ``event:`` line names a non-answer type (tool results,
+    reasoning, metrics) are discarded without being buffered or parsed, so for those
+    the ``event:`` line decides. Events typed only in
+    their JSON are buffered up to ``MAX_EVENT_BYTES`` and dropped beyond that. If the
+    first non-blank line is not SSE framing, the body is a plain answer (capped at
+    ``MAX_EVENT_BYTES``) and is returned as text.
     """
-    if not isinstance(body, str):
-        return ""
 
-    completed_content: Optional[str] = None
-    streamed_chunks: List[str] = []
+    SSE_FIELDS = (b"data:", b"event:", b"id:", b"retry:", b":")
 
-    for block in body.replace("\r\n", "\n").split("\n\n"):
-        # Parse both SSE fields per block: ``event:`` (canonical SSE event type)
-        # and ``data:`` (the JSON payload). The event type may live in either
-        # the SSE line or the payload's ``event`` field — Agno's documented
-        # wire format uses the SSE line, while older fixtures embed it in JSON.
-        event_line: Optional[str] = None
-        data_lines: List[str] = []
-        for line in block.splitlines():
-            if line.startswith("event:"):
-                event_line = line[len("event:") :].strip()
-            elif line.startswith("data:"):
-                data_lines.append(line[len("data:") :].lstrip())
+    def __init__(self) -> None:
+        self._line = bytearray()
+        # Discarding the current line; _skipped_text records whether it had any content,
+        # since a skipped blank line still ends its event.
+        self._skip = False
+        self._skipped_text = False
+        self._mode: Optional[str] = None  # "sse" or "raw" once the first non-blank line is seen
+        self._raw = bytearray()
+        self._event_type: Optional[str] = None
+        self._data: List[str] = []
+        self._data_bytes = 0  # above MAX_EVENT_BYTES marks the current event as dropped
+        self._completed: Optional[str] = None
+        self._chunks: List[str] = []
+        self._chunk_chars = 0
 
-        if not data_lines:
-            continue
+    def feed(self, chunk: bytes) -> None:
+        view = memoryview(chunk)
+        start = 0
+        while start < len(chunk):
+            if self._mode == "raw":
+                self._raw += view[start : start + max(0, MAX_EVENT_BYTES - len(self._raw))]
+                return
+            end = chunk.find(b"\n", start)
+            stop = len(chunk) if end == -1 else end
+            if self._skip:
+                # Count, don't slice: skipped lines can be tens of MB.
+                self._skipped_text = self._skipped_text or chunk.count(b"\r", start, stop) != stop - start
+            else:
+                self._line += view[start:stop]
+                if len(self._line) > MAX_EVENT_BYTES:
+                    if self._mode is None and not self._line.lstrip().startswith(self.SSE_FIELDS):
+                        # An oversized first line of a plain body: keep it, capped.
+                        self._mode = "raw"
+                        self._raw = self._line[:MAX_EVENT_BYTES]
+                        self._line = bytearray()
+                        return
+                    self._line.clear()
+                    self._skip = self._skipped_text = True
+                    self._data_bytes = MAX_EVENT_BYTES + 1
+            if end == -1:
+                return
+            self._end_line(newline=True)
+            start = end + 1
 
+    def _end_line(self, newline: bool) -> None:
+        if self._skip:
+            if not self._skipped_text:
+                self._dispatch()
+        else:
+            self._handle_line(newline)
+        self._line.clear()
+        self._skipped_text = False
+        # A line inside an event already typed as non-answer is never needed.
+        self._skip = self._event_type is not None and self._event_type not in ANSWER_EVENTS
+
+    def _handle_line(self, newline: bool) -> None:
+        line = self._line
+        if line.endswith(b"\r"):
+            del line[-1:]
+        if self._mode is None and line.startswith(UTF8_BOM):
+            del line[: len(UTF8_BOM)]
+        if self._mode is None and line.strip():
+            if not line.startswith(self.SSE_FIELDS):
+                self._mode = "raw"
+                self._raw = bytearray(line) + (b"\n" if newline else b"")
+                return
+            self._mode = "sse"
+        if not line:
+            self._dispatch()
+        elif line.startswith(b"event:"):
+            self._event_type = line[len(b"event:") :].decode("utf-8", errors="replace").strip()
+        elif line.startswith(b"data:"):
+            self._data_bytes += len(line)
+            if self._data_bytes > MAX_EVENT_BYTES:
+                self._data.clear()
+            else:
+                self._data.append(line[len(b"data:") :].decode("utf-8", errors="replace").lstrip())
+
+    def _dispatch(self) -> None:
+        event_line, data, dropped = self._event_type, self._data, self._data_bytes > MAX_EVENT_BYTES
+        self._event_type, self._data, self._data_bytes = None, [], 0
+        if dropped or not data:
+            return
         try:
-            payload = json.loads("\n".join(data_lines))
+            payload = json.loads(data[0] if len(data) == 1 else "\n".join(data))
         except json.JSONDecodeError:
-            continue
-
+            return
         if not isinstance(payload, dict):
-            continue
-
+            return
         event = payload.get("event") or event_line
         content = payload.get("content")
         if not isinstance(content, str):
-            continue
-
+            return
         if event == "RunCompleted":
-            completed_content = content
-        elif event in {"RunContent", "RunResponse", "RunResponseContent"}:
-            streamed_chunks.append(content)
+            self._completed = content
+        elif event in ANSWER_EVENTS and self._chunk_chars <= MAX_RESPONSE_CHARS:
+            self._chunks.append(content)
+            self._chunk_chars += len(content)
 
-    if completed_content:
-        return completed_content
-    if streamed_chunks:
-        return "".join(streamed_chunks)
-    return ""
+    def finish(self) -> str:
+        """Flush a trailing event with no closing blank line and return the answer.
 
-
-def _looks_like_sse(body: str) -> bool:
-    """True if the body carries SSE framing (at least one ``data:`` line)."""
-    return any(line.startswith("data:") for line in body.replace("\r\n", "\n").splitlines())
+        An SSE body with no answer content (e.g. only ``RunStarted``) returns ``""``.
+        """
+        if self._line:
+            self._end_line(newline=False)
+        if self._mode == "raw":
+            return self._raw.decode("utf-8", errors="replace")
+        self._dispatch()
+        return self._completed or "".join(self._chunks)
 
 
 def _extract_answer(body: Any) -> str:
-    """Pull the agent's answer from an AgentOS response body.
+    """Pull the agent's answer from an already-read (capped) AgentOS response body.
 
-    The normal path is an SSE stream (``stream=true``). Falls back to a plain
-    JSON or text body, since some AgentOS deployments or proxies may answer with
-    a regular payload despite ``stream=true`` — without this fallback those
-    valid answers would be discarded.
-
-    A body that *is* SSE-framed but yielded no content (e.g. only ``RunStarted``)
-    returns ``""`` rather than the raw framing, so the caller can fall back to
-    the empty-response default.
+    Some deployments or proxies answer with a plain JSON or text body despite
+    ``stream=true``; without this fallback those valid answers would be discarded.
+    Text bodies go through the same parser as the stream, so SSE text yields its
+    answer and plain text is returned as-is.
     """
-    sse_content = _parse_sse_response(body)
-    if sse_content:
-        return sse_content
     if isinstance(body, dict):
         candidate = body.get("content") or body.get("message")
         return candidate if isinstance(candidate, str) else ""
-    if isinstance(body, str) and not _looks_like_sse(body):
-        return body
-    return ""
+    if not isinstance(body, str):
+        return ""
+    collector = _SSEAnswerCollector()
+    collector.feed(body.encode("utf-8"))
+    return collector.finish()
 
 
-async def _fetch_with_gateway_retry(context: ExecutionContext, url: str, **kwargs: Any) -> FetchResponse:
-    """Call ``context.fetch`` with retries on transient gateway/proxy 5xx responses.
+async def _post_run(url: str, data: Dict[str, str], headers: Dict[str, str], timeout: int) -> str:
+    """POST an agent run and return its answer, reading the response incrementally.
 
-    The SDK only retries client-side network errors; gateway 5xx responses (502/503/504)
-    are surfaced immediately. AgentOS deployments typically sit behind a load balancer
-    whose idle timeout can produce transient 504s, so retry those here with
-    exponential backoff.
+    Uses aiohttp directly because ``context.fetch`` reads the entire body into
+    memory before returning. Non-2xx responses raise ``HTTPError`` (status plus a
+    capped body), matching what ``context.fetch`` did.
+    """
+    client_timeout = aiohttp.ClientTimeout(total=timeout)
+    async with aiohttp.ClientSession(timeout=client_timeout) as session:
+        async with session.post(url, data=data, headers=headers) as response:
+            if response.status >= 400:
+                body = await response.content.read(MAX_ERROR_BODY_BYTES)
+                raise HTTPError(response.status, body.decode("utf-8", errors="replace"))
+
+            content_type = response.headers.get("Content-Type", "")
+            if "text/event-stream" in content_type:
+                collector = _SSEAnswerCollector()
+                async for chunk in response.content.iter_chunked(STREAM_CHUNK_BYTES):
+                    collector.feed(chunk)
+                return collector.finish()
+
+            # Non-SSE answer: read a capped body and use the plain JSON / text fallbacks.
+            body: Any = (await response.content.read(MAX_EVENT_BYTES)).decode("utf-8", errors="replace")
+            if "application/json" in content_type:
+                try:
+                    body = json.loads(body)
+                except json.JSONDecodeError:
+                    pass
+            return _extract_answer(body)
+
+
+async def _with_gateway_retry(request: Callable[[], Awaitable[str]]) -> str:
+    """Run ``request`` with retries on transient gateway/proxy 5xx responses.
+
+    AgentOS deployments typically sit behind a load balancer whose idle timeout
+    can produce transient 504s, so retry those with exponential backoff. Connection
+    failures (request never reached the server) are retried the same way. The SDK's
+    own fetch retry can't be used: it buffers the whole body and doesn't retry 5xx.
     """
     for attempt in range(MAX_ATTEMPTS):
         try:
-            return await context.fetch(url, **kwargs)
-        except HTTPError as exc:
-            if exc.status in RETRYABLE_STATUSES and attempt < MAX_ATTEMPTS - 1:
-                await asyncio.sleep(2**attempt)
-                continue
-            raise
+            return await request()
+        except (HTTPError, aiohttp.ClientConnectorError) as exc:
+            retryable = not isinstance(exc, HTTPError) or exc.status in RETRYABLE_STATUSES
+            if not retryable or attempt == MAX_ATTEMPTS - 1:
+                raise
+            await asyncio.sleep(2**attempt)
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 @agno_agent.action("ask_agent")
@@ -156,14 +276,8 @@ class AskAgentHandler(ActionHandler):
         # stream=true so AgentOS emits SSE events while the agent works; each event
         # resets the upstream load balancer's idle timer and prevents 504s on long queries.
         try:
-            response = await _fetch_with_gateway_retry(
-                context,
-                url,
-                method="POST",
-                content_type="application/x-www-form-urlencoded",
-                data={"message": query, "stream": "true"},
-                headers=headers,
-                timeout=120,
+            content = await _with_gateway_retry(
+                lambda: _post_run(url, data={"message": query, "stream": "true"}, headers=headers, timeout=120)
             )
         except HTTPError as exc:
             # Gateway 5xx that survived all retries — service-availability problem,
@@ -177,9 +291,20 @@ class AskAgentHandler(ActionHandler):
                     )
                 )
             raise
+        except aiohttp.ClientConnectorError:
+            return ActionError(
+                message="Could not reach the agent service after several attempts — check the API URL and try again."
+            )
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            # The run may already be executing server-side, so it is not retried.
+            return ActionError(
+                message=(
+                    "The agent run did not finish: the connection was lost or it exceeded the time limit. "
+                    "Try a narrower question."
+                )
+            )
 
-        content = _extract_answer(response.data) or "No response from agent."
-        return ActionResult(data={"response": str(content)})
+        return ActionResult(data={"response": _truncate(content) if content else "No response from agent."})
 
 
 @agno_agent.connected_account()
