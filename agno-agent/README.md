@@ -11,7 +11,6 @@ Key features:
 - Works with any Agno AgentOS deployment — the base URL, agent ID, and token are all configurable
 - Parses Agno's SSE stream (`RunCompleted` / `RunContent`, including legacy `RunResponse` / `RunResponseContent` event names) with fallbacks for plain JSON or text responses
 - Reads the SSE stream incrementally and keeps only answer events in memory — tool-call results (which carry full SQL result sets) are discarded as they stream, so large queries can't exhaust the action's memory
-- Answers longer than 100,000 characters are truncated with a note asking for a narrower result
 - Automatic retry with exponential backoff on transient gateway errors (HTTP 502/503/504) and failed connections; a run that times out or drops mid-stream is not re-sent (it may already be running) and returns a clear error instead
 - Connected-account health check against the AgentOS `/health` endpoint
 

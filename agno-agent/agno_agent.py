@@ -30,11 +30,6 @@ MAX_ATTEMPTS = 3
 STREAM_CHUNK_BYTES = 64 * 1024
 MAX_EVENT_BYTES = 2 * 1024 * 1024
 MAX_ERROR_BODY_BYTES = 4 * 1024
-MAX_RESPONSE_CHARS = 100_000
-TRUNCATION_NOTE = (
-    "\n\n[Response truncated: the agent's answer exceeded {limit:,} characters. "
-    "Ask for a narrower result, e.g. the top N rows.]"
-)
 UTF8_BOM = b"\xef\xbb\xbf"
 ANSWER_EVENTS = {"RunCompleted", "RunContent", "RunResponse", "RunResponseContent"}
 
@@ -49,13 +44,6 @@ def _extract_credentials(context: ExecutionContext) -> tuple[str, str, str]:
     if not agent_id:
         raise ValidationError("Missing required credential: agent_id")
     return api_url.rstrip("/"), credentials.get("api_token", ""), agent_id
-
-
-def _truncate(content: str) -> str:
-    """Cap the answer so an oversized reply can't blow the action output."""
-    if len(content) <= MAX_RESPONSE_CHARS:
-        return content
-    return content[:MAX_RESPONSE_CHARS] + TRUNCATION_NOTE.format(limit=MAX_RESPONSE_CHARS)
 
 
 class _SSEAnswerCollector:
@@ -172,7 +160,8 @@ class _SSEAnswerCollector:
             return
         if event == "RunCompleted":
             self._completed = content
-        elif event in ANSWER_EVENTS and self._chunk_chars <= MAX_RESPONSE_CHARS:
+        elif event in ANSWER_EVENTS and self._chunk_chars <= MAX_EVENT_BYTES:
+            # Bound memory against an endless stream of chunks, like any single event.
             self._chunks.append(content)
             self._chunk_chars += len(content)
 
@@ -304,7 +293,7 @@ class AskAgentHandler(ActionHandler):
                 )
             )
 
-        return ActionResult(data={"response": _truncate(content) if content else "No response from agent."})
+        return ActionResult(data={"response": content or "No response from agent."})
 
 
 @agno_agent.connected_account()

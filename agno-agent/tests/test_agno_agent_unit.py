@@ -14,10 +14,7 @@ from autohive_integrations_sdk.integration import ResultType
 from agno_agent import (
     MAX_ERROR_BODY_BYTES,
     MAX_EVENT_BYTES,
-    MAX_RESPONSE_CHARS,
-    TRUNCATION_NOTE,
     AgnoConnectedAccountHandler,
-    _truncate,
     _extract_answer,
     _SSEAnswerCollector,
     agno_agent,
@@ -384,9 +381,7 @@ class TestAskAgentResponseParsing:
 
         result = await _ask(mock_context)
 
-        response = result.result.data["response"]
-        assert response.startswith("z" * MAX_RESPONSE_CHARS)
-        assert "Response truncated" in response
+        assert result.result.data["response"] == "z" * MAX_EVENT_BYTES
 
 
 class TestAskAgentRetry:
@@ -561,27 +556,27 @@ class TestAskAgentMemoryBounds:
 
         assert result.result.data["response"] == "done"
 
-    async def test_long_answer_is_truncated_with_note(self, mock_context, agentos):
-        answer = "a" * (MAX_RESPONSE_CHARS + 500)
-        agentos.queue(_reply("data: " + json.dumps({"event": "RunCompleted", "content": answer}) + "\n\n", 200))
+    async def test_long_answer_is_returned_in_full(self, mock_context, agentos):
+        answer = "a" * 500_000
+        agentos.queue(
+            _reply("data: " + json.dumps({"event": "RunCompleted", "content": answer}) + "\n\n", chunk_size=4096)
+        )
+
+        result = await _ask(mock_context)
+
+        assert result.result.data["response"] == answer
+
+    async def test_streamed_chunks_stop_accumulating_past_event_cap(self, mock_context, agentos):
+        """Without a RunCompleted event, RunContent chunks are bounded like any single event."""
+        chunk = "b" * 100_000
+        events = [f'data: {{"event": "RunContent", "content": "{chunk}"}}' for _ in range(30)]
+        agentos.queue(_reply(_sse(*events), chunk_size=64 * 1024))
 
         result = await _ask(mock_context)
 
         response = result.result.data["response"]
-        assert response.startswith("a" * MAX_RESPONSE_CHARS)
-        assert "a" * (MAX_RESPONSE_CHARS + 1) not in response
-        assert "Response truncated" in response
-
-    async def test_streamed_chunks_stop_accumulating_past_cap(self, mock_context, agentos):
-        """Without a RunCompleted event, RunContent chunks are capped too."""
-        chunk = "b" * 10_000
-        events = [f'data: {{"event": "RunContent", "content": "{chunk}"}}' for _ in range(50)]
-        agentos.queue(_reply(_sse(*events), chunk_size=4096))
-
-        result = await _ask(mock_context)
-
-        assert result.result.data["response"].startswith("b" * MAX_RESPONSE_CHARS)
-        assert "Response truncated" in result.result.data["response"]
+        assert MAX_EVENT_BYTES < len(response) <= MAX_EVENT_BYTES + len(chunk)
+        assert set(response) == {"b"}
 
     async def test_error_body_is_capped(self, mock_context, agentos):
         agentos.queue(_reply("e" * (MAX_ERROR_BODY_BYTES * 10), status=400, content_type="text/plain"))
@@ -708,17 +703,6 @@ class TestSSEAnswerCollector:
         collector.feed(b"plain " + b"y" * (MAX_EVENT_BYTES * 2))
 
         assert len(collector.finish()) == MAX_EVENT_BYTES
-
-
-class TestTruncate:
-    @pytest.mark.parametrize("length", [0, 1, MAX_RESPONSE_CHARS])
-    def test_answers_within_cap_are_unchanged(self, length: int):
-        assert _truncate("a" * length) == "a" * length
-
-    def test_answer_over_cap_is_cut_with_note(self):
-        assert _truncate("a" * (MAX_RESPONSE_CHARS + 1)) == "a" * MAX_RESPONSE_CHARS + TRUNCATION_NOTE.format(
-            limit=MAX_RESPONSE_CHARS
-        )
 
 
 class TestExtractAnswer:
