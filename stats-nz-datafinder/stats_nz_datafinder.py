@@ -1698,6 +1698,37 @@ def _duplicate_geography_codes(codes: list[str]) -> list[str]:
     return [code for code, count in counts.items() if count > 1]
 
 
+def _raise_on_duplicate_join(codes: list[str]) -> None:
+    duplicates = _duplicate_geography_codes(codes)
+    if duplicates:
+        raise DatafinderError(
+            _contract_error(
+                message="Duplicate geography codes remain after feature-id deduplication.",
+                error_code="duplicate_join",
+                field="geometry",
+                valid_alternatives=duplicates[:8],
+                recovery="Retry the query. If it persists, the layer is not a unique-join Census geography.",
+                retry_safe=False,
+            )
+        )
+
+
+def _check_union_duplicate_joins(features: list[Any], geography_field: str | None) -> None:
+    """Same scope as the single-catchment check: every fetched feature with polygon area."""
+    codes: list[str] = []
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        feature_geom = _as_shapely(feature.get("geometry"))
+        if feature_geom is None or _geodesic_area_m2(feature_geom) <= 0:
+            continue
+        properties = feature.get("properties") if isinstance(feature.get("properties"), dict) else {}
+        code = _geography_code(properties, geography_field)
+        if isinstance(code, str) and code:
+            codes.append(code)
+    _raise_on_duplicate_join(codes)
+
+
 def _search_layer(item: dict[str, Any]) -> dict[str, Any]:
     capabilities = item.get("user_capabilities")
     return {
@@ -2432,18 +2463,7 @@ def _area_weighted_totals(
             geography_codes.append(code)
         if has_included:
             included_positions.add(position)
-    duplicates = _duplicate_geography_codes(geography_codes)
-    if duplicates:
-        raise DatafinderError(
-            _contract_error(
-                message="Duplicate geography codes remain after feature-id deduplication.",
-                error_code="duplicate_join",
-                field="geometry",
-                valid_alternatives=duplicates[:8],
-                recovery="Retry the query. If it persists, the layer is not a unique-join Census geography.",
-                retry_safe=False,
-            )
-        )
+    _raise_on_duplicate_join(geography_codes)
     if not ignore_zero_overlap:
         intersecting = len(collected.features)
     if skipped_no_area:
@@ -2517,7 +2537,6 @@ class QueryAreaStatisticsAction(ActionHandler):
                 geometry = _union_area_geometries([item["geometry"] for item in band_entries])
             else:
                 band_entries = None
-                band_skip_warnings = []
                 geometry, geometry_source = _bind_geojson_file(inputs)
             if geometry is None:
                 raise DatafinderError(
@@ -2604,6 +2623,8 @@ class QueryAreaStatisticsAction(ActionHandler):
             }
             retrieved_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             if band_entries is not None:
+                # Per-band totals drop features outside each band, so check duplicates across the union first.
+                _check_union_duplicate_joins(collected.features, geography_field)
                 bands_out: list[dict[str, Any]] = []
                 included_in_any_band: set[int] = set()
                 for entry in band_entries:

@@ -3496,6 +3496,27 @@ class TestQueryAreaStatisticsBandProperty:
         assert data["geography_summary"]["intersecting_feature_count"] == 3
         assert "included_positions" not in data
 
+    @pytest.mark.asyncio
+    async def test_duplicate_geography_code_across_disjoint_bands_fails(self, mock_context, mock_wfs):
+        file_obj = self._band_file(
+            _gj_feature(square(174.60, -41.30, 174.62, -41.28), {"time_minutes": 1}),
+            _gj_feature(square(174.90, -41.30, 174.92, -41.28), {"time_minutes": 2}),
+        )
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("w", square(174.605, -41.295, 174.615, -41.285), {"SA12023_V1_00": "7", "VAR_1_1": 10}),
+                    _feature("e", square(174.905, -41.295, 174.915, -41.285), {"SA12023_V1_00": "7", "VAR_1_1": 20}),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await self._band_query(mock_context, file_obj)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "duplicate_join" in result.result.message
+
 
 class TestQueryLayerIncludeRecords:
     @pytest.mark.asyncio
