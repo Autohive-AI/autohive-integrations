@@ -3,7 +3,7 @@ import asyncio
 import aiohttp
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from autohive_integrations_sdk import FetchResponse, HTTPError
+from autohive_integrations_sdk import ExecutionContext, FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import fetch_with_rate_limit_retries, hubspot
@@ -61,6 +61,35 @@ def batch_created(*trace_ids, errors=None):
 
 def fetch_calls(mock_context, url):
     return [call for call in mock_context.fetch.call_args_list if call.args[0] == url]
+
+
+class LostResponseSession:
+    """Stands in for the SDK's aiohttp session: the write URL drops its connection, every other URL succeeds."""
+
+    def __init__(self, write_url, other_response):
+        self.write_url = write_url
+        self.other_response = other_response
+        self.requests = []
+
+    def request(self, method, url, **kwargs):
+        self.requests.append(url)
+        if url == self.write_url:
+            raise aiohttp.ServerDisconnectedError()
+        response = MagicMock(status=200, ok=True, headers={"Content-Type": "application/json"})
+        response.json = AsyncMock(return_value=self.other_response)
+        context_manager = MagicMock()
+        context_manager.__aenter__ = AsyncMock(return_value=response)
+        context_manager.__aexit__ = AsyncMock(return_value=False)
+        return context_manager
+
+
+@pytest.fixture
+def sdk_context():
+    """A real SDK ExecutionContext, so its own fetch (and its resend-on-connection-error logic) runs."""
+    ctx = ExecutionContext(auth={"auth_type": "PlatformOauth2", "credentials": {"access_token": "test_token"}})  # nosec B105
+    # The SDK backs off between resends; skip the wait so a regression fails fast instead of sleeping
+    with patch("autohive_integrations_sdk.integration.asyncio.sleep", new=AsyncMock()):
+        yield ctx
 
 
 # ---- Log LinkedIn Messages ----
@@ -676,15 +705,34 @@ class TestLogLinkedInMessages:
         assert statuses == [("failed", "HTTP 400: Invalid input")] * 2
 
     @pytest.mark.asyncio
-    async def test_batch_create_is_not_resent_by_the_sdk(self, mock_context):
-        mock_context.fetch.return_value = batch_created("0")
+    async def test_batch_create_is_not_resent_by_the_sdk(self, sdk_context):
+        session = LostResponseSession(BATCH_CREATE_URL, {})
+        sdk_context._session = session
 
-        await hubspot.execute_action(
-            "log_linkedin_messages", {"messages": [{"contact_id": "1"}], "default_message_body": "Hi"}, mock_context
+        result = await hubspot.execute_action(
+            "log_linkedin_messages", {"messages": [{"contact_id": "1"}], "default_message_body": "Hi"}, sdk_context
         )
 
-        # Starting at the SDK's retry limit stops it resending a create HubSpot may already have saved
-        assert fetch_calls(mock_context, BATCH_CREATE_URL)[0].kwargs["retry_count"] == 3
+        # HubSpot may have saved a create whose response was lost, so the SDK must not send it again
+        assert session.requests.count(BATCH_CREATE_URL) == 1
+        row = result.result.data["results"][0]
+        assert row["status"] == "failed"
+        assert "check the contact's timeline before retrying" in row["error"]
+
+    @pytest.mark.asyncio
+    async def test_100_rows_accepted(self, mock_context):
+        mock_context.fetch.return_value = batch_created(*[str(i) for i in range(100)])
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {"messages": [{"contact_id": str(i)} for i in range(100)], "default_message_body": "Hi"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        assert len(mock_context.fetch.call_args.kwargs["json"]["inputs"]) == 100
+        assert result.result.data["logged"] == 100
+        assert result.result.data["success"] is True
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -1193,15 +1241,33 @@ class TestUpsertContacts:
         ]
 
     @pytest.mark.asyncio
-    async def test_upsert_is_not_resent_by_the_sdk(self, mock_context):
-        mock_context.fetch.return_value = ok(
-            {"results": [{"id": "1", "new": True, "properties": {"email": "a@x.com"}}]}
-        )
+    async def test_upsert_is_not_resent_by_the_sdk(self, sdk_context):
+        session = LostResponseSession(CONTACTS_UPSERT_URL, {"results": []})
+        sdk_context._session = session
 
-        await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, mock_context)
+        result = await hubspot.execute_action("upsert_contacts", {"contacts": [{"email": "a@x.com"}]}, sdk_context)
 
         # A resend would see the contact this call just created and report it as updated
-        assert fetch_calls(mock_context, CONTACTS_UPSERT_URL)[0].kwargs["retry_count"] == 3
+        assert session.requests.count(CONTACTS_UPSERT_URL) == 1
+        assert result.type == ResultType.ACTION_ERROR
+        assert "may have saved" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_100_contacts_accepted(self, mock_context):
+        emails = [f"{i}@example.com" for i in range(100)]
+        mock_context.fetch.side_effect = [
+            ok({"results": []}),
+            ok({"results": [{"id": str(i), "new": True, "properties": {"email": e}} for i, e in enumerate(emails)]}),
+        ]
+
+        result = await hubspot.execute_action(
+            "upsert_contacts", {"contacts": [{"email": email} for email in emails]}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        assert len(fetch_calls(mock_context, CONTACTS_UPSERT_URL)[0].kwargs["json"]["inputs"]) == 100
+        assert result.result.data["created"] == 100
+        assert result.result.data["success"] is True
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

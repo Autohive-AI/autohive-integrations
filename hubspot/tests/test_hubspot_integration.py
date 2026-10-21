@@ -32,6 +32,7 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 
 import asyncio
 import os
+import time
 from copy import deepcopy
 
 import pytest
@@ -798,6 +799,133 @@ class TestAddTicketComment:
                 await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)
 
 
+CONTACTS_URL = "https://api.hubapi.com/crm/v3/objects/contacts"
+
+
+def unique_suffix():
+    return f"{os.getpid()}{int(time.time() * 1000)}"
+
+
+async def create_disposable_contact(context, created_contact_ids, **properties):
+    response = await context.fetch(CONTACTS_URL, method="POST", json={"properties": properties})
+    contact_id = str(response.data["id"])
+    created_contact_ids.append(contact_id)
+    return contact_id
+
+
+async def delete_contacts(context, contact_ids):
+    for contact_id in contact_ids:
+        await context.fetch(f"{CONTACTS_URL}/{contact_id}", method="DELETE")
+
+
+async def wait_until_name_is_searchable(context, first_name, last_name, contact_id):
+    # Name matching uses HubSpot search, which takes a few seconds to index a new contact and
+    # answers inconsistently for a while after, so require several hits in a row
+    filters = [
+        {"propertyName": "firstname", "operator": "EQ", "value": first_name},
+        {"propertyName": "lastname", "operator": "EQ", "value": last_name},
+    ]
+    hits = 0
+    for _ in range(20):
+        response = await context.fetch(
+            f"{CONTACTS_URL}/search", method="POST", json={"filterGroups": [{"filters": filters}], "limit": 5}
+        )
+        found = [str(c["id"]) for c in response.data.get("results", [])] == [contact_id]
+        hits = hits + 1 if found else 0
+        if hits == 3:
+            return
+        await asyncio.sleep(2)
+    pytest.fail(f"Contact {contact_id} never became searchable by name")
+
+
+async def log_and_collect_created_ids(context, inputs, created_ids):
+    """Run log_linkedin_messages, keeping every ID from HubSpot's raw batch response for cleanup."""
+    responses_before = len(context.api_responses)
+    try:
+        return await hubspot.execute_action("log_linkedin_messages", inputs, context)
+    finally:
+        for body in context.api_responses[responses_before:]:
+            if isinstance(body, dict) and any(
+                "hs_communication_body" in (r.get("properties") or {}) for r in body.get("results", [])
+            ):
+                created_ids.update(str(item["id"]) for item in body["results"] if item.get("id"))
+
+
+async def linked_contact_ids(context, communication_id):
+    result = await hubspot.execute_action("get_linkedin_message", {"communication_id": communication_id}, context)
+    communication = result.result.data["communication"]
+    contact_ids = {str(a["id"]) for a in communication.get("associations", {}).get("contacts", {}).get("results", [])}
+    return communication["properties"]["hs_communication_body"], contact_ids
+
+
+@pytest.mark.destructive
+class TestBulkLinkedInMessages:
+    """Bulk logging against real HubSpot: several contacts, each matching method, and a mixed batch."""
+
+    async def test_logs_distinct_messages_on_contacts_found_by_id_email_and_name(self, live_context):
+        suffix = unique_suffix()
+        contact_ids, created_ids = [], set()
+        try:
+            by_id = await create_disposable_contact(live_context, contact_ids, email=f"li-id-{suffix}@example.com")
+            email = f"li-email-{suffix}@example.com"
+            by_email = await create_disposable_contact(live_context, contact_ids, email=email)
+            first_name, last_name = f"Linked{suffix}", "Bulktest"
+            by_name = await create_disposable_contact(
+                live_context,
+                contact_ids,
+                email=f"li-name-{suffix}@example.com",
+                firstname=first_name,
+                lastname=last_name,
+            )
+            await wait_until_name_is_searchable(live_context, first_name, last_name, by_name)
+
+            rows = [
+                ({"contact_id": by_id}, by_id),
+                ({"email": email.upper()}, by_email),
+                ({"first_name": first_name, "last_name": last_name}, by_name),
+            ]
+            bodies = [f"Bulk LinkedIn test {suffix} row {i}" for i in range(len(rows))]
+            result = await log_and_collect_created_ids(
+                live_context,
+                {"messages": [{**row, "message_body": body} for (row, _), body in zip(rows, bodies)]},
+                created_ids,
+            )
+
+            data = result.result.data
+            assert (data["logged"], data["success"], data["unmatched_communication_ids"]) == (3, True, []), data
+            assert len(created_ids) == 3
+            for (_, contact_id), body, row in zip(rows, bodies, data["results"]):
+                assert (row["status"], row["contact_id"]) == ("logged", contact_id), row
+                assert await linked_contact_ids(live_context, row["communication_id"]) == (body, {contact_id})
+        finally:
+            for created_id in created_ids:
+                await hubspot.execute_action("delete_linkedin_message", {"communication_id": created_id}, live_context)
+            await delete_contacts(live_context, contact_ids)
+
+    async def test_mixed_batch_with_a_missing_contact(self, live_context):
+        suffix = unique_suffix()
+        contact_ids, created_ids = [], set()
+        try:
+            valid_id = await create_disposable_contact(
+                live_context, contact_ids, email=f"li-mixed-{suffix}@example.com"
+            )
+            body = f"Mixed batch LinkedIn test {suffix}"
+            result = await log_and_collect_created_ids(
+                live_context,
+                {"messages": [{"contact_id": valid_id}, {"contact_id": "1"}], "default_message_body": body},
+                created_ids,
+            )
+
+            # HubSpot rejects the whole batch when one association target is missing, so nothing is created
+            data = result.result.data
+            assert [r["status"] for r in data["results"]] == ["failed", "failed"], data
+            assert (data["success"], data["unmatched_communication_ids"], created_ids) == (False, [], set())
+        finally:
+            for created_id in created_ids:
+                await hubspot.execute_action("delete_linkedin_message", {"communication_id": created_id}, live_context)
+            await delete_contacts(live_context, contact_ids)
+
+
 @pytest.mark.destructive
 class TestLinkedInMessageWorkflow:
     """End-to-end workflow: log → read → update → delete a LinkedIn message on the test contact."""
@@ -866,6 +994,44 @@ class TestLinkedInMessageWorkflow:
 
 @pytest.mark.destructive
 class TestUpsertContacts:
+    async def test_creates_then_updates_a_disposable_contact(self, live_context):
+        email = f"upsert-{unique_suffix()}@example.com"
+        contact_url = f"{CONTACTS_URL}/{email}"
+        lookup_params = {"idProperty": "email", "properties": "email,firstname,jobtitle"}
+        try:
+            created = await hubspot.execute_action(
+                "upsert_contacts",
+                {"contacts": [{"email": email, "first_name": "Upsert", "properties": {"jobtitle": "First"}}]},
+                live_context,
+            )
+            created_row = created.result.data["results"][0]
+            assert created_row["status"] == "created", created_row
+
+            # email is sent only as the upsert key, so check HubSpot still stored it on the new contact
+            stored = await live_context.fetch(contact_url, method="GET", params=lookup_params)
+            assert str(stored.data["id"]) == created_row["contact_id"]
+            assert stored.data["properties"]["email"] == email
+            assert stored.data["properties"]["firstname"] == "Upsert"
+            assert stored.data["properties"]["jobtitle"] == "First"
+
+            updated = await hubspot.execute_action(
+                "upsert_contacts", {"contacts": [{"email": email, "properties": {"jobtitle": "Second"}}]}, live_context
+            )
+            updated_row = updated.result.data["results"][0]
+            assert (updated_row["status"], updated_row["contact_id"]) == ("updated", created_row["contact_id"])
+
+            after = await live_context.fetch(contact_url, method="GET", params=lookup_params)
+            assert str(after.data["id"]) == created_row["contact_id"]
+            assert after.data["properties"]["jobtitle"] == "Second"
+            assert after.data["properties"]["firstname"] == "Upsert"
+        finally:
+            # Find the contact by email, so it is removed even if the action failed to report its ID
+            try:
+                found = await live_context.fetch(contact_url, method="GET", params={"idProperty": "email"})
+                await delete_contacts(live_context, [str(found.data["id"])])
+            except HTTPError:
+                pass
+
     async def test_upsert_existing_contact_by_email_updates_property(self, live_context):
         require_contact_email()
         contact_url = f"https://api.hubapi.com/crm/v3/objects/contacts/{TEST_CONTACT_EMAIL}"
