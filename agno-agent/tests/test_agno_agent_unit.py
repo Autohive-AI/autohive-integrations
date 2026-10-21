@@ -15,6 +15,7 @@ from agno_agent import (
     MAX_ERROR_BODY_BYTES,
     MAX_EVENT_BYTES,
     AgnoConnectedAccountHandler,
+    AnswerTooLargeError,
     _extract_answer,
     _SSEAnswerCollector,
     agno_agent,
@@ -41,6 +42,12 @@ AGNO_WIRE_BODY = (
 )
 
 
+def _overflowing_chunks() -> list[str]:
+    """RunContent events that together exceed the ``MAX_EVENT_BYTES`` answer bound."""
+    chunk = "b" * 100_000
+    return [f'data: {{"event": "RunContent", "content": "{chunk}"}}' for _ in range(30)]
+
+
 def _sse(*events: str) -> str:
     """Build an SSE response body from already-encoded ``data: ...`` lines."""
     return "\n\n".join(events) + "\n\n"
@@ -58,6 +65,7 @@ class _FakeStreamReader:
         self._body = body
         self._chunk_size = chunk_size
         self._error = error
+        self._read_pos = 0
 
     async def iter_chunked(self, n: int):
         for i in range(0, len(self._body), self._chunk_size):
@@ -66,7 +74,11 @@ class _FakeStreamReader:
             raise self._error
 
     async def read(self, n: int = -1) -> bytes:
-        return self._body if n < 0 else self._body[:n]
+        # Like aiohttp, a read returns whatever has arrived — at most one network chunk.
+        size = self._chunk_size if n < 0 else min(n, self._chunk_size)
+        data = self._body[self._read_pos : self._read_pos + size]
+        self._read_pos += len(data)
+        return data
 
 
 class _FakeResponse:
@@ -336,6 +348,24 @@ class TestAskAgentResponseParsing:
 
         assert result.result.data["response"] == "There are 42 active users."
 
+    async def test_json_body_split_across_reads_is_read_whole(self, mock_context, agentos):
+        agentos.queue(
+            _reply('{"content": "There are 42 active users."}', content_type="application/json", chunk_size=5)
+        )
+
+        result = await _ask(mock_context)
+
+        assert result.result.data["response"] == "There are 42 active users."
+
+    @pytest.mark.parametrize("content_type", ["text/plain", "text/event-stream"])
+    async def test_plain_answer_starting_with_sse_field_name_is_kept(self, mock_context, agentos, content_type: str):
+        """Text that merely starts with ``id:`` or ``retry:`` has no SSE data, so it is a plain answer."""
+        agentos.queue(_reply("id: 42 name: Ada", content_type=content_type))
+
+        result = await _ask(mock_context)
+
+        assert result.result.data["response"] == "id: 42 name: Ada"
+
     async def test_invalid_json_body_falls_back_to_text(self, mock_context, agentos):
         agentos.queue(_reply("not json", content_type="application/json"))
 
@@ -376,8 +406,25 @@ class TestAskAgentResponseParsing:
 
         assert result.result.data["response"] == "No response from agent."
 
-    async def test_non_sse_body_is_read_up_to_cap(self, mock_context, agentos):
-        agentos.queue(_reply("z" * (MAX_EVENT_BYTES + 100), content_type="text/plain"))
+    @pytest.mark.parametrize("content_type", ["text/plain", "application/json"])
+    async def test_oversized_plain_body_returns_action_error(self, mock_context, agentos, content_type: str):
+        agentos.queue(_reply("z" * (MAX_EVENT_BYTES + 100), content_type=content_type, chunk_size=64 * 1024))
+
+        result = await _ask(mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "too large" in result.result.message
+
+    async def test_json_body_at_cap_is_parsed(self, mock_context, agentos):
+        content = "j" * (MAX_EVENT_BYTES - len('{"content": ""}'))
+        agentos.queue(_reply(json.dumps({"content": content}), content_type="application/json", chunk_size=64 * 1024))
+
+        result = await _ask(mock_context)
+
+        assert result.result.data["response"] == content
+
+    async def test_plain_body_at_cap_is_returned_whole(self, mock_context, agentos):
+        agentos.queue(_reply("z" * MAX_EVENT_BYTES, content_type="text/plain", chunk_size=64 * 1024))
 
         result = await _ask(mock_context)
 
@@ -566,17 +613,56 @@ class TestAskAgentMemoryBounds:
 
         assert result.result.data["response"] == answer
 
-    async def test_streamed_chunks_stop_accumulating_past_event_cap(self, mock_context, agentos):
-        """Without a RunCompleted event, RunContent chunks are bounded like any single event."""
-        chunk = "b" * 100_000
-        events = [f'data: {{"event": "RunContent", "content": "{chunk}"}}' for _ in range(30)]
+    async def test_oversized_chunked_answer_returns_action_error(self, mock_context, agentos):
+        """Chunks past the memory bound are reported, not silently cut to a prefix."""
+        agentos.queue(_reply(_sse(*_overflowing_chunks()), chunk_size=64 * 1024))
+
+        result = await _ask(mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "too large" in result.result.message
+
+    async def test_oversized_run_completed_returns_action_error(self, mock_context, agentos):
+        big = "c" * (MAX_EVENT_BYTES + 1)
+        agentos.queue(
+            _reply(
+                f'event: RunStarted\ndata: {{"event": "RunStarted"}}\n\n'
+                f'event: RunCompleted\ndata: {{"content": "{big}"}}\n\n',
+                chunk_size=64 * 1024,
+            )
+        )
+
+        result = await _ask(mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "too large" in result.result.message
+
+    async def test_oversized_run_content_event_returns_action_error(self, mock_context, agentos):
+        big = "c" * (MAX_EVENT_BYTES + 1)
+        agentos.queue(_reply(f'event: RunContent\ndata: {{"content": "{big}"}}\n\n', chunk_size=64 * 1024))
+
+        result = await _ask(mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "too large" in result.result.message
+
+    async def test_too_large_error_names_limit_and_is_not_retried(self, mock_context, agentos, no_sleep):
+        agentos.queue(_reply(_sse(*_overflowing_chunks()), chunk_size=64 * 1024))
+
+        result = await _ask(mock_context)
+
+        assert "over 2 MB" in result.result.message
+        assert "narrower" in result.result.message
+        assert len(agentos.calls) == 1
+        no_sleep.assert_not_awaited()
+
+    async def test_run_completed_supersedes_chunk_overflow(self, mock_context, agentos):
+        events = [*_overflowing_chunks(), 'data: {"event": "RunCompleted", "content": "final answer"}']
         agentos.queue(_reply(_sse(*events), chunk_size=64 * 1024))
 
         result = await _ask(mock_context)
 
-        response = result.result.data["response"]
-        assert MAX_EVENT_BYTES < len(response) <= MAX_EVENT_BYTES + len(chunk)
-        assert set(response) == {"b"}
+        assert result.result.data["response"] == "final answer"
 
     async def test_error_body_is_capped(self, mock_context, agentos):
         agentos.queue(_reply("e" * (MAX_ERROR_BODY_BYTES * 10), status=400, content_type="text/plain"))
@@ -587,7 +673,7 @@ class TestAskAgentMemoryBounds:
         assert len(exc_info.value.message) == MAX_ERROR_BODY_BYTES
 
     async def test_short_error_body_is_kept_whole(self, mock_context, agentos):
-        agentos.queue(_reply("agent not found", status=404, content_type="text/plain"))
+        agentos.queue(_reply("agent not found", status=404, content_type="text/plain", chunk_size=3))
 
         with pytest.raises(HTTPError) as exc_info:
             await _ask(mock_context)
@@ -698,11 +784,88 @@ class TestSSEAnswerCollector:
 
         assert collector.finish() == "next"
 
-    def test_plain_body_is_capped(self):
+    def test_oversized_plain_line_raises(self):
         collector = _SSEAnswerCollector()
-        collector.feed(b"plain " + b"y" * (MAX_EVENT_BYTES * 2))
 
-        assert len(collector.finish()) == MAX_EVENT_BYTES
+        with pytest.raises(AnswerTooLargeError):
+            collector.feed(b"plain " + b"y" * (MAX_EVENT_BYTES * 2))
+
+    @pytest.mark.parametrize("body", [b": keep-alive\n\n", b": ping\n\n: ping\n\n"])
+    def test_keep_alive_only_stream_has_no_answer(self, body: bytes):
+        collector = _SSEAnswerCollector()
+        collector.feed(body)
+
+        assert collector.finish() == ""
+
+    @pytest.mark.parametrize("body", [b"\n\n", b" \n", b"\r\n \r\n"])
+    def test_blank_body_has_no_answer(self, body: bytes):
+        collector = _SSEAnswerCollector()
+        collector.feed(body)
+
+        assert collector.finish() == ""
+
+    def test_oversized_run_completed_keeps_complete_streamed_answer(self):
+        """A RunCompleted inflated past the bound by metadata doesn't discard the streamed chunks."""
+        heavy = "m" * (MAX_EVENT_BYTES + 1)
+        collector = _SSEAnswerCollector()
+        collector.feed(
+            b'event: RunContent\ndata: {"content": "hel"}\n\n'
+            b'event: RunContent\ndata: {"content": "lo"}\n\n'
+            + f'event: RunCompleted\ndata: {{"content": "hello", "metrics": "{heavy}"}}\n\n'.encode()
+        )
+
+        assert collector.finish() == "hello"
+
+    def test_bom_before_oversized_first_event_is_still_sse(self):
+        big = "x" * (MAX_EVENT_BYTES + 1)
+        collector = _SSEAnswerCollector()
+        collector.feed(
+            f'\ufeffdata: {{"event": "ToolCallCompleted", "content": "{big}"}}\n\n'.encode()
+            + b'data: {"event": "RunCompleted", "content": "ANS"}\n\n'
+        )
+
+        assert collector.finish() == "ANS"
+
+    def test_preamble_then_plain_line_is_returned_whole(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(b"id: 42\nname: Ada\n")
+
+        assert collector.finish() == "id: 42\nname: Ada\n"
+
+    def test_oversized_preamble_line_raises(self):
+        collector = _SSEAnswerCollector()
+
+        with pytest.raises(AnswerTooLargeError):
+            collector.feed(b"id: " + b"9" * (MAX_EVENT_BYTES + 1))
+
+    def test_oversized_event_typed_only_in_json_is_dropped(self):
+        """Without an ``event:`` line the type is unknown until parsed, so an oversized event
+        is dropped rather than reported; Agno always sends the ``event:`` line."""
+        big = "z" * (MAX_EVENT_BYTES + 1)
+        collector = _SSEAnswerCollector()
+        collector.feed(f'data: {{"event": "RunCompleted", "content": "{big}"}}\n\n'.encode())
+
+        assert collector.finish() == ""
+
+    def test_oversized_plain_body_stops_reading_at_cap(self):
+        """An endless plain answer fails as soon as it passes the cap, not at the read timeout."""
+        collector = _SSEAnswerCollector()
+        collector.feed(b"plain answer\n")
+
+        with pytest.raises(AnswerTooLargeError):
+            collector.feed(b"y" * (MAX_EVENT_BYTES + 1))
+
+    def test_blank_lines_in_preamble_only_body_are_kept(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(b"id: 1\n\nhello")
+
+        assert collector.finish() == "id: 1\n\nhello"
+
+    def test_preamble_is_discarded_once_body_is_sse(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(b'id: 1\nretry: 5\ndata: {"event": "RunCompleted", "content": "ok"}\n\n')
+
+        assert collector.finish() == "ok"
 
 
 class TestExtractAnswer:
