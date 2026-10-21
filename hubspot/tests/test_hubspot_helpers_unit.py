@@ -1,7 +1,10 @@
+import asyncio
+
+import aiohttp
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 
 from hubspot.hubspot import (
     parse_response,
@@ -9,6 +12,12 @@ from hubspot.hubspot import (
     convert_hubspot_timestamp_to_utc_string,
     convert_deal_dates_to_utc,
     fetch_with_rate_limit_retries,
+    is_rate_limit_error,
+    _error_text,
+    _outcome_unknown,
+    _property_value,
+    _timestamp_ms,
+    _unfinished_batch_reason,
 )
 
 pytestmark = pytest.mark.unit
@@ -68,6 +77,7 @@ class TestFetchWithRateLimitRetries:
         monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", mock_sleep)
 
         class RateLimitLikeError(Exception):
+            status = 429
             retry_after = 60
 
         mock_context.fetch.side_effect = [
@@ -91,6 +101,7 @@ class TestFetchWithRateLimitRetries:
         monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", mock_sleep)
 
         class RateLimitLikeError(Exception):
+            status = 429
             retry_after = 60
 
         mock_context.fetch.side_effect = RateLimitLikeError("HTTP 429: Rate limit exceeded")
@@ -107,6 +118,7 @@ class TestFetchWithRateLimitRetries:
         monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", mock_sleep)
 
         class RateLimitLikeError(Exception):
+            status = 429
             retry_after = 8
 
         retry_sleep_budget = {"remaining": 10}
@@ -144,6 +156,165 @@ class TestFetchWithRateLimitRetries:
 
 
 # ---- parse_date_string_to_utc ----
+
+
+class TestFetchWithoutConnectionResend:
+    @pytest.mark.asyncio
+    async def test_write_starts_sdk_at_its_retry_limit(self, mock_context):
+        mock_context.config = {"max_retries": 3}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
+
+        await fetch_with_rate_limit_retries(mock_context, "https://example.test", resend_on_connection_error=False)
+
+        assert mock_context.fetch.call_args.kwargs["retry_count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_reads_keep_sdk_resends(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
+
+        await fetch_with_rate_limit_retries(mock_context, "https://example.test")
+
+        assert "retry_count" not in mock_context.fetch.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_write_still_retries_rate_limits(self, mock_context, monkeypatch):
+        monkeypatch.setattr("hubspot.hubspot.asyncio.sleep", AsyncMock())
+        mock_context.config = {"max_retries": 3}
+        mock_context.fetch.side_effect = [
+            RateLimitError(1, 429, "Rate limit exceeded"),
+            FetchResponse(status=200, headers={}, data={"ok": True}),
+        ]
+
+        response = await fetch_with_rate_limit_retries(
+            mock_context, "https://example.test", resend_on_connection_error=False
+        )
+
+        assert response.data == {"ok": True}
+        assert mock_context.fetch.call_count == 2
+
+
+# ---- Error and value helpers ----
+
+
+class TestIsRateLimitError:
+    @pytest.mark.parametrize(
+        "error,expected",
+        [
+            (RateLimitError(60, 429, "Rate limit exceeded"), True),
+            (HTTPError(429, "Too many requests"), True),
+            (HTTPError(500, "Internal error, correlationId 4291"), False),
+            (Exception("HTTP 429: Rate limit exceeded"), False),
+            (asyncio.TimeoutError(), False),
+        ],
+    )
+    def test_matches_on_status_not_text(self, error, expected):
+        assert is_rate_limit_error(error) is expected
+
+
+class TestOutcomeUnknown:
+    @pytest.mark.parametrize(
+        "error,expected",
+        [
+            (HTTPError(400, "Bad request"), False),
+            (HTTPError(404, "Not found"), False),
+            (RateLimitError(60, 429, "Rate limit exceeded"), False),
+            (HTTPError(500, "Server error"), True),
+            (HTTPError(504, "Gateway timeout"), True),
+            (asyncio.TimeoutError(), True),
+            (aiohttp.ServerDisconnectedError(), True),
+        ],
+    )
+    def test_only_server_and_connection_errors_are_ambiguous(self, error, expected):
+        assert _outcome_unknown(error) is expected
+
+
+class TestErrorText:
+    def test_uses_error_message(self):
+        assert _error_text(HTTPError(400, "Bad request")) == "HTTP 400: Bad request"
+
+    def test_falls_back_to_type_name_for_blank_errors(self):
+        assert _error_text(asyncio.TimeoutError()) == "TimeoutError"
+
+
+class TestPropertyValue:
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (None, ""),
+            (True, "true"),
+            (False, "false"),
+            (50, "50"),
+            ("CTO", "CTO"),
+            (["BUDGET_HOLDER", "END_USER"], "BUDGET_HOLDER;END_USER"),
+            (["ONLY"], "ONLY"),
+            ([], ""),
+        ],
+    )
+    def test_converts_to_hubspot_string_form(self, value, expected):
+        assert _property_value(value) == expected
+
+
+class TestUnfinishedBatchReason:
+    @pytest.mark.parametrize(
+        "status,expected",
+        [
+            ("PENDING", "is still processing"),
+            ("PROCESSING", "is still processing"),
+            ("CANCELED", "canceled"),
+            ("COMPLETE", None),
+            (None, None),
+        ],
+    )
+    def test_reason_for_each_status(self, status, expected):
+        assert _unfinished_batch_reason({"status": status}) == expected
+
+
+class TestTimestampMs:
+    def test_float_milliseconds_truncated(self):
+        assert _timestamp_ms(1700000000000.7) == "1700000000000"
+
+    def test_int_milliseconds_kept(self):
+        assert _timestamp_ms(1700000000000) == "1700000000000"
+
+    @pytest.mark.parametrize(
+        "timestamp,expected",
+        [
+            ("2026-10-21T00:00:00Z", "1792540800000"),
+            ("2026-10-21", "1792540800000"),
+            ("2026-10-21T13:00:00+13:00", "1792540800000"),
+            ("2026-10-21T00:00:00.250Z", "1792540800250"),
+            (" 1700000000000 ", "1700000000000"),
+            ("2026-10-21T00:00:00z", "1792540800000"),
+        ],
+    )
+    def test_strings_converted_to_utc_milliseconds(self, timestamp, expected):
+        assert _timestamp_ms(timestamp) == expected
+
+    @pytest.mark.parametrize(
+        "timestamp",
+        [
+            "yesterday",
+            "1969-12-31T23:59:59Z",
+            "99999999999999999999",
+            "9" * 5000,
+            10**400,
+            1e20,
+            -1,
+            float("nan"),
+            float("inf"),
+            True,
+        ],
+    )
+    def test_unreadable_or_out_of_range_is_none(self, timestamp):
+        assert _timestamp_ms(timestamp) is None
+
+    @pytest.mark.parametrize("timestamp", [None, ""])
+    def test_missing_defaults_to_now(self, timestamp):
+        before = int(datetime.now().timestamp() * 1000)
+
+        value = int(_timestamp_ms(timestamp))
+
+        assert before <= value <= int(datetime.now().timestamp() * 1000)
 
 
 class TestParseDateStringToUtc:

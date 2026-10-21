@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -395,6 +395,307 @@
         "required": [
           "success",
           "note_id"
+        ]
+      }
+    },
+    "log_linkedin_messages": {
+      "display_name": "Log LinkedIn Messages",
+      "description": "Log a LinkedIn message on up to 100 existing HubSpot contacts in one call, for example people who accepted a LinkedIn connection request. Each row is matched to exactly one contact by contact ID, email, or first and last name; rows that match no contact or several contacts are reported and not logged. To add people who are not in HubSpot yet, run upsert_contacts first and pass each returned contact_id in the message row.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "description": "One row per person. Identify each person by contact_id, email, or first_name and last_name (checked in that order).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "contact_id": {
+                  "type": "string",
+                  "description": "HubSpot contact ID (optional)"
+                },
+                "email": {
+                  "type": "string",
+                  "description": "Contact email address (optional)"
+                },
+                "first_name": {
+                  "type": "string",
+                  "description": "Contact first name, used with last_name when there is no contact_id or email (optional)"
+                },
+                "last_name": {
+                  "type": "string",
+                  "description": "Contact last name, used with first_name when there is no contact_id or email (optional)"
+                },
+                "message_body": {
+                  "type": "string",
+                  "description": "Message text for this row (optional, defaults to default_message_body)"
+                },
+                "timestamp": {
+                  "type": [
+                    "string",
+                    "number"
+                  ],
+                  "description": "When the message was sent: Unix timestamp in milliseconds or an ISO 8601 date such as 2026-10-21T09:30:00Z, read as UTC when it has no time zone (optional, defaults to now)"
+                },
+                "company_id": {
+                  "type": "string",
+                  "description": "Company ID to also associate the message with (optional)"
+                },
+                "deal_id": {
+                  "type": "string",
+                  "description": "Deal ID to also associate the message with (optional)"
+                }
+              }
+            }
+          },
+          "default_message_body": {
+            "type": "string",
+            "description": "Message text used for rows without their own message_body, e.g. 'Accepted LinkedIn connection request'"
+          },
+          "hubspot_owner_id": {
+            "type": "string",
+            "description": "Owner ID shown as the author of every logged message (optional)"
+          }
+        },
+        "required": [
+          "messages"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "description": "One result per input row, in input order",
+            "items": {
+              "type": "object",
+              "properties": {
+                "row_index": {
+                  "type": "integer",
+                  "description": "Position of the row in the messages input"
+                },
+                "identifier": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "How the row identified the contact, e.g. 'email:jo@example.com'"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "logged",
+                    "not_found",
+                    "ambiguous",
+                    "invalid",
+                    "failed"
+                  ],
+                  "description": "Outcome for this row"
+                },
+                "contact_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The matched contact ID"
+                },
+                "communication_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "ID of the logged LinkedIn message"
+                },
+                "candidates": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Matching contact IDs when the row was ambiguous"
+                },
+                "error": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Why the row was not logged"
+                }
+              }
+            }
+          },
+          "logged": {
+            "type": "integer",
+            "description": "Rows logged"
+          },
+          "not_found": {
+            "type": "integer",
+            "description": "Rows with no matching contact"
+          },
+          "ambiguous": {
+            "type": "integer",
+            "description": "Rows matching more than one contact"
+          },
+          "invalid": {
+            "type": "integer",
+            "description": "Rows missing an identifier or message body, with an unreadable timestamp, or linking a company or deal that does not exist"
+          },
+          "failed": {
+            "type": "integer",
+            "description": "Rows whose contact, company or deal lookup or message create failed; see each row's error"
+          },
+          "unmatched_communication_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "IDs of messages HubSpot created without saying which row each belongs to. Those rows have communication_id null; use these IDs to read, update or delete the messages"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "True when every row was logged"
+          }
+        },
+        "required": [
+          "results",
+          "success"
+        ]
+      }
+    },
+    "get_linkedin_message": {
+      "display_name": "Get LinkedIn Message",
+      "description": "Get a logged LinkedIn message by ID, including its body, timestamp, owner, and associated contacts, companies, and deals",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "communication_id": {
+            "type": "string",
+            "description": "ID of the logged LinkedIn message",
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "required": [
+          "communication_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "communication": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The HubSpot communication object"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the request succeeded"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    },
+    "update_linkedin_message": {
+      "display_name": "Update LinkedIn Message",
+      "description": "Update the text, timestamp, or owner of a logged LinkedIn message",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "communication_id": {
+            "type": "string",
+            "description": "ID of the logged LinkedIn message",
+            "pattern": "^[0-9]+$"
+          },
+          "message_body": {
+            "type": "string",
+            "description": "New message text (optional; an empty string clears it)"
+          },
+          "timestamp": {
+            "type": [
+              "string",
+              "number"
+            ],
+            "description": "New timestamp: Unix milliseconds or an ISO 8601 date such as 2026-10-21T09:30:00Z, read as UTC when it has no time zone (optional)"
+          },
+          "hubspot_owner_id": {
+            "type": "string",
+            "description": "New owner ID (optional; an empty string removes the owner)"
+          }
+        },
+        "required": [
+          "communication_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "communication": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The HubSpot communication object"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the request succeeded"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          },
+          "updated_properties": {
+            "type": "object",
+            "description": "Properties sent to HubSpot"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      }
+    },
+    "delete_linkedin_message": {
+      "display_name": "Delete LinkedIn Message",
+      "description": "Delete a logged LinkedIn message. HubSpot moves it to the recycling bin, where it can be restored for 90 days.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "communication_id": {
+            "type": "string",
+            "description": "ID of the logged LinkedIn message",
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "required": [
+          "communication_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the message was deleted"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          },
+          "communication_id": {
+            "type": "string",
+            "description": "ID of the deleted message"
+          }
+        },
+        "required": [
+          "success"
         ]
       }
     },
@@ -1040,6 +1341,114 @@
         },
         "required": [
           "contact"
+        ]
+      }
+    },
+    "upsert_contacts": {
+      "display_name": "Create or Update Contacts",
+      "description": "Create or update up to 100 contacts in one call, matched on email so existing contacts are updated instead of duplicated. Every row needs an email address. If HubSpot can't confirm the emails first, nothing is written and the call fails; retrying is safe.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "description": "Contacts to create or update; each email may appear only once",
+            "items": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string",
+                  "description": "Contact email address, used to match existing contacts. Use each contact once per call: two emails of the same contact, such as its primary and an additional email, are rejected",
+                  "pattern": "\\S"
+                },
+                "first_name": {
+                  "type": "string",
+                  "description": "First name (optional)"
+                },
+                "last_name": {
+                  "type": "string",
+                  "description": "Last name (optional)"
+                },
+                "properties": {
+                  "type": "object",
+                  "description": "Other HubSpot contact properties by internal name, e.g. {\"company\": \"Acme\", \"jobtitle\": \"CTO\"}; null or \"\" clears a value and a list sets multi-select options. email is ignored here, since it only identifies the contact (optional)"
+                }
+              },
+              "required": [
+                "email"
+              ]
+            }
+          }
+        },
+        "required": [
+          "contacts"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "description": "One result per input row, in input order",
+            "items": {
+              "type": "object",
+              "properties": {
+                "row_index": {
+                  "type": "integer",
+                  "description": "Position of the row in the contacts input"
+                },
+                "email": {
+                  "type": "string",
+                  "description": "Email used to match the contact"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "created",
+                    "updated",
+                    "failed"
+                  ],
+                  "description": "Outcome for this row"
+                },
+                "contact_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "HubSpot contact ID"
+                },
+                "error": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Why the row failed"
+                }
+              }
+            }
+          },
+          "created": {
+            "type": "integer",
+            "description": "Contacts created"
+          },
+          "updated": {
+            "type": "integer",
+            "description": "Existing contacts updated"
+          },
+          "failed": {
+            "type": "integer",
+            "description": "Rows HubSpot didn't confirm; see each row's error"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "True when no rows failed"
+          }
+        },
+        "required": [
+          "results",
+          "success"
         ]
       }
     },
@@ -3878,6 +4287,74 @@
           "deal_id",
           "associations",
           "total_associations"
+        ]
+      }
+    },
+    "create_association": {
+      "display_name": "Link Records",
+      "description": "Link two HubSpot records, such as a contact to a company or a contact to a deal, using HubSpot's default association type",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_object_type": {
+            "type": "string",
+            "enum": [
+              "contacts",
+              "companies",
+              "deals",
+              "tickets"
+            ],
+            "description": "Type of the first record"
+          },
+          "from_object_id": {
+            "type": "string",
+            "description": "ID of the first record",
+            "pattern": "^[0-9]+$"
+          },
+          "to_object_type": {
+            "type": "string",
+            "enum": [
+              "contacts",
+              "companies",
+              "deals",
+              "tickets"
+            ],
+            "description": "Type of the record to link to"
+          },
+          "to_object_id": {
+            "type": "string",
+            "description": "ID of the record to link to",
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "required": [
+          "from_object_type",
+          "from_object_id",
+          "to_object_type",
+          "to_object_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether the records were linked"
+          },
+          "message": {
+            "type": "string",
+            "description": "Success message"
+          },
+          "response": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "HubSpot's association response"
+          }
+        },
+        "required": [
+          "success"
         ]
       }
     },

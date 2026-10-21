@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
@@ -328,7 +328,7 @@ class TestSearchDeals:
     async def test_retries_rate_limit_and_returns_deals(self, mock_sleep, mock_context):
         deal_data = {"id": "s1", "properties": {"dealname": "Search Hit"}}
         mock_context.fetch.side_effect = [
-            Exception("RateLimitError: HTTP 429: Rate limit exceeded"),
+            RateLimitError(1, 429, "Rate limit exceeded"),
             FetchResponse(status=200, headers={}, data={"results": [deal_data]}),
         ]
 
@@ -656,7 +656,7 @@ class TestGetContactCallsAndMeetings:
         calls_response = FetchResponse(status=200, headers={}, data={"results": []})
         meetings_response = FetchResponse(status=200, headers={}, data={"results": []})
         mock_context.fetch.side_effect = [
-            Exception("HTTP 429: Rate limit exceeded"),
+            RateLimitError(1, 429, "Rate limit exceeded"),
             calls_response,
             meetings_response,
         ]
@@ -743,7 +743,7 @@ class TestGetDealCallsAndMeetings:
         meetings_response = FetchResponse(status=200, headers={}, data={"results": []})
         mock_context.fetch.side_effect = [
             calls_response,
-            Exception("HTTP 429: Rate limit exceeded"),
+            RateLimitError(1, 429, "Rate limit exceeded"),
             meetings_response,
         ]
 

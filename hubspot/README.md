@@ -11,6 +11,7 @@ Key features include:
 - Company management with comprehensive property support
 - Advanced deal pipeline management with UTC date handling
 - Support ticket management with conversation threading
+- LinkedIn message logging - Log LinkedIn messages on up to 100 contacts at once (for example, accepted connection requests), and create or update contacts in bulk by email
 - Call and meeting transcript access - Retrieve transcripts and notes from calls and meetings (including Google Meet recordings saved to HubSpot)
 - Marketing emails - List and retrieve marketing emails
 - Campaigns - Browse marketing campaigns and their associated content
@@ -76,6 +77,26 @@ This integration provides comprehensive actions covering complete CRUD operation
     - `company`: Company name
     - `jobtitle`: Job title
 - **Outputs:** Created contact object with `id` and contact details
+
+#### Action: `upsert_contacts`
+- **Description:** Create or update up to 100 contacts in one call, matched on email. Existing contacts are updated instead of duplicated, so this is the step to run before `log_linkedin_messages` for people who aren't in HubSpot yet.
+- **Inputs:**
+  - `contacts` (required): 1–100 rows, each with:
+    - `email` (required): Used to match an existing contact. Each contact may appear only once per call: repeating an email, or passing two emails of the same contact (for example its primary and an additional email), rejects the call before anything is written
+    - `first_name`, `last_name` (optional)
+    - `properties` (optional): Other contact properties by internal name, e.g. `{"jobtitle": "CTO"}`. `null` or `""` clears a value and a list sets multi-select options. `email` is ignored here: it only identifies the contact, so this action never changes a contact's primary email
+- **Outputs:**
+  - `results`: One row per input with `row_index`, `email`, `status` (`created`, `updated`, or `failed`), `contact_id`, and `error`. A row is `failed` when HubSpot rejected it or didn't say which contact it matched; retrying is safe
+  - `created`, `updated`, `failed`: Counts
+  - `success`: `true` when no rows failed
+- **Note:** People without an email address can't be matched or created by this action. The emails are looked up before anything is written; if HubSpot can't confirm them, nothing is written and the call fails, and retrying is safe. Uses HubSpot's [contacts batch upsert](https://developers.hubspot.com/docs/api-reference/crm-contacts-v3/batch/post-crm-v3-objects-contacts-batch-upsert) endpoint.
+
+#### Action: `get_contact_emails`
+- **Description:** Retrieve recent email conversations for a contact using the v4 Associations API
+- **Inputs:**
+  - `contact_id` (required): Internal object ID of the contact
+  - `email_limit` (optional): Maximum number of recent emails to retrieve (default: 5, max: 20)
+- **Outputs:** `contact_id`, `recent_emails` (with UTC timestamps), and `email_summary`
 
 #### Action: `update_contact`
 - **Description:** Updates an existing contact's information
@@ -178,6 +199,48 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `deal_id` (required): The deal ID to retrieve notes for
   - `limit` (optional): Maximum number of notes to retrieve (default: 100, max: 200)
 - **Outputs:** Array of note objects with UTC timestamps
+
+### Communications (LinkedIn Messages)
+
+These actions use HubSpot's [Communications API](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/guide). A logged message appears on the contact's timeline as **LinkedIn message**, the same as **Log activity > LinkedIn message** in the HubSpot UI.
+
+#### Action: `log_linkedin_messages`
+- **Description:** Log a LinkedIn message on up to 100 existing contacts in one call, for example everyone who accepted a LinkedIn connection request this week
+- **Inputs:**
+  - `messages` (required): 1–100 rows. Each row identifies one person by `contact_id`, `email`, or both `first_name` and `last_name` (checked in that order). Optional per row: `message_body`, `timestamp` (Unix milliseconds, or an ISO 8601 date such as `2026-10-21T09:30:00Z` read as UTC when it has no time zone; between 1970 and 9999; defaults to now), `company_id`, `deal_id`
+  - `default_message_body` (optional): Text used for rows without their own `message_body`, e.g. "Accepted LinkedIn connection request"
+  - `hubspot_owner_id` (optional): Owner shown as the author of every logged message
+- **Outputs:**
+  - `results`: One row per input with `row_index`, `identifier`, `status`, `contact_id`, `communication_id`, `candidates`, and `error`
+  - `logged`, `not_found`, `ambiguous`, `invalid`, `failed`: Counts
+  - `unmatched_communication_ids`: IDs of messages HubSpot created without saying which row each belongs to (those rows have `communication_id` null). Usually empty; use these IDs with the get/update/delete actions
+  - `success`: `true` only when every row was logged
+- **Row statuses:**
+  - `logged`: The message was created and associated with the contact (and the company/deal, if given)
+  - `not_found`: No contact matched the contact ID, email, or name. Nothing is created; run `upsert_contacts` first and pass the returned `contact_id`
+  - `ambiguous`: More than one contact matched; the matching IDs are in `candidates`. The action never guesses between people with the same name. Re-run the row with a `contact_id`
+  - `invalid`: The row has no identifier, no message body and no `default_message_body`, an unreadable `timestamp`, or a `company_id`/`deal_id` that doesn't exist
+  - `failed`: The contact, company, or deal lookup or HubSpot's create call returned an error, shown in `error`. If HubSpot creates only some messages without saying which rows they belong to, the remaining rows are `failed` with a warning to check HubSpot before retrying, so a retry doesn't log duplicates
+- **Note:** All email rows are looked up in one contacts batch read, which finds contacts created moments ago. A match on one of a contact's additional emails (`hs_additional_emails`) counts too. Name rows use HubSpot's exact (`EQ`) CRM search, one request per unique name, spaced to stay under HubSpot's limit of 5 searches per second. HubSpot's search index can lag behind newly created contacts, so after `upsert_contacts` pass the returned `contact_id` (or the email) rather than the name. Contact IDs, company IDs, and deal IDs are each checked with one batch read first, because HubSpot rejects the whole create if one linked record is missing; only the affected rows are skipped. All matched rows are created in a single [batch create](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/batch/post-crm-v3-objects-communications-batch-create) call.
+
+#### Action: `get_linkedin_message`
+- **Description:** Get a logged LinkedIn message by ID
+- **Inputs:**
+  - `communication_id` (required): ID of the logged message (`communication_id` from `log_linkedin_messages`)
+- **Outputs:** `communication` with channel type, body, timestamp, owner, and associated contacts, companies, and deals
+
+#### Action: `update_linkedin_message`
+- **Description:** Update the text, timestamp, or owner of a logged LinkedIn message
+- **Inputs:**
+  - `communication_id` (required): ID of the logged message
+  - `message_body`, `timestamp`, `hubspot_owner_id` (at least one required). `timestamp` takes the same formats as in `log_linkedin_messages`. An empty `message_body` or `hubspot_owner_id` clears that value
+- **Outputs:** `communication`, `success`, `message`, `updated_properties`
+
+#### Action: `delete_linkedin_message`
+- **Description:** Delete a logged LinkedIn message. HubSpot moves it to the recycling bin, where it can be restored for 90 days
+- **Inputs:**
+  - `communication_id` (required): ID of the logged message
+- **Outputs:** `success`, `message`, `communication_id`
 
 ### Calls and Meetings (Transcripts)
 
@@ -390,6 +453,23 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Outputs:** Similar structure to get_contact_associations with deal_id
 - **Use Case:** Get all contacts and companies involved in a deal
 
+#### Action: `create_association`
+- **Description:** Link two records, such as a contact to a company or a contact to a deal, using HubSpot's default association type (v4 Associations API)
+- **Inputs:**
+  - `from_object_type` (required): `contacts`, `companies`, `deals`, or `tickets`
+  - `from_object_id` (required): ID of the first record
+  - `to_object_type` (required): `contacts`, `companies`, `deals`, or `tickets`
+  - `to_object_id` (required): ID of the record to link to
+- **Outputs:** `success`, `message`, and HubSpot's association `response`
+
+### Owners
+
+#### Action: `get_owner`
+- **Description:** Retrieve a HubSpot owner by ID
+- **Inputs:**
+  - `owner_id` (required): The ID of the owner
+- **Outputs:** `owner` with name, email, and team information
+
 ### Lists/Segments Management
 
 #### Action: `get_lists`
@@ -432,32 +512,6 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `limit` (optional): Maximum number of memberships to return (default: 1000, max: 10000)
   - `batch_size` (optional): Records per API request (default: 250, max: 250)
 - **Outputs:** Array of membership records with contact IDs and timestamps only
-
-### Lead Management
-
-#### Action: `create_lead`
-- **Description:** Creates a new lead for potential customers
-- **Inputs:**
-  - `Last_Name` (required): Lead's last name
-  - `First_Name`: Lead's first name
-  - `Email`: Email address
-  - `Phone`, `Mobile`: Contact numbers
-  - `Company`: Lead's company
-  - `Title`: Job title
-  - `Industry`: Lead's industry
-  - `Lead_Status`: Current status (e.g., New, Contacted, Qualified)
-  - `Lead_Source`: How the lead was acquired
-  - `Rating`: Lead quality rating (Hot, Warm, Cold)
-  - Address fields and description
-- **Outputs:** Lead object with `id` and lead details
-
-#### Action: `convert_lead`
-- **Description:** Converts a qualified lead into contact, account, and/or deal records
-- **Inputs:** `lead_id` and conversion options
-- **Outputs:** IDs of created records (contact, account, deal)
-
-#### Action: `get_lead`, `update_lead`, `delete_lead`, `list_leads`, `search_leads`
-- **Description:** Standard CRUD operations for leads
 
 ### Task Management
 
@@ -978,6 +1032,12 @@ The integration has the following dependencies:
 5. Update deal stages and properties as they progress with `update_deal`
 6. For large pipelines, use `get_deals` with `delay_between_requests` to avoid rate limits
 
+### LinkedIn Connection Logging Workflow
+1. Add people who aren't in HubSpot yet with `upsert_contacts` (needs an email per person)
+2. Log the messages with `log_linkedin_messages`, passing each `contact_id` returned by step 1 and a `default_message_body` such as "Accepted LinkedIn connection request"
+3. Re-run any `ambiguous` rows with the right `contact_id` from `candidates`
+4. Fix or remove a wrongly logged message with `update_linkedin_message` or `delete_linkedin_message`
+
 ### Lists/Segments Management Workflow
 1. Discover available lists using `get_lists` with optional filtering by processing types
 2. Search for specific lists using `search_lists` with name queries
@@ -1042,18 +1102,24 @@ To run the tests included with the integration:
 5. To run only the read-only ticket tests, append `-k TestGetRecentTickets` to the read-only command. These request pages of 5 and 100 tickets, check limits/sorting and response structure, and compare the action output with the raw API response so missing/null values or records cannot silently be dropped. An empty account skips ticket-record coverage rather than claiming it was exercised.
 6. Optionally set `HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID` to a dedicated test ticket within the latest 100 modified tickets whose search response contains an explicit `subject: null`. This enables the targeted live regression; it fails if the configured fixture is absent or no longer null, and skips if the variable is unset. Tests do not create or modify the fixture.
 7. To run the destructive ticket-note test, set `HUBSPOT_TEST_TICKET_ID` to a test ticket and run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k TestAddTicketComment`. The test creates an internal note, verifies it is associated with the ticket through HubSpot's associations API, then deletes the note.
+8. To run the destructive LinkedIn message, contact upsert, and record-linking tests, run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k "LinkedInMessageWorkflow or UpsertContacts or CreateAssociation"`:
+   - `TestLinkedInMessageWorkflow` logs a LinkedIn message on `HUBSPOT_TEST_CONTACT_ID`, reads it, edits it, checks the edit saved, deletes it, and checks it is gone
+   - `TestUpsertContacts` changes the job title of the contact with `HUBSPOT_TEST_CONTACT_EMAIL`, checks it saved on the same contact, then restores the original value
+   - `TestCreateAssociation` links `HUBSPOT_TEST_CONTACT_ID` to `HUBSPOT_TEST_COMPANY_ID`, checks the link appears, then removes it. It skips if the two are already linked, so use an unlinked pair
 
 Use a current HubSpot OAuth access token for a dedicated test account, with the `tickets` scope for ticket tests. Missing credentials skip live tests; expired tokens, permission errors, and API failures fail rather than passing. Refresh expired tokens through your HubSpot OAuth app's token-refresh flow and update the local `.env`; never commit tokens.
 
 **Warning: destructive tests mutate real account data.** Run the list-membership tests deliberately on a test account with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k contact_to_static_list`.
 
-The list-membership tests reuse existing HubSpot test variables; this action does not introduce any new environment variables:
+The destructive tests use these HubSpot test variables, all listed in `.env.example`:
 
 | Variable | Purpose |
 | --- | --- |
 | `HUBSPOT_ACCESS_TOKEN` | OAuth access token for the live test account |
 | `HUBSPOT_TEST_LIST_ID` | ID of a manual or snapshot test list |
-| `HUBSPOT_TEST_CONTACT_ID` | Contact whose membership is added and removed during the test |
+| `HUBSPOT_TEST_CONTACT_ID` | Contact used for list-membership, LinkedIn message, and record-linking tests |
+| `HUBSPOT_TEST_CONTACT_EMAIL` | Email of an existing test contact, used by the contact upsert test |
+| `HUBSPOT_TEST_COMPANY_ID` | Company not yet linked to the test contact, used by the record-linking test |
 
 Both membership tests detect the contact's initial membership and restore that state in cleanup, including when an assertion fails.
 

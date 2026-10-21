@@ -8,6 +8,9 @@ Read-only tests require specific object IDs set in environment variables:
     HUBSPOT_TEST_CONTACT_ID, HUBSPOT_TEST_COMPANY_ID, HUBSPOT_TEST_DEAL_ID,
     HUBSPOT_TEST_TICKET_ID, HUBSPOT_TEST_LIST_ID, HUBSPOT_TEST_OWNER_ID
 
+Destructive tests also use HUBSPOT_TEST_CONTACT_EMAIL (contact upsert) and
+HUBSPOT_TEST_COMPANY_ID (record linking).
+
 The list-membership tests require HUBSPOT_TEST_LIST_ID to identify a MANUAL or
 SNAPSHOT list and HUBSPOT_TEST_CONTACT_ID to identify the contact to update.
 
@@ -27,12 +30,14 @@ Never runs in CI — the default pytest marker filter (-m unit) excludes these,
 and the file naming (test_*_integration.py) is not matched by python_files.
 """
 
+import asyncio
 import os
+import time
 from copy import deepcopy
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
@@ -70,7 +75,7 @@ def live_context(env_credentials):
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
                 if resp.status >= 400:
-                    raise RuntimeError(f"HubSpot API returned HTTP {resp.status}")
+                    raise HTTPError(resp.status, f"HubSpot API returned HTTP {resp.status}")
                 if resp.status == 204:
                     data = {}
                 else:
@@ -714,40 +719,50 @@ class TestNoteWorkflow:
 
     async def test_full_note_lifecycle(self, live_context):
         require_contact_id()
+        note_id = None
+        try:
+            # Step 1: Create
+            create_result = await hubspot.execute_action(
+                "create_note",
+                {
+                    "note_body": "Integration test note — will be deleted.",
+                    "contact_id": TEST_CONTACT_ID,
+                },
+                live_context,
+            )
+            assert create_result.result.data["success"] is True
+            note_id = create_result.result.data["note"]["id"]
+            assert note_id is not None
 
-        # Step 1: Create
-        create_result = await hubspot.execute_action(
-            "create_note",
-            {
-                "note_body": "Integration test note — will be deleted.",
-                "contact_id": TEST_CONTACT_ID,
-            },
-            live_context,
-        )
-        assert create_result.result.data["success"] is True
-        note_id = create_result.result.data["note"]["id"]
-        assert note_id is not None
+            # Step 2: Read. get_contact_notes uses HubSpot search, which takes a few seconds to index a new note
+            note_ids = []
+            for _ in range(15):
+                read_result = await hubspot.execute_action(
+                    "get_contact_notes",
+                    {"contact_id": TEST_CONTACT_ID, "limit": 5},
+                    live_context,
+                )
+                note_ids = [n["id"] for n in read_result.result.data["notes"]]
+                if note_id in note_ids:
+                    break
+                await asyncio.sleep(2)
+            assert note_id in note_ids
 
-        # Step 2: Read
-        read_result = await hubspot.execute_action(
-            "get_contact_notes",
-            {"contact_id": TEST_CONTACT_ID, "limit": 5},
-            live_context,
-        )
-        note_ids = [n["id"] for n in read_result.result.data["notes"]]
-        assert note_id in note_ids
+            # Step 3: Update
+            update_result = await hubspot.execute_action(
+                "update_note",
+                {"note_id": note_id, "note_body": "Updated integration test note."},
+                live_context,
+            )
+            assert update_result.result.data["success"] is True
 
-        # Step 3: Update
-        update_result = await hubspot.execute_action(
-            "update_note",
-            {"note_id": note_id, "note_body": "Updated integration test note."},
-            live_context,
-        )
-        assert update_result.result.data["success"] is True
-
-        # Step 4: Delete (cleanup)
-        delete_result = await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)
-        assert delete_result.result.data["success"] is True
+            # Step 4: Delete
+            delete_result = await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)
+            assert delete_result.result.data["success"] is True
+            note_id = None
+        finally:
+            if note_id:
+                await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)
 
 
 @pytest.mark.destructive
@@ -782,3 +797,311 @@ class TestAddTicketComment:
         finally:
             if note_id:
                 await hubspot.execute_action("delete_note", {"note_id": note_id}, live_context)
+
+
+CONTACTS_URL = "https://api.hubapi.com/crm/v3/objects/contacts"
+
+
+def unique_suffix():
+    return f"{os.getpid()}{int(time.time() * 1000)}"
+
+
+async def create_disposable_contact(context, created_contact_ids, **properties):
+    response = await context.fetch(CONTACTS_URL, method="POST", json={"properties": properties})
+    contact_id = str(response.data["id"])
+    created_contact_ids.append(contact_id)
+    return contact_id
+
+
+async def delete_contacts(context, contact_ids):
+    for contact_id in contact_ids:
+        await context.fetch(f"{CONTACTS_URL}/{contact_id}", method="DELETE")
+
+
+async def wait_until_name_is_searchable(context, first_name, last_name, contact_id):
+    # Name matching uses HubSpot search, which takes a few seconds to index a new contact and
+    # answers inconsistently for a while after, so require several hits in a row
+    filters = [
+        {"propertyName": "firstname", "operator": "EQ", "value": first_name},
+        {"propertyName": "lastname", "operator": "EQ", "value": last_name},
+    ]
+    hits = 0
+    for _ in range(20):
+        response = await context.fetch(
+            f"{CONTACTS_URL}/search", method="POST", json={"filterGroups": [{"filters": filters}], "limit": 5}
+        )
+        found = [str(c["id"]) for c in response.data.get("results", [])] == [contact_id]
+        hits = hits + 1 if found else 0
+        if hits == 3:
+            return
+        await asyncio.sleep(2)
+    pytest.fail(f"Contact {contact_id} never became searchable by name")
+
+
+async def log_and_collect_created_ids(context, inputs, created_ids):
+    """Run log_linkedin_messages, keeping every ID from HubSpot's raw batch response for cleanup."""
+    responses_before = len(context.api_responses)
+    try:
+        return await hubspot.execute_action("log_linkedin_messages", inputs, context)
+    finally:
+        for body in context.api_responses[responses_before:]:
+            if isinstance(body, dict) and any(
+                "hs_communication_body" in (r.get("properties") or {}) for r in body.get("results", [])
+            ):
+                created_ids.update(str(item["id"]) for item in body["results"] if item.get("id"))
+
+
+async def linked_contact_ids(context, communication_id):
+    result = await hubspot.execute_action("get_linkedin_message", {"communication_id": communication_id}, context)
+    communication = result.result.data["communication"]
+    contact_ids = frozenset(
+        str(a["id"]) for a in communication.get("associations", {}).get("contacts", {}).get("results", [])
+    )
+    return communication["properties"]["hs_communication_body"], contact_ids
+
+
+@pytest.mark.destructive
+class TestBulkLinkedInMessages:
+    """Bulk logging against real HubSpot: several contacts, each matching method, and a mixed batch."""
+
+    async def test_logs_distinct_messages_on_contacts_found_by_id_email_and_name(self, live_context):
+        suffix = unique_suffix()
+        contact_ids, created_ids = [], set()
+        try:
+            by_id = await create_disposable_contact(live_context, contact_ids, email=f"li-id-{suffix}@example.com")
+            email = f"li-email-{suffix}@example.com"
+            by_email = await create_disposable_contact(live_context, contact_ids, email=email)
+            first_name, last_name = f"Linked{suffix}", "Bulktest"
+            by_name = await create_disposable_contact(
+                live_context,
+                contact_ids,
+                email=f"li-name-{suffix}@example.com",
+                firstname=first_name,
+                lastname=last_name,
+            )
+            await wait_until_name_is_searchable(live_context, first_name, last_name, by_name)
+
+            rows = [
+                ({"contact_id": by_id}, by_id),
+                ({"email": email.upper()}, by_email),
+                ({"first_name": first_name, "last_name": last_name}, by_name),
+            ]
+            bodies = [f"Bulk LinkedIn test {suffix} row {i}" for i in range(len(rows))]
+            result = await log_and_collect_created_ids(
+                live_context,
+                {"messages": [{**row, "message_body": body} for (row, _), body in zip(rows, bodies)]},
+                created_ids,
+            )
+
+            data = result.result.data
+            assert (data["logged"], data["success"]) == (3, True), data
+            assert [(r["status"], r["contact_id"]) for r in data["results"]] == [("logged", c) for _, c in rows]
+            # HubSpot may not say which ID is which row, so every created ID is on a row or listed as unmatched
+            reported_ids = [r["communication_id"] for r in data["results"] if r["communication_id"]]
+            assert sorted(reported_ids + data["unmatched_communication_ids"]) == sorted(created_ids)
+            saved = {await linked_contact_ids(live_context, created_id) for created_id in created_ids}
+            assert saved == {(body, frozenset({contact_id})) for (_, contact_id), body in zip(rows, bodies)}
+        finally:
+            for created_id in created_ids:
+                await hubspot.execute_action("delete_linkedin_message", {"communication_id": created_id}, live_context)
+            await delete_contacts(live_context, contact_ids)
+
+    async def test_mixed_batch_with_a_missing_contact(self, live_context):
+        suffix = unique_suffix()
+        contact_ids, created_ids = [], set()
+        try:
+            valid_id = await create_disposable_contact(
+                live_context, contact_ids, email=f"li-mixed-{suffix}@example.com"
+            )
+            body = f"Mixed batch LinkedIn test {suffix}"
+            result = await log_and_collect_created_ids(
+                live_context,
+                {"messages": [{"contact_id": valid_id}, {"contact_id": "1"}], "default_message_body": body},
+                created_ids,
+            )
+
+            # HubSpot rejects a whole create batch that links a missing contact, so that row is skipped up front
+            data = result.result.data
+            assert [r["status"] for r in data["results"]] == ["logged", "not_found"], data
+            assert data["success"] is False
+            assert data["results"][0]["communication_id"] in created_ids
+            assert len(created_ids) == 1
+            assert await linked_contact_ids(live_context, next(iter(created_ids))) == (body, frozenset({valid_id}))
+        finally:
+            for created_id in created_ids:
+                await hubspot.execute_action("delete_linkedin_message", {"communication_id": created_id}, live_context)
+            await delete_contacts(live_context, contact_ids)
+
+
+@pytest.mark.destructive
+class TestLinkedInMessageWorkflow:
+    """End-to-end workflow: log → read → update → delete a LinkedIn message on the test contact."""
+
+    async def test_full_linkedin_message_lifecycle(self, live_context):
+        require_contact_id()
+        # IDs come from HubSpot's raw create response, so cleanup doesn't depend on the action matching rows
+        created_ids = set()
+        try:
+            log_result = await log_and_collect_created_ids(
+                live_context,
+                {
+                    "messages": [{"contact_id": TEST_CONTACT_ID}],
+                    "default_message_body": f"Integration test LinkedIn message {os.getpid()} — will be deleted.",
+                },
+                created_ids,
+            )
+            row = log_result.result.data["results"][0]
+            communication_id = row["communication_id"]
+            assert row["status"] == "logged", row
+            assert communication_id
+
+            get_result = await hubspot.execute_action(
+                "get_linkedin_message", {"communication_id": communication_id}, live_context
+            )
+            communication = get_result.result.data["communication"]
+            assert communication["properties"]["hs_communication_channel_type"] == "LINKEDIN_MESSAGE"
+            contact_ids = [
+                str(a["id"]) for a in communication.get("associations", {}).get("contacts", {}).get("results", [])
+            ]
+            assert str(TEST_CONTACT_ID) in contact_ids
+
+            updated_body = f"Updated integration test LinkedIn message {os.getpid()}."
+            update_result = await hubspot.execute_action(
+                "update_linkedin_message",
+                {"communication_id": communication_id, "message_body": updated_body},
+                live_context,
+            )
+            assert update_result.result.data["success"] is True
+
+            reread = await hubspot.execute_action(
+                "get_linkedin_message", {"communication_id": communication_id}, live_context
+            )
+            assert reread.result.data["communication"]["properties"]["hs_communication_body"] == updated_body
+
+            delete_result = await hubspot.execute_action(
+                "delete_linkedin_message", {"communication_id": communication_id}, live_context
+            )
+            assert delete_result.result.data["success"] is True
+            created_ids.discard(communication_id)
+
+            # A deleted (archived) communication is no longer returned by a normal read
+            with pytest.raises(HTTPError, match="HTTP 404"):
+                await live_context.fetch(
+                    f"https://api.hubapi.com/crm/v3/objects/communications/{communication_id}", method="GET"
+                )
+        finally:
+            for created_id in created_ids:
+                await hubspot.execute_action("delete_linkedin_message", {"communication_id": created_id}, live_context)
+
+
+@pytest.mark.destructive
+class TestUpsertContacts:
+    async def test_creates_then_updates_a_disposable_contact(self, live_context):
+        email = f"upsert-{unique_suffix()}@example.com"
+        contact_url = f"{CONTACTS_URL}/{email}"
+        lookup_params = {"idProperty": "email", "properties": "email,firstname,jobtitle"}
+        try:
+            created = await hubspot.execute_action(
+                "upsert_contacts",
+                {"contacts": [{"email": email, "first_name": "Upsert", "properties": {"jobtitle": "First"}}]},
+                live_context,
+            )
+            created_row = created.result.data["results"][0]
+            assert created_row["status"] == "created", created_row
+
+            # email is sent only as the upsert key, so check HubSpot still stored it on the new contact
+            stored = await live_context.fetch(contact_url, method="GET", params=lookup_params)
+            assert str(stored.data["id"]) == created_row["contact_id"]
+            assert stored.data["properties"]["email"] == email
+            assert stored.data["properties"]["firstname"] == "Upsert"
+            assert stored.data["properties"]["jobtitle"] == "First"
+
+            updated = await hubspot.execute_action(
+                "upsert_contacts", {"contacts": [{"email": email, "properties": {"jobtitle": "Second"}}]}, live_context
+            )
+            updated_row = updated.result.data["results"][0]
+            assert (updated_row["status"], updated_row["contact_id"]) == ("updated", created_row["contact_id"])
+
+            after = await live_context.fetch(contact_url, method="GET", params=lookup_params)
+            assert str(after.data["id"]) == created_row["contact_id"]
+            assert after.data["properties"]["jobtitle"] == "Second"
+            assert after.data["properties"]["firstname"] == "Upsert"
+        finally:
+            # Find the contact by email, so it is removed even if the action failed to report its ID
+            try:
+                found = await live_context.fetch(contact_url, method="GET", params={"idProperty": "email"})
+            except HTTPError as e:
+                # Only a missing contact means there is nothing to clean up
+                if e.status != 404:
+                    raise
+            else:
+                await delete_contacts(live_context, [str(found.data["id"])])
+
+    async def test_upsert_existing_contact_by_email_updates_property(self, live_context):
+        require_contact_email()
+        contact_url = f"https://api.hubapi.com/crm/v3/objects/contacts/{TEST_CONTACT_EMAIL}"
+        lookup_params = {"idProperty": "email", "properties": "jobtitle"}
+        before = await live_context.fetch(contact_url, method="GET", params=lookup_params)
+        original_job_title = before.data["properties"].get("jobtitle") or ""
+        marker = f"Integration test {os.getpid()}"
+        try:
+            result = await hubspot.execute_action(
+                "upsert_contacts",
+                {"contacts": [{"email": TEST_CONTACT_EMAIL, "properties": {"jobtitle": marker}}]},
+                live_context,
+            )
+            row = result.result.data["results"][0]
+            assert row["status"] == "updated", row
+            assert row["contact_id"] == str(before.data["id"])
+
+            after = await live_context.fetch(contact_url, method="GET", params=lookup_params)
+            assert str(after.data["id"]) == str(before.data["id"])
+            assert after.data["properties"]["jobtitle"] == marker
+        finally:
+            restore = await hubspot.execute_action(
+                "upsert_contacts",
+                {"contacts": [{"email": TEST_CONTACT_EMAIL, "properties": {"jobtitle": original_job_title}}]},
+                live_context,
+            )
+            assert restore.type == ResultType.ACTION, f"Could not restore jobtitle: {restore.result}"
+            restored = await live_context.fetch(contact_url, method="GET", params=lookup_params)
+            assert (restored.data["properties"].get("jobtitle") or "") == original_job_title
+
+
+@pytest.mark.destructive
+class TestCreateAssociation:
+    async def test_links_unlinked_test_contact_and_company(self, live_context):
+        require_contact_id()
+        require_company_id()
+        associations_url = f"https://api.hubapi.com/crm/v4/objects/contacts/{TEST_CONTACT_ID}/associations/companies"
+
+        async def linked_company_ids():
+            # Read every page, so an existing link past the first page isn't mistaken for ours and deleted
+            company_ids, after = set(), None
+            while True:
+                params = {"limit": 500, **({"after": after} if after else {})}
+                response = await live_context.fetch(associations_url, method="GET", params=params)
+                company_ids.update(str(item["toObjectId"]) for item in response.data.get("results", []))
+                after = ((response.data.get("paging") or {}).get("next") or {}).get("after")
+                if not after:
+                    return company_ids
+
+        if str(TEST_COMPANY_ID) in await linked_company_ids():
+            pytest.skip("HUBSPOT_TEST_CONTACT_ID is already linked to HUBSPOT_TEST_COMPANY_ID; use an unlinked pair")
+
+        try:
+            result = await hubspot.execute_action(
+                "create_association",
+                {
+                    "from_object_type": "contacts",
+                    "from_object_id": TEST_CONTACT_ID,
+                    "to_object_type": "companies",
+                    "to_object_id": TEST_COMPANY_ID,
+                },
+                live_context,
+            )
+            assert result.result.data["success"] is True
+            assert str(TEST_COMPANY_ID) in await linked_company_ids()
+        finally:
+            # Remove only the link this test created
+            await live_context.fetch(f"{associations_url}/{TEST_COMPANY_ID}", method="DELETE")
