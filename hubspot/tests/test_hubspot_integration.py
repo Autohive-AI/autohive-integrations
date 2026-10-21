@@ -1028,11 +1028,12 @@ class TestUpsertContacts:
             # Find the contact by email, so it is removed even if the action failed to report its ID
             try:
                 found = await live_context.fetch(contact_url, method="GET", params={"idProperty": "email"})
+            except HTTPError as e:
+                # Only a missing contact means there is nothing to clean up
+                if e.status != 404:
+                    raise
+            else:
                 await delete_contacts(live_context, [str(found.data["id"])])
-            except HTTPError:
-                # Best-effort cleanup: ignore if the contact does not exist anymore
-                # (e.g., upsert/create failed or it was already deleted).
-                pass
 
     async def test_upsert_existing_contact_by_email_updates_property(self, live_context):
         require_contact_email()
