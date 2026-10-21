@@ -4002,6 +4002,8 @@ class CreateAssociationHandler(ActionHandler):
                 context,
                 f"https://api.hubapi.com/crm/v4/objects/{from_type}/{from_id}/associations/default/{to_type}/{to_id}",
                 method="PUT",
+                # HubSpot rejects this bodyless PUT with 415 unless it's marked as JSON
+                headers={"Content-Type": "application/json"},
             )
         except REQUEST_ERRORS as e:
             return ActionError(

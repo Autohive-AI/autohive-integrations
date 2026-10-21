@@ -1471,6 +1471,8 @@ class TestCreateAssociation:
         call = mock_context.fetch.call_args
         assert call.args[0] == "https://api.hubapi.com/crm/v4/objects/contacts/1/associations/default/companies/2"
         assert call.kwargs["method"] == "PUT"
+        # HubSpot answers 415 to this PUT without a JSON content type
+        assert call.kwargs["headers"] == {"Content-Type": "application/json"}
 
     @pytest.mark.asyncio
     async def test_unsupported_object_type_rejected_by_schema(self, mock_context):
