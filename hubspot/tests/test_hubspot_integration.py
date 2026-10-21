@@ -939,22 +939,17 @@ class TestLinkedInMessageWorkflow:
 
     async def test_full_linkedin_message_lifecycle(self, live_context):
         require_contact_id()
-        # IDs come from HubSpot's raw batch response, so cleanup doesn't depend on the action matching rows
+        # IDs come from HubSpot's raw create response, so cleanup doesn't depend on the action matching rows
         created_ids = set()
-        responses_before = len(live_context.api_responses)
         try:
-            try:
-                log_result = await hubspot.execute_action(
-                    "log_linkedin_messages",
-                    {
-                        "messages": [{"contact_id": TEST_CONTACT_ID}],
-                        "default_message_body": f"Integration test LinkedIn message {os.getpid()} — will be deleted.",
-                    },
-                    live_context,
-                )
-            finally:
-                for body in live_context.api_responses[responses_before:]:
-                    created_ids.update(str(item["id"]) for item in body.get("results", []) if item.get("id"))
+            log_result = await log_and_collect_created_ids(
+                live_context,
+                {
+                    "messages": [{"contact_id": TEST_CONTACT_ID}],
+                    "default_message_body": f"Integration test LinkedIn message {os.getpid()} — will be deleted.",
+                },
+                created_ids,
+            )
             row = log_result.result.data["results"][0]
             communication_id = row["communication_id"]
             assert row["status"] == "logged", row
