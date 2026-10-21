@@ -680,20 +680,18 @@ def _match_batch_results(
         # An unfinished or canceled batch may have written some rows, so a retry could write them twice
         warnings.append(f"HubSpot {reason} this batch; check HubSpot before retrying")
 
-    # One leftover result and one row with no result or error of its own can only belong together
+    # When the leftover results match the rows with no result or error of their own, those rows all succeeded.
+    # A single pair can only belong together; otherwise which ID is which row is unknown, so the item is empty.
     leftover_trace_ids = [t for t in trace_ids if t not in items_by_trace and t not in messages_by_trace]
-    if len(leftover_items) == 1 and len(leftover_trace_ids) == 1:
-        items_by_trace[leftover_trace_ids[0]] = leftover_items.pop()
-
-    if leftover_items:
-        if len(items) == len(trace_ids):
-            items_by_trace = {trace_id: items_by_trace.get(trace_id, {}) for trace_id in trace_ids}
-        else:
-            warnings.insert(
-                0,
-                f"HubSpot completed {len(items)} of {len(trace_ids)} rows without saying which; "
-                "check HubSpot before retrying",
-            )
+    if leftover_items and len(leftover_items) == len(leftover_trace_ids):
+        only_item = leftover_items[0] if len(leftover_items) == 1 else {}
+        items_by_trace.update({trace_id: only_item for trace_id in leftover_trace_ids})
+    elif leftover_items:
+        warnings.insert(
+            0,
+            f"HubSpot completed {len(items)} of {len(trace_ids)} rows without saying which; "
+            "check HubSpot before retrying",
+        )
     batch_error = "; ".join(warnings + unmapped) or None
 
     errors_by_trace = {

@@ -672,6 +672,36 @@ class TestLogLinkedInMessages:
         assert rows[1]["error"] == "Deal 7 does not exist"
 
     @pytest.mark.asyncio
+    async def test_unexplained_rows_logged_by_elimination_when_counts_match(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {
+                "results": [{"id": "a"}, {"id": "b"}],
+                "errors": [{"message": "Deal 7 does not exist", "context": {"objectWriteTraceId": ["2"]}}],
+            },
+            status=207,
+        )
+
+        result = await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [{"contact_id": "1"}, {"contact_id": "2"}, {"contact_id": "3", "deal_id": "7"}],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        data = result.result.data
+        # Row 2's error leaves two results for two rows; which ID belongs to which row is still unknown
+        assert [(r["status"], r["communication_id"]) for r in data["results"]] == [
+            ("logged", None),
+            ("logged", None),
+            ("failed", None),
+        ]
+        assert data["results"][2]["error"] == "Deal 7 does not exist"
+        assert (data["logged"], data["failed"]) == (2, 1)
+        assert data["unmatched_communication_ids"] == ["a", "b"]
+
+    @pytest.mark.asyncio
     async def test_partial_batch_marks_missing_rows_failed(self, mock_context):
         mock_context.fetch.return_value = batch_created(
             "0", errors=[{"status": "error", "category": "VALIDATION_ERROR", "message": "Contact 2 does not exist"}]
