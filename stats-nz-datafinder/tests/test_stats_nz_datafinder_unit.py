@@ -3640,22 +3640,36 @@ class TestQueryLayerIncludeRecords:
         mock_wfs.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_export_failure_keeps_inline_records(self, mock_context, mock_wfs):
+    @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+    async def test_file_only_export_failure_is_an_error(self, mock_context, mock_wfs, value):
         geom = square(174.7, -41.3, 174.8, -41.2)
         mock_context.fetch.return_value = fetch_ok(METADATA)
         mock_wfs.side_effect = [
             ok(CAPABILITIES),
-            ok(collection("a", number_matched=1, geometry=geom, properties={"note": float("nan")})),
+            ok(collection("a", number_matched=1, geometry=geom, properties={"note": value})),
+        ]
+        result = await _query(
+            mock_context,
+            {"page_size": 1, "max_pages": 1, "export_geojson": True, "include_records": False},
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "geojson_export_failed" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_file_only_response_is_strict_json(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", number_matched=1, geometry=geom, properties={"note": 1.5})),
         ]
         result = await _query(
             mock_context,
             {"page_size": 1, "max_pages": 1, "export_geojson": True, "include_records": False},
         )
         assert result.type == ResultType.ACTION, result.result
-        data = result.result.data
-        assert data["records"]
-        assert data["files"] == []
-        assert data["message"]
+        assert "message" not in result.result.data
+        json.dumps(result.result.data, allow_nan=False)
 
     @pytest.mark.asyncio
     async def test_default_call_keeps_inline_records(self, mock_context, mock_wfs):

@@ -2393,16 +2393,17 @@ class QueryLayerByGeometryAction(ActionHandler):
                     payload["files"] = [exported]
                     if include_records is False:
                         payload["records"] = []
-                elif include_records is False:
-                    payload["files"] = []
-                    payload["message"] = "GeoJSON file export failed, so matching records are returned inline."
                 else:
+                    # Only non-finite numbers fail serialisation, and they are not valid JSON inline either.
                     raise DatafinderError(
                         _contract_error(
-                            message="The query GeoJSON export could not be serialised.",
+                            message=(
+                                "The query GeoJSON export could not be serialised: "
+                                "the layer returned NaN or infinite values."
+                            ),
                             error_code="geojson_export_failed",
                             field="export_geojson",
-                            recovery="Retry the query, or omit export_geojson and inspect records.",
+                            recovery="Narrow fields to exclude the column with NaN or infinite values.",
                             retry_safe=False,
                         )
                     )

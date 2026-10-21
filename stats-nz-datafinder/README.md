@@ -91,8 +91,9 @@ instead of writing a partial file. Compact JSON records still omit geometry
 unless `include_geometry` is true. Export size follows `page_size` × `max_pages`
 (not a separate byte cap). `include_records: false` requires `export_geojson: true`,
 omits inline `records` (counts and metadata stay), and fails closed on incomplete
-pagination. If the file cannot be serialised, records stay inline and `message`
-explains that. `include_geometry` is not needed for the export: the file always
+pagination. If the file cannot be serialised (for example a NaN or infinite
+value), the call fails with `geojson_export_failed` whether or not records are
+inlined. `include_geometry` is not needed for the export: the file always
 contains full geometry.
 
 A GeoJSON file may be a FeatureCollection, a Feature, or a bare

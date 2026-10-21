@@ -171,7 +171,7 @@
         "properties": {
           "records": {
             "type": "array",
-            "description": "Matching features as attribute records. Geometry is omitted unless include_geometry is true. Empty when include_records is false and the file export succeeded.",
+            "description": "Matching features as attribute records. Geometry is omitted unless include_geometry is true. Empty when include_records is false.",
             "items": {
               "type": "object",
               "properties": {
@@ -214,13 +214,9 @@
               "matched_properties": { "type": "object" }
             }
           },
-          "message": {
-            "type": ["string", "null"],
-            "description": "Set when include_records is false and file export failed, so records are returned inline."
-          },
           "files": {
             "type": "array",
-            "description": "Present when export_geojson is true and serialisation succeeded. One platform GeoJSON FeatureCollection file.",
+            "description": "Present when export_geojson is true. One platform GeoJSON FeatureCollection file.",
             "items": {
               "type": "object",
               "properties": {
