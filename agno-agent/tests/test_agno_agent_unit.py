@@ -322,6 +322,13 @@ class TestAskAgentResponseParsing:
 
         assert result.result.data["response"] == "crlf works"
 
+    async def test_parses_bare_cr_framed_sse(self, mock_context, agentos):
+        agentos.queue(_reply('event: RunCompleted\rdata: {"event": "RunCompleted", "content": "cr works"}\r\r'))
+
+        result = await _ask(mock_context)
+
+        assert result.result.data["response"] == "cr works"
+
     async def test_trailing_event_without_blank_line_is_parsed(self, mock_context, agentos):
         agentos.queue(_reply('data: {"event": "RunCompleted", "content": "last"}'))
 
@@ -783,6 +790,74 @@ class TestSSEAnswerCollector:
             collector.feed(bytes([byte]))
 
         assert collector.finish() == "kept"
+
+    @pytest.mark.parametrize("line_end", ["\r", "\r\n"])
+    @pytest.mark.parametrize("chunk_size", [1, 2, 5, 64 * 1024])
+    def test_cr_and_crlf_line_ends_match_lf(self, line_end: str, chunk_size: int):
+        raw = AGNO_WIRE_BODY.replace("\n", line_end).encode()
+        collector = _SSEAnswerCollector()
+        for i in range(0, len(raw), chunk_size):
+            collector.feed(raw[i : i + chunk_size])
+
+        assert collector.finish() == "Hello world."
+
+    def test_mixed_line_ends_in_one_stream(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(b'event: RunContent\rdata: {"content":"a"}\n\r\nevent: RunContent\r\ndata: {"content":"b"}\r\n')
+
+        assert collector.finish() == "ab"
+
+    def test_crlf_split_across_chunks_is_one_line_end(self):
+        """The LF after a chunk-final CR must not read as a blank line ending the event early."""
+        collector = _SSEAnswerCollector()
+        collector.feed(b'event: RunCompleted\r\ndata: {"event": "RunCompleted",\r')
+        collector.feed(b'\ndata: "content": "joined"}\r')
+        collector.feed(b"\n\r")
+        collector.feed(b"\n")
+
+        assert collector.finish() == "joined"
+
+    def test_cr_then_lf_in_next_chunk_after_blank_line_is_not_another_blank_line(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(b'event: RunContent\rdata: {"content":"one"}\r\r')
+        collector.feed(b'\nevent: RunContent\rdata: {"content":"two"}\r\r')
+
+        assert collector.finish() == "onetwo"
+
+    def test_skipped_event_still_ends_at_bare_cr_blank_line(self):
+        collector = _SSEAnswerCollector()
+        for byte in (
+            b'event: ToolCallStarted\rdata: {"event":"ToolCallStarted"}\r\r'
+            b'event: RunContent\rdata: {"content":"kept"}\r\r'
+        ):
+            collector.feed(bytes([byte]))
+
+        assert collector.finish() == "kept"
+
+    def test_oversized_skipped_event_with_bare_cr_line_ends(self):
+        huge = "x" * (MAX_EVENT_BYTES + 1024)
+        raw = (
+            f'event: ToolCallCompleted\rdata: {{"content": "{huge}"}}\r\r'
+            'event: RunContent\rdata: {"content":"kept"}\r\r'
+        ).encode()
+        collector = _SSEAnswerCollector()
+        for i in range(0, len(raw), 64 * 1024):
+            collector.feed(raw[i : i + 64 * 1024])
+
+        assert collector.finish() == "kept"
+
+    def test_preamble_with_bare_cr_line_ends_is_still_sse(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(b'id: 1\rretry: 500\r\rdata: {"event": "RunCompleted", "content": "after preamble"}\r\r')
+
+        assert collector.finish() == "after preamble"
+
+    @pytest.mark.parametrize("line_end", [b"\r", b"\r\n"])
+    def test_plain_text_lines_ending_in_cr_are_joined_with_lf(self, line_end: bytes):
+        collector = _SSEAnswerCollector()
+        collector.feed(b"first line" + line_end + b"second")
+
+        assert collector.finish() == "first line\nsecond"
 
     def test_multibyte_utf8_split_across_chunks(self):
         raw = 'data: {"event": "RunCompleted", "content": "Kia ora — ā ē ī 🌋"}\n\n'.encode()

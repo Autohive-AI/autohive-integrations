@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import json
+import re
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import aiohttp
@@ -33,6 +34,8 @@ MAX_EVENT_BYTES = 2 * 1024 * 1024
 MAX_ERROR_BODY_BYTES = 4 * 1024
 UTF8_BOM = b"\xef\xbb\xbf"
 ANSWER_EVENTS = {"RunCompleted", "RunContent", "RunResponse", "RunResponseContent"}
+# SSE lines end in CRLF, LF or a bare CR.
+LINE_END = re.compile(rb"\r\n?|\n")
 
 
 def _extract_credentials(context: ExecutionContext) -> tuple[str, str, str]:
@@ -83,6 +86,8 @@ class _SSEAnswerCollector:
         # since a skipped blank line still ends its event.
         self._skip = False
         self._skipped_text = False
+        # The last chunk ended in CR, so a leading LF in the next one completes that CRLF.
+        self._after_cr = False
         self._mode: Optional[str] = None  # "sse" or "raw" once decided; raw text is held until then
         self._raw = bytearray()
         self._raw_overflow = False
@@ -97,6 +102,9 @@ class _SSEAnswerCollector:
     def feed(self, chunk: bytes) -> None:
         view = memoryview(chunk)
         start = 0
+        if self._after_cr and chunk[:1] == b"\n":
+            start = 1
+        self._after_cr = False
         while start < len(chunk):
             if self._mode == "raw":
                 self._append_raw(view[start:])
@@ -104,11 +112,12 @@ class _SSEAnswerCollector:
                     # The plain answer can no longer be returned whole; stop reading now.
                     raise AnswerTooLargeError()
                 return
-            end = chunk.find(b"\n", start)
+            match = LINE_END.search(chunk, start)
+            end = -1 if match is None else match.start()
             stop = len(chunk) if end == -1 else end
             if self._skip:
-                # Count, don't slice: skipped lines can be tens of MB.
-                self._skipped_text = self._skipped_text or chunk.count(b"\r", start, stop) != stop - start
+                # Don't slice: skipped lines can be tens of MB.
+                self._skipped_text = self._skipped_text or stop > start
             else:
                 self._line += view[start:stop]
                 if len(self._line) > MAX_EVENT_BYTES:
@@ -126,7 +135,8 @@ class _SSEAnswerCollector:
             if end == -1:
                 return
             self._end_line(newline=True)
-            start = end + 1
+            start = match.end()
+            self._after_cr = start == len(chunk) and match.group() == b"\r"
 
     def _append_raw(self, data: Any) -> None:
         room = MAX_EVENT_BYTES - len(self._raw)
@@ -147,8 +157,6 @@ class _SSEAnswerCollector:
 
     def _handle_line(self, newline: bool) -> None:
         line = self._line
-        if line.endswith(b"\r"):
-            del line[-1:]
         if self._mode is None:
             if line.startswith(UTF8_BOM):
                 del line[: len(UTF8_BOM)]
