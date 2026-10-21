@@ -510,6 +510,36 @@ class TestLogLinkedInMessages:
         assert [call.args[0] for call in no_pacing_sleep.await_args_list] == [0.25, 0.25]
 
     @pytest.mark.asyncio
+    async def test_name_search_waits_fall_between_searches(self, mock_context, no_pacing_sleep):
+        events = []
+        responses = iter(
+            [search_response("1"), search_response("2"), search_response("3"), batch_created("0", "1", "2")]
+        )
+
+        async def fetch(url, **kwargs):
+            events.append("search" if url == CONTACTS_SEARCH_URL else "create")
+            return next(responses)
+
+        mock_context.fetch.side_effect = fetch
+        no_pacing_sleep.side_effect = lambda seconds: events.append("wait")
+
+        await hubspot.execute_action(
+            "log_linkedin_messages",
+            {
+                "messages": [
+                    {"first_name": "A", "last_name": "One"},
+                    {"first_name": "B", "last_name": "Two"},
+                    {"first_name": "C", "last_name": "Three"},
+                ],
+                "default_message_body": "Hi",
+            },
+            mock_context,
+        )
+
+        # Waiting up front instead would still send the searches in one burst
+        assert events == ["search", "wait", "search", "wait", "search", "create"]
+
+    @pytest.mark.asyncio
     async def test_repeated_name_is_searched_once(self, mock_context, no_pacing_sleep):
         mock_context.fetch.side_effect = [search_response("1"), batch_created("0", "1")]
 
@@ -1797,6 +1827,32 @@ class TestUpsertContacts:
         assert (row["status"], row["contact_id"]) == ("updated", "9")
         read_call = fetch_calls(mock_context, CONTACTS_BATCH_READ_URL)[0]
         assert read_call.kwargs["json"]["inputs"] == [{"id": "alt@x.com"}]
+
+    @pytest.mark.asyncio
+    async def test_several_results_without_email_each_matched_to_their_own_row(self, mock_context):
+        mock_context.fetch.side_effect = [
+            HTTPError(404, "Not found"),
+            ok({"results": [{"id": "1", "new": True, "properties": {}}, {"id": "2", "new": False, "properties": {}}]}),
+            # The read-back lists the contacts in the opposite order to the input rows
+            ok(
+                {
+                    "results": [
+                        {"id": "2", "properties": {"email": "b@x.com"}},
+                        {"id": "1", "properties": {"email": "a@x.com"}},
+                    ]
+                }
+            ),
+        ]
+
+        result = await hubspot.execute_action(
+            "upsert_contacts", {"contacts": [{"email": "a@x.com"}, {"email": "b@x.com"}]}, mock_context
+        )
+
+        rows = result.result.data["results"]
+        assert [(r["email"], r["status"], r["contact_id"]) for r in rows] == [
+            ("a@x.com", "created", "1"),
+            ("b@x.com", "updated", "2"),
+        ]
 
     @pytest.mark.asyncio
     async def test_matched_results_skip_the_read_back(self, mock_context):
