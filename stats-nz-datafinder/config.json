@@ -25,7 +25,7 @@
   "actions": {
     "query_layer_by_geometry": {
       "display_name": "Query Layer",
-      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (inline or file), a Point, a bbox, and/or attribute filters. Census VAR_* columns are omitted unless listed in fields or include_coded_fields is true. Use ieq (not contains) for an exact area name. Geometry is omitted unless include_geometry is true. export_geojson returns all retrieved features as a platform GeoJSON file after a complete query. Unscoped national scans are rejected.",
+      "description": "Returns compact attribute records from a Datafinder layer. Scope with a Polygon/MultiPolygon (inline or file), a Point, a bbox, and/or attribute filters. Census VAR_* columns are omitted unless listed in fields or include_coded_fields is true. Use ieq (not contains) for an exact area name. Geometry is omitted unless include_geometry is true. export_geojson returns all retrieved features as a platform GeoJSON file after a complete query; set include_records=false to return only the file. Unscoped national scans are rejected.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -135,7 +135,7 @@
           "include_geometry": {
             "type": "boolean",
             "default": false,
-            "description": "If true, include each feature's GeoJSON geometry. Default false."
+            "description": "If true, include each feature's GeoJSON geometry in records. Not needed for export_geojson: the exported file always contains full geometry. Default false."
           },
           "export_geojson": {
             "type": "boolean",
@@ -145,7 +145,7 @@
           "include_records": {
             "type": "boolean",
             "default": true,
-            "description": "If false, omit inline records and return only counts, metadata, and the exported file. Requires export_geojson=true. Use false when another action or script will read the file. Default true."
+            "description": "If false, omit inline records and return only counts, metadata, and the exported file. Requires export_geojson=true. Grid and boundary queries can be hundreds of thousands of tokens. Default true."
           },
           "page_size": {
             "type": "integer",

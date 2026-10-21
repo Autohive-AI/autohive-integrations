@@ -92,7 +92,8 @@ unless `include_geometry` is true. Export size follows `page_size` × `max_pages
 (not a separate byte cap). `include_records: false` requires `export_geojson: true`,
 omits inline `records` (counts and metadata stay), and fails closed on incomplete
 pagination. If the file cannot be serialised, records stay inline and `message`
-explains that.
+explains that. `include_geometry` is not needed for the export: the file always
+contains full geometry.
 
 A GeoJSON file may be a FeatureCollection, a Feature, or a bare
 Polygon/MultiPolygon. If the file contains exactly one Polygon or

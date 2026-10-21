@@ -3045,6 +3045,38 @@ class TestQueryLayerFromGeojsonFile:
         assert "geojson_file_unreadable" in result.result.message
         mock_context.fetch.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_ambiguous_file_fails_before_fetch(self, mock_context):
+        file_obj = _geojson_file(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    _gj_feature(GEOMETRY, {"time_minutes": 10}),
+                    _gj_feature(square(174.9, -41.3, 175.0, -41.2), {"time_minutes": 30}),
+                ],
+            },
+        )
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": 123, "file": file_obj},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "ambiguous_geojson_feature" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_point_file_fails_before_fetch(self, mock_context):
+        file_obj = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(POINT)]})
+        result = await stats_nz_datafinder.execute_action(
+            "query_layer_by_geometry",
+            {"layer_id": 123, "file": file_obj},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "invalid_geometry" in result.result.message
+        mock_context.fetch.assert_not_called()
+
 
 class TestQueryAreaStatisticsBandProperty:
     INNER = square(174.74, -41.28, 174.76, -41.26)
@@ -3218,6 +3250,252 @@ class TestQueryAreaStatisticsBandProperty:
         assert "incomplete_pagination" in result.result.message
         assert "not safe" in result.result.message
 
+    async def _band_query(self, mock_context, file_obj, extra=None):
+        payload = {
+            "layer_id": 123,
+            "file": file_obj,
+            "band_property": "time_minutes",
+            "measures": [POPULATION],
+            "page_size": 10,
+            "max_pages": 1,
+        }
+        if extra:
+            payload.update(extra)
+        return await stats_nz_datafinder.execute_action("query_area_statistics", payload, mock_context)
+
+    def _band_file(self, *features):
+        return _geojson_file({"type": "FeatureCollection", "features": list(features)})
+
+    @pytest.mark.asyncio
+    async def test_bands_sorted_ascending_regardless_of_file_order(self, mock_context, mock_wfs):
+        file_obj = self._band_file(
+            _gj_feature(self.OUTER, {"time_minutes": 30}),
+            _gj_feature(self.INNER, {"time_minutes": 10}),
+            _gj_feature(self.MID, {"time_minutes": 15}),
+        )
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(self._all_sa1s())]
+        result = await self._band_query(mock_context, file_obj)
+        assert result.type == ResultType.ACTION, result.result
+        assert [band["band_value"] for band in result.result.data["bands"]] == [10, 15, 30]
+
+    @pytest.mark.asyncio
+    async def test_each_band_counts_only_features_inside_it(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(self._all_sa1s())]
+        result = await self._band_query(mock_context, self._file())
+        assert result.type == ResultType.ACTION, result.result
+        bands = {band["band_value"]: band for band in result.result.data["bands"]}
+        assert bands[10]["results"][0]["estimated_value"] == pytest.approx(100)
+        assert bands[15]["results"][0]["estimated_value"] == pytest.approx(300)
+        assert bands[30]["results"][0]["estimated_value"] == pytest.approx(600)
+        assert [bands[m]["geography_summary"]["intersecting_feature_count"] for m in (10, 15, 30)] == [1, 2, 3]
+        assert [bands[m]["results"][0]["source_feature_count"] for m in (10, 15, 30)] == [1, 2, 3]
+        assert all(bands[m]["validation_status"] == "ok" for m in (10, 15, 30))
+        assert result.result.data["validation_status"] == "ok"
+
+    @pytest.mark.asyncio
+    async def test_feature_straddling_a_band_edge_is_area_weighted_per_band(self, mock_context, mock_wfs):
+        # Half of this SA1 lies inside the 10-minute band; all of it lies inside the 15 and 30.
+        straddle = square(174.755, -41.275, 174.765, -41.265)
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("s", straddle, {"SA12023_V1_00": "7010009", "VAR_1_1": 100}), number_matched=1)),
+        ]
+        result = await self._band_query(mock_context, self._file())
+        assert result.type == ResultType.ACTION, result.result
+        bands = {band["band_value"]: band for band in result.result.data["bands"]}
+        assert bands[10]["results"][0]["estimated_value"] == pytest.approx(50, rel=1e-3)
+        assert bands[15]["results"][0]["estimated_value"] == pytest.approx(100)
+        assert bands[30]["results"][0]["estimated_value"] == pytest.approx(100)
+
+    @pytest.mark.asyncio
+    async def test_top_level_status_is_worst_band_status(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("inner", self.SA_INNER, {"SA12023_V1_00": "7010001", "VAR_1_1": 100}),
+                    _feature("mid", self.SA_MID, {"SA12023_V1_00": "7010002", "VAR_1_1": -999}),
+                    number_matched=2,
+                )
+            ),
+        ]
+        result = await self._band_query(mock_context, self._file())
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert [band["validation_status"] for band in data["bands"]] == ["ok", "partial", "partial"]
+        assert data["validation_status"] == "partial"
+
+    @pytest.mark.asyncio
+    async def test_band_with_no_source_features_is_unavailable(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(_fc(_feature("outer", self.SA_OUTER, {"SA12023_V1_00": "7010003", "VAR_1_1": 300}), number_matched=1)),
+        ]
+        result = await self._band_query(mock_context, self._file())
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        bands = {band["band_value"]: band for band in data["bands"]}
+        assert bands[10]["results"][0]["estimated_value"] is None
+        assert bands[10]["validation_status"] == "unavailable"
+        assert bands[30]["results"][0]["estimated_value"] == pytest.approx(300)
+        assert bands[30]["validation_status"] == "ok"
+        assert data["validation_status"] == "unavailable"
+
+    @pytest.mark.asyncio
+    async def test_disjoint_and_multipolygon_bands_query_once(self, mock_context, mock_wfs):
+        west = square(174.60, -41.30, 174.62, -41.28)
+        east_a = square(174.90, -41.30, 174.92, -41.28)
+        east_b = square(174.95, -41.30, 174.97, -41.28)
+        east = {"type": "MultiPolygon", "coordinates": [east_a["coordinates"], east_b["coordinates"]]}
+        file_obj = self._band_file(
+            _gj_feature(west, {"time_minutes": 1}),
+            _gj_feature(east, {"time_minutes": 2}),
+        )
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("w", square(174.605, -41.295, 174.615, -41.285), {"SA12023_V1_00": "1", "VAR_1_1": 10}),
+                    _feature("ea", square(174.905, -41.295, 174.915, -41.285), {"SA12023_V1_00": "2", "VAR_1_1": 20}),
+                    _feature("eb", square(174.955, -41.295, 174.965, -41.285), {"SA12023_V1_00": "3", "VAR_1_1": 40}),
+                    number_matched=3,
+                )
+            ),
+        ]
+        result = await self._band_query(mock_context, file_obj)
+        assert result.type == ResultType.ACTION, result.result
+        bands = {band["band_value"]: band for band in result.result.data["bands"]}
+        assert bands[1]["results"][0]["estimated_value"] == pytest.approx(10)
+        assert bands[2]["results"][0]["estimated_value"] == pytest.approx(60)
+        assert mock_wfs.call_count == 2
+        assert "MULTIPOLYGON" in mock_wfs.await_args_list[1].kwargs["params"]["cql_filter"]
+
+    @pytest.mark.asyncio
+    async def test_string_band_values_sort_after_numbers(self, mock_context, mock_wfs):
+        file_obj = self._band_file(
+            _gj_feature(self.OUTER, {"time_minutes": "peak"}),
+            _gj_feature(self.INNER, {"time_minutes": 10}),
+        )
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(self._all_sa1s())]
+        result = await self._band_query(mock_context, file_obj)
+        assert result.type == ResultType.ACTION, result.result
+        assert [band["band_value"] for band in result.result.data["bands"]] == [10, "peak"]
+
+    @pytest.mark.asyncio
+    async def test_features_without_usable_band_value_are_skipped_with_warning(self, mock_context, mock_wfs):
+        file_obj = self._band_file(
+            _gj_feature(self.INNER, {"time_minutes": 10}),
+            _gj_feature(self.MID, {"time_minutes": 15}),
+            _gj_feature(self.OUTER, {}),
+            _gj_feature(self.OUTER, {"time_minutes": None}),
+            _gj_feature(self.OUTER, {"time_minutes": True}),
+            _gj_feature(self.OUTER, {"time_minutes": {"value": 30}}),
+            _gj_feature(POINT, {"time_minutes": 45}),
+        )
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(self._all_sa1s())]
+        result = await self._band_query(mock_context, file_obj)
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert [band["band_value"] for band in data["bands"]] == [10, 15]
+        assert any("Skipped 4" in warning for warning in data["warnings"])
+        assert all(any("Skipped 4" in warning for warning in band["warnings"]) for band in data["bands"])
+
+    @pytest.mark.asyncio
+    async def test_band_property_missing_on_every_feature_fails_before_fetch(self, mock_context, mock_wfs):
+        file_obj = self._band_file(_gj_feature(self.INNER, {"minutes": 10}), _gj_feature(self.OUTER, {}))
+        result = await self._band_query(mock_context, file_obj)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "band_property_not_found" in result.result.message
+        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_band_property_with_no_area_features_fails_before_fetch(self, mock_context, mock_wfs):
+        file_obj = self._band_file(_gj_feature(POINT, {"time_minutes": 10}), _gj_feature(LINE, {"time_minutes": 15}))
+        result = await self._band_query(mock_context, file_obj)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "invalid_geometry" in result.result.message
+        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("extra", "expected"),
+        [
+            ({"geometry": GEOMETRY}, "not both"),
+            ({"feature_index": 0}, "cannot be combined"),
+        ],
+    )
+    async def test_conflicting_band_property_requests_fail_before_fetch(self, mock_context, mock_wfs, extra, expected):
+        result = await self._band_query(mock_context, self._file(), extra)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "conflicting_geometry_source" in result.result.message
+        assert expected in result.result.message
+        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_band_property_without_file_fails_before_fetch(self, mock_context, mock_wfs):
+        result = await _area_query(mock_context, {"band_property": "time_minutes"})
+        assert result.type == ResultType.ACTION_ERROR
+        assert "only valid with file" in result.result.message
+        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("band_property", ["time-minutes", "", "1minutes"])
+    async def test_malformed_band_property_is_rejected_by_schema(self, mock_context, mock_wfs, band_property):
+        result = await self._band_query(mock_context, self._file(), {"band_property": band_property})
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+        mock_wfs.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_band_mode_geometry_source_names_the_file(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(self._all_sa1s())]
+        result = await self._band_query(mock_context, self._file())
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["geometry_source"] == {"name": "catchments.geojson", "feature_index": None}
+
+    @pytest.mark.asyncio
+    async def test_top_level_included_count_is_areas_included_in_any_band(self, mock_context, mock_wfs):
+        west = square(174.60, -41.30, 174.62, -41.28)
+        east = square(174.90, -41.30, 174.92, -41.28)
+        file_obj = self._band_file(
+            _gj_feature(west, {"time_minutes": 1}),
+            _gj_feature(east, {"time_minutes": 2}),
+        )
+        mock_context.fetch.return_value = fetch_ok(CENSUS_META)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(
+                _fc(
+                    _feature("w", square(174.605, -41.295, 174.615, -41.285), {"SA12023_V1_00": "1", "VAR_1_1": 10}),
+                    _feature("e1", square(174.905, -41.295, 174.91, -41.29), {"SA12023_V1_00": "2", "VAR_1_1": 20}),
+                    _feature("e2", square(174.91, -41.29, 174.915, -41.285), {"SA12023_V1_00": "3", "VAR_1_1": -999}),
+                    number_matched=3,
+                )
+            ),
+        ]
+        result = await self._band_query(mock_context, file_obj)
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        bands = {band["band_value"]: band for band in data["bands"]}
+        assert bands[1]["geography_summary"]["included_feature_count"] == 1
+        assert bands[2]["geography_summary"]["included_feature_count"] == 1
+        assert data["geography_summary"]["included_feature_count"] == 2
+        assert data["geography_summary"]["intersecting_feature_count"] == 3
+        assert "included_positions" not in data
+
 
 class TestQueryLayerIncludeRecords:
     @pytest.mark.asyncio
@@ -3273,36 +3551,70 @@ class TestQueryLayerIncludeRecords:
         assert len(data["files"]) == 1
 
     @pytest.mark.asyncio
-    async def test_ambiguous_file_fails_before_fetch(self, mock_context):
-        file_obj = _geojson_file(
-            {
-                "type": "FeatureCollection",
-                "features": [
-                    _gj_feature(GEOMETRY, {"time_minutes": 10}),
-                    _gj_feature(square(174.9, -41.3, 175.0, -41.2), {"time_minutes": 30}),
-                ],
-            },
-        )
-        result = await stats_nz_datafinder.execute_action(
-            "query_layer_by_geometry",
-            {"layer_id": 123, "file": file_obj},
+    async def test_file_only_file_holds_every_record_across_pages(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [
+            ok(CAPABILITIES),
+            ok(collection("a", number_matched=2, geometry=geom)),
+            ok(collection("b", number_matched=2, geometry=geom)),
+        ]
+        result = await _query(
             mock_context,
+            {"page_size": 1, "max_pages": 5, "export_geojson": True, "include_records": False},
         )
-        assert result.type == ResultType.ACTION_ERROR
-        assert "ambiguous_geojson_feature" in result.result.message
-        mock_context.fetch.assert_not_called()
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["records"] == []
+        assert data["record_count"] == 2
+        assert "message" not in data
+        exported = json.loads(base64.b64decode(data["files"][0]["content"]))
+        assert [feature["id"] for feature in exported["features"]] == ["a", "b"]
+        assert all(feature["geometry"] == geom for feature in exported["features"])
 
     @pytest.mark.asyncio
-    async def test_point_file_fails_before_fetch(self, mock_context):
-        file_obj = _geojson_file({"type": "FeatureCollection", "features": [_gj_feature(POINT)]})
-        result = await stats_nz_datafinder.execute_action(
-            "query_layer_by_geometry",
-            {"layer_id": 123, "file": file_obj},
+    async def test_file_only_incomplete_pagination_fails_closed(self, mock_context, mock_wfs):
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=9))]
+        result = await _query(
             mock_context,
+            {"page_size": 1, "max_pages": 1, "export_geojson": True, "include_records": False},
         )
         assert result.type == ResultType.ACTION_ERROR
-        assert "invalid_geometry" in result.result.message
-        mock_context.fetch.assert_not_called()
+        assert "incomplete_pagination" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_include_records_true_with_export_returns_records_and_file(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=1, geometry=geom))]
+        result = await _query(
+            mock_context,
+            {"page_size": 1, "max_pages": 1, "export_geojson": True, "include_records": True},
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert [record["id"] for record in data["records"]] == ["a"]
+        assert len(data["files"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_file_only_export_ignores_include_geometry_false(self, mock_context, mock_wfs):
+        geom = square(174.7, -41.3, 174.8, -41.2)
+        mock_context.fetch.return_value = fetch_ok(METADATA)
+        mock_wfs.side_effect = [ok(CAPABILITIES), ok(collection("a", number_matched=1, geometry=geom))]
+        result = await _query(
+            mock_context,
+            {
+                "page_size": 1,
+                "max_pages": 1,
+                "export_geojson": True,
+                "include_records": False,
+                "include_geometry": False,
+            },
+        )
+        assert result.type == ResultType.ACTION, result.result
+        exported = json.loads(base64.b64decode(result.result.data["files"][0]["content"]))
+        assert exported["features"][0]["geometry"] == geom
 
 
 def test_action_schemas_support_claude_tool_catalogues():

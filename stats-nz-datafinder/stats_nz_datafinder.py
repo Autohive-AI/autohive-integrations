@@ -2389,13 +2389,13 @@ def _area_weighted_totals(
         for item in measures
     }
     geography_codes: list[str] = []
-    included_any = 0
+    included_positions: set[int] = set()
     skipped_no_area = 0
     warnings: list[str] = []
     if not geography_field:
         warnings.append("No geography-code field was found, so duplicate SA1 joins were not checked.")
     intersecting = 0
-    for feature in collected.features:
+    for position, feature in enumerate(collected.features):
         if not isinstance(feature, dict):
             raise DatafinderError(
                 _contract_error(
@@ -2431,7 +2431,7 @@ def _area_weighted_totals(
         if isinstance(code, str) and code:
             geography_codes.append(code)
         if has_included:
-            included_any += 1
+            included_positions.add(position)
     duplicates = _duplicate_geography_codes(geography_codes)
     if duplicates:
         raise DatafinderError(
@@ -2491,11 +2491,12 @@ def _area_weighted_totals(
         "results": results,
         "geography_summary": {
             "intersecting_feature_count": intersecting,
-            "included_feature_count": included_any,
+            "included_feature_count": len(included_positions),
             "duplicate_feature_count": collected.duplicate_count,
         },
         "warnings": warnings,
         "validation_status": validation_status,
+        "included_positions": included_positions,
     }
 
 
@@ -2604,6 +2605,7 @@ class QueryAreaStatisticsAction(ActionHandler):
             retrieved_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             if band_entries is not None:
                 bands_out: list[dict[str, Any]] = []
+                included_in_any_band: set[int] = set()
                 for entry in band_entries:
                     band_geom = _as_shapely(entry["geometry"])
                     if band_geom is None:
@@ -2624,6 +2626,7 @@ class QueryAreaStatisticsAction(ActionHandler):
                         geography_field,
                         ignore_zero_overlap=True,
                     )
+                    included_in_any_band |= summary["included_positions"]
                     bands_out.append(
                         {
                             "band_value": entry["band_value"],
@@ -2638,7 +2641,7 @@ class QueryAreaStatisticsAction(ActionHandler):
                     "bands": bands_out,
                     "geography_summary": {
                         "intersecting_feature_count": len(collected.features),
-                        "included_feature_count": 0,
+                        "included_feature_count": len(included_in_any_band),
                         "duplicate_feature_count": collected.duplicate_count,
                     },
                     "method": method,
