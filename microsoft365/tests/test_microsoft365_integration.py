@@ -293,6 +293,12 @@ async def test_04_send_email_live(live_context):
     ],
 )
 async def test_create_draft_reply_live(live_context, reply_all, content):
+    attachment_bytes = bytes(range(256))
+    attachment = {
+        "name": "reply-test.bin",
+        "contentType": "application/octet-stream",
+        "content": base64.b64encode(attachment_bytes).decode("ascii"),
+    }
     email_id = _state.get("test_email_id")
     if not email_id:
         pytest.skip("No self-addressed test email from test_03_send_draft_email_live")
@@ -307,6 +313,7 @@ async def test_create_draft_reply_live(live_context, reply_all, content):
             **content,
             "reply_all": reply_all,
             "cc_recipients": [TEST_MAILBOX],
+            "attachments": [attachment],
         },
         live_context,
     )
@@ -324,6 +331,13 @@ async def test_create_draft_reply_live(live_context, reply_all, content):
             recipient["emailAddress"]["address"].casefold() for recipient in response.data["ccRecipients"]
         }
         assert result.result.data["web_link"]
+        assert result.result.data["attachment_count"] == 1
+        attached = await live_context.fetch(
+            f"https://graph.microsoft.com/v1.0/me/messages/{_encode_path_segment(draft_id)}/attachments"
+        )
+        assert attached.status == 200
+        saved = next(item for item in attached.data["value"] if item["name"] == attachment["name"])
+        assert base64.b64decode(saved["contentBytes"], validate=True) == attachment_bytes
     finally:
         response = await live_context.fetch(
             f"https://graph.microsoft.com/v1.0/me/messages/{_encode_path_segment(draft_id)}", method="DELETE"
@@ -899,3 +913,46 @@ async def test_check_room_availability_live(live_context):
     )
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert "rooms" in result.result.data
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_create_draft_email_with_attachments_live(live_context):
+    raw = bytes(range(256))
+    result = await microsoft365.execute_action(
+        "create_draft_email",
+        {
+            "subject": f"[Autohive Integration Test {TEST_RUN_ID}] Unsent attachment draft",
+            "body": "Attachment test, do not send.",
+            "to_recipients": [],
+            "attachments": [
+                {
+                    "name": "draft-test.bin",
+                    "contentType": "application/octet-stream",
+                    "content": base64.b64encode(raw).decode("ascii"),
+                }
+            ],
+        },
+        live_context,
+    )
+    assert result.type == ResultType.ACTION, result.result
+    draft_id = result.result.data["draft_id"]
+    try:
+        draft = await live_context.fetch(
+            f"https://graph.microsoft.com/v1.0/me/messages/{_encode_path_segment(draft_id)}"
+        )
+        assert draft.status == 200
+        assert draft.data["isDraft"] is True
+        assert result.result.data["attachment_count"] == 1
+        attached = await live_context.fetch(
+            f"https://graph.microsoft.com/v1.0/me/messages/{_encode_path_segment(draft_id)}/attachments"
+        )
+        assert attached.status == 200
+        saved = next(item for item in attached.data["value"] if item["name"] == "draft-test.bin")
+        assert base64.b64decode(saved["contentBytes"], validate=True) == raw
+    finally:
+        deleted = await live_context.fetch(
+            f"https://graph.microsoft.com/v1.0/me/messages/{_encode_path_segment(draft_id)}", method="DELETE"
+        )
+        assert deleted.status in (200, 204, 404)

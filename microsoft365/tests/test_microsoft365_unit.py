@@ -1382,6 +1382,7 @@ async def test_create_draft_reply_preserves_thread_and_never_sends(mock_context,
         "draft_id": "draft1",
         "web_link": "https://outlook.office.com/draft1",
         "is_draft": True,
+        "attachment_count": 0,
     }
     assert mock_context.fetch.await_count == 2
     creation, update = mock_context.fetch.call_args_list
@@ -2826,3 +2827,138 @@ async def test_draft_reply_reports_created_draft_when_history_read_fails(mock_co
     assert "Draft draft1 was created" in result.result.message
     assert "History read failed" in result.result.message
     assert mock_context.fetch.await_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action,inputs",
+    [
+        ("create_draft_email", {"subject": "Draft", "body": "Body", "to_recipients": ["test@example.com"]}),
+        ("create_draft_reply", {"message_id": "original/id"}),
+    ],
+)
+async def test_draft_actions_attach_binary_files_without_sending(mock_context, action, inputs):
+    raw = bytes(range(256))
+    files = [
+        {"name": "report.bin", "contentType": "application/octet-stream", "content": base64.b64encode(raw).decode()},
+        {"name": "notes.txt", "content": "aGVsbG8=\n"},
+    ]
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=201, headers={}, data={"id": "draft/id", "isDraft": True}),
+            FetchResponse(status=201, headers={}, data={"id": "attachment1"}),
+            FetchResponse(status=201, headers={}, data={"id": "attachment2"}),
+        ]
+    )
+    result = await microsoft365.execute_action(action, {**inputs, "attachments": files}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert result.result.data["attachment_count"] == 2
+    assert result.result.data["draft_id"] == "draft/id"
+    assert result.result.data["is_draft"] is True
+    creation, first, second = mock_context.fetch.call_args_list
+    assert "attachments" not in creation.kwargs["json"]
+    for call in [first, second]:
+        assert call.args[0] == "https://graph.microsoft.com/v1.0/me/messages/draft%2Fid/attachments"
+        assert call.kwargs["method"] == "POST"
+    assert first.kwargs["json"] == {
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        "name": "report.bin",
+        "contentType": "application/octet-stream",
+        "contentBytes": base64.b64encode(raw).decode(),
+    }
+    assert second.kwargs["json"]["contentBytes"] == "aGVsbG8="
+    assert second.kwargs["json"]["contentType"] == "application/octet-stream"
+    assert all(not call.args[0].endswith("/send") for call in mock_context.fetch.call_args_list)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action,inputs",
+    [
+        ("create_draft_email", {"subject": "Draft", "body": "Body", "to_recipients": []}),
+        ("create_draft_reply", {"message_id": "em1"}),
+    ],
+)
+@pytest.mark.parametrize(
+    "file",
+    [
+        {"name": " ", "content": "aGVsbG8="},
+        {"name": "broken.txt", "content": "invalid base64!"},
+        {"name": "empty.txt", "content": " "},
+        {"name": "too-large.bin", "content": base64.b64encode(b"x" * 3_000_000).decode()},
+    ],
+)
+async def test_all_draft_attachments_are_validated_before_creation(mock_context, action, inputs, file):
+    result = await microsoft365.execute_action(
+        action,
+        {
+            **inputs,
+            "attachments": [{"name": "good.txt", "content": "aGVsbG8="}, file],
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action,inputs",
+    [
+        ("create_draft_email", {"subject": "Draft", "body": "Body", "to_recipients": []}),
+        ("create_draft_reply", {"message_id": "em1"}),
+    ],
+)
+@pytest.mark.parametrize(
+    "failure",
+    [
+        Exception("Upload failed"),
+        FetchResponse(status=403, headers={}, data={"error": {"message": "Access denied"}}),
+        FetchResponse(status=201, headers={}, data={}),
+    ],
+)
+async def test_attachment_failure_reports_existing_draft_and_partial_progress(mock_context, action, inputs, failure):
+    file = {"name": "test.txt", "content": "aGVsbG8="}
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=201, headers={}, data={"id": "draft1"}),
+            FetchResponse(status=201, headers={}, data={"id": "attachment1"}),
+            failure,
+        ]
+    )
+    result = await microsoft365.execute_action(action, {**inputs, "attachments": [file, file, file]}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Draft draft1 was created" in result.result.message
+    assert "Attachment 2 of 3" in result.result.message
+    assert "1 attachment(s) were confirmed" in result.result.message
+    assert mock_context.fetch.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_reply_comment_and_recipients_are_saved_before_attachments(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=201, headers={}, data={"id": "draft1", "body": {"contentType": "Text", "content": "History"}}
+            ),
+            FetchResponse(status=200, headers={}, data={"id": "draft1"}),
+            FetchResponse(status=201, headers={}, data={"id": "attachment1"}),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply",
+        {
+            "message_id": "em1",
+            "comment": "Thanks",
+            "cc_recipients": ["extra@example.com"],
+            "attachments": [{"name": "notes.txt", "content": "aGVsbG8="}],
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION
+    assert result.result.data["attachment_count"] == 1
+    _, update, upload = mock_context.fetch.call_args_list
+    assert update.kwargs["method"] == "PATCH"
+    assert update.kwargs["json"]["body"]["content"] == "Thanks\n\nHistory"
+    assert update.kwargs["json"]["ccRecipients"]
+    assert upload.args[0].endswith("/attachments")

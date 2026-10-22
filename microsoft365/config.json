@@ -1228,7 +1228,7 @@
     },
     "create_draft_email": {
       "display_name": "Create Draft Email",
-      "description": "Create a draft email message that can be sent later",
+      "description": "Create a draft email message that can be sent later Optionally attach files smaller than 3 MB each, without sending the draft.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1333,6 +1333,34 @@
             ],
             "description": "Email importance level",
             "default": "Normal"
+          },
+          "attachments": {
+            "type": "array",
+            "description": "Optional files to attach to the created draft. Each file must be smaller than 3 MB (3,000,000 decoded bytes). Accepts platform file objects. Does not send the email.",
+            "items": {
+              "type": "object",
+              "format": "file",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Attachment filename, including extension."
+                },
+                "contentType": {
+                  "type": "string",
+                  "description": "MIME type, defaults to application/octet-stream."
+                },
+                "content": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Base64-encoded file content."
+                }
+              },
+              "required": [
+                "name",
+                "content"
+              ]
+            }
           }
         },
         "required": [
@@ -1359,6 +1387,11 @@
           "is_draft": {
             "type": "boolean",
             "description": "Whether this is a draft message"
+          },
+          "attachment_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of newly attached files confirmed by Graph."
           }
         },
         "required": [
@@ -1371,7 +1404,7 @@
     },
     "create_draft_reply": {
       "display_name": "Create Draft Reply",
-      "description": "Create a threaded draft reply without sending it. Optionally reply to all and add recipients. Send later with send_draft_email using the returned draft_id.",
+      "description": "Create a threaded draft reply without sending it. Optionally reply to all and add recipients. Send later with send_draft_email using the returned draft_id. Optionally attach files smaller than 3 MB each, without sending the draft.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1475,6 +1508,34 @@
                 }
               ]
             }
+          },
+          "attachments": {
+            "type": "array",
+            "description": "Optional files to attach to the created draft. Each file must be smaller than 3 MB (3,000,000 decoded bytes). Accepts platform file objects. Does not send the email.",
+            "items": {
+              "type": "object",
+              "format": "file",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Attachment filename, including extension."
+                },
+                "contentType": {
+                  "type": "string",
+                  "description": "MIME type, defaults to application/octet-stream."
+                },
+                "content": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Base64-encoded file content."
+                }
+              },
+              "required": [
+                "name",
+                "content"
+              ]
+            }
           }
         },
         "required": [
@@ -1495,6 +1556,11 @@
           "is_draft": {
             "type": "boolean",
             "description": "Whether the created message is a draft"
+          },
+          "attachment_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of newly attached files confirmed by Graph."
           }
         },
         "required": [

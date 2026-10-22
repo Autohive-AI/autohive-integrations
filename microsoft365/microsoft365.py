@@ -20,6 +20,7 @@ microsoft365 = Integration.load()
 # Microsoft Graph API Base URL
 GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
+MAX_DRAFT_ATTACHMENT_BYTES = 3_000_000
 DEFAULT_CONTACT_SEARCH_SCAN_LIMIT = 1000
 MAX_CONTACT_SEARCH_SCAN_LIMIT = 10000
 CONTACT_SEARCH_PAGE_SIZE = 100
@@ -433,6 +434,44 @@ def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
         return base64.b64decode(stripped, validate=True)
     except (binascii.Error, ValueError, TypeError):
         raise ValueError("file 'content' is not valid base64-encoded data")
+
+
+def _prepare_draft_attachments(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Validate every file before creating a draft or uploading any attachments."""
+    attachments = []
+    for index, file in enumerate(files, 1):
+        name = file["name"].strip()
+        if not name:
+            raise ValueError(f"Attachment {index} needs a non-blank name")
+        raw = _resolve_file_bytes(file)
+        if len(raw) >= MAX_DRAFT_ATTACHMENT_BYTES:
+            raise ValueError(f"Attachment {index} must be smaller than 3 MB (3,000,000 bytes)")
+        attachments.append(
+            {
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": name,
+                "contentType": file.get("contentType") or "application/octet-stream",
+                "contentBytes": base64.b64encode(raw).decode("ascii"),
+            }
+        )
+    return attachments
+
+
+async def _attach_draft_files(context: ExecutionContext, draft_id: str, attachments: List[Dict[str, Any]]) -> None:
+    for index, attachment in enumerate(attachments, 1):
+        try:
+            resp = await context.fetch(
+                f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(draft_id)}/attachments",
+                method="POST",
+                json=attachment,
+            )
+            _check_fetch_success(resp)
+            _check_response(resp.data, "id")
+        except Exception as exc:
+            raise ValueError(
+                f"Attachment {index} of {len(attachments)} could not be confirmed; "
+                f"{index - 1} attachment(s) were confirmed. Inspect the draft before retrying: {exc}"
+            ) from exc
 
 
 # ---- Action Handlers ----
@@ -1358,7 +1397,9 @@ class ReadOneDriveFileContentAction(ActionHandler):
 @microsoft365.action("create_draft_email")
 class CreateDraftEmailAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        draft_id = None
         try:
+            attachments = _prepare_draft_attachments(inputs.get("attachments") or [])
             message = {
                 "subject": inputs["subject"],
                 "body": {
@@ -1415,9 +1456,11 @@ class CreateDraftEmailAction(ActionHandler):
                 message["importance"] = inputs["importance"]
 
             resp = await context.fetch(f"{GRAPH_API_BASE}/me/messages", method="POST", json=message)
+            _check_fetch_success(resp)
             response = resp.data
             _check_response(response, "id")
             draft_id = response["id"]
+            await _attach_draft_files(context, draft_id, attachments)
 
             return ActionResult(
                 data={
@@ -1425,11 +1468,14 @@ class CreateDraftEmailAction(ActionHandler):
                     "subject": response.get("subject") or "",
                     "created_datetime": response.get("createdDateTime") or "",
                     "is_draft": response.get("isDraft", True),
+                    "attachment_count": len(attachments),
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
+            if draft_id:
+                return ActionError(message=f"Draft {draft_id} was created but could not be completed: {e}")
             return ActionError(message=str(e))
 
 
@@ -1463,6 +1509,7 @@ class CreateDraftReplyAction(ActionHandler):
             if "body_type" in inputs and body is None:
                 raise ValueError("body_type requires body")
 
+            attachments = _prepare_draft_attachments(inputs.get("attachments") or [])
             extras = {
                 "toRecipients": _draft_reply_recipients(inputs.get("to_recipients") or []),
                 "ccRecipients": _draft_reply_recipients(inputs.get("cc_recipients") or []),
@@ -1534,17 +1581,19 @@ class CreateDraftReplyAction(ActionHandler):
                 _check_response(resp.data, "id")
                 response = {**response, **resp.data}
 
+            await _attach_draft_files(context, draft_id, attachments)
             return ActionResult(
                 data={
                     "draft_id": draft_id,
                     "web_link": response.get("webLink") or "",
                     "is_draft": response.get("isDraft", True),
+                    "attachment_count": len(attachments),
                 },
                 cost_usd=0.0,
             )
         except Exception as e:
             if draft_id:
-                return ActionError(message=f"Draft {draft_id} was created but could not be updated: {e}")
+                return ActionError(message=f"Draft {draft_id} was created but could not be completed: {e}")
             return ActionError(message=str(e))
 
 

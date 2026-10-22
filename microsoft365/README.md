@@ -169,12 +169,14 @@ Create a draft email message that can be sent later.
 - `cc_recipients` (optional): List of CC recipient email addresses
 - `bcc_recipients` (optional): List of BCC recipient email addresses
 - `importance` (optional): `Low`, `Normal`, or `High`
+- `attachments` (optional): List of platform file objects, each smaller than 3 MB. See [Draft attachments](#draft-attachments).
 
 **Outputs:**
 - `draft_id`: ID of the created draft
 - `subject`: Subject of the draft
 - `created_datetime`: When the draft was created
 - `is_draft`: `true`
+- `attachment_count`: Number of attached files confirmed by Graph
 
 ---
 
@@ -192,6 +194,7 @@ with the existing `Mail.ReadWrite` permission.
   quoted history; include any history you want to retain yourself.
 - `body_type` (optional, only with `body`): `Text` (default) or `HTML`.
 - `reply_all` (optional): `true` to reply to all; defaults to `false`.
+- `attachments` (optional): List of platform file objects, each smaller than 3 MB. See [Draft attachments](#draft-attachments).
 - `to_recipients`, `cc_recipients`, `bcc_recipients` (optional): Additional recipients.
   Each entry is an email string or an object with `address` and optional `name`.
   These are appended to the generated recipients, with case-insensitive
@@ -204,9 +207,9 @@ HTML-escaped or plain text to its generated body with a draft update. This avoid
 [Graph's known comment issue](https://learn.microsoft.com/en-us/graph/known-issues#the-comment-parameter-for-creating-a-draft-isnt-part-of-the-message-body)
 while preserving quoted history. Recipient changes share that update. If Graph
 omits the body from its creation response, the draft body is read before updating.
-Attachments are not copied or added by this action.
+Original message attachments are not copied automatically. Supply `attachments` to add new files.
 
-**Outputs:** `draft_id`, `web_link` (empty if Graph omits it), and `is_draft`.
+**Outputs:** `draft_id`, `web_link` (empty if Graph omits it), `is_draft`, and `attachment_count`.
 Review the draft in Outlook using `web_link`, then pass `draft_id` to
 `send_draft_email` when ready to send. If the body or recipient update fails after creation,
 the error includes the created draft ID so it can be reviewed or deleted before retrying.
@@ -219,6 +222,36 @@ the error includes the created draft ID so it can be reviewed or deleted before 
   "cc_recipients": [{"address": "colleague@example.com", "name": "Colleague"}]
 }
 ```
+
+---
+
+### Draft attachments
+
+Both `create_draft_email` and `create_draft_reply` accept optional `attachments`:
+
+```json
+"attachments": [
+  {"name": "notes.txt", "contentType": "text/plain", "content": "SGVsbG8="}
+]
+```
+
+Pass platform files directly; `content` contains base64 file bytes. `name` and
+`content` are required. `contentType` defaults to `application/octet-stream`.
+Every file must be non-empty and **smaller than 3,000,000 decoded bytes**.
+Larger files require Graph's upload-session API, which this integration does not
+implement. See [Graph attachment limits and permissions](https://learn.microsoft.com/en-us/graph/api/message-post-attachments?view=graph-rest-1.0).
+
+All files are validated before creating the draft. Files are then attached one
+at a time with `POST /me/messages/{draft_id}/attachments`, using the existing
+`Mail.ReadWrite` permission. Neither draft action sends email. After reviewing the
+draft and its attachments, use `send_draft_email` separately.
+
+If an upload fails, the action returns an error with the created draft ID, the
+attachment position, and the number of uploads already confirmed. The unsent
+draft remains available for inspection; an upload that timed out may have
+succeeded, so inspect it before retrying instead of creating duplicate drafts or
+attachments. `attachment_count` is returned on success only and counts the new
+files supplied in that call. Existing calls without `attachments` still work.
 
 ---
 
@@ -796,11 +829,13 @@ export MICROSOFT365_TEST_SHAREPOINT_SITE_ID="tenant.sharepoint.com,site-collecti
 python -m pytest tests/test_microsoft365_integration.py -v -m "integration and destructive"
 ```
 
-The reply-draft live cases cover reply/reply-all with comments and HTML bodies,
-verify the reply text, conversation ID and unsent draft state, and delete their drafts. Run
+The reply-draft live cases cover reply/reply-all with comments, HTML bodies and binary attachments,
+verify the reply text, conversation ID, unsent draft state and attachment bytes, and delete their drafts. Run
 these as part of the destructive mail suite above: they use the self-addressed
 message created earlier in that suite. The root `.env.example` lists all required
 and optional test variables as blank entries; keep real values in local `.env`.
 
 Obtain a valid access token with the scopes in `config.json` through the Autohive
 platform OAuth flow. Refresh expired access tokens through the same flow.
+
+A separate destructive live test creates a new draft with a binary attachment, verifies the saved bytes, and deletes the unsent draft without sending it.
