@@ -736,13 +736,28 @@ class TestDeleteTheme:
 class TestListImages:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = ok({"items": [{"id": "i1"}], "total_items": 1})
+        mock_context.fetch.return_value = ok([{"id": "i1", "file_name": "logo.png"}, {"id": "i2"}])
         result = await typeform.execute_action("list_images", {}, mock_context)
         assert result.result.data["images"][0]["id"] == "i1"
+        assert result.result.data["total_items"] == 2
+
+    @pytest.mark.asyncio
+    async def test_empty_array(self, mock_context):
+        mock_context.fetch.return_value = ok([])
+        result = await typeform.execute_action("list_images", {}, mock_context)
+        assert result.result.data["images"] == []
+        assert result.result.data["total_items"] == 0
+
+    @pytest.mark.asyncio
+    async def test_paged_object_response(self, mock_context):
+        mock_context.fetch.return_value = ok({"items": [{"id": "i1"}], "total_items": 5})
+        result = await typeform.execute_action("list_images", {}, mock_context)
+        assert result.result.data["images"][0]["id"] == "i1"
+        assert result.result.data["total_items"] == 5
 
     @pytest.mark.asyncio
     async def test_request_url_and_method(self, mock_context):
-        mock_context.fetch.return_value = ok({"items": []})
+        mock_context.fetch.return_value = ok([])
         await typeform.execute_action("list_images", {}, mock_context)
         call = mock_context.fetch.call_args
         assert url_of(call) == f"{TYPEFORM_API_BASE_URL}/images"

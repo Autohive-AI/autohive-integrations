@@ -749,8 +749,16 @@ class ListImagesAction(ActionHandler):
             )
 
             body = response.data
-            images = body.get("items", []) if isinstance(body, dict) else []
-            total_items = body.get("total_items", len(images)) if isinstance(body, dict) else len(images)
+            # Typeform documents GET /images as a top-level array; accept a paged object too.
+            if isinstance(body, list):
+                images = body
+                total_items = len(images)
+            elif isinstance(body, dict):
+                images = body.get("items", [])
+                total_items = body.get("total_items", len(images))
+            else:
+                images = []
+                total_items = 0
 
             return ActionResult(data={"images": images, "total_items": total_items, "result": True}, cost_usd=0.0)
 
