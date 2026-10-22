@@ -1,7 +1,7 @@
 {
     "name": "ghost",
     "display_name": "Ghost",
-    "version": "2.2.0",
+    "version": "2.2.1",
     "description": "Ghost CMS integration for reading and managing posts, pages, members, and newsletters",
     "entry_point": "ghost.py",
     "auth": {

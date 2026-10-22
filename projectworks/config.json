@@ -1,6 +1,6 @@
 {
   "name": "Projectworks",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Projectworks integration for reading users, clients, projects, modules, tasks, resourcing, timesheets, leave, invoices, and expense claims from your professional services automation account.",
   "display_name": "Projectworks",
   "supports_connected_account": false,

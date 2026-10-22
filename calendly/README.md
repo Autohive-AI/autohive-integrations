@@ -416,3 +416,11 @@ Calendly uses full URIs for resource references:
 - [Calendly API Reference](https://developer.calendly.com/api-docs)
 - [Calendly OAuth Documentation](https://developer.calendly.com/how-to-access-calendly-data-on-behalf-of-authenticated-users)
 - [Calendly Webhooks](https://developer.calendly.com/receive-data-from-scheduled-events-in-real-time-with-webhook-subscriptions)
+
+## TeamCity live tests
+
+`tests/teamcity.env` declares the live-test environment. Each `ah:secret` entry
+resolves from AWS SSM `/integration-testing/calendly/<ENV_VAR>` in the beta management
+account (`us-east-1`). Terraform creates SecureString placeholders; populate them
+with dedicated test-account values outside Terraform before running live tests.
+Do not commit credentials.
