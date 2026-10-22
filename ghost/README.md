@@ -11,7 +11,7 @@ This integration provides full access to Ghost's content and membership platform
 - **Member Management**: Create and update members with labels and newsletter subscriptions
 - **Content Discovery**: Browse tags, authors, site settings, and membership tiers
 - **Newsletter Delivery**: Trigger email delivery of published posts to subscribers
-- **Image Uploads**: Upload images from the local filesystem to Ghost's media library
+- **Image Uploads**: Upload image files to Ghost's media library
 
 ## Setup & Authentication
 
@@ -174,12 +174,12 @@ Create a new page in Ghost.
 ---
 
 #### `upload_image`
-Upload an image from the local filesystem to Ghost's media library.
+Upload an image file to Ghost's media library.
 
 **Inputs:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `file_path` | string | **Yes** | Absolute path to the image file |
+| `file` | object | **Yes** | Image file: `name`, `content` (base64), `contentType` |
 | `purpose` | string | No | `image`, `profile_image`, or `icon` (default: `image`) |
 
 **Outputs:** `result`, `image` (object with `url`), `error`, `error_type`

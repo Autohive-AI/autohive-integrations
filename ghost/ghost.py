@@ -1,5 +1,5 @@
+import base64
 import jwt
-import mimetypes
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
@@ -328,14 +328,11 @@ class UploadImageAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             base, headers = _admin_headers(context)
-            file_path = inputs["file_path"]
+            file_obj = inputs["file"]
             purpose = inputs.get("purpose", "image")
-            mime_type, _ = mimetypes.guess_type(file_path)
-            if not mime_type:
-                mime_type = "application/octet-stream"
-            filename = file_path.replace("\\", "/").split("/")[-1]
-            with open(file_path, "rb") as f:
-                file_data = f.read()
+            filename = file_obj["name"]
+            mime_type = file_obj.get("contentType") or "application/octet-stream"
+            file_data = base64.b64decode(file_obj["content"])
             boundary = uuid.uuid4().hex
             body = (
                 (

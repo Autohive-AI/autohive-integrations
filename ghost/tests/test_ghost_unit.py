@@ -1,3 +1,4 @@
+import base64
 from unittest.mock import AsyncMock
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
@@ -153,13 +154,12 @@ async def test_create_page(mock_context):
 
 
 @pytest.mark.asyncio
-async def test_upload_image(mock_context, tmp_path):
-    img_file = tmp_path / "test.png"
-    img_file.write_bytes(b"\x89PNG\r\n")
+async def test_upload_image(mock_context):
+    file_obj = {"name": "test.png", "content": base64.b64encode(b"\x89PNG\r\n").decode(), "contentType": "image/png"}
     mock_context.fetch = AsyncMock(
         return_value=_fetch_result({"images": [{"url": "https://demo.ghost.io/content/images/test.png"}]})
     )
-    result = await ghost.execute_action("upload_image", {"file_path": str(img_file)}, mock_context)
+    result = await ghost.execute_action("upload_image", {"file": file_obj}, mock_context)
     assert result.type == ResultType.ACTION
     assert "url" in result.result.data["image"]
     url = mock_context.fetch.call_args[0][0]
@@ -168,6 +168,8 @@ async def test_upload_image(mock_context, tmp_path):
     body = mock_context.fetch.call_args[1].get("data")
     assert body is not None
     assert b"test.png" in body
+    assert b"Content-Type: image/png" in body
+    assert b"\x89PNG\r\n" in body
 
 
 @pytest.mark.asyncio
