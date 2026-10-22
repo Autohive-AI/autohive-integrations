@@ -1364,6 +1364,8 @@ async def test_create_draft_email_error(mock_context):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("reply_all,operation", [(False, "createReply"), (True, "createReplyAll")])
 async def test_create_draft_reply_preserves_thread_and_never_sends(mock_context, reply_all, operation):
+    dummy_value = "test-token"
+    mock_context.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": dummy_value}}
     mock_context.fetch = make_fetch({"id": "draft1", "webLink": "https://outlook.office.com/draft1", "isDraft": True})
     result = await microsoft365.execute_action(
         "create_draft_reply", {"message_id": "original/id+", "comment": "Thanks!", "reply_all": reply_all}, mock_context
@@ -1491,6 +1493,37 @@ async def test_create_draft_reply_reports_created_draft_when_recipient_update_fa
     assert "Draft draft1 was created" in result.result.message
     assert "Update failed" in result.result.message
     assert mock_context.fetch.await_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "inputs",
+    [
+        {},
+        {"message_id": "em1", "body": "Reply", "body_type": "Markdown"},
+        {"message_id": "em1", "to_recipients": [{"name": "Missing address"}]},
+        {"message_id": "em1", "reply_all": "yes"},
+    ],
+)
+async def test_create_draft_reply_schema_validation(mock_context, inputs):
+    result = await microsoft365.execute_action("create_draft_reply", inputs, mock_context)
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "response",
+    [
+        FetchResponse(status=403, headers={}, data={"error": {"message": "Access denied"}}),
+        Exception("Network unavailable"),
+    ],
+)
+async def test_create_draft_reply_creation_failure_never_updates_or_sends(mock_context, response):
+    mock_context.fetch = AsyncMock(side_effect=[response])
+    result = await microsoft365.execute_action("create_draft_reply", {"message_id": "em1"}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_count == 1
 
 
 # ---- send_draft_email ----

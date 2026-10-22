@@ -791,4 +791,11 @@ export MICROSOFT365_TEST_SHAREPOINT_SITE_ID="tenant.sharepoint.com,site-collecti
 python -m pytest tests/test_microsoft365_integration.py -v -m "integration and destructive"
 ```
 
-Obtain an access token from the Microsoft Azure portal or through the Autohive platform OAuth flow.
+The reply-draft live cases cover reply/reply-all with comments and HTML bodies,
+verify the conversation ID and unsent draft state, and delete their drafts. Run
+these as part of the destructive mail suite above: they use the self-addressed
+message created earlier in that suite. The root `.env.example` lists all required
+and optional test variables as blank entries; keep real values in local `.env`.
+
+Obtain a valid access token with the scopes in `config.json` through the Autohive
+platform OAuth flow. Refresh expired access tokens through the same flow.

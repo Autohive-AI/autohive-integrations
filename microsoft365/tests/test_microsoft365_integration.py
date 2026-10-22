@@ -285,7 +285,14 @@ async def test_04_send_email_live(live_context):
 @pytest.mark.destructive
 @pytest.mark.asyncio
 @pytest.mark.parametrize("reply_all", [False, True])
-async def test_create_draft_reply_live(live_context, reply_all):
+@pytest.mark.parametrize(
+    "content",
+    [
+        {"comment": "Integration test draft reply — do not send."},
+        {"body": "<p>Integration test draft reply — do not send.</p>", "body_type": "HTML"},
+    ],
+)
+async def test_create_draft_reply_live(live_context, reply_all, content):
     email_id = _state.get("test_email_id")
     if not email_id:
         pytest.skip("No self-addressed test email from test_03_send_draft_email_live")
@@ -297,7 +304,7 @@ async def test_create_draft_reply_live(live_context, reply_all):
         "create_draft_reply",
         {
             "message_id": email_id,
-            "comment": "Integration test draft reply — do not send.",
+            **content,
             "reply_all": reply_all,
             "cc_recipients": [TEST_MAILBOX],
         },
