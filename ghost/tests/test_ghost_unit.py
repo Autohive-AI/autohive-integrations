@@ -235,6 +235,38 @@ async def test_upload_image_empty_content(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_upload_image_whitespace_only_content(mock_context):
+    mock_context.fetch = AsyncMock()
+    result = await ghost.execute_action("upload_image", {"file": {**_image_file(), "content": " \n "}}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "empty" in result.result.message
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("missing", ["name", "content", "contentType"])
+async def test_upload_image_file_missing_field(mock_context, missing):
+    file_obj = _image_file()
+    del file_obj[missing]
+    mock_context.fetch = AsyncMock()
+    result = await ghost.execute_action("upload_image", {"file": file_obj}, mock_context)
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upload_image_missing_admin_key(mock_context):
+    mock_context.auth = {
+        "auth_type": "Custom",
+        "credentials": {"api_url": "https://demo.ghost.io", "content_api_key": "key"},  # nosec B105
+    }
+    mock_context.fetch = AsyncMock()
+    result = await ghost.execute_action("upload_image", {"file": _image_file()}, mock_context)
+    assert result.type != ResultType.ACTION
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_upload_image_wrapped_base64(mock_context):
     data = bytes(range(100))
     encoded = base64.encodebytes(data).decode()  # MIME-style, newline every 76 chars
