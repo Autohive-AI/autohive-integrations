@@ -786,6 +786,12 @@ class TestGetImage:
         assert call.kwargs["method"] == "GET"
 
     @pytest.mark.asyncio
+    async def test_requests_json_description(self, mock_context):
+        mock_context.fetch.return_value = ok({"id": "i1"})
+        await typeform.execute_action("get_image", {"image_id": "i1"}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["headers"] == {"Accept": "application/json"}
+
+    @pytest.mark.asyncio
     async def test_error_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("boom")
         result = await typeform.execute_action("get_image", {"image_id": "i1"}, mock_context)

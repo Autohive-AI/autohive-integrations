@@ -785,7 +785,10 @@ class GetImageAction(ActionHandler):
         try:
             image_id = inputs["image_id"]
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/images/{image_id}", method="GET")
+            # Without this header Typeform returns the image binary instead of its JSON description.
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/images/{image_id}", method="GET", headers={"Accept": "application/json"}
+            )
 
             return ActionResult(data={"image": response.data, "result": True}, cost_usd=0.0)
 
