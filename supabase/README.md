@@ -315,3 +315,12 @@ Delete a user by their ID.
 - [PostgREST Documentation](https://postgrest.org/en/stable/)
 - [Supabase Storage API](https://supabase.com/docs/guides/storage)
 - [Supabase Auth Admin API](https://supabase.com/docs/reference/javascript/auth-admin-listusers)
+
+## TeamCity live tests
+
+`tests/teamcity.env` declares the live-test environment. Each `ah:secret` entry
+resolves from AWS SSM `/integration-testing/supabase/<ENV_VAR>` in the beta management
+account (`us-east-1`). Terraform creates SecureString placeholders; populate them
+with dedicated test-account values outside Terraform before running live tests.
+Do not commit credentials. Optional fixture variables are documented in the env
+file; leave them unset unless the corresponding test data is ready.

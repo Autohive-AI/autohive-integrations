@@ -273,3 +273,12 @@ python tests/test_ghost.py
 ## Version History
 
 - **1.0.0** - Initial release: 8 read actions (Content API) + 7 write actions (Admin API)
+
+## TeamCity live tests
+
+`tests/teamcity.env` declares the live-test environment. Each `ah:secret` entry
+resolves from AWS SSM `/integration-testing/ghost/<ENV_VAR>` in the beta management
+account (`us-east-1`). Terraform creates SecureString placeholders; populate them
+with dedicated test-account values outside Terraform before running live tests.
+Do not commit credentials. Optional fixture variables are documented in the env
+file; leave them unset unless the corresponding test data is ready.

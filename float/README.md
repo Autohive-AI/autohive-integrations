@@ -840,3 +840,11 @@ The connected account handler fetches:
 ## License
 
 This integration is provided as part of the Autohive platform. Refer to your Autohive license agreement for terms and conditions.
+
+## TeamCity live tests
+
+`tests/teamcity.env` declares the live-test environment. Each `ah:secret` entry
+resolves from AWS SSM `/integration-testing/float/<ENV_VAR>` in the beta management
+account (`us-east-1`). Terraform creates SecureString placeholders; populate them
+with dedicated test-account values outside Terraform before running live tests.
+Do not commit credentials.

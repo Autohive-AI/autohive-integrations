@@ -134,3 +134,12 @@ path (`POST`/`PATCH`/`PUT`/`DELETE`) for timesheets, clients, and modules + task
 | `update_task_placeholder` returns HTTP 500 | The `role_id` is not a configured role in your account | Use a valid role ID from `list_roles` |
 | `update_user_leave_balances` fails | The user has no posting yet | Create a posting with `update_user_postings` before setting balances |
 | `create_expense_claim` → `HTTP 400: Must include at least one file` | Your account requires a receipt on expense claims | Pass a `file` object with base64 `content` with the claim |
+
+## TeamCity live tests
+
+`tests/teamcity.env` declares the live-test environment. Each `ah:secret` entry
+resolves from AWS SSM `/integration-testing/projectworks/<ENV_VAR>` in the beta management
+account (`us-east-1`). Terraform creates SecureString placeholders; populate them
+with dedicated test-account values outside Terraform before running live tests.
+Do not commit credentials. Optional fixture variables are documented in the env
+file; leave them unset unless the corresponding test data is ready.
