@@ -1,7 +1,7 @@
 """
 Live integration tests for the Stripe integration.
 
-Requires STRIPE_TEST_API_KEY set in the environment (use a test-mode key: sk_test_...).
+Requires STRIPE_ACCESS_TOKEN (set by CI) or STRIPE_TEST_API_KEY (a test-mode key: sk_test_...) in the environment.
 
 Run with:
     pytest stripe/tests/test_stripe_integration.py -m "integration" -o "addopts=--import-mode=importlib --tb=short"
