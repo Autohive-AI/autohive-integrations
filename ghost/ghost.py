@@ -332,7 +332,7 @@ class UploadImageAction(ActionHandler):
             purpose = inputs.get("purpose", "image")
             filename = file_obj["name"]
             mime_type = file_obj.get("contentType") or "application/octet-stream"
-            file_data = base64.b64decode(file_obj["content"])
+            file_data = base64.b64decode(file_obj["content"], validate=True)
             boundary = uuid.uuid4().hex
             body = (
                 (

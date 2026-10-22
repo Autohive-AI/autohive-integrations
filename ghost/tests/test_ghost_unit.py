@@ -172,6 +172,82 @@ async def test_upload_image(mock_context):
     assert b"\x89PNG\r\n" in body
 
 
+def _image_file(name="test.png", data=b"\x89PNG\r\n", content_type="image/png"):
+    return {"name": name, "content": base64.b64encode(data).decode(), "contentType": content_type}
+
+
+@pytest.mark.asyncio
+async def test_upload_image_request_shape(mock_context):
+    mock_context.fetch = AsyncMock(return_value=_fetch_result({"images": [{"url": "u"}]}))
+    await ghost.execute_action("upload_image", {"file": _image_file()}, mock_context)
+    kwargs = mock_context.fetch.call_args[1]
+    assert kwargs["method"] == "POST"
+    assert kwargs["headers"]["Content-Type"].startswith("multipart/form-data; boundary=")
+    assert kwargs["headers"]["Authorization"].startswith("Ghost ")
+    boundary = kwargs["headers"]["Content-Type"].split("boundary=")[1]
+    assert kwargs["data"].endswith(f"--{boundary}--\r\n".encode())
+
+
+@pytest.mark.asyncio
+async def test_upload_image_default_purpose(mock_context):
+    mock_context.fetch = AsyncMock(return_value=_fetch_result({"images": [{"url": "u"}]}))
+    await ghost.execute_action("upload_image", {"file": _image_file()}, mock_context)
+    body = mock_context.fetch.call_args[1]["data"]
+    assert b'name="purpose"\r\n\r\nimage\r\n' in body
+
+
+@pytest.mark.asyncio
+async def test_upload_image_custom_purpose(mock_context):
+    mock_context.fetch = AsyncMock(return_value=_fetch_result({"images": [{"url": "u"}]}))
+    await ghost.execute_action("upload_image", {"file": _image_file(), "purpose": "profile_image"}, mock_context)
+    body = mock_context.fetch.call_args[1]["data"]
+    assert b'name="purpose"\r\n\r\nprofile_image\r\n' in body
+
+
+@pytest.mark.asyncio
+async def test_upload_image_sends_decoded_bytes(mock_context):
+    data = bytes(range(256))
+    mock_context.fetch = AsyncMock(return_value=_fetch_result({"images": [{"url": "u"}]}))
+    await ghost.execute_action(
+        "upload_image", {"file": _image_file(name="photo.jpg", data=data, content_type="image/jpeg")}, mock_context
+    )
+    body = mock_context.fetch.call_args[1]["data"]
+    assert data in body
+    assert b'filename="photo.jpg"' in body
+    assert b"Content-Type: image/jpeg" in body
+
+
+@pytest.mark.asyncio
+async def test_upload_image_empty_response(mock_context):
+    mock_context.fetch = AsyncMock(return_value=_fetch_result({"images": []}))
+    result = await ghost.execute_action("upload_image", {"file": _image_file()}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert result.result.data["image"] is None
+
+
+@pytest.mark.asyncio
+async def test_upload_image_invalid_base64(mock_context):
+    file_obj = {"name": "test.png", "content": "not-base64!", "contentType": "image/png"}
+    mock_context.fetch = AsyncMock()
+    result = await ghost.execute_action("upload_image", {"file": file_obj}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upload_image_fetch_error(mock_context):
+    mock_context.fetch = AsyncMock(side_effect=Exception("HTTP 413: Request Entity Too Large"))
+    result = await ghost.execute_action("upload_image", {"file": _image_file()}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "413" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_upload_image_missing_file(mock_context):
+    result = await ghost.execute_action("upload_image", {}, mock_context)
+    assert result.type == ResultType.VALIDATION_ERROR
+
+
 @pytest.mark.asyncio
 async def test_create_member(mock_context):
     mock_context.fetch = AsyncMock(return_value=_fetch_result({"members": [{"id": "m1", "email": "user@example.com"}]}))
