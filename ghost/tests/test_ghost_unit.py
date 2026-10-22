@@ -226,6 +226,29 @@ async def test_upload_image_invalid_base64(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_upload_image_empty_content(mock_context):
+    mock_context.fetch = AsyncMock()
+    result = await ghost.execute_action("upload_image", {"file": _image_file(data=b"")}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "empty" in result.result.message
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upload_image_wrapped_base64(mock_context):
+    data = bytes(range(100))
+    encoded = base64.encodebytes(data).decode()  # MIME-style, newline every 76 chars
+    _, call = await _upload(mock_context, {"file": {**_image_file(), "content": encoded}})
+    assert data in call[1]["data"]
+
+
+@pytest.mark.asyncio
+async def test_upload_image_filename_with_quote_and_newline(mock_context):
+    _, call = await _upload(mock_context, {"file": _image_file(name='my "best"\r\nphoto.png')})
+    assert b'filename="my %22best%22photo.png"\r\n' in call[1]["data"]
+
+
+@pytest.mark.asyncio
 async def test_upload_image_fetch_error(mock_context):
     mock_context.fetch = AsyncMock(side_effect=Exception("HTTP 413: Request Entity Too Large"))
     result = await ghost.execute_action("upload_image", {"file": _image_file()}, mock_context)

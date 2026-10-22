@@ -330,9 +330,12 @@ class UploadImageAction(ActionHandler):
             base, headers = _admin_headers(context)
             file_obj = inputs["file"]
             purpose = inputs.get("purpose", "image")
-            filename = file_obj["name"]
+            # Percent-encode quotes and drop line breaks, as browsers do, so the multipart header stays valid
+            filename = file_obj["name"].replace('"', "%22").replace("\r", "").replace("\n", "")
             mime_type = file_obj["contentType"]
-            file_data = base64.b64decode(file_obj["content"], validate=True)
+            file_data = base64.b64decode("".join(file_obj["content"].split()), validate=True)
+            if not file_data:
+                return ActionError(message="file 'content' is empty — attach an image to upload")
             boundary = uuid.uuid4().hex
             body = (
                 (
