@@ -333,13 +333,11 @@ class TestGetDepartment:
 class TestListRoles:
     @pytest.mark.asyncio
     async def test_list_roles_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data=[{"role_id": 1, "name": "Developer"}]
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[{"id": 1, "name": "Developer"}])
 
         result = await float_integration.execute_action("list_roles", {}, mock_context)
 
-        assert result.result.data[0]["role_id"] == 1
+        assert result.result.data[0]["id"] == 1
 
     @pytest.mark.asyncio
     async def test_list_roles_exception_returns_action_error(self, mock_context):
@@ -353,13 +351,11 @@ class TestListRoles:
 class TestGetRole:
     @pytest.mark.asyncio
     async def test_get_role_happy_path(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"role_id": 1, "name": "Developer"}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"id": 1, "name": "Developer"})
 
         result = await float_integration.execute_action("get_role", {"role_id": 1}, mock_context)
 
-        assert result.result.data["role_id"] == 1
+        assert result.result.data["id"] == 1
 
     @pytest.mark.asyncio
     async def test_get_role_exception_returns_action_error(self, mock_context):
