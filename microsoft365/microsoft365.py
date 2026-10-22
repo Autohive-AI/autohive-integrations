@@ -9,6 +9,8 @@ from typing import Dict, Any, List, Callable
 from datetime import datetime, timedelta, timezone
 import base64
 import binascii
+from html import escape
+import re
 import urllib.parse
 import aiohttp
 
@@ -1467,9 +1469,7 @@ class CreateDraftReplyAction(ActionHandler):
                 "bccRecipients": _draft_reply_recipients(inputs.get("bcc_recipients") or []),
             }
             payload = {}
-            if comment is not None:
-                payload["comment"] = comment
-            elif body is not None:
+            if body is not None:
                 payload["message"] = {"body": {"contentType": body_type, "content": body}}
             operation = "createReplyAll" if inputs.get("reply_all", False) else "createReply"
             resp = await context.fetch(
@@ -1482,8 +1482,37 @@ class CreateDraftReplyAction(ActionHandler):
             _check_response(response, "id")
             draft_id = response["id"]
 
-            # Append to Graph's reply recipients instead of replacing the sender or reply-all list.
             updates = {}
+            if comment:
+                # Graph can omit createReply's comment, so prepend it to the generated history explicitly.
+                generated_body = response.get("body")
+                if not isinstance(generated_body, dict):
+                    resp = await context.fetch(
+                        f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(draft_id)}",
+                        params={"$select": "body"},
+                    )
+                    _check_fetch_success(resp)
+                    _check_response(resp.data, "body")
+                    generated_body = resp.data["body"]
+                if not isinstance(generated_body, dict) or not isinstance(generated_body.get("content"), str):
+                    raise ValueError("Graph did not return a readable draft body; quoted history cannot be preserved")
+                history = generated_body["content"]
+                content_type = generated_body.get("contentType", "").casefold()
+                if content_type == "html":
+                    text = escape(comment).replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
+                    prefix = f"<div>{text}</div><br>"
+                    opening_body = re.search(r"<body\b[^>]*>", history, re.IGNORECASE)
+                    position = opening_body.end() if opening_body else 0
+                    updated_content = history[:position] + prefix + history[position:]
+                elif content_type == "text":
+                    updated_content = comment + "\n\n" + history
+                else:
+                    raise ValueError(
+                        "Graph returned an unsupported draft body type; quoted history cannot be preserved"
+                    )
+                updates["body"] = {"contentType": generated_body["contentType"], "content": updated_content}
+
+            # Append to Graph's reply recipients instead of replacing the sender or reply-all list.
             for field, recipients in extras.items():
                 if not recipients:
                     continue

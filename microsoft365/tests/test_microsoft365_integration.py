@@ -319,6 +319,7 @@ async def test_create_draft_reply_live(live_context, reply_all, content):
         assert response.status == 200
         assert response.data["isDraft"] is True
         assert response.data["conversationId"] == original.data["conversationId"]
+        assert content.get("comment", "Integration test draft reply") in response.data["body"]["content"]
         assert TEST_MAILBOX.casefold() in {
             recipient["emailAddress"]["address"].casefold() for recipient in response.data["ccRecipients"]
         }

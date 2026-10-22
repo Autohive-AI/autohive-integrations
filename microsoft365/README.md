@@ -199,11 +199,16 @@ with the existing `Mail.ReadWrite` permission.
 
 Use either `comment` or `body`, never both. Omit both to create an empty reply draft.
 Graph derives the subject, recipients (including Reply-To), and conversation context.
+For a non-empty `comment`, the action creates the reply draft first, then prepends
+HTML-escaped or plain text to its generated body with a draft update. This avoids
+[Graph's known comment issue](https://learn.microsoft.com/en-us/graph/known-issues#the-comment-parameter-for-creating-a-draft-isnt-part-of-the-message-body)
+while preserving quoted history. Recipient changes share that update. If Graph
+omits the body from its creation response, the draft body is read before updating.
 Attachments are not copied or added by this action.
 
 **Outputs:** `draft_id`, `web_link` (empty if Graph omits it), and `is_draft`.
 Review the draft in Outlook using `web_link`, then pass `draft_id` to
-`send_draft_email` when ready to send. If the recipient update fails after creation,
+`send_draft_email` when ready to send. If the body or recipient update fails after creation,
 the error includes the created draft ID so it can be reviewed or deleted before retrying.
 
 ```json
@@ -792,7 +797,7 @@ python -m pytest tests/test_microsoft365_integration.py -v -m "integration and d
 ```
 
 The reply-draft live cases cover reply/reply-all with comments and HTML bodies,
-verify the conversation ID and unsent draft state, and delete their drafts. Run
+verify the reply text, conversation ID and unsent draft state, and delete their drafts. Run
 these as part of the destructive mail suite above: they use the self-addressed
 message created earlier in that suite. The root `.env.example` lists all required
 and optional test variables as blank entries; keep real values in local `.env`.
