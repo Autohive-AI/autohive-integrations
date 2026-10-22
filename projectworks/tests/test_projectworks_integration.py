@@ -204,7 +204,9 @@ class TestListResources:
 
 class TestGetResource:
     async def test_get_resource_chained(self, live_context):
-        listed = ok_data(await projectworks.execute_action("list_resources", {"page_size": 100}, live_context))
+        listed = ok_data(
+            await projectworks.execute_action("list_resources", {"page_size": 100, "mode_id": 1}, live_context)
+        )
         # Capacity/penciled bookings have a null ResourceID and are not individually fetchable.
         with_id = [r for r in listed["resources"] if r.get("ResourceID") is not None]
         if not with_id:
@@ -357,9 +359,8 @@ class TestSearchClients:
         listed = ok_data(await projectworks.execute_action("list_clients", {"page_size": 5}, live_context))["clients"]
         if not listed:
             pytest.skip("No clients in account to search")
-        term = listed[0].get("Name")
-        if not term:
-            pytest.skip("Listed client has no Name field to search on")
+        term = listed[0].get("ClientName") or listed[0].get("Name")
+        assert term, "Listed client has no searchable name"
         target_id = listed[0].get("ClientID")
 
         result = await projectworks.execute_action("search_clients", {"query": term}, live_context)
@@ -373,9 +374,8 @@ class TestSearchProjects:
         listed = ok_data(await projectworks.execute_action("list_projects", {"page_size": 5}, live_context))["projects"]
         if not listed:
             pytest.skip("No projects in account to search")
-        term = listed[0].get("Name")
-        if not term:
-            pytest.skip("Listed project has no Name field to search on")
+        term = listed[0].get("ProjectName") or listed[0].get("Name")
+        assert term, "Listed project has no searchable name"
         target_id = listed[0].get("ProjectID")
 
         result = await projectworks.execute_action("search_projects", {"query": term}, live_context)

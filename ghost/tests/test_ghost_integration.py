@@ -63,9 +63,15 @@ async def test_get_posts_live(live_context):
 
 @pytest.mark.asyncio
 async def test_get_post_live(live_context):
-    if not GHOST_TEST_POST_ID:
-        pytest.skip("GHOST_TEST_POST_ID not set")
-    result = await ghost.execute_action("get_post", {"id": GHOST_TEST_POST_ID}, live_context)
+    post_id = GHOST_TEST_POST_ID
+    if not post_id:
+        listed = await ghost.execute_action("get_posts", {"limit": 1}, live_context)
+        assert listed.type == ResultType.ACTION, listed.result.message
+        posts = listed.result.data["posts"]
+        if not posts:
+            pytest.skip("No published posts available through the Ghost Content API")
+        post_id = posts[0]["id"]
+    result = await ghost.execute_action("get_post", {"id": post_id}, live_context)
     assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("post") is not None
 

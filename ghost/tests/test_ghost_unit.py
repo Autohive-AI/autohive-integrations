@@ -221,3 +221,29 @@ async def test_missing_api_url(mock_context):
     }
     result = await ghost.execute_action("get_posts", {}, mock_context)
     assert result.type == ResultType.ACTION_ERROR
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("configured_id", ["", "chosen-post"])
+async def test_live_get_post_uses_configured_or_discovered_post(mock_context, monkeypatch, configured_id):
+    from ghost.tests import test_ghost_integration as live_tests
+
+    monkeypatch.setattr(live_tests, "GHOST_TEST_POST_ID", configured_id)
+    post_id = configured_id or "published-post"
+    responses = [_fetch_result({"posts": [{"id": post_id}]})]
+    if not configured_id:
+        responses.insert(0, _fetch_result({"posts": [{"id": post_id}]}))
+    mock_context.fetch = AsyncMock(side_effect=responses)
+    await live_tests.test_get_post_live(mock_context)
+    assert mock_context.fetch.await_count == (1 if configured_id else 2)
+    assert mock_context.fetch.call_args.args[0].endswith(f"/posts/{post_id}/")
+
+
+@pytest.mark.asyncio
+async def test_live_get_post_skips_only_when_no_published_posts(mock_context, monkeypatch):
+    from ghost.tests import test_ghost_integration as live_tests
+
+    monkeypatch.setattr(live_tests, "GHOST_TEST_POST_ID", "")
+    mock_context.fetch = AsyncMock(return_value=_fetch_result({"posts": []}))
+    with pytest.raises(pytest.skip.Exception, match="No published posts"):
+        await live_tests.test_get_post_live(mock_context)

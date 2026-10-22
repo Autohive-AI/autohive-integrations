@@ -282,3 +282,8 @@ account (`us-east-1`). Terraform creates SecureString placeholders; populate the
 with dedicated test-account values outside Terraform before running live tests.
 Do not commit credentials. Optional fixture variables are documented in the env
 file; leave them unset unless the corresponding test data is ready.
+
+The read-only single-post live test uses an explicitly configured post ID when
+available, otherwise it discovers a published post through the Content API. It
+skips only when no published posts are available. Newsletter inputs remain
+separate and are never inferred by this read-only test.

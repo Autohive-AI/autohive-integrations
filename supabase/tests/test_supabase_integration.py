@@ -63,8 +63,10 @@ def live_context(make_context):
             ) as resp:
                 try:
                     data = await resp.json(content_type=None)
-                except Exception:
-                    data = await resp.text()
+                except (ValueError, aiohttp.ContentTypeError) as error:
+                    raise AssertionError(
+                        "Supabase returned a non-JSON response; check the configured project API URL"
+                    ) from error
 
                 if resp.status == 429:
                     retry_after = int(resp.headers.get("Retry-After", 60))
