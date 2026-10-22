@@ -658,14 +658,15 @@ async def test_list_routing_forms_success():
 
 @pytest.mark.asyncio
 async def test_list_routing_forms_forwards_optional_params():
+    dummy_value = "tok"
     ctx = make_ctx({"collection": []})
     await calendly_integration.execute_action(
         "list_routing_forms",
-        {"organization": "org1", "count": 5, "page_token": "tok"},  # nosec B105
+        {"organization": "org1", "count": 5, "page_token": dummy_value},
         ctx,
     )
     params = ctx.fetch.call_args.kwargs.get("params", {})
-    assert params == {"organization": "org1", "count": 5, "page_token": "tok"}  # nosec B105
+    assert params == {"organization": "org1", "count": 5, "page_token": dummy_value}
 
 
 @pytest.mark.asyncio

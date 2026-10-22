@@ -66,7 +66,16 @@ class GetPostsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             base, content_key = _content_headers(context)
-            params: Dict[str, Any] = {k: inputs[k] for k in ("limit", "page", "filter", "include") if inputs.get(k)}
+            params: Dict[str, Any] = {
+                k: v
+                for k, v in {
+                    "limit": inputs.get("limit"),
+                    "page": inputs.get("page"),
+                    "filter": inputs.get("filter"),
+                    "include": inputs.get("include"),
+                }.items()
+                if v
+            }
             params.setdefault("limit", 15)
             params["key"] = content_key
             resp = await context.fetch(f"{base}/ghost/api/content/posts/", method="GET", params=params)
@@ -104,7 +113,15 @@ class GetPagesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             base, content_key = _content_headers(context)
-            params: Dict[str, Any] = {k: inputs[k] for k in ("limit", "page", "filter") if inputs.get(k)}
+            params: Dict[str, Any] = {
+                k: v
+                for k, v in {
+                    "limit": inputs.get("limit"),
+                    "page": inputs.get("page"),
+                    "filter": inputs.get("filter"),
+                }.items()
+                if v
+            }
             params.setdefault("limit", 15)
             params["key"] = content_key
             resp = await context.fetch(f"{base}/ghost/api/content/pages/", method="GET", params=params)
@@ -142,7 +159,15 @@ class GetTagsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             base, content_key = _content_headers(context)
-            params: Dict[str, Any] = {k: inputs[k] for k in ("limit", "page", "filter") if inputs.get(k)}
+            params: Dict[str, Any] = {
+                k: v
+                for k, v in {
+                    "limit": inputs.get("limit"),
+                    "page": inputs.get("page"),
+                    "filter": inputs.get("filter"),
+                }.items()
+                if v
+            }
             params.setdefault("limit", 15)
             params["key"] = content_key
             resp = await context.fetch(f"{base}/ghost/api/content/tags/", method="GET", params=params)
@@ -157,7 +182,9 @@ class GetAuthorsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             base, content_key = _content_headers(context)
-            params: Dict[str, Any] = {k: inputs[k] for k in ("limit", "page") if inputs.get(k)}
+            params: Dict[str, Any] = {
+                k: v for k, v in {"limit": inputs.get("limit"), "page": inputs.get("page")}.items() if v
+            }
             params.setdefault("limit", 15)
             params["key"] = content_key
             resp = await context.fetch(f"{base}/ghost/api/content/authors/", method="GET", params=params)
@@ -209,9 +236,17 @@ class CreatePostAction(ActionHandler):
         try:
             base, headers = _admin_headers(context)
             post: Dict[str, Any] = {"title": inputs["title"]}
-            for field in ("html", "lexical", "status", "tags", "authors", "feature_image", "excerpt"):
-                if inputs.get(field) is not None:
-                    post[field] = inputs[field]
+            for field, value in {
+                "html": inputs.get("html"),
+                "lexical": inputs.get("lexical"),
+                "status": inputs.get("status"),
+                "tags": inputs.get("tags"),
+                "authors": inputs.get("authors"),
+                "feature_image": inputs.get("feature_image"),
+                "excerpt": inputs.get("excerpt"),
+            }.items():
+                if value is not None:
+                    post[field] = value
             post.setdefault("status", "draft")
             params = {"source": "html"} if inputs.get("html") else None
             resp = await context.fetch(
@@ -234,9 +269,18 @@ class UpdatePostAction(ActionHandler):
             base, headers = _admin_headers(context)
             post_id = inputs["id"]
             post: Dict[str, Any] = {"updated_at": inputs["updated_at"]}
-            for field in ("title", "html", "lexical", "status", "tags", "authors", "feature_image", "excerpt"):
-                if inputs.get(field) is not None:
-                    post[field] = inputs[field]
+            for field, value in {
+                "title": inputs.get("title"),
+                "html": inputs.get("html"),
+                "lexical": inputs.get("lexical"),
+                "status": inputs.get("status"),
+                "tags": inputs.get("tags"),
+                "authors": inputs.get("authors"),
+                "feature_image": inputs.get("feature_image"),
+                "excerpt": inputs.get("excerpt"),
+            }.items():
+                if value is not None:
+                    post[field] = value
             params = {"source": "html"} if inputs.get("html") else None
             resp = await context.fetch(
                 f"{base}/ghost/api/admin/posts/{post_id}/",
@@ -257,9 +301,13 @@ class CreatePageAction(ActionHandler):
         try:
             base, headers = _admin_headers(context)
             page: Dict[str, Any] = {"title": inputs["title"]}
-            for field in ("html", "lexical", "status"):
-                if inputs.get(field) is not None:
-                    page[field] = inputs[field]
+            for field, value in {
+                "html": inputs.get("html"),
+                "lexical": inputs.get("lexical"),
+                "status": inputs.get("status"),
+            }.items():
+                if value is not None:
+                    page[field] = value
             page.setdefault("status", "draft")
             params = {"source": "html"} if inputs.get("html") else None
             resp = await context.fetch(
@@ -322,9 +370,14 @@ class CreateMemberAction(ActionHandler):
         try:
             base, headers = _admin_headers(context)
             member: Dict[str, Any] = {"email": inputs["email"]}
-            for field in ("name", "labels", "newsletters", "note"):
-                if inputs.get(field) is not None:
-                    member[field] = inputs[field]
+            for field, value in {
+                "name": inputs.get("name"),
+                "labels": inputs.get("labels"),
+                "newsletters": inputs.get("newsletters"),
+                "note": inputs.get("note"),
+            }.items():
+                if value is not None:
+                    member[field] = value
             resp = await context.fetch(
                 f"{base}/ghost/api/admin/members/",
                 method="POST",
@@ -344,9 +397,15 @@ class UpdateMemberAction(ActionHandler):
             base, headers = _admin_headers(context)
             member_id = inputs["id"]
             member: Dict[str, Any] = {}
-            for field in ("email", "name", "labels", "newsletters", "note"):
-                if inputs.get(field) is not None:
-                    member[field] = inputs[field]
+            for field, value in {
+                "email": inputs.get("email"),
+                "name": inputs.get("name"),
+                "labels": inputs.get("labels"),
+                "newsletters": inputs.get("newsletters"),
+                "note": inputs.get("note"),
+            }.items():
+                if value is not None:
+                    member[field] = value
             resp = await context.fetch(
                 f"{base}/ghost/api/admin/members/{member_id}/",
                 method="PUT",
