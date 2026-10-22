@@ -1431,6 +1431,94 @@ class CreateDraftEmailAction(ActionHandler):
             return ActionError(message=str(e))
 
 
+def _draft_reply_recipients(recipients: List[Any]) -> List[Dict[str, Any]]:
+    """Convert additional recipients to Graph's shape before creating a draft."""
+    result = []
+    for recipient in recipients:
+        address = recipient if isinstance(recipient, str) else recipient["address"]
+        if not address.strip():
+            raise ValueError("Recipient address must not be blank")
+        email = {"address": address.strip()}
+        if isinstance(recipient, dict) and recipient.get("name"):
+            email["name"] = recipient["name"]
+        result.append({"emailAddress": email})
+    return result
+
+
+@microsoft365.action("create_draft_reply")
+class CreateDraftReplyAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        draft_id = None
+        try:
+            message_id = inputs["message_id"]
+            if not message_id.strip():
+                raise ValueError("message_id must not be blank")
+            comment = inputs.get("comment")
+            body = inputs.get("body")
+            if comment is not None and body is not None:
+                raise ValueError("Specify either comment or body, not both")
+            body_type = inputs.get("body_type", "Text")
+            if "body_type" in inputs and body is None:
+                raise ValueError("body_type requires body")
+
+            extras = {
+                "toRecipients": _draft_reply_recipients(inputs.get("to_recipients") or []),
+                "ccRecipients": _draft_reply_recipients(inputs.get("cc_recipients") or []),
+                "bccRecipients": _draft_reply_recipients(inputs.get("bcc_recipients") or []),
+            }
+            payload = {}
+            if comment is not None:
+                payload["comment"] = comment
+            elif body is not None:
+                payload["message"] = {"body": {"contentType": body_type, "content": body}}
+            operation = "createReplyAll" if inputs.get("reply_all", False) else "createReply"
+            resp = await context.fetch(
+                f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(message_id)}/{operation}",
+                method="POST",
+                json=payload,
+            )
+            _check_fetch_success(resp)
+            response = resp.data
+            _check_response(response, "id")
+            draft_id = response["id"]
+
+            # Append to Graph's reply recipients instead of replacing the sender or reply-all list.
+            updates = {}
+            for field, recipients in extras.items():
+                if not recipients:
+                    continue
+                combined = list(response.get(field) or [])
+                addresses = {item["emailAddress"]["address"].casefold() for item in combined}
+                for recipient in recipients:
+                    address = recipient["emailAddress"]["address"].casefold()
+                    if address not in addresses:
+                        combined.append(recipient)
+                        addresses.add(address)
+                updates[field] = combined
+            if updates:
+                resp = await context.fetch(
+                    f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(draft_id)}",
+                    method="PATCH",
+                    json=updates,
+                )
+                _check_fetch_success(resp)
+                _check_response(resp.data, "id")
+                response = {**response, **resp.data}
+
+            return ActionResult(
+                data={
+                    "draft_id": draft_id,
+                    "web_link": response.get("webLink") or "",
+                    "is_draft": response.get("isDraft", True),
+                },
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            if draft_id:
+                return ActionError(message=f"Draft {draft_id} was created but could not be updated: {e}")
+            return ActionError(message=str(e))
+
+
 @microsoft365.action("send_draft_email")
 class SendDraftEmailAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:

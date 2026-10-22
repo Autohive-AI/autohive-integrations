@@ -20,7 +20,7 @@ import aiohttp
 import pytest
 import pytest_asyncio
 from autohive_integrations_sdk import ExecutionContext, FetchResponse, ResultType
-from microsoft365.microsoft365 import _validate_graph_next_link, microsoft365
+from microsoft365.microsoft365 import _encode_path_segment, _validate_graph_next_link, microsoft365
 
 pytestmark = pytest.mark.integration
 
@@ -278,6 +278,49 @@ async def test_04_send_email_live(live_context):
     )
     assert result.type != ResultType.ACTION_ERROR, result.result.message
     assert result.result.data.get("sent") is True
+
+
+@skip_if_no_creds
+@skip_if_no_mailbox
+@pytest.mark.destructive
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reply_all", [False, True])
+async def test_create_draft_reply_live(live_context, reply_all):
+    email_id = _state.get("test_email_id")
+    if not email_id:
+        pytest.skip("No self-addressed test email from test_03_send_draft_email_live")
+    original = await live_context.fetch(
+        f"https://graph.microsoft.com/v1.0/me/messages/{_encode_path_segment(email_id)}"
+    )
+    assert original.status == 200
+    result = await microsoft365.execute_action(
+        "create_draft_reply",
+        {
+            "message_id": email_id,
+            "comment": "Integration test draft reply — do not send.",
+            "reply_all": reply_all,
+            "cc_recipients": [TEST_MAILBOX],
+        },
+        live_context,
+    )
+    assert result.type == ResultType.ACTION, result.result.message
+    draft_id = result.result.data["draft_id"]
+    try:
+        response = await live_context.fetch(
+            f"https://graph.microsoft.com/v1.0/me/messages/{_encode_path_segment(draft_id)}"
+        )
+        assert response.status == 200
+        assert response.data["isDraft"] is True
+        assert response.data["conversationId"] == original.data["conversationId"]
+        assert TEST_MAILBOX.casefold() in {
+            recipient["emailAddress"]["address"].casefold() for recipient in response.data["ccRecipients"]
+        }
+        assert result.result.data["web_link"]
+    finally:
+        response = await live_context.fetch(
+            f"https://graph.microsoft.com/v1.0/me/messages/{_encode_path_segment(draft_id)}", method="DELETE"
+        )
+        assert response.status in (200, 204, 404)
 
 
 @skip_if_no_creds

@@ -178,6 +178,45 @@ Create a draft email message that can be sent later.
 
 ---
 
+### `create_draft_reply`
+
+Create a reply draft in the original conversation without sending it. Uses
+[Graph createReply](https://learn.microsoft.com/en-us/graph/api/message-createreply?view=graph-rest-1.0)
+or [createReplyAll](https://learn.microsoft.com/en-us/graph/api/message-createreplyall?view=graph-rest-1.0),
+with the existing `Mail.ReadWrite` permission.
+
+**Inputs:**
+- `message_id` (required): Original message ID.
+- `comment` (optional): Plain-text reply comment, retaining Graph's quoted history.
+- `body` (optional): Custom reply body. This replaces the generated body, including
+  quoted history; include any history you want to retain yourself.
+- `body_type` (optional, only with `body`): `Text` (default) or `HTML`.
+- `reply_all` (optional): `true` to reply to all; defaults to `false`.
+- `to_recipients`, `cc_recipients`, `bcc_recipients` (optional): Additional recipients.
+  Each entry is an email string or an object with `address` and optional `name`.
+  These are appended to the generated recipients, with case-insensitive
+  deduplication within each list, using one additional draft update request.
+
+Use either `comment` or `body`, never both. Omit both to create an empty reply draft.
+Graph derives the subject, recipients (including Reply-To), and conversation context.
+Attachments are not copied or added by this action.
+
+**Outputs:** `draft_id`, `web_link` (empty if Graph omits it), and `is_draft`.
+Review the draft in Outlook using `web_link`, then pass `draft_id` to
+`send_draft_email` when ready to send. If the recipient update fails after creation,
+the error includes the created draft ID so it can be reviewed or deleted before retrying.
+
+```json
+{
+  "message_id": "original-message-id",
+  "comment": "Thanks, I'll review this today.",
+  "reply_all": true,
+  "cc_recipients": [{"address": "colleague@example.com", "name": "Colleague"}]
+}
+```
+
+---
+
 ### `send_draft_email`
 
 Send a previously created draft email.
@@ -193,7 +232,7 @@ Send a previously created draft email.
 
 ### `reply_to_email`
 
-Reply to an existing email message.
+Send a reply to an existing email immediately. Use `create_draft_reply` to review a draft first.
 
 **Inputs:**
 - `message_id` (required): ID of the message to reply to

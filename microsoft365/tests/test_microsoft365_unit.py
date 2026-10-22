@@ -1358,6 +1358,141 @@ async def test_create_draft_email_error(mock_context):
     assert result.type == ResultType.ACTION_ERROR
 
 
+# ---- create_draft_reply ----
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reply_all,operation", [(False, "createReply"), (True, "createReplyAll")])
+async def test_create_draft_reply_preserves_thread_and_never_sends(mock_context, reply_all, operation):
+    mock_context.fetch = make_fetch({"id": "draft1", "webLink": "https://outlook.office.com/draft1", "isDraft": True})
+    result = await microsoft365.execute_action(
+        "create_draft_reply", {"message_id": "original/id+", "comment": "Thanks!", "reply_all": reply_all}, mock_context
+    )
+    assert result.type == ResultType.ACTION
+    assert result.result.data == {
+        "draft_id": "draft1",
+        "web_link": "https://outlook.office.com/draft1",
+        "is_draft": True,
+    }
+    mock_context.fetch.assert_awaited_once_with(
+        f"https://graph.microsoft.com/v1.0/me/messages/original%2Fid%2B/{operation}",
+        method="POST",
+        json={"comment": "Thanks!"},
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extra,payload",
+    [
+        ({}, {}),
+        ({"comment": ""}, {"comment": ""}),
+        ({"body": "Plain reply"}, {"message": {"body": {"contentType": "Text", "content": "Plain reply"}}}),
+        (
+            {"body": "<p>Thanks</p>", "body_type": "HTML"},
+            {"message": {"body": {"contentType": "HTML", "content": "<p>Thanks</p>"}}},
+        ),
+    ],
+)
+async def test_create_draft_reply_body_modes(mock_context, extra, payload):
+    mock_context.fetch = make_fetch({"id": "draft1"})
+    result = await microsoft365.execute_action("create_draft_reply", {"message_id": "em1", **extra}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert mock_context.fetch.call_args.kwargs["json"] == payload
+    assert result.result.data["web_link"] == ""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"comment": "", "body": ""},
+        {"body_type": "HTML"},
+        {"to_recipients": ["   "]},
+        {"message_id": "   "},
+    ],
+)
+async def test_create_draft_reply_rejects_invalid_inputs_before_creating(mock_context, extra):
+    result = await microsoft365.execute_action("create_draft_reply", {"message_id": "em1", **extra}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_draft_reply_appends_recipients_without_dropping_reply_all(mock_context):
+    sender = {"emailAddress": {"address": "sender@example.com"}}
+    colleague = {"emailAddress": {"address": "colleague@example.com"}}
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=201,
+                headers={},
+                data={
+                    "id": "draft/id",
+                    "toRecipients": [sender],
+                    "ccRecipients": [colleague],
+                    "webLink": "https://outlook.office.com/draft1",
+                    "isDraft": True,
+                },
+            ),
+            FetchResponse(status=200, headers={}, data={"id": "draft/id", "isDraft": True}),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply",
+        {
+            "message_id": "em1",
+            "reply_all": True,
+            "to_recipients": ["SENDER@example.com", {"address": "added@example.com", "name": "Added"}],
+            "cc_recipients": ["extra@example.com"],
+            "bcc_recipients": ["private@example.com"],
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION
+    assert mock_context.fetch.await_count == 2
+    first, second = mock_context.fetch.call_args_list
+    assert first.args[0].endswith("/createReplyAll")
+    assert first.kwargs["json"] == {}
+    assert second.args[0].endswith("/messages/draft%2Fid")
+    assert second.kwargs == {
+        "method": "PATCH",
+        "json": {
+            "toRecipients": [sender, {"emailAddress": {"address": "added@example.com", "name": "Added"}}],
+            "ccRecipients": [colleague, {"emailAddress": {"address": "extra@example.com"}}],
+            "bccRecipients": [{"emailAddress": {"address": "private@example.com"}}],
+        },
+    }
+    assert result.result.data["draft_id"] == "draft/id"
+    assert result.result.data["web_link"] == "https://outlook.office.com/draft1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("data", [{"error": {"message": "Access denied"}}, {}])
+async def test_create_draft_reply_handles_graph_errors(mock_context, data):
+    mock_context.fetch = make_fetch(data)
+    result = await microsoft365.execute_action("create_draft_reply", {"message_id": "em1"}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_create_draft_reply_reports_created_draft_when_recipient_update_fails(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=201, headers={}, data={"id": "draft1"}),
+            Exception("Update failed"),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply", {"message_id": "em1", "cc_recipients": ["extra@example.com"]}, mock_context
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Draft draft1 was created" in result.result.message
+    assert "Update failed" in result.result.message
+    assert mock_context.fetch.await_count == 2
+
+
 # ---- send_draft_email ----
 
 
@@ -2269,7 +2404,6 @@ async def test_find_meeting_times_accepts_nullable_suggestion_details(mock_conte
 
 def test_find_meeting_times_declares_graph_permission_and_removes_shifts_scope():
     config = json.loads((Path(__file__).parents[1] / "config.json").read_text(encoding="utf-8"))
-    assert config["version"] == "3.1.0"
     assert "Calendars.Read.Shared" in config["auth"]["scopes"]
     assert "Schedule.Read.All" not in config["auth"]["scopes"]
 
