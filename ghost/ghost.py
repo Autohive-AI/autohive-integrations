@@ -1,5 +1,5 @@
+import base64
 import jwt
-import mimetypes
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
@@ -328,14 +328,14 @@ class UploadImageAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             base, headers = _admin_headers(context)
-            file_path = inputs["file_path"]
+            file_obj = inputs["file"]
             purpose = inputs.get("purpose", "image")
-            mime_type, _ = mimetypes.guess_type(file_path)
-            if not mime_type:
-                mime_type = "application/octet-stream"
-            filename = file_path.replace("\\", "/").split("/")[-1]
-            with open(file_path, "rb") as f:
-                file_data = f.read()
+            # Percent-encode quotes and drop line breaks, as browsers do, so the multipart header stays valid
+            filename = file_obj["name"].replace('"', "%22").replace("\r", "").replace("\n", "")
+            mime_type = file_obj["contentType"]
+            file_data = base64.b64decode("".join(file_obj["content"].split()), validate=True)
+            if not file_data:
+                return ActionError(message="file 'content' is empty — attach an image to upload")
             boundary = uuid.uuid4().hex
             body = (
                 (
