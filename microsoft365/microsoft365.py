@@ -4,9 +4,11 @@ from autohive_integrations_sdk import (
     ActionHandler,
     ActionResult,
     ActionError,
+    HTTPError,
 )
 from typing import Dict, Any, List, Callable
 from datetime import datetime, timedelta, timezone
+import asyncio
 import base64
 import binascii
 from html import escape
@@ -283,6 +285,7 @@ async def _fetch_collection(
     item_filter: Callable[[Dict[str, Any]], bool] | None = None,
     scan_limit: int | None = None,
     page_limit: int | None = None,
+    retry_server_errors: bool = False,
 ) -> tuple[List[Dict[str, Any]], bool]:
     """Follow Graph pagination with separate result and optional scan limits."""
     if limit is not None and (not isinstance(limit, int) or isinstance(limit, bool) or limit < 1):
@@ -310,10 +313,19 @@ async def _fetch_collection(
             raise ValueError("Microsoft Graph pagination returned a repeated '@odata.nextLink' URL")
         requested_urls.add(next_url)
 
-        if first_request and params:
-            resp = await context.fetch(next_url, params=params)
-        else:
-            resp = await context.fetch(next_url)
+        for attempt in range(3):
+            try:
+                if first_request and params:
+                    resp = await context.fetch(next_url, params=params)
+                else:
+                    resp = await context.fetch(next_url)
+                if retry_server_errors and resp.status in {500, 502, 503, 504}:
+                    raise HTTPError(resp.status, str(resp.data), resp.data)
+                break
+            except HTTPError as error:
+                if not retry_server_errors or error.status not in {500, 502, 503, 504} or attempt == 2:
+                    raise
+                await asyncio.sleep(2**attempt)
         first_request = False
         fetched_pages += 1
         response = resp.data
@@ -899,8 +911,8 @@ class ListEmailsFromContactAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            contact_email = inputs["contact_email"].strip()
-            if not contact_email:
+            contact_email = inputs["contact_email"]
+            if not contact_email.strip():
                 raise ValueError("contact_email must not be blank")
             limit = inputs.get("limit", 5)
             folder = await _resolve_mail_folder(context, inputs.get("folder", "Inbox"))
@@ -915,19 +927,17 @@ class ListEmailsFromContactAction(ActionHandler):
             else:
                 active_fields = self._ALLOWED_FIELDS
 
-            filter_value = contact_email.replace("'", "''")
-            # Graph requires the sort field first in the filter to avoid InefficientFilter.
+            search_value = contact_email.replace("\\", "\\\\").replace('"', '\\"')
             params = {
                 "$top": limit,
                 "$select": ",".join(sorted(active_fields)),
-                "$filter": (
-                    f"receivedDateTime ge 1900-01-01T00:00:00Z and from/emailAddress/address eq '{filter_value}'"
-                ),
-                "$orderby": "receivedDateTime desc",
+                "$search": f'"from:{search_value}"',
             }
 
             api_url = f"{GRAPH_API_BASE}/me/mailFolders/{_encode_path_segment(folder)}/messages"
-            all_emails, _ = await _fetch_collection(context, api_url, params=params, limit=limit)
+            all_emails, _ = await _fetch_collection(
+                context, api_url, params=params, limit=limit, retry_server_errors=True
+            )
 
             emails = []
             for email in all_emails:

@@ -69,7 +69,7 @@ Returns full body HTML by default. Use the `fields` parameter to limit response 
 
 ### `list_emails_from_contact`
 
-Get the latest emails from a specific contact. Returns full body HTML by default — use `fields` to limit to metadata only when scanning large volumes. The action matches the exact `from/emailAddress/address` with an OData `$filter`, avoiding the full-text `$search` backend, and orders by `receivedDateTime desc`. Following [Microsoft's supported filter-and-sort pattern](https://devblogs.microsoft.com/microsoft365dev/update-to-filtering-and-sorting-rest-api/), the filter starts with `receivedDateTime ge 1900-01-01T00:00:00Z`; messages dated earlier than 1900 are excluded. Folder selection, requested fields, and pagination still apply. Graph/provider failures remain errors, rather than being reported as empty successful results.
+Get the latest emails from a specific contact. Returns full body HTML by default, use `fields` to limit to metadata only when scanning large volumes. Uses Graph's full-text `from:` search, preserving matches for sender names, domains, and partial addresses as well as full email addresses. No date cutoff is applied. The original `contact_email` value is echoed unchanged. Blank input is rejected. Folder selection, requested fields, and pagination still apply. Each message search page retries HTTP 500, 502, 503, and 504 failures up to twice with 1 and 2 second delays, then returns an error if unsuccessful.
 
 **Inputs:**
 - `contact_email` (required): Email address of the contact
