@@ -603,7 +603,7 @@
                     "tracking_company": {"type": "string", "description": "Shipping company", "label": "Tracking Company"},
                     "tracking_url": {"type": "string", "description": "Tracking URL", "label": "Tracking URL"},
                     "notify_customer": {"type": "boolean", "description": "Notify customer", "label": "Notify Customer", "default": true},
-                    "line_items": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": ["string", "integer"]}, "line_item_id": {"type": ["string", "integer"]}, "quantity": {"type": "integer"}}, "additionalProperties": true}, "description": "Optional order line item IDs and quantities to fulfill; omit to fulfill everything assigned to the location", "label": "Line Items"}
+                    "line_items": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": ["string", "integer"]}, "quantity": {"type": ["integer", "string"]}}, "required": ["id"], "additionalProperties": true}, "description": "Optional order line item IDs and quantities to fulfill; omit to fulfill everything assigned to the location", "label": "Line Items"}
                 },
                 "required": ["order_id", "location_id"]
             },
