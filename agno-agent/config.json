@@ -1,6 +1,6 @@
 {
     "name": "agno-agent",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "display_name": "Agno Data Agent",
     "description": "AI data agent that answers natural language questions about your data via an Agno AgentOS agent, providing insights not just query results.",
     "entry_point": "agno_agent.py",
