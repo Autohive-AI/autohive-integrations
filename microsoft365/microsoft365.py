@@ -899,7 +899,9 @@ class ListEmailsFromContactAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            contact_email = inputs["contact_email"]
+            contact_email = inputs["contact_email"].strip()
+            if not contact_email:
+                raise ValueError("contact_email must not be blank")
             limit = inputs.get("limit", 5)
             folder = await _resolve_mail_folder(context, inputs.get("folder", "Inbox"))
 
@@ -913,11 +915,15 @@ class ListEmailsFromContactAction(ActionHandler):
             else:
                 active_fields = self._ALLOWED_FIELDS
 
-            search_value = contact_email.replace("\\", "\\\\").replace('"', '\\"')
+            filter_value = contact_email.replace("'", "''")
+            # Graph requires the sort field first in the filter to avoid InefficientFilter.
             params = {
                 "$top": limit,
                 "$select": ",".join(sorted(active_fields)),
-                "$search": f'"from:{search_value}"',
+                "$filter": (
+                    f"receivedDateTime ge 1900-01-01T00:00:00Z and from/emailAddress/address eq '{filter_value}'"
+                ),
+                "$orderby": "receivedDateTime desc",
             }
 
             api_url = f"{GRAPH_API_BASE}/me/mailFolders/{_encode_path_segment(folder)}/messages"

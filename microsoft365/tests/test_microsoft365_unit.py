@@ -846,9 +846,11 @@ async def test_list_emails_from_contact(mock_context):
     assert result.type != ResultType.ACTION_ERROR
     assert result.result.data["contact_email"] == "friend@b.com"
     _, kwargs = mock_context.fetch.await_args
-    assert kwargs["params"]["$search"] == '"from:friend@b.com"'
-    assert "$orderby" not in kwargs["params"]
-    assert "$filter" not in kwargs["params"]
+    assert kwargs["params"]["$filter"] == (
+        "receivedDateTime ge 1900-01-01T00:00:00Z and from/emailAddress/address eq 'friend@b.com'"
+    )
+    assert kwargs["params"]["$orderby"] == "receivedDateTime desc"
+    assert "$search" not in kwargs["params"]
 
 
 @pytest.mark.asyncio
@@ -912,7 +914,9 @@ async def test_list_emails_from_contact_resolves_localized_folder_name(mock_cont
     assert mock_context.fetch.await_args.args[0] == (
         "https://graph.microsoft.com/v1.0/me/mailFolders/AAMkSent%3D/messages"
     )
-    assert mock_context.fetch.await_args.kwargs["params"]["$search"] == '"from:friend@b.com"'
+    assert mock_context.fetch.await_args.kwargs["params"]["$filter"].endswith(
+        "from/emailAddress/address eq 'friend@b.com'"
+    )
 
 
 @pytest.mark.asyncio
@@ -2962,3 +2966,102 @@ async def test_reply_comment_and_recipients_are_saved_before_attachments(mock_co
     assert update.kwargs["json"]["body"]["content"] == "Thanks\n\nHistory"
     assert update.kwargs["json"]["ccRecipients"]
     assert upload.args[0].endswith("/attachments")
+
+
+@pytest.mark.asyncio
+async def test_contact_email_lookup_avoids_failing_full_text_search(mock_context):
+    async def graph(url, **kwargs):
+        if "$search" in kwargs.get("params", {}):
+            return FetchResponse(status=500, headers={}, data={"error": {"code": "UnknownError", "message": ""}})
+        return FetchResponse(status=200, headers={}, data={"value": []})
+
+    mock_context.fetch = AsyncMock(side_effect=graph)
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact", {"contact_email": "noreply@microsoft.com"}, mock_context
+    )
+    assert result.type == ResultType.ACTION
+    assert result.result.data["emails"] == []
+    assert mock_context.fetch.await_count == 1
+    params = mock_context.fetch.await_args.kwargs["params"]
+    assert "$search" not in params
+    assert params["$filter"] == (
+        "receivedDateTime ge 1900-01-01T00:00:00Z and from/emailAddress/address eq 'noreply@microsoft.com'"
+    )
+    assert params["$orderby"] == "receivedDateTime desc"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "email,escaped",
+    [
+        ("o'brien@example.com", "o''brien@example.com"),
+        ("  friend@example.com  ", "friend@example.com"),
+        ("x' or isRead eq true or 'x", "x'' or isRead eq true or ''x"),
+    ],
+)
+async def test_contact_email_filter_escapes_odata_literals(mock_context, email, escaped):
+    mock_context.fetch = make_fetch({"value": []})
+    result = await microsoft365.execute_action("list_emails_from_contact", {"contact_email": email}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert mock_context.fetch.await_args.kwargs["params"]["$filter"].endswith(
+        f"and from/emailAddress/address eq '{escaped}'"
+    )
+
+
+@pytest.mark.asyncio
+async def test_contact_email_filter_follows_provider_pagination_and_requested_fields(mock_context):
+    next_link = "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$skiptoken=page2"
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"value": [{"id": "new", "subject": "Newest"}], "@odata.nextLink": next_link},
+            ),
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"value": [{"id": "old", "subject": "Older"}, {"id": "extra", "subject": "Extra"}]},
+            ),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact",
+        {
+            "contact_email": "friend@example.com",
+            "limit": 2,
+            "fields": ["subject"],
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION
+    assert result.result.data["emails"] == [{"id": "new", "subject": "Newest"}, {"id": "old", "subject": "Older"}]
+    first, second = mock_context.fetch.call_args_list
+    assert first.kwargs["params"]["$select"] == "id,subject"
+    assert first.kwargs["params"]["$top"] == 2
+    assert second.args[0] == next_link
+    assert second.kwargs == {}
+
+
+@pytest.mark.asyncio
+async def test_contact_email_filter_provider_error_is_not_hidden_as_no_matches(mock_context):
+    mock_context.fetch = make_fetch({"error": {"code": "UnknownError", "message": ""}})
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact", {"contact_email": "friend@example.com"}, mock_context
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "UnknownError" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_contact_email_filter_rejects_blank_address_before_lookup(mock_context):
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact",
+        {
+            "contact_email": "   ",
+            "folder": "Clients",
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_not_awaited()
