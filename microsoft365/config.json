@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Copilot 365",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, Calendar, SharePoint, and intelligent meeting scheduling",
   "entry_point": "microsoft365.py",
   "auth": {
@@ -1228,7 +1228,7 @@
     },
     "create_draft_email": {
       "display_name": "Create Draft Email",
-      "description": "Create a draft email message that can be sent later",
+      "description": "Create a draft email message that can be sent later Optionally attach files smaller than 3 MB each, without sending the draft.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1333,6 +1333,34 @@
             ],
             "description": "Email importance level",
             "default": "Normal"
+          },
+          "attachments": {
+            "type": "array",
+            "description": "Optional files to attach to the created draft. Each file must be smaller than 3 MB (3,000,000 decoded bytes). Accepts platform file objects. Does not send the email.",
+            "items": {
+              "type": "object",
+              "format": "file",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Attachment filename, including extension."
+                },
+                "contentType": {
+                  "type": "string",
+                  "description": "MIME type, defaults to application/octet-stream."
+                },
+                "content": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Base64-encoded file content."
+                }
+              },
+              "required": [
+                "name",
+                "content"
+              ]
+            }
           }
         },
         "required": [
@@ -1359,12 +1387,185 @@
           "is_draft": {
             "type": "boolean",
             "description": "Whether this is a draft message"
+          },
+          "attachment_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of newly attached files confirmed by Graph."
           }
         },
         "required": [
           "draft_id",
           "subject",
           "created_datetime",
+          "is_draft"
+        ]
+      }
+    },
+    "create_draft_reply": {
+      "display_name": "Create Draft Reply",
+      "description": "Create a threaded draft reply without sending it. Optionally reply to all and add recipients. Send later with send_draft_email using the returned draft_id. Optionally attach files smaller than 3 MB each, without sending the draft.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "ID of the original email to reply to"
+          },
+          "comment": {
+            "type": "string",
+            "description": "Plain-text reply comment. Keeps Graph-generated quoted history. Mutually exclusive with body."
+          },
+          "body": {
+            "type": "string",
+            "description": "Custom reply body, replacing the generated body including quoted history. Mutually exclusive with comment."
+          },
+          "body_type": {
+            "type": "string",
+            "enum": [
+              "Text",
+              "HTML"
+            ],
+            "description": "Content type for body; only use with body. Defaults to Text."
+          },
+          "reply_all": {
+            "type": "boolean",
+            "default": false,
+            "description": "Create a reply-all draft instead of replying only to the sender"
+          },
+          "to_recipients": {
+            "type": "array",
+            "description": "Additional To recipients, appended to the generated reply recipients. Accepts email strings or address/name objects.",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "address"
+                  ]
+                }
+              ]
+            }
+          },
+          "cc_recipients": {
+            "type": "array",
+            "description": "Additional Cc recipients, appended to the generated reply recipients. Accepts email strings or address/name objects.",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "address"
+                  ]
+                }
+              ]
+            }
+          },
+          "bcc_recipients": {
+            "type": "array",
+            "description": "Additional Bcc recipients, appended to the generated reply recipients. Accepts email strings or address/name objects.",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "address"
+                  ]
+                }
+              ]
+            }
+          },
+          "attachments": {
+            "type": "array",
+            "description": "Optional files to attach to the created draft. Each file must be smaller than 3 MB (3,000,000 decoded bytes). Accepts platform file objects. Does not send the email.",
+            "items": {
+              "type": "object",
+              "format": "file",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Attachment filename, including extension."
+                },
+                "contentType": {
+                  "type": "string",
+                  "description": "MIME type, defaults to application/octet-stream."
+                },
+                "content": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Base64-encoded file content."
+                }
+              },
+              "required": [
+                "name",
+                "content"
+              ]
+            }
+          }
+        },
+        "required": [
+          "message_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "draft_id": {
+            "type": "string",
+            "description": "Created reply draft ID; pass this as draft_id to send_draft_email"
+          },
+          "web_link": {
+            "type": "string",
+            "description": "Link to open the draft in Outlook; empty if Graph does not return one"
+          },
+          "is_draft": {
+            "type": "boolean",
+            "description": "Whether the created message is a draft"
+          },
+          "attachment_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of newly attached files confirmed by Graph."
+          }
+        },
+        "required": [
+          "draft_id",
+          "web_link",
           "is_draft"
         ]
       }
