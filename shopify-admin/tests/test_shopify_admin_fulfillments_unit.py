@@ -1,6 +1,9 @@
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
+import jsonschema
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
 
@@ -281,3 +284,21 @@ async def test_create_fulfillment_error_returns_action_error(fulfillment_context
 
     assert result.type == ResultType.ACTION_ERROR
     assert result.result.message == "Shopify rejected the fulfillment"
+
+
+def _fulfillment_line_items_schema():
+    config = json.loads((Path(__file__).parents[1] / "config.json").read_text())
+    return config["actions"]["create_fulfillment"]["input_schema"]["properties"]["line_items"]
+
+
+@pytest.mark.parametrize("line_items", [[{"id": "123", "quantity": "1"}], [{"id": 123, "quantity": 1}]])
+def test_fulfillment_line_items_schema_accepts_handler_supported_quantities(line_items):
+    jsonschema.validate(line_items, _fulfillment_line_items_schema())
+
+
+def test_fulfillment_line_items_schema_requires_id():
+    schema = _fulfillment_line_items_schema()
+
+    assert "line_item_id" not in schema["items"]["properties"]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate([{"line_item_id": "10", "quantity": 1}], schema)
