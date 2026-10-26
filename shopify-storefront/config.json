@@ -35,6 +35,18 @@
             },
             "required": [
                 "shop_url"
+            ],
+            "anyOf": [
+                {
+                    "required": [
+                        "public_token"
+                    ]
+                },
+                {
+                    "required": [
+                        "private_token"
+                    ]
+                }
             ]
         }
     },

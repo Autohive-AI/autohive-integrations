@@ -108,6 +108,27 @@ class TestBuildHeaders:
         with pytest.raises(ValueError, match="public_token or private_token"):
             build_headers(ctx)
 
+    @pytest.mark.asyncio
+    async def test_connection_without_any_token_is_rejected(self, mock_context):
+        mock_context.auth = {"auth_type": "Custom", "credentials": {"shop_url": "test-store.myshopify.com"}}
+
+        result = await shopify_storefront.execute_action("storefront_list_products", {}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_connection_with_only_private_token_is_accepted(self, mock_context):
+        mock_context.auth = {
+            "auth_type": "Custom",
+            "credentials": {"shop_url": "test-store.myshopify.com", "private_token": FAKE_PRIVATE_CREDENTIAL},
+        }
+        mock_context.fetch.return_value = gql({"products": {"edges": [], "pageInfo": {}}})
+
+        result = await shopify_storefront.execute_action("storefront_list_products", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+
     def test_storefront_url(self, mock_context):
         assert get_storefront_url(mock_context) == STOREFRONT_URL
 
@@ -239,7 +260,10 @@ class TestGetProduct:
         result = await shopify_storefront.execute_action("storefront_get_product", {"handle": "t-shirt"}, mock_context)
 
         assert result.result.data == {"success": True, "product": SAMPLE_PRODUCT}
-        assert sent_variables(mock_context) == {"handle": "t-shirt", "id": None}
+        assert sent_variables(mock_context) == {"handle": "t-shirt"}
+        query = mock_context.fetch.call_args.kwargs["json"]["query"]
+        assert "product(handle: $handle)" in query
+        assert "$id" not in query
 
     @pytest.mark.asyncio
     async def test_by_id(self, mock_context):
@@ -249,7 +273,10 @@ class TestGetProduct:
             "storefront_get_product", {"product_id": "gid://shopify/Product/1"}, mock_context
         )
 
-        assert sent_variables(mock_context)["id"] == "gid://shopify/Product/1"
+        assert sent_variables(mock_context) == {"id": "gid://shopify/Product/1"}
+        query = mock_context.fetch.call_args.kwargs["json"]["query"]
+        assert "product(id: $id)" in query
+        assert "$handle" not in query
 
     @pytest.mark.asyncio
     async def test_missing_identifier(self, mock_context):
@@ -372,7 +399,10 @@ class TestGetCollection:
             "storefront_get_collection", {"collection_id": "gid://shopify/Collection/1"}, mock_context
         )
 
-        assert sent_variables(mock_context) == {"handle": None, "id": "gid://shopify/Collection/1", "first": 20}
+        assert sent_variables(mock_context) == {"id": "gid://shopify/Collection/1", "first": 20}
+        query = mock_context.fetch.call_args.kwargs["json"]["query"]
+        assert "collection(id: $id)" in query
+        assert "$handle" not in query
 
     @pytest.mark.asyncio
     async def test_missing_identifier(self, mock_context):

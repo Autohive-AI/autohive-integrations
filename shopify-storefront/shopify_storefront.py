@@ -154,6 +154,15 @@ def error_response(message: Any) -> ActionError:
     return ActionError(message=str(message))
 
 
+def lookup_query(query: str, use_id: bool) -> str:
+    """Keep only the id or handle lookup argument; Shopify rejects both, even when one is null."""
+    if use_id:
+        return query.replace("$handle: String, $id: ID", "$id: ID").replace("handle: $handle, id: $id", "id: $id")
+    return query.replace("$handle: String, $id: ID", "$handle: String").replace(
+        "handle: $handle, id: $id", "handle: $handle"
+    )
+
+
 def extract_edges(data: Dict, path: str) -> List[Dict]:
     """Extract nodes from GraphQL edges structure."""
     parts = path.split(".")
@@ -591,9 +600,10 @@ class GetProductHandler(ActionHandler):
         try:
             require_one_of(inputs, "handle", "product_id")
 
-            variables = {"handle": inputs.get("handle"), "id": inputs.get("product_id")}
+            product_id = inputs.get("product_id")
+            variables = {"id": product_id} if product_id else {"handle": inputs.get("handle")}
 
-            gql_result = await execute_graphql(context, QUERY_GET_PRODUCT, variables)
+            gql_result = await execute_graphql(context, lookup_query(QUERY_GET_PRODUCT, bool(product_id)), variables)
             data, errors = parse_graphql_response(gql_result)
 
             if errors:
@@ -670,13 +680,13 @@ class GetCollectionHandler(ActionHandler):
         try:
             require_one_of(inputs, "handle", "collection_id")
 
-            variables = {
-                "handle": inputs.get("handle"),
-                "id": inputs.get("collection_id"),
-                "first": inputs.get("products_first", 20),
-            }
+            collection_id = inputs.get("collection_id")
+            variables = {"id": collection_id} if collection_id else {"handle": inputs.get("handle")}
+            variables["first"] = inputs.get("products_first", 20)
 
-            gql_result = await execute_graphql(context, QUERY_GET_COLLECTION, variables)
+            gql_result = await execute_graphql(
+                context, lookup_query(QUERY_GET_COLLECTION, bool(collection_id)), variables
+            )
             data, errors = parse_graphql_response(gql_result)
 
             if errors:
