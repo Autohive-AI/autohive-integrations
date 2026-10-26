@@ -32,6 +32,8 @@ from nzbn.nzbn import (
 pytestmark = pytest.mark.unit
 
 TEST_NZBN = "9429041525746"
+CREDENTIAL_NAMES = ("client_id", "client_secret", "subscription_key")
+TEST_CREDENTIALS = {name: f"test-{name}" for name in CREDENTIAL_NAMES}
 
 
 @pytest.fixture
@@ -603,14 +605,14 @@ class TestEndpoints:
     async def test_token_request_uses_token_url_and_scope_overrides(self, mock_context, monkeypatch):
         monkeypatch.setenv("NZBN_TOKEN_URL", "https://login.example/token")
         monkeypatch.setenv("NZBN_SCOPE", "https://sandbox.example/.default")
-        sandbox_token = "tok_sandbox"  # nosec B105
+        issued = f"test-{TEST_NZBN}"
         mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"access_token": sandbox_token, "expires_in": 3600}
+            status=200, headers={}, data={"access_token": issued, "expires_in": 3600}
         )
 
-        token = await get_oauth_token(mock_context, "cid", "csec")
+        result = await get_oauth_token(mock_context, TEST_CREDENTIALS["client_id"], TEST_CREDENTIALS["client_secret"])
 
-        assert token == sandbox_token
+        assert result == issued
         assert mock_context.fetch.call_args[0][0] == "https://login.example/token"
         assert mock_context.fetch.call_args[1]["data"]["scope"] == "https://sandbox.example/.default"
 
@@ -620,25 +622,19 @@ class TestGetHeaders:
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.get_oauth_token")
-    @patch(
-        "nzbn.nzbn._get_credentials",
-        return_value={"client_id": "cid", "client_secret": "csec", "subscription_key": "test-sub-key"},  # nosec B105
-    )
+    @patch("nzbn.nzbn._get_credentials", return_value=TEST_CREDENTIALS)
     async def test_headers_include_subscription_key(self, mock_get_creds, mock_get_oauth_token, mock_context):
         mock_get_oauth_token.return_value = "tok_abc"
 
         headers = await get_headers(mock_context)
 
-        assert headers["Ocp-Apim-Subscription-Key"] == "test-sub-key"
+        assert headers["Ocp-Apim-Subscription-Key"] == TEST_CREDENTIALS["subscription_key"]
         assert headers["Authorization"] == "Bearer tok_abc"
         assert headers["Accept"] == "application/json"
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.get_oauth_token")
-    @patch(
-        "nzbn.nzbn._get_credentials",
-        return_value={"client_id": "cid", "client_secret": "csec", "subscription_key": "sub-key"},  # nosec B105
-    )
+    @patch("nzbn.nzbn._get_credentials", return_value=TEST_CREDENTIALS)
     async def test_headers_without_token(self, mock_get_creds, mock_get_oauth_token, mock_context):
         mock_get_oauth_token.return_value = None
 
@@ -647,7 +643,7 @@ class TestGetHeaders:
         assert "Authorization" not in headers
 
     @pytest.mark.asyncio
-    @patch("nzbn.nzbn._get_credentials", return_value={"client_id": "", "client_secret": "", "subscription_key": ""})  # nosec B105
+    @patch("nzbn.nzbn._get_credentials", return_value=dict.fromkeys(CREDENTIAL_NAMES, ""))
     async def test_headers_fail_fast_on_missing_credentials(self, mock_get_creds, mock_context):
         with pytest.raises(ValueError, match="Missing required environment variable"):
             await get_headers(mock_context)

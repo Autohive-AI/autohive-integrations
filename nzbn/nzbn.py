@@ -222,7 +222,7 @@ class SearchEntitiesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            search_term = inputs.get("search_term", "")
+            search_term = inputs["search_term"]
             if not search_term:
                 return ActionError(message="search_term is required")
 
@@ -263,7 +263,7 @@ class GetEntityAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -283,7 +283,7 @@ class GetEntitySummaryAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -337,7 +337,7 @@ class GetEntityAddressesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -372,7 +372,7 @@ class GetEntityRolesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -393,7 +393,7 @@ class GetEntityTradingNamesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -414,7 +414,7 @@ class GetCompanyDetailsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -434,7 +434,7 @@ class GetEntityGstNumbersAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -455,7 +455,7 @@ class GetEntityIndustryClassificationsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -479,7 +479,7 @@ class GetChangesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            change_event_type = inputs.get("change_event_type", "")
+            change_event_type = inputs["change_event_type"]
             if not change_event_type:
                 return ActionError(message="change_event_type is required")
 
