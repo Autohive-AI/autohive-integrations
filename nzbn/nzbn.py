@@ -44,6 +44,19 @@ PRODUCTION_BASE_URL = "https://api.business.govt.nz/gateway/nzbn/v5"
 TOKEN_URL = "https://login.microsoftonline.com/b2cessmapprd.onmicrosoft.com/oauth2/v2.0/token"  # nosec B105
 PRODUCTION_SCOPE = "https://api.business.govt.nz/gateway/.default"
 
+
+def _get_endpoints() -> Dict[str, str]:
+    """Read optional endpoint overrides (e.g. the NZBN sandbox) at call time.
+
+    Unset or empty variables fall back to the production endpoints.
+    """
+    return {
+        "base_url": os.environ.get("NZBN_BASE_URL") or PRODUCTION_BASE_URL,
+        "token_url": os.environ.get("NZBN_TOKEN_URL") or TOKEN_URL,
+        "scope": os.environ.get("NZBN_SCOPE") or PRODUCTION_SCOPE,
+    }
+
+
 # =============================================================================
 # Credentials
 #
@@ -95,7 +108,8 @@ async def get_oauth_token(context: ExecutionContext, client_id: str, client_secr
     Implements token caching to minimize API calls to the token endpoint.
     Tokens are cached until 60 seconds before expiry.
     """
-    cache_key = PRODUCTION_SCOPE
+    endpoints = _get_endpoints()
+    cache_key = f"{endpoints['token_url']} {endpoints['scope']}"
 
     # Check cache first
     cached_token = _get_cached_token(cache_key)
@@ -111,10 +125,10 @@ async def get_oauth_token(context: ExecutionContext, client_id: str, client_secr
     }
 
     response = await context.fetch(
-        TOKEN_URL,
+        endpoints["token_url"],
         method="POST",
         headers=headers,
-        data={"grant_type": "client_credentials", "scope": PRODUCTION_SCOPE},
+        data={"grant_type": "client_credentials", "scope": endpoints["scope"]},
     )
 
     # Handle response
@@ -173,7 +187,7 @@ async def make_request(
 ) -> Dict[str, Any]:
     """Make a request to the NZBN API."""
     headers = await get_headers(context)
-    url = f"{PRODUCTION_BASE_URL}{endpoint}"
+    url = f"{_get_endpoints()['base_url']}{endpoint}"
 
     response = await context.fetch(url, method=method, headers=headers, params=params)
 

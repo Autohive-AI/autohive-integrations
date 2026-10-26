@@ -13,17 +13,17 @@ The NZBN (New Zealand Business Number) is a unique 13-digit identifier for NZ bu
 
 ## Authentication
 
-This integration uses Autohive's pre-configured NZBN API credentials with 2-legged OAuth (Client Credentials flow). **No user configuration required** - credentials are managed by Autohive.
+This integration uses Autohive's pre-configured NZBN API credentials with 2-legged OAuth (Client Credentials flow). **No user configuration required** - credentials are managed by Autohive, so the integration declares no `auth` block and users do not create a connection.
 
 ### API Endpoints
 
-The integration uses the **production** NZBN API endpoints:
+By default the integration uses the **production** NZBN API endpoints:
 
 - Base URL: `https://api.business.govt.nz/gateway/nzbn/v5`
 - OAuth Scope: `https://api.business.govt.nz/gateway/.default`
 - Token URL: `https://login.microsoftonline.com/b2cessmapprd.onmicrosoft.com/oauth2/v2.0/token`
 
-These are configured in `nzbn.py` as `PRODUCTION_BASE_URL` and `PRODUCTION_SCOPE`.
+These are configured in `nzbn.py` as `PRODUCTION_BASE_URL`, `TOKEN_URL` and `PRODUCTION_SCOPE`. Non-production environments can point at the NZBN sandbox with the optional variables below.
 
 ### Deployment Configuration
 
@@ -34,6 +34,14 @@ The following environment variables **must** be set at deployment time:
 | `NZBN_CLIENT_ID` | OAuth Client ID (Autohive's registered NZBN app) |
 | `NZBN_CLIENT_SECRET` | OAuth Client Secret |
 | `NZBN_SUBSCRIPTION_KEY` | NZBN API Subscription Key (Autohive's enterprise subscription) |
+
+The following environment variables are optional. When unset or empty, the production value is used:
+
+| Variable | Description |
+|----------|-------------|
+| `NZBN_BASE_URL` | API base URL (default: `https://api.business.govt.nz/gateway/nzbn/v5`) |
+| `NZBN_TOKEN_URL` | OAuth token URL (default: production B2C token endpoint) |
+| `NZBN_SCOPE` | OAuth scope (default: `https://api.business.govt.nz/gateway/.default`) |
 
 ### Security Model
 

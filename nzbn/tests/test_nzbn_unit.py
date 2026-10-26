@@ -22,6 +22,11 @@ from nzbn.nzbn import (
     _token_cache,
     make_request,
     get_headers,
+    get_oauth_token,
+    _get_endpoints,
+    PRODUCTION_BASE_URL,
+    PRODUCTION_SCOPE,
+    TOKEN_URL,
 )
 
 pytestmark = pytest.mark.unit
@@ -33,7 +38,6 @@ TEST_NZBN = "9429041525746"
 def mock_context():
     """Create a mock ExecutionContext."""
     context = MagicMock()
-    context.auth = {"auth_type": "Custom", "credentials": {}}
     context.fetch = AsyncMock()
     return context
 
@@ -547,6 +551,54 @@ class TestMakeRequest:
 
         assert result["success"] is True
         assert result["not_modified"] is True
+
+
+class TestEndpoints:
+    """Test optional endpoint overrides."""
+
+    def test_defaults_to_production_when_unset(self, monkeypatch):
+        for name in ("NZBN_BASE_URL", "NZBN_TOKEN_URL", "NZBN_SCOPE"):
+            monkeypatch.delenv(name, raising=False)
+
+        assert _get_endpoints() == {
+            "base_url": PRODUCTION_BASE_URL,
+            "token_url": TOKEN_URL,
+            "scope": PRODUCTION_SCOPE,
+        }
+
+    def test_defaults_to_production_when_empty(self, monkeypatch):
+        for name in ("NZBN_BASE_URL", "NZBN_TOKEN_URL", "NZBN_SCOPE"):
+            monkeypatch.setenv(name, "")
+
+        assert _get_endpoints()["base_url"] == PRODUCTION_BASE_URL
+        assert _get_endpoints()["token_url"] == TOKEN_URL
+        assert _get_endpoints()["scope"] == PRODUCTION_SCOPE
+
+    @pytest.mark.asyncio
+    @patch("nzbn.nzbn.get_headers")
+    async def test_make_request_uses_base_url_override(self, mock_get_headers, mock_context, monkeypatch):
+        monkeypatch.setenv("NZBN_BASE_URL", "https://sandbox.example/nzbn/v5")
+        mock_get_headers.return_value = {}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
+
+        await make_request(mock_context, "GET", "/entities/test")
+
+        assert mock_context.fetch.call_args[0][0] == "https://sandbox.example/nzbn/v5/entities/test"
+
+    @pytest.mark.asyncio
+    async def test_token_request_uses_token_url_and_scope_overrides(self, mock_context, monkeypatch):
+        monkeypatch.setenv("NZBN_TOKEN_URL", "https://login.example/token")
+        monkeypatch.setenv("NZBN_SCOPE", "https://sandbox.example/.default")
+        sandbox_token = "tok_sandbox"  # nosec B105
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"access_token": sandbox_token, "expires_in": 3600}
+        )
+
+        token = await get_oauth_token(mock_context, "cid", "csec")
+
+        assert token == sandbox_token
+        assert mock_context.fetch.call_args[0][0] == "https://login.example/token"
+        assert mock_context.fetch.call_args[1]["data"]["scope"] == "https://sandbox.example/.default"
 
 
 class TestGetHeaders:
