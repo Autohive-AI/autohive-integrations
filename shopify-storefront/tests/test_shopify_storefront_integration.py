@@ -54,7 +54,7 @@ def live_context(env_credentials, make_context):
 
     context = make_context(
         auth={
-            "auth_type": "StorefrontPublic",
+            "auth_type": "Custom",
             "credentials": {"shop_url": shop_url, "public_token": public_token},
         }
     )

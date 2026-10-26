@@ -5,16 +5,38 @@
     "description": "Shopify Storefront API integration for customer-facing e-commerce operations - products, collections, cart, and customer accounts",
     "entry_point": "shopify_storefront.py",
     "auth": {
-        "type": "platform",
-        "provider": "ShopifyStorefront",
-        "scopes": [
-            "unauthenticated_read_product_listings",
-            "unauthenticated_read_product_inventory",
-            "unauthenticated_read_checkouts",
-            "unauthenticated_write_checkouts",
-            "unauthenticated_read_customers",
-            "unauthenticated_write_customers"
-        ]
+        "type": "custom",
+        "title": "Shopify Storefront Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "shop_url": {
+                    "type": "string",
+                    "label": "Shop domain",
+                    "help_text": "Your permanent Shopify domain, for example your-store.myshopify.com."
+                },
+                "public_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Public access token",
+                    "help_text": "From Sales channels > Headless > your storefront > Storefront API. Leave blank if you use a private access token."
+                },
+                "private_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Private access token",
+                    "help_text": "Optional. Server-side Storefront API token from the same Headless page. Used instead of the public token when set."
+                },
+                "buyer_ip": {
+                    "type": "string",
+                    "label": "Buyer IP",
+                    "help_text": "Optional. Sent with private-token requests as Shopify-Storefront-Buyer-IP."
+                }
+            },
+            "required": [
+                "shop_url"
+            ]
+        }
     },
     "actions": {
         "storefront_list_products": {

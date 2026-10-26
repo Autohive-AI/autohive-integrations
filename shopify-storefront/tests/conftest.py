@@ -16,7 +16,7 @@ def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {
-        "auth_type": "StorefrontPublic",
+        "auth_type": "Custom",
         "credentials": {
             "shop_url": "test-store.myshopify.com",
             "public_token": FAKE_PUBLIC_CREDENTIAL,

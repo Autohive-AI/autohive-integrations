@@ -23,6 +23,7 @@ FAKE_CUSTOMER_CREDENTIAL = "customer-access-value"
 FAKE_LOGIN_VALUE = "Example123!"
 ROTATED_CUSTOMER_CREDENTIAL = "rotated-value"
 FAKE_PRIVATE_CREDENTIAL = "private-value"
+FAKE_PUBLIC_CREDENTIAL = "test-public-value"
 
 SAMPLE_PRODUCT = {"id": "gid://shopify/Product/1", "title": "T-Shirt", "handle": "t-shirt"}
 SAMPLE_COLLECTION = {"id": "gid://shopify/Collection/1", "title": "Summer", "handle": "summer"}
@@ -81,25 +82,30 @@ class TestBuildHeaders:
 
     def test_private_token_header_with_buyer_ip(self):
         ctx = MagicMock()
-        ctx.auth = {
-            "auth_type": "StorefrontPrivate",
-            "credentials": {"private_token": FAKE_PRIVATE_CREDENTIAL, "buyer_ip": "203.0.113.5"},
-        }
+        ctx.auth = {"credentials": {"private_token": FAKE_PRIVATE_CREDENTIAL, "buyer_ip": "203.0.113.5"}}
         headers = build_headers(ctx)
         assert headers["Shopify-Storefront-Private-Token"] == FAKE_PRIVATE_CREDENTIAL
         assert headers["Shopify-Storefront-Buyer-IP"] == "203.0.113.5"
         assert "X-Shopify-Storefront-Access-Token" not in headers
 
-    def test_private_without_token_raises(self):
+    def test_private_token_wins_when_both_set(self):
         ctx = MagicMock()
-        ctx.auth = {"auth_type": "StorefrontPrivate", "credentials": {}}
-        with pytest.raises(ValueError, match="private_token"):
-            build_headers(ctx)
+        ctx.auth = {"credentials": {"private_token": FAKE_PRIVATE_CREDENTIAL, "public_token": FAKE_PUBLIC_CREDENTIAL}}
+        headers = build_headers(ctx)
+        assert headers["Shopify-Storefront-Private-Token"] == FAKE_PRIVATE_CREDENTIAL
+        assert "X-Shopify-Storefront-Access-Token" not in headers
 
-    def test_public_without_token_raises(self):
+    def test_buyer_ip_ignored_for_public_token(self):
+        ctx = MagicMock()
+        ctx.auth = {"credentials": {"public_token": FAKE_PUBLIC_CREDENTIAL, "buyer_ip": "203.0.113.5"}}
+        headers = build_headers(ctx)
+        assert headers["X-Shopify-Storefront-Access-Token"] == FAKE_PUBLIC_CREDENTIAL
+        assert "Shopify-Storefront-Buyer-IP" not in headers
+
+    def test_no_token_raises(self):
         ctx = MagicMock()
         ctx.auth = {"credentials": {}}
-        with pytest.raises(ValueError, match="public_token"):
+        with pytest.raises(ValueError, match="public_token or private_token"):
             build_headers(ctx)
 
     def test_storefront_url(self, mock_context):

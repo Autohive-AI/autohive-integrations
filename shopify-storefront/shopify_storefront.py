@@ -71,24 +71,21 @@ def get_storefront_url(context: ExecutionContext) -> str:
 
 
 def build_headers(context: ExecutionContext) -> Dict[str, str]:
-    """Build headers for Storefront API requests."""
+    """Build headers for Storefront API requests, preferring the private token when one is set."""
     credentials = context.auth.get("credentials", {})
-    auth_type = context.auth.get("auth_type", "StorefrontPublic")
 
     headers = {"Content-Type": "application/json"}
 
-    if auth_type == "StorefrontPrivate":
-        private_token = credentials.get("private_token")
-        if not private_token:
-            raise ValueError("Missing required credential: private_token for StorefrontPrivate auth")
+    private_token = credentials.get("private_token")
+    public_token = credentials.get("public_token")
+    if private_token:
         headers["Shopify-Storefront-Private-Token"] = private_token
         if credentials.get("buyer_ip"):
             headers["Shopify-Storefront-Buyer-IP"] = credentials["buyer_ip"]
-    else:
-        public_token = credentials.get("public_token")
-        if not public_token:
-            raise ValueError("Missing required credential: public_token")
+    elif public_token:
         headers["X-Shopify-Storefront-Access-Token"] = public_token
+    else:
+        raise ValueError("Missing required credential: public_token or private_token")
 
     return headers
 

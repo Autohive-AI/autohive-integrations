@@ -13,15 +13,18 @@ This integration provides access to the Shopify Storefront API (GraphQL), allowi
 
 ## Setup & Authentication
 
-This integration uses **Platform Authentication** with Shopify.
+This integration uses **custom authentication** with a Storefront API token from the store's Headless channel.
 
-**Scopes Required:**
-- `unauthenticated_read_product_listings`
-- `unauthenticated_read_product_inventory`
-- `unauthenticated_read_checkouts`
-- `unauthenticated_write_checkouts`
-- `unauthenticated_read_customers`
-- `unauthenticated_write_customers`
+1. In Shopify admin, install the [Headless](https://apps.shopify.com/headless) sales channel and create a storefront.
+2. Open **Sales channels > Headless > your storefront > Manage API access**, then click **Manage** for the Storefront API.
+3. Enable the Storefront API permissions this integration needs:
+   - Products, collections and inventory (read)
+   - Carts/checkouts (read and write)
+   - Customers (read and write)
+4. In Autohive, add the Shopify Storefront integration and enter:
+   - **Shop domain** — the store's permanent domain, such as `your-store.myshopify.com`
+   - **Public access token**, or a **Private access token** for server-side use (the private token is used when both are set)
+   - **Buyer IP** (optional) — only sent with private-token requests
 
 ## Actions
 
