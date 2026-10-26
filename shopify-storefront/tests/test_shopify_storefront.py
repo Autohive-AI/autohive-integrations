@@ -22,15 +22,15 @@ import time
 import os
 from context import shopify_storefront
 from autohive_integrations_sdk import ExecutionContext
+from autohive_integrations_sdk.integration import ResultType
 
 
 async def execute_wrapper(action_name, inputs, context):
     """Helper to execute action and unwrap IntegrationResult if needed."""
     result = await shopify_storefront.execute_action(action_name, inputs, context)
-    # Support SDK 1.0.2 IntegrationResult
-    if hasattr(result, "result") and hasattr(result.result, "data"):
+    if result.type == ResultType.ACTION:
         return result.result.data
-    return result
+    return {"success": False, "message": getattr(result.result, "message", str(result.result))}
 
 
 # =============================================================================
@@ -332,7 +332,7 @@ async def test_create_customer():
 
     inputs = {
         "email": email,
-        "password": "TestPassword123!",  # nosec B105
+        "password": f"TestPassword{timestamp}!",
         "first_name": "Test",
         "last_name": "Customer",
     }
