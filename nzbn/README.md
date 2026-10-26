@@ -233,7 +233,7 @@ pytest nzbn/tests/test_nzbn_unit.py
 pytest nzbn/tests/test_nzbn_integration.py -m "integration and not destructive"
 ```
 
-All live tests are read-only. In TeamCity, `tests/teamcity.env` points the tests at the sandbox and resolves the credentials from AWS SSM `/integration-testing/nzbn/<ENV_VAR>`.
+All live tests are read-only. In TeamCity, `tests/teamcity.env` points the tests at the sandbox.
 
 ## API Documentation
 
