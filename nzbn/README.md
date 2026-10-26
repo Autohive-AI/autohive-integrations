@@ -226,14 +226,14 @@ Search for entities that have changed within a time period.
 ## Testing
 
 ```bash
-# Run validation tests only (no API credentials needed)
-cd nzbn/tests
-python test_nzbn.py --quick
+# Unit tests (no API credentials needed)
+pytest nzbn/tests/test_nzbn_unit.py
 
-# Run full test suite (requires API credentials)
-cd nzbn/tests
-python test_nzbn.py
+# Live read-only tests against the sandbox (set the NZBN variables in .env, see .env.example)
+pytest nzbn/tests/test_nzbn_integration.py -m "integration and not destructive"
 ```
+
+All live tests are read-only. In TeamCity, `tests/teamcity.env` points the tests at the sandbox and resolves the credentials from AWS SSM `/integration-testing/nzbn/<ENV_VAR>`.
 
 ## API Documentation
 
