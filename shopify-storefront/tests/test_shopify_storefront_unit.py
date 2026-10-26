@@ -591,6 +591,43 @@ class TestCreateCustomer:
         assert set(sent_variables(mock_context)["input"]) == {"email", "password"}
 
     @pytest.mark.asyncio
+    async def test_accepts_legacy_camel_case_fields(self, mock_context):
+        mock_context.fetch.return_value = gql(
+            {"customerCreate": {"customer": SAMPLE_CUSTOMER, "customerUserErrors": []}}
+        )
+
+        await shopify_storefront.execute_action(
+            "storefront_create_customer",
+            {
+                "email": "jane@example.com",
+                "password": FAKE_LOGIN_VALUE,
+                "firstName": "Jane",
+                "lastName": "Doe",
+                "acceptsMarketing": True,
+            },
+            mock_context,
+        )
+
+        sent = sent_variables(mock_context)["input"]
+        assert sent["firstName"] == "Jane"
+        assert sent["lastName"] == "Doe"
+        assert sent["acceptsMarketing"] is True
+
+    @pytest.mark.asyncio
+    async def test_snake_case_wins_over_camel_case(self, mock_context):
+        mock_context.fetch.return_value = gql(
+            {"customerCreate": {"customer": SAMPLE_CUSTOMER, "customerUserErrors": []}}
+        )
+
+        await shopify_storefront.execute_action(
+            "storefront_create_customer",
+            {"email": "jane@example.com", "password": FAKE_LOGIN_VALUE, "first_name": "Snake", "firstName": "Camel"},
+            mock_context,
+        )
+
+        assert sent_variables(mock_context)["input"]["firstName"] == "Snake"
+
+    @pytest.mark.asyncio
     async def test_customer_user_error(self, mock_context):
         mock_context.fetch.return_value = gql(
             {"customerCreate": {"customer": None, "customerUserErrors": [{"message": "Email has already been taken"}]}}

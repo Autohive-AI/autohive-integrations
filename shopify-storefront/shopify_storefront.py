@@ -888,6 +888,9 @@ class CreateCustomerHandler(ActionHandler):
                 "acceptsMarketing": inputs.get("accepts_marketing"),
             }
             for field, value in optional_fields.items():
+                # Older callers sent the camelCase GraphQL names; keep accepting them.
+                if value is None:
+                    value = inputs.get(field)
                 if value is not None:
                     customer_input[field] = value
 
