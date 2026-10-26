@@ -302,14 +302,17 @@ class TestGetEntityAddresses:
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.make_request")
-    async def test_addresses_success(self, mock_make_request, mock_context):
+    async def test_addresses_without_type_read_entity_record(self, mock_make_request, mock_context):
         mock_make_request.return_value = {
             "success": True,
             "data": {
-                "items": [
-                    {"addressType": "REGISTERED", "address1": "123 Main St"},
-                    {"addressType": "POSTAL", "address1": "PO Box 100"},
-                ]
+                "nzbn": TEST_NZBN,
+                "addresses": {
+                    "addressList": [
+                        {"addressType": "REGISTERED", "address1": "123 Main St"},
+                        {"addressType": "SERVICE", "address1": "PO Box 100"},
+                    ]
+                },
             },
         }
 
@@ -317,25 +320,36 @@ class TestGetEntityAddresses:
         data = result.result.data
 
         assert data["result"] is True
-        assert len(data["addresses"]) == 2
+        assert [address["addressType"] for address in data["addresses"]] == ["REGISTERED", "SERVICE"]
+        assert mock_make_request.call_args[0][2] == f"/entities/{TEST_NZBN}"
+
+    @pytest.mark.asyncio
+    @patch("nzbn.nzbn.make_request")
+    async def test_addresses_without_type_and_no_addresses(self, mock_make_request, mock_context):
+        mock_make_request.return_value = {"success": True, "data": {"nzbn": TEST_NZBN}}
+
+        result = await nzbn.execute_action("get_entity_addresses", {"nzbn": TEST_NZBN}, mock_context)
+
+        assert result.result.data["addresses"] == []
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.make_request")
     async def test_addresses_with_type_filter(self, mock_make_request, mock_context):
         mock_make_request.return_value = {
             "success": True,
-            "data": {"items": [{"addressType": "REGISTERED", "address1": "123 Main St"}]},
+            "data": {"addressList": [{"addressType": "REGISTERED", "address1": "123 Main St"}]},
         }
 
-        await nzbn.execute_action(
+        result = await nzbn.execute_action(
             "get_entity_addresses",
-            {"nzbn": TEST_NZBN, "address_type": "RegisteredOffice"},
+            {"nzbn": TEST_NZBN, "address_type": "registered"},
             mock_context,
         )
 
         call_args = mock_make_request.call_args
-        params = call_args[0][3]
-        assert params["address-type"] == "RegisteredOffice"
+        assert call_args[0][2] == f"/entities/{TEST_NZBN}/addresses"
+        assert call_args[0][3] == {"address-type": "REGISTERED"}
+        assert len(result.result.data["addresses"]) == 1
 
 
 class TestGetEntityRoles:

@@ -341,21 +341,26 @@ class GetEntityAddressesAction(ActionHandler):
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
-            params = {}
-            if inputs.get("address_type"):
-                params["address-type"] = inputs["address_type"]
-
-            result = await make_request(
-                context,
-                "GET",
-                f"/entities/{nzbn_id}/addresses",
-                params if params else None,
-            )
+            # The addresses endpoint requires address-type, so without a filter
+            # read every address from the entity record instead.
+            address_type = inputs.get("address_type", "").strip().upper()
+            if address_type:
+                result = await make_request(
+                    context,
+                    "GET",
+                    f"/entities/{nzbn_id}/addresses",
+                    {"address-type": address_type},
+                )
+            else:
+                result = await make_request(context, "GET", f"/entities/{nzbn_id}")
 
             if not result["success"]:
                 return ActionError(message=result["error"])
 
-            addresses = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
+            data = result["data"]
+            if not address_type:
+                data = data.get("addresses") or {}
+            addresses = data.get("addressList", [])
             return ActionResult(data={"result": True, "addresses": addresses}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))

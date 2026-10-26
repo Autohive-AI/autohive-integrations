@@ -220,7 +220,7 @@
                     },
                     "address_type": {
                         "type": "string",
-                        "description": "Filter by address type. Options: RegisteredOffice, AddressForService, Physical, Postal"
+                        "description": "Filter by address type code, e.g. REGISTERED (registered office), SERVICE (address for service), POSTAL, PHYSICAL, DELIVERY, OFFICE, INVOICE, RECORDS. Omit to return all addresses."
                     }
                 },
                 "required": ["nzbn"]

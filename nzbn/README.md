@@ -123,13 +123,13 @@ Retrieve essential entity information optimized for LLM token usage. Returns onl
 
 ### get_entity_addresses
 
-Retrieve addresses for a business entity.
+Retrieve addresses for a business entity. Without `address_type`, all addresses on the entity record are returned.
 
 **Inputs:**
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `nzbn` | string | Yes | The 13-digit NZBN identifier |
-| `address_type` | string | No | Filter by type (RegisteredOffice, Physical, Postal) |
+| `address_type` | string | No | Filter by address type code, e.g. `REGISTERED`, `SERVICE`, `POSTAL`, `PHYSICAL`, `DELIVERY`, `OFFICE`, `INVOICE`, `RECORDS`. Lower-case input is upper-cased; unrecognised codes return an API error. |
 
 ### get_entity_roles
 
