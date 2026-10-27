@@ -25,7 +25,7 @@ import pytest
 import pytest_asyncio
 from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
 
-from nzbn.nzbn import nzbn
+from nzbn.nzbn import make_request, nzbn
 
 pytestmark = pytest.mark.integration
 
@@ -162,18 +162,24 @@ class TestGetEntityAddresses:
 
 class TestEntityDetailLists:
     @pytest.mark.parametrize(
-        ("action", "key"),
+        ("action", "key", "path"),
         [
-            ("get_entity_roles", "roles"),
-            ("get_entity_trading_names", "tradingNames"),
-            ("get_entity_gst_numbers", "gstNumbers"),
-            ("get_entity_industry_classifications", "industryClassifications"),
+            ("get_entity_roles", "roles", "roles"),
+            ("get_entity_trading_names", "tradingNames", "trading-names"),
+            ("get_entity_gst_numbers", "gstNumbers", "gst-numbers"),
+            ("get_entity_industry_classifications", "industryClassifications", "industry-classifications"),
         ],
     )
-    async def test_returns_list(self, live_context, company_nzbn, action, key):
+    async def test_returns_every_record_from_the_api(self, live_context, company_nzbn, action, key, path):
+        # Compare with the raw API collection so a wrong response key, which would silently
+        # return an empty list, fails even when the entity has records.
+        raw = await make_request(live_context, "GET", f"/entities/{company_nzbn}/{path}")
+        assert raw["success"], raw
+        assert isinstance(raw["data"], list), f"/{path} no longer returns a list: {type(raw['data']).__name__}"
+
         data = await run_action(action, {"nzbn": company_nzbn}, live_context)
 
-        assert isinstance(data[key], list)
+        assert data[key] == raw["data"]
 
 
 class TestGetCompanyDetails:
