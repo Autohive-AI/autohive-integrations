@@ -1012,7 +1012,7 @@
     },
     "list_tasks": {
       "display_name": "List Tasks",
-      "description": "Retrieve tasks from HubSpot with optional pagination",
+      "description": "Retrieve HubSpot tasks. With no filters, lists every task in ID order. Add filters (owner, status, priority, type, due date range, linked contact/company/deal, or text) to search instead; filtered results are sorted by due date.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1024,7 +1024,7 @@
           },
           "after": {
             "type": "string",
-            "description": "Pagination cursor for next page (optional)"
+            "description": "Pagination cursor from paging.next.after of the previous call, made with the same filters (optional)"
           },
           "hs_task_properties": {
             "type": "array",
@@ -1032,6 +1032,90 @@
             "items": {
               "type": "string"
             }
+          },
+          "owner_id": {
+            "type": "string",
+            "description": "Only tasks assigned to this HubSpot owner ID (hubspot_owner_id)"
+          },
+          "owner_email": {
+            "type": "string",
+            "description": "Only tasks assigned to the HubSpot user with this email. Ignored when owner_id is given"
+          },
+          "status": {
+            "type": "array",
+            "description": "Only tasks with one of these statuses (hs_task_status)",
+            "items": {
+              "type": "string",
+              "enum": [
+                "NOT_STARTED",
+                "IN_PROGRESS",
+                "WAITING",
+                "COMPLETED",
+                "DEFERRED"
+              ]
+            }
+          },
+          "exclude_completed": {
+            "type": "boolean",
+            "description": "Leave out completed tasks (hs_task_status is not COMPLETED)"
+          },
+          "priority": {
+            "type": "array",
+            "description": "Only tasks with one of these priorities (hs_task_priority)",
+            "items": {
+              "type": "string",
+              "enum": [
+                "NONE",
+                "LOW",
+                "MEDIUM",
+                "HIGH"
+              ]
+            }
+          },
+          "task_type": {
+            "type": "array",
+            "description": "Only tasks of one of these types (hs_task_type), e.g. CALL, EMAIL, TODO",
+            "items": {
+              "type": "string"
+            }
+          },
+          "due_after": {
+            "type": [
+              "string",
+              "integer"
+            ],
+            "description": "Only tasks due at or after this time (hs_timestamp). Unix milliseconds or ISO 8601, e.g. 2026-10-27T00:00:00+13:00 for local midnight; a date without a time zone is read as UTC"
+          },
+          "due_before": {
+            "type": [
+              "string",
+              "integer"
+            ],
+            "description": "Only tasks due before this time (hs_timestamp), exclusive. Unix milliseconds or ISO 8601, e.g. 2026-10-28T00:00:00+13:00 for everything overdue or due today in New Zealand; a date without a time zone is read as UTC"
+          },
+          "query": {
+            "type": "string",
+            "description": "Text to search for in the task title and notes"
+          },
+          "contact_id": {
+            "type": "string",
+            "description": "Only tasks associated with this contact ID"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Only tasks associated with this company ID"
+          },
+          "deal_id": {
+            "type": "string",
+            "description": "Only tasks associated with this deal ID"
+          },
+          "sort_direction": {
+            "type": "string",
+            "description": "Due date order for filtered results (default: ASCENDING, oldest due first)",
+            "enum": [
+              "ASCENDING",
+              "DESCENDING"
+            ]
           }
         }
       },
@@ -1040,7 +1124,7 @@
         "properties": {
           "tasks": {
             "type": "array",
-            "description": "List of retrieved tasks",
+            "description": "List of retrieved tasks, each with associations.contacts/companies/deals listing linked record IDs",
             "items": {
               "type": "object"
             }
@@ -1048,6 +1132,10 @@
           "total": {
             "type": "integer",
             "description": "Number of tasks retrieved in this response"
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Number of tasks matching the filters across all pages (filtered searches only; HubSpot returns at most 10,000)"
           },
           "paging": {
             "type": [

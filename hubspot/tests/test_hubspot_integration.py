@@ -34,6 +34,7 @@ import asyncio
 import os
 import time
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from unittest.mock import MagicMock, AsyncMock
@@ -507,6 +508,52 @@ class TestGetOwner:
         assert "email" in owner
         assert "firstName" in owner
         assert "lastName" in owner
+
+
+# ---- Tasks (Read-Only) ----
+
+
+async def search_tasks(live_context, inputs):
+    result = await hubspot.execute_action("list_tasks", inputs, live_context)
+    assert result.type == ResultType.ACTION, result.result
+    return result.result.data
+
+
+class TestListTasksSearch:
+    async def test_owner_open_tasks_due_before_tomorrow(self, live_context):
+        require_owner_id()
+        tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        data = await search_tasks(
+            live_context,
+            {
+                "owner_id": TEST_OWNER_ID,
+                "exclude_completed": True,
+                "due_before": tomorrow,
+                "hs_task_properties": ["hs_task_status", "hubspot_owner_id", "hs_timestamp"],
+                "limit": 20,
+            },
+        )
+        assert data["total_matching"] >= data["total"]
+        for task in data["tasks"]:
+            assert task["properties"]["hubspot_owner_id"] == TEST_OWNER_ID
+            assert task["properties"]["hs_task_status"] != "COMPLETED"
+            assert isinstance(task["associations"], dict)
+
+    async def test_owner_email_finds_same_tasks_as_owner_id(self, live_context):
+        require_owner_id()
+        owner = (await hubspot.execute_action("get_owner", {"owner_id": TEST_OWNER_ID}, live_context)).result.data
+        by_id = await search_tasks(live_context, {"owner_id": TEST_OWNER_ID, "limit": 1})
+        by_email = await search_tasks(live_context, {"owner_email": owner["owner"]["email"], "limit": 1})
+        assert by_email["total_matching"] == by_id["total_matching"]
+
+    async def test_contact_filter_returns_tasks_linked_to_contact(self, live_context):
+        require_contact_id()
+        data = await search_tasks(live_context, {"contact_id": TEST_CONTACT_ID, "limit": 20})
+        if not data["tasks"]:
+            pytest.skip("No tasks linked to HUBSPOT_TEST_CONTACT_ID; association filter not exercised")
+        for task in data["tasks"]:
+            linked = [contact["id"] for contact in task["associations"].get("contacts", {}).get("results", [])]
+            assert TEST_CONTACT_ID in linked
 
 
 # ---- Calls and Meetings (Read-Only) ----
