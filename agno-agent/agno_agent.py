@@ -34,6 +34,10 @@ MAX_EVENT_BYTES = 2 * 1024 * 1024
 MAX_ERROR_BODY_BYTES = 4 * 1024
 UTF8_BOM = b"\xef\xbb\xbf"
 ANSWER_EVENTS = {"RunCompleted", "RunContent", "RunResponse", "RunResponseContent"}
+# Agno ends a failed run (e.g. the model's context window was exceeded) with this event instead of RunCompleted.
+RUN_ERROR = "RunError"
+KEPT_EVENTS = ANSWER_EVENTS | {RUN_ERROR}
+MAX_RUN_ERROR_CHARS = 500
 # SSE lines end in CRLF, LF or a bare CR.
 LINE_END = re.compile(rb"\r\n?|\n")
 
@@ -52,6 +56,10 @@ def _extract_credentials(context: ExecutionContext) -> tuple[str, str, str]:
 
 class AnswerTooLargeError(Exception):
     """The agent's answer exceeded ``MAX_EVENT_BYTES`` and could not be kept whole."""
+
+
+class AgentRunError(Exception):
+    """The agent run failed (Agno sent ``RunError``) without producing a final answer."""
 
 
 class _SSEAnswerCollector:
@@ -96,6 +104,7 @@ class _SSEAnswerCollector:
         self._data: List[str] = []
         self._data_bytes = 0  # above MAX_EVENT_BYTES marks the current event as dropped
         self._completed: Optional[str] = None
+        self._run_error: Optional[str] = None
         self._chunks: List[str] = []
         self._chunk_bytes = 0  # above MAX_EVENT_BYTES means the answer was too large
 
@@ -149,7 +158,7 @@ class _SSEAnswerCollector:
         self._line.clear()
         self._skipped_text = False
         # A line inside an event already typed as non-answer is never needed.
-        self._skip = self._mode == "sse" and self._event_type is not None and self._event_type not in ANSWER_EVENTS
+        self._skip = self._mode == "sse" and self._event_type is not None and self._event_type not in KEPT_EVENTS
 
     def _handle_line(self, newline: bool) -> None:
         line = self._line
@@ -188,7 +197,7 @@ class _SSEAnswerCollector:
             # It may have been the answer. Not falling back to the chunks: a post-hook may have rewritten it.
             self._chunk_bytes = MAX_EVENT_BYTES + 1
         # A non-answer event: line decides even when its lines weren't skipped (the first event).
-        if dropped or not data or (event_line is not None and event_line not in ANSWER_EVENTS):
+        if dropped or not data or (event_line is not None and event_line not in KEPT_EVENTS):
             return
         try:
             payload = json.loads(data[0] if len(data) == 1 else "\n".join(data))
@@ -202,6 +211,8 @@ class _SSEAnswerCollector:
             return
         if event == "RunCompleted":
             self._completed = content
+        elif event == RUN_ERROR:
+            self._run_error = content[:MAX_RUN_ERROR_CHARS]
         elif event in ANSWER_EVENTS and self._chunk_bytes <= MAX_EVENT_BYTES:
             self._chunk_bytes += len(content.encode("utf-8", "surrogatepass"))
             if self._chunk_bytes > MAX_EVENT_BYTES:
@@ -214,7 +225,8 @@ class _SSEAnswerCollector:
         """Flush a trailing event with no closing blank line and return the answer.
 
         An SSE body with no answer content (e.g. only ``RunStarted``) returns ``""``.
-        Raises ``AnswerTooLargeError`` if the answer outgrew ``MAX_EVENT_BYTES``.
+        Raises ``AnswerTooLargeError`` if the answer outgrew ``MAX_EVENT_BYTES``, and
+        ``AgentRunError`` if the run failed without a final answer.
         """
         if self._line:
             self._end_line(newline=False)
@@ -226,6 +238,9 @@ class _SSEAnswerCollector:
         self._dispatch()
         if self._completed:
             return self._completed
+        if self._run_error is not None:
+            # Any streamed chunks are a partial answer from the failed run.
+            raise AgentRunError(self._run_error)
         if self._chunk_bytes > MAX_EVENT_BYTES:
             raise AnswerTooLargeError()
         return "".join(self._chunks)
@@ -369,6 +384,8 @@ class AskAgentHandler(ActionHandler):
             return ActionError(
                 message="Could not reach the agent service after several attempts — check the API URL and try again."
             )
+        except AgentRunError as exc:
+            return ActionError(message=f"The agent could not finish this request: {exc or 'unknown error'}")
         except AnswerTooLargeError:
             return ActionError(
                 message=(

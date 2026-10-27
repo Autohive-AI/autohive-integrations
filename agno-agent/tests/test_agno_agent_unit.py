@@ -18,6 +18,7 @@ from agno_agent import (
     MAX_ERROR_BODY_BYTES,
     MAX_EVENT_BYTES,
     AgnoConnectedAccountHandler,
+    AgentRunError,
     AnswerTooLargeError,
     _extract_answer,
     _SSEAnswerCollector,
@@ -781,6 +782,23 @@ class TestAskAgentMemoryBounds:
         assert result.type == ResultType.ACTION_ERROR
         assert "too large" in result.result.message
 
+    async def test_run_error_returns_action_error_with_agent_reason(self, mock_context, agentos):
+        """Regression: a failed run (e.g. a huge SQL result overflowing the model's context) used to
+        come back as "No response from agent." with the reason lost."""
+        reason = "Your input exceeds the context window of this model."
+        agentos.queue(
+            _reply(
+                'event: RunStarted\ndata: {"event":"RunStarted"}\n\n'
+                'event: RunContent\ndata: {"content":"Let me run"}\n\n'
+                f'event: RunError\ndata: {{"event":"RunError","content":"{reason}"}}\n\n'
+            )
+        )
+
+        result = await _ask(mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == f"The agent could not finish this request: {reason}"
+
     async def test_long_answer_is_returned_in_full(self, mock_context, agentos):
         answer = "a" * 500_000
         agentos.queue(
@@ -1211,6 +1229,45 @@ class TestSSEAnswerCollector:
         collector.feed(b"id: 1\n" * (MAX_EVENT_BYTES // 6 + 10))
 
         with pytest.raises(AnswerTooLargeError):
+            collector.finish()
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            'event: RunError\ndata: {"content":"boom"}\n\n',
+            'data: {"event":"RunError","content":"boom"}\n\n',
+            'event: RunContent\ndata: {"content":"partial"}\n\nevent: RunError\ndata: {"content":"boom"}\n\n',
+            'event: RunError\rdata: {"content":"boom"}\r\r',
+        ],
+    )
+    def test_run_error_raises_with_agent_reason(self, body: str):
+        collector = _feed_in_chunks(body.encode(), 3)
+
+        with pytest.raises(AgentRunError, match="^boom$"):
+            collector.finish()
+
+    def test_run_completed_wins_over_run_error(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(
+            b'event: RunError\ndata: {"content":"retrying"}\n\nevent: RunCompleted\ndata: {"content":"final"}\n\n'
+        )
+
+        assert collector.finish() == "final"
+
+    def test_run_error_reason_is_capped(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(f'event: RunError\ndata: {{"content":"{"e" * 5000}"}}\n\n'.encode())
+
+        with pytest.raises(AgentRunError) as exc_info:
+            collector.finish()
+
+        assert len(str(exc_info.value)) == 500
+
+    def test_run_error_without_reason_still_raises(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(b'event: RunError\ndata: {"content":""}\n\n')
+
+        with pytest.raises(AgentRunError):
             collector.finish()
 
     def test_preamble_then_plain_line_is_returned_whole(self):
