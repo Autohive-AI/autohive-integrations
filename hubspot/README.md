@@ -389,11 +389,16 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `query` (optional): Text search across deal names
   - `pipeline_id` (optional): Filter by pipeline
   - `deal_stage` (optional): Filter by specific deal stage
+  - `year` (optional): Filter by close date year
   - `close_date_start/close_date_end` (optional): Date range filtering with flexible format support
   - `min_amount/max_amount` (optional): Amount range filtering
   - `sort_property` (optional): Sorting options
-  - `limit` (optional): Results per page (default: 100)
-- **Outputs:** Filtered deals with pagination guidance and timezone conversion
+  - `limit` (optional): Results per page (default: 50, max: 100)
+  - `after` (optional): Pagination cursor to continue from (`pagination.after` of the previous call)
+  - `fetch_all` (optional): Keep fetching pages until `max_total` deals are found (default: false)
+  - `max_total` (optional): Maximum deals across pages (default: `limit`, or 100 with `fetch_all`)
+- **Outputs:** Filtered deals with UTC dates, plus `pagination` (`has_more_pages`, `current_page_size`, `after`)
+- **Note:** All filters must match (AND)
 
 #### Action: `create_deal`
 - **Description:** Creates a new deal with optional associations

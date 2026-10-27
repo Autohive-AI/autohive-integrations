@@ -3599,6 +3599,7 @@ class SearchDealsActionHandler(ActionHandler):
         unique_deal_ids = set()  # For deduplication
         has_more = True
         after = inputs.get("after")  # Allow starting from specific pagination token
+        next_after = None  # HubSpot's cursor for the page after the last one fetched
         total_fetched = 0
         # Respect user's limit parameter even when fetch_all is false
         user_limit = inputs.get("limit", 50)
@@ -3640,97 +3641,33 @@ class SearchDealsActionHandler(ActionHandler):
             if query:
                 request_body["query"] = query
 
-            filter_groups = []
+            # All filters share one group so HubSpot ANDs them; separate groups would be ORed
+            filters = []
 
             if inputs.get("pipeline_id"):
-                filter_groups.append(
-                    {
-                        "filters": [
-                            {
-                                "propertyName": "pipeline",
-                                "operator": "EQ",
-                                "value": inputs["pipeline_id"],
-                            }
-                        ]
-                    }
-                )
+                filters.append({"propertyName": "pipeline", "operator": "EQ", "value": inputs["pipeline_id"]})
 
             # Year filtering to reduce response size
             if inputs.get("year"):
-                try:
-                    year = int(inputs["year"])
-                    # Create start and end of year in UTC milliseconds
-                    start_of_year = datetime(year, 1, 1, tzinfo=timezone.utc)
-                    end_of_year = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+                year = int(inputs["year"])
+                start_ms = int(datetime(year, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+                end_ms = int(datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
+                filters.append({"propertyName": "closedate", "operator": "GTE", "value": str(start_ms)})
+                filters.append({"propertyName": "closedate", "operator": "LTE", "value": str(end_ms)})
 
-                    start_ms = int(start_of_year.timestamp() * 1000)
-                    end_ms = int(end_of_year.timestamp() * 1000)
-
-                    filter_groups.append(
-                        {
-                            "filters": [
-                                {
-                                    "propertyName": "closedate",
-                                    "operator": "GTE",
-                                    "value": str(start_ms),
-                                },
-                                {
-                                    "propertyName": "closedate",
-                                    "operator": "LTE",
-                                    "value": str(end_ms),
-                                },
-                            ]
-                        }
-                    )
-                except (ValueError, TypeError):
-                    pass  # Invalid year, skip filtering
-
-            # Filter by deal stage
             if inputs.get("deal_stage"):
-                filter_groups.append(
-                    {
-                        "filters": [
-                            {
-                                "propertyName": "dealstage",
-                                "operator": "EQ",
-                                "value": inputs["deal_stage"],
-                            }
-                        ]
-                    }
-                )
+                filters.append({"propertyName": "dealstage", "operator": "EQ", "value": inputs["deal_stage"]})
 
-            # Instead, we'll fetch all deals and filter by date in post-processing
-            # This is more reliable than HubSpot's buggy date range API filtering
+            # Close date ranges are filtered after each page is fetched, below
 
-            # Filter by amount range
             if inputs.get("min_amount"):
-                filter_groups.append(
-                    {
-                        "filters": [
-                            {
-                                "propertyName": "amount",
-                                "operator": "GTE",
-                                "value": str(inputs["min_amount"]),
-                            }
-                        ]
-                    }
-                )
+                filters.append({"propertyName": "amount", "operator": "GTE", "value": str(inputs["min_amount"])})
 
             if inputs.get("max_amount"):
-                filter_groups.append(
-                    {
-                        "filters": [
-                            {
-                                "propertyName": "amount",
-                                "operator": "LTE",
-                                "value": str(inputs["max_amount"]),
-                            }
-                        ]
-                    }
-                )
+                filters.append({"propertyName": "amount", "operator": "LTE", "value": str(inputs["max_amount"])})
 
-            if filter_groups:
-                request_body["filterGroups"] = filter_groups
+            if filters:
+                request_body["filterGroups"] = [{"filters": filters}]
 
             # Add sorting
             if inputs.get("sort_property"):
@@ -3824,19 +3761,32 @@ class SearchDealsActionHandler(ActionHandler):
                 # Check for more pages
                 paging = result.get("paging")
                 if paging and paging.get("next") and paging["next"].get("after"):
-                    after = paging["next"]["after"]
+                    after = next_after = paging["next"]["after"]
                     # Continue if fetch_all is True OR if we haven't reached the user's requested limit
                     has_more = fetch_all or total_fetched < max_total
                 else:
+                    next_after = None
                     has_more = False
             else:
+                next_after = None
                 has_more = False
 
         # Convert deal dates from UTC timestamps to readable UTC strings
         for deal in deals:
             convert_deal_dates_to_utc(deal)
 
-        return ActionResult(data={"results": deals, "total": len(deals)}, cost_usd=None)
+        return ActionResult(
+            data={
+                "results": deals,
+                "total": len(deals),
+                "pagination": {
+                    "has_more_pages": next_after is not None,
+                    "current_page_size": len(deals),
+                    "after": next_after,
+                },
+            },
+            cost_usd=None,
+        )
 
 
 @hubspot.action("create_deal")

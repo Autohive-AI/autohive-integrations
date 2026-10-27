@@ -3276,9 +3276,23 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Number of results to return per page",
+            "description": "Number of results to return per page (default: 50)",
             "minimum": 1,
             "maximum": 100
+          },
+          "after": {
+            "type": "string",
+            "description": "Pagination cursor to continue from: pagination.after of the previous call made with the same filters"
+          },
+          "fetch_all": {
+            "type": "boolean",
+            "description": "Keep fetching pages until max_total deals are found or there are no more (default: false, one page)"
+          },
+          "max_total": {
+            "type": "integer",
+            "description": "Maximum deals to return across pages (default: limit, or 100 with fetch_all)",
+            "minimum": 1,
+            "maximum": 5000
           },
           "deal_stage": {
             "type": "string",
@@ -3303,6 +3317,10 @@
           "pipeline_id": {
             "type": "string",
             "description": "Filter deals by specific pipeline ID"
+          },
+          "year": {
+            "type": "integer",
+            "description": "Only deals with a close date in this calendar year (UTC)"
           },
           "sort_property": {
             "type": "string",
@@ -3398,7 +3416,7 @@
           },
           "pagination": {
             "type": "object",
-            "description": "Pagination metadata with clear guidance for getting more search results",
+            "description": "Whether more results exist and the cursor to fetch them",
             "properties": {
               "has_more_pages": {
                 "type": "boolean",
@@ -3408,13 +3426,12 @@
                 "type": "integer",
                 "description": "Number of deals in this search response"
               },
-              "pagination_instructions": {
-                "type": "string",
-                "description": "Instructions for retrieving additional search results"
-              },
-              "suggested_params_for_more": {
-                "type": "object",
-                "description": "Recommended parameters to get more comprehensive search results"
+              "after": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Cursor for the next page; pass it as after with the same filters. Null when there are no more results"
               }
             }
           }
