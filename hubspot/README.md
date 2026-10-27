@@ -146,6 +146,7 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `contact_id` (optional): Contact ID to associate the note with
   - `company_id` (optional): Company ID to associate the note with
   - `deal_id` (optional): Deal ID to associate the note with
+  - `associations` (optional): HubSpot associations array (native `to` / `types` format) for linking to other records, e.g. a ticket (type ID 228)
   - `timestamp` (optional): Custom timestamp in milliseconds (defaults to current time)
 - **Outputs:**
   - `note`: The created note object with HubSpot properties
@@ -372,6 +373,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Description:** Retrieve deals with comprehensive pagination support and optional rate limiting - ideal for accessing ALL deals from a pipeline
 - **Inputs:**
   - `limit` (optional): Deals per page (default: 50, max: 100)
+  - `after` (optional): Pagination cursor to continue from (`pagination.last_after_token` of the previous call)
   - `sort_property` (optional): Property to sort by (default: hs_lastmodifieddate)
   - `sort_direction` (optional): Sort direction ASC/DESC (default: DESC)
   - `fetch_all` (optional): Fetch all available pages (default: false)
@@ -387,11 +389,16 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `query` (optional): Text search across deal names
   - `pipeline_id` (optional): Filter by pipeline
   - `deal_stage` (optional): Filter by specific deal stage
+  - `year` (optional): Filter by close date year
   - `close_date_start/close_date_end` (optional): Date range filtering with flexible format support
   - `min_amount/max_amount` (optional): Amount range filtering
   - `sort_property` (optional): Sorting options
-  - `limit` (optional): Results per page (default: 100)
-- **Outputs:** Filtered deals with pagination guidance and timezone conversion
+  - `limit` (optional): Results per page (default: 50, max: 100)
+  - `after` (optional): Pagination cursor to continue from (`pagination.after` of the previous call)
+  - `fetch_all` (optional): Keep fetching pages until `max_total` deals are found (default: false)
+  - `max_total` (optional): Maximum deals across pages (default: `limit`, or 100 with `fetch_all`)
+- **Outputs:** Filtered deals with UTC dates, plus `pagination` (`has_more_pages`, `current_page_size`, `after`)
+- **Note:** All filters must match (AND)
 
 #### Action: `create_deal`
 - **Description:** Creates a new deal with optional associations
@@ -476,9 +483,8 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Description:** Retrieve all available lists/segments from HubSpot with filtering options
 - **Inputs:**
   - `list_ids` (optional): Array of specific list IDs to retrieve
-  - `include_filters` (optional): Include filter definitions for dynamic lists (default: false)
   - `processing_types` (optional): Filter by list types - ["MANUAL", "DYNAMIC", "SNAPSHOT"]
-- **Outputs:** Array of list objects with metadata including size, processing type, and creation dates
+- **Outputs:** Array of list objects with metadata including size, processing type, and creation dates. Filter definitions aren't included; use `get_list` with `include_filters` for a list's filters
 
 #### Action: `get_list`
 - **Description:** Retrieve detailed information about a specific list by ID
@@ -518,8 +524,8 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 #### Action: `create_task`
 - **Description:** Create a new HubSpot task and optionally associate it with contacts, companies, or deals
 - **Inputs:**
-  - `hs_task_body` (required): The task notes (HubSpot property `hs_task_body`)
   - `hs_timestamp` (required): Task due date; Unix timestamp in milliseconds or UTC string (HubSpot `hs_timestamp`)
+  - `hs_task_body` (optional): The task notes (HubSpot property `hs_task_body`)
   - `hs_task_subject` (optional): Task title
   - `hs_task_status` (optional): Task status (e.g., `COMPLETED`, `NOT_STARTED`)
   - `hs_task_priority` (optional): Task priority (e.g., `LOW`, `MEDIUM`, `HIGH`)
@@ -546,17 +552,34 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `message`: Success or error message
 
 #### Action: `list_tasks`
-- **Description:** Retrieve tasks with optional pagination
+- **Description:** Retrieve tasks. With no filters it lists every task in ID order. With any filter it uses HubSpot's [CRM search API](https://developers.hubspot.com/docs/api-reference/search/guide) and sorts by due date, so you can fetch, for example, one person's open tasks that are overdue or due today.
 - **Inputs:**
   - `limit` (optional): Maximum tasks to return (default: 100, max: 100)
-  - `after` (optional): Paging cursor for next page
+  - `after` (optional): Paging cursor (`paging.next.after`) from the previous call with the same filters
   - `hs_task_properties` (optional): Array of HubSpot task CRM property internal names to retrieve (defaults match create/update task fields)
+  - `owner_id` (optional): Only tasks assigned to this owner ID
+  - `owner_email` (optional): Only tasks assigned to the HubSpot user with this email; resolved with the Owners API. Ignored when `owner_id` is given
+  - `status` (optional): Array of statuses to include: `NOT_STARTED`, `IN_PROGRESS`, `WAITING`, `COMPLETED`, `DEFERRED`
+  - `exclude_completed` (optional): `true` to leave out completed tasks
+  - `priority` (optional): Array of priorities to include: `NONE`, `LOW`, `MEDIUM`, `HIGH`
+  - `task_type` (optional): Array of task types to include, e.g. `CALL`, `EMAIL`, `TODO`
+  - `due_after` (optional): Only tasks due at or after this time
+  - `due_before` (optional): Only tasks due before this time (exclusive)
+  - `query` (optional): Text to search for in the task title and notes
+  - `contact_id` / `company_id` / `deal_id` (optional): Only tasks associated with this record
+  - `sort_direction` (optional): `ASCENDING` (default, oldest due date first) or `DESCENDING`
 - **Outputs:**
-  - `tasks`: Array of task objects
+  - `tasks`: Array of task objects, each with `associations.contacts`, `associations.companies` and `associations.deals` listing linked record IDs (types with no linked records are omitted)
   - `total`: Number of tasks returned in this response
+  - `total_matching`: Number of tasks matching the filters across all pages (filtered searches only)
   - `paging`: Next-page metadata if available
   - `success`: Boolean indicating retrieval status
   - `message`: Success or error message
+- **Notes:**
+  - `due_after` and `due_before` take Unix milliseconds or an ISO 8601 date. Include the user's UTC offset to filter by their local day: `due_before: "2026-10-28T00:00:00+13:00"` returns everything overdue or due by the end of 27 October in New Zealand. A date without a time zone is read as UTC.
+  - HubSpot allows up to 6 filters per search; the owner, each of `status`/`exclude_completed`/`priority`/`task_type`, each due date bound and each linked record count as one.
+  - Search results can lag a few seconds behind recent changes, and HubSpot returns at most 10,000 matches per search.
+  - Filtered searches make 3 extra requests per page to read each task's linked contacts, companies and deals.
 
 #### Action: `update_task`
 - **Description:** Update an existing task's content or properties
@@ -618,11 +641,12 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 ### Marketing Emails
 
 #### Action: `get_marketing_emails`
-- **Description:** Retrieve a list of marketing emails with optional filtering by archived status
+- **Description:** Retrieve a list of marketing emails with optional filtering by archived and published status
 - **Inputs:**
   - `limit` (optional): Maximum number of emails to return (default: 50, max: 100)
   - `after` (optional): Pagination cursor for fetching next page of results
   - `archived` (optional): Filter by archived status (default: false)
+  - `is_published` (optional): `true` for only published emails, `false` for only unpublished; omit for both
 - **Outputs:**
   - `emails`: Array of marketing email objects with id, name, subject, type, state, created_at, updated_at
   - `total`: Total number of emails returned
@@ -657,7 +681,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `campaign_id` (required): The GUID of the campaign
   - `asset_type` (required): Type of assets to retrieve (LANDING_PAGE, MARKETING_EMAIL, FORM, BLOG_POST, SOCIAL_POST, CTA, WORKFLOW, SMS)
   - `start_date` (optional): Start date for metrics period (YYYY-MM-DD format)
-  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format)
+  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format). HubSpot only returns metrics when both dates are given
   - `limit` (optional): Maximum number of assets to return (default: 50, max: 100)
   - `after` (optional): Pagination cursor
 - **Outputs:**
@@ -672,7 +696,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Inputs:**
   - `campaign_id` (required): The GUID of the campaign
   - `start_date` (optional): Start date for metrics period (YYYY-MM-DD format)
-  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format)
+  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format). HubSpot only returns metrics when both dates are given; without them every total is 0
 - **Outputs:**
   - `campaign_id`: The campaign GUID
   - `date_range`: Object with start_date and end_date
@@ -777,8 +801,7 @@ The integration has the following dependencies:
 **Example 7: Getting all lists/segments**
 ```json
 {
-  "processing_types": ["DYNAMIC", "MANUAL"],
-  "include_filters": false
+  "processing_types": ["DYNAMIC", "MANUAL"]
 }
 ```
 
@@ -1007,7 +1030,49 @@ The integration has the following dependencies:
 }
 ```
 
+**Example 18: Get one person's open tasks that are overdue or due today (New Zealand time)**
+```json
+{
+  "owner_email": "rep@example.com",
+  "exclude_completed": true,
+  "due_before": "2026-10-28T00:00:00+13:00",
+  "hs_task_properties": ["hs_task_subject", "hs_task_body", "hs_task_status", "hs_task_priority", "hs_timestamp"]
+}
+```
+
+**Response:**
+```json
+{
+  "tasks": [
+    {
+      "id": "11",
+      "properties": {
+        "hs_task_subject": "Call Acme about renewal",
+        "hs_task_status": "NOT_STARTED",
+        "hs_task_priority": "HIGH",
+        "hs_timestamp": "24 Oct 2026 08:00 PM UTC"
+      },
+      "associations": {
+        "contacts": {"results": [{"id": "501"}]},
+        "deals": {"results": [{"id": "701"}]}
+      }
+    }
+  ],
+  "total": 1,
+  "total_matching": 1,
+  "paging": null,
+  "success": true,
+  "message": "Tasks retrieved successfully"
+}
+```
+
 ## Common Workflows
+
+### Task Triage Workflow
+1. Fetch the user's open tasks due before tomorrow's local midnight with `list_tasks` (`owner_email` or `owner_id`, `exclude_completed: true`, `due_before`)
+2. Page with `after` while `paging.next.after` is returned; `total_matching` says how many tasks matched
+3. For tasks that need context, read the linked companies and deals listed in each task's `associations` with `get_company` and `get_deal`
+4. Pull recent activity on the linked records with `get_contact_notes`, `get_contact_emails`, `get_contact_calls_and_meetings`, `get_deal_notes` or `get_deal_calls_and_meetings`, which all take the record ID
 
 ### Contact Management Workflow
 1. Search for existing contact using `get_contact` by email

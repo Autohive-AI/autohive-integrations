@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -260,6 +260,54 @@
           "deal_id": {
             "type": "string",
             "description": "The deal ID to associate the note with (optional)"
+          },
+          "associations": {
+            "type": "array",
+            "description": "HubSpot associations array (native format) for linking the note to more records. Each entry must include 'to' (with record id) and 'types' (with associationCategory and associationTypeId, e.g. HUBSPOT_DEFINED 202 for a contact, 190 company, 214 deal, 228 ticket)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": [
+                        "string",
+                        "number"
+                      ],
+                      "description": "The unique ID of the record to associate"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                },
+                "types": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "associationCategory": {
+                        "type": "string",
+                        "description": "Association category, usually HUBSPOT_DEFINED"
+                      },
+                      "associationTypeId": {
+                        "type": "integer",
+                        "description": "HubSpot association type ID for the relationship"
+                      }
+                    },
+                    "required": [
+                      "associationCategory",
+                      "associationTypeId"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "to",
+                "types"
+              ]
+            }
           },
           "timestamp": {
             "type": "number",
@@ -707,7 +755,7 @@
         "properties": {
           "hs_task_body": {
             "type": "string",
-            "description": "The task notes"
+            "description": "The task notes (optional)"
           },
           "hs_task_subject": {
             "type": "string",
@@ -802,7 +850,6 @@
           }
         },
         "required": [
-          "hs_task_body",
           "hs_timestamp"
         ]
       },
@@ -1013,7 +1060,7 @@
     },
     "list_tasks": {
       "display_name": "List Tasks",
-      "description": "Retrieve tasks from HubSpot with optional pagination",
+      "description": "Retrieve HubSpot tasks. With no filters, lists every task in ID order. Add filters (owner, status, priority, type, due date range, linked contact/company/deal, or text) to search instead; filtered results are sorted by due date.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1025,7 +1072,7 @@
           },
           "after": {
             "type": "string",
-            "description": "Pagination cursor for next page (optional)"
+            "description": "Pagination cursor from paging.next.after of the previous call, made with the same filters (optional)"
           },
           "hs_task_properties": {
             "type": "array",
@@ -1033,6 +1080,90 @@
             "items": {
               "type": "string"
             }
+          },
+          "owner_id": {
+            "type": "string",
+            "description": "Only tasks assigned to this HubSpot owner ID (hubspot_owner_id)"
+          },
+          "owner_email": {
+            "type": "string",
+            "description": "Only tasks assigned to the HubSpot user with this email. Ignored when owner_id is given"
+          },
+          "status": {
+            "type": "array",
+            "description": "Only tasks with one of these statuses (hs_task_status)",
+            "items": {
+              "type": "string",
+              "enum": [
+                "NOT_STARTED",
+                "IN_PROGRESS",
+                "WAITING",
+                "COMPLETED",
+                "DEFERRED"
+              ]
+            }
+          },
+          "exclude_completed": {
+            "type": "boolean",
+            "description": "Leave out completed tasks (hs_task_status is not COMPLETED)"
+          },
+          "priority": {
+            "type": "array",
+            "description": "Only tasks with one of these priorities (hs_task_priority)",
+            "items": {
+              "type": "string",
+              "enum": [
+                "NONE",
+                "LOW",
+                "MEDIUM",
+                "HIGH"
+              ]
+            }
+          },
+          "task_type": {
+            "type": "array",
+            "description": "Only tasks of one of these types (hs_task_type), e.g. CALL, EMAIL, TODO",
+            "items": {
+              "type": "string"
+            }
+          },
+          "due_after": {
+            "type": [
+              "string",
+              "integer"
+            ],
+            "description": "Only tasks due at or after this time (hs_timestamp). Unix milliseconds or ISO 8601, e.g. 2026-10-27T00:00:00+13:00 for local midnight; a date without a time zone is read as UTC"
+          },
+          "due_before": {
+            "type": [
+              "string",
+              "integer"
+            ],
+            "description": "Only tasks due before this time (hs_timestamp), exclusive. Unix milliseconds or ISO 8601, e.g. 2026-10-28T00:00:00+13:00 for everything overdue or due today in New Zealand; a date without a time zone is read as UTC"
+          },
+          "query": {
+            "type": "string",
+            "description": "Text to search for in the task title and notes"
+          },
+          "contact_id": {
+            "type": "string",
+            "description": "Only tasks associated with this contact ID"
+          },
+          "company_id": {
+            "type": "string",
+            "description": "Only tasks associated with this company ID"
+          },
+          "deal_id": {
+            "type": "string",
+            "description": "Only tasks associated with this deal ID"
+          },
+          "sort_direction": {
+            "type": "string",
+            "description": "Due date order for filtered results (default: ASCENDING, oldest due first)",
+            "enum": [
+              "ASCENDING",
+              "DESCENDING"
+            ]
           }
         }
       },
@@ -1041,7 +1172,7 @@
         "properties": {
           "tasks": {
             "type": "array",
-            "description": "List of retrieved tasks",
+            "description": "List of retrieved tasks, each with associations.contacts/companies/deals listing linked record IDs",
             "items": {
               "type": "object"
             }
@@ -1049,6 +1180,10 @@
           "total": {
             "type": "integer",
             "description": "Number of tasks retrieved in this response"
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Number of tasks matching the filters across all pages (filtered searches only; HubSpot returns at most 10,000)"
           },
           "paging": {
             "type": [
@@ -3141,9 +3276,23 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Number of results to return per page",
+            "description": "Number of results to return per page (default: 50)",
             "minimum": 1,
             "maximum": 100
+          },
+          "after": {
+            "type": "string",
+            "description": "Pagination cursor to continue from: pagination.after of the previous call made with the same filters"
+          },
+          "fetch_all": {
+            "type": "boolean",
+            "description": "Keep fetching pages until max_total deals are found or there are no more (default: false, one page)"
+          },
+          "max_total": {
+            "type": "integer",
+            "description": "Maximum deals to return across pages (default: limit, or 100 with fetch_all)",
+            "minimum": 1,
+            "maximum": 5000
           },
           "deal_stage": {
             "type": "string",
@@ -3168,6 +3317,10 @@
           "pipeline_id": {
             "type": "string",
             "description": "Filter deals by specific pipeline ID"
+          },
+          "year": {
+            "type": "integer",
+            "description": "Only deals with a close date in this calendar year (UTC)"
           },
           "sort_property": {
             "type": "string",
@@ -3263,7 +3416,7 @@
           },
           "pagination": {
             "type": "object",
-            "description": "Pagination metadata with clear guidance for getting more search results",
+            "description": "Whether more results exist and the cursor to fetch them",
             "properties": {
               "has_more_pages": {
                 "type": "boolean",
@@ -3273,13 +3426,12 @@
                 "type": "integer",
                 "description": "Number of deals in this search response"
               },
-              "pagination_instructions": {
-                "type": "string",
-                "description": "Instructions for retrieving additional search results"
-              },
-              "suggested_params_for_more": {
-                "type": "object",
-                "description": "Recommended parameters to get more comprehensive search results"
+              "after": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Cursor for the next page; pass it as after with the same filters. Null when there are no more results"
               }
             }
           }
@@ -3334,6 +3486,10 @@
             "description": "Number of deals to retrieve per page",
             "minimum": 1,
             "maximum": 100
+          },
+          "after": {
+            "type": "string",
+            "description": "Pagination cursor to continue from: pagination.last_after_token of the previous call made with the same filters"
           },
           "sort_property": {
             "type": "string",
@@ -3557,11 +3713,6 @@
               "type": "string"
             },
             "description": "Specific list IDs to retrieve (optional)"
-          },
-          "include_filters": {
-            "type": "boolean",
-            "description": "Include filter definitions for dynamic lists",
-            "default": false
           },
           "processing_types": {
             "type": "array",
@@ -4458,7 +4609,7 @@
     },
     "get_marketing_emails": {
       "display_name": "Get Marketing Emails",
-      "description": "List marketing emails from HubSpot. Supports filtering by name, status, and date range.",
+      "description": "List marketing emails from HubSpot, optionally filtered by archived or published status.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4473,19 +4624,14 @@
             "type": "string",
             "description": "Pagination cursor for fetching next page of results"
           },
-          "name": {
-            "type": "string",
-            "description": "Filter emails by name (partial match)"
+          "archived": {
+            "type": "boolean",
+            "description": "Return archived emails instead of active ones (default: false)",
+            "default": false
           },
-          "status": {
-            "type": "string",
-            "enum": [
-              "DRAFT",
-              "PUBLISHED",
-              "SCHEDULED",
-              "AUTOMATED"
-            ],
-            "description": "Filter by email status"
+          "is_published": {
+            "type": "boolean",
+            "description": "true for only published emails, false for only unpublished (draft) emails; omit for both"
           }
         },
         "required": []
@@ -4524,12 +4670,12 @@
                   ],
                   "description": "Email type (e.g., REGULAR, AUTOMATED)"
                 },
-                "status": {
+                "state": {
                   "type": [
                     "string",
                     "null"
                   ],
-                  "description": "Email status (DRAFT, PUBLISHED, etc.)"
+                  "description": "Email state (e.g. DRAFT, PUBLISHED, SCHEDULED, AUTOMATED)"
                 },
                 "created_at": {
                   "type": [
@@ -4836,6 +4982,14 @@
             ],
             "description": "Type of assets to retrieve"
           },
+          "start_date": {
+            "type": "string",
+            "description": "Start of the metrics period (YYYY-MM-DD). HubSpot only returns asset metrics when start_date and end_date are given"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "End of the metrics period (YYYY-MM-DD). HubSpot only returns asset metrics when start_date and end_date are given"
+          },
           "limit": {
             "type": "integer",
             "description": "Maximum number of assets to return (default: 50, max: 100)",
@@ -4920,6 +5074,14 @@
           "campaign_id": {
             "type": "string",
             "description": "The ID of the campaign"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Start of the metrics period (YYYY-MM-DD). HubSpot only returns asset metrics when start_date and end_date are given"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "End of the metrics period (YYYY-MM-DD). HubSpot only returns asset metrics when start_date and end_date are given"
           }
         },
         "required": [
@@ -4952,15 +5114,15 @@
               "object",
               "null"
             ],
-            "description": "Campaign date range",
+            "description": "The metrics period that was requested",
             "properties": {
-              "start": {
+              "start_date": {
                 "type": [
                   "string",
                   "null"
                 ]
               },
-              "end": {
+              "end_date": {
                 "type": [
                   "string",
                   "null"
