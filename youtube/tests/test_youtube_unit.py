@@ -3,6 +3,8 @@ Unit tests for the YouTube integration using mocked fetch.
 """
 
 import pytest
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
@@ -10,6 +12,17 @@ from autohive_integrations_sdk.integration import ResultType
 from youtube import youtube, YouTubeParser
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize("field", ["file", "files"])
+def test_thumbnail_schema_exposes_platform_file_contract(field):
+    config = json.loads((Path(__file__).parents[1] / "config.json").read_text())
+    schema = config["actions"]["upload_thumbnail"]["input_schema"]["properties"][field]
+    if field == "files":
+        schema = schema["items"]
+    assert schema["type"] == "object"
+    for name in ("content", "name", "contentType"):
+        assert schema["properties"][name]["type"] == "string"
 
 
 # ---- Helpers ----

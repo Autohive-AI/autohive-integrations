@@ -80,8 +80,8 @@ No additional configuration fields are required as authentication is handled thr
 - **Inputs:**
   - `video_id`: YouTube video ID (required)
   - `image_url`: URL of thumbnail image in JPEG or PNG format, max 2MB (one of `image_url`, `file`, or `files` is required)
-  - `file`: Chat-uploaded file object containing image data
-  - `files`: Array of chat-uploaded file objects (first file is used)
+  - `file`: Image file input. Autohive converts an agent file path into an object containing base64 `content`, `name`, and `contentType` before execution. Direct object callers must supply `content`.
+  - `files`: Array of image file inputs using the same object fields (first file is used)
 - **Outputs:**
   - `thumbnail`: Object with thumbnail variants keyed by size (`default`, `medium`, `high`, `standard`, `maxres`). Each value has `url`, `width`, `height`. Empty `{}` if YouTube returned no items.
   - `compression_info`: (only present if the image was auto-compressed) `original_size_mb`, `compressed_size_mb`, `reduction_percent`
