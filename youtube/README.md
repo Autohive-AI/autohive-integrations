@@ -81,7 +81,7 @@ No additional configuration fields are required as authentication is handled thr
   - `video_id`: YouTube video ID (required)
   - `image_url`: URL of thumbnail image in JPEG or PNG format, max 2MB (one of `image_url` or `file` is required)
   - `file`: Image file input. Autohive converts an agent file path into an object containing base64 `content`, `name`, and `contentType` before execution. Direct object callers must supply `content`.
-  - Migration for version 3.0.0: `files` is no longer supported. Pass the single thumbnail path through `file` instead.
+  - Migration for version 2.1.2: `files` is no longer supported. Pass the single thumbnail path through `file` instead.
 - **Outputs:**
   - `thumbnail`: Object with thumbnail variants keyed by size (`default`, `medium`, `high`, `standard`, `maxres`). Each value has `url`, `width`, `height`. Empty `{}` if YouTube returned no items.
   - `compression_info`: (only present if the image was auto-compressed) `original_size_mb`, `compressed_size_mb`, `reduction_percent`
