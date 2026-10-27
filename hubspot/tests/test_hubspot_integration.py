@@ -522,13 +522,13 @@ async def search_tasks(live_context, inputs):
 class TestListTasksSearch:
     async def test_owner_open_tasks_due_before_tomorrow(self, live_context):
         require_owner_id()
-        tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        due_before = (datetime.now(timezone.utc) + timedelta(days=1)).replace(microsecond=0)
         data = await search_tasks(
             live_context,
             {
                 "owner_id": TEST_OWNER_ID,
                 "exclude_completed": True,
-                "due_before": tomorrow,
+                "due_before": due_before.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "hs_task_properties": ["hs_task_status", "hubspot_owner_id", "hs_timestamp"],
                 "limit": 20,
             },
@@ -537,6 +537,9 @@ class TestListTasksSearch:
         for task in data["tasks"]:
             assert task["properties"]["hubspot_owner_id"] == TEST_OWNER_ID
             assert task["properties"]["hs_task_status"] != "COMPLETED"
+            # Due dates come back as e.g. "27 Oct 2026 08:00 PM UTC"; dropping the seconds only makes them earlier
+            due = datetime.strptime(task["properties"]["hs_timestamp"], "%d %b %Y %I:%M %p UTC")
+            assert due.replace(tzinfo=timezone.utc) < due_before
             assert isinstance(task["associations"], dict)
 
     async def test_owner_email_finds_same_tasks_as_owner_id(self, live_context):
