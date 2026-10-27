@@ -234,12 +234,15 @@ def _extract_answer(body: Any) -> str:
     """Pull the agent's answer from a JSON response body read in full.
 
     Some deployments or proxies answer with plain JSON despite ``stream=true``. A body
-    labelled JSON that doesn't parse (passed as bytes) is handled as text by the stream
-    parser, so SSE text still yields its answer and plain text is returned as-is.
+    labelled JSON that doesn't parse (passed as bytes), or a JSON string, is handled as
+    text by the stream parser, so SSE text still yields its answer and plain text is
+    returned as-is.
     """
     if isinstance(body, dict):
         candidate = body.get("content") or body.get("message")
         return candidate if isinstance(candidate, str) else ""
+    if isinstance(body, str):  # a JSON string
+        body = body.encode("utf-8")
     if not isinstance(body, (bytes, bytearray)):
         return ""
     collector = _SSEAnswerCollector()
@@ -346,6 +349,8 @@ class AskAgentHandler(ActionHandler):
                     )
                 )
             raise
+        except (aiohttp.InvalidURL, aiohttp.NonHttpUrlClientError):
+            return ActionError(message="The API URL is not a valid http(s) URL — check it in the connection settings.")
         except aiohttp.ClientConnectorError:
             return ActionError(
                 message="Could not reach the agent service after several attempts — check the API URL and try again."

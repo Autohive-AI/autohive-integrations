@@ -421,6 +421,20 @@ class TestAskAgentResponseParsing:
 
         assert result.result.data["response"] == '{"content": "x"}'
 
+    async def test_json_string_body_is_returned_as_answer(self, mock_context, agentos):
+        agentos.queue(_reply('"There are 42 active users."', content_type="application/json"))
+
+        result = await _ask(mock_context)
+
+        assert result.result.data["response"] == "There are 42 active users."
+
+    async def test_invalid_utf8_json_body_falls_back_to_text(self, mock_context, agentos):
+        agentos.queue(_reply(b"caf\xe9 answer", content_type="application/json"))
+
+        result = await _ask(mock_context)
+
+        assert result.result.data["response"] == "caf\ufffd answer"
+
     async def test_invalid_json_body_falls_back_to_text(self, mock_context, agentos):
         agentos.queue(_reply("not json", content_type="application/json"))
 
@@ -639,6 +653,17 @@ class TestAskAgentRetry:
         assert result.result.data["response"] == "ok"
         assert len(agentos.calls) == 3
 
+    @pytest.mark.parametrize("api_url", ["agno.example.com", "htps://agno.example.com", "http://"])
+    async def test_invalid_api_url_returns_action_error(self, mock_context, no_sleep, api_url: str):
+        """Uses the real aiohttp client, which rejects these URLs before sending anything."""
+        mock_context.auth["credentials"]["api_url"] = api_url
+
+        result = await _ask(mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "API URL is not a valid" in result.result.message
+        no_sleep.assert_not_awaited()
+
 
 class TestAskAgentMemoryBounds:
     """The run stream is read incrementally so large tool results can't exhaust memory."""
@@ -652,9 +677,11 @@ class TestAskAgentMemoryBounds:
         agentos.queue(_reply(body, chunk_size=64 * 1024))
 
         tracemalloc.start()
-        result = await _ask(mock_context, query="full table")
-        _, peak = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
+        try:
+            result = await _ask(mock_context, query="full table")
+            _, peak = tracemalloc.get_traced_memory()
+        finally:
+            tracemalloc.stop()
 
         assert result.result.data["response"] == "12 accounts dropped 20% or more."
         assert peak < 2 * 1024 * 1024
@@ -672,9 +699,11 @@ class TestAskAgentMemoryBounds:
         async with TestServer(app) as server:
             mock_context.auth["credentials"]["api_url"] = str(server.make_url(""))
             tracemalloc.start()
-            result = await _ask(mock_context, query="full table")
-            _, peak = tracemalloc.get_traced_memory()
-            tracemalloc.stop()
+            try:
+                result = await _ask(mock_context, query="full table")
+                _, peak = tracemalloc.get_traced_memory()
+            finally:
+                tracemalloc.stop()
 
         assert result.result.data["response"] == "12 accounts dropped 20% or more."
         assert peak < 8 * 1024 * 1024
@@ -921,6 +950,18 @@ class TestSSEAnswerCollector:
                 'data: {"event": "RunContent", "content": "survived"}\n\n',
                 "survived",
             ),
+            # The oldest Agno chunk name, RunResponse, is still collected.
+            (
+                'data: {"event": "RunResponse", "content": "leg"}\n\n'
+                'data: {"event": "RunResponse", "content": "acy"}\n\n',
+                "legacy",
+            ),
+            # Between two answer types, the payload's event field wins over the event: line.
+            (
+                'event: RunContent\ndata: {"event": "RunCompleted", "content": "final"}\n\n'
+                'event: RunContent\ndata: {"content": "late"}\n\n',
+                "final",
+            ),
             # Unknown event types are ignored.
             ('data: {"event": "RunMetrics", "content": "noise"}\n\n', ""),
             # An empty RunCompleted falls back to the streamed chunks.
@@ -1049,6 +1090,71 @@ class TestSSEAnswerCollector:
 
         assert collector.finish() == "ANS"
 
+    def test_pending_cr_is_cleared_by_a_chunk_without_line_end(self):
+        """A CR ending one chunk only pairs with an LF at the very start of the next chunk."""
+        collector = _SSEAnswerCollector()
+        collector.feed(b"event: RunContent\r")
+        collector.feed(b'data: {"content": "x"}')
+        collector.feed(b'\n\nevent: RunContent\ndata: {"content": "y"}\n\n')
+
+        assert collector.finish() == "xy"
+
+    def test_cr_in_middle_of_chunk_does_not_swallow_lf_starting_next_chunk(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(b'event: RunContent\rdata: {"content": "a"}')
+        collector.feed(b'\n\nevent: RunContent\ndata: {"content": "b"}\n\n')
+
+        assert collector.finish() == "ab"
+
+    def test_every_data_line_of_a_skipped_event_is_discarded(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(
+            b'event: RunStarted\ndata: {"event": "RunStarted"}\n\n'
+            b"event: ToolCallCompleted\n"
+            b'data: {"content": "rows"}\n'
+            b'data: {"event": "RunContent", "content": "leak"}\n'
+            b"\n"
+            b'event: RunContent\ndata: {"content": "kept"}\n\n'
+        )
+
+        assert collector.finish() == "kept"
+
+    @pytest.mark.parametrize("field", [b": ", b"id: ", b"retry: "])
+    def test_oversized_non_data_line_after_sse_starts_is_dropped(self, field: bytes):
+        raw = (
+            b'data: {"event": "RunStarted"}\n\n'
+            + field
+            + b"x" * (MAX_EVENT_BYTES + 1)
+            + b'\n\ndata: {"event": "RunCompleted", "content": "ok"}\n\n'
+        )
+        collector = _feed_in_chunks(raw, 64 * 1024)
+
+        assert collector.finish() == "ok"
+
+    def test_streamed_answer_exactly_at_cap_is_returned(self):
+        half = "h" * (MAX_EVENT_BYTES // 2)
+        collector = _SSEAnswerCollector()
+        for _ in range(2):
+            collector.feed(f'event: RunContent\ndata: {{"content": "{half}"}}\n\n'.encode())
+
+        assert collector.finish() == half * 2
+
+    def test_streamed_answer_one_byte_over_cap_raises(self):
+        half = "h" * (MAX_EVENT_BYTES // 2)
+        collector = _SSEAnswerCollector()
+        for content in (half, half + "!"):
+            collector.feed(f'event: RunContent\ndata: {{"content": "{content}"}}\n\n'.encode())
+
+        with pytest.raises(AnswerTooLargeError):
+            collector.finish()
+
+    def test_preamble_only_body_over_cap_raises(self):
+        collector = _SSEAnswerCollector()
+        collector.feed(b"id: 1\n" * (MAX_EVENT_BYTES // 6 + 10))
+
+        with pytest.raises(AnswerTooLargeError):
+            collector.finish()
+
     def test_preamble_then_plain_line_is_returned_whole(self):
         collector = _SSEAnswerCollector()
         collector.feed(b"id: 42\nname: Ada\n")
@@ -1114,10 +1220,13 @@ class TestExtractAnswer:
             ({"content": "from content"}, "from content"),
             ({"message": "from message"}, "from message"),
             ({"other": 1}, ""),
+            ({"content": 5}, ""),
+            ({"content": ["x"]}, ""),
+            ({"content": None, "message": "from message"}, "from message"),
             (b"plain text", "plain text"),
             (_sse('data: {"event": "RunStarted"}').encode(), ""),
             (_sse('data: {"event": "RunCompleted", "content": "sse"}').encode(), "sse"),
-            ("str bodies are not expected", ""),
+            ("plain text", "plain text"),
             (None, ""),
         ],
     )
