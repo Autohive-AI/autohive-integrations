@@ -1787,7 +1787,7 @@ class CreateContactActionHandler(ActionHandler):
         url = "https://api.hubapi.com/crm/v3/objects/contacts"
 
         # Merge properties and additional_properties
-        properties = inputs.get("properties", {}).copy()
+        properties = inputs["properties"].copy()
         additional_properties = inputs.get("additional_properties", {})
         properties.update(additional_properties)
 
@@ -1952,7 +1952,7 @@ class UpdateContactActionHandler(ActionHandler):
         url = f"https://api.hubapi.com/crm/v3/objects/contacts/{contact_id}"
 
         # Merge properties and additional_properties
-        properties = inputs.get("properties", {}).copy()
+        properties = inputs["properties"].copy()
         additional_properties = inputs.get("additional_properties", {})
         properties.update(additional_properties)
 
@@ -1987,7 +1987,7 @@ class SearchContactsActionHandler(ActionHandler):
         :return: Parsed JSON response containing search results.
         """
 
-        query = inputs.get("query", "")
+        query = inputs["query"]
         limit = inputs.get("limit", 100)
         after = inputs.get("after")
 
@@ -2541,7 +2541,7 @@ class CreateCompanyActionHandler(ActionHandler):
         url = "https://api.hubapi.com/crm/v3/objects/companies"
 
         # Transform properties to HubSpot format
-        payload = {"properties": inputs.get("properties", {})}
+        payload = {"properties": inputs["properties"]}
 
         response = await context.fetch(
             url,
@@ -2576,7 +2576,7 @@ class UpdateCompanyActionHandler(ActionHandler):
         url = f"https://api.hubapi.com/crm/v3/objects/companies/{company_id}"
 
         # Transform properties to HubSpot format
-        payload = {"properties": inputs.get("properties", {})}
+        payload = {"properties": inputs["properties"]}
 
         response = await context.fetch(
             url,
@@ -2606,7 +2606,7 @@ class SearchCompaniesActionHandler(ActionHandler):
         :return: Parsed JSON response with the search results.
         """
 
-        query = inputs.get("query", "")
+        query = inputs["query"]
         limit = inputs.get("limit", 100)
 
         url = "https://api.hubapi.com/crm/v3/objects/companies/search"
@@ -3859,7 +3859,7 @@ class CreateDealActionHandler(ActionHandler):
 
         url = "https://api.hubapi.com/crm/v3/objects/deals"
 
-        payload = {"properties": inputs.get("properties", {})}
+        payload = {"properties": inputs["properties"]}
 
         if inputs.get("associations"):
             payload["associations"] = inputs["associations"]
@@ -3896,7 +3896,7 @@ class UpdateDealActionHandler(ActionHandler):
 
         url = f"https://api.hubapi.com/crm/v3/objects/deals/{deal_id}"
 
-        payload = {"properties": inputs.get("properties", {})}
+        payload = {"properties": inputs["properties"]}
 
         response = await context.fetch(
             url,
