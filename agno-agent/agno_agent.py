@@ -14,6 +14,7 @@ from autohive_integrations_sdk import (
     ConnectedAccountInfo,
     ExecutionContext,
     HTTPError,
+    RateLimitError,
     Integration,
     ValidationError,
 )
@@ -64,11 +65,11 @@ class _SSEAnswerCollector:
 
     Once the body is known to be SSE, lines of an event whose ``event:`` line names a
     non-answer type (tool results, reasoning, metrics) are discarded without being
-    buffered or parsed, so for those the ``event:`` line decides. Events typed only in
-    their JSON are buffered up to ``MAX_EVENT_BYTES`` and dropped beyond that, since
-    their type is unknown. An answer
-    typed by its ``event:`` line (as Agno sends them) that outgrows the bound raises
-    ``AnswerTooLargeError`` rather than being cut short.
+    buffered or parsed, so for those the ``event:`` line decides. Any other event is
+    buffered up to ``MAX_EVENT_BYTES``. One that outgrows the bound may be the answer
+    (an untyped event can only be typed by parsing it), so unless a ``RunCompleted``
+    answer arrives, the collector raises ``AnswerTooLargeError`` rather than return
+    a cut-short or draft answer.
 
     The body is SSE once a ``data:`` line appears. Until then, ``event:``, ``id:``,
     ``retry:``, comment and blank lines are held; any other line, or the end of the body,
@@ -183,8 +184,8 @@ class _SSEAnswerCollector:
     def _dispatch(self) -> None:
         event_line, data, dropped = self._event_type, self._data, self._data_bytes > MAX_EVENT_BYTES
         self._event_type, self._data, self._data_bytes = None, [], 0
-        if dropped and event_line in ANSWER_EVENTS:
-            # Not falling back to the chunks for a dropped RunCompleted: a post-hook may have rewritten it.
+        if dropped and (event_line is None or event_line in ANSWER_EVENTS):
+            # It may have been the answer. Not falling back to the chunks: a post-hook may have rewritten it.
             self._chunk_bytes = MAX_EVENT_BYTES + 1
         # A non-answer event: line decides even when its lines weren't skipped (the first event).
         if dropped or not data or (event_line is not None and event_line not in ANSWER_EVENTS):
@@ -250,6 +251,14 @@ def _extract_answer(body: Any) -> str:
     return collector.finish()
 
 
+def _retry_after(value: str | None) -> int:
+    """Seconds from a ``Retry-After`` header; 60 when absent or not a number of seconds."""
+    try:
+        return max(0, int(value or ""))
+    except ValueError:
+        return 60
+
+
 async def _read_capped(content: aiohttp.StreamReader, limit: int) -> bytearray:
     """Read until EOF or ``limit`` bytes; a single ``read(n)`` may return less than n."""
     body = bytearray()
@@ -277,7 +286,12 @@ async def _post_run(url: str, data: Dict[str, str], headers: Dict[str, str], tim
                     body = await _read_capped(response.content, MAX_ERROR_BODY_BYTES)
                 except (aiohttp.ClientError, asyncio.TimeoutError):
                     body = bytearray()
-                raise HTTPError(response.status, body.decode("utf-8", errors="replace"))
+                message = body.decode("utf-8", errors="replace")
+                if response.status == 429:
+                    # As context.fetch did: RateLimitError carrying Retry-After (default 60), not retried.
+                    retry_after = _retry_after(response.headers.get("Retry-After"))
+                    raise RateLimitError(retry_after, 429, "Rate limit exceeded", message)
+                raise HTTPError(response.status, message)
 
             if response.content_type == "application/json":
                 raw = await _read_capped(response.content, MAX_EVENT_BYTES + 1)

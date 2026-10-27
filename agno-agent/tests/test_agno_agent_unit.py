@@ -11,7 +11,7 @@ import aiohttp
 import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestServer
-from autohive_integrations_sdk import FetchResponse, HTTPError
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from agno_agent import (
@@ -107,8 +107,17 @@ class _FakeStreamReader:
 
 
 class _FakeResponse:
-    def __init__(self, body: bytes, status: int, content_type: str, chunk_size: int, error: Exception | None):
+    def __init__(
+        self,
+        body: bytes,
+        status: int,
+        content_type: str,
+        chunk_size: int,
+        error: Exception | None,
+        headers: dict[str, str] | None = None,
+    ):
         self.status = status
+        self.headers = headers or {}
         # aiohttp's parsed media type: lowercased, parameters stripped.
         self.content_type = content_type.split(";")[0].strip().lower()
         self.content = _FakeStreamReader(body, chunk_size, error)
@@ -126,13 +135,14 @@ def _reply(
     content_type: str = "text/event-stream",
     chunk_size: int = 7,
     error: Exception | None = None,
+    headers: dict[str, str] | None = None,
 ) -> _FakeResponse:
     """Build a fake AgentOS HTTP response. Dict bodies are sent as JSON; ``error`` is
     raised mid-stream after the body has been delivered."""
     if isinstance(body, dict):
         body, content_type = json.dumps(body), "application/json"
     raw = body if isinstance(body, bytes) else body.encode("utf-8")
-    return _FakeResponse(raw, status, content_type, chunk_size, error)
+    return _FakeResponse(raw, status, content_type, chunk_size, error, headers)
 
 
 class _FakeAgentOS:
@@ -630,14 +640,42 @@ class TestAskAgentRetry:
         assert result.type == ResultType.ACTION_ERROR
         assert f"HTTP {status}" in result.result.message
 
-    @pytest.mark.parametrize("status", [429, 500])
-    async def test_non_gateway_errors_are_not_retried(self, mock_context, agentos, no_sleep, status: int):
-        agentos.queue(_reply("error", status=status, content_type="text/plain"))
+    async def test_non_gateway_errors_are_not_retried(self, mock_context, agentos, no_sleep):
+        agentos.queue(_reply("error", status=500, content_type="text/plain"))
 
         with pytest.raises(HTTPError) as exc_info:
             await _ask(mock_context)
 
-        assert exc_info.value.status == status
+        assert exc_info.value.status == 500
+        assert not isinstance(exc_info.value, RateLimitError)
+        assert len(agentos.calls) == 1
+        no_sleep.assert_not_awaited()
+
+    @pytest.mark.parametrize(
+        "headers, retry_after",
+        [
+            ({"Retry-After": "17"}, 17),
+            ({}, 60),
+            ({"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}, 60),
+            ({"Retry-After": "-5"}, 0),
+            ({"Retry-After": "0"}, 0),
+            ({"Retry-After": " 17 "}, 17),
+            ({"Retry-After": "1.5"}, 60),
+        ],
+    )
+    async def test_rate_limit_raises_rate_limit_error_with_retry_after(
+        self, mock_context, agentos, no_sleep, headers: dict, retry_after: int
+    ):
+        """Matches context.fetch: a 429 raises RateLimitError carrying Retry-After and is not retried."""
+        agentos.queue(_reply("slow down", status=429, content_type="text/plain", headers=headers))
+
+        with pytest.raises(RateLimitError) as exc_info:
+            await _ask(mock_context)
+
+        assert exc_info.value.status == 429
+        assert exc_info.value.retry_after == retry_after
+        assert exc_info.value.message == "Rate limit exceeded"
+        assert exc_info.value.response_data == "slow down"
         assert len(agentos.calls) == 1
         no_sleep.assert_not_awaited()
 
@@ -724,6 +762,24 @@ class TestAskAgentMemoryBounds:
         result = await _ask(mock_context)
 
         assert result.result.data["response"] == "done"
+
+    async def test_oversized_untyped_answer_returns_action_error_not_draft(self, mock_context, agentos):
+        """Older deployments type events only in the JSON; an oversized one may be the final answer."""
+        big = "c" * (MAX_EVENT_BYTES + 1)
+        agentos.queue(
+            _reply(
+                _sse(
+                    'data: {"event": "RunContent", "content": "draft"}',
+                    f'data: {{"event": "RunCompleted", "content": "{big}"}}',
+                ),
+                chunk_size=64 * 1024,
+            )
+        )
+
+        result = await _ask(mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "too large" in result.result.message
 
     async def test_long_answer_is_returned_in_full(self, mock_context, agentos):
         answer = "a" * 500_000
@@ -987,7 +1043,8 @@ class TestSSEAnswerCollector:
 
         assert collector.finish() == expected
 
-    def test_event_dropped_when_data_lines_exceed_cap_together(self):
+    def test_untyped_event_over_cap_across_data_lines_is_reported(self):
+        """The dropped event may have been the answer, so later chunks aren't returned in its place."""
         half = "x" * (MAX_EVENT_BYTES // 2 + 1)
         collector = _SSEAnswerCollector()
         collector.feed(
@@ -995,7 +1052,8 @@ class TestSSEAnswerCollector:
             'data: {"event": "RunContent", "content": "next"}\n\n'.encode()
         )
 
-        assert collector.finish() == "next"
+        with pytest.raises(AnswerTooLargeError):
+            collector.finish()
 
     def test_oversized_plain_line_raises(self):
         collector = _SSEAnswerCollector()
@@ -1167,14 +1225,67 @@ class TestSSEAnswerCollector:
         with pytest.raises(AnswerTooLargeError):
             collector.feed(b"id: " + b"9" * (MAX_EVENT_BYTES + 1))
 
-    def test_oversized_event_typed_only_in_json_is_dropped(self):
-        """Without an ``event:`` line the type is unknown until parsed, so an oversized event
-        is dropped rather than reported; Agno always sends the ``event:`` line."""
+    @pytest.mark.parametrize(
+        "after",
+        [
+            "",
+            'data: {"event": "RunContent", "content": "draft"}\n\n',
+        ],
+    )
+    def test_oversized_event_typed_only_in_json_is_reported(self, after: str):
+        """Without an ``event:`` line an oversized event can't be typed, so it may have been the answer:
+        report it rather than return no answer or the draft chunks."""
         big = "z" * (MAX_EVENT_BYTES + 1)
         collector = _SSEAnswerCollector()
-        collector.feed(f'data: {{"event": "RunCompleted", "content": "{big}"}}\n\n'.encode())
+        collector.feed((f'data: {{"event": "RunCompleted", "content": "{big}"}}\n\n' + after).encode())
 
-        assert collector.finish() == ""
+        with pytest.raises(AnswerTooLargeError):
+            collector.finish()
+
+    def test_run_completed_before_oversized_untyped_event_is_returned(self):
+        big = "z" * (MAX_EVENT_BYTES + 1)
+        collector = _SSEAnswerCollector()
+        collector.feed(
+            b'data: {"event": "RunCompleted", "content": "final"}\n\n'
+            + f'data: {{"event": "ToolCallCompleted", "content": "{big}"}}\n\n'.encode()
+        )
+
+        assert collector.finish() == "final"
+
+    def test_event_line_after_oversized_data_line_still_types_the_event(self):
+        """The type is read when the event ends, so an ``event:`` line after the data still counts."""
+        big = "z" * (MAX_EVENT_BYTES + 1)
+        collector = _SSEAnswerCollector()
+        collector.feed(
+            b'event: RunStarted\ndata: {"event": "RunStarted"}\n\n'
+            + f'data: {{"content": "{big}"}}\nevent: ToolCallCompleted\n\n'.encode()
+            + b'event: RunContent\ndata: {"content": "kept"}\n\n'
+        )
+
+        assert collector.finish() == "kept"
+
+    def test_run_completed_after_oversized_untyped_event_is_returned(self):
+        big = "z" * (MAX_EVENT_BYTES + 1)
+        collector = _SSEAnswerCollector()
+        collector.feed(
+            f'data: {{"event": "ToolCallCompleted", "content": "{big}"}}\n\n'
+            'data: {"event": "RunContent", "content": "draft"}\n\n'
+            'data: {"event": "RunCompleted", "content": "final"}\n\n'.encode()
+        )
+
+        assert collector.finish() == "final"
+
+    def test_oversized_typed_tool_event_does_not_block_chunk_answer(self):
+        """An ``event:`` line naming a non-answer type is trusted, so its size doesn't matter."""
+        big = "z" * (MAX_EVENT_BYTES + 1)
+        collector = _SSEAnswerCollector()
+        collector.feed(
+            b'event: RunStarted\ndata: {"event": "RunStarted"}\n\n'
+            + f'event: ToolCallCompleted\ndata: {{"content": "{big}"}}\n\n'.encode()
+            + b'event: RunContent\ndata: {"content": "kept"}\n\n'
+        )
+
+        assert collector.finish() == "kept"
 
     def test_lone_surrogates_count_toward_answer_limit(self):
         """Each lone surrogate counts 3 bytes, so these chunks pass the bound and are reported."""
