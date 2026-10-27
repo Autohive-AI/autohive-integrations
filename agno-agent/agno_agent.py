@@ -1,7 +1,6 @@
 """Agno Data Agent — Autohive integration for database Q&A via the Agno AgentOS API."""
 
 import asyncio
-import contextlib
 import json
 import re
 from typing import Any, Awaitable, Callable, Dict, List, Optional
@@ -63,22 +62,22 @@ class _SSEAnswerCollector:
     deployments. The event type is read from the payload's ``event`` field or, failing
     that, the SSE ``event:`` line.
 
-    Lines of an event whose ``event:`` line names a non-answer type (tool results,
-    reasoning, metrics) are discarded without being buffered or parsed, so for those
-    the ``event:`` line decides. Events typed only in their JSON are buffered up to
-    ``MAX_EVENT_BYTES`` and dropped beyond that, since their type is unknown. An answer
+    Once the body is known to be SSE, lines of an event whose ``event:`` line names a
+    non-answer type (tool results, reasoning, metrics) are discarded without being
+    buffered or parsed, so for those the ``event:`` line decides. Events typed only in
+    their JSON are buffered up to ``MAX_EVENT_BYTES`` and dropped beyond that, since
+    their type is unknown. An answer
     typed by its ``event:`` line (as Agno sends them) that outgrows the bound raises
     ``AnswerTooLargeError`` rather than being cut short.
 
-    The body is SSE once a ``data:``, ``event:`` or comment line appears. Until then,
-    ``id:``, ``retry:`` and blank lines are held; any other line, or the end of the body,
+    The body is SSE once a ``data:`` line appears. Until then, ``event:``, ``id:``,
+    ``retry:``, comment and blank lines are held; any other line, or the end of the body,
     means it is a plain answer and is returned as text (also bounded by ``MAX_EVENT_BYTES``).
+    A body of only comment and blank lines (e.g. keep-alives) has no answer.
     """
 
-    # Comment lines (":") only exist in SSE, so they decide it too, e.g. a keep-alive-only stream.
-    SSE_EVENT_FIELDS = (b"data:", b"event:", b":")
-    SSE_PREAMBLE_FIELDS = (b"id:", b"retry:")
-    SSE_EVENT_PREFIXES = SSE_EVENT_FIELDS + tuple(UTF8_BOM + field for field in SSE_EVENT_FIELDS)
+    SSE_PREAMBLE_FIELDS = (b"event:", b"id:", b"retry:", b":")
+    DATA_PREFIXES = (b"data:", UTF8_BOM + b"data:")
 
     def __init__(self) -> None:
         self._line = bytearray()
@@ -91,13 +90,13 @@ class _SSEAnswerCollector:
         self._mode: Optional[str] = None  # "sse" or "raw" once decided; raw text is held until then
         self._raw = bytearray()
         self._raw_overflow = False
+        self._raw_has_text = False  # a held line other than a comment or blank line
         self._event_type: Optional[str] = None
         self._data: List[str] = []
         self._data_bytes = 0  # above MAX_EVENT_BYTES marks the current event as dropped
         self._completed: Optional[str] = None
         self._chunks: List[str] = []
-        self._chunk_bytes = 0  # above MAX_EVENT_BYTES means the streamed answer was too large
-        self._completed_too_large = False
+        self._chunk_bytes = 0  # above MAX_EVENT_BYTES means the answer was too large
 
     def feed(self, chunk: bytes) -> None:
         view = memoryview(chunk)
@@ -113,26 +112,22 @@ class _SSEAnswerCollector:
                     raise AnswerTooLargeError()
                 return
             match = LINE_END.search(chunk, start)
-            end = -1 if match is None else match.start()
-            stop = len(chunk) if end == -1 else end
+            stop = match.start() if match else len(chunk)
             if self._skip:
                 # Don't slice: skipped lines can be tens of MB.
                 self._skipped_text = self._skipped_text or stop > start
             else:
                 self._line += view[start:stop]
                 if len(self._line) > MAX_EVENT_BYTES:
-                    if self._mode is None and not self._line.startswith(self.SSE_EVENT_PREFIXES):
+                    if self._mode is None and not self._line.startswith(self.DATA_PREFIXES):
                         # An oversized line of a plain body.
-                        self._mode = "raw"
-                        self._append_raw(self._line)
-                        self._line.clear()
                         raise AnswerTooLargeError()
                     self._mode = "sse"
                     self._raw.clear()
                     self._line.clear()
                     self._skip = self._skipped_text = True
                     self._data_bytes = MAX_EVENT_BYTES + 1
-            if end == -1:
+            if match is None:
                 return
             self._end_line(newline=True)
             start = match.end()
@@ -153,24 +148,27 @@ class _SSEAnswerCollector:
         self._line.clear()
         self._skipped_text = False
         # A line inside an event already typed as non-answer is never needed.
-        self._skip = self._event_type is not None and self._event_type not in ANSWER_EVENTS
+        self._skip = self._mode == "sse" and self._event_type is not None and self._event_type not in ANSWER_EVENTS
 
     def _handle_line(self, newline: bool) -> None:
         line = self._line
         if self._mode is None:
             if line.startswith(UTF8_BOM):
                 del line[: len(UTF8_BOM)]
-            if not line.startswith(self.SSE_EVENT_FIELDS):
-                # Undecided: hold the text. id:/retry:/comment and blank lines keep it undecided;
-                # any other line makes it a plain answer.
+            if line.startswith(b"data:"):
+                self._mode = "sse"
+                self._raw.clear()
+            else:
+                # Undecided: hold the text. SSE preamble and blank lines keep it undecided (and
+                # an event: line still types the coming event); any other line makes it plain.
                 self._append_raw(line)
                 if newline:
                     self._append_raw(b"\n")
-                if line.strip() and not line.startswith(self.SSE_PREAMBLE_FIELDS):
-                    self._mode = "raw"
-                return
-            self._mode = "sse"
-            self._raw.clear()
+                if line.strip() and not line.startswith(b":"):
+                    self._raw_has_text = True
+                    if not line.startswith(self.SSE_PREAMBLE_FIELDS):
+                        self._mode = "raw"
+                        return
         if not line:
             self._dispatch()
         elif line.startswith(b"event:"):
@@ -185,13 +183,11 @@ class _SSEAnswerCollector:
     def _dispatch(self) -> None:
         event_line, data, dropped = self._event_type, self._data, self._data_bytes > MAX_EVENT_BYTES
         self._event_type, self._data, self._data_bytes = None, [], 0
-        if dropped and event_line == "RunCompleted":
-            # Agno streams the same content as RunContent chunks, which then hold the whole answer;
-            # a too-large answer would overflow those as well.
-            self._completed_too_large = True
-        elif dropped and event_line in ANSWER_EVENTS:
+        if dropped and event_line in ANSWER_EVENTS:
+            # Not falling back to the chunks for a dropped RunCompleted: a post-hook may have rewritten it.
             self._chunk_bytes = MAX_EVENT_BYTES + 1
-        if dropped or not data:
+        # A non-answer event: line decides even when its lines weren't skipped (the first event).
+        if dropped or not data or (event_line is not None and event_line not in ANSWER_EVENTS):
             return
         try:
             payload = json.loads(data[0] if len(data) == 1 else "\n".join(data))
@@ -224,12 +220,12 @@ class _SSEAnswerCollector:
         if self._mode != "sse":
             if self._raw_overflow:
                 raise AnswerTooLargeError()
-            # Undecided means only blank, id: or retry: lines: no answer unless they hold text.
-            return self._raw.decode("utf-8", errors="replace") if self._raw.strip() else ""
+            # Plain text, or only SSE preamble and blank lines: kept unless they are just comments.
+            return self._raw.decode("utf-8", errors="replace") if self._raw_has_text else ""
         self._dispatch()
         if self._completed:
             return self._completed
-        if self._chunk_bytes > MAX_EVENT_BYTES or (self._completed_too_large and not self._chunks):
+        if self._chunk_bytes > MAX_EVENT_BYTES:
             raise AnswerTooLargeError()
         return "".join(self._chunks)
 
@@ -238,16 +234,16 @@ def _extract_answer(body: Any) -> str:
     """Pull the agent's answer from a JSON response body read in full.
 
     Some deployments or proxies answer with plain JSON despite ``stream=true``. A body
-    labelled JSON that doesn't parse is handled as text by the stream parser, so SSE
-    text still yields its answer and plain text is returned as-is.
+    labelled JSON that doesn't parse (passed as bytes) is handled as text by the stream
+    parser, so SSE text still yields its answer and plain text is returned as-is.
     """
     if isinstance(body, dict):
         candidate = body.get("content") or body.get("message")
         return candidate if isinstance(candidate, str) else ""
-    if not isinstance(body, str):
+    if not isinstance(body, (bytes, bytearray)):
         return ""
     collector = _SSEAnswerCollector()
-    collector.feed(body.encode("utf-8"))
+    collector.feed(body)
     return collector.finish()
 
 
@@ -273,21 +269,22 @@ async def _post_run(url: str, data: Dict[str, str], headers: Dict[str, str], tim
     async with aiohttp.ClientSession(timeout=client_timeout) as session:
         async with session.post(url, data=data, headers=headers) as response:
             if response.status >= 400:
-                body = bytearray()
                 # The body is only diagnostic; losing it mustn't hide a retryable gateway status.
-                with contextlib.suppress(aiohttp.ClientError, asyncio.TimeoutError):
+                try:
                     body = await _read_capped(response.content, MAX_ERROR_BODY_BYTES)
+                except (aiohttp.ClientError, asyncio.TimeoutError):
+                    body = bytearray()
                 raise HTTPError(response.status, body.decode("utf-8", errors="replace"))
 
             if response.content_type == "application/json":
-                # Some deployments or proxies answer with plain JSON despite stream=true.
                 raw = await _read_capped(response.content, MAX_EVENT_BYTES + 1)
                 if len(raw) > MAX_EVENT_BYTES:
                     raise AnswerTooLargeError()
-                body: Any = raw.decode("utf-8", errors="replace")
-                with contextlib.suppress(json.JSONDecodeError):
-                    body = json.loads(body)
-                return _extract_answer(body)
+                try:
+                    payload: Any = json.loads(raw)
+                except ValueError:  # invalid JSON or invalid UTF-8
+                    payload = raw
+                return _extract_answer(payload)
 
             # The SSE stream, or a plain text answer; the collector tells them apart.
             collector = _SSEAnswerCollector()

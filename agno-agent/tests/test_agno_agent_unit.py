@@ -1,6 +1,7 @@
 """Unit tests for the agno-agent integration (Agno AgentOS API)."""
 
 import asyncio
+import gzip
 import json
 import tracemalloc
 from typing import Any
@@ -8,6 +9,8 @@ from unittest.mock import AsyncMock, patch
 
 import aiohttp
 import pytest
+from aiohttp import web
+from aiohttp.test_utils import TestServer
 from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
@@ -51,6 +54,26 @@ def _overflowing_chunks() -> list[str]:
 def _sse(*events: str) -> str:
     """Build an SSE response body from already-encoded ``data: ...`` lines."""
     return "\n\n".join(events) + "\n\n"
+
+
+def _feed_in_chunks(raw: bytes, chunk_size: int) -> _SSEAnswerCollector:
+    collector = _SSEAnswerCollector()
+    for i in range(0, len(raw), chunk_size):
+        collector.feed(raw[i : i + chunk_size])
+    return collector
+
+
+def _large_tool_result_body() -> bytes:
+    """An Agno run whose ToolCallCompleted event carries ~48 MB of SQL rows."""
+    return b"".join(
+        [
+            b'event: RunStarted\ndata: {"event":"RunStarted"}\n\n',
+            b'event: ToolCallCompleted\ndata: {"event":"ToolCallCompleted","tool":{"result":"',
+            b"row," * (12 * 1024 * 1024),
+            b'"}}\n\n',
+            b'event: RunCompleted\ndata: {"event":"RunCompleted","content":"12 accounts dropped 20% or more."}\n\n',
+        ]
+    )
 
 
 # ---- Fake AgentOS transport ----
@@ -368,13 +391,18 @@ class TestAskAgentResponseParsing:
         assert result.result.data["response"] == "There are 42 active users."
 
     @pytest.mark.parametrize("content_type", ["text/plain", "text/event-stream"])
-    async def test_plain_answer_starting_with_sse_field_name_is_kept(self, mock_context, agentos, content_type: str):
-        """Text that merely starts with ``id:`` or ``retry:`` has no SSE data, so it is a plain answer."""
-        agentos.queue(_reply("id: 42 name: Ada", content_type=content_type))
+    @pytest.mark.parametrize(
+        "answer", ["id: 42 name: Ada", "event: launch moved to Friday\nTeam notified.", ": note\nTotal is 42."]
+    )
+    async def test_plain_answer_starting_with_sse_field_name_is_kept(
+        self, mock_context, agentos, content_type: str, answer: str
+    ):
+        """Text that merely starts like SSE metadata has no ``data:`` line, so it is a plain answer."""
+        agentos.queue(_reply(answer, content_type=content_type))
 
         result = await _ask(mock_context)
 
-        assert result.result.data["response"] == "id: 42 name: Ada"
+        assert result.result.data["response"] == answer
 
     @pytest.mark.parametrize("content_type", ["Application/JSON", "APPLICATION/JSON; charset=utf-8"])
     async def test_json_content_type_is_case_insensitive(self, mock_context, agentos, content_type: str):
@@ -619,17 +647,7 @@ class TestAskAgentMemoryBounds:
         """Regression: a 'return the full table' query streamed ~50 MB of ToolCallCompleted
         SQL results and the action ran out of memory. Non-answer events must be discarded
         as they stream, not held in memory."""
-        body = (
-            b"event: RunStarted\n"
-            b'data: {"event":"RunStarted"}\n'
-            b"\n"
-            b"event: ToolCallCompleted\n"
-            b'data: {"event":"ToolCallCompleted","tool":{"result":"' + b"row," * (12 * 1024 * 1024) + b'"}}\n'
-            b"\n"
-            b"event: RunCompleted\n"
-            b'data: {"event":"RunCompleted","content":"12 accounts dropped 20% or more."}\n'
-            b"\n"
-        )
+        body = _large_tool_result_body()
         assert len(body) > 40 * 1024 * 1024
         agentos.queue(_reply(body, chunk_size=64 * 1024))
 
@@ -640,6 +658,26 @@ class TestAskAgentMemoryBounds:
 
         assert result.result.data["response"] == "12 accounts dropped 20% or more."
         assert peak < 2 * 1024 * 1024
+
+    async def test_large_gzip_tool_result_over_real_http_is_not_buffered(self, mock_context):
+        """Regression: aiohttp before 3.14 inflated a whole gzip chunk at once, so a compressed
+        ~48 MB tool result was buffered before the collector saw it. Uses the real transport."""
+        body = gzip.compress(_large_tool_result_body(), compresslevel=1)
+
+        async def runs(request: web.Request) -> web.Response:
+            return web.Response(body=body, content_type="text/event-stream", headers={"Content-Encoding": "gzip"})
+
+        app = web.Application()
+        app.router.add_post("/agents/my-agent/runs", runs)
+        async with TestServer(app) as server:
+            mock_context.auth["credentials"]["api_url"] = str(server.make_url(""))
+            tracemalloc.start()
+            result = await _ask(mock_context, query="full table")
+            _, peak = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
+
+        assert result.result.data["response"] == "12 accounts dropped 20% or more."
+        assert peak < 8 * 1024 * 1024
 
     async def test_oversized_event_without_event_line_is_dropped(self, mock_context, agentos):
         """Events typed only inside their JSON are buffered up to the cap, then dropped."""
@@ -677,15 +715,20 @@ class TestAskAgentMemoryBounds:
         assert result.type == ResultType.ACTION_ERROR
         assert "too large" in result.result.message
 
-    async def test_oversized_run_completed_returns_action_error(self, mock_context, agentos):
+    @pytest.mark.parametrize(
+        "before, completed",
+        [
+            ('event: RunStarted\ndata: {"event": "RunStarted"}', '"content": "{big}"'),
+            # The chunks are only a draft: a post-hook may have rewritten the dropped final answer.
+            ('event: RunContent\ndata: {"content": "draft"}', '"content": "final", "session_state": "{big}"'),
+        ],
+    )
+    async def test_oversized_run_completed_returns_action_error(
+        self, mock_context, agentos, before: str, completed: str
+    ):
         big = "c" * (MAX_EVENT_BYTES + 1)
-        agentos.queue(
-            _reply(
-                f'event: RunStarted\ndata: {{"event": "RunStarted"}}\n\n'
-                f'event: RunCompleted\ndata: {{"content": "{big}"}}\n\n',
-                chunk_size=64 * 1024,
-            )
-        )
+        completed = completed.replace("{big}", big)
+        agentos.queue(_reply(f"{before}\n\nevent: RunCompleted\ndata: {{{completed}}}\n\n", chunk_size=64 * 1024))
 
         result = await _ask(mock_context)
 
@@ -770,9 +813,7 @@ class TestSSEAnswerCollector:
     @pytest.mark.parametrize("chunk_size", [1, 2, 5, 64 * 1024])
     def test_chunk_boundaries_do_not_change_result(self, chunk_size: int):
         raw = AGNO_WIRE_BODY.encode()
-        collector = _SSEAnswerCollector()
-        for i in range(0, len(raw), chunk_size):
-            collector.feed(raw[i : i + chunk_size])
+        collector = _feed_in_chunks(raw, chunk_size)
 
         assert collector.finish() == "Hello world."
 
@@ -795,9 +836,7 @@ class TestSSEAnswerCollector:
     @pytest.mark.parametrize("chunk_size", [1, 2, 5, 64 * 1024])
     def test_cr_and_crlf_line_ends_match_lf(self, line_end: str, chunk_size: int):
         raw = AGNO_WIRE_BODY.replace("\n", line_end).encode()
-        collector = _SSEAnswerCollector()
-        for i in range(0, len(raw), chunk_size):
-            collector.feed(raw[i : i + chunk_size])
+        collector = _feed_in_chunks(raw, chunk_size)
 
         assert collector.finish() == "Hello world."
 
@@ -840,9 +879,7 @@ class TestSSEAnswerCollector:
             f'event: ToolCallCompleted\rdata: {{"content": "{huge}"}}\r\r'
             'event: RunContent\rdata: {"content":"kept"}\r\r'
         ).encode()
-        collector = _SSEAnswerCollector()
-        for i in range(0, len(raw), 64 * 1024):
-            collector.feed(raw[i : i + 64 * 1024])
+        collector = _feed_in_chunks(raw, 64 * 1024)
 
         assert collector.finish() == "kept"
 
@@ -939,17 +976,29 @@ class TestSSEAnswerCollector:
 
         assert collector.finish() == ""
 
-    def test_oversized_run_completed_keeps_complete_streamed_answer(self):
-        """A RunCompleted inflated past the bound by metadata doesn't discard the streamed chunks."""
+    @pytest.mark.parametrize("chunk_size", [7, 64 * 1024, MAX_EVENT_BYTES * 2])
+    def test_oversized_run_completed_is_not_replaced_by_streamed_chunks(self, chunk_size: int):
+        """A post-hook can rewrite the final answer, so the chunks are only a draft of a dropped RunCompleted."""
+        heavy = "m" * (MAX_EVENT_BYTES + 1)
+        raw = (
+            'event: RunContent\ndata: {"content": "dra"}\n\n'
+            'event: RunContent\ndata: {"content": "ft"}\n\n'
+            f'event: RunCompleted\ndata: {{"content": "final", "session_state": "{heavy}"}}\n\n'
+        ).encode()
+        collector = _feed_in_chunks(raw, chunk_size)
+
+        with pytest.raises(AnswerTooLargeError):
+            collector.finish()
+
+    def test_oversized_non_answer_event_does_not_block_chunk_answer(self):
         heavy = "m" * (MAX_EVENT_BYTES + 1)
         collector = _SSEAnswerCollector()
         collector.feed(
-            b'event: RunContent\ndata: {"content": "hel"}\n\n'
-            b'event: RunContent\ndata: {"content": "lo"}\n\n'
-            + f'event: RunCompleted\ndata: {{"content": "hello", "metrics": "{heavy}"}}\n\n'.encode()
+            f'event: RunStarted\ndata: {{"pad": "{heavy}"}}\n\n'.encode()
+            + b'event: RunContent\ndata: {"content": "kept"}\n\n'
         )
 
-        assert collector.finish() == "hello"
+        assert collector.finish() == "kept"
 
     def test_bom_before_oversized_first_event_is_still_sse(self):
         big = "x" * (MAX_EVENT_BYTES + 1)
@@ -958,6 +1007,45 @@ class TestSSEAnswerCollector:
             f'\ufeffdata: {{"event": "ToolCallCompleted", "content": "{big}"}}\n\n'.encode()
             + b'data: {"event": "RunCompleted", "content": "ANS"}\n\n'
         )
+
+        assert collector.finish() == "ANS"
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            b"event: launch moved to Friday\nTeam notified.\n",
+            b"event: launch moved to Friday",
+            b"id: 42\nevent: signup\nretry: tomorrow",
+            b": note\nTotal is 42.",
+            b"\xef\xbb\xbfevent: launch moved\nok",
+        ],
+    )
+    def test_plain_answer_starting_with_sse_field_names_is_kept(self, body: bytes):
+        """Only a data: line makes a body SSE, so a plain answer that starts like SSE metadata is kept."""
+        collector = _SSEAnswerCollector()
+        collector.feed(body)
+
+        assert collector.finish() == body.removeprefix(b"\xef\xbb\xbf").decode()
+
+    @pytest.mark.parametrize("chunk_size", [1, 3, 64 * 1024])
+    def test_event_line_before_first_data_line_still_types_the_event(self, chunk_size: int):
+        raw = (
+            b'event: RunContent\ndata: {"content": "a"}\n\n'
+            b'event: ToolCallCompleted\ndata: {"content": "noise"}\n\n'
+            b'event: RunContent\ndata: {"content": "b"}\n\n'
+        )
+        collector = _feed_in_chunks(raw, chunk_size)
+
+        assert collector.finish() == "ab"
+
+    def test_oversized_first_tool_event_is_dropped(self):
+        """Before the first data: line nothing is skipped, so the first event is bounded by the cap instead."""
+        huge = "x" * (MAX_EVENT_BYTES * 3)
+        raw = (
+            f'event: ToolCallCompleted\ndata: {{"event": "ToolCallCompleted", "content": "{huge}"}}\n\n'
+            'event: RunCompleted\ndata: {"content": "ANS"}\n\n'
+        ).encode()
+        collector = _feed_in_chunks(raw, 64 * 1024)
 
         assert collector.finish() == "ANS"
 
@@ -1026,8 +1114,10 @@ class TestExtractAnswer:
             ({"content": "from content"}, "from content"),
             ({"message": "from message"}, "from message"),
             ({"other": 1}, ""),
-            ("plain text", "plain text"),
-            (_sse('data: {"event": "RunStarted"}'), ""),
+            (b"plain text", "plain text"),
+            (_sse('data: {"event": "RunStarted"}').encode(), ""),
+            (_sse('data: {"event": "RunCompleted", "content": "sse"}').encode(), "sse"),
+            ("str bodies are not expected", ""),
             (None, ""),
         ],
     )
