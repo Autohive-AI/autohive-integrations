@@ -1176,12 +1176,13 @@ class CreateTaskActionHandler(ActionHandler):
         :return: Dictionary with the created task information.
         """
         # Required by input_schema; missing keys are rejected by the runner before execute.
-        task_body = inputs["hs_task_body"]
         timestamp = inputs["hs_timestamp"]
 
         # Build the task properties
-        properties = {"hs_task_body": task_body, "hs_timestamp": str(timestamp)}
+        properties = {"hs_timestamp": str(timestamp)}
 
+        if inputs.get("hs_task_body"):
+            properties["hs_task_body"] = inputs.get("hs_task_body")
         if inputs.get("hs_task_subject"):
             properties["hs_task_subject"] = inputs.get("hs_task_subject")
         if inputs.get("hs_task_status"):

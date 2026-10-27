@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -707,7 +707,7 @@
         "properties": {
           "hs_task_body": {
             "type": "string",
-            "description": "The task notes"
+            "description": "The task notes (optional)"
           },
           "hs_task_subject": {
             "type": "string",
@@ -802,7 +802,6 @@
           }
         },
         "required": [
-          "hs_task_body",
           "hs_timestamp"
         ]
       },

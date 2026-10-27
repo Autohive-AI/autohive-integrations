@@ -303,3 +303,19 @@ class TestListTasks:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Failed to retrieve tasks" in result.result.message
+
+
+class TestCreateTaskOptionalBody:
+    @pytest.mark.asyncio
+    async def test_create_task_without_body(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_TASK_RESPONSE)
+
+        result = await hubspot.execute_action(
+            "create_task",
+            {"hs_task_subject": "Call back", "hs_timestamp": 1700000000000},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        properties = mock_context.fetch.call_args.kwargs["json"]["properties"]
+        assert properties == {"hs_timestamp": "1700000000000", "hs_task_subject": "Call back"}

@@ -518,8 +518,8 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 #### Action: `create_task`
 - **Description:** Create a new HubSpot task and optionally associate it with contacts, companies, or deals
 - **Inputs:**
-  - `hs_task_body` (required): The task notes (HubSpot property `hs_task_body`)
   - `hs_timestamp` (required): Task due date; Unix timestamp in milliseconds or UTC string (HubSpot `hs_timestamp`)
+  - `hs_task_body` (optional): The task notes (HubSpot property `hs_task_body`)
   - `hs_task_subject` (optional): Task title
   - `hs_task_status` (optional): Task status (e.g., `COMPLETED`, `NOT_STARTED`)
   - `hs_task_priority` (optional): Task priority (e.g., `LOW`, `MEDIUM`, `HIGH`)
