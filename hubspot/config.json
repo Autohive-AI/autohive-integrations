@@ -261,6 +261,54 @@
             "type": "string",
             "description": "The deal ID to associate the note with (optional)"
           },
+          "associations": {
+            "type": "array",
+            "description": "HubSpot associations array (native format) for linking the note to more records. Each entry must include 'to' (with record id) and 'types' (with associationCategory and associationTypeId, e.g. HUBSPOT_DEFINED 202 for a contact, 190 company, 214 deal, 228 ticket)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": [
+                        "string",
+                        "number"
+                      ],
+                      "description": "The unique ID of the record to associate"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ]
+                },
+                "types": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "associationCategory": {
+                        "type": "string",
+                        "description": "Association category, usually HUBSPOT_DEFINED"
+                      },
+                      "associationTypeId": {
+                        "type": "integer",
+                        "description": "HubSpot association type ID for the relationship"
+                      }
+                    },
+                    "required": [
+                      "associationCategory",
+                      "associationTypeId"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "to",
+                "types"
+              ]
+            }
+          },
           "timestamp": {
             "type": "number",
             "description": "Custom timestamp in milliseconds (optional, defaults to current time)"
@@ -3422,6 +3470,10 @@
             "minimum": 1,
             "maximum": 100
           },
+          "after": {
+            "type": "string",
+            "description": "Pagination cursor to continue from: pagination.last_after_token of the previous call made with the same filters"
+          },
           "sort_property": {
             "type": "string",
             "description": "Property to sort deals by"
@@ -4560,6 +4612,11 @@
             "type": "string",
             "description": "Pagination cursor for fetching next page of results"
           },
+          "archived": {
+            "type": "boolean",
+            "description": "Return archived emails instead of active ones (default: false)",
+            "default": false
+          },
           "name": {
             "type": "string",
             "description": "Filter emails by name (partial match)"
@@ -4923,6 +4980,14 @@
             ],
             "description": "Type of assets to retrieve"
           },
+          "start_date": {
+            "type": "string",
+            "description": "Start of the metrics period (YYYY-MM-DD). HubSpot only returns asset metrics when start_date and end_date are given"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "End of the metrics period (YYYY-MM-DD). HubSpot only returns asset metrics when start_date and end_date are given"
+          },
           "limit": {
             "type": "integer",
             "description": "Maximum number of assets to return (default: 50, max: 100)",
@@ -5007,6 +5072,14 @@
           "campaign_id": {
             "type": "string",
             "description": "The ID of the campaign"
+          },
+          "start_date": {
+            "type": "string",
+            "description": "Start of the metrics period (YYYY-MM-DD). HubSpot only returns asset metrics when start_date and end_date are given"
+          },
+          "end_date": {
+            "type": "string",
+            "description": "End of the metrics period (YYYY-MM-DD). HubSpot only returns asset metrics when start_date and end_date are given"
           }
         },
         "required": [
@@ -5039,15 +5112,15 @@
               "object",
               "null"
             ],
-            "description": "Campaign date range",
+            "description": "The metrics period that was requested",
             "properties": {
-              "start": {
+              "start_date": {
                 "type": [
                   "string",
                   "null"
                 ]
               },
-              "end": {
+              "end_date": {
                 "type": [
                   "string",
                   "null"

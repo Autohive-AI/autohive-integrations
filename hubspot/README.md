@@ -146,6 +146,7 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `contact_id` (optional): Contact ID to associate the note with
   - `company_id` (optional): Company ID to associate the note with
   - `deal_id` (optional): Deal ID to associate the note with
+  - `associations` (optional): HubSpot associations array (native `to` / `types` format) for linking to other records, e.g. a ticket (type ID 228)
   - `timestamp` (optional): Custom timestamp in milliseconds (defaults to current time)
 - **Outputs:**
   - `note`: The created note object with HubSpot properties
@@ -372,6 +373,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Description:** Retrieve deals with comprehensive pagination support and optional rate limiting - ideal for accessing ALL deals from a pipeline
 - **Inputs:**
   - `limit` (optional): Deals per page (default: 50, max: 100)
+  - `after` (optional): Pagination cursor to continue from (`pagination.last_after_token` of the previous call)
   - `sort_property` (optional): Property to sort by (default: hs_lastmodifieddate)
   - `sort_direction` (optional): Sort direction ASC/DESC (default: DESC)
   - `fetch_all` (optional): Fetch all available pages (default: false)
@@ -674,7 +676,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `campaign_id` (required): The GUID of the campaign
   - `asset_type` (required): Type of assets to retrieve (LANDING_PAGE, MARKETING_EMAIL, FORM, BLOG_POST, SOCIAL_POST, CTA, WORKFLOW, SMS)
   - `start_date` (optional): Start date for metrics period (YYYY-MM-DD format)
-  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format)
+  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format). HubSpot only returns metrics when both dates are given
   - `limit` (optional): Maximum number of assets to return (default: 50, max: 100)
   - `after` (optional): Pagination cursor
 - **Outputs:**
@@ -689,7 +691,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Inputs:**
   - `campaign_id` (required): The GUID of the campaign
   - `start_date` (optional): Start date for metrics period (YYYY-MM-DD format)
-  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format)
+  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format). HubSpot only returns metrics when both dates are given; without them every total is 0
 - **Outputs:**
   - `campaign_id`: The campaign GUID
   - `date_range`: Object with start_date and end_date

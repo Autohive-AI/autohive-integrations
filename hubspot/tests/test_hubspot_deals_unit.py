@@ -149,6 +149,16 @@ class TestGetDeals:
 
     @pytest.mark.asyncio
     @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_resumes_from_after_cursor(self, mock_sleep, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        result = await hubspot.execute_action("get_deals", {"after": "150"}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"]["after"] == "150"
+
+    @pytest.mark.asyncio
+    @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_pipeline_filter(self, mock_sleep, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,

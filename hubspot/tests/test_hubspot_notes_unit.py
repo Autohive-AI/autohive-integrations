@@ -58,6 +58,18 @@ class TestCreateNote:
         assert assoc["types"][0]["associationTypeId"] == 202
 
     @pytest.mark.asyncio
+    async def test_create_note_with_native_ticket_association(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_NOTE_RESPONSE)
+        ticket = {"to": {"id": "900"}, "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 228}]}
+
+        result = await hubspot.execute_action(
+            "create_note", {"note_body": "Ticket note", "associations": [ticket]}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"]["associations"] == [ticket]
+
+    @pytest.mark.asyncio
     async def test_create_note_multiple_associations(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=SAMPLE_NOTE_RESPONSE)
 
