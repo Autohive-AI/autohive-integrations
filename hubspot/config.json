@@ -3697,11 +3697,6 @@
             },
             "description": "Specific list IDs to retrieve (optional)"
           },
-          "include_filters": {
-            "type": "boolean",
-            "description": "Include filter definitions for dynamic lists",
-            "default": false
-          },
           "processing_types": {
             "type": "array",
             "items": {
@@ -4597,7 +4592,7 @@
     },
     "get_marketing_emails": {
       "display_name": "Get Marketing Emails",
-      "description": "List marketing emails from HubSpot. Supports filtering by name, status, and date range.",
+      "description": "List marketing emails from HubSpot, optionally filtered by archived or published status.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4617,19 +4612,9 @@
             "description": "Return archived emails instead of active ones (default: false)",
             "default": false
           },
-          "name": {
-            "type": "string",
-            "description": "Filter emails by name (partial match)"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "DRAFT",
-              "PUBLISHED",
-              "SCHEDULED",
-              "AUTOMATED"
-            ],
-            "description": "Filter by email status"
+          "is_published": {
+            "type": "boolean",
+            "description": "true for only published emails, false for only unpublished (draft) emails; omit for both"
           }
         },
         "required": []
@@ -4668,12 +4653,12 @@
                   ],
                   "description": "Email type (e.g., REGULAR, AUTOMATED)"
                 },
-                "status": {
+                "state": {
                   "type": [
                     "string",
                     "null"
                   ],
-                  "description": "Email status (DRAFT, PUBLISHED, etc.)"
+                  "description": "Email state (e.g. DRAFT, PUBLISHED, SCHEDULED, AUTOMATED)"
                 },
                 "created_at": {
                   "type": [

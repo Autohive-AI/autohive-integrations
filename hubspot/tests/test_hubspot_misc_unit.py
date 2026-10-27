@@ -796,6 +796,22 @@ class TestGetMarketingEmails:
         assert params["after"] == "abc123"
 
     @pytest.mark.asyncio
+    async def test_published_filter(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        await hubspot.execute_action("get_marketing_emails", {"is_published": False}, mock_context)
+
+        assert mock_context.fetch.call_args[1]["params"]["isPublished"] == "false"
+
+    @pytest.mark.asyncio
+    async def test_published_filter_omitted_by_default(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        await hubspot.execute_action("get_marketing_emails", {}, mock_context)
+
+        assert "isPublished" not in mock_context.fetch.call_args[1]["params"]
+
+    @pytest.mark.asyncio
     async def test_response_structure(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,

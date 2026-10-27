@@ -478,9 +478,8 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Description:** Retrieve all available lists/segments from HubSpot with filtering options
 - **Inputs:**
   - `list_ids` (optional): Array of specific list IDs to retrieve
-  - `include_filters` (optional): Include filter definitions for dynamic lists (default: false)
   - `processing_types` (optional): Filter by list types - ["MANUAL", "DYNAMIC", "SNAPSHOT"]
-- **Outputs:** Array of list objects with metadata including size, processing type, and creation dates
+- **Outputs:** Array of list objects with metadata including size, processing type, and creation dates. Filter definitions aren't included; use `get_list` with `include_filters` for a list's filters
 
 #### Action: `get_list`
 - **Description:** Retrieve detailed information about a specific list by ID
@@ -637,11 +636,12 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 ### Marketing Emails
 
 #### Action: `get_marketing_emails`
-- **Description:** Retrieve a list of marketing emails with optional filtering by archived status
+- **Description:** Retrieve a list of marketing emails with optional filtering by archived and published status
 - **Inputs:**
   - `limit` (optional): Maximum number of emails to return (default: 50, max: 100)
   - `after` (optional): Pagination cursor for fetching next page of results
   - `archived` (optional): Filter by archived status (default: false)
+  - `is_published` (optional): `true` for only published emails, `false` for only unpublished; omit for both
 - **Outputs:**
   - `emails`: Array of marketing email objects with id, name, subject, type, state, created_at, updated_at
   - `total`: Total number of emails returned
@@ -796,8 +796,7 @@ The integration has the following dependencies:
 **Example 7: Getting all lists/segments**
 ```json
 {
-  "processing_types": ["DYNAMIC", "MANUAL"],
-  "include_filters": false
+  "processing_types": ["DYNAMIC", "MANUAL"]
 }
 ```
 

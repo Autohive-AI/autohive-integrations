@@ -4017,8 +4017,7 @@ class GetListsHandler(ActionHandler):
         if inputs.get("processing_types"):
             search_body["processingTypes"] = inputs["processing_types"]
 
-        # Note: includeFilters is not supported in search endpoint
-        # We'll get filters in individual list calls if needed
+        # The search endpoint can't return filter definitions; get_list does
 
         response = await fetch_with_rate_limit_retries(
             context,
@@ -4540,6 +4539,8 @@ class GetMarketingEmailsHandler(ActionHandler):
 
         if after:
             params["after"] = after
+        if inputs.get("is_published") is not None:
+            params["isPublished"] = str(inputs["is_published"]).lower()
 
         response = await fetch_with_rate_limit_retries(context, url, params=params)
         data = await parse_response(response)
