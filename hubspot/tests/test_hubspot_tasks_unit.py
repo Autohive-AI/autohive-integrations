@@ -310,7 +310,7 @@ OWNERS_URL = "https://api.hubapi.com/crm/v3/owners/"
 
 
 def _association_batch_response(rows):
-    """v4 association batch read body: rows of (task ID, [linked record IDs])."""
+    """Association batch read body: rows of (task ID, [linked record IDs])."""
     return {
         "status": "COMPLETE",
         "results": [
@@ -566,6 +566,61 @@ class TestListTasksSearch:
 
         assert result.type == ResultType.ACTION_ERROR
         assert result.result.message == "Failed to search tasks: 403 Forbidden"
+
+    @pytest.mark.asyncio
+    async def test_task_with_nothing_linked_is_not_an_error(self, mock_context):
+        contacts = _association_batch_response([("11", ["501"])])
+        contacts["numErrors"] = 1
+        contacts["errors"] = [
+            {
+                "status": "error",
+                "category": "OBJECT_NOT_FOUND",
+                "subCategory": "crm.associations.NO_ASSOCIATIONS_FOUND",
+                "message": "No contact is associated with task 12.",
+                "context": {"fromObjectId": ["12"]},
+            }
+        ]
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data=SEARCH_RESPONSE),
+            FetchResponse(status=207, headers={}, data=contacts),
+            FetchResponse(status=200, headers={}, data=_association_batch_response([])),
+            FetchResponse(status=200, headers={}, data=_association_batch_response([])),
+        ]
+
+        result = await hubspot.execute_action("list_tasks", {"owner_id": "77"}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        tasks = {task["id"]: task for task in result.result.data["tasks"]}
+        assert tasks["11"]["associations"] == {"contacts": {"results": [{"id": "501"}]}}
+        assert tasks["12"]["associations"] == {}
+
+    @pytest.mark.asyncio
+    async def test_other_association_error_returns_action_error(self, mock_context):
+        companies = _association_batch_response([])
+        companies["numErrors"] = 1
+        companies["errors"] = [{"status": "error", "category": "INTERNAL_ERROR", "message": "Something went wrong"}]
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data=SEARCH_RESPONSE),
+            FetchResponse(status=200, headers={}, data=_association_batch_response([])),
+            FetchResponse(status=207, headers={}, data=companies),
+        ]
+
+        result = await hubspot.execute_action("list_tasks", {"owner_id": "77"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Failed to search tasks: Could not read linked companies: Something went wrong"
+
+    @pytest.mark.asyncio
+    async def test_unfinished_association_batch_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data=SEARCH_RESPONSE),
+            FetchResponse(status=200, headers={}, data={**_association_batch_response([]), "status": "PROCESSING"}),
+        ]
+
+        result = await hubspot.execute_action("list_tasks", {"owner_id": "77"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Failed to search tasks: HubSpot is still processing the linked contacts lookup"
 
     @pytest.mark.asyncio
     async def test_paging_cursor_alone_keeps_listing(self, mock_context):

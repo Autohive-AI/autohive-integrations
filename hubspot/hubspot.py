@@ -1513,7 +1513,16 @@ async def _task_associations(
             headers={"Content-Type": "application/json"},
         )
         data = await parse_response(response)
-        # Tasks with nothing of this type linked aren't in results; listing tasks omits empty types the same way
+        reason = _unfinished_batch_reason(data)
+        if reason:
+            raise ValueError(f"HubSpot {reason} the linked {object_type} lookup")
+        # A task with nothing of this type linked comes back as an OBJECT_NOT_FOUND error and is left out of
+        # results, as listing tasks omits empty types; any other error means its links couldn't be read
+        for error in data.get("errors", []):
+            if error.get("category") != "OBJECT_NOT_FOUND":
+                raise ValueError(
+                    f"Could not read linked {object_type}: {error.get('message') or error.get('category')}"
+                )
         for row in data.get("results", []):
             associations[str(row["from"]["id"])][object_type] = {
                 "results": [{"id": str(linked["toObjectId"])} for linked in row.get("to", [])]
