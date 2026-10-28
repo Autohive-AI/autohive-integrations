@@ -489,6 +489,63 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `owner_id` (required): The ID of the owner
 - **Outputs:** `owner` with name, email, and team information
 
+#### Action: `search_owners`
+- **Description:** Find owners (the users who can own records) by email or name, or list them all
+- **Inputs:**
+  - `email` (optional): Owner's exact email address
+  - `name` (optional): Text the owner's full name contains, case-insensitive (e.g. `john` matches John Smith and Ana Johnson)
+- **Outputs:** `owners` (`id`, `email`, `firstName`, `lastName`, `userId`, `teams`), `total`, and `complete` (`false` when the portal has more than 2,000 owners and only the first 2,000 were searched)
+- **Use Case:** Turn a person's name or email into the owner ID that `hubspot_owner_id` filters use
+
+### Any Object Type
+
+These actions work across HubSpot object types, so questions that the fixed filters of other actions can't answer don't need a new action.
+
+#### Action: `search_crm_objects`
+- **Description:** Search any object type with HubSpot's CRM search: filters, a text query, one sort and paging
+- **Inputs:**
+  - `object_type` (required): `contacts`, `companies`, `deals`, `tickets`, `tasks`, `notes`, `calls`, `emails`, `meetings`, `line_items`, `products` or `quotes`
+  - `filters` (optional): Filters a record must all match (AND), each `{propertyName, operator, value}`. `values` is used for `IN`/`NOT_IN`, and `highValue` with `value` for `BETWEEN`. Operators: `EQ`, `NEQ`, `LT`, `LTE`, `GT`, `GTE`, `BETWEEN`, `IN`, `NOT_IN`, `HAS_PROPERTY`, `NOT_HAS_PROPERTY`, `CONTAINS_TOKEN`, `NOT_CONTAINS_TOKEN`
+  - `filter_groups` (optional): Instead of `filters`, groups of filters that are ORed: `[{"filters": [...]}, ...]`. HubSpot allows 5 groups, 6 filters per group and 18 filters in total
+  - `associated_with` (optional): `{object_type, id}`. Only records linked to that contact, company, deal or ticket, e.g. emails on a deal
+  - `query` (optional): Text to search for in the object type's default text properties
+  - `properties` (optional): Properties to return (defaults to HubSpot's standard set)
+  - `sort_property` / `sort_direction` (optional): One property to sort by, `ASCENDING` (default) or `DESCENDING`
+  - `limit` (optional): Records per page (default 100, max 200)
+  - `after` (optional): The `after` value from the previous page
+  - `include_urls` (optional): Add each record's HubSpot page link as `url`. Applies to contacts, companies, deals and tickets, and costs one extra request
+- **Outputs:** `results`, `count` (this page), `total` (all pages), `has_more` and `after`
+- **Notes:**
+  - Dates in filters are Unix milliseconds, e.g. `1793098800000`
+  - Dropdown (enumeration) values are the internal values `get_object_properties` lists, and are case-sensitive
+  - HubSpot returns at most 10,000 results for one search, and newly changed records can take a few seconds to appear
+  - Searching for records linked to a custom object isn't supported by HubSpot's search
+
+#### Action: `get_crm_objects`
+- **Description:** Read up to 100 records of any object type by ID, or by a unique property such as `email`
+- **Inputs:**
+  - `object_type` (required): Object type, as for `search_crm_objects`
+  - `ids` (required): Record IDs, or values of `id_property` (1-100)
+  - `id_property` (optional): Unique property the `ids` are values of, e.g. `email` for contacts
+  - `properties` (optional): Properties to return (defaults to HubSpot's standard set)
+  - `associations` (optional): Linked record types to include for each record, e.g. `["contacts", "companies"]`. Up to 100 per type per record; `associations_with_more` lists types that had more
+  - `include_urls` (optional): Add each record's HubSpot page link as `url`
+- **Outputs:** `results`, `total`, `not_found` (requested IDs that matched nothing) and, when HubSpot reports other problems, `errors`
+
+#### Action: `get_object_properties`
+- **Description:** List the properties of any object type, including custom ones, to find the internal names and dropdown values to filter, sort or update by
+- **Inputs:**
+  - `object_type` (required): Object type, as for `search_crm_objects`
+  - `query` (optional): Only properties whose internal name or label contains this text, e.g. `architect`
+  - `include_details` (optional): Add `fieldType`, `groupName`, `description`, `hubspotDefined` and dropdown `options` (`label` and `value`)
+- **Outputs:** `properties` (`name`, `label`, `type`, plus details) and `total`
+
+#### Action: `get_account_details`
+- **Description:** Get the connected account's ID (`portalId`), time zone, UTC offset, currency and app domain
+- **Inputs:** None
+- **Outputs:** `account`
+- **Use Case:** Work out "today" in the account's time zone before filtering by date
+
 ### Lists/Segments Management
 
 #### Action: `get_lists`
@@ -1064,7 +1121,43 @@ The integration has the following dependencies:
 }
 ```
 
-**Example 18: Get one person's open tasks that are overdue or due today (New Zealand time)**
+**Example 18: Emails on a deal since 1 October 2026, newest first (`search_crm_objects`)**
+```json
+{
+  "object_type": "emails",
+  "associated_with": {"object_type": "deals", "id": "345678"},
+  "filters": [{"propertyName": "hs_timestamp", "operator": "GTE", "value": 1790812800000}],
+  "properties": ["hs_email_subject", "hs_email_direction", "hs_timestamp"],
+  "sort_property": "hs_timestamp",
+  "sort_direction": "DESCENDING",
+  "limit": 50
+}
+```
+
+**Example 19: Open deals in either of two stages, with page links (`search_crm_objects`)**
+```json
+{
+  "object_type": "deals",
+  "filter_groups": [
+    {"filters": [{"propertyName": "dealstage", "operator": "EQ", "value": "appointmentscheduled"}]},
+    {"filters": [{"propertyName": "dealstage", "operator": "EQ", "value": "qualifiedtobuy"}]}
+  ],
+  "properties": ["dealname", "amount", "closedate", "hubspot_owner_id"],
+  "include_urls": true
+}
+```
+
+**Example 20: Read contacts by ID with their companies (`get_crm_objects`)**
+```json
+{
+  "object_type": "contacts",
+  "ids": ["501", "502"],
+  "properties": ["firstname", "lastname", "email", "jobtitle"],
+  "associations": ["companies"]
+}
+```
+
+**Example 21: Get one person's open tasks that are overdue or due today (New Zealand time)**
 ```json
 {
   "owner_email": "rep@example.com",
@@ -1105,8 +1198,15 @@ The integration has the following dependencies:
 ### Task Triage Workflow
 1. Fetch the user's open tasks due before tomorrow's local midnight with `list_tasks` (`owner_email` or `owner_id`, `exclude_completed: true`, `due_before`)
 2. Page with `after` while `paging.next.after` is returned; `total_matching` says how many tasks matched
-3. For tasks that need context, read the linked companies and deals listed in each task's `associations` with `get_company` and `get_deal`
-4. Pull recent activity on the linked records with `get_contact_notes`, `get_contact_emails`, `get_contact_calls_and_meetings`, `get_deal_notes` or `get_deal_calls_and_meetings`, which all take the record ID
+3. For tasks that need context, read the linked contacts, companies and deals listed in each task's `associations` with `get_crm_objects` (one call per object type)
+4. Pull recent activity on a linked record with `search_crm_objects`: `object_type` `notes`, `emails`, `calls` or `meetings`, `associated_with` the record, an `hs_timestamp` `GTE` filter, sorted by `hs_timestamp` `DESCENDING`
+5. Use `get_account_details` for the account's time zone when working out "today", and `include_urls` to give the user links to the records
+
+### Ad-hoc Query Workflow
+1. Find the object type's property names and dropdown values with `get_object_properties` (`query` narrows them down)
+2. Turn people's names or emails into owner IDs with `search_owners`
+3. Run the query with `search_crm_objects`, paging with `after` while `has_more` is true
+4. Read linked records in bulk with `get_crm_objects` and its `associations` input
 
 ### Contact Management Workflow
 1. Search for existing contact using `get_contact` by email
@@ -1156,7 +1256,7 @@ The integration has the following dependencies:
 6. Build a complete relationship map of the contact's CRM network
 
 ### Custom Properties Workflow
-1. Use `get_deal_properties` with `include_details: true` to discover all available deal properties
+1. Use `get_deal_properties` with `include_details: true` to discover all available deal properties (or `get_object_properties` for any object type)
 2. Identify custom properties by checking `hubspotDefined: false`
 3. Note the internal property `name` (e.g., "custom_property_example")
 4. Use `get_deal` or `get_deals` with the `properties` parameter including your custom property names

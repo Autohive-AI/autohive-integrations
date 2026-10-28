@@ -526,6 +526,124 @@ class TestGetOwner:
         assert "lastName" in owner
 
 
+class TestSearchOwners:
+    async def test_finds_owner_by_email_and_name(self, live_context):
+        require_owner_id()
+        owner = (await hubspot.execute_action("get_owner", {"owner_id": TEST_OWNER_ID}, live_context)).result.data
+        email = owner["owner"]["email"]
+
+        by_email = await hubspot.execute_action("search_owners", {"email": email}, live_context)
+        assert by_email.type == ResultType.ACTION, by_email.result
+        assert [found["id"] for found in by_email.result.data["owners"]] == [TEST_OWNER_ID]
+
+        name = owner["owner"]["lastName"] or owner["owner"]["firstName"]
+        if name:
+            by_name = await hubspot.execute_action("search_owners", {"name": name.upper()}, live_context)
+            assert TEST_OWNER_ID in [found["id"] for found in by_name.result.data["owners"]]
+
+
+# ---- Any object type (Read-Only) ----
+
+
+class TestSearchCrmObjects:
+    async def test_pages_through_deals(self, live_context):
+        first = await hubspot.execute_action(
+            "search_crm_objects",
+            {"object_type": "deals", "limit": 1, "sort_property": "createdate", "sort_direction": "DESCENDING"},
+            live_context,
+        )
+        assert first.type == ResultType.ACTION, first.result
+        data = first.result.data
+        if not data["has_more"]:
+            pytest.skip("The portal needs at least 2 deals")
+        second = await hubspot.execute_action(
+            "search_crm_objects",
+            {
+                "object_type": "deals",
+                "limit": 1,
+                "sort_property": "createdate",
+                "sort_direction": "DESCENDING",
+                "after": data["after"],
+            },
+            live_context,
+        )
+        assert second.result.data["results"][0]["id"] != data["results"][0]["id"]
+
+    async def test_contacts_linked_to_company_with_urls(self, live_context):
+        require_company_id()
+        result = await hubspot.execute_action(
+            "search_crm_objects",
+            {
+                "object_type": "contacts",
+                "associated_with": {"object_type": "companies", "id": TEST_COMPANY_ID},
+                "properties": ["email"],
+                "include_urls": True,
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        for contact in result.result.data["results"]:
+            assert f"/record/0-1/{contact['id']}" in contact["url"]
+
+    async def test_owner_filter_matches_records(self, live_context):
+        require_owner_id()
+        result = await hubspot.execute_action(
+            "search_crm_objects",
+            {
+                "object_type": "deals",
+                "filters": [{"propertyName": "hubspot_owner_id", "operator": "EQ", "value": TEST_OWNER_ID}],
+                "properties": ["hubspot_owner_id"],
+                "limit": 20,
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        for deal in result.result.data["results"]:
+            assert deal["properties"]["hubspot_owner_id"] == TEST_OWNER_ID
+
+
+class TestGetCrmObjects:
+    async def test_reads_contact_with_companies(self, live_context):
+        require_contact_id()
+        result = await hubspot.execute_action(
+            "get_crm_objects",
+            {
+                "object_type": "contacts",
+                "ids": [TEST_CONTACT_ID, "1"],
+                "properties": ["email"],
+                "associations": ["companies"],
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        contact = next(record for record in data["results"] if record["id"] == TEST_CONTACT_ID)
+        assert "email" in contact["properties"]
+        assert isinstance(contact["associations"]["companies"], list)
+        assert "errors" not in data, data.get("errors")
+
+
+class TestGetObjectProperties:
+    async def test_finds_deal_stage_with_options(self, live_context):
+        result = await hubspot.execute_action(
+            "get_object_properties",
+            {"object_type": "deals", "query": "deal stage", "include_details": True},
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        stage = next(prop for prop in result.result.data["properties"] if prop["name"] == "dealstage")
+        assert stage["options"] and all(option["value"] for option in stage["options"])
+
+
+class TestGetAccountDetails:
+    async def test_returns_portal_and_time_zone(self, live_context):
+        result = await hubspot.execute_action("get_account_details", {}, live_context)
+        assert result.type == ResultType.ACTION, result.result
+        account = result.result.data["account"]
+        assert isinstance(account["portalId"], int)
+        assert account["timeZone"]
+
+
 # ---- Tasks (Read-Only) ----
 
 
