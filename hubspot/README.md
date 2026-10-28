@@ -1371,6 +1371,26 @@ The integration has the following dependencies:
 
 ## Testing
 
+The read-optimization checks use only existing records and reject writes before
+sending requests. Run them separately with:
+
+```bash
+pytest hubspot/tests/test_hubspot_integration.py -m "integration and not destructive" -k TestLegacyReadEfficiency -rs
+```
+
+Set `HUBSPOT_ACCESS_TOKEN` to a fresh OAuth token in the local environment; do not
+commit it. For full coverage, configure `HUBSPOT_TEST_DEAL_ID` to a search-indexed
+deal with a close date, `HUBSPOT_TEST_OWNER_ID` to an owner with an email, and
+`HUBSPOT_TEST_LIST_ID` to a contact list with at least two readable members.
+`HUBSPOT_TEST_CONTACT_ID` and `HUBSPOT_TEST_DEAL_ID` should have a real transcript
+ID among their five latest calls to exercise transcript opt-in. Set
+`HUBSPOT_TEST_CONVERSATION_TICKET_ID` to a ticket with existing conversation
+replies to verify the current ticket lookup and actual message retrieval.
+Missing credentials or data fixtures are reported as skips; permission errors
+and failed reads fail the tests. Successful request counts exclude rate-limit
+retries. These tests do not validate ticket writes or change account data.
+
+
 To run the tests included with the integration:
 
 1. From the repository root, install the test and integration dependencies

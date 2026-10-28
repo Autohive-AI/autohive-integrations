@@ -35,9 +35,10 @@ import os
 import time
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock
+from urllib.parse import urlsplit
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
@@ -73,20 +74,22 @@ def live_context(env_credentials):
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
         merged_headers = dict(headers or {})
         merged_headers["Authorization"] = f"Bearer {access_token}"
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-            async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
-                if resp.status >= 400:
-                    raise HTTPError(resp.status, f"HubSpot API returned HTTP {resp.status}")
-                if resp.status == 204:
-                    data = {}
-                else:
-                    data = await resp.json(content_type=None)
-                api_responses.append(deepcopy(data))
-                return FetchResponse(
-                    status=resp.status,
-                    headers=dict(resp.headers),
-                    data=data,
-                )
+        async with (
+            aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session,
+            session.request(method, url, json=json, headers=merged_headers, params=params) as resp,
+        ):
+            if resp.status >= 400:
+                raise HTTPError(resp.status, f"HubSpot API returned HTTP {resp.status}")
+            if resp.status == 204:
+                data = {}
+            else:
+                data = await resp.json(content_type=None)
+            api_responses.append(deepcopy(data))
+            return FetchResponse(
+                status=resp.status,
+                headers=dict(resp.headers),
+                data=data,
+            )
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
@@ -96,6 +99,24 @@ def live_context(env_credentials):
         "credentials": {"access_token": access_token},
     }
     return ctx
+
+
+@pytest.fixture
+def readonly_context(live_context):
+    """Reject writes before sending a request; POST search and batch/read are read-only."""
+    real_fetch = live_context.fetch.side_effect
+
+    async def guarded_fetch(url, *, method="GET", **kwargs):
+        target = urlsplit(url)
+        is_read = method.upper() == "GET" or (
+            method.upper() == "POST" and target.path.endswith(("/search", "/batch/read"))
+        )
+        assert target.scheme == "https" and target.netloc == "api.hubapi.com", "Unexpected HubSpot API host"
+        assert is_read, f"Read-only test blocked {method} {target.path}"
+        return await real_fetch(url, method=method, **kwargs)
+
+    live_context.fetch = AsyncMock(side_effect=guarded_fetch)
+    return live_context
 
 
 def require_contact_id():
@@ -681,9 +702,11 @@ class TestListTasksSearch:
             assert task["properties"]["hubspot_owner_id"] == TEST_OWNER_ID
             assert task["properties"]["hs_task_status"] != "COMPLETED"
             # Due dates come back as e.g. "27 Oct 2026 08:00 PM UTC"; dropping the seconds only makes them earlier
-            due = datetime.strptime(task["properties"]["hs_timestamp"], "%d %b %Y %I:%M %p UTC")
-            assert due.replace(tzinfo=timezone.utc) < due_before
-            assert isinstance(task["associations"], dict)
+            due = datetime.strptime(task["properties"]["hs_timestamp"], "%d %b %Y %I:%M %p UTC").replace(
+                tzinfo=timezone.utc
+            )
+            assert due < due_before
+            assert "associations" not in task
 
     async def test_owner_email_finds_same_tasks_as_owner_id(self, live_context):
         require_owner_id()
@@ -694,7 +717,9 @@ class TestListTasksSearch:
 
     async def test_contact_filter_returns_tasks_linked_to_contact(self, live_context):
         require_contact_id()
-        data = await search_tasks(live_context, {"contact_id": TEST_CONTACT_ID, "limit": 20})
+        data = await search_tasks(
+            live_context, {"contact_id": TEST_CONTACT_ID, "limit": 20, "include_associations": True}
+        )
         if not data["tasks"]:
             pytest.skip("No tasks linked to HUBSPOT_TEST_CONTACT_ID; association filter not exercised")
         for task in data["tasks"]:
@@ -733,6 +758,176 @@ class TestGetDealCallsAndMeetings:
         assert data["deal_id"] == TEST_DEAL_ID
         assert "calls" in data
         assert "meetings" in data
+
+
+# ---- Legacy read optimizations (no records are created or changed) ----
+
+
+class TestLegacyReadEfficiency:
+    async def test_filtered_tasks_return_one_small_page_without_associations(self, readonly_context):
+        result = await hubspot.execute_action(
+            "list_tasks",
+            {"exclude_completed": True, "limit": 1, "hs_task_properties": ["hs_task_subject"]},
+            readonly_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert len(data["tasks"]) <= 1
+        assert data["total_matching"] >= len(data["tasks"])
+        assert len(readonly_context.api_responses) == 1
+        assert all("associations" not in task for task in data["tasks"])
+
+    async def test_deal_date_filter_matches_real_closedates(self, readonly_context):
+        require_deal_id()
+        response = await readonly_context.fetch(
+            f"https://api.hubapi.com/crm/objects/2026-09/deals/{TEST_DEAL_ID}", params={"properties": "closedate"}
+        )
+        closedate = response.data["properties"].get("closedate")
+        if not closedate:
+            pytest.skip("Configured deal has no closedate; use a deal with a close date")
+        close_time = datetime.fromisoformat(closedate.replace("Z", "+00:00"))
+        start = close_time - timedelta(seconds=1)
+        end = close_time + timedelta(seconds=1)
+        result = await hubspot.execute_action(
+            "search_deals",
+            {
+                "close_date_start": start.strftime("%Y-%m-%d %H:%M:%S"),
+                "close_date_end": end.strftime("%Y-%m-%d %H:%M:%S"),
+                "properties": ["closedate"],
+                "limit": 2,
+            },
+            readonly_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["results"], "Known deal was not found in its close-date window; confirm it is search-indexed"
+        assert data["total_matching"] >= len(data["results"])
+        assert len(readonly_context.api_responses) == 2  # Fixture lookup, then one search page
+        # The saved response is before the action converts dates to display strings.
+        for deal in readonly_context.api_responses[-1]["results"]:
+            actual = datetime.fromisoformat(deal["properties"]["closedate"].replace("Z", "+00:00"))
+            assert start.replace(microsecond=0) <= actual <= end.replace(microsecond=0)
+
+    async def test_list_member_ids_skip_contact_reads(self, readonly_context):
+        require_list_id()
+        result = await hubspot.execute_action(
+            "get_list_members",
+            {"list_id": TEST_LIST_ID, "limit": 1, "include_contact_details": False},
+            readonly_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert len(readonly_context.api_responses) == 2  # Metadata and memberships only
+        assert len(data["members"]) <= 1
+        for member in data["members"]:
+            assert member["contact_id"]
+            assert "properties" not in member
+        assert data["has_more"] == (data["after"] is not None)
+
+    async def test_list_member_details_and_continuation(self, readonly_context):
+        require_list_id()
+        first = await hubspot.execute_action(
+            "get_list_members", {"list_id": TEST_LIST_ID, "limit": 1}, readonly_context
+        )
+        assert first.type == ResultType.ACTION, first.result
+        page = first.result.data
+        assert not page.get("errors"), page.get("errors")
+        if not page["members"]:
+            pytest.skip("Configured list has no readable contacts; contact detail assertion not exercised")
+        assert "properties" in page["members"][0]
+        if not page["has_more"]:
+            pytest.skip("Use a contact list with at least two members to exercise continuation")
+        second = await hubspot.execute_action(
+            "get_list_members", {"list_id": TEST_LIST_ID, "limit": 1, "after": page["after"]}, readonly_context
+        )
+        assert second.type == ResultType.ACTION, second.result
+        assert not second.result.data.get("errors"), second.result.data.get("errors")
+        assert second.result.data["members"], "Membership cursor did not return the next member"
+        assert second.result.data["members"][0]["contact_id"] != page["members"][0]["contact_id"]
+
+    async def test_company_owner_id_skips_owner_lookup(self, readonly_context):
+        require_owner_id()
+        result = await hubspot.execute_action(
+            "search_companies_by_owner_name",
+            {"owner_id": TEST_OWNER_ID, "limit": 1, "properties": ["hubspot_owner_id"]},
+            readonly_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        assert len(readonly_context.api_responses) == 1
+        assert readonly_context.fetch.call_args.args[0].endswith("/companies/search")
+        assert result.result.data["owner"]["id"] == TEST_OWNER_ID
+        for company in result.result.data["companies"]:
+            assert company["properties"]["hubspot_owner_id"] == TEST_OWNER_ID
+
+    async def test_company_owner_email_uses_filtered_owner_lookup(self, readonly_context):
+        require_owner_id()
+        owner = await hubspot.execute_action("get_owner", {"owner_id": TEST_OWNER_ID}, readonly_context)
+        assert owner.type == ResultType.ACTION, owner.result
+        email = owner.result.data["owner"].get("email")
+        if not email:
+            pytest.skip("Configured owner has no email")
+        result = await hubspot.execute_action(
+            "search_companies_by_owner_name", {"owner_email": email, "limit": 1}, readonly_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["owner"]["id"] == TEST_OWNER_ID
+        assert len(readonly_context.api_responses) == 3  # Fixture lookup, filtered owners, companies
+        lookup = readonly_context.fetch.call_args_list[-2]
+        assert lookup.kwargs["params"]["email"] == email
+
+    @pytest.mark.parametrize("object_type", ["contact", "deal"])
+    async def test_call_history_reads_metadata_without_transcripts(self, readonly_context, object_type):
+        object_id = TEST_CONTACT_ID if object_type == "contact" else TEST_DEAL_ID
+        if not object_id:
+            pytest.skip(f"HUBSPOT_TEST_{object_type.upper()}_ID not set")
+        result = await hubspot.execute_action(
+            f"get_{object_type}_calls_and_meetings", {f"{object_type}_id": object_id, "limit": 2}, readonly_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        assert len(readonly_context.api_responses) == 2
+        assert all("transcript" not in call for call in result.result.data["calls"])
+        assert all("/transcripts/" not in call.args[0] for call in readonly_context.fetch.call_args_list)
+
+    @pytest.mark.parametrize("object_type", ["contact", "deal"])
+    async def test_call_transcripts_can_be_requested_explicitly(self, readonly_context, object_type):
+        object_id = TEST_CONTACT_ID if object_type == "contact" else TEST_DEAL_ID
+        if not object_id:
+            pytest.skip(f"HUBSPOT_TEST_{object_type.upper()}_ID not set")
+        inputs = {f"{object_type}_id": object_id, "limit": 5}
+        action = f"get_{object_type}_calls_and_meetings"
+        metadata = await hubspot.execute_action(action, inputs, readonly_context)
+        assert metadata.type == ResultType.ACTION, metadata.result
+        transcribed_ids = {
+            call["id"]
+            for call in metadata.result.data["calls"]
+            if call.get("properties", {}).get("hs_call_transcription_id")
+        }
+        if not transcribed_ids:
+            pytest.skip("Use a record with a real transcript ID among its five latest calls")
+        result = await hubspot.execute_action(action, {**inputs, "include_transcripts": True}, readonly_context)
+        assert result.type == ResultType.ACTION, result.result
+        calls = [call for call in result.result.data["calls"] if call["id"] in transcribed_ids]
+        assert calls, "Transcribed fixture calls changed between reads"
+        for call in calls:
+            assert "transcript_error" not in call, call.get("transcript_error")
+            assert isinstance(call.get("transcript"), list)
+
+    async def test_known_ticket_conversation_uses_current_record_endpoint(self, readonly_context, env_credentials):
+        ticket_id = env_credentials("HUBSPOT_TEST_CONVERSATION_TICKET_ID")
+        if not ticket_id:
+            pytest.skip("Set HUBSPOT_TEST_CONVERSATION_TICKET_ID to a ticket with existing message replies")
+        result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": ticket_id}, readonly_context)
+        assert result.type == ResultType.ACTION, result.result
+        conversation = result.result.data["conversation"]
+        assert conversation["thread_id"], "Configured ticket must have a linked conversation"
+        assert conversation["results"], "Configured ticket must contain readable message replies"
+        assert (
+            readonly_context.fetch.call_args_list[0]
+            .args[0]
+            .startswith(f"https://api.hubapi.com/crm/objects/2026-09/tickets/{ticket_id}?")
+        )
+        for message in conversation["results"]:
+            assert message["message_id"] and message["message"]
 
 
 # ---- Destructive Tests (Write Operations) ----
