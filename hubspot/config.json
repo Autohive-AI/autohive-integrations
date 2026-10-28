@@ -28,9 +28,7 @@
       "crm.schemas.custom.read",
       "crm.objects.line_items.read",
       "crm.objects.quotes.read",
-      "crm.objects.products.read",
-      "crm.objects.leads.read",
-      "crm.objects.leads.write"
+      "crm.objects.products.read"
     ]
   },
   "actions": {
@@ -4317,8 +4315,7 @@
                     "calls",
                     "line_items",
                     "quotes",
-                    "products",
-                    "leads"
+                    "products"
                   ]
                 },
                 {
@@ -4472,8 +4469,7 @@
                     "emails",
                     "line_items",
                     "quotes",
-                    "products",
-                    "leads"
+                    "products"
                   ]
                 },
                 {
@@ -4563,8 +4559,7 @@
                     "tickets",
                     "line_items",
                     "quotes",
-                    "products",
-                    "leads"
+                    "products"
                   ]
                 },
                 {
@@ -4639,12 +4634,12 @@
         "properties": {
           "from_object_type": {
             "type": "string",
-            "description": "Type of the first record, e.g. contacts, companies, deals, tickets, or leads (Sales Hub Professional/Enterprise)",
+            "description": "Type of the first record, e.g. contacts, companies, deals, tickets",
             "pattern": "^[A-Za-z0-9_-]+$"
           },
           "to_object_type": {
             "type": "string",
-            "description": "Type of the linked record, e.g. contacts, companies, deals, tickets, or leads (Sales Hub Professional/Enterprise)",
+            "description": "Type of the linked record, e.g. contacts, companies, deals, tickets",
             "pattern": "^[A-Za-z0-9_-]+$"
           }
         },
@@ -4714,8 +4709,7 @@
                   "meetings",
                   "line_items",
                   "quotes",
-                  "products",
-                  "leads"
+                  "products"
                 ]
               },
               {
@@ -4745,8 +4739,7 @@
                   "meetings",
                   "line_items",
                   "quotes",
-                  "products",
-                  "leads"
+                  "products"
                 ]
               },
               {
@@ -4979,14 +4972,14 @@
     },
     "search_crm_objects": {
       "display_name": "Search CRM Records",
-      "description": "Search any HubSpot object type (contacts, companies, deals, tickets, leads, tasks, notes, calls, emails, meetings, etc.) with HubSpot's filters, text query, sort and paging. Use for questions the other actions' fixed filters can't answer, e.g. deals in a stage closing this month, or emails on a deal since a date. Supports leads on Sales Hub Professional/Enterprise with the crm.objects.leads.read grant.",
+      "description": "Search any HubSpot object type (contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, etc.) with HubSpot's filters, text query, sort and paging. Use for questions the other actions' fixed filters can't answer, e.g. deals in a stage closing this month, or emails on a deal since a date",
       "input_schema": {
         "type": "object",
         "properties": {
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, leads, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
           },
           "filters": {
             "type": "array",
@@ -5265,14 +5258,14 @@
     },
     "get_crm_objects": {
       "display_name": "Get CRM Records",
-      "description": "Read up to 100 records of any HubSpot object type by ID, or by a unique property such as email, with the properties and linked records you ask for. Supports leads on Sales Hub Professional/Enterprise with the crm.objects.leads.read grant.",
+      "description": "Read up to 100 records of any HubSpot object type by ID, or by a unique property such as email, with the properties and linked records you ask for",
       "input_schema": {
         "type": "object",
         "properties": {
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, leads, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
           },
           "ids": {
             "type": "array",
@@ -5388,14 +5381,14 @@
     },
     "get_object_properties": {
       "display_name": "Get Object Properties",
-      "description": "List the properties of any HubSpot object type, including custom properties, to find the internal names and dropdown values to filter, sort or update by. Supports leads on Sales Hub Professional/Enterprise with the crm.objects.leads.read grant.",
+      "description": "List the properties of any HubSpot object type, including custom properties, to find the internal names and dropdown values to filter, sort or update by",
       "input_schema": {
         "type": "object",
         "properties": {
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, leads, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
           },
           "query": {
             "type": "string",
@@ -6885,83 +6878,6 @@
           "paging",
           "has_more",
           "after"
-        ]
-      }
-    },
-    "create_lead": {
-      "display_name": "Create Lead",
-      "description": "Create a Sales Hub prospecting lead, associated with an existing contact. Requires Sales Hub Professional/Enterprise and crm.objects.leads.write. This is a separate CRM object, not a contact lifecycle stage.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "hs_lead_name": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Name of the lead"
-          },
-          "contact_id": {
-            "type": "string",
-            "pattern": "^[0-9]+$"
-          },
-          "properties": {
-            "type": "object",
-            "minProperties": 1,
-            "additionalProperties": {
-              "type": "string"
-            },
-            "description": "HubSpot internal property names mapped to string values. Use Get Object Properties for leads to discover fields and dropdown values. An empty string clears a value."
-          }
-        },
-        "required": [
-          "hs_lead_name",
-          "contact_id"
-        ]
-      },
-      "output_schema": {
-        "type": "object",
-        "properties": {
-          "lead": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "lead"
-        ]
-      }
-    },
-    "update_lead": {
-      "display_name": "Update Lead",
-      "description": "Update selected properties on a Sales Hub prospecting lead. Requires Sales Hub Professional/Enterprise and crm.objects.leads.write. Only supplied properties change; empty strings clear values.",
-      "input_schema": {
-        "type": "object",
-        "properties": {
-          "lead_id": {
-            "type": "string",
-            "pattern": "^[0-9]+$"
-          },
-          "properties": {
-            "type": "object",
-            "minProperties": 1,
-            "additionalProperties": {
-              "type": "string"
-            },
-            "description": "HubSpot internal property names mapped to string values. Use Get Object Properties for leads to discover fields and dropdown values. An empty string clears a value."
-          }
-        },
-        "required": [
-          "lead_id",
-          "properties"
-        ]
-      },
-      "output_schema": {
-        "type": "object",
-        "properties": {
-          "lead": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "lead"
         ]
       }
     }

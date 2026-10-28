@@ -4514,7 +4514,7 @@ MAX_SEARCH_FILTERS = 18
 ASSOCIATION_FILTER_TYPES = {"contacts": "contact", "companies": "company", "deals": "deal", "tickets": "ticket"}
 
 # Object types with a record page in HubSpot, and the type ID their page URLs use
-RECORD_PAGE_TYPE_IDS = {"contacts": "0-1", "companies": "0-2", "deals": "0-3", "tickets": "0-5", "leads": "0-136"}
+RECORD_PAGE_TYPE_IDS = {"contacts": "0-1", "companies": "0-2", "deals": "0-3", "tickets": "0-5"}
 
 # Linked records returned per type for each record get_crm_objects reads
 MAX_LINKS_PER_RECORD = 100
@@ -5376,56 +5376,3 @@ class SearchConversationsHandler(ActionHandler):
             },
             cost_usd=None,
         )
-
-
-@hubspot.action("create_lead")
-class CreateLeadHandler(ActionHandler):
-    """Create a Sales Hub lead and its required contact association in one request."""
-
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        payload = {
-            "properties": {**inputs.get("properties", {}), "hs_lead_name": inputs["hs_lead_name"]},
-            "associations": [_hubspot_defined_association(inputs["contact_id"], 578)],
-        }
-        try:
-            response = await fetch_with_rate_limit_retries(
-                context,
-                f"{OBJECTS_API_URL}/leads",
-                method="POST",
-                json=payload,
-                headers={"Content-Type": "application/json"},
-                resend_on_connection_error=False,
-            )
-            lead = await parse_response(response)
-        except REQUEST_ERRORS as e:
-            if _outcome_unknown(e):
-                return ActionError(
-                    message="Lead creation outcome is unknown. Check HubSpot before retrying to avoid duplicates."
-                )
-            return ActionError(
-                message=f"Failed to create lead: {_error_text(e)}. "
-                "Requires Sales Hub Professional/Enterprise and crm.objects.leads.write."
-            )
-        return ActionResult(data={"lead": lead}, cost_usd=None)
-
-
-@hubspot.action("update_lead")
-class UpdateLeadHandler(ActionHandler):
-    """Update the supplied properties of an existing Sales Hub lead."""
-
-    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            response = await fetch_with_rate_limit_retries(
-                context,
-                f"{OBJECTS_API_URL}/leads/{inputs['lead_id']}",
-                method="PATCH",
-                json={"properties": inputs["properties"]},
-                headers={"Content-Type": "application/json"},
-            )
-            lead = await parse_response(response)
-        except REQUEST_ERRORS as e:
-            return ActionError(
-                message=f"Failed to update lead: {_error_text(e)}. "
-                "Requires Sales Hub Professional/Enterprise and crm.objects.leads.write."
-            )
-        return ActionResult(data={"lead": lead}, cost_usd=None)
