@@ -1190,6 +1190,11 @@
               "ASCENDING",
               "DESCENDING"
             ]
+          },
+          "include_associations": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include linked contact, company and deal IDs. Default false; filtered searches make at least three extra API requests when enabled."
           }
         }
       },
@@ -1198,7 +1203,7 @@
         "properties": {
           "tasks": {
             "type": "array",
-            "description": "List of retrieved tasks, each with associations.contacts/companies/deals listing linked record IDs",
+            "description": "Retrieved tasks; associations are included only when include_associations is true",
             "items": {
               "type": "object"
             }
@@ -2667,7 +2672,7 @@
     },
     "search_companies_by_owner_name": {
       "display_name": "Search Companies by Owner Name",
-      "description": "Search for companies in HubSpot by owner name. First looks up the owner ID by name from the Owners API, then retrieves one page of companies associated with that owner. Follow paging.next.after while has_more is true for additional pages.",
+      "description": "Search companies by owner ID, email or name. Reuse the returned owner.id on subsequent pages to avoid scanning owners again.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -2692,10 +2697,34 @@
               "type": "string"
             },
             "description": "List of company properties to retrieve. If not provided, returns standard properties including name, domain, phone, city, state, country, industry, numberofemployees, annualrevenue, and hubspot_owner_id."
+          },
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Known HubSpot owner ID. Takes precedence over email and name and avoids the owner lookup. Reuse owner.id from a previous response."
+          },
+          "owner_email": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact owner email, filtered by HubSpot. Takes precedence over owner_name."
           }
         },
-        "required": [
-          "owner_name"
+        "anyOf": [
+          {
+            "required": [
+              "owner_id"
+            ]
+          },
+          {
+            "required": [
+              "owner_email"
+            ]
+          },
+          {
+            "required": [
+              "owner_name"
+            ]
+          }
         ]
       },
       "output_schema": {
@@ -3380,7 +3409,7 @@
           },
           "max_total": {
             "type": "integer",
-            "description": "Maximum deals to return across pages (default: limit, or 100 with fetch_all)",
+            "description": "Maximum deals across pages when fetch_all is true (default 100). Otherwise only one page is read.",
             "minimum": 1,
             "maximum": 5000
           },
@@ -3524,6 +3553,10 @@
                 "description": "Cursor for the next page; pass it as after with the same filters. Null when there are no more results"
               }
             }
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Total matching deals from HubSpot, across pages. For counts, request limit 1 and use this value rather than fetching all rows."
           }
         },
         "required": [
@@ -4041,7 +4074,7 @@
     },
     "get_list_members": {
       "display_name": "Get List Members with Details",
-      "description": "Retrieve list members with complete contact information including names, emails, and custom properties",
+      "description": "Retrieve list members with optional contact details. Defaults to 50 members; continue using after. For list size only, use get_list.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4053,8 +4086,8 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 10000,
-            "description": "Maximum number of members to return",
-            "default": 1000
+            "description": "Maximum members to return in this call (default 50). Larger values read multiple pages; prefer after for continuation.",
+            "default": 50
           },
           "contact_properties": {
             "type": "array",
@@ -4075,6 +4108,15 @@
             "type": "boolean",
             "description": "Include when contacts were added to list",
             "default": true
+          },
+          "after": {
+            "type": "string",
+            "description": "Continuation cursor from the previous response, with the same list_id and options"
+          },
+          "include_contact_details": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include contact properties (default true). Set false for member IDs and timestamps only, avoiding contact batch reads."
           }
         },
         "required": [
@@ -4112,7 +4154,7 @@
           },
           "members": {
             "type": "array",
-            "description": "Array of list members with contact details",
+            "description": "List members; contact properties are omitted when include_contact_details is false",
             "items": {
               "type": "object",
               "properties": {
@@ -4209,6 +4251,17 @@
               "type": "string"
             },
             "description": "Why those contacts couldn't be read"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor for the next membership page, or null when finished"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more memberships are available"
           }
         },
         "required": [
@@ -6177,7 +6230,7 @@
     },
     "get_contact_calls_and_meetings": {
       "display_name": "Get Contact Calls and Meetings",
-      "description": "Retrieve calls and meetings (with transcripts) associated with a HubSpot contact",
+      "description": "Retrieve calls and meetings (transcripts optional) associated with a HubSpot contact",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -6190,6 +6243,11 @@
             "description": "Max calls/meetings to retrieve each (default: 50, max: 100)",
             "minimum": 1,
             "maximum": 100
+          },
+          "include_transcripts": {
+            "type": "boolean",
+            "default": false,
+            "description": "Fetch full transcript utterances for each call that has one. Default false; use get_call_transcript for a single call instead."
           }
         },
         "required": [
@@ -6205,7 +6263,7 @@
           },
           "calls": {
             "type": "array",
-            "description": "Calls with transcript utterances (Google Meet transcripts are stored on call records)",
+            "description": "Call metadata, with transcript utterances only when include_transcripts is true",
             "items": {
               "type": "object",
               "properties": {
@@ -6386,7 +6444,7 @@
     },
     "get_deal_calls_and_meetings": {
       "display_name": "Get Deal Calls and Meetings",
-      "description": "Retrieve calls and meetings (with transcripts) associated with a HubSpot deal",
+      "description": "Retrieve calls and meetings (transcripts optional) associated with a HubSpot deal",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -6399,6 +6457,11 @@
             "description": "Max calls/meetings to retrieve each (default: 50, max: 100)",
             "minimum": 1,
             "maximum": 100
+          },
+          "include_transcripts": {
+            "type": "boolean",
+            "default": false,
+            "description": "Fetch full transcript utterances for each call that has one. Default false; use get_call_transcript for a single call instead."
           }
         },
         "required": [
@@ -6414,7 +6477,7 @@
           },
           "calls": {
             "type": "array",
-            "description": "Calls with transcript utterances (Google Meet transcripts are stored on call records)",
+            "description": "Call metadata, with transcript utterances only when include_transcripts is true",
             "items": {
               "type": "object",
               "properties": {

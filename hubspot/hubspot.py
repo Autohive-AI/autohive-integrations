@@ -1711,7 +1711,7 @@ async def _search_tasks(inputs: Dict[str, Any], filters: list[Dict[str, Any]], c
         result = await parse_response(response)
         tasks = result.get("results", [])
 
-        if tasks:
+        if tasks and inputs.get("include_associations", False):
             associations = await _task_associations(context, [str(task["id"]) for task in tasks], retry_sleep_budget)
             for task in tasks:
                 task["associations"] = associations[str(task["id"])]
@@ -1767,8 +1767,9 @@ class ListTasksActionHandler(ActionHandler):
             params = {
                 "limit": limit,
                 "properties": ",".join(hs_task_properties),
-                "associations": "contacts,companies,deals",
             }
+            if inputs.get("include_associations", False):
+                params["associations"] = "contacts,companies,deals"
             if after:
                 params["after"] = after
 
@@ -2214,9 +2215,7 @@ async def get_thread_id_from_ticket(ticket_id: str, context: ExecutionContext) -
     :param context: Execution context with fetch utility.
     :return: The conversation thread ID or None if not found.
     """
-    ticket_url = (
-        f"https://api.hubapi.com/crm/v3/objects/tickets/{ticket_id}?properties=hs_conversations_originating_thread_id"
-    )
+    ticket_url = f"{OBJECTS_API_URL}/tickets/{ticket_id}?properties=hs_conversations_originating_thread_id"
     ticket_response = await fetch_with_rate_limit_retries(
         context,
         ticket_url,
@@ -2250,7 +2249,7 @@ class GetRecentTicketsActionHandler(ActionHandler):
         sort_direction_map = {"DESC": "DESCENDING", "ASC": "ASCENDING"}
         sort_direction = sort_direction_map.get(inputs.get("sort_direction", "DESC"), "DESCENDING")
 
-        url = "https://api.hubapi.com/crm/v3/objects/tickets/search"
+        url = f"{OBJECTS_API_URL}/tickets/search"
 
         properties = [
             "subject",
@@ -2761,12 +2760,16 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
         """
         Execute the search_companies_by_owner_name action.
 
-        :param inputs: Dictionary with keys "owner_name" (required), "limit" (optional), and "properties" (optional).
+        :param inputs: Dictionary with an owner ID, email or name, plus optional paging and properties.
         :param context: Execution context containing authentication details.
         :return: Dictionary with companies associated with the specified owner.
         """
 
-        owner_name = inputs["owner_name"]
+        owner_name = inputs.get("owner_name", "")
+        owner_id = inputs.get("owner_id")
+        owner_email = inputs.get("owner_email")
+        if not (owner_id or owner_email or owner_name.strip()):
+            return ActionError(message="Provide an owner_id, owner_email or owner_name")
         limit = inputs.get("limit", 100)
         after = inputs.get("after")
         properties = inputs.get(
@@ -2788,13 +2791,25 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
         try:
             # Step 1: Find the owner by full name, or by first or last name when no full name matches
             retry_sleep_budget = {"remaining": 10}
-            owners, read_every_owner = await _list_owners(context, retry_sleep_budget)
-            wanted = owner_name.strip().casefold()
-            matches = [owner for owner in owners if _owner_name(owner).casefold() == wanted] or [
-                owner
-                for owner in owners
-                if wanted in ((owner.get("firstName") or "").casefold(), (owner.get("lastName") or "").casefold())
-            ]
+            if owner_id:
+                # Reuse the ID returned on the first page instead of reading the owner directory again.
+                matches, read_every_owner = [{"id": owner_id}], True
+            else:
+                owners, read_every_owner = await _list_owners(context, retry_sleep_budget, email=owner_email)
+                wanted = owner_name.strip().casefold()
+                matches = (
+                    owners
+                    if owner_email
+                    else (
+                        [owner for owner in owners if _owner_name(owner).casefold() == wanted]
+                        or [
+                            owner
+                            for owner in owners
+                            if wanted
+                            in ((owner.get("firstName") or "").casefold(), (owner.get("lastName") or "").casefold())
+                        ]
+                    )
+                )
 
             if not matches:
                 if not read_every_owner:
@@ -2804,7 +2819,11 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
                             "Use search_owners to find the owner ID, then search_crm_objects with hubspot_owner_id."
                         ),
                     )
-                return ActionError(message=f"Owner with name '{owner_name}' not found")
+                return ActionError(
+                    message=f"Owner with email '{owner_email}' not found"
+                    if owner_email
+                    else f"Owner with name '{owner_name}' not found"
+                )
             if len(matches) > 1:
                 candidates = ", ".join(
                     f"{_owner_name(owner)} ({owner.get('email') or owner.get('id')})" for owner in matches
@@ -3151,10 +3170,10 @@ async def fetch_calls_with_transcripts(
     limit: int,
     context: ExecutionContext,
     retry_sleep_budget: Dict[str, int] | None = None,
+    include_transcripts: bool = False,
 ):
     """
-    Fetch calls for a given association filter, then enrich each call that has a transcript
-    by fetching the full transcript utterances from the transcripts API.
+    Fetch calls for an association filter, optionally enriching them with full transcripts.
     """
     call_properties = [
         "hs_call_title",
@@ -3197,6 +3216,9 @@ async def fetch_calls_with_transcripts(
             ]:
                 if call["properties"].get(field):
                     call["properties"][field] = convert_hubspot_timestamp_to_utc_string(call["properties"][field])
+
+    if not include_transcripts:
+        return calls
 
     # Fetch transcripts in parallel for calls that have one.
     # Note: hs_call_transcription_id can be null even when a transcript exists (known HubSpot bug).
@@ -3277,9 +3299,8 @@ class GetContactCallsAndMeetingsActionHandler(ActionHandler):
     """
     Action handler to retrieve calls and meetings associated with a HubSpot contact.
 
-    Fetches calls with transcripts (via the Calling Transcripts API) and meetings
-    (metadata only) for a specific contact. Google Meet transcripts are stored on
-    call records, not meeting records.
+    Fetches call and meeting metadata for a contact, with transcripts only when requested.
+    Google Meet transcripts are stored on call records, not meeting records.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -3294,7 +3315,9 @@ class GetContactCallsAndMeetingsActionHandler(ActionHandler):
 
         try:
             retry_sleep_budget = {"remaining": 10}
-            calls = await fetch_calls_with_transcripts(association_filter, limit, context, retry_sleep_budget)
+            calls = await fetch_calls_with_transcripts(
+                association_filter, limit, context, retry_sleep_budget, inputs.get("include_transcripts", False)
+            )
             meetings = await fetch_meetings(association_filter, limit, context, retry_sleep_budget)
 
             return ActionResult(
@@ -3317,9 +3340,8 @@ class GetDealCallsAndMeetingsActionHandler(ActionHandler):
     """
     Action handler to retrieve calls and meetings associated with a HubSpot deal.
 
-    Fetches calls with transcripts (via the Calling Transcripts API) and meetings
-    (metadata only) for a specific deal. Google Meet transcripts are stored on
-    call records, not meeting records.
+    Fetches call and meeting metadata for a deal, with transcripts only when requested.
+    Google Meet transcripts are stored on call records, not meeting records.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -3334,7 +3356,9 @@ class GetDealCallsAndMeetingsActionHandler(ActionHandler):
 
         try:
             retry_sleep_budget = {"remaining": 10}
-            calls = await fetch_calls_with_transcripts(association_filter, limit, context, retry_sleep_budget)
+            calls = await fetch_calls_with_transcripts(
+                association_filter, limit, context, retry_sleep_budget, inputs.get("include_transcripts", False)
+            )
             meetings = await fetch_meetings(association_filter, limit, context, retry_sleep_budget)
 
             return ActionResult(
@@ -3687,6 +3711,21 @@ class SearchDealsActionHandler(ActionHandler):
             ],
         )
 
+        # Apply close-date bounds in HubSpot, including the intersection with an optional year.
+        try:
+            start_date = parse_date_string_to_utc(inputs.get("close_date_start"))
+            end_date = parse_date_string_to_utc(inputs.get("close_date_end"))
+            if inputs.get("year"):
+                year = int(inputs["year"])
+                year_start = datetime(year, 1, 1)
+                year_end = datetime(year, 12, 31, 23, 59, 59)
+                start_date = max(start_date, year_start) if start_date else year_start
+                end_date = min(end_date, year_end) if end_date else year_end
+            if start_date and end_date and start_date > end_date:
+                return ActionError(message="The close-date start must be at or before the close-date end")
+        except ValueError as e:
+            return ActionError(message=str(e))
+
         while has_more and total_fetched < max_total:
             request_body = {
                 "limit": min(limit_per_page, max_total - total_fetched),
@@ -3707,23 +3746,30 @@ class SearchDealsActionHandler(ActionHandler):
             if inputs.get("pipeline_id"):
                 filters.append({"propertyName": "pipeline", "operator": "EQ", "value": inputs["pipeline_id"]})
 
-            # Year filtering to reduce response size
-            if inputs.get("year"):
-                year = int(inputs["year"])
-                start_ms = int(datetime(year, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
-                end_ms = int(datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
-                filters.append({"propertyName": "closedate", "operator": "GTE", "value": str(start_ms)})
-                filters.append({"propertyName": "closedate", "operator": "LTE", "value": str(end_ms)})
+            if start_date:
+                filters.append(
+                    {
+                        "propertyName": "closedate",
+                        "operator": "GTE",
+                        "value": str(int(start_date.replace(tzinfo=timezone.utc).timestamp() * 1000)),
+                    }
+                )
+            if end_date:
+                filters.append(
+                    {
+                        "propertyName": "closedate",
+                        "operator": "LTE",
+                        "value": str(int(end_date.replace(tzinfo=timezone.utc).timestamp() * 1000)),
+                    }
+                )
 
             if inputs.get("deal_stage"):
                 filters.append({"propertyName": "dealstage", "operator": "EQ", "value": inputs["deal_stage"]})
 
-            # Close date ranges are filtered after each page is fetched, below
-
-            if inputs.get("min_amount"):
+            if inputs.get("min_amount") is not None:
                 filters.append({"propertyName": "amount", "operator": "GTE", "value": str(inputs["min_amount"])})
 
-            if inputs.get("max_amount"):
+            if inputs.get("max_amount") is not None:
                 filters.append({"propertyName": "amount", "operator": "LTE", "value": str(inputs["max_amount"])})
 
             if filters:
@@ -3752,49 +3798,6 @@ class SearchDealsActionHandler(ActionHandler):
             if result and result.get("results"):
                 page_deals = result["results"]
 
-                # This bypasses HubSpot's buggy date range API filtering
-                if inputs.get("close_date_start") or inputs.get("close_date_end"):
-                    filtered_deals = []
-                    start_date_obj = (
-                        parse_date_string_to_utc(inputs["close_date_start"]) if inputs.get("close_date_start") else None
-                    )
-                    end_date_obj = (
-                        parse_date_string_to_utc(inputs["close_date_end"]) if inputs.get("close_date_end") else None
-                    )
-
-                    for deal in page_deals:
-                        closedate_str = deal.get("properties", {}).get("closedate")
-                        if closedate_str:
-                            try:
-                                if isinstance(closedate_str, str) and closedate_str.endswith("Z"):
-                                    closedate_obj = datetime.fromisoformat(
-                                        closedate_str.replace("Z", "+00:00")
-                                    ).replace(tzinfo=None)
-                                else:
-                                    closedate_obj = datetime.fromtimestamp(
-                                        int(closedate_str) / 1000,
-                                        tz=timezone.utc,
-                                    ).replace(tzinfo=None)
-
-                                # Apply precise date filtering
-                                include_deal = True
-                                if start_date_obj and closedate_obj < start_date_obj:
-                                    include_deal = False
-                                if end_date_obj and closedate_obj > end_date_obj:
-                                    include_deal = False
-
-                                if include_deal:
-                                    filtered_deals.append(deal)
-                            except (ValueError, TypeError):
-                                # Include deals with invalid dates to avoid data loss
-                                filtered_deals.append(deal)
-                        else:
-                            # Include deals without close dates - only include if no date filtering requested
-                            if not start_date_obj and not end_date_obj:
-                                filtered_deals.append(deal)
-
-                    page_deals = filtered_deals
-
                 # Deduplicate deals by ID
                 new_deals = []
                 for deal in page_deals:
@@ -3822,8 +3825,8 @@ class SearchDealsActionHandler(ActionHandler):
                 paging = result.get("paging")
                 if paging and paging.get("next") and paging["next"].get("after"):
                     after = next_after = paging["next"]["after"]
-                    # Continue if fetch_all is True OR if we haven't reached the user's requested limit
-                    has_more = fetch_all or total_fetched < max_total
+                    # Extra pages are opt-in; always return the next cursor.
+                    has_more = fetch_all and total_fetched < max_total
                 else:
                     next_after = None
                     has_more = False
@@ -3839,6 +3842,7 @@ class SearchDealsActionHandler(ActionHandler):
             data={
                 "results": deals,
                 "total": len(deals),
+                "total_matching": result.get("total", len(deals)),
                 "pagination": {
                     "has_more_pages": next_after is not None,
                     "current_page_size": len(deals),
@@ -4300,7 +4304,7 @@ class CreateAssociationHandler(ActionHandler):
 
 @hubspot.action("get_list_members")
 class GetListMembersHandler(ActionHandler):
-    """Retrieve list members with complete contact information"""
+    """Retrieve a bounded set of list members with optional contact details."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         import time
@@ -4308,12 +4312,13 @@ class GetListMembersHandler(ActionHandler):
         start_time = time.time()
 
         list_id = inputs["list_id"]
-        limit = inputs.get("limit", 1000)
+        limit = inputs.get("limit", 50)
         contact_properties = inputs.get(
             "contact_properties",
             ["email", "firstname", "lastname", "phone", "company", "jobtitle"],
         )
         include_timestamps = inputs.get("include_membership_timestamps", True)
+        include_contact_details = inputs.get("include_contact_details", True)
 
         total_api_calls = 0
         retry_sleep_budget = {"remaining": 10}
@@ -4340,7 +4345,7 @@ class GetListMembersHandler(ActionHandler):
         # Step 2: Get member IDs with timestamps
         memberships_url = f"https://api.hubapi.com/crm/v3/lists/{list_id}/memberships"
         all_memberships = []
-        after_token = None
+        after_token = inputs.get("after")
         total_retrieved = 0
 
         # Fetch memberships in batches of 250 (max limit)
@@ -4379,7 +4384,8 @@ class GetListMembersHandler(ActionHandler):
         batch_errors = []
 
         # Process contacts in batches of 100 (max for batch read)
-        for i in range(0, len(contact_ids), 100):
+        detail_ids = contact_ids if include_contact_details else []
+        for i in range(0, len(detail_ids), 100):
             batch_ids = contact_ids[i : i + 100]
 
             batch_request = {
@@ -4419,24 +4425,22 @@ class GetListMembersHandler(ActionHandler):
                 batch_errors.append(_error_text(e))
                 continue
 
+        if not include_contact_details:
+            all_contacts = [{"id": contact_id} for contact_id in contact_ids]
+
         # Step 4: Combine data
         members = []
         for contact in all_contacts:
             contact_id = contact.get("id")
             properties = contact.get("properties", {})
 
-            member = {"contact_id": contact_id, "properties": properties}
+            member = {"contact_id": contact_id}
 
-            # Add standard properties for easy access
-            for prop in [
-                "email",
-                "firstname",
-                "lastname",
-                "phone",
-                "company",
-                "jobtitle",
-            ]:
-                member[prop] = properties.get(prop)
+            if include_contact_details:
+                member["properties"] = properties
+                # Preserve the convenient top-level fields for existing workflows.
+                for prop in ("email", "firstname", "lastname", "phone", "company", "jobtitle"):
+                    member[prop] = properties.get(prop)
 
             # Add membership timestamp if requested
             if include_timestamps and contact_id in membership_timestamps:
@@ -4458,6 +4462,8 @@ class GetListMembersHandler(ActionHandler):
             "members": members,
             "total_members": list_metadata["size"],
             "retrieved_count": len(members),
+            "has_more": after_token is not None,
+            "after": after_token,
             "performance_stats": performance_stats,
         }
         if failed_contact_ids:

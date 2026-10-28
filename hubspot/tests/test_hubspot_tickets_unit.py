@@ -105,7 +105,7 @@ class TestGetRecentTickets:
         assert data["tickets"]["results"][0]["properties"]["hubspot_owner_id"] == "owner-123"
 
         call_kwargs = mock_context.fetch.call_args
-        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/v3/objects/tickets/search"
+        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/objects/2026-09/tickets/search"
         assert call_kwargs.kwargs["method"] == "POST"
         body = call_kwargs.kwargs["json"]
         assert body["limit"] == 20
@@ -160,7 +160,7 @@ class TestGetRecentTickets:
         await hubspot.execute_action("get_recent_tickets", {}, mock_context)
 
         call_kwargs = mock_context.fetch.call_args
-        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/v3/objects/tickets/search"
+        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/objects/2026-09/tickets/search"
         assert call_kwargs.kwargs["method"] == "POST"
 
     @pytest.mark.asyncio
@@ -346,7 +346,7 @@ class TestGetTicketConversation:
 
         assert mock_context.fetch.call_count == 2
         ticket_url = mock_context.fetch.call_args_list[0].args[0]
-        assert "/crm/v3/objects/tickets/ticket-1" in ticket_url
+        assert "/crm/objects/2026-09/tickets/ticket-1" in ticket_url
         conv_url = mock_context.fetch.call_args_list[1].args[0]
         assert "/conversations/v3/conversations/threads/thread-123/messages" in conv_url
 

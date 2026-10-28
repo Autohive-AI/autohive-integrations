@@ -39,7 +39,9 @@ The integration automatically requests the following HubSpot permissions:
 - `crm.objects.owners.read` - Read access to owner information
 - `crm.lists.read` - Read access to lists/segments and their memberships
 - `crm.lists.write` - Add or remove contacts from manual or snapshot lists
-- `tickets` - Full access to support tickets
+- `crm.objects.tickets.read` - Read ticket records
+- `crm.objects.tickets.write` - Create and update ticket records
+- `tickets` - Legacy ticket access, retained during the OAuth app migration
 - `sales-email-read` - Read access to sales email data
 - `oauth` - OAuth authentication
 - `content` - Read access to marketing emails and content
@@ -63,6 +65,22 @@ grants return provider permission errors when the relevant action is called.
 2. Authorize the integration through HubSpot's OAuth flow
 3. Grant the required permissions when prompted
 4. The integration will automatically handle token management and refresh
+
+## Efficient reads and upgrade notes
+
+Task associations and call transcripts are now opt-in. Existing workflows that
+read those fields must set `include_associations: true` or
+`include_transcripts: true`. List-member reads now default to 50 members; follow
+`after` while `has_more` is true, or supply an explicit larger export limit.
+Deal searches read one page unless `fetch_all` is true. Select only needed
+properties and use `limit: 1` with `total_matching` for deal/task counts.
+
+Ticket search, ticket-to-thread lookup, ticket create/update, generic CRM reads,
+properties, schemas and association helpers use HubSpot's 2026-09 CRM endpoints.
+Conversation messages continue to use the Conversations API and require
+`conversations.read` in addition to permission to read the ticket. Endpoint
+updates do not grant OAuth permissions; the HubSpot app and auth-provider DB
+control requested scopes. Keep the legacy `tickets` scope during the migration.
 
 ## Actions
 
@@ -265,10 +283,11 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 ### Calls and Meetings (Transcripts)
 
 #### Action: `get_contact_calls_and_meetings`
-- **Description:** Retrieve calls (with transcripts) and meetings (metadata) associated with a contact. Google Meet transcripts are stored on call records via HubSpot's Calling Transcripts API — not on meeting records.
+- **Description:** Retrieve call and meeting metadata, with optional call transcripts associated with a contact. Google Meet transcripts are stored on call records via HubSpot's Calling Transcripts API — not on meeting records.
 - **Inputs:**
   - `contact_id` (required): The internal object ID of the contact
   - `limit` (optional): Maximum number of calls/meetings to retrieve each (default: 50, max: 100)
+  - `include_transcripts` (optional): Fetch full transcripts for returned calls (default: false). For one transcript, use `get_call_transcript` instead
 - **Outputs:**
   - `calls`: Array of call objects, each containing:
     - `hs_call_title`: Call title
@@ -278,19 +297,20 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
     - `hs_call_has_transcript`: Whether a transcript exists
     - `hs_call_transcription_id`: Transcript ID (may be null due to a known HubSpot bug even when a transcript exists)
     - `hs_timestamp`: Call time (UTC)
-    - `transcript`: Array of utterances from the Calling Transcripts API, each with `speakerId`, `text`, and `timestamp`
+    - `transcript`: Present only when `include_transcripts` is true; array of utterances from the Calling Transcripts API, each with `speakerId`, `text`, and `timestamp`
     - `transcript_error`: Why the transcript couldn't be read, when HubSpot has one that failed to load (e.g. rate limiting). Transcripts are fetched 5 at a time
   - `meetings`: Array of meeting metadata objects (title, start/end time, location — no transcript content)
   - `total_calls`: Number of calls returned
   - `total_meetings`: Number of meetings returned
 - **Note:** Requires Sales Hub or Service Hub Professional/Enterprise for Google Meet transcript sync (Conversational Intelligence feature)
-- **Transcript fallback:** When `hs_call_transcription_id` is null but `hs_call_has_transcript` is true (known HubSpot bug), the integration automatically falls back to using the call's own ID as the transcript ID to attempt recovery. If nothing is found under that ID, the call has no `transcript` and no `transcript_error`
+- **Transcript fallback:** With `include_transcripts: true`, when `hs_call_transcription_id` is null but `hs_call_has_transcript` is true (known HubSpot bug), the integration automatically falls back to using the call's own ID as the transcript ID to attempt recovery. If nothing is found under that ID, the call has no `transcript` and no `transcript_error`
 
 #### Action: `get_deal_calls_and_meetings`
-- **Description:** Retrieve calls (with transcripts) and meetings (metadata) associated with a deal. Same transcript behaviour as `get_contact_calls_and_meetings`.
+- **Description:** Retrieve call and meeting metadata, with optional call transcripts associated with a deal. Same transcript behaviour as `get_contact_calls_and_meetings`.
 - **Inputs:**
   - `deal_id` (required): The internal object ID of the deal
   - `limit` (optional): Maximum number of calls/meetings to retrieve each (default: 50, max: 100)
+  - `include_transcripts` (optional): Fetch full transcripts for returned calls (default: false). For one transcript, use `get_call_transcript` instead
 - **Outputs:**
   - `calls`: Array of call objects with transcript utterances (same structure as `get_contact_calls_and_meetings`)
   - `meetings`: Array of meeting metadata objects
@@ -350,12 +370,15 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Outputs:** `results`, `total` (all pages) and `paging`
 
 #### Action: `search_companies_by_owner_name`
-- **Description:** Search companies assigned to a HubSpot owner by first/last/full owner name. Owner lookup reads up to 2,000 HubSpot owners before searching companies.
+- **Description:** Search companies assigned to an owner. Use a known owner ID for a single search request, or an exact email for a filtered owner lookup. Name-only lookup reads up to 2,000 owners.
 - **Inputs:**
-  - `owner_name` (required): HubSpot owner name to match case-insensitively. A full name match wins; otherwise a first or last name must match exactly one owner, and a name shared by several owners is an error listing them
+  - `owner_id` (optional): Owner ID; skips owner lookup and takes precedence over email/name. Reuse the returned `owner.id` on subsequent pages
+  - `owner_email` (optional): Exact owner email; takes precedence over name
+  - `owner_name` (optional): HubSpot owner name to match case-insensitively. A full name match wins; otherwise a first or last name must match exactly one owner, and a name shared by several owners is an error listing them
   - `limit` (optional): Maximum results for this page (default: 100, max: 100)
   - `after` (optional): Cursor from `paging.next.after` to retrieve the next page
   - `properties` (optional): Company properties to return
+- **Note:** One of `owner_id`, `owner_email`, or `owner_name` is required. When an ID is supplied, only the owner ID is returned; name/email fields are null to avoid another lookup
 - **Outputs:** Matched owner, companies for the requested page, `total`/`page_total` for the current page count, `has_more`, and `paging.next.after` when more owner-matched companies are available
 
 #### Action: `get_company_properties`
@@ -407,7 +430,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Outputs:** Array of deals with pagination metadata and UTC formatted dates. `pagination.has_more_pages` is `true` (and `fetched_all_available` `false`) whenever HubSpot has more deals, including when `max_total` stopped the fetch; continue with `pagination.last_after_token`
 
 #### Action: `search_deals`
-- **Description:** Search deals using advanced filters and text queries with intelligent post-processing
+- **Description:** Search deals with server-side filters and selected properties. Close-date ranges are sent to HubSpot rather than filtered after downloading rows
 - **Inputs:**
   - `query` (optional): Text search across deal names
   - `pipeline_id` (optional): Filter by pipeline
@@ -419,9 +442,9 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `limit` (optional): Results per page (default: 50, max: 100)
   - `after` (optional): Pagination cursor to continue from (`pagination.after` of the previous call)
   - `fetch_all` (optional): Keep fetching pages until `max_total` deals are found (default: false)
-  - `max_total` (optional): Maximum deals across pages (default: `limit`, or 100 with `fetch_all`)
-- **Outputs:** Filtered deals with UTC dates, plus `pagination` (`has_more_pages`, `current_page_size`, `after`)
-- **Note:** All filters must match (AND)
+  - `max_total` (optional): Maximum deals across pages when `fetch_all` is true (default: 100); otherwise exactly one page is read
+- **Outputs:** Filtered deals with UTC dates, `total_matching` from HubSpot (use `limit: 1` for a count), plus `pagination` (`has_more_pages`, `current_page_size`, `after`)
+- **Note:** All filters must match (AND). Close-date bounds are inclusive UTC instants; a date-only end is midnight at the start of that date. A supplied year is intersected with the date range
 
 #### Action: `create_deal`
 - **Description:** Creates a new deal with optional associations
@@ -595,13 +618,15 @@ These actions work across HubSpot object types, so questions that the fixed filt
 - **Outputs:** `results`, `total` (this page), `total_matching` (all pages), `has_more`, and `next_offset` for the next page
 
 #### Action: `get_list_members`
-- **Description:** Retrieve list members with complete contact information including names, emails, and custom properties
+- **Description:** Retrieve list members with optional contact details. Use `get_list` for list size alone
 - **Inputs:**
   - `list_id` (required): The ILS list ID to get members from
-  - `limit` (optional): Maximum number of members to return (default: 1000, max: 10000)
+  - `limit` (optional): Maximum members in this call (default: 50, max: 10000). Large explicit limits read multiple pages
+  - `after` (optional): Continuation cursor from the previous response
+  - `include_contact_details` (optional): Include contact properties (default: true). Set false for IDs and timestamps only, avoiding batch contact reads
   - `contact_properties` (optional): Contact properties to include (default: ["email", "firstname", "lastname", "phone", "company", "jobtitle"])
   - `include_membership_timestamps` (optional): Include when contacts were added to list (default: true)
-- **Outputs:** List metadata, array of members with contact details, performance statistics, and pagination info. When HubSpot can't return some members' contact details, their IDs are listed in `failed_contact_ids` with the reasons in `errors`, rather than being left out silently
+- **Outputs:** `after` and `has_more` for continuation, list metadata, array of members with optional contact details, performance statistics, and pagination info. When HubSpot can't return some members' contact details, their IDs are listed in `failed_contact_ids` with the reasons in `errors`, rather than being left out silently
 
 #### Action: `get_list_memberships`
 - **Description:** Get raw list member IDs and timestamps without contact details (for advanced use cases)
@@ -648,6 +673,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
 - **Inputs:**
   - `limit` (optional): Maximum tasks per page (default: 100). Up to 200 when any filter is given; without filters HubSpot returns at most 100
   - `after` (optional): Paging cursor (`paging.next.after`) from the previous call with the same filters
+  - `include_associations` (optional): Include linked contact/company/deal IDs (default: false)
   - `hs_task_properties` (optional): Array of HubSpot task CRM property internal names to retrieve (defaults match create/update task fields)
   - `owner_id` (optional): Only tasks assigned to this owner ID
   - `owner_email` (optional): Only tasks assigned to the HubSpot user with this email; resolved with the Owners API. Ignored when `owner_id` is given
@@ -661,7 +687,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
   - `contact_id` / `company_id` / `deal_id` (optional): Only tasks associated with this record
   - `sort_direction` (optional): `ASCENDING` (default, oldest due date first) or `DESCENDING`
 - **Outputs:**
-  - `tasks`: Array of task objects, each with `associations.contacts`, `associations.companies` and `associations.deals` listing linked record IDs (types with no linked records are omitted)
+  - `tasks`: Array of task objects. With `include_associations: true`, includes `associations.contacts`, `associations.companies` and `associations.deals` listing linked record IDs (types with no linked records are omitted)
   - `total`: Number of tasks returned in this response
   - `total_matching`: Number of tasks matching the filters across all pages (filtered searches only)
   - `paging`: Next-page metadata if available
@@ -671,7 +697,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
   - `due_after` and `due_before` take Unix milliseconds or an ISO 8601 date. Include the user's UTC offset to filter by their local day: `due_before: "2026-10-28T00:00:00+13:00"` returns everything overdue or due by the end of 27 October in New Zealand. A date without a time zone is read as UTC.
   - HubSpot allows up to 6 filters per search; the owner, each of `status`/`exclude_completed`/`priority`/`task_type`, each due date bound and each linked record count as one.
   - Search results can lag a few seconds behind recent changes, and HubSpot returns at most 10,000 matches per search.
-  - Filtered searches make 3 extra requests per page to read each task's linked contacts, companies and deals.
+  - Filtered searches make no association requests by default. Enabling `include_associations` makes at least 3 extra requests per page.
 
 #### Action: `update_task`
 - **Description:** Update an existing task's content or properties

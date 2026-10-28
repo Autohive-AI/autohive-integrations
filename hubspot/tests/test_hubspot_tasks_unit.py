@@ -420,7 +420,9 @@ class TestListTasksSearch:
             [("11", ["501", "502"])], [("12", ["601"])], [("11", ["701"])]
         )
 
-        result = await hubspot.execute_action("list_tasks", {"owner_id": "77"}, mock_context)
+        result = await hubspot.execute_action(
+            "list_tasks", {"owner_id": "77", "include_associations": True}, mock_context
+        )
 
         association_calls = mock_context.fetch.call_args_list[1:]
         assert [call.args[0] for call in association_calls] == [
@@ -578,7 +580,9 @@ class TestListTasksSearch:
             Exception("403 Forbidden"),
         ]
 
-        result = await hubspot.execute_action("list_tasks", {"owner_id": "77"}, mock_context)
+        result = await hubspot.execute_action(
+            "list_tasks", {"owner_id": "77", "include_associations": True}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert result.result.message == "Failed to search tasks: 403 Forbidden"
@@ -603,7 +607,9 @@ class TestListTasksSearch:
             FetchResponse(status=200, headers={}, data=_association_batch_response([])),
         ]
 
-        result = await hubspot.execute_action("list_tasks", {"owner_id": "77"}, mock_context)
+        result = await hubspot.execute_action(
+            "list_tasks", {"owner_id": "77", "include_associations": True}, mock_context
+        )
 
         assert result.type == ResultType.ACTION
         tasks = {task["id"]: task for task in result.result.data["tasks"]}
@@ -621,7 +627,9 @@ class TestListTasksSearch:
             FetchResponse(status=207, headers={}, data=companies),
         ]
 
-        result = await hubspot.execute_action("list_tasks", {"owner_id": "77"}, mock_context)
+        result = await hubspot.execute_action(
+            "list_tasks", {"owner_id": "77", "include_associations": True}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert result.result.message == "Failed to search tasks: Could not read linked companies: Something went wrong"
@@ -633,7 +641,9 @@ class TestListTasksSearch:
             FetchResponse(status=200, headers={}, data={**_association_batch_response([]), "status": "PROCESSING"}),
         ]
 
-        result = await hubspot.execute_action("list_tasks", {"owner_id": "77"}, mock_context)
+        result = await hubspot.execute_action(
+            "list_tasks", {"owner_id": "77", "include_associations": True}, mock_context
+        )
 
         assert result.type == ResultType.ACTION_ERROR
         assert result.result.message == "Failed to search tasks: HubSpot is still processing the linked contacts lookup"

@@ -730,7 +730,9 @@ class TestCallTranscripts:
             calls_found(),
         ]
 
-        result = await hubspot.execute_action("get_contact_calls_and_meetings", {"contact_id": "100"}, mock_context)
+        result = await hubspot.execute_action(
+            "get_contact_calls_and_meetings", {"contact_id": "100", "include_transcripts": True}, mock_context
+        )
 
         first, second = result.result.data["calls"]
         assert first["transcript"] == [{"text": "hi"}]
@@ -747,7 +749,9 @@ class TestCallTranscripts:
             calls_found(),
         ]
 
-        result = await hubspot.execute_action("get_contact_calls_and_meetings", {"contact_id": "100"}, mock_context)
+        result = await hubspot.execute_action(
+            "get_contact_calls_and_meetings", {"contact_id": "100", "include_transcripts": True}, mock_context
+        )
 
         first, second = result.result.data["calls"]
         assert first["transcript_error"] == "HubSpot returned an unreadable transcript"
@@ -761,7 +765,9 @@ class TestCallTranscripts:
             calls_found(),
         ]
 
-        result = await hubspot.execute_action("get_contact_calls_and_meetings", {"contact_id": "100"}, mock_context)
+        result = await hubspot.execute_action(
+            "get_contact_calls_and_meetings", {"contact_id": "100", "include_transcripts": True}, mock_context
+        )
 
         call = result.result.data["calls"][0]
         assert mock_context.fetch.call_args_list[1].args[0].endswith("/transcripts/c1")
@@ -785,7 +791,9 @@ class TestCallTranscripts:
 
         mock_context.fetch.side_effect = fetch
 
-        result = await hubspot.execute_action("get_contact_calls_and_meetings", {"contact_id": "100"}, mock_context)
+        result = await hubspot.execute_action(
+            "get_contact_calls_and_meetings", {"contact_id": "100", "include_transcripts": True}, mock_context
+        )
 
         assert all(call["transcript"] == [] for call in result.result.data["calls"])
         assert peak == 5
