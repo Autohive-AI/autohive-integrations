@@ -150,11 +150,15 @@ inputs = {
     "email": "john.doe@example.com",
     "phone": "+61 2 1234 5678",
     "billing_address": {
-        "address_line_1": "123 Main St",
+        "address_line1": "123 Main St",
+        "address_line2": "Suite 2",
         "suburb": "Sydney",
         "state": "NSW",
         "postcode": "2000",
-        "country": "Australia"
+        "country": "Australia",
+        "country_code": "AU",
+        "first_name": "John",
+        "last_name": "Doe"
     }
 }
 ```

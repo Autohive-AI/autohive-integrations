@@ -62,8 +62,28 @@ class TestGetCustomer:
 
 class TestCreateCustomer:
     async def test_posts_all_customer_fields(self, mock_context):
-        billing_address = {"line1": "1 Queen Street", "city": "Auckland"}
-        shipping_address = {"line1": "2 High Street", "city": "Auckland"}
+        billing_address = {
+            "address_line1": "1 Queen Street",
+            "address_line2": "Suite 2",
+            "suburb": "Auckland Central",
+            "state": "Auckland",
+            "postcode": "1010",
+            "country": "New Zealand",
+            "country_code": "NZ",
+            "first_name": "Alex",
+            "last_name": "Smith",
+        }
+        shipping_address = {
+            "address_line1": "2 High Street",
+            "address_line2": "Level 3",
+            "suburb": "Auckland Central",
+            "state": "Auckland",
+            "postcode": "1010",
+            "country": "New Zealand",
+            "country_code": "NZ",
+            "first_name": "Alex",
+            "last_name": "Smith",
+        }
         customer = {"id": 8, "first_name": "Alex", "last_name": "Smith"}
         queue_api_response(mock_context, {"data": customer})
         inputs = {
