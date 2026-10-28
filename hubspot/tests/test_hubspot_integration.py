@@ -1303,3 +1303,70 @@ class TestCreateAssociation:
                 f"{TEST_COMPANY_ID}",
                 method="DELETE",
             )
+
+
+class TestGapFollowups:
+    async def test_searches_conversations_with_cursor_contract(self, live_context):
+        result = await hubspot.execute_action("search_conversations", {"limit": 2}, live_context)
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert isinstance(data["results"], list)
+        assert len(data["results"]) <= 2
+        assert data["has_more"] == (data["after"] is not None)
+        if data["has_more"]:
+            next_result = await hubspot.execute_action(
+                "search_conversations", {"limit": 2, "after": data["after"]}, live_context
+            )
+            assert next_result.type == ResultType.ACTION, next_result.result
+            assert not {row["id"] for row in data["results"]} & {
+                row["id"] for row in next_result.result.data["results"]
+            }
+
+    async def test_reads_custom_object_with_granted_scope(self, live_context):
+        object_type = os.environ.get("HUBSPOT_TEST_CUSTOM_OBJECT_TYPE", "")
+        if not object_type:
+            pytest.skip("HUBSPOT_TEST_CUSTOM_OBJECT_TYPE not set")
+        schemas = await hubspot.execute_action("get_object_schemas", {}, live_context)
+        assert schemas.type == ResultType.ACTION, schemas.result
+        assert any(row["objectTypeId"] == object_type for row in schemas.result.data["schemas"])
+        properties = await hubspot.execute_action("get_object_properties", {"object_type": object_type}, live_context)
+        assert properties.type == ResultType.ACTION, properties.result
+        result = await hubspot.execute_action(
+            "search_crm_objects", {"object_type": object_type, "limit": 1}, live_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        records = result.result.data["results"]
+        if records:
+            read = await hubspot.execute_action(
+                "get_crm_objects", {"object_type": object_type, "ids": [records[0]["id"]]}, live_context
+            )
+            assert read.type == ResultType.ACTION, read.result
+            assert read.result.data["results"][0]["id"] == records[0]["id"]
+
+    @pytest.mark.destructive
+    async def test_creates_and_updates_test_ticket(self, live_context):
+        stage = os.environ.get("HUBSPOT_TEST_TICKET_STAGE_ID", "")
+        pipeline = os.environ.get("HUBSPOT_TEST_TICKET_PIPELINE_ID", "")
+        if not stage or not pipeline:
+            pytest.skip("Set HUBSPOT_TEST_TICKET_STAGE_ID and HUBSPOT_TEST_TICKET_PIPELINE_ID on a test portal")
+        created = await hubspot.execute_action(
+            "create_ticket",
+            {
+                "subject": "Autohive integration test",
+                "hs_pipeline_stage": stage,
+                "hs_pipeline": pipeline,
+            },
+            live_context,
+        )
+        assert created.type == ResultType.ACTION, created.result
+        ticket_id = created.result.data["ticket"]["id"]
+        try:
+            updated = await hubspot.execute_action(
+                "update_ticket",
+                {"ticket_id": ticket_id, "properties": {"content": "Autohive test update"}},
+                live_context,
+            )
+            assert updated.type == ResultType.ACTION, updated.result
+            assert updated.result.data["ticket"]["properties"]["content"] == "Autohive test update"
+        finally:
+            await live_context.fetch(f"https://api.hubapi.com/crm/objects/2026-09/tickets/{ticket_id}", method="DELETE")

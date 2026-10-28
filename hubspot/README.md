@@ -27,7 +27,7 @@ This integration interacts with HubSpot's CRM v3 API, the 2026-09 CRM objects an
 
 The integration uses HubSpot's OAuth 2.0 platform authentication. No manual API key configuration is required - authentication is handled automatically through Autohive's platform integration system.
 
-**Required Scopes:**
+**Requested Scopes:**
 The integration automatically requests the following HubSpot permissions:
 - `conversations.read` - Read access to conversation threads
 - `crm.objects.companies.read` - Read access to company records
@@ -44,7 +44,19 @@ The integration automatically requests the following HubSpot permissions:
 - `oauth` - OAuth authentication
 - `content` - Read access to marketing emails and content
 - `marketing.campaigns.read` - Read access to marketing campaigns and performance data
+- `crm.objects.custom.read` - Read custom object records (Enterprise only)
+- `crm.schemas.custom.read` - Discover custom object schemas (Enterprise only)
+- `crm.objects.line_items.read` - Read line items
+- `crm.objects.quotes.read` - Read quotes
+- `crm.objects.products.read` - Read products
 - `crm.extensions_calling_transcripts.read` - Read access to call and meeting transcripts (required for Google Meet transcript retrieval)
+
+Autohive's HubSpot authorization flow sends `oauth` as required and other scopes
+as optional, so portals without Enterprise features can still connect. The
+HubSpot app and Autohive auth-provider settings must include these optional
+scopes before deployment. Existing connections must reconnect to grant newly
+requested scopes; requesting them does not upgrade an existing token. Missing
+grants return provider permission errors when the relevant action is called.
 
 **Setup Steps:**
 1. Configure the HubSpot integration in your Autohive platform
@@ -515,7 +527,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
 #### Action: `search_crm_objects`
 - **Description:** Search any object type with HubSpot's CRM search: filters, a text query, one sort and paging
 - **Inputs:**
-  - `object_type` (required): `contacts`, `companies`, `deals`, `tickets`, `tasks`, `notes`, `calls`, `emails` or `meetings`. Other types such as line items, quotes and custom objects need OAuth scopes the integration doesn't request yet, so HubSpot rejects them
+  - `object_type` (required): `contacts`, `companies`, `deals`, `tickets`, `tasks`, `notes`, `calls`, `emails` or `meetings`. Also accepts `line_items`, `quotes`, `products` and custom object IDs (`2-xxxx`) when the connection has the corresponding optional scopes. Discover custom IDs with `get_object_schemas`
   - `filters` (optional): Filters a record must all match (AND), each `{propertyName, operator, value}`. `values` is used for `IN`/`NOT_IN`, and `highValue` with `value` for `BETWEEN`. Operators: `EQ`, `NEQ`, `LT`, `LTE`, `GT`, `GTE`, `BETWEEN`, `IN`, `NOT_IN`, `HAS_PROPERTY`, `NOT_HAS_PROPERTY`, `CONTAINS_TOKEN`, `NOT_CONTAINS_TOKEN`
   - `filter_groups` (optional): Instead of `filters`, groups of filters that are ORed: `[{"filters": [...]}, ...]`. HubSpot allows 5 groups, 6 filters per group and 18 filters in total
   - `associated_with` (optional): `{object_type, id}`. Only records linked to that contact, company, deal or ticket, e.g. emails on a deal
@@ -689,9 +701,34 @@ These actions work across HubSpot object types, so questions that the fixed filt
   - `hs_object_id`: HubSpot task record ID that was deleted
   - `message`: Success or error message
 
-### Advanced Operations
+### Connected user and custom object discovery
+
+#### Action: `get_current_user`
+- **Inputs:** none.
+- **Outputs:** `email`, `owner` (or null when there is no active owner), and `portal_id`.
+- Identifies the user who authorized the shared connection, which may differ from the person chatting. Uses Autohive connection metadata (`connected_user`, `hub_id`); it never puts a token in a URL. Older connections without identity metadata must reconnect, or use `search_owners` with an explicit email.
+
+#### Action: `get_object_schemas`
+- **Inputs:** none.
+- **Outputs:** `schemas`, including each custom object's `objectTypeId` and property definitions.
+- Requires Enterprise and the `crm.schemas.custom.read` grant. Use these IDs in `search_crm_objects`, `get_crm_objects`, `get_object_properties`, `get_association_labels`, `create_association`, and association read actions.
+- HubSpot cannot search associations to custom objects with an `associations.*` filter. Read linked IDs with `get_crm_objects` and its `associations` input, then batch-read those records.
 
 ### Ticket Management
+
+#### Action: `create_ticket`
+- **Inputs:** `subject`, `hs_pipeline_stage` (required internal stage ID), `hs_pipeline` (optional internal pipeline ID), `properties` (optional additional string-valued properties, such as `content`, `hs_ticket_priority`, or `hubspot_owner_id`).
+- **Outputs:** `ticket`, the created HubSpot record.
+- Uses the default pipeline when no pipeline is specified. Discover stage and pipeline IDs with `get_object_properties` for `tickets` and `include_details: true`. Creation disables transport retries because a timeout can occur after HubSpot has created the record; check HubSpot before retrying an unknown outcome.
+
+#### Action: `update_ticket`
+- **Inputs:** `ticket_id` and a nonempty `properties` map of internal names to string values.
+- **Outputs:** `ticket`, the updated record. Only supplied properties change; an empty string clears a value.
+
+#### Action: `search_conversations`
+- **Inputs:** optional `inbox_id`, `contact_id`, `ticket_id`, `status` (`OPEN` or `CLOSED`), `archived`, `limit` (1–500, default 100), and `after`.
+- **Outputs:** `results`, `paging`, `has_more`, and `after`. Pass the returned cursor to retrieve the next page. Threads are ordered by ascending ID.
+- Uses HubSpot's native thread filters; this is not full-text message search. Requires `conversations.read`.
 
 #### Action: `get_recent_tickets`
 - **Description:** Retrieve a single page of recent support tickets with filtering and sorting capabilities. By default, tickets are sorted by their most recent modification, not their creation date.
@@ -1378,3 +1415,28 @@ For issues specific to this integration, check:
 5. UTC date format consistency
 
 For Autohive platform support, contact your Autohive administrator.
+
+
+## Gap-analysis follow-ups (3.7.0)
+
+- Label creation reads existing association types, including their pages, and retains the target pair's labels. If the read fails or hits its request cap, it does not write an incomplete replacement.
+- Batch reads using `id_property` automatically request that property, preserving the lookup value even when records arrive in a different order.
+- List-member exports report missing contacts in partial/207 batch responses as `failed_contact_ids` and `errors`, while retaining successful contacts.
+- Ticket conversations retain rich-text-only messages. `message` falls back to HTML when plain text is absent; `rich_text` preserves the original HTML when supplied.
+- With `include_details`, `get_object_properties` resolves externally backed deal/ticket pipeline and stage dropdown options through the pipelines API. Stage options include `pipeline_id`.
+
+Unit tests verify these request and response contracts. A live portal must still
+confirm the optional scope grants, label updates, association paging and empty
+results, email search permission, list offsets, and record links (including EU
+portals). Ticket write tests are opt-in and must use a dedicated test portal.
+
+
+Provider references: [ticket creation and updates](https://developers.hubspot.com/docs/api-reference/latest/crm/objects/tickets/guide),
+[custom object schemas](https://developers.hubspot.com/docs/api-reference/latest/crm/objects/schemas/get-schemas),
+[pipelines](https://developers.hubspot.com/docs/api-reference/latest/crm/pipelines/get-pipelines),
+and [optional OAuth scopes](https://developers.hubspot.com/docs/guides/apps/public-apps/overview#scope-types).
+
+New live-test settings: `HUBSPOT_TEST_CUSTOM_OBJECT_TYPE` enables custom-object
+schema/search/read checks. `HUBSPOT_TEST_TICKET_STAGE_ID` and
+`HUBSPOT_TEST_TICKET_PIPELINE_ID` enable the opt-in destructive ticket test,
+which creates a test ticket, updates it, and archives it in cleanup.

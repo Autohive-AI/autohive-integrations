@@ -23,7 +23,12 @@
       "sales-email-read",
       "content",
       "marketing.campaigns.read",
-      "crm.extensions_calling_transcripts.read"
+      "crm.extensions_calling_transcripts.read",
+      "crm.objects.custom.read",
+      "crm.schemas.custom.read",
+      "crm.objects.line_items.read",
+      "crm.objects.quotes.read",
+      "crm.objects.products.read"
     ]
   },
   "actions": {
@@ -4297,15 +4302,25 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "companies",
-                "deals",
-                "tickets",
-                "tasks",
-                "notes",
-                "emails",
-                "meetings",
-                "calls"
+              "anyOf": [
+                {
+                  "enum": [
+                    "companies",
+                    "deals",
+                    "tickets",
+                    "tasks",
+                    "notes",
+                    "emails",
+                    "meetings",
+                    "calls",
+                    "line_items",
+                    "quotes",
+                    "products"
+                  ]
+                },
+                {
+                  "pattern": "^2-[0-9]+$"
+                }
               ]
             },
             "description": "List of association types to retrieve. If not provided, retrieves all common types.",
@@ -4443,13 +4458,23 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "contacts",
-                "deals",
-                "tickets",
-                "tasks",
-                "notes",
-                "emails"
+              "anyOf": [
+                {
+                  "enum": [
+                    "contacts",
+                    "deals",
+                    "tickets",
+                    "tasks",
+                    "notes",
+                    "emails",
+                    "line_items",
+                    "quotes",
+                    "products"
+                  ]
+                },
+                {
+                  "pattern": "^2-[0-9]+$"
+                }
               ]
             },
             "description": "List of association types to retrieve. If not provided, retrieves all common types.",
@@ -4526,12 +4551,20 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "contacts",
-                "companies",
-                "tickets",
-                "line_items",
-                "quotes"
+              "anyOf": [
+                {
+                  "enum": [
+                    "contacts",
+                    "companies",
+                    "tickets",
+                    "line_items",
+                    "quotes",
+                    "products"
+                  ]
+                },
+                {
+                  "pattern": "^2-[0-9]+$"
+                }
               ]
             },
             "description": "List of association types to retrieve. If not provided, retrieves all common types.",
@@ -4655,19 +4688,34 @@
     },
     "create_association": {
       "display_name": "Link Records",
-      "description": "Link two HubSpot records, such as a contact to a company or a contact to a deal. Uses HubSpot's default association type unless a label (e.g. 'Architect') or association type ID is given",
+      "description": "Link two HubSpot records, such as a contact to a company or a contact to a deal. Uses HubSpot's default association type unless a label (e.g. 'Architect') or association type ID is given. Existing labels are retained when adding a label.",
       "input_schema": {
         "type": "object",
         "properties": {
           "from_object_type": {
             "type": "string",
-            "enum": [
-              "contacts",
-              "companies",
-              "deals",
-              "tickets"
-            ],
-            "description": "Type of the first record"
+            "description": "Type of the first record",
+            "anyOf": [
+              {
+                "enum": [
+                  "contacts",
+                  "companies",
+                  "deals",
+                  "tickets",
+                  "tasks",
+                  "notes",
+                  "calls",
+                  "emails",
+                  "meetings",
+                  "line_items",
+                  "quotes",
+                  "products"
+                ]
+              },
+              {
+                "pattern": "^2-[0-9]+$"
+              }
+            ]
           },
           "from_object_id": {
             "type": "string",
@@ -4676,13 +4724,28 @@
           },
           "to_object_type": {
             "type": "string",
-            "enum": [
-              "contacts",
-              "companies",
-              "deals",
-              "tickets"
-            ],
-            "description": "Type of the record to link to"
+            "description": "Type of the record to link to",
+            "anyOf": [
+              {
+                "enum": [
+                  "contacts",
+                  "companies",
+                  "deals",
+                  "tickets",
+                  "tasks",
+                  "notes",
+                  "calls",
+                  "emails",
+                  "meetings",
+                  "line_items",
+                  "quotes",
+                  "products"
+                ]
+              },
+              {
+                "pattern": "^2-[0-9]+$"
+              }
+            ]
           },
           "to_object_id": {
             "type": "string",
@@ -4916,7 +4979,7 @@
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails or meetings"
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
           },
           "filters": {
             "type": "array",
@@ -5202,7 +5265,7 @@
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails or meetings"
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
           },
           "ids": {
             "type": "array",
@@ -5325,7 +5388,7 @@
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails or meetings"
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
           },
           "query": {
             "type": "string",
@@ -6608,6 +6671,213 @@
           "transcript_id",
           "utterances",
           "total_utterances"
+        ]
+      }
+    },
+    "get_current_user": {
+      "display_name": "Get Connected User",
+      "description": "Resolve the user who authorized this shared HubSpot connection, not the person currently chatting. Older connections must reconnect to supply identity metadata.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "owner": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "portal_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "email",
+          "owner",
+          "portal_id"
+        ]
+      }
+    },
+    "get_object_schemas": {
+      "display_name": "Get Custom Object Schemas",
+      "description": "Discover custom object type IDs and property definitions. Requires Enterprise and crm.schemas.custom.read; use returned IDs in generic CRM and association actions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "schemas": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "schemas"
+        ]
+      }
+    },
+    "create_ticket": {
+      "display_name": "Create Ticket",
+      "description": "Create a support ticket. Use internal pipeline and stage IDs; Get Object Properties with include_details discovers them. Additional properties may include content, hs_ticket_priority and hubspot_owner_id.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hs_pipeline_stage": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "hs_pipeline": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "properties": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "HubSpot internal property names mapped to string values. An empty string clears a value."
+          }
+        },
+        "required": [
+          "subject",
+          "hs_pipeline_stage"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "ticket"
+        ]
+      }
+    },
+    "update_ticket": {
+      "display_name": "Update Ticket",
+      "description": "Update selected ticket properties by ID. Supply internal property names; an empty string clears a property.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "properties": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "HubSpot internal property names mapped to string values. An empty string clears a value."
+          }
+        },
+        "required": [
+          "ticket_id",
+          "properties"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "ticket"
+        ]
+      }
+    },
+    "search_conversations": {
+      "display_name": "Search Conversations",
+      "description": "Retrieve conversation/inbox threads with contact, ticket, inbox or status filters. Returns one page in ascending ID order and a cursor. Does not support full-text message search.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "inbox_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "contact_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "ticket_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CLOSED"
+            ]
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100
+          },
+          "after": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "paging": {
+            "type": "object"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "results",
+          "paging",
+          "has_more",
+          "after"
         ]
       }
     }

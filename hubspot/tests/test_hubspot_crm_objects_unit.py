@@ -294,7 +294,7 @@ class TestGetCrmObjects:
 
         assert mock_context.fetch.call_args.kwargs["json"] == {
             "inputs": [{"id": "a@example.com"}],
-            "properties": [],
+            "properties": ["email"],
             "propertiesWithHistory": [],
             "idProperty": "email",
         }

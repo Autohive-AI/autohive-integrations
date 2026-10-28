@@ -722,3 +722,29 @@ class TestAddTicketComment:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "note was created without an id" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_ticket_conversation_retains_rich_text_only_message(mock_context):
+    mock_context.fetch.side_effect = [
+        TICKET_RESPONSE_WITH_THREAD,
+        FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "results": [
+                    {
+                        "id": "rich-1",
+                        "richText": "<p>Hello <b>there</b></p>",
+                        "createdAt": "2026-10-28T00:00:00Z",
+                        "type": "MESSAGE",
+                    }
+                ]
+            },
+        ),
+    ]
+    result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "123"}, mock_context)
+    messages = result.result.data["conversation"]["results"]
+    assert len(messages) == 1
+    assert messages[0]["message"] == "<p>Hello <b>there</b></p>"
+    assert messages[0]["rich_text"] == messages[0]["message"]

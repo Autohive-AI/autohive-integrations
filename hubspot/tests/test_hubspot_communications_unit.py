@@ -2023,6 +2023,7 @@ class TestCreateAssociation:
     async def test_links_records_with_named_label(self, mock_context):
         mock_context.fetch.side_effect = [
             ok({"results": [{"category": "HUBSPOT_DEFINED", "typeId": 3, "label": None}, ARCHITECT]}),
+            ok({"results": []}),
             ok({"fromObjectId": "5", "toObjectId": "1", "labels": ["Architect"]}),
         ]
 
@@ -2039,7 +2040,7 @@ class TestCreateAssociation:
         )
 
         assert result.result.data["message"] == "Associated deals 5 with contacts 1 as Architect"
-        labels_call, put_call = mock_context.fetch.call_args_list
+        labels_call, read_call, put_call = mock_context.fetch.call_args_list
         assert labels_call.args[0] == "https://api.hubapi.com/crm/associations/2026-09/deals/contacts/labels"
         assert put_call.args[0] == "https://api.hubapi.com/crm/objects/2026-09/deals/5/associations/contacts/1"
         assert put_call.kwargs["method"] == "PUT"
@@ -2049,6 +2050,7 @@ class TestCreateAssociation:
     async def test_type_id_takes_precedence_over_label(self, mock_context):
         mock_context.fetch.side_effect = [
             ok({"results": [{"category": "HUBSPOT_DEFINED", "typeId": 3, "label": None}, ARCHITECT]}),
+            ok({"results": []}),
             ok({}),
         ]
 
@@ -2065,7 +2067,7 @@ class TestCreateAssociation:
             mock_context,
         )
 
-        put_call = mock_context.fetch.call_args_list[1]
+        put_call = mock_context.fetch.call_args_list[2]
         assert put_call.kwargs["json"] == [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 3}]
 
     @pytest.mark.asyncio

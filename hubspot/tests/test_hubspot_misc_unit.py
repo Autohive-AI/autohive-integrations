@@ -353,6 +353,27 @@ class TestGetListMembers:
         assert data["errors"] == ["HTTP 502: Bad gateway"]
 
     @pytest.mark.asyncio
+    async def test_partial_207_contact_batch_reports_missing_member(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            FetchResponse(
+                status=207,
+                headers={},
+                data={
+                    "status": "COMPLETE",
+                    "results": [{"id": "101", "properties": {"email": "a@example.com"}}],
+                    "errors": [{"category": "OBJECT_NOT_FOUND", "context": {"ids": ["102"]}}],
+                },
+            ),
+        ]
+        result = await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+        data = result.result.data
+        assert [member["contact_id"] for member in data["members"]] == ["101"]
+        assert data["failed_contact_ids"] == ["102"]
+        assert "OBJECT_NOT_FOUND" in data["errors"]
+
+    @pytest.mark.asyncio
     async def test_no_failure_fields_when_every_batch_loads(self, mock_context):
         mock_context.fetch.side_effect = [self.LIST_META_RESPONSE, self.MEMBERSHIPS_RESPONSE, self.CONTACTS_RESPONSE]
 

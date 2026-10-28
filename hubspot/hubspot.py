@@ -2352,7 +2352,7 @@ class GetTicketConversationActionHandler(ActionHandler):
                 )
 
             for message in conversation_data.get("results", []):
-                message_content = message.get("text")
+                message_content = message.get("text") or message.get("richText")
                 if not message_content:
                     continue
 
@@ -2372,6 +2372,7 @@ class GetTicketConversationActionHandler(ActionHandler):
                         "timestamp": message.get("createdAt"),
                         "message_id": message.get("id"),
                         "type": message_type,
+                        **({"rich_text": message["richText"]} if message.get("richText") else {}),
                     }
                 )
 
@@ -4252,12 +4253,27 @@ class CreateAssociationHandler(ActionHandler):
                         message=f"No {from_type} to {to_type} association has the {wanted}. Labels: {available}"
                     )
                 message += f" as {match.get('label') or match['typeId']}"
+                links, unfinished = await _read_associations(context, from_type, to_type, [from_id], retry_sleep_budget)
+                if unfinished:
+                    return ActionError(message="Cannot safely add a label: existing association labels are incomplete")
+                association_types = {}
+                for link in links.get(str(from_id), []):
+                    if str(link["toObjectId"]) == str(to_id):
+                        for existing in link.get("associationTypes", []):
+                            association_types[(existing["category"], existing["typeId"])] = {
+                                "associationCategory": existing["category"],
+                                "associationTypeId": existing["typeId"],
+                            }
+                association_types[(match["category"], match["typeId"])] = {
+                    "associationCategory": match["category"],
+                    "associationTypeId": match["typeId"],
+                }
                 response = await fetch_with_rate_limit_retries(
                     context,
                     f"{url}/{to_type}/{to_id}",
                     retry_sleep_budget=retry_sleep_budget,
                     method="PUT",
-                    json=[{"associationCategory": match["category"], "associationTypeId": match["typeId"]}],
+                    json=list(association_types.values()),
                     headers={"Content-Type": "application/json"},
                 )
             else:
@@ -4269,7 +4285,7 @@ class CreateAssociationHandler(ActionHandler):
                     # HubSpot rejects this bodyless PUT with 415 unless it's marked as JSON
                     headers={"Content-Type": "application/json"},
                 )
-        except REQUEST_ERRORS as e:
+        except (*REQUEST_ERRORS, ValueError) as e:
             return ActionError(message=f"Failed to associate {records}: {_error_text(e)}")
 
         return ActionResult(
@@ -4386,6 +4402,16 @@ class GetListMembersHandler(ActionHandler):
 
                 batch_contacts = contacts_data.get("results", [])
                 all_contacts.extend(batch_contacts)
+                returned_ids = {str(contact["id"]) for contact in batch_contacts}
+                missing_ids = [contact_id for contact_id in batch_ids if str(contact_id) not in returned_ids]
+                failed_contact_ids.extend(missing_ids)
+                if missing_ids:
+                    batch_errors.append("Contact batch did not return IDs: " + ", ".join(map(str, missing_ids)))
+                for error in contacts_data.get("errors", []):
+                    batch_errors.append(error.get("message") or error.get("category") or "Contact batch failed")
+                reason = _unfinished_batch_reason(contacts_data)
+                if reason:
+                    batch_errors.append(f"HubSpot {reason} the contact lookup")
 
             except REQUEST_ERRORS as e:
                 # Keep the members that loaded, and name the ones that didn't rather than dropping them
@@ -4436,6 +4462,7 @@ class GetListMembersHandler(ActionHandler):
         }
         if failed_contact_ids:
             result["failed_contact_ids"] = failed_contact_ids
+        if batch_errors:
             result["errors"] = batch_errors
         return ActionResult(data=result, cost_usd=None)
 
@@ -4663,11 +4690,13 @@ class GetCrmObjectsHandler(ActionHandler):
         ids = [str(object_id) for object_id in inputs["ids"]]
         payload: Dict[str, Any] = {
             "inputs": [{"id": object_id} for object_id in ids],
-            "properties": inputs.get("properties", []),
+            "properties": list(inputs.get("properties", [])),
             "propertiesWithHistory": [],
         }
         if inputs.get("id_property"):
             payload["idProperty"] = inputs["id_property"]
+            if inputs["id_property"] not in payload["properties"]:
+                payload["properties"].append(inputs["id_property"])
 
         retry_sleep_budget = {"remaining": 10}
         try:
@@ -4742,6 +4771,24 @@ class GetObjectPropertiesHandler(ActionHandler):
                 for prop in results
                 if query in (prop.get("name") or "").casefold() or query in (prop.get("label") or "").casefold()
             ]
+        pipelines = None
+        pipeline_fields = {"deals": ("pipeline", "dealstage"), "tickets": ("hs_pipeline", "hs_pipeline_stage")}
+        fields = pipeline_fields.get(object_type)
+        if (
+            include_details
+            and fields
+            and any(
+                prop.get("externalOptions") and prop.get("name") in fields and not prop.get("options")
+                for prop in results
+            )
+        ):
+            try:
+                response = await fetch_with_rate_limit_retries(
+                    context, f"https://api.hubapi.com/crm/pipelines/2026-09/{object_type}"
+                )
+                pipelines = (await parse_response(response)).get("results", [])
+            except REQUEST_ERRORS as e:
+                return ActionError(message=f"Failed to read {object_type} pipeline options: {_error_text(e)}")
         properties = []
         for prop in results:
             summary = {"name": prop.get("name"), "label": prop.get("label"), "type": prop.get("type")}
@@ -4759,6 +4806,15 @@ class GetObjectPropertiesHandler(ActionHandler):
                         ],
                     }
                 )
+            if pipelines is not None and prop.get("externalOptions") and not prop.get("options"):
+                if prop.get("name") == fields[0]:
+                    summary["options"] = [{"label": row["label"], "value": row["id"]} for row in pipelines]
+                elif prop.get("name") == fields[1]:
+                    summary["options"] = [
+                        {"label": stage["label"], "value": stage["id"], "pipeline_id": row["id"]}
+                        for row in pipelines
+                        for stage in row.get("stages", [])
+                    ]
             properties.append(summary)
 
         return ActionResult(data={"properties": properties, "total": len(properties)}, cost_usd=None)
@@ -5193,3 +5249,130 @@ class GetCallTranscriptActionHandler(ActionHandler):
 
         except Exception as e:
             return ActionError(message=f"Failed to retrieve transcript for {transcript_id}: {str(e)}")
+
+
+@hubspot.action("get_current_user")
+class GetCurrentUserHandler(ActionHandler):
+    """Resolve the user who authorized the shared connection, using platform-provided metadata."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        metadata = context.metadata
+        email = metadata.get("connected_user")
+        if not isinstance(email, str) or not email.strip():
+            return ActionError(
+                message="Connected-user identity is unavailable. Reconnect HubSpot, "
+                "or use Search Owners with your email."
+            )
+        try:
+            owners, complete = await _list_owners(context, {"remaining": 10}, email=email)
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to resolve the connected user's owner: {_error_text(e)}")
+        owners = [owner for owner in owners if (owner.get("email") or "").casefold() == email.casefold()]
+        if not complete or len(owners) > 1:
+            return ActionError(message="Could not uniquely resolve the connected user's owner")
+        return ActionResult(
+            data={"email": email, "owner": owners[0] if owners else None, "portal_id": metadata.get("hub_id")},
+            cost_usd=None,
+        )
+
+
+@hubspot.action("get_object_schemas")
+class GetObjectSchemasHandler(ActionHandler):
+    """Discover custom object type IDs and their schemas."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context, "https://api.hubapi.com/crm-object-schemas/2026-09/schemas"
+            )
+            data = await parse_response(response)
+        except REQUEST_ERRORS as e:
+            return ActionError(
+                message=f"Failed to list custom object schemas (requires crm.schemas.custom.read): {_error_text(e)}"
+            )
+        return ActionResult(data={"schemas": data.get("results", [])}, cost_usd=None)
+
+
+@hubspot.action("create_ticket")
+class CreateTicketHandler(ActionHandler):
+    """Create a support ticket with a subject, pipeline stage and optional properties."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        properties = {
+            **inputs.get("properties", {}),
+            "subject": inputs["subject"],
+            "hs_pipeline_stage": inputs["hs_pipeline_stage"],
+        }
+        if inputs.get("hs_pipeline"):
+            properties["hs_pipeline"] = inputs["hs_pipeline"]
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{OBJECTS_API_URL}/tickets",
+                method="POST",
+                json={"properties": properties},
+                headers={"Content-Type": "application/json"},
+                resend_on_connection_error=False,
+            )
+            ticket = await parse_response(response)
+        except REQUEST_ERRORS as e:
+            if _outcome_unknown(e):
+                return ActionError(
+                    message="Ticket creation outcome is unknown. Check HubSpot before retrying to avoid duplicates."
+                )
+            return ActionError(message=f"Failed to create ticket: {_error_text(e)}")
+        return ActionResult(data={"ticket": ticket}, cost_usd=None)
+
+
+@hubspot.action("update_ticket")
+class UpdateTicketHandler(ActionHandler):
+    """Update only the supplied ticket properties; an empty string clears a property."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{OBJECTS_API_URL}/tickets/{inputs['ticket_id']}",
+                method="PATCH",
+                json={"properties": inputs["properties"]},
+                headers={"Content-Type": "application/json"},
+            )
+            ticket = await parse_response(response)
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to update ticket: {_error_text(e)}")
+        return ActionResult(data={"ticket": ticket}, cost_usd=None)
+
+
+@hubspot.action("search_conversations")
+class SearchConversationsHandler(ActionHandler):
+    """Retrieve a page of inbox threads with HubSpot's native filters."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        params = {"limit": inputs.get("limit", 100), "sort": "id", "association": "TICKET"}
+        filters = {
+            "after": inputs.get("after"),
+            "inboxId": inputs.get("inbox_id"),
+            "associatedContactId": inputs.get("contact_id"),
+            "associatedTicketId": inputs.get("ticket_id"),
+            "threadStatus": inputs.get("status"),
+        }
+        params.update({key: value for key, value in filters.items() if value})
+        if "archived" in inputs:
+            params["archived"] = "true" if inputs.get("archived") else "false"
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context, "https://api.hubapi.com/conversations/v3/conversations/threads", params=params
+            )
+            data = await parse_response(response)
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to search conversations: {_error_text(e)}")
+        after = ((data.get("paging") or {}).get("next") or {}).get("after")
+        return ActionResult(
+            data={
+                "results": data.get("results", []),
+                "paging": data.get("paging", {}),
+                "has_more": after is not None,
+                "after": str(after) if after is not None else None,
+            },
+            cost_usd=None,
+        )
