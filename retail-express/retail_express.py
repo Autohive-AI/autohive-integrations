@@ -202,7 +202,7 @@ class ListInventoryLevelsAction(ActionHandler):
             )
 
             body = response.data
-            inventory_levels = body.get("data", [])
+            inventory_levels = body.get("data") or []
             return ActionResult(
                 data={
                     "inventory_levels": inventory_levels,
@@ -251,7 +251,7 @@ class ListInventoryMovementsAction(ActionHandler):
             )
 
             body = response.data
-            inventory_movements = body.get("data", [])
+            inventory_movements = body.get("data") or []
             return ActionResult(
                 data={
                     "inventory_movements": inventory_movements,

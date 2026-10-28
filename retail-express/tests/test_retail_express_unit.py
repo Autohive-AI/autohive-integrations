@@ -90,6 +90,27 @@ class TestListInventoryLevels:
         params = mock_context.fetch.await_args_list[1].kwargs["params"]
         assert params == inputs
 
+    async def test_treats_nullable_data_as_empty_inventory(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data={"access_token": "token"}),  # nosec B105
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"data": None, "page_number": 1, "page_size": 20, "total_records": 0},
+            ),
+        ]
+
+        result = await retail_express.execute_action("list_inventory_levels", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data == {
+            "inventory_levels": [],
+            "page_number": 1,
+            "page_size": 20,
+            "total_records": 0,
+            "result": True,
+        }
+
     async def test_returns_structured_error(self, mock_context):
         mock_context.fetch.side_effect = RuntimeError("inventory unavailable")
 
@@ -149,6 +170,27 @@ class TestListInventoryMovements:
         await retail_express.execute_action("list_inventory_movements", inputs, mock_context)
 
         assert mock_context.fetch.await_args_list[1].kwargs["params"] == inputs
+
+    async def test_treats_nullable_data_as_empty_movements(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data={"access_token": "token"}),  # nosec B105
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"data": None, "page_number": 1, "page_size": 20, "total_records": 0},
+            ),
+        ]
+
+        result = await retail_express.execute_action("list_inventory_movements", {}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data == {
+            "inventory_movements": [],
+            "page_number": 1,
+            "page_size": 20,
+            "total_records": 0,
+            "result": True,
+        }
 
     async def test_returns_structured_error(self, mock_context):
         mock_context.fetch.side_effect = RuntimeError("movement log unavailable")
