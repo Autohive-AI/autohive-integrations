@@ -1,7 +1,7 @@
 import pytest
 from autohive_integrations_sdk import HTTPError, ResultType
 
-from metabase.metabase import metabase
+from metabase.metabase import NO_RETRY, metabase
 from metabase.tests.conftest import BASE, ok as _ok
 
 pytestmark = pytest.mark.unit
@@ -253,3 +253,64 @@ class TestCreateQuestion:
         )
         assert result.type == ResultType.ACTION_ERROR
         assert "HTTP 403" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_no_id_returned(self, mock_context):
+        mock_context.fetch.return_value = _ok({"name": "N"})
+        result = await metabase.execute_action(
+            "create_question", {"name": "N", "database_id": 3, "sql": "select 1"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "did not return a question id" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_empty_description_omitted(self, mock_context):
+        mock_context.fetch.return_value = _ok({"id": 79, "name": "N"})
+        await metabase.execute_action(
+            "create_question", {"name": "N", "database_id": 3, "sql": "select 1", "description": ""}, mock_context
+        )
+        assert "description" not in mock_context.fetch.call_args.kwargs["json"]
+
+    @pytest.mark.asyncio
+    async def test_mbql5_response_sql_returned(self, mock_context):
+        mock_context.fetch.return_value = _ok(
+            {
+                "id": 80,
+                "name": "N",
+                "database_id": 3,
+                "dataset_query": {"database": 3, "stages": [{"native": "select 1"}]},
+            }
+        )
+        result = await metabase.execute_action(
+            "create_question", {"name": "N", "database_id": 3, "sql": "select 1"}, mock_context
+        )
+        assert result.result.data["native_sql"] == "select 1"
+
+
+class TestQueriesSentOnce:
+    @pytest.mark.parametrize(
+        "action, inputs",
+        [
+            ("run_sql_query", {"database_id": 3, "sql": "select 1"}),
+            ("run_question", {"question_id": 42}),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_query_not_retried(self, mock_context, action, inputs):
+        mock_context.fetch.return_value = _ok(_dataset([[1]]), status=202)
+        await metabase.execute_action(action, inputs, mock_context)
+        assert mock_context.fetch.call_args.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_create_question_not_retried(self, mock_context):
+        mock_context.fetch.return_value = _ok({"id": 1, "name": "N"})
+        await metabase.execute_action(
+            "create_question", {"name": "N", "database_id": 3, "sql": "select 1"}, mock_context
+        )
+        assert mock_context.fetch.call_args.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_get_question_keeps_retries(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_CARD)
+        await metabase.execute_action("get_question", {"question_id": 42}, mock_context)
+        assert "retry_count" not in mock_context.fetch.call_args.kwargs

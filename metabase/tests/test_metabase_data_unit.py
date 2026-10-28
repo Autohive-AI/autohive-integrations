@@ -418,6 +418,12 @@ class TestCreateCollection:
         assert mock_context.fetch.call_args.kwargs["json"] == {"name": "X"}
 
     @pytest.mark.asyncio
+    async def test_top_level_collection_id_zero_not_dropped(self, mock_context):
+        mock_context.fetch.return_value = _ok({"id": 32, "name": "X"})
+        await metabase.execute_action("create_collection", {"name": "X", "parent_collection_id": 0}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"] == {"name": "X", "parent_id": 0}
+
+    @pytest.mark.asyncio
     async def test_blank_name(self, mock_context):
         result = await metabase.execute_action("create_collection", {"name": "  "}, mock_context)
         assert result.type == ResultType.ACTION_ERROR

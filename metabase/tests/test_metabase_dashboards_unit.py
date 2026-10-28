@@ -88,6 +88,15 @@ class TestGetDashboard:
         assert result.type == ResultType.ACTION_ERROR
 
 
+class TestGetDashboardTabs:
+    @pytest.mark.asyncio
+    async def test_tabs_listed(self, mock_context):
+        tabbed = {**SAMPLE_DASHBOARD, "tabs": [{"id": 11, "name": "Overview", "position": 0}]}
+        mock_context.fetch.return_value = _ok(tabbed)
+        result = await metabase.execute_action("get_dashboard", {"dashboard_id": 9}, mock_context)
+        assert result.result.data["tabs"] == [{"id": 11, "name": "Overview"}]
+
+
 class TestCreateDashboard:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
@@ -105,6 +114,18 @@ class TestCreateDashboard:
     async def test_minimal_body(self, mock_context):
         mock_context.fetch.return_value = _ok({"id": 61, "name": "X"})
         await metabase.execute_action("create_dashboard", {"name": "X"}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"] == {"name": "X"}
+
+    @pytest.mark.asyncio
+    async def test_sent_once(self, mock_context):
+        mock_context.fetch.return_value = _ok({"id": 62, "name": "X"})
+        await metabase.execute_action("create_dashboard", {"name": "X"}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_empty_description_omitted(self, mock_context):
+        mock_context.fetch.return_value = _ok({"id": 63, "name": "X"})
+        await metabase.execute_action("create_dashboard", {"name": "X", "description": ""}, mock_context)
         assert mock_context.fetch.call_args.kwargs["json"] == {"name": "X"}
 
     @pytest.mark.asyncio
