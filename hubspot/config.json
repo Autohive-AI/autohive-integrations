@@ -1927,13 +1927,13 @@
     },
     "get_recent_contacts": {
       "display_name": "Get Recent Contacts",
-      "description": "Retrieve recently created contacts from HubSpot using CRM v3 API, sorted by creation date",
+      "description": "Retrieve the most recently created HubSpot contacts, newest first",
       "input_schema": {
         "type": "object",
         "properties": {
           "limit": {
             "type": "integer",
-            "description": "Number of contacts to retrieve",
+            "description": "Number of contacts to retrieve (default: 100)",
             "minimum": 1,
             "maximum": 100
           }

@@ -132,7 +132,7 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **API:** [Remove records from a list](https://developers.hubspot.com/docs/api-reference/latest/crm/lists/guide#remove-records-from-an-existing-list)
 
 #### Action: `get_recent_contacts`
-- **Description:** Retrieve recently created contacts sorted by creation date
+- **Description:** Retrieve the most recently created contacts, newest first
 - **Inputs:**
   - `limit` (optional): Number of contacts to retrieve (default: 100, max: 100)
 - **Outputs:** Array of recent contacts with pagination metadata

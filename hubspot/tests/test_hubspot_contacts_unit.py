@@ -682,30 +682,29 @@ class TestGetRecentContacts:
     async def test_happy_path(self, mock_context):
         contacts = {
             "results": [
-                {"id": "1", "properties": {"email": "a@example.com"}},
                 {"id": "2", "properties": {"email": "b@example.com"}},
+                {"id": "1", "properties": {"email": "a@example.com"}},
             ]
         }
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=contacts)
 
         result = await hubspot.execute_action("get_recent_contacts", {"limit": 10}, mock_context)
 
-        data = result.result.data
-        assert len(data["recent_contacts"]["results"]) == 2
-        mock_context.fetch.assert_called_once()
-        url = mock_context.fetch.call_args.args[0]
-        assert "limit=10" in url
-        assert "sort=createdat" in url
+        assert [c["id"] for c in result.result.data["recent_contacts"]["results"]] == ["2", "1"]
 
     @pytest.mark.asyncio
-    async def test_request_url_with_limit(self, mock_context):
+    async def test_searches_newest_first(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
 
         await hubspot.execute_action("get_recent_contacts", {"limit": 25}, mock_context)
 
-        url = mock_context.fetch.call_args.args[0]
-        assert "limit=25" in url
-        assert "sort=createdat" in url
+        call = mock_context.fetch.call_args
+        assert call.args[0] == "https://api.hubapi.com/crm/v3/objects/contacts/search"
+        assert call.kwargs["method"] == "POST"
+        assert call.kwargs["json"] == {
+            "sorts": [{"propertyName": "createdate", "direction": "DESCENDING"}],
+            "limit": 25,
+        }
 
     @pytest.mark.asyncio
     async def test_default_limit(self, mock_context):
@@ -713,5 +712,4 @@ class TestGetRecentContacts:
 
         await hubspot.execute_action("get_recent_contacts", {}, mock_context)
 
-        url = mock_context.fetch.call_args.args[0]
-        assert "limit=100" in url
+        assert mock_context.fetch.call_args.kwargs["json"]["limit"] == 100

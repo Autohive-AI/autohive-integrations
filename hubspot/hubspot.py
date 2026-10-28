@@ -2164,9 +2164,15 @@ class GetRecentContactsActionHandler(ActionHandler):
         """
 
         limit = inputs.get("limit", 100)
-        url = f"https://api.hubapi.com/crm/v3/objects/contacts?limit={limit}&sort=createdat"
 
-        response = await fetch_with_rate_limit_retries(context, url, headers={"Content-Type": "application/json"})
+        # Listing contacts can't sort, so it returns the oldest first; search sorts by creation date
+        response = await fetch_with_rate_limit_retries(
+            context,
+            CONTACTS_SEARCH_API_URL,
+            method="POST",
+            json={"sorts": [{"propertyName": "createdate", "direction": "DESCENDING"}], "limit": limit},
+            headers={"Content-Type": "application/json"},
+        )
         recent_contacts = await parse_response(response)
         return ActionResult(data={"recent_contacts": recent_contacts}, cost_usd=None)
 
