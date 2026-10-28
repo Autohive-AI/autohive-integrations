@@ -44,6 +44,8 @@ The integration automatically requests the following HubSpot permissions:
 - `oauth` - OAuth authentication
 - `content` - Read access to marketing emails and content
 - `marketing.campaigns.read` - Read access to marketing campaigns and performance data
+- `crm.objects.leads.read` - Read Sales Hub Leads (Sales Hub Professional/Enterprise only)
+- `crm.objects.leads.write` - Create/update Sales Hub Leads (Sales Hub Professional/Enterprise only)
 - `crm.objects.custom.read` - Read custom object records (Enterprise only)
 - `crm.schemas.custom.read` - Discover custom object schemas (Enterprise only)
 - `crm.objects.line_items.read` - Read line items
@@ -527,7 +529,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
 #### Action: `search_crm_objects`
 - **Description:** Search any object type with HubSpot's CRM search: filters, a text query, one sort and paging
 - **Inputs:**
-  - `object_type` (required): `contacts`, `companies`, `deals`, `tickets`, `tasks`, `notes`, `calls`, `emails` or `meetings`. Also accepts `line_items`, `quotes`, `products` and custom object IDs (`2-xxxx`) when the connection has the corresponding optional scopes. Discover custom IDs with `get_object_schemas`
+  - `object_type` (required): `contacts`, `companies`, `deals`, `tickets`, `leads`, `tasks`, `notes`, `calls`, `emails` or `meetings`. Also accepts `line_items`, `quotes`, `products` and custom object IDs (`2-xxxx`) when the connection has the corresponding optional scopes. Discover custom IDs with `get_object_schemas`
   - `filters` (optional): Filters a record must all match (AND), each `{propertyName, operator, value}`. `values` is used for `IN`/`NOT_IN`, and `highValue` with `value` for `BETWEEN`. Operators: `EQ`, `NEQ`, `LT`, `LTE`, `GT`, `GTE`, `BETWEEN`, `IN`, `NOT_IN`, `HAS_PROPERTY`, `NOT_HAS_PROPERTY`, `CONTAINS_TOKEN`, `NOT_CONTAINS_TOKEN`
   - `filter_groups` (optional): Instead of `filters`, groups of filters that are ORed: `[{"filters": [...]}, ...]`. HubSpot allows 5 groups, 6 filters per group and 18 filters in total
   - `associated_with` (optional): `{object_type, id}`. Only records linked to that contact, company, deal or ticket, e.g. emails on a deal
@@ -713,6 +715,45 @@ These actions work across HubSpot object types, so questions that the fixed filt
 - **Outputs:** `schemas`, including each custom object's `objectTypeId` and property definitions.
 - Requires Enterprise and the `crm.schemas.custom.read` grant. Use these IDs in `search_crm_objects`, `get_crm_objects`, `get_object_properties`, `get_association_labels`, `create_association`, and association read actions.
 - HubSpot cannot search associations to custom objects with an `associations.*` filter. Read linked IDs with `get_crm_objects` and its `associations` input, then batch-read those records.
+
+### Sales Hub Leads
+
+Leads are the separate prospecting object (`leads`, type ID `0-136`), not contacts
+whose lifecycle stage is Lead. HubSpot requires Sales Hub Professional or
+Enterprise. `crm.objects.leads.read` and `crm.objects.leads.write` must be
+registered as **optional** scopes in both the HubSpot app and Autohive auth-provider
+settings. The platform sends them through `optional_scope`, so a portal without
+that plan can still connect and use other objects. Reconnect the account
+after configuring these scopes. Ineligible portals or connections without the
+grants receive permission errors only when calling Leads actions.
+
+- Search/filter/page leads: `search_crm_objects` with `object_type: "leads"`.
+- Batch-read leads with linked records and URLs: `get_crm_objects` with `object_type: "leads"`.
+- Discover fields and dropdown values: `get_object_properties` with `object_type: "leads"`.
+- Discover labels and link records: `get_association_labels` and `create_association` with `leads` as an object type. Contact/company/deal association reads also accept `leads`.
+
+#### Action: `create_lead`
+- **Inputs:** `hs_lead_name` and `contact_id` (required), plus optional string-valued `properties`, such as `hs_lead_type`, `hs_lead_label`, and `hubspot_owner_id`.
+- **Outputs:** `lead`, the created record.
+- Creates the lead and required contact association in one request, using HubSpot's lead-to-contact type 578. Assign leads only to users with an appropriate Sales seat. Account-specific required properties must also be supplied in `properties`.
+- Transport retries are disabled to avoid duplicates after an uncertain timeout; check HubSpot before retrying an unknown outcome.
+
+#### Action: `update_lead`
+- **Inputs:** `lead_id` and a nonempty `properties` map of internal names to string values.
+- **Outputs:** `lead`, the updated record. Only supplied fields change; an empty string clears a property.
+
+Example: search leads by owner (use the actual owner ID):
+
+```json
+{
+  "object_type": "leads",
+  "filters": [{"propertyName": "hubspot_owner_id", "operator": "EQ", "value": "123"}],
+  "properties": ["hs_lead_name", "hs_lead_type", "hs_lead_label", "hubspot_owner_id"],
+  "limit": 100
+}
+```
+
+Provider reference: [HubSpot Leads API](https://developers.hubspot.com/docs/api-reference/latest/crm/objects/leads/guide).
 
 ### Ticket Management
 
@@ -1440,3 +1481,10 @@ New live-test settings: `HUBSPOT_TEST_CUSTOM_OBJECT_TYPE` enables custom-object
 schema/search/read checks. `HUBSPOT_TEST_TICKET_STAGE_ID` and
 `HUBSPOT_TEST_TICKET_PIPELINE_ID` enable the opt-in destructive ticket test,
 which creates a test ticket, updates it, and archives it in cleanup.
+
+
+Leads live tests: set `HUBSPOT_TEST_LEAD_ID` for read-only search, batch-read and
+property discovery tests on an eligible portal. The opt-in destructive test also
+requires `HUBSPOT_TEST_LEAD_WRITES=1` and `HUBSPOT_TEST_CONTACT_ID`; it creates,
+updates and archives only its own test lead. No Leads live tests run on portals
+without these settings.
