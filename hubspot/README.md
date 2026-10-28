@@ -337,9 +337,9 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Outputs:** `results`, `total` (all pages) and `paging`
 
 #### Action: `search_companies_by_owner_name`
-- **Description:** Search companies assigned to a HubSpot owner by first/last/full owner name. Owner lookup paginates through HubSpot owners before searching companies.
+- **Description:** Search companies assigned to a HubSpot owner by first/last/full owner name. Owner lookup reads up to 2,000 HubSpot owners before searching companies.
 - **Inputs:**
-  - `owner_name` (required): HubSpot owner name to match case-insensitively
+  - `owner_name` (required): HubSpot owner name to match case-insensitively. A full name match wins; otherwise a first or last name must match exactly one owner, and a name shared by several owners is an error listing them
   - `limit` (optional): Maximum results for this page (default: 100, max: 100)
   - `after` (optional): Cursor from `paging.next.after` to retrieve the next page
   - `properties` (optional): Company properties to return

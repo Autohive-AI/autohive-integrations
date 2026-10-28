@@ -2712,15 +2712,24 @@
                 "description": "Owner ID in HubSpot"
               },
               "firstName": {
-                "type": "string",
+                "type": [
+                  "string",
+                  "null"
+                ],
                 "description": "Owner's first name"
               },
               "lastName": {
-                "type": "string",
+                "type": [
+                  "string",
+                  "null"
+                ],
                 "description": "Owner's last name"
               },
               "email": {
-                "type": "string",
+                "type": [
+                  "string",
+                  "null"
+                ],
                 "description": "Owner's email address"
               }
             }

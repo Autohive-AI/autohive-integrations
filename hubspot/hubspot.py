@@ -2771,72 +2771,40 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
         )
 
         try:
-            # Step 1: Page through owners from HubSpot until the requested owner is found
+            # Step 1: Find the owner by full name, or by first or last name when no full name matches
             retry_sleep_budget = {"remaining": 10}
-            owners_url = "https://api.hubapi.com/crm/v3/owners/"
-            owner_id = None
-            matched_owner = None
-            owners_after = None
-            owner_pages_checked = 0
-            max_owner_pages = 10
+            owners, read_every_owner = await _list_owners(context, retry_sleep_budget)
+            wanted = owner_name.strip().casefold()
+            matches = [owner for owner in owners if _owner_name(owner).casefold() == wanted] or [
+                owner
+                for owner in owners
+                if wanted in ((owner.get("firstName") or "").casefold(), (owner.get("lastName") or "").casefold())
+            ]
 
-            while owner_pages_checked < max_owner_pages:
-                owner_params = {"limit": 100}
-                if owners_after:
-                    owner_params["after"] = owners_after
-
-                owners_response = await fetch_with_rate_limit_retries(
-                    context,
-                    owners_url,
-                    retry_sleep_budget=retry_sleep_budget,
-                    params=owner_params,
-                    headers={"Content-Type": "application/json"},
-                )
-                owners_data = await parse_response(owners_response)
-                owner_pages_checked += 1
-
-                # Step 2: Find the owner ID by matching the name
-                for owner in owners_data.get("results", []):
-                    # Check both firstName + lastName combination and full name
-                    first_name = owner.get("firstName", "")
-                    last_name = owner.get("lastName", "")
-                    full_name = f"{first_name} {last_name}".strip()
-
-                    # Case-insensitive matching
-                    if (
-                        owner_name.lower() == full_name.lower()
-                        or owner_name.lower() == first_name.lower()
-                        or owner_name.lower() == last_name.lower()
-                    ):
-                        owner_id = owner.get("id")
-                        matched_owner = {
-                            "id": owner_id,
-                            "firstName": first_name,
-                            "lastName": last_name,
-                            "email": owner.get("email"),
-                        }
-                        break
-
-                if owner_id:
-                    break
-
-                owners_after = owners_data.get("paging", {}).get("next", {}).get("after")
-                if not owners_after:
-                    break
-
-            if not owner_id:
-                if owners_after:
+            if not matches:
+                if not read_every_owner:
                     return ActionError(
                         message=(
-                            f"Owner with name '{owner_name}' not found in the first "
-                            f"{max_owner_pages} owner pages. Use the exact owner name "
-                            "or owner ID for large HubSpot portals."
+                            f"Owner with name '{owner_name}' not found in the first {MAX_OWNER_PAGES * 100} owners. "
+                            "Use search_owners to find the owner ID, then search_crm_objects with hubspot_owner_id."
                         ),
                     )
-
-                return ActionError(
-                    message=f"Owner with name '{owner_name}' not found",
+                return ActionError(message=f"Owner with name '{owner_name}' not found")
+            if len(matches) > 1:
+                candidates = ", ".join(
+                    f"{_owner_name(owner)} ({owner.get('email') or owner.get('id')})" for owner in matches
                 )
+                return ActionError(
+                    message=f"More than one owner matches '{owner_name}': {candidates}. Use the owner's full name."
+                )
+
+            owner_id = matches[0].get("id")
+            matched_owner = {
+                "id": owner_id,
+                "firstName": matches[0].get("firstName"),
+                "lastName": matches[0].get("lastName"),
+                "email": matches[0].get("email"),
+            }
 
             # Step 3: Search for companies with this owner ID
             search_url = "https://api.hubapi.com/crm/v3/objects/companies/search"
