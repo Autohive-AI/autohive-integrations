@@ -177,8 +177,15 @@ Python 3.13+ is required by the SDK. Direct dependencies were checked against Py
 - `XlsxWriter==3.3.0`
 - `matplotlib==3.11.2`
 - `python-pptx==1.0.2`
+- `python-dateutil==2.9.0.post0` - Latest compatible 2.x release; Lambda's bundled botocore requires `<3`.
 
 The SDK follows the repository's compatible patch release convention; other direct dependencies are pinned to the reviewed releases. Transitive dependencies are resolved at install time, so repeat the vulnerability audit before deployment.
+
+### Packaging for upload
+
+The deployment target is AWS Lambda Python 3.13 on Amazon Linux 2023 (x86_64). NumPy 2.5.4 and Pillow 13.0.0 require newer Linux wheels than HiveUp's hardcoded `manylinux2014_x86_64` target permits. Stage dependencies inside `public.ecr.aws/lambda/python:3.13` and assemble the archive with HiveUp's `write_package_zip` packaging function. Keep the secure Pillow release: downgrading to the last `manylinux2014` wheel reintroduces known vulnerabilities.
+
+Run dependency checks and the file-processing smoke tests against the staged bundle in that Lambda image before upload.
 
 ### Migrating to version 3
 
