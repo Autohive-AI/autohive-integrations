@@ -111,7 +111,7 @@ Runs SQL in the database's own dialect and returns its rows.
 | `sql` | string | Yes | SQL to run |
 | `max_rows` | integer | No (default 100, max 2000) | Rows to return |
 
-The API key's group needs permission to write native queries against that database. A query that fails, for example because of a syntax error or a missing table, returns an error with Metabase's message.
+Only a single read-only statement is sent: SQL must start with `SELECT`, `WITH`, `EXPLAIN`, `SHOW`, `DESCRIBE` or `VALUES` (after any comments), and a second statement after a `;` is refused. `create_question` applies the same rule. This check looks at how the SQL starts, so it can't catch everything (for example a Postgres `WITH` that deletes rows). To fully block writes, connect the database in Metabase with a read-only database user. The API key's group also needs permission to write native queries against that database. A query that fails, for example because of a syntax error or a missing table, returns an error with Metabase's message.
 
 #### Query results
 
@@ -145,7 +145,7 @@ Add cards to the same dashboard one at a time. Metabase has no "add one card" AP
 
 - **2,000 rows per query.** Metabase's API returns at most 2,000 rows for a query that isn't aggregated, and this integration returns at most `max_rows` (max 2,000) of them. For large tables, aggregate in SQL or add a `LIMIT`. `truncated` shows when rows were cut off.
 - **Query timeout.** Queries are given 120 seconds and are never retried automatically, so a slow query is not run twice. Slower queries return an error. Creates and dashboard updates are also sent only once.
-- **No deletes.** The integration never deletes or archives content.
+- **No deletes.** The integration never deletes or archives Metabase content, and only sends read-only SQL.
 - **Not covered in this version:** alerts and subscriptions, building queries with Metabase's GUI query builder (MBQL), exporting results, and editing existing questions.
 
 ## Alternative: Metabase MCP server

@@ -7,6 +7,7 @@ from autohive_integrations_sdk import HTTPError
 from metabase.metabase import (
     _card_summary,
     _clamp,
+    _ensure_read_only_sql,
     _error_message,
     _page,
     _query_result,
@@ -237,7 +238,7 @@ class TestCardSummary:
                 "id": "t1",
                 "slug": "date",
                 "name": "Date",
-                "type": "dimension",
+                "type": "date/all-options",
                 "widget_type": "date/all-options",
                 "required": False,
                 "default": None,
@@ -275,3 +276,75 @@ class TestCardSummary:
             "dataset_query": {"stages": [{"native": "x", "template-tags": [{"name": "other", "type": "text"}]}]},
         }
         assert _card_summary(card)["parameters"] == [{"id": "p1", "slug": "region"}]
+
+    def test_field_filter_without_widget_type_uses_category(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "dataset_query": {
+                "stages": [
+                    {
+                        "native": "x",
+                        "template-tags": [
+                            {"id": "t", "name": "region", "type": "dimension", "dimension": ["field", {}, 7]}
+                        ],
+                    }
+                ]
+            },
+        }
+        param = _card_summary(card)["parameters"][0]
+        assert (param["type"], param["target"]) == ("category", ["dimension", ["template-tag", "region"]])
+
+    def test_variable_widget_type_preferred(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "dataset_query": {
+                "stages": [
+                    {
+                        "native": "x",
+                        "template-tags": [{"id": "t", "name": "n", "type": "number", "widget-type": "number/="}],
+                    }
+                ]
+            },
+        }
+        assert _card_summary(card)["parameters"][0]["type"] == "number/="
+
+
+class TestReadOnlySql:
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "select 1",
+            "  SELECT * FROM t",
+            "with x as (select 1) select * from x",
+            "-- note\nselect 1",
+            "/* hi */ select 1",
+            "(select 1) union (select 2)",
+            "explain select 1",
+            "show tables",
+            "describe t",
+            "values (1)",
+            "select 1;",
+        ],
+    )
+    def test_allowed(self, sql):
+        assert _ensure_read_only_sql(sql) == sql
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "update t set a = 1",
+            "DELETE FROM t",
+            "insert into t values (1)",
+            "drop table t",
+            "-- select\ntruncate t",
+            "/* select */ alter table t add c int",
+            "grant all on t to x",
+            "create table x as select 1",
+            "select 1; drop table t",
+        ],
+    )
+    def test_rejected(self, sql):
+        with pytest.raises(ValueError, match="read-only"):
+            _ensure_read_only_sql(sql)

@@ -154,6 +154,23 @@ class TestRunSqlQuery:
         assert 'relation "nope" does not exist' in result.result.message
 
     @pytest.mark.asyncio
+    async def test_write_sql_never_sent(self, mock_context):
+        result = await metabase.execute_action(
+            "run_sql_query", {"database_id": 3, "sql": "delete from users"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "read-only" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_create_question_rejects_write_sql(self, mock_context):
+        result = await metabase.execute_action(
+            "create_question", {"name": "N", "database_id": 3, "sql": "drop table users"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_blank_sql(self, mock_context):
         result = await metabase.execute_action("run_sql_query", {"database_id": 3, "sql": "   "}, mock_context)
         assert result.type == ResultType.ACTION_ERROR

@@ -984,7 +984,7 @@
         },
         "run_sql_query": {
             "display_name": "Run SQL Query",
-            "description": "Run a read query in the database's own SQL dialect and return its rows. Metabase returns at most 2,000 rows; aggregate or add LIMIT for large tables. Metabase permissions apply.",
+            "description": "Run a single read-only statement (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES) in the database's own SQL dialect and return its rows. Other statements are refused before reaching Metabase. Metabase returns at most 2,000 rows; aggregate or add LIMIT for large tables. Metabase permissions apply.",
             "input_schema": {
                 "type": "object",
                 "properties": {

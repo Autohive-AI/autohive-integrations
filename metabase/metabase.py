@@ -7,6 +7,7 @@ from autohive_integrations_sdk import (
     HTTPError,
 )
 import asyncio
+import re
 import sys
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote, urlencode, urlparse
@@ -102,6 +103,30 @@ def _required_text(value: Any, key: str) -> str:
     if not text:
         raise ValueError(f"{key} is required")
     return text
+
+
+READ_ONLY_SQL_KEYWORDS = ("select", "with", "explain", "show", "describe", "desc", "values")
+
+
+def _ensure_read_only_sql(sql: str) -> str:
+    """Refuse SQL that does not start with a read keyword, ignoring leading comments and brackets."""
+    text = sql
+    while True:
+        text = text.lstrip().lstrip("(").lstrip()
+        if text.startswith("--"):
+            text = text.partition("\n")[2]
+        elif text.startswith("/*"):
+            text = text.partition("*/")[2]
+        else:
+            break
+    first_word = re.match(r"[A-Za-z]*", text).group(0).lower()
+    # A second statement after a semicolon could be anything, so only one statement is allowed.
+    if first_word not in READ_ONLY_SQL_KEYWORDS or ";" in sql.strip().rstrip(";"):
+        raise ValueError(
+            "Only a single read-only SQL statement is allowed (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES). "
+            "Use a read-only database user in Metabase to fully block writes."
+        )
+    return sql
 
 
 def _native_query(database_id: Any, sql: str) -> Dict[str, Any]:
@@ -238,7 +263,9 @@ def _template_tag_parameters(tags: Any) -> List[Dict[str, Any]]:
                 "id": tag.get("id"),
                 "slug": tag.get("name"),
                 "name": tag.get("display-name") or tag.get("name"),
-                "type": tag.get("type"),
+                # Metabase wants the widget type as the value type; a field filter's tag type (dimension)
+                # is only valid in the target.
+                "type": tag.get("widget-type") or ("category" if kind == "dimension" else tag.get("type")),
                 "widget_type": tag.get("widget-type"),
                 "required": bool(tag.get("required")),
                 "default": tag.get("default"),
@@ -571,7 +598,7 @@ class RunSqlQueryAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            sql = _required_text(inputs["sql"], "sql")
+            sql = _ensure_read_only_sql(_required_text(inputs["sql"], "sql"))
             max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
 
             data = await _api(
@@ -593,7 +620,7 @@ class CreateQuestionAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             name = _required_text(inputs["name"], "name")
-            sql = _required_text(inputs["sql"], "sql")
+            sql = _ensure_read_only_sql(_required_text(inputs["sql"], "sql"))
             body: Dict[str, Any] = {
                 "name": name,
                 "type": "question",
