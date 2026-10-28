@@ -89,7 +89,7 @@ All list endpoints support pagination with the following parameters:
 # List products modified since a specific date
 inputs = {
     "page_size": 50,
-    "modified_since": "2024-01-01T00:00:00+10:00"
+    "modified_since": "2024-01-01T00:00:00+10:00",
 }
 ```
 
@@ -98,7 +98,7 @@ inputs = {
 ```python
 inputs = {
     "email": "customer@example.com",
-    "modified_since": "2024-01-01T00:00:00+10:00"
+    "modified_since": "2024-01-01T00:00:00+10:00",
 }
 ```
 
@@ -110,7 +110,7 @@ The integration translates `email` to Retail Express's `filter_by` syntax.
 inputs = {
     "customer_id": "10001",
     "order_status_id": 2,
-    "modified_since": "2024-01-01T00:00:00+10:00"
+    "modified_since": "2024-01-01T00:00:00+10:00",
 }
 ```
 
@@ -122,7 +122,7 @@ Customer and order status filters are combined into the API's `filter_by` parame
 inputs = {
     "outlet_id": "10001",
     "modified_since": "2026-01-01T00:00:00+13:00",
-    "page_size": 100
+    "page_size": 100,
 }
 ```
 
@@ -135,7 +135,7 @@ inputs = {
     "plu": "SKU-123",
     "movement_types": "PO,Invoice",
     "order_by": "created_on desc",
-    "page_size": 100
+    "page_size": 100,
 }
 ```
 
@@ -158,8 +158,8 @@ inputs = {
         "country": "Australia",
         "country_code": "AU",
         "first_name": "John",
-        "last_name": "Doe"
-    }
+        "last_name": "Doe",
+    },
 }
 ```
 
