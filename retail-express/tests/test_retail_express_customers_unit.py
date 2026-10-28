@@ -28,7 +28,8 @@ class TestListCustomers:
                 "page_number": 2,
                 "page_size": 10,
                 "email": "customer@example.com",
-                "updated_since": "2026-01-01T00:00:00Z",
+                "modified_since": "2026-01-01T00:00:00Z",
+                "filter_by": "company:eq:Example Ltd",
             },
             mock_context,
         )
@@ -41,8 +42,8 @@ class TestListCustomers:
         assert request.kwargs["params"] == {
             "page_number": 2,
             "page_size": 10,
-            "email": "customer@example.com",
-            "updated_since": "2026-01-01T00:00:00Z",
+            "modified_since": "2026-01-01T00:00:00Z",
+            "filter_by": "company:eq:Example Ltd,email:eq:customer@example.com",
         }
 
 

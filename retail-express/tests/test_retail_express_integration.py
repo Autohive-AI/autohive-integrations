@@ -71,6 +71,15 @@ class TestProducts:
         assert str(get_result.result.data["product"]["id"]) == str(product_id)
         assert get_result.result.data["result"] is True
 
+    async def test_list_products_accepts_modified_since(self, live_context):
+        result = await retail_express.execute_action(
+            "list_products",
+            {"modified_since": "2000-01-01T00:00:00+10:00", "page_size": 2},
+            live_context,
+        )
+
+        assert_list_result(result, "products", 2)
+
 
 class TestInventory:
     async def test_list_inventory_levels(self, live_context):
@@ -114,6 +123,28 @@ class TestCustomers:
         assert str(get_result.result.data["customer"]["id"]) == str(customer_id)
         assert get_result.result.data["result"] is True
 
+    async def test_filters_customers_by_email_and_modified_since(self, live_context):
+        list_result = await retail_express.execute_action("list_customers", {"page_size": 20}, live_context)
+        customers = assert_list_result(list_result, "customers", 20)
+        customer_with_email = next((customer for customer in customers if customer.get("email")), None)
+        if customer_with_email is None:
+            pytest.skip("No customer with an email was found on the first page")
+
+        email = customer_with_email["email"]
+        filtered_result = await retail_express.execute_action(
+            "list_customers",
+            {
+                "email": email,
+                "modified_since": "2000-01-01T00:00:00+10:00",
+                "page_size": 20,
+            },
+            live_context,
+        )
+        filtered_customers = assert_list_result(filtered_result, "customers", 20)
+
+        assert filtered_customers
+        assert all(customer.get("email") == email for customer in filtered_customers)
+
 
 class TestOrders:
     async def test_list_and_get_order(self, live_context):
@@ -130,6 +161,39 @@ class TestOrders:
         assert get_result.type == ResultType.ACTION
         assert str(get_result.result.data["order"]["id"]) == str(order_id)
         assert get_result.result.data["result"] is True
+
+    async def test_filters_orders_by_customer_status_and_modified_since(self, live_context):
+        list_result = await retail_express.execute_action("list_orders", {"page_size": 20}, live_context)
+        orders = assert_list_result(list_result, "orders", 20)
+        filterable_order = next(
+            (
+                order
+                for order in orders
+                if (order.get("customer") or {}).get("id") is not None
+                and (order.get("order_status") or {}).get("id") is not None
+            ),
+            None,
+        )
+        if filterable_order is None:
+            pytest.skip("No order with customer and status IDs was found on the first page")
+
+        customer_id = filterable_order["customer"]["id"]
+        order_status_id = filterable_order["order_status"]["id"]
+        filtered_result = await retail_express.execute_action(
+            "list_orders",
+            {
+                "customer_id": str(customer_id),
+                "order_status_id": order_status_id,
+                "modified_since": "2000-01-01T00:00:00+10:00",
+                "page_size": 20,
+            },
+            live_context,
+        )
+        filtered_orders = assert_list_result(filtered_result, "orders", 20)
+
+        assert filtered_orders
+        assert all(str((order.get("customer") or {}).get("id")) == str(customer_id) for order in filtered_orders)
+        assert all((order.get("order_status") or {}).get("id") == order_status_id for order in filtered_orders)
 
 
 class TestOutlets:

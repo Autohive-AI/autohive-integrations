@@ -43,9 +43,10 @@
                         "type": "string",
                         "description": "Filter by product SKU"
                     },
-                    "updated_since": {
+                    "modified_since": {
                         "type": "string",
-                        "description": "Filter products updated since this date (ISO 8601 format)"
+                        "format": "date-time",
+                        "description": "Only return products modified since this ISO 8601 date-time"
                     }
                 },
                 "required": []
@@ -267,11 +268,16 @@
                     },
                     "email": {
                         "type": "string",
-                        "description": "Filter by customer email"
+                        "description": "Filter by exact customer email using the Retail Express filter syntax"
                     },
-                    "updated_since": {
+                    "modified_since": {
                         "type": "string",
-                        "description": "Filter customers updated since this date (ISO 8601 format)"
+                        "format": "date-time",
+                        "description": "Only return customers modified since this ISO 8601 date-time"
+                    },
+                    "filter_by": {
+                        "type": "string",
+                        "description": "Additional Retail Express customer filter expression, for example company:eq:Example Ltd"
                     }
                 },
                 "required": []
@@ -468,17 +474,22 @@
                         "default": 20,
                         "maximum": 250
                     },
-                    "status": {
-                        "type": "string",
-                        "description": "Filter by order status"
+                    "order_status_id": {
+                        "type": "integer",
+                        "description": "Filter by exact Retail Express order status ID"
                     },
                     "customer_id": {
                         "type": "string",
-                        "description": "Filter by customer ID"
+                        "description": "Filter by exact customer ID"
                     },
-                    "updated_since": {
+                    "modified_since": {
                         "type": "string",
-                        "description": "Filter orders updated since this date (ISO 8601 format)"
+                        "format": "date-time",
+                        "description": "Only return orders modified since this ISO 8601 date-time"
+                    },
+                    "filter_by": {
+                        "type": "string",
+                        "description": "Additional Retail Express order filter expression, for example outlet_id:eq:1"
                     }
                 },
                 "required": []

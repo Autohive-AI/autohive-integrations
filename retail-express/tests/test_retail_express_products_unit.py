@@ -28,7 +28,7 @@ class TestListProducts:
                 "page_number": 2,
                 "page_size": 25,
                 "sku": "SKU-42",
-                "updated_since": "2026-01-01T00:00:00Z",
+                "modified_since": "2026-01-01T00:00:00Z",
             },
             mock_context,
         )
@@ -47,7 +47,7 @@ class TestListProducts:
             "page_number": 2,
             "page_size": 25,
             "sku": "SKU-42",
-            "updated_since": "2026-01-01T00:00:00Z",
+            "modified_since": "2026-01-01T00:00:00Z",
         }
 
     async def test_uses_defaults_when_pagination_metadata_is_missing(self, mock_context):

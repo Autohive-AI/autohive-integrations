@@ -27,9 +27,10 @@ class TestListOrders:
             {
                 "page_number": 3,
                 "page_size": 20,
-                "status": "Completed",
+                "order_status_id": 4,
                 "customer_id": "7",
-                "updated_since": "2026-01-01T00:00:00Z",
+                "modified_since": "2026-01-01T00:00:00Z",
+                "filter_by": "outlet_id:eq:3",
             },
             mock_context,
         )
@@ -42,9 +43,8 @@ class TestListOrders:
         assert request.kwargs["params"] == {
             "page_number": 3,
             "page_size": 20,
-            "status": "Completed",
-            "customer_id": "7",
-            "updated_since": "2026-01-01T00:00:00Z",
+            "modified_since": "2026-01-01T00:00:00Z",
+            "filter_by": "outlet_id:eq:3,customer_id:eq:7,order_status_id:eq:4",
         }
 
 

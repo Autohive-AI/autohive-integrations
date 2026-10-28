@@ -86,12 +86,35 @@ All list endpoints support pagination with the following parameters:
 ### List Products with Filtering
 
 ```python
-# List products updated since a specific date
+# List products modified since a specific date
 inputs = {
     "page_size": 50,
-    "updated_since": "2024-01-01T00:00:00+10:00"
+    "modified_since": "2024-01-01T00:00:00+10:00"
 }
 ```
+
+### Filter Customers by Email
+
+```python
+inputs = {
+    "email": "customer@example.com",
+    "modified_since": "2024-01-01T00:00:00+10:00"
+}
+```
+
+The integration translates `email` to Retail Express's `filter_by` syntax.
+
+### Filter Orders
+
+```python
+inputs = {
+    "customer_id": "10001",
+    "order_status_id": 2,
+    "modified_since": "2024-01-01T00:00:00+10:00"
+}
+```
+
+Customer and order status filters are combined into the API's `filter_by` parameter.
 
 ### Capture Inventory Levels for an Outlet
 

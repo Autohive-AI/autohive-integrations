@@ -76,6 +76,26 @@ def build_pagination_params(inputs: Dict[str, Any]) -> Dict[str, Any]:
     return params
 
 
+def escape_filter_value(value: Any) -> str:
+    """Escape Retail Express filter delimiters in a scalar value."""
+    return str(value).replace("\\", "\\\\").replace(",", "\\,").replace("|", "\\|")
+
+
+def build_filter_by(inputs: Dict[str, Any], field_mappings: Dict[str, str]) -> str:
+    """Build a Retail Express filter expression from convenient action inputs."""
+    filters = []
+    existing_filter = inputs.get("filter_by")
+    if existing_filter:
+        filters.append(existing_filter)
+
+    for input_name, field_name in field_mappings.items():
+        value = inputs.get(input_name)
+        if value is not None and value != "":
+            filters.append(f"{field_name}:eq:{escape_filter_value(value)}")
+
+    return ",".join(filters)
+
+
 # ---- Product Action Handlers ----
 
 
@@ -88,11 +108,11 @@ class ListProductsAction(ActionHandler):
             params = build_pagination_params(inputs)
 
             sku = inputs.get("sku")
-            updated_since = inputs.get("updated_since")
+            modified_since = inputs.get("modified_since")
             if sku:
                 params["sku"] = sku
-            if updated_since:
-                params["updated_since"] = updated_since
+            if modified_since:
+                params["modified_since"] = modified_since
 
             headers = await get_auth_headers(context)
 
@@ -258,11 +278,15 @@ class ListCustomersAction(ActionHandler):
             params = build_pagination_params(inputs)
 
             email = inputs.get("email")
-            updated_since = inputs.get("updated_since")
-            if email:
-                params["email"] = email
-            if updated_since:
-                params["updated_since"] = updated_since
+            modified_since = inputs.get("modified_since")
+            filter_by = build_filter_by(
+                {"filter_by": inputs.get("filter_by"), "email": email},
+                {"email": "email"},
+            )
+            if modified_since:
+                params["modified_since"] = modified_since
+            if filter_by:
+                params["filter_by"] = filter_by
 
             headers = await get_auth_headers(context)
 
@@ -406,15 +430,24 @@ class ListOrdersAction(ActionHandler):
         try:
             params = build_pagination_params(inputs)
 
-            status = inputs.get("status")
             customer_id = inputs.get("customer_id")
-            updated_since = inputs.get("updated_since")
-            if status:
-                params["status"] = status
-            if customer_id:
-                params["customer_id"] = customer_id
-            if updated_since:
-                params["updated_since"] = updated_since
+            order_status_id = inputs.get("order_status_id")
+            modified_since = inputs.get("modified_since")
+            filter_by = build_filter_by(
+                {
+                    "filter_by": inputs.get("filter_by"),
+                    "customer_id": customer_id,
+                    "order_status_id": order_status_id,
+                },
+                {
+                    "customer_id": "customer_id",
+                    "order_status_id": "order_status_id",
+                },
+            )
+            if modified_since:
+                params["modified_since"] = modified_since
+            if filter_by:
+                params["filter_by"] = filter_by
 
             headers = await get_auth_headers(context)
 

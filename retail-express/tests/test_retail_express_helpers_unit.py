@@ -3,7 +3,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from autohive_integrations_sdk import FetchResponse
 
-from retail_express import build_pagination_params, get_access_token, get_auth_headers
+from retail_express import (
+    build_filter_by,
+    build_pagination_params,
+    escape_filter_value,
+    get_access_token,
+    get_auth_headers,
+)
 
 
 pytestmark = pytest.mark.unit
@@ -21,6 +27,31 @@ class TestBuildPaginationParams:
     )
     def test_builds_and_caps_pagination(self, inputs, expected):
         assert build_pagination_params(inputs) == expected
+
+
+class TestFilterHelpers:
+    def test_escapes_retail_express_filter_delimiters(self):
+        assert escape_filter_value(r"one\two,three|four") == r"one\\two\,three\|four"
+
+    def test_builds_and_combines_filter_clauses(self):
+        inputs = {
+            "filter_by": "outlet_id:eq:3",
+            "customer_id": "7",
+            "order_status_id": 4,
+        }
+
+        result = build_filter_by(
+            inputs,
+            {
+                "customer_id": "customer_id",
+                "order_status_id": "order_status_id",
+            },
+        )
+
+        assert result == "outlet_id:eq:3,customer_id:eq:7,order_status_id:eq:4"
+
+    def test_omits_empty_convenience_filters(self):
+        assert build_filter_by({"email": ""}, {"email": "email"}) == ""
 
 
 class TestAuthenticationHelpers:
