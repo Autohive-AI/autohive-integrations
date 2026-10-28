@@ -875,6 +875,21 @@ class TestGetCampaigns:
         assert params["limit"] == 10
 
     @pytest.mark.asyncio
+    async def test_sort_by_creation_time(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": [], "total": 0})
+
+        await hubspot.execute_action("get_campaigns", {"sort": "-createdAt"}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["params"]["sort"] == "-createdAt"
+
+    @pytest.mark.asyncio
+    async def test_sort_hubspot_does_not_support_rejected_by_schema(self, mock_context):
+        result = await hubspot.execute_action("get_campaigns", {"sort": "-hs_start_date"}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_response_structure(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,

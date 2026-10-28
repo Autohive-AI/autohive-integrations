@@ -5586,13 +5586,13 @@
             "enum": [
               "hs_name",
               "-hs_name",
-              "hs_start_date",
-              "-hs_start_date",
-              "hs_end_date",
-              "-hs_end_date"
+              "createdAt",
+              "-createdAt",
+              "updatedAt",
+              "-updatedAt"
             ],
-            "description": "Sort order for results. Prefix with - for descending order.",
-            "default": "-hs_start_date"
+            "description": "Sort order for results: campaign name, creation time or last update. Prefix with - for descending order.",
+            "default": "-updatedAt"
           }
         },
         "required": []
