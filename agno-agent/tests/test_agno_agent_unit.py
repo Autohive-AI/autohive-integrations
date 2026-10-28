@@ -799,6 +799,21 @@ class TestAskAgentMemoryBounds:
         assert result.type == ResultType.ACTION_ERROR
         assert result.result.message == f"The agent could not finish this request: {reason}"
 
+    async def test_oversized_run_error_returns_action_error_not_draft(self, mock_context, agentos):
+        big = "e" * (MAX_EVENT_BYTES + 1)
+        agentos.queue(
+            _reply(
+                'event: RunContent\ndata: {"content":"partial draft"}\n\n'
+                f'event: RunError\ndata: {{"content":"{big}"}}\n\n',
+                chunk_size=64 * 1024,
+            )
+        )
+
+        result = await _ask(mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message.startswith("The agent could not finish this request: ")
+
     async def test_long_answer_is_returned_in_full(self, mock_context, agentos):
         answer = "a" * 500_000
         agentos.queue(
@@ -1244,6 +1259,19 @@ class TestSSEAnswerCollector:
         collector = _feed_in_chunks(body.encode(), 3)
 
         with pytest.raises(AgentRunError, match="^boom$"):
+            collector.finish()
+
+    @pytest.mark.parametrize("chunk_size", [1024, 64 * 1024])
+    def test_oversized_run_error_still_fails_the_run(self, chunk_size: int):
+        """Regression: a RunError over the size bound was dropped, so the partial draft came back as success."""
+        big = "e" * (MAX_EVENT_BYTES + 1)
+        raw = (
+            'event: RunContent\ndata: {"content":"partial draft"}\n\n'
+            f'event: RunError\ndata: {{"content":"{big}"}}\n\n'
+        ).encode()
+        collector = _feed_in_chunks(raw, chunk_size)
+
+        with pytest.raises(AgentRunError, match="too large to show"):
             collector.finish()
 
     def test_run_completed_wins_over_run_error(self):

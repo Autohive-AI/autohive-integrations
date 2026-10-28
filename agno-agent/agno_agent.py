@@ -193,7 +193,10 @@ class _SSEAnswerCollector:
     def _dispatch(self) -> None:
         event_line, data, dropped = self._event_type, self._data, self._data_bytes > MAX_EVENT_BYTES
         self._event_type, self._data, self._data_bytes = None, [], 0
-        if dropped and (event_line is None or event_line in ANSWER_EVENTS):
+        if dropped and event_line == RUN_ERROR:
+            # The run failed even though its reason is too long to keep; the chunks are a partial answer.
+            self._run_error = "the agent's error message was too large to show"
+        elif dropped and (event_line is None or event_line in ANSWER_EVENTS):
             # It may have been the answer. Not falling back to the chunks: a post-hook may have rewritten it.
             self._chunk_bytes = MAX_EVENT_BYTES + 1
         # A non-answer event: line decides even when its lines weren't skipped (the first event).
