@@ -83,6 +83,13 @@ def _boolean_query_value(value: bool | None) -> str | None:
     return str(value).lower() if value is not None else None
 
 
+def _json_headers(inputs: dict[str, Any]) -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    if inputs.get("allow_duplicates"):
+        headers["X-Allow-Duplicates"] = inputs["allow_duplicates"]
+    return headers
+
+
 def _date_range(start: str | None, end: str | None) -> list[str] | None:
     values = []
     if start:
@@ -347,6 +354,94 @@ class GetCandidateAction(ActionHandler):
             return ActionError(message=str(exc))
 
 
+@jobadder.action("update_candidate")
+class UpdateCandidateAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            fields = {
+                "firstName": ("first_name", inputs.get("first_name")),
+                "lastName": ("last_name", inputs.get("last_name")),
+                "email": ("email", inputs.get("email")),
+                "phone": ("phone", inputs.get("phone")),
+                "mobile": ("mobile", inputs.get("mobile")),
+                "salutation": ("salutation", inputs.get("salutation")),
+                "statusId": ("status_id", inputs.get("status_id")),
+                "rating": ("rating", inputs.get("rating")),
+                "seeking": ("seeking", inputs.get("seeking")),
+                "social": ("social", inputs.get("social")),
+                "address": ("address", inputs.get("address")),
+                "skillTags": ("skill_tags", inputs.get("skill_tags")),
+                "customSkills": ("custom_skills", inputs.get("custom_skills")),
+                "dateOfBirth": ("date_of_birth", inputs.get("date_of_birth")),
+                "emergencyContact": ("emergency_contact", inputs.get("emergency_contact")),
+                "emergencyPhone": ("emergency_phone", inputs.get("emergency_phone")),
+                "employment": ("employment", inputs.get("employment")),
+                "availability": ("availability", inputs.get("availability")),
+                "education": ("education", inputs.get("education")),
+                "custom": ("custom_fields", inputs.get("custom_fields")),
+                "recruiterUserId": ("recruiter_user_ids", inputs.get("recruiter_user_ids")),
+                "summary": ("summary", inputs.get("summary")),
+                "unsubscribed": ("unsubscribed", inputs.get("unsubscribed")),
+            }
+            body = {
+                provider_field: value
+                for provider_field, (input_field, value) in fields.items()
+                if input_field in inputs
+            }
+            if not body:
+                return ActionError(message="Provide at least one candidate field to update.")
+
+            await context.fetch(
+                f"{get_api_base_url(context)}/candidates/{inputs['candidate_id']}",
+                method="PUT",
+                headers=_json_headers(inputs),
+                json=body,
+            )
+            return ActionResult(data={"updated": True, "candidate_id": inputs["candidate_id"]})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_candidate_statuses")
+class ListCandidateStatusesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = {
+                key: value
+                for key, value in {
+                    "StatusId": inputs.get("status_ids"),
+                    "Name": inputs.get("name"),
+                    "Active": _boolean_query_value(inputs.get("active")),
+                    "Default": _boolean_query_value(inputs.get("default")),
+                }.items()
+                if value is not None
+            }
+            return await _fetch_list(context, "/candidates/lists/status", "statuses", params)
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("set_candidate_status")
+class SetCandidateStatusAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            await context.fetch(
+                f"{get_api_base_url(context)}/candidates/{inputs['candidate_id']}/status",
+                method="PUT",
+                headers={"Content-Type": "application/json"},
+                json={"statusId": inputs["status_id"]},
+            )
+            return ActionResult(
+                data={
+                    "updated": True,
+                    "candidate_id": inputs["candidate_id"],
+                    "status_id": inputs["status_id"],
+                }
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
 @jobadder.action("list_contacts")
 class ListContactsAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
@@ -398,6 +493,85 @@ class GetContactAction(ActionHandler):
         try:
             response = await context.fetch(f"{get_api_base_url(context)}/contacts/{inputs['contact_id']}", method="GET")
             return ActionResult(data={"contact": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("update_contact")
+class UpdateContactAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            fields = {
+                "companyId": ("company_id", inputs.get("company_id")),
+                "firstName": ("first_name", inputs.get("first_name")),
+                "lastName": ("last_name", inputs.get("last_name")),
+                "email": ("email", inputs.get("email")),
+                "phone": ("phone", inputs.get("phone")),
+                "salutation": ("salutation", inputs.get("salutation")),
+                "position": ("position", inputs.get("position")),
+                "statusId": ("status_id", inputs.get("status_id")),
+                "recruiterUserId": ("recruiter_user_ids", inputs.get("recruiter_user_ids")),
+                "reportsToContactId": ("reports_to_contact_id", inputs.get("reports_to_contact_id")),
+                "social": ("social", inputs.get("social")),
+                "summary": ("summary", inputs.get("summary")),
+                "unsubscribed": ("unsubscribed", inputs.get("unsubscribed")),
+                "custom": ("custom_fields", inputs.get("custom_fields")),
+            }
+            body = {
+                provider_field: value
+                for provider_field, (input_field, value) in fields.items()
+                if input_field in inputs
+            }
+            if not body:
+                return ActionError(message="Provide at least one contact field to update.")
+
+            await context.fetch(
+                f"{get_api_base_url(context)}/contacts/{inputs['contact_id']}",
+                method="PUT",
+                headers=_json_headers(inputs),
+                json=body,
+            )
+            return ActionResult(data={"updated": True, "contact_id": inputs["contact_id"]})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_contact_statuses")
+class ListContactStatusesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = {
+                key: value
+                for key, value in {
+                    "StatusId": inputs.get("status_ids"),
+                    "Name": inputs.get("name"),
+                    "Active": _boolean_query_value(inputs.get("active")),
+                    "Default": _boolean_query_value(inputs.get("default")),
+                }.items()
+                if value is not None
+            }
+            return await _fetch_list(context, "/contacts/lists/status", "statuses", params)
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("set_contact_status")
+class SetContactStatusAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            await context.fetch(
+                f"{get_api_base_url(context)}/contacts/{inputs['contact_id']}/status",
+                method="PUT",
+                headers={"Content-Type": "application/json"},
+                json={"statusId": inputs["status_id"]},
+            )
+            return ActionResult(
+                data={
+                    "updated": True,
+                    "contact_id": inputs["contact_id"],
+                    "status_id": inputs["status_id"],
+                }
+            )
         except Exception as exc:
             return ActionError(message=str(exc))
 

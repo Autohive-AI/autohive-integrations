@@ -1,7 +1,7 @@
 {
   "name": "JobAdder",
   "display_name": "JobAdder",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "JobAdder recruitment integration for jobs, candidates, contacts, companies, notes, applications, placements, and connected-user discovery.",
   "entry_point": "jobadder.py",
   "auth": {
@@ -15,6 +15,7 @@
       "read_candidate",
       "write_candidate",
       "read_contact",
+      "write_contact",
       "read_company",
       "read_note",
       "read_contact_note",
@@ -141,6 +142,93 @@
         "required": ["candidate"]
       }
     },
+    "update_candidate": {
+      "display_name": "Update Candidate",
+      "description": "Updates supplied fields on an existing candidate. Omitted fields remain unchanged; explicit null values clear provider-nullable fields.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "JobAdder candidate ID"},
+          "first_name": {"type": ["string", "null"], "maxLength": 50, "description": "Candidate first name"},
+          "last_name": {"type": ["string", "null"], "maxLength": 50, "description": "Candidate last name"},
+          "email": {"type": ["string", "null"], "maxLength": 100, "description": "Primary email address"},
+          "phone": {"type": ["string", "null"], "maxLength": 50, "description": "Phone number"},
+          "mobile": {"type": ["string", "null"], "maxLength": 50, "description": "Mobile number"},
+          "salutation": {"type": ["string", "null"], "maxLength": 20, "description": "Salutation or title"},
+          "status_id": {"type": ["integer", "null"], "description": "Candidate status ID"},
+          "rating": {"type": ["string", "null"], "maxLength": 50, "description": "Internal candidate rating"},
+          "seeking": {"type": ["string", "null"], "enum": ["Yes", "Maybe", "No", null], "description": "Whether the candidate is seeking work"},
+          "social": {"type": ["object", "null"], "additionalProperties": {"type": "string"}, "description": "Social profile URLs keyed by network"},
+          "address": {"type": ["object", "null"], "description": "Candidate address using JobAdder field names"},
+          "skill_tags": {"type": ["array", "null"], "maxItems": 100, "items": {"type": "string"}, "description": "Candidate skill tags"},
+          "custom_skills": {"type": ["array", "null"], "maxItems": 500, "items": {"type": "string"}, "description": "Candidate custom skills"},
+          "date_of_birth": {"type": ["string", "null"], "format": "date", "description": "Candidate date of birth"},
+          "emergency_contact": {"type": ["string", "null"], "maxLength": 200, "description": "Emergency contact details"},
+          "emergency_phone": {"type": ["string", "null"], "maxLength": 40, "description": "Emergency contact phone"},
+          "employment": {"type": ["object", "null"], "description": "Current, ideal, and historical employment using JobAdder field names"},
+          "availability": {"type": ["object", "null"], "description": "Candidate availability using JobAdder field names"},
+          "education": {"type": ["array", "null"], "items": {"type": "object"}, "description": "Education history"},
+          "custom_fields": {"type": ["array", "null"], "items": {"type": "object"}, "description": "Candidate custom field values using fieldId and value"},
+          "recruiter_user_ids": {"type": ["array", "null"], "items": {"type": "integer"}, "description": "Associated recruiter user IDs"},
+          "summary": {"type": ["string", "null"], "description": "Candidate summary"},
+          "unsubscribed": {"type": "boolean", "description": "Whether the candidate is unsubscribed"},
+          "allow_duplicates": {"type": "string", "description": "Duplicate override code from an earlier HTTP 409 response"}
+        },
+        "required": ["candidate_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated": {"type": "boolean", "description": "Whether JobAdder accepted the update"},
+          "candidate_id": {"type": "integer", "description": "Updated candidate ID"}
+        },
+        "required": ["updated", "candidate_id"]
+      }
+    },
+    "list_candidate_statuses": {
+      "display_name": "List Candidate Statuses",
+      "description": "Lists tenant-specific candidate status definitions, including whether each status is active.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "status_ids": {"type": "array", "items": {"type": "integer"}, "description": "Candidate status IDs to include"},
+          "name": {"type": "string", "description": "Filter by status name"},
+          "active": {"type": "boolean", "description": "Filter by active or inactive status definitions"},
+          "default": {"type": "boolean", "description": "Filter by default-status flag"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "statuses": {"type": "array", "items": {"type": "object"}, "description": "Candidate status definitions"},
+          "total_count": {"type": "integer", "description": "Number of statuses returned or reported"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["statuses", "total_count", "links"]
+      }
+    },
+    "set_candidate_status": {
+      "display_name": "Set Candidate Status",
+      "description": "Changes an existing candidate to a selected tenant-specific status.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "candidate_id": {"type": "integer", "description": "JobAdder candidate ID"},
+          "status_id": {"type": "integer", "description": "Target candidate status ID from list_candidate_statuses"}
+        },
+        "required": ["candidate_id", "status_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated": {"type": "boolean", "description": "Whether JobAdder accepted the status change"},
+          "candidate_id": {"type": "integer", "description": "Updated candidate ID"},
+          "status_id": {"type": "integer", "description": "Applied candidate status ID"}
+        },
+        "required": ["updated", "candidate_id", "status_id"]
+      }
+    },
     "list_contacts": {
       "display_name": "List Contacts",
       "description": "Finds contacts by company, name, contact details, creator/consultant, status, hiring-manager flag, and audit dates.",
@@ -188,6 +276,84 @@
           "contact": {"type": "object", "description": "Contact details"}
         },
         "required": ["contact"]
+      }
+    },
+    "update_contact": {
+      "display_name": "Update Contact",
+      "description": "Updates supplied fields on an existing contact. Omitted fields remain unchanged; explicit null values clear provider-nullable fields.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {"type": "integer", "description": "JobAdder contact ID"},
+          "company_id": {"type": ["integer", "null"], "description": "Associated company ID"},
+          "first_name": {"type": ["string", "null"], "maxLength": 50, "description": "Contact first name"},
+          "last_name": {"type": ["string", "null"], "maxLength": 50, "description": "Contact last name"},
+          "email": {"type": ["string", "null"], "maxLength": 100, "description": "Primary email address"},
+          "phone": {"type": ["string", "null"], "maxLength": 50, "description": "Phone number"},
+          "salutation": {"type": ["string", "null"], "maxLength": 20, "description": "Salutation or title"},
+          "position": {"type": ["string", "null"], "description": "Contact position"},
+          "status_id": {"type": ["integer", "null"], "description": "Contact status ID"},
+          "recruiter_user_ids": {"type": ["array", "null"], "items": {"type": "integer"}, "description": "Associated recruiter user IDs"},
+          "reports_to_contact_id": {"type": ["integer", "null"], "description": "Manager contact ID"},
+          "social": {"type": ["object", "null"], "additionalProperties": {"type": "string"}, "description": "Social profile URLs keyed by network"},
+          "summary": {"type": ["string", "null"], "description": "Contact summary"},
+          "unsubscribed": {"type": "boolean", "description": "Whether the contact is unsubscribed"},
+          "custom_fields": {"type": ["array", "null"], "items": {"type": "object"}, "description": "Contact custom field values using fieldId and value"},
+          "allow_duplicates": {"type": "string", "description": "Duplicate override code from an earlier HTTP 409 response"}
+        },
+        "required": ["contact_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated": {"type": "boolean", "description": "Whether JobAdder accepted the update"},
+          "contact_id": {"type": "integer", "description": "Updated contact ID"}
+        },
+        "required": ["updated", "contact_id"]
+      }
+    },
+    "list_contact_statuses": {
+      "display_name": "List Contact Statuses",
+      "description": "Lists tenant-specific contact status definitions, including whether each status is active.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "status_ids": {"type": "array", "items": {"type": "integer"}, "description": "Contact status IDs to include"},
+          "name": {"type": "string", "description": "Filter by status name"},
+          "active": {"type": "boolean", "description": "Filter by active or inactive status definitions"},
+          "default": {"type": "boolean", "description": "Filter by default-status flag"}
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "statuses": {"type": "array", "items": {"type": "object"}, "description": "Contact status definitions"},
+          "total_count": {"type": "integer", "description": "Number of statuses returned or reported"},
+          "links": {"type": "object", "description": "Links returned by JobAdder"}
+        },
+        "required": ["statuses", "total_count", "links"]
+      }
+    },
+    "set_contact_status": {
+      "display_name": "Set Contact Status",
+      "description": "Changes an existing contact to a selected tenant-specific status.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "contact_id": {"type": "integer", "description": "JobAdder contact ID"},
+          "status_id": {"type": "integer", "description": "Target contact status ID from list_contact_statuses"}
+        },
+        "required": ["contact_id", "status_id"]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated": {"type": "boolean", "description": "Whether JobAdder accepted the status change"},
+          "contact_id": {"type": "integer", "description": "Updated contact ID"},
+          "status_id": {"type": "integer", "description": "Applied contact status ID"}
+        },
+        "required": ["updated", "contact_id", "status_id"]
       }
     },
     "list_contact_notes": {

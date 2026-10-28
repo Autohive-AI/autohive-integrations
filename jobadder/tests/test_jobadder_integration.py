@@ -7,9 +7,10 @@ the corresponding JOBADDER_TEST_*_ID value.
 Run safely with:
     pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 
-The six write actions are intentionally excluded because JobAdder has no delete
+The ten write actions are intentionally excluded because JobAdder has no delete
 endpoint for reliably cleaning up candidates, applications, candidate attachments,
-or job attachments created by tests, and attachment updates cannot be safely restored.
+or job attachments created by tests. Profile, status, and attachment updates also
+cannot be safely restored without mutating persistent customer data.
 """
 
 import asyncio
@@ -158,6 +159,10 @@ class TestCandidates:
         assert result.type == ResultType.ACTION
         assert result.result.data["candidate"]["candidateId"] == candidate_id
 
+    async def test_list_candidate_statuses(self, live_context):
+        result = await jobadder.execute_action("list_candidate_statuses", {}, live_context)
+        assert_list_result(result, "statuses", max_items=None)
+
     async def test_list_candidate_attachment_categories(self, live_context):
         result = await jobadder.execute_action("list_candidate_attachment_categories", {}, live_context)
         assert_list_result(result, "categories", max_items=None)
@@ -216,6 +221,10 @@ class TestContactsAndActivities:
 
         assert result.type == ResultType.ACTION
         assert result.result.data["contact"]["contactId"] == contact_id
+
+    async def test_list_contact_statuses(self, live_context):
+        result = await jobadder.execute_action("list_contact_statuses", {}, live_context)
+        assert_list_result(result, "statuses", max_items=None)
 
     async def test_list_contact_notes(self, live_context, resource_ids):
         contact_id = require_integer_id(resource_ids["contact"], "JOBADDER_TEST_CONTACT_ID")
