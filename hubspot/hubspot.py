@@ -2180,6 +2180,10 @@ class GetRecentContactsActionHandler(ActionHandler):
 # Ticket Management Actions
 
 
+# Conversation message pages read for one ticket
+MAX_CONVERSATION_PAGES = 20
+
+
 async def get_thread_id_from_ticket(ticket_id: str, context: ExecutionContext) -> str:
     """
     Retrieve the conversation thread ID for a given ticket.
@@ -2308,57 +2312,62 @@ class GetTicketConversationActionHandler(ActionHandler):
                 cost_usd=None,
             )
 
-        try:
-            conversation_url = f"https://api.hubapi.com/conversations/v3/conversations/threads/{thread_id}/messages"
-            conversation_response = await fetch_with_rate_limit_retries(
-                context,
-                conversation_url,
-                headers={"Content-Type": "application/json"},
-            )
-            conversation_data = await parse_response(conversation_response)
+        conversation_url = f"https://api.hubapi.com/conversations/v3/conversations/threads/{thread_id}/messages"
+        retry_sleep_budget = {"remaining": 10}
+        after = None
+        for _ in range(MAX_CONVERSATION_PAGES):
+            try:
+                conversation_response = await fetch_with_rate_limit_retries(
+                    context,
+                    conversation_url,
+                    retry_sleep_budget=retry_sleep_budget,
+                    params={"after": after} if after else None,
+                    headers={"Content-Type": "application/json"},
+                )
+                conversation_data = await parse_response(conversation_response)
+            except REQUEST_ERRORS as e:
+                return ActionError(
+                    message=f"Failed to read the conversation for ticket {ticket_id} (thread {thread_id}): "
+                    f"{_error_text(e)}"
+                )
 
-            if conversation_data.get("results"):
-                for message in conversation_data["results"]:
-                    message_content = message.get("text")
-                    if not message_content:
-                        continue
+            for message in conversation_data.get("results", []):
+                message_content = message.get("text")
+                if not message_content:
+                    continue
 
-                    message_type = message.get("type", "")
-                    if message_type == "COMMENT":
-                        sender = "Private Note"
-                    else:
-                        sender = None
-                        if message.get("senders") and len(message["senders"]) > 0:
-                            sender_info = message["senders"][0]
-                            sender = sender_info.get("name", "Unknown Sender")
+                message_type = message.get("type", "")
+                if message_type == "COMMENT":
+                    sender = "Private Note"
+                else:
+                    sender = None
+                    if message.get("senders") and len(message["senders"]) > 0:
+                        sender_info = message["senders"][0]
+                        sender = sender_info.get("name", "Unknown Sender")
 
-                    conversation_results.append(
-                        {
-                            "sender": sender,
-                            "message": message_content,
-                            "timestamp": message.get("createdAt"),
-                            "message_id": message.get("id"),
-                            "type": message_type,
-                        }
-                    )
-        except Exception:  # nosec B110
-            pass
+                conversation_results.append(
+                    {
+                        "sender": sender,
+                        "message": message_content,
+                        "timestamp": message.get("createdAt"),
+                        "message_id": message.get("id"),
+                        "type": message_type,
+                    }
+                )
+
+            after = ((conversation_data.get("paging") or {}).get("next") or {}).get("after")
+            if not after:
+                break
 
         try:
             sorted_conversation = sorted(conversation_results, key=lambda x: x.get("timestamp", ""))
         except Exception:
             sorted_conversation = conversation_results
 
-        return ActionResult(
-            data={
-                "conversation": {
-                    "results": sorted_conversation,
-                    "ticket_id": ticket_id,
-                    "thread_id": thread_id,
-                }
-            },
-            cost_usd=None,
-        )
+        conversation = {"results": sorted_conversation, "ticket_id": ticket_id, "thread_id": thread_id}
+        if after:
+            conversation["message"] = f"Showing the first {MAX_CONVERSATION_PAGES} pages of a longer conversation"
+        return ActionResult(data={"conversation": conversation}, cost_usd=None)
 
 
 @hubspot.action("add_ticket_comment")

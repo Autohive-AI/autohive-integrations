@@ -696,7 +696,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
 - **Description:** Retrieve the complete conversation thread associated with a support ticket
 - **Inputs:**
   - `ticket_id` (required): ID of the ticket to retrieve conversation for
-- **Outputs:** Sorted conversation messages with sender information, timestamps, and message types
+- **Outputs:** Sorted conversation messages with sender information, timestamps, and message types. Reads up to 20 pages of messages; a longer conversation says so in `conversation.message`. Fails if HubSpot can't return the messages, rather than showing an empty conversation
 
 #### Action: `add_ticket_comment`
 - **Description:** Add an internal CRM note to an existing ticket
