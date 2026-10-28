@@ -460,8 +460,11 @@ class TestGetContactAssociations:
         )
         data = result.result.data
         assert data["contact_id"] == TEST_CONTACT_ID
-        assert "associations" in data
-        assert "total_associations" in data
+        assert "errors" not in data, data.get("errors")
+        assert set(data["has_more"]) == {"companies", "deals"}
+        for link in data["associations"]["companies"] + data["associations"]["deals"]:
+            assert link["toObjectId"]
+            assert all("typeId" in association_type for association_type in link["associationTypes"])
 
 
 class TestGetCompanyAssociations:
@@ -488,6 +491,19 @@ class TestGetDealAssociations:
         data = result.result.data
         assert data["deal_id"] == TEST_DEAL_ID
         assert "associations" in data
+        assert "errors" not in data, data.get("errors")
+
+
+class TestGetAssociationLabels:
+    async def test_lists_deal_to_contact_types(self, live_context):
+        result = await hubspot.execute_action(
+            "get_association_labels", {"from_object_type": "deals", "to_object_type": "contacts"}, live_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        labels = result.result.data["labels"]
+        # Every portal has HubSpot's unlabelled deal-to-contact type
+        assert any(label["category"] == "HUBSPOT_DEFINED" for label in labels)
+        assert all(isinstance(label["typeId"], int) for label in labels)
 
 
 # ---- Owner (Read-Only) ----
@@ -1123,16 +1139,17 @@ class TestCreateAssociation:
     async def test_links_unlinked_test_contact_and_company(self, live_context):
         require_contact_id()
         require_company_id()
-        associations_url = f"https://api.hubapi.com/crm/v4/objects/contacts/{TEST_CONTACT_ID}/associations/companies"
+        batch_read_url = "https://api.hubapi.com/crm/associations/2026-09/contacts/companies/batch/read"
 
         async def linked_company_ids():
             # Read every page, so an existing link past the first page isn't mistaken for ours and deleted
             company_ids, after = set(), None
             while True:
-                params = {"limit": 500, **({"after": after} if after else {})}
-                response = await live_context.fetch(associations_url, method="GET", params=params)
-                company_ids.update(str(item["toObjectId"]) for item in response.data.get("results", []))
-                after = ((response.data.get("paging") or {}).get("next") or {}).get("after")
+                request = {"id": TEST_CONTACT_ID, **({"after": after} if after else {})}
+                response = await live_context.fetch(batch_read_url, method="POST", json={"inputs": [request]})
+                rows = response.data.get("results", [])
+                company_ids.update(str(link["toObjectId"]) for row in rows for link in row.get("to", []))
+                after = next((((row.get("paging") or {}).get("next") or {}).get("after") for row in rows), None)
                 if not after:
                     return company_ids
 
@@ -1154,4 +1171,8 @@ class TestCreateAssociation:
             assert str(TEST_COMPANY_ID) in await linked_company_ids()
         finally:
             # Remove only the link this test created
-            await live_context.fetch(f"{associations_url}/{TEST_COMPANY_ID}", method="DELETE")
+            await live_context.fetch(
+                f"https://api.hubapi.com/crm/objects/2026-09/contacts/{TEST_CONTACT_ID}/associations/companies/"
+                f"{TEST_COMPANY_ID}",
+                method="DELETE",
+            )

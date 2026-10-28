@@ -236,6 +236,116 @@ async def fetch_with_rate_limit_retries(
             delay_seconds *= 2
 
 
+ASSOCIATIONS_API_URL = "https://api.hubapi.com/crm/associations/2026-09"
+OBJECTS_API_URL = "https://api.hubapi.com/crm/objects/2026-09"
+
+# HubSpot reads at most 1,000 records' links in one batch request
+MAX_ASSOCIATION_READ_INPUTS = 1000
+
+
+async def _read_associations(
+    context: ExecutionContext,
+    from_type: str,
+    to_type: str,
+    object_ids: list[str],
+    retry_sleep_budget: Dict[str, int],
+    limit: int | None = None,
+) -> tuple[Dict[str, list], set[str]]:
+    """Return each record's links to records of to_type, keyed by record ID, and the IDs that have more.
+
+    Follows each record's paging cursor until it has `limit` links, or all of them when limit is None. Each link
+    is HubSpot's {toObjectId, associationTypes: [{category, typeId, label}]}. Raises ValueError when HubSpot can't
+    read them.
+    """
+    links: Dict[str, list] = {str(object_id): [] for object_id in object_ids}
+    has_more: set[str] = set()
+    pending = [{"id": object_id} for object_id in links]
+    while pending:
+        inputs, pending = pending[:MAX_ASSOCIATION_READ_INPUTS], pending[MAX_ASSOCIATION_READ_INPUTS:]
+        response = await fetch_with_rate_limit_retries(
+            context,
+            f"{ASSOCIATIONS_API_URL}/{from_type}/{to_type}/batch/read",
+            retry_sleep_budget=retry_sleep_budget,
+            method="POST",
+            json={"inputs": inputs},
+            headers={"Content-Type": "application/json"},
+        )
+        data = await parse_response(response)
+        reason = _unfinished_batch_reason(data)
+        if reason:
+            raise ValueError(f"HubSpot {reason} the linked {to_type} lookup")
+        # A record with nothing of this type linked comes back as an OBJECT_NOT_FOUND error and is left out of
+        # results; any other error means its links couldn't be read
+        for error in data.get("errors", []):
+            if error.get("category") != "OBJECT_NOT_FOUND":
+                raise ValueError(f"Could not read linked {to_type}: {error.get('message') or error.get('category')}")
+        for row in data.get("results", []):
+            object_id = str(row["from"]["id"])
+            record_links = links.setdefault(object_id, [])
+            record_links.extend(row.get("to", []))
+            after = ((row.get("paging") or {}).get("next") or {}).get("after")
+            if limit is not None and len(record_links) >= limit:
+                if after or len(record_links) > limit:
+                    has_more.add(object_id)
+                del record_links[limit:]
+            elif after:
+                pending.append({"id": object_id, "after": after})
+    return links, has_more
+
+
+async def _record_associations(
+    record_type: str,
+    record_id: str,
+    inputs: Dict[str, Any],
+    default_types: list[str],
+    context: ExecutionContext,
+) -> Dict[str, Any] | ActionError:
+    """Return one record's links to each requested type, for the get_*_associations actions.
+
+    A type HubSpot can't read is reported under "errors" rather than shown as having no links.
+    """
+    limit = inputs.get("limit", 100)
+    retry_sleep_budget = {"remaining": 10}
+    associations, summary, has_more, errors = {}, {}, {}, {}
+    for association_type in inputs.get("association_types", default_types):
+        try:
+            links, truncated = await _read_associations(
+                context, record_type, association_type, [record_id], retry_sleep_budget, limit
+            )
+        except (*REQUEST_ERRORS, ValueError) as e:
+            errors[association_type] = _error_text(e)
+            continue
+        associations[association_type] = links[str(record_id)]
+        summary[f"{association_type}_count"] = len(associations[association_type])
+        has_more[association_type] = str(record_id) in truncated
+
+    if errors and not associations:
+        details = "; ".join(f"{association_type}: {message}" for association_type, message in errors.items())
+        return ActionError(message=f"Failed to read associations for {record_type} {record_id}: {details}")
+    data = {
+        "associations": associations,
+        "total_associations": sum(len(links) for links in associations.values()),
+        "summary": summary,
+        "has_more": has_more,
+    }
+    if errors:
+        data["errors"] = errors
+    return data
+
+
+async def _association_labels(
+    context: ExecutionContext, from_type: str, to_type: str, retry_sleep_budget: Dict[str, int]
+) -> list[Dict[str, Any]]:
+    """Return the association types between two object types: [{category, typeId, label}]."""
+    response = await fetch_with_rate_limit_retries(
+        context,
+        f"{ASSOCIATIONS_API_URL}/{from_type}/{to_type}/labels",
+        retry_sleep_budget=retry_sleep_budget,
+        headers={"Content-Type": "application/json"},
+    )
+    return (await parse_response(response)).get("results", [])
+
+
 # Contact Management Actions
 
 
@@ -1500,33 +1610,14 @@ async def _task_associations(
     """Return each task's associated contacts, companies and deals, keyed by task ID.
 
     The search API doesn't return associations, so this fills the same associations.<type>.results[].id
-    shape that listing tasks returns.
+    shape that listing tasks returns, leaving out types with nothing linked as listing does.
     """
     associations: Dict[str, Dict[str, Any]] = {task_id: {} for task_id in task_ids}
     for object_type in ("contacts", "companies", "deals"):
-        response = await fetch_with_rate_limit_retries(
-            context,
-            f"https://api.hubapi.com/crm/associations/2026-09/tasks/{object_type}/batch/read",
-            retry_sleep_budget=retry_sleep_budget,
-            method="POST",
-            json={"inputs": [{"id": task_id} for task_id in task_ids]},
-            headers={"Content-Type": "application/json"},
-        )
-        data = await parse_response(response)
-        reason = _unfinished_batch_reason(data)
-        if reason:
-            raise ValueError(f"HubSpot {reason} the linked {object_type} lookup")
-        # A task with nothing of this type linked comes back as an OBJECT_NOT_FOUND error and is left out of
-        # results, as listing tasks omits empty types; any other error means its links couldn't be read
-        for error in data.get("errors", []):
-            if error.get("category") != "OBJECT_NOT_FOUND":
-                raise ValueError(
-                    f"Could not read linked {object_type}: {error.get('message') or error.get('category')}"
-                )
-        for row in data.get("results", []):
-            associations[str(row["from"]["id"])][object_type] = {
-                "results": [{"id": str(linked["toObjectId"])} for linked in row.get("to", [])]
-            }
+        links, _ = await _read_associations(context, "tasks", object_type, task_ids, retry_sleep_budget)
+        for task_id, linked in links.items():
+            if linked:
+                associations[task_id][object_type] = {"results": [{"id": str(link["toObjectId"])} for link in linked]}
     return associations
 
 
@@ -4107,178 +4198,109 @@ class GetListMembershipsHandler(ActionHandler):
 
 @hubspot.action("get_contact_associations")
 class GetContactAssociationsHandler(ActionHandler):
-    """Retrieve all associated objects for a contact using v4 Associations API"""
+    """Retrieve a contact's linked records, with association labels"""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         contact_id = inputs["contact_id"]
-        association_types = inputs.get("association_types", ["companies", "deals", "meetings"])
-        limit = inputs.get("limit", 100)
-
-        associations = {}
-        total_count = 0
-        summary = {}
-        retry_sleep_budget = {"remaining": 10}
-
-        # Fetch associations for each type in parallel
-        for assoc_type in association_types:
-            try:
-                url = f"https://api.hubapi.com/crm/v4/objects/contacts/{contact_id}/associations/{assoc_type}"
-                params = {"limit": limit}
-
-                response = await fetch_with_rate_limit_retries(
-                    context,
-                    url,
-                    retry_sleep_budget=retry_sleep_budget,
-                    params=params,
-                )
-                data = await parse_response(response)
-
-                results = data.get("results", [])
-                associations[assoc_type] = results
-                total_count += len(results)
-                summary[f"{assoc_type}_count"] = len(results)
-
-            except Exception:
-                # If association type doesn't exist or fails, continue with empty list
-                associations[assoc_type] = []
-                summary[f"{assoc_type}_count"] = 0
-
-        return ActionResult(
-            data={
-                "contact_id": contact_id,
-                "associations": associations,
-                "total_associations": total_count,
-                "summary": summary,
-            },
-            cost_usd=None,
-        )
+        data = await _record_associations("contacts", contact_id, inputs, ["companies", "deals", "meetings"], context)
+        if isinstance(data, ActionError):
+            return data
+        return ActionResult(data={"contact_id": contact_id, **data}, cost_usd=None)
 
 
 @hubspot.action("get_company_associations")
 class GetCompanyAssociationsHandler(ActionHandler):
-    """Retrieve all associated objects for a company using v4 Associations API"""
+    """Retrieve a company's linked records, with association labels"""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         company_id = inputs["company_id"]
-        association_types = inputs.get("association_types", ["contacts", "deals", "tickets"])
-        limit = inputs.get("limit", 100)
-
-        associations = {}
-        total_count = 0
-        summary = {}
-        retry_sleep_budget = {"remaining": 10}
-
-        # Fetch associations for each type
-        for assoc_type in association_types:
-            try:
-                url = f"https://api.hubapi.com/crm/v4/objects/companies/{company_id}/associations/{assoc_type}"
-                params = {"limit": limit}
-
-                response = await fetch_with_rate_limit_retries(
-                    context,
-                    url,
-                    retry_sleep_budget=retry_sleep_budget,
-                    params=params,
-                )
-                data = await parse_response(response)
-
-                results = data.get("results", [])
-                associations[assoc_type] = results
-                total_count += len(results)
-                summary[f"{assoc_type}_count"] = len(results)
-
-            except Exception:
-                # If association type doesn't exist or fails, continue with empty list
-                associations[assoc_type] = []
-                summary[f"{assoc_type}_count"] = 0
-
-        return ActionResult(
-            data={
-                "company_id": company_id,
-                "associations": associations,
-                "total_associations": total_count,
-                "summary": summary,
-            },
-            cost_usd=None,
-        )
+        data = await _record_associations("companies", company_id, inputs, ["contacts", "deals", "tickets"], context)
+        if isinstance(data, ActionError):
+            return data
+        return ActionResult(data={"company_id": company_id, **data}, cost_usd=None)
 
 
 @hubspot.action("get_deal_associations")
 class GetDealAssociationsHandler(ActionHandler):
-    """Retrieve all associated objects for a deal using v4 Associations API"""
+    """Retrieve a deal's linked records, with association labels"""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         deal_id = inputs["deal_id"]
-        association_types = inputs.get("association_types", ["contacts", "companies"])
-        limit = inputs.get("limit", 100)
+        data = await _record_associations("deals", deal_id, inputs, ["contacts", "companies"], context)
+        if isinstance(data, ActionError):
+            return data
+        return ActionResult(data={"deal_id": deal_id, **data}, cost_usd=None)
 
-        associations = {}
-        total_count = 0
-        summary = {}
-        retry_sleep_budget = {"remaining": 10}
 
-        # Fetch associations for each type
-        for assoc_type in association_types:
-            try:
-                url = f"https://api.hubapi.com/crm/v4/objects/deals/{deal_id}/associations/{assoc_type}"
-                params = {"limit": limit}
+@hubspot.action("get_association_labels")
+class GetAssociationLabelsHandler(ActionHandler):
+    """List the association types, including custom labels, that can link two object types"""
 
-                response = await fetch_with_rate_limit_retries(
-                    context,
-                    url,
-                    retry_sleep_budget=retry_sleep_budget,
-                    params=params,
-                )
-                data = await parse_response(response)
-
-                results = data.get("results", [])
-                associations[assoc_type] = results
-                total_count += len(results)
-                summary[f"{assoc_type}_count"] = len(results)
-
-            except Exception:
-                # If association type doesn't exist or fails, continue with empty list
-                associations[assoc_type] = []
-                summary[f"{assoc_type}_count"] = 0
-
-        return ActionResult(
-            data={
-                "deal_id": deal_id,
-                "associations": associations,
-                "total_associations": total_count,
-                "summary": summary,
-            },
-            cost_usd=None,
-        )
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        from_type = inputs["from_object_type"]
+        to_type = inputs["to_object_type"]
+        try:
+            labels = await _association_labels(context, from_type, to_type, {"remaining": 10})
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to list {from_type} to {to_type} association labels: {_error_text(e)}")
+        return ActionResult(data={"labels": labels, "total": len(labels)}, cost_usd=None)
 
 
 @hubspot.action("create_association")
 class CreateAssociationHandler(ActionHandler):
-    """Link two CRM records with HubSpot's default association type using the v4 Associations API"""
+    """Link two CRM records with HubSpot's default association type, or with a named label"""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         from_type = inputs["from_object_type"]
         from_id = inputs["from_object_id"]
         to_type = inputs["to_object_type"]
         to_id = inputs["to_object_id"]
+        label = inputs.get("label")
+        association_type_id = inputs.get("association_type_id")
+        records = f"{from_type} {from_id} with {to_type} {to_id}"
+        message = f"Associated {records}"
+        url = f"{OBJECTS_API_URL}/{from_type}/{from_id}/associations"
+        retry_sleep_budget = {"remaining": 10}
 
         try:
-            response = await fetch_with_rate_limit_retries(
-                context,
-                f"https://api.hubapi.com/crm/v4/objects/{from_type}/{from_id}/associations/default/{to_type}/{to_id}",
-                method="PUT",
-                # HubSpot rejects this bodyless PUT with 415 unless it's marked as JSON
-                headers={"Content-Type": "application/json"},
-            )
+            if label or association_type_id is not None:
+                types = await _association_labels(context, from_type, to_type, retry_sleep_budget)
+                if association_type_id is not None:
+                    match = next((t for t in types if t.get("typeId") == association_type_id), None)
+                    wanted = f"type ID {association_type_id}"
+                else:
+                    match = next((t for t in types if (t.get("label") or "").casefold() == label.casefold()), None)
+                    wanted = f"label {label!r}"
+                if match is None:
+                    available = ", ".join(f"{t['label']} ({t['typeId']})" for t in types if t.get("label")) or "none"
+                    return ActionError(
+                        message=f"No {from_type} to {to_type} association has the {wanted}. Labels: {available}"
+                    )
+                message += f" as {match.get('label') or match['typeId']}"
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    f"{url}/{to_type}/{to_id}",
+                    retry_sleep_budget=retry_sleep_budget,
+                    method="PUT",
+                    json=[{"associationCategory": match["category"], "associationTypeId": match["typeId"]}],
+                    headers={"Content-Type": "application/json"},
+                )
+            else:
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    f"{url}/default/{to_type}/{to_id}",
+                    retry_sleep_budget=retry_sleep_budget,
+                    method="PUT",
+                    # HubSpot rejects this bodyless PUT with 415 unless it's marked as JSON
+                    headers={"Content-Type": "application/json"},
+                )
         except REQUEST_ERRORS as e:
-            return ActionError(
-                message=f"Failed to associate {from_type} {from_id} with {to_type} {to_id}: {_error_text(e)}"
-            )
+            return ActionError(message=f"Failed to associate {records}: {_error_text(e)}")
 
         return ActionResult(
             data={
                 "success": True,
-                "message": f"Associated {from_type} {from_id} with {to_type} {to_id}",
+                "message": message,
                 "response": await parse_response(response),
             },
             cost_usd=None,

@@ -4,7 +4,7 @@ Comprehensive HubSpot CRM integration for managing contacts, companies, deals, s
 
 ## Description
 
-This integration provides complete access to HubSpot CRM and Marketing functionality through Autohive, enabling users to manage their entire customer relationship lifecycle and marketing operations. It supports comprehensive CRUD operations across all major CRM objects including contacts, companies, deals, tickets, and conversations, plus read access to marketing emails and campaigns. The integration features UTC date handling, pagination support, specialized rate limiting for high-volume operations, and powerful v4 Associations API support.
+This integration provides complete access to HubSpot CRM and Marketing functionality through Autohive, enabling users to manage their entire customer relationship lifecycle and marketing operations. It supports comprehensive CRUD operations across all major CRM objects including contacts, companies, deals, tickets, and conversations, plus read access to marketing emails and campaigns. The integration features UTC date handling, pagination support, specialized rate limiting for high-volume operations, and association reads that include labels.
 
 Key features include:
 - Complete contact management with email conversation history
@@ -15,13 +15,13 @@ Key features include:
 - Call and meeting transcript access - Retrieve transcripts and notes from calls and meetings (including Google Meet recordings saved to HubSpot)
 - Marketing emails - List and retrieve marketing emails
 - Campaigns - Browse marketing campaigns and their associated content
-- v4 Associations API - Retrieve all related objects (companies, deals, tickets, etc.) for any contact, company, or deal
+- Associations - Retrieve all related objects (companies, deals, tickets, etc.) for any contact, company, or deal, with their association labels, and link records with a label such as "Architect"
 - Intelligent pagination and rate limiting for large datasets
 - Comprehensive search and filtering capabilities
 - Real-time conversation management for customer support
 - Lists/segments management with member exports and static-list membership updates
 
-This integration interacts with HubSpot's CRM v3 API, v4 Associations API, Marketing v3 API (emails and campaigns), and Conversations API, providing robust error handling, UTC date formatting, and optimized performance for large-scale operations.
+This integration interacts with HubSpot's CRM v3 API, the 2026-09 CRM objects and associations APIs, Marketing v3 API (emails and campaigns), and Conversations API, providing robust error handling, UTC date formatting, and optimized performance for large-scale operations.
 
 ## Setup & Authentication
 
@@ -54,7 +54,7 @@ The integration automatically requests the following HubSpot permissions:
 
 ## Actions
 
-This integration provides comprehensive actions covering complete CRUD operations for all major HubSpot CRM modules including note management, lists/segments management, v4 Associations API, custom properties discovery, and marketing functionality (emails and campaigns with performance analytics):
+This integration provides comprehensive actions covering complete CRUD operations for all major HubSpot CRM modules including note management, lists/segments management, associations and labels, custom properties discovery, and marketing functionality (emails and campaigns with performance analytics):
 
 ### Contact Management
 
@@ -430,20 +430,22 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 ### Associations Management
 
 #### Action: `get_contact_associations`
-- **Description:** Retrieve all associated objects for a contact (companies, deals, tickets, tasks, notes, emails, etc.) using v4 Associations API
+- **Description:** Retrieve all associated objects for a contact (companies, deals, tickets, tasks, notes, emails, etc.), with each link's association labels
 - **Inputs:**
   - `contact_id` (required): Internal object ID of the contact
   - `association_types` (optional): Array of association types to retrieve - ["companies", "deals", "tickets", "tasks", "notes", "emails", "meetings", "calls"] (default: ["companies", "deals", "meetings"])
-  - `limit` (optional): Maximum associations per type (default: 100, max: 500)
+  - `limit` (optional): Maximum associations per type (default: 100, max: 500). Pages are followed until the limit is reached
 - **Outputs:** Object containing:
   - `contact_id`: The contact ID queried
-  - `associations`: Object with arrays for each association type (e.g., companies, deals)
+  - `associations`: Object with arrays for each association type (e.g., companies, deals). Each entry has `toObjectId` and `associationTypes` (`category`, `typeId`, `label`)
   - `total_associations`: Total count across all types
   - `summary`: Count breakdown by type (e.g., companies_count, deals_count)
+  - `has_more`: Per type, `true` when the contact has more links than `limit` returned
+  - `errors` (only when a type couldn't be read): Per type, HubSpot's error. Those types are left out of `associations` rather than shown as empty; the action fails if every type fails
 - **Use Case:** Get everything connected to a contact - "Show me all companies, deals, and tickets for this contact"
 
 #### Action: `get_company_associations`
-- **Description:** Retrieve all associated objects for a company (contacts, deals, tickets, etc.) using v4 Associations API
+- **Description:** Retrieve all associated objects for a company (contacts, deals, tickets, etc.), with each link's association labels
 - **Inputs:**
   - `company_id` (required): Internal object ID of the company
   - `association_types` (optional): Array of association types - ["contacts", "deals", "tickets", "tasks", "notes", "emails"] (default: ["contacts", "deals", "tickets"])
@@ -452,7 +454,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Use Case:** Get all contacts and deals associated with a company
 
 #### Action: `get_deal_associations`
-- **Description:** Retrieve all associated objects for a deal (contacts, companies, tickets, line items, quotes) using v4 Associations API
+- **Description:** Retrieve all associated objects for a deal (contacts, companies, tickets, line items, quotes), with each link's association labels
 - **Inputs:**
   - `deal_id` (required): Internal object ID of the deal
   - `association_types` (optional): Array of association types - ["contacts", "companies", "tickets", "line_items", "quotes"] (default: ["contacts", "companies"])
@@ -460,13 +462,23 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Outputs:** Similar structure to get_contact_associations with deal_id
 - **Use Case:** Get all contacts and companies involved in a deal
 
+#### Action: `get_association_labels`
+- **Description:** List the association types that can link two kinds of record, including custom labels such as "Architect" or "Decision maker"
+- **Inputs:**
+  - `from_object_type` (required): Type of the first record, e.g. `deals`
+  - `to_object_type` (required): Type of the linked record, e.g. `contacts`
+- **Outputs:** `labels` (each with `category`, `typeId` and `label`; the default type's label is `null`) and `total`
+- **Use Case:** Find the label to pass to `create_association`, or what a `typeId` returned by the `get_*_associations` actions means
+
 #### Action: `create_association`
-- **Description:** Link two records, such as a contact to a company or a contact to a deal, using HubSpot's default association type (v4 Associations API)
+- **Description:** Link two records, such as a contact to a company or a contact to a deal. Uses HubSpot's default association type unless a label or type ID is given
 - **Inputs:**
   - `from_object_type` (required): `contacts`, `companies`, `deals`, or `tickets`
   - `from_object_id` (required): ID of the first record
   - `to_object_type` (required): `contacts`, `companies`, `deals`, or `tickets`
   - `to_object_id` (required): ID of the record to link to
+  - `label` (optional): Association label to apply, e.g. `Architect`, matched case-insensitively. An unknown label fails and lists the labels that exist
+  - `association_type_id` (optional): Association type ID from `get_association_labels`. Takes precedence over `label`
 - **Outputs:** `success`, `message`, and HubSpot's association `response`
 
 ### Owners
@@ -828,7 +840,7 @@ The integration has the following dependencies:
 ```json
 {
   "contact_id": "123456",
-  "association_types": ["companies", "deals", "meetings", "tasks"],
+  "association_types": ["companies", "deals", "tickets", "tasks"],
   "limit": 200
 }
 ```
@@ -840,7 +852,7 @@ The integration has the following dependencies:
   "associations": {
     "companies": [
       {
-        "toObjectId": "789012",
+        "toObjectId": 789012,
         "associationTypes": [
           {
             "category": "HUBSPOT_DEFINED",
@@ -852,12 +864,17 @@ The integration has the following dependencies:
     ],
     "deals": [
       {
-        "toObjectId": "345678",
+        "toObjectId": 345678,
         "associationTypes": [
           {
             "category": "HUBSPOT_DEFINED",
-            "typeId": 3,
+            "typeId": 4,
             "label": null
+          },
+          {
+            "category": "USER_DEFINED",
+            "typeId": 42,
+            "label": "Architect"
           }
         ]
       }
@@ -871,7 +888,24 @@ The integration has the following dependencies:
     "deals_count": 1,
     "tickets_count": 0,
     "tasks_count": 0
+  },
+  "has_more": {
+    "companies": false,
+    "deals": false,
+    "tickets": false,
+    "tasks": false
   }
+}
+```
+
+**Example 10b: Link a contact to a deal as the deal's architect**
+```json
+{
+  "from_object_type": "deals",
+  "from_object_id": "345678",
+  "to_object_type": "contacts",
+  "to_object_id": "123456",
+  "label": "Architect"
 }
 ```
 

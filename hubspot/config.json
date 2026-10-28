@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.6.0",
+  "version": "3.7.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -4175,7 +4175,7 @@
     },
     "get_contact_associations": {
       "display_name": "Get Contact Associations",
-      "description": "Retrieve all associated objects for a contact (companies, deals, tickets, etc.) using v4 Associations API",
+      "description": "Retrieve a contact's linked records (companies, deals, tickets, etc.), including association labels such as Primary or custom labels",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4207,7 +4207,7 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of associations to retrieve per type (default: 100, max: 500)",
+            "description": "Maximum number of linked records to return per type (default: 100, max: 500). has_more shows which types had more",
             "minimum": 1,
             "maximum": 500,
             "default": 100
@@ -4296,6 +4296,20 @@
                 "type": "integer"
               }
             }
+          },
+          "has_more": {
+            "type": "object",
+            "description": "Per type, whether the record has more linked records than limit returned",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "errors": {
+            "type": "object",
+            "description": "Per type, why HubSpot couldn't read those links. Types listed here are left out of associations",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -4307,7 +4321,7 @@
     },
     "get_company_associations": {
       "display_name": "Get Company Associations",
-      "description": "Retrieve all associated objects for a company (contacts, deals, tickets, etc.) using v4 Associations API",
+      "description": "Retrieve a company's linked records (companies, deals, tickets, etc.), including association labels such as Primary or custom labels",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4337,7 +4351,7 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of associations to retrieve per type (default: 100, max: 500)",
+            "description": "Maximum number of linked records to return per type (default: 100, max: 500). has_more shows which types had more",
             "minimum": 1,
             "maximum": 500,
             "default": 100
@@ -4365,6 +4379,20 @@
           "summary": {
             "type": "object",
             "description": "Summary of associations by type"
+          },
+          "has_more": {
+            "type": "object",
+            "description": "Per type, whether the record has more linked records than limit returned",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "errors": {
+            "type": "object",
+            "description": "Per type, why HubSpot couldn't read those links. Types listed here are left out of associations",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -4376,7 +4404,7 @@
     },
     "get_deal_associations": {
       "display_name": "Get Deal Associations",
-      "description": "Retrieve all associated objects for a deal (contacts, companies, tickets, etc.) using v4 Associations API",
+      "description": "Retrieve a deal's linked records (companies, deals, tickets, etc.), including association labels such as Primary or custom labels",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4404,7 +4432,7 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of associations to retrieve per type (default: 100, max: 500)",
+            "description": "Maximum number of linked records to return per type (default: 100, max: 500). has_more shows which types had more",
             "minimum": 1,
             "maximum": 500,
             "default": 100
@@ -4432,6 +4460,20 @@
           "summary": {
             "type": "object",
             "description": "Summary of associations by type"
+          },
+          "has_more": {
+            "type": "object",
+            "description": "Per type, whether the record has more linked records than limit returned",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "errors": {
+            "type": "object",
+            "description": "Per type, why HubSpot couldn't read those links. Types listed here are left out of associations",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -4441,9 +4483,69 @@
         ]
       }
     },
+    "get_association_labels": {
+      "display_name": "Get Association Labels",
+      "description": "List the association types that can link two kinds of record, including custom labels such as 'Architect' or 'Decision maker'. Use the label or type ID with Link Records",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_object_type": {
+            "type": "string",
+            "description": "Type of the first record, e.g. contacts, companies, deals, tickets",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "to_object_type": {
+            "type": "string",
+            "description": "Type of the linked record, e.g. contacts, companies, deals, tickets",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "required": [
+          "from_object_type",
+          "to_object_type"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "labels": {
+            "type": "array",
+            "description": "Association types between the two object types",
+            "items": {
+              "type": "object",
+              "properties": {
+                "category": {
+                  "type": "string",
+                  "description": "HUBSPOT_DEFINED, USER_DEFINED, INTEGRATOR_DEFINED or WORK"
+                },
+                "typeId": {
+                  "type": "integer",
+                  "description": "Association type ID"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Label shown in HubSpot; null for the default unlabelled type"
+                }
+              }
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Number of association types"
+          }
+        },
+        "required": [
+          "labels",
+          "total"
+        ]
+      }
+    },
     "create_association": {
       "display_name": "Link Records",
-      "description": "Link two HubSpot records, such as a contact to a company or a contact to a deal, using HubSpot's default association type",
+      "description": "Link two HubSpot records, such as a contact to a company or a contact to a deal. Uses HubSpot's default association type unless a label (e.g. 'Architect') or association type ID is given",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4476,6 +4578,14 @@
             "type": "string",
             "description": "ID of the record to link to",
             "pattern": "^[0-9]+$"
+          },
+          "label": {
+            "type": "string",
+            "description": "Association label to apply, matched case-insensitively. Get Association Labels lists the labels for the two record types"
+          },
+          "association_type_id": {
+            "type": "integer",
+            "description": "Association type ID to apply, from Get Association Labels. Takes precedence over label"
           }
         },
         "required": [

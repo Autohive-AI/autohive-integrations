@@ -1998,6 +1998,8 @@ class TestUpsertContacts:
 
 # ---- Create Association ----
 
+ARCHITECT = {"category": "USER_DEFINED", "typeId": 42, "label": "Architect"}
+
 
 class TestCreateAssociation:
     @pytest.mark.asyncio
@@ -2012,10 +2014,83 @@ class TestCreateAssociation:
 
         assert result.result.data["success"] is True
         call = mock_context.fetch.call_args
-        assert call.args[0] == "https://api.hubapi.com/crm/v4/objects/contacts/1/associations/default/companies/2"
+        assert call.args[0] == "https://api.hubapi.com/crm/objects/2026-09/contacts/1/associations/default/companies/2"
         assert call.kwargs["method"] == "PUT"
         # HubSpot answers 415 to this PUT without a JSON content type
         assert call.kwargs["headers"] == {"Content-Type": "application/json"}
+
+    @pytest.mark.asyncio
+    async def test_links_records_with_named_label(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok({"results": [{"category": "HUBSPOT_DEFINED", "typeId": 3, "label": None}, ARCHITECT]}),
+            ok({"fromObjectId": "5", "toObjectId": "1", "labels": ["Architect"]}),
+        ]
+
+        result = await hubspot.execute_action(
+            "create_association",
+            {
+                "from_object_type": "deals",
+                "from_object_id": "5",
+                "to_object_type": "contacts",
+                "to_object_id": "1",
+                "label": "architect",
+            },
+            mock_context,
+        )
+
+        assert result.result.data["message"] == "Associated deals 5 with contacts 1 as Architect"
+        labels_call, put_call = mock_context.fetch.call_args_list
+        assert labels_call.args[0] == "https://api.hubapi.com/crm/associations/2026-09/deals/contacts/labels"
+        assert put_call.args[0] == "https://api.hubapi.com/crm/objects/2026-09/deals/5/associations/contacts/1"
+        assert put_call.kwargs["method"] == "PUT"
+        assert put_call.kwargs["json"] == [{"associationCategory": "USER_DEFINED", "associationTypeId": 42}]
+
+    @pytest.mark.asyncio
+    async def test_type_id_takes_precedence_over_label(self, mock_context):
+        mock_context.fetch.side_effect = [
+            ok({"results": [{"category": "HUBSPOT_DEFINED", "typeId": 3, "label": None}, ARCHITECT]}),
+            ok({}),
+        ]
+
+        await hubspot.execute_action(
+            "create_association",
+            {
+                "from_object_type": "deals",
+                "from_object_id": "5",
+                "to_object_type": "contacts",
+                "to_object_id": "1",
+                "label": "Architect",
+                "association_type_id": 3,
+            },
+            mock_context,
+        )
+
+        put_call = mock_context.fetch.call_args_list[1]
+        assert put_call.kwargs["json"] == [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": 3}]
+
+    @pytest.mark.asyncio
+    async def test_unknown_label_lists_available_labels_without_linking(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {"results": [{"category": "HUBSPOT_DEFINED", "typeId": 3, "label": None}, ARCHITECT]}
+        )
+
+        result = await hubspot.execute_action(
+            "create_association",
+            {
+                "from_object_type": "deals",
+                "from_object_id": "5",
+                "to_object_type": "contacts",
+                "to_object_id": "1",
+                "label": "Engineer",
+            },
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == (
+            "No deals to contacts association has the label 'Engineer'. Labels: Architect (42)"
+        )
+        assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
     async def test_unsupported_object_type_rejected_by_schema(self, mock_context):
