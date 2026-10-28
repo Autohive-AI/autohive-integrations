@@ -1782,9 +1782,7 @@ class ListTasksActionHandler(ActionHandler):
 @hubspot.action("get_contact_emails")
 class GetContactEmailsActionHandler(ActionHandler):
     """
-    Action handler to retrieve recent email conversations for a HubSpot contact.
-
-    Fetches associated email communications for a specific contact using v4 associations API.
+    Action handler to retrieve a HubSpot contact's most recent logged emails, newest first.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -1799,78 +1797,52 @@ class GetContactEmailsActionHandler(ActionHandler):
         email_limit = inputs.get("email_limit", 5)
 
         try:
-            retry_sleep_budget = {"remaining": 10}
-
-            # Get associated emails using v4 associations API
-            associations_url = f"https://api.hubapi.com/crm/v4/objects/contacts/{contact_id}/associations/emails"
-            associations_response = await fetch_with_rate_limit_retries(
+            response = await fetch_with_rate_limit_retries(
                 context,
-                associations_url,
-                retry_sleep_budget=retry_sleep_budget,
+                f"{OBJECTS_API_URL}/emails/search",
+                method="POST",
+                json={
+                    "filterGroups": [
+                        {
+                            "filters": [
+                                {"propertyName": "associations.contact", "operator": "EQ", "value": str(contact_id)}
+                            ]
+                        }
+                    ],
+                    "properties": [
+                        "hs_email_subject",
+                        "hs_email_text",
+                        "hs_timestamp",
+                        "hs_email_direction",
+                        "hs_email_status",
+                        "hs_email_from_email",
+                        "hs_email_to_email",
+                    ],
+                    "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
+                    "limit": email_limit,
+                },
                 headers={"Content-Type": "application/json"},
             )
-            associations_data = await parse_response(associations_response)
+            recent_emails = (await parse_response(response)).get("results", [])
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to retrieve emails: {_error_text(e)}")
 
-            recent_emails = []
-            email_count = 0
+        for email in recent_emails:
+            properties = email.get("properties") or {}
+            if properties.get("hs_timestamp"):
+                properties["hs_timestamp"] = convert_hubspot_timestamp_to_utc_string(properties["hs_timestamp"])
 
-            # Get email details for each associated email (limited by email_limit)
-            for association in associations_data.get("results", []):
-                if email_count >= email_limit:
-                    break
-
-                email_id = association["toObjectId"]
-                email_url = f"https://api.hubapi.com/crm/v3/objects/emails/{email_id}"
-                properties_param = (
-                    "hs_email_subject,hs_email_text,hs_timestamp,"
-                    "hs_email_direction,hs_email_status,hs_email_from_email,hs_email_to_email"
-                )
-
-                try:
-                    email_response = await fetch_with_rate_limit_retries(
-                        context,
-                        f"{email_url}?properties={properties_param}",
-                        retry_sleep_budget=retry_sleep_budget,
-                        headers={"Content-Type": "application/json"},
-                    )
-                    email_data = await parse_response(email_response)
-
-                    # Convert timestamp to UTC string
-                    if (
-                        "properties" in email_data
-                        and "hs_timestamp" in email_data["properties"]
-                        and email_data["properties"]["hs_timestamp"]
-                    ):
-                        email_data["properties"]["hs_timestamp"] = convert_hubspot_timestamp_to_utc_string(
-                            email_data["properties"]["hs_timestamp"]
-                        )
-
-                    recent_emails.append(email_data)
-                    email_count += 1
-                except Exception:  # nosec B112
-                    # Skip emails that can't be retrieved
-                    continue
-
-            # Sort emails by timestamp (most recent first)
-            recent_emails.sort(
-                key=lambda x: x.get("properties", {}).get("hs_timestamp", ""),
-                reverse=True,
-            )
-
-            return ActionResult(
-                data={
-                    "contact_id": contact_id,
-                    "recent_emails": recent_emails,
-                    "email_summary": {
-                        "total_emails_retrieved": len(recent_emails),
-                        "email_limit_applied": email_limit,
-                    },
+        return ActionResult(
+            data={
+                "contact_id": contact_id,
+                "recent_emails": recent_emails,
+                "email_summary": {
+                    "total_emails_retrieved": len(recent_emails),
+                    "email_limit_applied": email_limit,
                 },
-                cost_usd=None,
-            )
-
-        except Exception as e:
-            return ActionError(message=f"Failed to retrieve emails: {str(e)}")
+            },
+            cost_usd=None,
+        )
 
 
 @hubspot.action("create_contact")

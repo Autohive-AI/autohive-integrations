@@ -92,7 +92,7 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Note:** People without an email address can't be matched or created by this action. The emails are looked up before anything is written; if HubSpot can't confirm them, nothing is written and the call fails, and retrying is safe. Uses HubSpot's [contacts batch upsert](https://developers.hubspot.com/docs/api-reference/crm-contacts-v3/batch/post-crm-v3-objects-contacts-batch-upsert) endpoint.
 
 #### Action: `get_contact_emails`
-- **Description:** Retrieve recent email conversations for a contact using the v4 Associations API
+- **Description:** Retrieve a contact's most recent logged emails, newest first, in one search request
 - **Inputs:**
   - `contact_id` (required): Internal object ID of the contact
   - `email_limit` (optional): Maximum number of recent emails to retrieve (default: 5, max: 20)

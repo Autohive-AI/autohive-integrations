@@ -1216,7 +1216,7 @@
     },
     "get_contact_emails": {
       "display_name": "Get Contact Emails",
-      "description": "Retrieve recent email conversations for a HubSpot contact using v4 associations API",
+      "description": "Retrieve a HubSpot contact's most recent logged emails, newest first",
       "input_schema": {
         "type": "object",
         "properties": {
