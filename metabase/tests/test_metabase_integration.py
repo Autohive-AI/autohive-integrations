@@ -19,7 +19,7 @@ from uuid import uuid4
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, ResultType
-from metabase.metabase import metabase
+from metabase.metabase import get_base_url, metabase
 
 pytestmark = pytest.mark.integration
 
@@ -82,7 +82,7 @@ async def _archive(live_context, path, item_id, failures):
         return
     try:
         await live_context.fetch(
-            f"{BASE_URL}/api/{path}/{quote(str(item_id), safe='')}",
+            f"{get_base_url(live_context)}/api/{path}/{quote(str(item_id), safe='')}",
             method="PUT",
             headers={"x-api-key": API_KEY, "Content-Type": "application/json"},
             json={"archived": True},
