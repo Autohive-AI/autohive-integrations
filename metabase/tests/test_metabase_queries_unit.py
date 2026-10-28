@@ -1,5 +1,8 @@
+import asyncio
+from unittest.mock import MagicMock, patch
+
 import pytest
-from autohive_integrations_sdk import HTTPError, ResultType
+from autohive_integrations_sdk import ExecutionContext, HTTPError, ResultType
 
 from metabase.metabase import NO_RETRY, metabase
 from metabase.tests.conftest import BASE, ok as _ok
@@ -325,6 +328,17 @@ class TestQueriesSentOnce:
             "create_question", {"name": "N", "database_id": 3, "sql": "select 1"}, mock_context
         )
         assert mock_context.fetch.call_args.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_timed_out_query_sent_once_through_sdk(self, mock_context):
+        context = ExecutionContext(auth=mock_context.auth)
+        context._session = MagicMock()
+        context._session.request.side_effect = asyncio.TimeoutError
+        with patch("asyncio.sleep") as sleep:
+            result = await metabase.execute_action("run_sql_query", {"database_id": 3, "sql": "select 1"}, context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert context._session.request.call_count == 1
+        sleep.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_question_keeps_retries(self, mock_context):

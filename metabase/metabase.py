@@ -106,6 +106,9 @@ def _required_text(value: Any, key: str) -> str:
 
 
 READ_ONLY_SQL_KEYWORDS = ("select", "with", "explain", "show", "describe", "desc", "values")
+# Quoted strings, quoted identifiers and comments, which may contain semicolons that end nothing.
+# Backslash escapes differ between databases, so SQL with a backslash keeps the plain semicolon check.
+SQL_QUOTED_OR_COMMENT = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|`[^`]*`|--[^\n]*|/\*.*?\*/", re.DOTALL)
 
 
 def _ensure_read_only_sql(sql: str) -> str:
@@ -121,7 +124,8 @@ def _ensure_read_only_sql(sql: str) -> str:
             break
     first_word = re.match(r"[A-Za-z]*", text).group(0).lower()
     # A second statement after a semicolon could be anything, so only one statement is allowed.
-    if first_word not in READ_ONLY_SQL_KEYWORDS or ";" in sql.strip().rstrip(";"):
+    code = sql if "\\" in sql else SQL_QUOTED_OR_COMMENT.sub(" ", sql)
+    if first_word not in READ_ONLY_SQL_KEYWORDS or ";" in code.strip().rstrip(";"):
         raise ValueError(
             "Only a single read-only SQL statement is allowed (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES). "
             "Use a read-only database user in Metabase to fully block writes."

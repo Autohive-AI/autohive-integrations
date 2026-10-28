@@ -326,6 +326,12 @@ class TestReadOnlySql:
             "describe t",
             "values (1)",
             "select 1;",
+            "select ';' as separator",
+            "select 'it''s; fine'",
+            'select 1 as "a;b"',
+            "select 1 /* explain; only */",
+            "select 1; -- trailing note",
+            "select 1 -- note; with semicolon\nfrom t",
         ],
     )
     def test_allowed(self, sql):
@@ -343,6 +349,10 @@ class TestReadOnlySql:
             "grant all on t to x",
             "create table x as select 1",
             "select 1; drop table t",
+            "select ';'; drop table t",
+            "select 1 /* ; */; delete from t",
+            "select 'a\\''; drop table t; -- '",
+            "select 'a\\'; drop table t; --'",
         ],
     )
     def test_rejected(self, sql):
