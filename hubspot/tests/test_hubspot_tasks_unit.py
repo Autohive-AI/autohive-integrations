@@ -296,6 +296,22 @@ class TestListTasks:
         assert mock_context.fetch.call_args.kwargs["params"]["limit"] == 100
 
     @pytest.mark.asyncio
+    async def test_unfiltered_list_caps_page_at_100(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        await hubspot.execute_action("list_tasks", {"limit": 200}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["params"]["limit"] == 100
+
+    @pytest.mark.asyncio
+    async def test_filtered_search_allows_200_a_page(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        await hubspot.execute_action("list_tasks", {"limit": 200, "exclude_completed": True}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["json"]["limit"] == 200
+
+    @pytest.mark.asyncio
     async def test_list_tasks_exception_returns_action_error(self, mock_context):
         mock_context.fetch.side_effect = Exception("Server error")
 

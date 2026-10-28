@@ -634,7 +634,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
 #### Action: `list_tasks`
 - **Description:** Retrieve tasks. With no filters it lists every task in ID order. With any filter it uses HubSpot's [CRM search API](https://developers.hubspot.com/docs/api-reference/search/guide) and sorts by due date, so you can fetch, for example, one person's open tasks that are overdue or due today.
 - **Inputs:**
-  - `limit` (optional): Maximum tasks to return (default: 100, max: 100)
+  - `limit` (optional): Maximum tasks per page (default: 100). Up to 200 when any filter is given; without filters HubSpot returns at most 100
   - `after` (optional): Paging cursor (`paging.next.after`) from the previous call with the same filters
   - `hs_task_properties` (optional): Array of HubSpot task CRM property internal names to retrieve (defaults match create/update task fields)
   - `owner_id` (optional): Only tasks assigned to this owner ID

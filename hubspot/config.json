@@ -1087,9 +1087,9 @@
         "properties": {
           "limit": {
             "type": "integer",
-            "description": "Maximum number of tasks to retrieve (default: 100, max: 100)",
+            "description": "Maximum number of tasks per page (default: 100). Up to 200 when filtering; 100 otherwise",
             "minimum": 1,
-            "maximum": 100
+            "maximum": 200
           },
           "after": {
             "type": "string",

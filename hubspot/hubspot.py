@@ -1675,7 +1675,7 @@ async def _search_tasks(inputs: Dict[str, Any], filters: list[Dict[str, Any]], c
         filters = [{"propertyName": "hubspot_owner_id", "operator": "EQ", "value": str(owner_id)}, *filters]
 
     payload = {
-        "limit": min(inputs.get("limit", 100), 100),
+        "limit": inputs.get("limit", 100),
         "properties": list(inputs.get("hs_task_properties", _DEFAULT_HS_TASK_PROPERTY_NAMES)),
         "sorts": [{"propertyName": "hs_timestamp", "direction": inputs.get("sort_direction", "ASCENDING")}],
     }
@@ -1744,6 +1744,7 @@ class ListTasksActionHandler(ActionHandler):
                 return ActionError(message=str(e))
             return await _search_tasks(inputs, filters, context)
 
+        # Listing returns at most 100 tasks a page; searching allows 200
         limit = min(inputs.get("limit", 100), 100)
         after = inputs.get("after")
         hs_task_properties = inputs.get("hs_task_properties", _DEFAULT_HS_TASK_PROPERTY_NAMES)
