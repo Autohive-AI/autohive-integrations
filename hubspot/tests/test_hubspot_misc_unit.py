@@ -185,13 +185,25 @@ class TestSearchLists:
         mock_context.fetch.return_value = FetchResponse(
             status=200,
             headers={},
-            data={"lists": [{"listId": "1"}, {"listId": "2"}], "hasMore": True, "total": 45, "offset": 40},
+            data={"lists": [{"listId": "1"}, {"listId": "2"}], "hasMore": True, "total": 45, "offset": 42},
         )
 
         result = await hubspot.execute_action("search_lists", {"count": 2, "offset": 40}, mock_context)
 
         data = result.result.data
         assert (data["has_more"], data["next_offset"], data["total_matching"]) == (True, 42, 45)
+
+    @pytest.mark.asyncio
+    async def test_next_offset_moves_on_when_hubspot_echoes_this_page_start(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"lists": [{"listId": "1"}, {"listId": "2"}], "hasMore": True, "total": 45, "offset": 40},
+        )
+
+        result = await hubspot.execute_action("search_lists", {"count": 2, "offset": 40}, mock_context)
+
+        assert result.result.data["next_offset"] == 42
 
     @pytest.mark.asyncio
     async def test_short_last_page_has_no_next_offset(self, mock_context):
@@ -568,6 +580,34 @@ class TestGetContactAssociations:
         assert data["has_more"] == {"deals": False}
 
     @pytest.mark.asyncio
+    async def test_404_means_no_links(self, mock_context):
+        mock_context.fetch.side_effect = [HTTPError(404, "Not found"), links("55", "1")]
+
+        result = await hubspot.execute_action(
+            "get_contact_associations",
+            {"contact_id": "55", "association_types": ["deals", "companies"]},
+            mock_context,
+        )
+
+        data = result.result.data
+        assert data["associations"] == {"deals": [], "companies": [{"toObjectId": 1, "associationTypes": []}]}
+        assert "errors" not in data
+
+    @pytest.mark.asyncio
+    async def test_cursor_that_never_ends_stops_after_20_requests(self, mock_context):
+        mock_context.fetch.return_value = links("55", "1", after="same")
+
+        result = await hubspot.execute_action(
+            "get_contact_associations",
+            {"contact_id": "55", "association_types": ["deals"], "limit": 500},
+            mock_context,
+        )
+
+        assert mock_context.fetch.call_count == 20
+        assert result.result.data["summary"] == {"deals_count": 20}
+        assert result.result.data["has_more"] == {"deals": True}
+
+    @pytest.mark.asyncio
     async def test_failed_type_reported_instead_of_empty(self, mock_context):
         mock_context.fetch.side_effect = [HTTPError(403, "Missing scopes"), links("55", "1")]
 
@@ -607,7 +647,7 @@ class TestGetContactAssociations:
 
     @pytest.mark.asyncio
     async def test_every_type_failing_is_an_action_error(self, mock_context):
-        mock_context.fetch.side_effect = HTTPError(404, "Not found")
+        mock_context.fetch.side_effect = HTTPError(403, "Missing scopes")
 
         result = await hubspot.execute_action(
             "get_contact_associations",

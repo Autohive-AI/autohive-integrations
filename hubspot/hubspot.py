@@ -242,6 +242,9 @@ OBJECTS_API_URL = "https://api.hubapi.com/crm/objects/2026-09"
 # HubSpot reads at most 1,000 records' links in one batch request
 MAX_ASSOCIATION_READ_INPUTS = 1000
 
+# Requests one links lookup makes before stopping, so a cursor that never ends can't loop forever
+MAX_ASSOCIATION_READ_REQUESTS = 20
+
 
 async def _read_associations(
     context: ExecutionContext,
@@ -253,24 +256,32 @@ async def _read_associations(
 ) -> tuple[Dict[str, list], set[str]]:
     """Return each record's links to records of to_type, keyed by record ID, and the IDs that have more.
 
-    Follows each record's paging cursor until it has `limit` links, or all of them when limit is None. Each link
-    is HubSpot's {toObjectId, associationTypes: [{category, typeId, label}]}. Raises ValueError when HubSpot can't
-    read them.
+    Follows each record's paging cursor until it has `limit` links, or all of them when limit is None, for up to
+    MAX_ASSOCIATION_READ_REQUESTS requests. Each link is HubSpot's {toObjectId, associationTypes: [{category,
+    typeId, label}]}. Raises ValueError when HubSpot can't read them.
     """
     links: Dict[str, list] = {str(object_id): [] for object_id in object_ids}
     has_more: set[str] = set()
     pending = [{"id": object_id} for object_id in links]
-    while pending:
+    for _ in range(MAX_ASSOCIATION_READ_REQUESTS):
+        if not pending:
+            break
         inputs, pending = pending[:MAX_ASSOCIATION_READ_INPUTS], pending[MAX_ASSOCIATION_READ_INPUTS:]
-        response = await fetch_with_rate_limit_retries(
-            context,
-            f"{ASSOCIATIONS_API_URL}/{from_type}/{to_type}/batch/read",
-            retry_sleep_budget=retry_sleep_budget,
-            method="POST",
-            json={"inputs": inputs},
-            headers={"Content-Type": "application/json"},
-        )
-        data = await parse_response(response)
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{ASSOCIATIONS_API_URL}/{from_type}/{to_type}/batch/read",
+                retry_sleep_budget=retry_sleep_budget,
+                method="POST",
+                json={"inputs": inputs},
+                headers={"Content-Type": "application/json"},
+            )
+        except HTTPError as e:
+            # As with HubSpot's object batch reads, a 404 may mean none of these records has a link of this type
+            if e.status == 404:
+                continue
+            raise
+        data = await parse_response(response) or {}
         reason = _unfinished_batch_reason(data)
         if reason:
             raise ValueError(f"HubSpot {reason} the linked {to_type} lookup")
@@ -290,6 +301,8 @@ async def _read_associations(
                 del record_links[limit:]
             elif after:
                 pending.append({"id": object_id, "after": after})
+    # Records still waiting on a page when the request cap was reached
+    has_more.update(str(request["id"]) for request in pending)
     return links, has_more
 
 
@@ -3110,6 +3123,8 @@ async def fetch_transcript(
         method="GET",
     )
     result = await parse_response(response)
+    if not isinstance(result, dict):
+        raise ValueError("HubSpot returned an unreadable transcript")
     return result.get("transcriptUtterances", [])
 
 
@@ -3124,7 +3139,7 @@ async def _add_transcript(
     async with slots:
         try:
             call["transcript"] = await fetch_transcript(transcript_id or call["id"], context, retry_sleep_budget)
-        except REQUEST_ERRORS as e:
+        except (*REQUEST_ERRORS, ValueError) as e:
             # Without a transcript ID the call ID is only a guess, so a 404 for it means no transcript was found
             if transcript_id or getattr(e, "status", None) != 404:
                 call["transcript_error"] = _error_text(e)
@@ -4094,8 +4109,11 @@ class SearchListsHandler(ActionHandler):
                 "total": len(results),
                 "total_matching": data.get("total", len(results)),
                 "has_more": has_more,
-                # The offset to send for the next page
-                "next_offset": (inputs.get("offset") or 0) + len(results) if has_more else None,
+                # HubSpot documents the response offset both as the next page's and as this page's start, so
+                # take whichever is further on
+                "next_offset": max(data.get("offset") or 0, (inputs.get("offset") or 0) + len(results))
+                if has_more
+                else None,
             },
             cost_usd=None,
         )
@@ -4560,9 +4578,13 @@ def _record_page_type_id(object_type: str) -> str | None:
 async def _add_record_urls(
     context: ExecutionContext, object_type: str, records: list[Dict[str, Any]], retry_sleep_budget: Dict[str, int]
 ) -> None:
-    """Add each record's HubSpot page as "url", when the object type has record pages."""
+    """Make sure each record has its HubSpot page as "url", when the object type has record pages.
+
+    The 2026-09 API can return url itself; it's only built, from the account's domain and ID, when missing.
+    """
+    missing = [record for record in records if not record.get("url")]
     type_id = _record_page_type_id(object_type)
-    if type_id is None or not records:
+    if type_id is None or not missing:
         return
     response = await fetch_with_rate_limit_retries(
         context,
@@ -4573,7 +4595,7 @@ async def _add_record_urls(
     account = await parse_response(response)
     # EU-hosted accounts use app-eu1.hubspot.com
     base_url = f"https://{account.get('uiDomain') or 'app.hubspot.com'}/contacts/{account['portalId']}/record/{type_id}"
-    for record in records:
+    for record in missing:
         record["url"] = f"{base_url}/{record['id']}"
 
 
@@ -4642,6 +4664,7 @@ class GetCrmObjectsHandler(ActionHandler):
         payload: Dict[str, Any] = {
             "inputs": [{"id": object_id} for object_id in ids],
             "properties": inputs.get("properties", []),
+            "propertiesWithHistory": [],
         }
         if inputs.get("id_property"):
             payload["idProperty"] = inputs["id_property"]

@@ -4431,7 +4431,7 @@
     },
     "get_company_associations": {
       "display_name": "Get Company Associations",
-      "description": "Retrieve a company's linked records (companies, deals, tickets, etc.), including association labels such as Primary or custom labels",
+      "description": "Retrieve a company's linked records (contacts, deals, tickets, etc.), including association labels such as Primary or custom labels",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4514,7 +4514,7 @@
     },
     "get_deal_associations": {
       "display_name": "Get Deal Associations",
-      "description": "Retrieve a deal's linked records (companies, deals, tickets, etc.), including association labels such as Primary or custom labels",
+      "description": "Retrieve a deal's linked records (contacts, companies, tickets, etc.), including association labels such as Primary or custom labels",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4916,7 +4916,7 @@
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, products or quotes"
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails or meetings"
           },
           "filters": {
             "type": "array",
@@ -5121,7 +5121,7 @@
           "include_urls": {
             "type": "boolean",
             "default": false,
-            "description": "Add each record's HubSpot page link as url (contacts, companies, deals and tickets). Costs one extra request"
+            "description": "Make sure each record has its HubSpot page link as url (contacts, companies, deals, tickets). HubSpot usually includes it; when it doesn't, the link is built from the account details (one extra request)"
           }
         },
         "required": [
@@ -5159,7 +5159,7 @@
                 },
                 "url": {
                   "type": "string",
-                  "description": "Record's page in HubSpot, when include_urls is true"
+                  "description": "Record's page in HubSpot, when HubSpot returns it or include_urls is true"
                 }
               }
             }
@@ -5202,7 +5202,7 @@
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, products or quotes"
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails or meetings"
           },
           "ids": {
             "type": "array",
@@ -5235,7 +5235,7 @@
           "include_urls": {
             "type": "boolean",
             "default": false,
-            "description": "Add each record's HubSpot page link as url (contacts, companies, deals and tickets). Costs one extra request"
+            "description": "Make sure each record has its HubSpot page link as url (contacts, companies, deals, tickets). HubSpot usually includes it; when it doesn't, the link is built from the account details (one extra request)"
           }
         },
         "required": [
@@ -5274,7 +5274,7 @@
                 },
                 "url": {
                   "type": "string",
-                  "description": "Record's page in HubSpot, when include_urls is true"
+                  "description": "Record's page in HubSpot, when HubSpot returns it or include_urls is true"
                 },
                 "associations": {
                   "type": "object",
@@ -5325,7 +5325,7 @@
           "object_type": {
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]+$",
-            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, products or quotes"
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails or meetings"
           },
           "query": {
             "type": "string",

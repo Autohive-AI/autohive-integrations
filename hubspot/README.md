@@ -515,7 +515,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
 #### Action: `search_crm_objects`
 - **Description:** Search any object type with HubSpot's CRM search: filters, a text query, one sort and paging
 - **Inputs:**
-  - `object_type` (required): `contacts`, `companies`, `deals`, `tickets`, `tasks`, `notes`, `calls`, `emails`, `meetings`, `line_items`, `products` or `quotes`
+  - `object_type` (required): `contacts`, `companies`, `deals`, `tickets`, `tasks`, `notes`, `calls`, `emails` or `meetings`. Other types such as line items, quotes and custom objects need OAuth scopes the integration doesn't request yet, so HubSpot rejects them
   - `filters` (optional): Filters a record must all match (AND), each `{propertyName, operator, value}`. `values` is used for `IN`/`NOT_IN`, and `highValue` with `value` for `BETWEEN`. Operators: `EQ`, `NEQ`, `LT`, `LTE`, `GT`, `GTE`, `BETWEEN`, `IN`, `NOT_IN`, `HAS_PROPERTY`, `NOT_HAS_PROPERTY`, `CONTAINS_TOKEN`, `NOT_CONTAINS_TOKEN`
   - `filter_groups` (optional): Instead of `filters`, groups of filters that are ORed: `[{"filters": [...]}, ...]`. HubSpot allows 5 groups, 6 filters per group and 18 filters in total
   - `associated_with` (optional): `{object_type, id}`. Only records linked to that contact, company, deal or ticket, e.g. emails on a deal
@@ -524,7 +524,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
   - `sort_property` / `sort_direction` (optional): One property to sort by, `ASCENDING` (default) or `DESCENDING`
   - `limit` (optional): Records per page (default 100, max 200)
   - `after` (optional): The `after` value from the previous page
-  - `include_urls` (optional): Add each record's HubSpot page link as `url`. Applies to contacts, companies, deals and tickets, and costs one extra request
+  - `include_urls` (optional): Make sure each record has its HubSpot page link as `url` (contacts, companies, deals and tickets). HubSpot usually returns `url` itself; when it doesn't, the link is built from the account details, which costs one extra request
 - **Outputs:** `results`, `count` (this page), `total` (all pages), `has_more` and `after`
 - **Notes:**
   - Dates in filters are Unix milliseconds, e.g. `1793098800000`
@@ -540,7 +540,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
   - `id_property` (optional): Unique property the `ids` are values of, e.g. `email` for contacts
   - `properties` (optional): Properties to return (defaults to HubSpot's standard set)
   - `associations` (optional): Linked record types to include for each record, e.g. `["contacts", "companies"]`. Up to 100 per type per record; `associations_with_more` lists types that had more
-  - `include_urls` (optional): Add each record's HubSpot page link as `url`
+  - `include_urls` (optional): Make sure each record has its HubSpot page link as `url`, as for `search_crm_objects`
 - **Outputs:** `results`, `total`, `not_found` (requested IDs that matched nothing) and, when HubSpot reports other problems, `errors`
 
 #### Action: `get_object_properties`

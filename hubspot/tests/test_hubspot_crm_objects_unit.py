@@ -208,6 +208,17 @@ class TestSearchCrmObjects:
         assert result.result.data["results"][0]["url"] == "https://app-eu1.hubspot.com/contacts/4242/record/0-3/7"
 
     @pytest.mark.asyncio
+    async def test_url_hubspot_returns_is_kept(self, mock_context):
+        mock_context.fetch.return_value = ok(
+            {"total": 1, "results": [{"id": "7", "properties": {}, "url": "https://app.hubspot.com/x/7"}]}
+        )
+
+        result = await search(mock_context, include_urls=True)
+
+        assert result.result.data["results"][0]["url"] == "https://app.hubspot.com/x/7"
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
     async def test_custom_object_records_get_urls(self, mock_context):
         mock_context.fetch.side_effect = [search_page("7"), account()]
 
@@ -268,7 +279,7 @@ class TestGetCrmObjects:
 
         call = mock_context.fetch.call_args
         assert call.args[0] == f"{OBJECTS_URL}/contacts/batch/read"
-        assert call.kwargs["json"] == {"inputs": [{"id": "1"}], "properties": ["email"]}
+        assert call.kwargs["json"] == {"inputs": [{"id": "1"}], "properties": ["email"], "propertiesWithHistory": []}
         assert result.result.data == {"results": [{"id": "1", "properties": {}}], "total": 1, "not_found": []}
 
     @pytest.mark.asyncio
@@ -284,6 +295,7 @@ class TestGetCrmObjects:
         assert mock_context.fetch.call_args.kwargs["json"] == {
             "inputs": [{"id": "a@example.com"}],
             "properties": [],
+            "propertiesWithHistory": [],
             "idProperty": "email",
         }
 

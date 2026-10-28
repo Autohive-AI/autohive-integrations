@@ -739,6 +739,21 @@ class TestCallTranscripts:
         assert "transcript" not in second
 
     @pytest.mark.asyncio
+    async def test_unreadable_transcript_is_reported_on_its_call(self, mock_context):
+        mock_context.fetch.side_effect = [
+            calls_found(call_with_transcript("c1", "t1"), call_with_transcript("c2", "t2")),
+            FetchResponse(status=200, headers={}, data=None),
+            FetchResponse(status=200, headers={}, data={"transcriptUtterances": []}),
+            calls_found(),
+        ]
+
+        result = await hubspot.execute_action("get_contact_calls_and_meetings", {"contact_id": "100"}, mock_context)
+
+        first, second = result.result.data["calls"]
+        assert first["transcript_error"] == "HubSpot returned an unreadable transcript"
+        assert second["transcript"] == []
+
+    @pytest.mark.asyncio
     async def test_guessed_transcript_id_not_found_is_not_an_error(self, mock_context):
         mock_context.fetch.side_effect = [
             calls_found(call_with_transcript("c1", None)),
