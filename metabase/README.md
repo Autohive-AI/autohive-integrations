@@ -89,7 +89,7 @@ Creates a collection. Inputs: `name` (required), `description`, and `parent_coll
 
 ### `get_question`
 
-Returns a saved question: name, type, visualization, database, collection, `native_sql` (when it is a SQL question) and the `parameters` (filters) it accepts.
+Returns a saved question: name, type, visualization, database, collection, `native_sql` (when it is a SQL question) and the `parameters` (filters) it accepts. For SQL questions whose filters exist only as template tags, `parameters` is built from those tags, with the `target` that `run_question` needs.
 
 ### `run_question`
 
@@ -98,7 +98,7 @@ Runs a saved question and returns its rows.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `question_id` | integer | Yes | Question id |
-| `parameters` | object[] | No | Filter values in Metabase's format, e.g. `[{"type": "category", "target": ["variable", ["template-tag", "region"]], "value": "EU"}]` |
+| `parameters` | object[] | No | Filter values in Metabase's format, e.g. `[{"id": "<parameter id>", "type": "category", "target": ["variable", ["template-tag", "region"]], "value": "EU"}]`. Copy `id`, `type` and `target` from `get_question`. |
 | `max_rows` | integer | No (default 100, max 2000) | Rows to return |
 
 ### `run_sql_query`
@@ -138,6 +138,8 @@ Creates an empty dashboard. Inputs: `name` (required), `description` and `collec
 ### `add_question_to_dashboard`
 
 Adds a saved question to a dashboard, placed below the existing cards (on the first tab, or on `tab_id`). Existing cards and their settings, including filter connections, are sent back unchanged. Optional `width` (1–24, default 12) and `height` (default 6) are in Metabase grid units; the grid is 24 wide. Returns the new dashboard card id and its position.
+
+Add cards to the same dashboard one at a time. Metabase has no "add one card" API, so each update replaces the whole card list; two additions running in parallel can overwrite each other.
 
 ## Limits
 

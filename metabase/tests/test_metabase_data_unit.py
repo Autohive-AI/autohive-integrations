@@ -340,6 +340,12 @@ class TestListCollections:
         assert result.result.data["count"] == 2
 
     @pytest.mark.asyncio
+    async def test_parent_from_location_when_missing(self, mock_context):
+        mock_context.fetch.return_value = _ok([{"id": 32, "name": "Child", "location": "/28/31/"}])
+        result = await metabase.execute_action("list_collections", {}, mock_context)
+        assert result.result.data["collections"][0]["parent_id"] == 31
+
+    @pytest.mark.asyncio
     async def test_include_personal(self, mock_context):
         mock_context.fetch.return_value = _ok(SAMPLE_COLLECTIONS)
         result = await metabase.execute_action("list_collections", {"include_personal": True}, mock_context)

@@ -165,6 +165,18 @@ class TestQueryResult:
         ]
 
 
+class TestUniqueNamesCollision:
+    def test_generated_suffix_never_reuses_a_real_name(self):
+        assert _unique_names([{"name": "id"}, {"name": "id"}, {"name": "id_2"}]) == ["id", "id_3", "id_2"]
+
+    def test_rows_keep_every_column(self):
+        data = {
+            "status": "completed",
+            "data": {"cols": [{"name": "id"}, {"name": "id"}, {"name": "id_2"}], "rows": [[1, 2, 3]]},
+        }
+        assert _query_result(data, 10)["rows"] == [{"id": 1, "id_3": 2, "id_2": 3}]
+
+
 class TestCardSummary:
     def test_legacy_native_sql(self):
         card = {
@@ -188,3 +200,78 @@ class TestCardSummary:
     def test_gui_question_has_no_sql(self):
         card = {"id": 1, "name": "Q", "dataset_query": {"stages": [{"source-table": 5}]}}
         assert _card_summary(card)["native_sql"] is None
+
+    def test_filters_from_mbql5_template_tags_when_parameters_empty(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "parameters": [],
+            "dataset_query": {
+                "stages": [
+                    {
+                        "native": "select 1",
+                        "template-tags": [
+                            {
+                                "id": "t1",
+                                "name": "date",
+                                "display-name": "Date",
+                                "type": "dimension",
+                                "widget-type": "date/all-options",
+                                "dimension": ["field", {}, 5],
+                            },
+                            {
+                                "id": "t2",
+                                "name": "region",
+                                "display-name": "Region",
+                                "type": "text",
+                                "required": True,
+                                "default": "EU",
+                            },
+                        ],
+                    }
+                ]
+            },
+        }
+        assert _card_summary(card)["parameters"] == [
+            {
+                "id": "t1",
+                "slug": "date",
+                "name": "Date",
+                "type": "dimension",
+                "widget_type": "date/all-options",
+                "required": False,
+                "default": None,
+                "target": ["dimension", ["template-tag", "date"]],
+            },
+            {
+                "id": "t2",
+                "slug": "region",
+                "name": "Region",
+                "type": "text",
+                "widget_type": None,
+                "required": True,
+                "default": "EU",
+                "target": ["variable", ["template-tag", "region"]],
+            },
+        ]
+
+    def test_filters_from_legacy_template_tags(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "dataset_query": {
+                "type": "native",
+                "native": {"query": "select 1", "template-tags": {"n": {"id": "t", "name": "n", "type": "number"}}},
+            },
+        }
+        params = _card_summary(card)["parameters"]
+        assert [(p["slug"], p["target"]) for p in params] == [("n", ["variable", ["template-tag", "n"]])]
+
+    def test_explicit_parameters_win(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "parameters": [{"id": "p1", "slug": "region"}],
+            "dataset_query": {"stages": [{"native": "x", "template-tags": [{"name": "other", "type": "text"}]}]},
+        }
+        assert _card_summary(card)["parameters"] == [{"id": "p1", "slug": "region"}]

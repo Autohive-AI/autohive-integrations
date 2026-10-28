@@ -148,15 +148,19 @@ def _with_query(url: str, params: List[tuple]) -> str:
 
 
 def _unique_names(cols: List[Dict[str, Any]]) -> List[str]:
+    raw = [str(col.get("name") or col.get("display_name") or f"column_{i + 1}") for i, col in enumerate(cols)]
+    # Reserve every real name first so a generated suffix (id_2) never collides with a real column.
+    used = set(raw)
     names: List[str] = []
-    seen: Dict[str, int] = {}
-    for index, col in enumerate(cols):
-        name = str(col.get("name") or col.get("display_name") or f"column_{index + 1}")
+    seen: set = set()
+    for name in raw:
         if name in seen:
-            seen[name] += 1
-            name = f"{name}_{seen[name]}"
-        else:
-            seen[name] = 1
+            suffix = 2
+            while f"{name}_{suffix}" in used:
+                suffix += 1
+            name = f"{name}_{suffix}"
+            used.add(name)
+        seen.add(name)
         names.append(name)
     return names
 
@@ -220,15 +224,40 @@ def _collection_ref(collection: Any) -> Optional[Dict[str, Any]]:
     return {"id": collection.get("id"), "name": collection.get("name")}
 
 
+def _template_tag_parameters(tags: Any) -> List[Dict[str, Any]]:
+    """Describe a native question's filters from its template tags (legacy dict or MBQL 5 list)."""
+    if isinstance(tags, dict):
+        tags = list(tags.values())
+    parameters = []
+    for tag in tags or []:
+        if not isinstance(tag, dict) or tag.get("type") == "snippet" or tag.get("type") == "card":
+            continue
+        kind = "dimension" if tag.get("type") == "dimension" else "variable"
+        parameters.append(
+            {
+                "id": tag.get("id"),
+                "slug": tag.get("name"),
+                "name": tag.get("display-name") or tag.get("name"),
+                "type": tag.get("type"),
+                "widget_type": tag.get("widget-type"),
+                "required": bool(tag.get("required")),
+                "default": tag.get("default"),
+                "target": [kind, ["template-tag", tag.get("name")]],
+            }
+        )
+    return parameters
+
+
 def _card_summary(card: Dict[str, Any]) -> Dict[str, Any]:
     dataset_query = card.get("dataset_query") or {}
     native = dataset_query.get("native") or {}
     sql = native.get("query")
-    # MBQL 5 (Metabase 0.57+) stores native SQL under stages[0].native.
-    if sql is None:
-        stages = dataset_query.get("stages") or []
-        if stages and isinstance(stages[0], dict) and isinstance(stages[0].get("native"), str):
-            sql = stages[0]["native"]
+    tags = native.get("template-tags")
+    # MBQL 5 (Metabase 0.57+) stores native SQL and its template tags under stages[0].
+    stages = dataset_query.get("stages") or []
+    if sql is None and stages and isinstance(stages[0], dict) and isinstance(stages[0].get("native"), str):
+        sql = stages[0]["native"]
+        tags = stages[0].get("template-tags")
     return {
         "id": card.get("id"),
         "name": card.get("name"),
@@ -241,8 +270,15 @@ def _card_summary(card: Dict[str, Any]) -> Dict[str, Any]:
         "collection_id": card.get("collection_id"),
         "collection": _collection_ref(card.get("collection")),
         "archived": bool(card.get("archived")),
-        "parameters": card.get("parameters") or [],
+        # Native questions often keep their filters only as template tags, with empty parameters.
+        "parameters": card.get("parameters") or _template_tag_parameters(tags),
     }
+
+
+def _parent_from_location(location: Any) -> Optional[int]:
+    """'/28/31/' -> 31; top-level collections have location '/'."""
+    ids = [part for part in str(location or "").split("/") if part.isdigit()]
+    return int(ids[-1]) if ids else None
 
 
 def _dashcard_summary(dashcard: Dict[str, Any]) -> Dict[str, Any]:
@@ -429,7 +465,7 @@ class ListCollectionsAction(ActionHandler):
                     "id": c.get("id"),
                     "name": c.get("name"),
                     "description": c.get("description"),
-                    "parent_id": c.get("parent_id"),
+                    "parent_id": c.get("parent_id") or _parent_from_location(c.get("location")),
                     "location": c.get("effective_location") or c.get("location"),
                     "is_personal": bool(c.get("is_personal")),
                     "archived": bool(c.get("archived")),
