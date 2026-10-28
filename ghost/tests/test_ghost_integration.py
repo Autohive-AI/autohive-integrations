@@ -1,3 +1,4 @@
+import base64
 import os
 import aiohttp
 import pytest
@@ -63,9 +64,15 @@ async def test_get_posts_live(live_context):
 
 @pytest.mark.asyncio
 async def test_get_post_live(live_context):
-    if not GHOST_TEST_POST_ID:
-        pytest.skip("GHOST_TEST_POST_ID not set")
-    result = await ghost.execute_action("get_post", {"id": GHOST_TEST_POST_ID}, live_context)
+    post_id = GHOST_TEST_POST_ID
+    if not post_id:
+        listed = await ghost.execute_action("get_posts", {"limit": 1}, live_context)
+        assert listed.type == ResultType.ACTION, listed.result.message
+        posts = listed.result.data["posts"]
+        if not posts:
+            pytest.skip("No published posts available through the Ghost Content API")
+        post_id = posts[0]["id"]
+    result = await ghost.execute_action("get_post", {"id": post_id}, live_context)
     assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("post") is not None
 
@@ -205,3 +212,23 @@ async def test_send_newsletter_live(live_context):
     )
     assert result.type == ResultType.ACTION, result.result.message
     assert result.result.data.get("post") is not None
+
+
+# 1x1 transparent PNG
+_TINY_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+)
+
+
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_upload_image_live(live_context):
+    # Ghost's Admin API has no image delete endpoint, so the uploaded test image stays in the media library
+    file_obj = {
+        "name": "autohive-test.png",
+        "content": base64.b64encode(_TINY_PNG).decode(),
+        "contentType": "image/png",
+    }
+    result = await ghost.execute_action("upload_image", {"file": file_obj}, live_context)
+    assert result.type == ResultType.ACTION, result.result.message
+    assert result.result.data["image"]["url"].endswith(".png")

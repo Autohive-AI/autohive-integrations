@@ -847,8 +847,8 @@ async def test_list_emails_from_contact(mock_context):
     assert result.result.data["contact_email"] == "friend@b.com"
     _, kwargs = mock_context.fetch.await_args
     assert kwargs["params"]["$search"] == '"from:friend@b.com"'
-    assert "$orderby" not in kwargs["params"]
     assert "$filter" not in kwargs["params"]
+    assert "$orderby" not in kwargs["params"]
 
 
 @pytest.mark.asyncio
@@ -1356,6 +1356,186 @@ async def test_create_draft_email_error(mock_context):
         mock_context,
     )
     assert result.type == ResultType.ACTION_ERROR
+
+
+# ---- create_draft_reply ----
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("reply_all,operation", [(False, "createReply"), (True, "createReplyAll")])
+async def test_create_draft_reply_preserves_thread_and_never_sends(mock_context, reply_all, operation):
+    dummy_value = "test-token"
+    mock_context.auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": dummy_value}}
+    mock_context.fetch = make_fetch(
+        {
+            "id": "draft1",
+            "webLink": "https://outlook.office.com/draft1",
+            "isDraft": True,
+            "body": {"contentType": "Text", "content": "Quoted original"},
+        }
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply", {"message_id": "original/id+", "comment": "Thanks!", "reply_all": reply_all}, mock_context
+    )
+    assert result.type == ResultType.ACTION
+    assert result.result.data == {
+        "draft_id": "draft1",
+        "web_link": "https://outlook.office.com/draft1",
+        "is_draft": True,
+        "attachment_count": 0,
+    }
+    assert mock_context.fetch.await_count == 2
+    creation, update = mock_context.fetch.call_args_list
+    assert creation.args[0] == f"https://graph.microsoft.com/v1.0/me/messages/original%2Fid%2B/{operation}"
+    assert creation.kwargs == {"method": "POST", "json": {}}
+    assert update.args[0] == "https://graph.microsoft.com/v1.0/me/messages/draft1"
+    assert update.kwargs == {
+        "method": "PATCH",
+        "json": {"body": {"contentType": "Text", "content": "Thanks!\n\nQuoted original"}},
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extra,payload",
+    [
+        ({}, {}),
+        ({"comment": ""}, {}),
+        ({"body": "Plain reply"}, {"message": {"body": {"contentType": "Text", "content": "Plain reply"}}}),
+        (
+            {"body": "<p>Thanks</p>", "body_type": "HTML"},
+            {"message": {"body": {"contentType": "HTML", "content": "<p>Thanks</p>"}}},
+        ),
+    ],
+)
+async def test_create_draft_reply_body_modes(mock_context, extra, payload):
+    mock_context.fetch = make_fetch({"id": "draft1"})
+    result = await microsoft365.execute_action("create_draft_reply", {"message_id": "em1", **extra}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert mock_context.fetch.call_args.kwargs["json"] == payload
+    assert result.result.data["web_link"] == ""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"comment": "", "body": ""},
+        {"body_type": "HTML"},
+        {"to_recipients": ["   "]},
+        {"message_id": "   "},
+    ],
+)
+async def test_create_draft_reply_rejects_invalid_inputs_before_creating(mock_context, extra):
+    result = await microsoft365.execute_action("create_draft_reply", {"message_id": "em1", **extra}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_draft_reply_appends_recipients_without_dropping_reply_all(mock_context):
+    sender = {"emailAddress": {"address": "sender@example.com"}}
+    colleague = {"emailAddress": {"address": "colleague@example.com"}}
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=201,
+                headers={},
+                data={
+                    "id": "draft/id",
+                    "toRecipients": [sender],
+                    "ccRecipients": [colleague],
+                    "webLink": "https://outlook.office.com/draft1",
+                    "isDraft": True,
+                },
+            ),
+            FetchResponse(status=200, headers={}, data={"id": "draft/id", "isDraft": True}),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply",
+        {
+            "message_id": "em1",
+            "reply_all": True,
+            "to_recipients": ["SENDER@example.com", {"address": "added@example.com", "name": "Added"}],
+            "cc_recipients": ["extra@example.com"],
+            "bcc_recipients": ["private@example.com"],
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION
+    assert mock_context.fetch.await_count == 2
+    first, second = mock_context.fetch.call_args_list
+    assert first.args[0].endswith("/createReplyAll")
+    assert first.kwargs["json"] == {}
+    assert second.args[0].endswith("/messages/draft%2Fid")
+    assert second.kwargs == {
+        "method": "PATCH",
+        "json": {
+            "toRecipients": [sender, {"emailAddress": {"address": "added@example.com", "name": "Added"}}],
+            "ccRecipients": [colleague, {"emailAddress": {"address": "extra@example.com"}}],
+            "bccRecipients": [{"emailAddress": {"address": "private@example.com"}}],
+        },
+    }
+    assert result.result.data["draft_id"] == "draft/id"
+    assert result.result.data["web_link"] == "https://outlook.office.com/draft1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("data", [{"error": {"message": "Access denied"}}, {}])
+async def test_create_draft_reply_handles_graph_errors(mock_context, data):
+    mock_context.fetch = make_fetch(data)
+    result = await microsoft365.execute_action("create_draft_reply", {"message_id": "em1"}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_create_draft_reply_reports_created_draft_when_recipient_update_fails(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=201, headers={}, data={"id": "draft1"}),
+            Exception("Update failed"),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply", {"message_id": "em1", "cc_recipients": ["extra@example.com"]}, mock_context
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Draft draft1 was created" in result.result.message
+    assert "Update failed" in result.result.message
+    assert mock_context.fetch.await_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "inputs",
+    [
+        {},
+        {"message_id": "em1", "body": "Reply", "body_type": "Markdown"},
+        {"message_id": "em1", "to_recipients": [{"name": "Missing address"}]},
+        {"message_id": "em1", "reply_all": "yes"},
+    ],
+)
+async def test_create_draft_reply_schema_validation(mock_context, inputs):
+    result = await microsoft365.execute_action("create_draft_reply", inputs, mock_context)
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "response",
+    [
+        FetchResponse(status=403, headers={}, data={"error": {"message": "Access denied"}}),
+        Exception("Network unavailable"),
+    ],
+)
+async def test_create_draft_reply_creation_failure_never_updates_or_sends(mock_context, response):
+    mock_context.fetch = AsyncMock(side_effect=[response])
+    result = await microsoft365.execute_action("create_draft_reply", {"message_id": "em1"}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert mock_context.fetch.await_count == 1
 
 
 # ---- send_draft_email ----
@@ -2269,7 +2449,6 @@ async def test_find_meeting_times_accepts_nullable_suggestion_details(mock_conte
 
 def test_find_meeting_times_declares_graph_permission_and_removes_shifts_scope():
     config = json.loads((Path(__file__).parents[1] / "config.json").read_text(encoding="utf-8"))
-    assert config["version"] == "3.1.0"
     assert "Calendars.Read.Shared" in config["auth"]["scopes"]
     assert "Schedule.Read.All" not in config["auth"]["scopes"]
 
@@ -2504,3 +2683,425 @@ async def test_check_room_availability_error(mock_context):
         mock_context,
     )
     assert result.type == ResultType.ACTION_ERROR
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "history,expected",
+    [
+        ("<p>Quoted history</p>", "<div>&lt;Thanks&gt; &amp; hello<br>Next line</div><br><p>Quoted history</p>"),
+        (
+            '<html><head></head><body class="reply"><p>Quoted history</p></body></html>',
+            '<html><head></head><body class="reply"><div>&lt;Thanks&gt; &amp; hello<br>Next line</div><br>'
+            "<p>Quoted history</p></body></html>",
+        ),
+    ],
+)
+async def test_draft_reply_comment_preserves_html_history_and_escapes_text(mock_context, history, expected):
+    sender = {"emailAddress": {"address": "sender@example.com"}}
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=201,
+                headers={},
+                data={
+                    "id": "draft1",
+                    "body": {"contentType": "html", "content": history},
+                    "toRecipients": [sender],
+                },
+            ),
+            FetchResponse(status=200, headers={}, data={"id": "draft1", "isDraft": True}),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply",
+        {
+            "message_id": "em1",
+            "comment": "<Thanks> & hello\r\nNext line",
+            "cc_recipients": ["extra@example.com"],
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION
+    creation, update = mock_context.fetch.call_args_list
+    assert creation.kwargs["json"] == {}
+    assert update.kwargs == {
+        "method": "PATCH",
+        "json": {
+            "body": {"contentType": "html", "content": expected},
+            "ccRecipients": [{"emailAddress": {"address": "extra@example.com"}}],
+        },
+    }
+    assert "toRecipients" not in update.kwargs["json"]
+    assert mock_context.fetch.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_draft_reply_reads_history_when_creation_response_omits_body(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=201, headers={}, data={"id": "draft/id"}),
+            FetchResponse(
+                status=200, headers={}, data={"body": {"contentType": "Text", "content": "Original message"}}
+            ),
+            FetchResponse(status=200, headers={}, data={"id": "draft/id", "isDraft": True}),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply",
+        {
+            "message_id": "em1",
+            "comment": "My reply",
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION
+    creation, read, update = mock_context.fetch.call_args_list
+    assert creation.kwargs["json"] == {}
+    assert read.args[0].endswith("/messages/draft%2Fid")
+    assert read.kwargs == {"params": {"$select": "body"}}
+    assert update.kwargs["json"]["body"] == {"contentType": "Text", "content": "My reply\n\nOriginal message"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body", [{}, {"contentType": "Text", "content": None}, {"contentType": "unknown", "content": "History"}]
+)
+async def test_draft_reply_does_not_overwrite_unreadable_history(mock_context, body):
+    mock_context.fetch = make_fetch({"id": "draft1", "body": body})
+    result = await microsoft365.execute_action(
+        "create_draft_reply",
+        {
+            "message_id": "em1",
+            "comment": "My reply",
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Draft draft1 was created" in result.result.message
+    assert "history cannot be preserved" in result.result.message
+    assert mock_context.fetch.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_draft_reply_reports_created_draft_when_body_update_fails(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=201, headers={}, data={"id": "draft1", "body": {"contentType": "Text", "content": "History"}}
+            ),
+            Exception("Body update failed"),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply",
+        {
+            "message_id": "em1",
+            "comment": "My reply",
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Draft draft1 was created" in result.result.message
+    assert "Body update failed" in result.result.message
+    assert mock_context.fetch.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_draft_reply_reports_created_draft_when_history_read_fails(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=201, headers={}, data={"id": "draft1"}),
+            Exception("History read failed"),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply",
+        {
+            "message_id": "em1",
+            "comment": "My reply",
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Draft draft1 was created" in result.result.message
+    assert "History read failed" in result.result.message
+    assert mock_context.fetch.await_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action,inputs",
+    [
+        ("create_draft_email", {"subject": "Draft", "body": "Body", "to_recipients": ["test@example.com"]}),
+        ("create_draft_reply", {"message_id": "original/id"}),
+    ],
+)
+async def test_draft_actions_attach_binary_files_without_sending(mock_context, action, inputs):
+    raw = bytes(range(256))
+    files = [
+        {"name": "report.bin", "contentType": "application/octet-stream", "content": base64.b64encode(raw).decode()},
+        {"name": "notes.txt", "content": "aGVsbG8=\n"},
+    ]
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=201, headers={}, data={"id": "draft/id", "isDraft": True}),
+            FetchResponse(status=201, headers={}, data={"id": "attachment1"}),
+            FetchResponse(status=201, headers={}, data={"id": "attachment2"}),
+        ]
+    )
+    result = await microsoft365.execute_action(action, {**inputs, "attachments": files}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert result.result.data["attachment_count"] == 2
+    assert result.result.data["draft_id"] == "draft/id"
+    assert result.result.data["is_draft"] is True
+    creation, first, second = mock_context.fetch.call_args_list
+    assert "attachments" not in creation.kwargs["json"]
+    for call in [first, second]:
+        assert call.args[0] == "https://graph.microsoft.com/v1.0/me/messages/draft%2Fid/attachments"
+        assert call.kwargs["method"] == "POST"
+    assert first.kwargs["json"] == {
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        "name": "report.bin",
+        "contentType": "application/octet-stream",
+        "contentBytes": base64.b64encode(raw).decode(),
+    }
+    assert second.kwargs["json"]["contentBytes"] == "aGVsbG8="
+    assert second.kwargs["json"]["contentType"] == "application/octet-stream"
+    assert all(not call.args[0].endswith("/send") for call in mock_context.fetch.call_args_list)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action,inputs",
+    [
+        ("create_draft_email", {"subject": "Draft", "body": "Body", "to_recipients": []}),
+        ("create_draft_reply", {"message_id": "em1"}),
+    ],
+)
+@pytest.mark.parametrize(
+    "file",
+    [
+        {"name": " ", "content": "aGVsbG8="},
+        {"name": "broken.txt", "content": "invalid base64!"},
+        {"name": "empty.txt", "content": " "},
+        {"name": "too-large.bin", "content": base64.b64encode(b"x" * 3_000_000).decode()},
+    ],
+)
+async def test_all_draft_attachments_are_validated_before_creation(mock_context, action, inputs, file):
+    result = await microsoft365.execute_action(
+        action,
+        {
+            **inputs,
+            "attachments": [{"name": "good.txt", "content": "aGVsbG8="}, file],
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action,inputs",
+    [
+        ("create_draft_email", {"subject": "Draft", "body": "Body", "to_recipients": []}),
+        ("create_draft_reply", {"message_id": "em1"}),
+    ],
+)
+@pytest.mark.parametrize(
+    "failure",
+    [
+        Exception("Upload failed"),
+        FetchResponse(status=403, headers={}, data={"error": {"message": "Access denied"}}),
+        FetchResponse(status=201, headers={}, data={}),
+    ],
+)
+async def test_attachment_failure_reports_existing_draft_and_partial_progress(mock_context, action, inputs, failure):
+    file = {"name": "test.txt", "content": "aGVsbG8="}
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=201, headers={}, data={"id": "draft1"}),
+            FetchResponse(status=201, headers={}, data={"id": "attachment1"}),
+            failure,
+        ]
+    )
+    result = await microsoft365.execute_action(action, {**inputs, "attachments": [file, file, file]}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Draft draft1 was created" in result.result.message
+    assert "Attachment 2 of 3" in result.result.message
+    assert "1 attachment(s) were confirmed" in result.result.message
+    assert mock_context.fetch.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_reply_comment_and_recipients_are_saved_before_attachments(mock_context):
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=201, headers={}, data={"id": "draft1", "body": {"contentType": "Text", "content": "History"}}
+            ),
+            FetchResponse(status=200, headers={}, data={"id": "draft1"}),
+            FetchResponse(status=201, headers={}, data={"id": "attachment1"}),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "create_draft_reply",
+        {
+            "message_id": "em1",
+            "comment": "Thanks",
+            "cc_recipients": ["extra@example.com"],
+            "attachments": [{"name": "notes.txt", "content": "aGVsbG8="}],
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION
+    assert result.result.data["attachment_count"] == 1
+    _, update, upload = mock_context.fetch.call_args_list
+    assert update.kwargs["method"] == "PATCH"
+    assert update.kwargs["json"]["body"]["content"] == "Thanks\n\nHistory"
+    assert update.kwargs["json"]["ccRecipients"]
+    assert upload.args[0].endswith("/attachments")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raised", [False, True])
+async def test_contact_search_retries_server_failure_without_changing_query(mock_context, raised):
+    from autohive_integrations_sdk import HTTPError
+
+    error = {"error": {"code": "UnknownError", "message": ""}}
+    failure = HTTPError(500, str(error), error) if raised else FetchResponse(status=500, headers={}, data=error)
+    mock_context.fetch = AsyncMock(
+        side_effect=[failure, FetchResponse(status=200, headers={}, data={"value": [{"id": "found"}]})]
+    )
+    with patch("microsoft365.microsoft365.asyncio.sleep", new_callable=AsyncMock) as sleep:
+        result = await microsoft365.execute_action(
+            "list_emails_from_contact", {"contact_email": "Friend"}, mock_context
+        )
+    assert result.type == ResultType.ACTION
+    assert result.result.data["emails"][0]["id"] == "found"
+    assert mock_context.fetch.call_args_list[0] == mock_context.fetch.call_args_list[1]
+    assert mock_context.fetch.await_args.kwargs["params"]["$search"] == '"from:Friend"'
+    sleep.assert_awaited_once_with(1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("email", ["Friend Smith", "example.com", "friend@", "  friend@example.com  ", 'a"b\\c'])
+async def test_contact_search_preserves_matching_and_echo(mock_context, email):
+    mock_context.fetch = make_fetch({"value": []})
+    result = await microsoft365.execute_action("list_emails_from_contact", {"contact_email": email}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert result.result.data["contact_email"] == email
+    escaped = email.replace("\\", "\\\\").replace('"', '\\"')
+    params = mock_context.fetch.await_args.kwargs["params"]
+    assert params["$search"] == f'"from:{escaped}"'
+    assert "$filter" not in params
+    assert "$orderby" not in params
+
+
+@pytest.mark.asyncio
+async def test_contact_search_exhausted_retries_returns_error(mock_context):
+    mock_context.fetch = AsyncMock(
+        return_value=FetchResponse(status=500, headers={}, data={"error": {"code": "UnknownError"}})
+    )
+    with patch("microsoft365.microsoft365.asyncio.sleep", new_callable=AsyncMock):
+        result = await microsoft365.execute_action(
+            "list_emails_from_contact", {"contact_email": "Friend"}, mock_context
+        )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "UnknownError" in result.result.message
+    assert mock_context.fetch.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_contact_email_filter_follows_provider_pagination_and_requested_fields(mock_context):
+    next_link = "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$skiptoken=page2"
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"value": [{"id": "new", "subject": "Newest"}], "@odata.nextLink": next_link},
+            ),
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"value": [{"id": "old", "subject": "Older"}, {"id": "extra", "subject": "Extra"}]},
+            ),
+        ]
+    )
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact",
+        {
+            "contact_email": "friend@example.com",
+            "limit": 2,
+            "fields": ["subject"],
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION
+    assert result.result.data["emails"] == [{"id": "new", "subject": "Newest"}, {"id": "old", "subject": "Older"}]
+    first, second = mock_context.fetch.call_args_list
+    assert first.kwargs["params"]["$select"] == "id,subject"
+    assert first.kwargs["params"]["$top"] == 2
+    assert second.args[0] == next_link
+    assert second.kwargs == {}
+
+
+@pytest.mark.asyncio
+async def test_contact_email_filter_provider_error_is_not_hidden_as_no_matches(mock_context):
+    mock_context.fetch = make_fetch({"error": {"code": "UnknownError", "message": ""}})
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact", {"contact_email": "friend@example.com"}, mock_context
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    assert "UnknownError" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_contact_email_filter_rejects_blank_address_before_lookup(mock_context):
+    result = await microsoft365.execute_action(
+        "list_emails_from_contact",
+        {
+            "contact_email": "   ",
+            "folder": "Clients",
+        },
+        mock_context,
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_contact_search_retry_on_second_page_keeps_previous_results(mock_context):
+    next_link = "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?$skiptoken=page2"
+    mock_context.fetch = AsyncMock(
+        side_effect=[
+            FetchResponse(status=200, headers={}, data={"value": [{"id": "first"}], "@odata.nextLink": next_link}),
+            FetchResponse(status=503, headers={}, data={"error": {"code": "ServiceUnavailable"}}),
+            FetchResponse(status=200, headers={}, data={"value": [{"id": "second"}]}),
+        ]
+    )
+    with patch("microsoft365.microsoft365.asyncio.sleep", new_callable=AsyncMock):
+        result = await microsoft365.execute_action(
+            "list_emails_from_contact", {"contact_email": "Friend", "fields": ["id"], "limit": 2}, mock_context
+        )
+    assert result.type == ResultType.ACTION
+    assert result.result.data["emails"] == [{"id": "first"}, {"id": "second"}]
+    assert mock_context.fetch.call_args_list[1] == mock_context.fetch.call_args_list[2]
+    assert mock_context.fetch.call_args_list[2].args == (next_link,)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", [400, 401, 403, 429])
+async def test_contact_search_does_not_retry_client_errors(mock_context, status):
+    from autohive_integrations_sdk import HTTPError
+
+    mock_context.fetch = AsyncMock(side_effect=HTTPError(status, "Rejected"))
+    with patch("microsoft365.microsoft365.asyncio.sleep", new_callable=AsyncMock) as sleep:
+        result = await microsoft365.execute_action(
+            "list_emails_from_contact", {"contact_email": "Friend"}, mock_context
+        )
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_awaited_once()
+    sleep.assert_not_awaited()

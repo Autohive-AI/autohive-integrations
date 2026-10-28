@@ -749,8 +749,16 @@ class ListImagesAction(ActionHandler):
             )
 
             body = response.data
-            images = body.get("items", []) if isinstance(body, dict) else []
-            total_items = body.get("total_items", len(images)) if isinstance(body, dict) else len(images)
+            # Typeform documents GET /images as a top-level array; accept a paged object too.
+            if isinstance(body, list):
+                images = body
+                total_items = len(images)
+            elif isinstance(body, dict):
+                images = body.get("items", [])
+                total_items = body.get("total_items", len(images))
+            else:
+                images = []
+                total_items = 0
 
             return ActionResult(data={"images": images, "total_items": total_items, "result": True}, cost_usd=0.0)
 
@@ -777,7 +785,10 @@ class GetImageAction(ActionHandler):
         try:
             image_id = inputs["image_id"]
 
-            response = await context.fetch(f"{TYPEFORM_API_BASE_URL}/images/{image_id}", method="GET")
+            # Without this header Typeform returns the image binary instead of its JSON description.
+            response = await context.fetch(
+                f"{TYPEFORM_API_BASE_URL}/images/{image_id}", method="GET", headers={"Accept": "application/json"}
+            )
 
             return ActionResult(data={"image": response.data, "result": True}, cost_usd=0.0)
 

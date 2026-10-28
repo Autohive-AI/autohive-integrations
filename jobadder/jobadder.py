@@ -9,7 +9,7 @@ from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, 
 
 jobadder = Integration.load()
 
-MAX_CANDIDATE_ATTACHMENT_BYTES = 5 * 1024 * 1024
+MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
 _DOWNLOAD_CHUNK_BYTES = 64 * 1024
 
 
@@ -155,18 +155,14 @@ def _decode_file(file: dict[str, Any]) -> tuple[bytes, str, str]:
     if not isinstance(content, str) or not content:
         raise ValueError("The uploaded file must include non-empty base64 content.")
 
-    max_encoded_chars = 4 * ((MAX_CANDIDATE_ATTACHMENT_BYTES + 2) // 3)
+    max_encoded_chars = 4 * ((MAX_ATTACHMENT_BYTES + 2) // 3)
     max_input_chars = max_encoded_chars + max_encoded_chars // 20
     if len(content) > max_input_chars:
-        raise ValueError(
-            f"Candidate attachment exceeds the {MAX_CANDIDATE_ATTACHMENT_BYTES // (1024 * 1024)} MiB upload limit."
-        )
+        raise ValueError(f"Attachment exceeds the {MAX_ATTACHMENT_BYTES // (1024 * 1024)} MiB upload limit.")
 
     normalized_content = "".join(content.split())
     if len(normalized_content) > max_encoded_chars:
-        raise ValueError(
-            f"Candidate attachment exceeds the {MAX_CANDIDATE_ATTACHMENT_BYTES // (1024 * 1024)} MiB upload limit."
-        )
+        raise ValueError(f"Attachment exceeds the {MAX_ATTACHMENT_BYTES // (1024 * 1024)} MiB upload limit.")
 
     try:
         file_bytes = base64.b64decode(normalized_content, validate=True)
@@ -175,10 +171,8 @@ def _decode_file(file: dict[str, Any]) -> tuple[bytes, str, str]:
 
     if not file_bytes:
         raise ValueError("The uploaded file is empty.")
-    if len(file_bytes) > MAX_CANDIDATE_ATTACHMENT_BYTES:
-        raise ValueError(
-            f"Candidate attachment exceeds the {MAX_CANDIDATE_ATTACHMENT_BYTES // (1024 * 1024)} MiB upload limit."
-        )
+    if len(file_bytes) > MAX_ATTACHMENT_BYTES:
+        raise ValueError(f"Attachment exceeds the {MAX_ATTACHMENT_BYTES // (1024 * 1024)} MiB upload limit.")
 
     file_name = file.get("name")
     if not isinstance(file_name, str) or not file_name:
@@ -196,14 +190,13 @@ def _access_token(context: ExecutionContext) -> str:
     return token
 
 
-async def _download_candidate_attachment(
+async def _download_attachment(
     context: ExecutionContext,
-    candidate_id: int,
-    attachment_id: int,
+    path: str,
     accept: str,
 ) -> tuple[bytes, dict[str, str]]:
     """Download binary content, which ExecutionContext.fetch does not preserve as bytes."""
-    url = f"{get_api_base_url(context)}/candidates/{candidate_id}/attachments/{attachment_id}"
+    url = f"{get_api_base_url(context)}{path}"
     headers = {"Authorization": f"Bearer {_access_token(context)}", "Accept": accept}
     timeout = aiohttp.ClientTimeout(total=30)
 
@@ -218,26 +211,50 @@ async def _download_candidate_attachment(
                     declared_size = int(content_length)
                 except ValueError:
                     declared_size = None
-                if declared_size is not None and declared_size > MAX_CANDIDATE_ATTACHMENT_BYTES:
+                if declared_size is not None and declared_size > MAX_ATTACHMENT_BYTES:
                     raise ValueError(
-                        f"Candidate attachment exceeds the {MAX_CANDIDATE_ATTACHMENT_BYTES // (1024 * 1024)} MiB "
-                        "download limit."
+                        f"Attachment exceeds the {MAX_ATTACHMENT_BYTES // (1024 * 1024)} MiB download limit."
                     )
 
             content = bytearray()
             while True:
-                remaining = MAX_CANDIDATE_ATTACHMENT_BYTES + 1 - len(content)
+                remaining = MAX_ATTACHMENT_BYTES + 1 - len(content)
                 chunk = await response.content.read(min(_DOWNLOAD_CHUNK_BYTES, remaining))
                 if not chunk:
                     break
                 content.extend(chunk)
-                if len(content) > MAX_CANDIDATE_ATTACHMENT_BYTES:
+                if len(content) > MAX_ATTACHMENT_BYTES:
                     raise ValueError(
-                        f"Candidate attachment exceeds the {MAX_CANDIDATE_ATTACHMENT_BYTES // (1024 * 1024)} MiB "
-                        "download limit."
+                        f"Attachment exceeds the {MAX_ATTACHMENT_BYTES // (1024 * 1024)} MiB download limit."
                     )
 
             return bytes(content), dict(response.headers)
+
+
+async def _download_candidate_attachment(
+    context: ExecutionContext,
+    candidate_id: int,
+    attachment_id: int,
+    accept: str,
+) -> tuple[bytes, dict[str, str]]:
+    return await _download_attachment(
+        context,
+        f"/candidates/{candidate_id}/attachments/{attachment_id}",
+        accept,
+    )
+
+
+async def _download_job_attachment(
+    context: ExecutionContext,
+    job_id: int,
+    attachment_id: int,
+    accept: str,
+) -> tuple[bytes, dict[str, str]]:
+    return await _download_attachment(
+        context,
+        f"/jobs/{job_id}/attachments/{attachment_id}",
+        accept,
+    )
 
 
 @jobadder.action("get_current_user")
@@ -809,12 +826,101 @@ class ListJobApprovedPlacementsAction(ActionHandler):
 class ListJobAttachmentsAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
+            params = {
+                key: value
+                for key, value in {
+                    "type": ",".join(inputs["types"]) if inputs.get("types") else None,
+                    "latest": _boolean_query_value(inputs.get("latest")),
+                    "offset": inputs.get("offset", 0),
+                    "limit": inputs.get("limit", 100),
+                }.items()
+                if value is not None
+            }
             return await _fetch_list(
                 context,
                 f"/jobs/{inputs['job_id']}/attachments",
                 "attachments",
-                {"offset": inputs.get("offset", 0), "limit": inputs.get("limit", 100)},
+                params,
             )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_attachment_categories")
+class ListJobAttachmentCategoriesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            params = {"type": ",".join(inputs["types"])} if inputs.get("types") else None
+            return await _fetch_list(context, "/jobs/lists/attachmentcategory", "categories", params)
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("download_job_attachment")
+class DownloadJobAttachmentAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            content, headers = await _download_job_attachment(
+                context,
+                inputs["job_id"],
+                inputs["attachment_id"],
+                inputs.get("accept", "application/octet-stream"),
+            )
+            content_type = headers.get("Content-Type") or headers.get("content-type") or "application/octet-stream"
+            file_name = inputs.get("file_name") or f"job-{inputs['job_id']}-attachment-{inputs['attachment_id']}"
+            return ActionResult(
+                data={
+                    "file": {
+                        "name": file_name,
+                        "contentType": content_type.split(";", 1)[0],
+                        "content": base64.b64encode(content).decode("ascii"),
+                    }
+                }
+            )
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("upload_job_attachment")
+class UploadJobAttachmentAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            file_bytes, file_name, content_type = _decode_file(inputs["file"])
+            form = aiohttp.FormData()
+            form.add_field("fileData", file_bytes, filename=file_name, content_type=content_type)
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/attachments/{inputs['attachment_type']}",
+                method="POST",
+                data=form,
+            )
+            return ActionResult(data={"attachment": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("update_job_attachment")
+class UpdateJobAttachmentAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            body = {
+                key: value
+                for key, value in {
+                    "type": inputs.get("type"),
+                    "category": inputs.get("category"),
+                    "expiry": inputs.get("expiry"),
+                }.items()
+                if key in inputs
+            }
+            if not body:
+                return ActionError(message="Provide at least one of type, category, or expiry.")
+
+            await context.fetch(
+                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/attachments/{inputs['attachment_id']}",
+                method="PUT",
+                headers={"Content-Type": "application/json"},
+                json=body,
+            )
+            return ActionResult(data={"updated": True})
         except Exception as exc:
             return ActionError(message=str(exc))
 

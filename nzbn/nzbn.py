@@ -44,6 +44,19 @@ PRODUCTION_BASE_URL = "https://api.business.govt.nz/gateway/nzbn/v5"
 TOKEN_URL = "https://login.microsoftonline.com/b2cessmapprd.onmicrosoft.com/oauth2/v2.0/token"  # nosec B105
 PRODUCTION_SCOPE = "https://api.business.govt.nz/gateway/.default"
 
+
+def _get_endpoints() -> Dict[str, str]:
+    """Read optional endpoint overrides (e.g. the NZBN sandbox) at call time.
+
+    Unset or empty variables fall back to the production endpoints.
+    """
+    return {
+        "base_url": os.environ.get("NZBN_BASE_URL") or PRODUCTION_BASE_URL,
+        "token_url": os.environ.get("NZBN_TOKEN_URL") or TOKEN_URL,
+        "scope": os.environ.get("NZBN_SCOPE") or PRODUCTION_SCOPE,
+    }
+
+
 # =============================================================================
 # Credentials
 #
@@ -95,7 +108,8 @@ async def get_oauth_token(context: ExecutionContext, client_id: str, client_secr
     Implements token caching to minimize API calls to the token endpoint.
     Tokens are cached until 60 seconds before expiry.
     """
-    cache_key = PRODUCTION_SCOPE
+    endpoints = _get_endpoints()
+    cache_key = f"{endpoints['token_url']} {endpoints['scope']}"
 
     # Check cache first
     cached_token = _get_cached_token(cache_key)
@@ -111,10 +125,10 @@ async def get_oauth_token(context: ExecutionContext, client_id: str, client_secr
     }
 
     response = await context.fetch(
-        TOKEN_URL,
+        endpoints["token_url"],
         method="POST",
         headers=headers,
-        data={"grant_type": "client_credentials", "scope": PRODUCTION_SCOPE},
+        data={"grant_type": "client_credentials", "scope": endpoints["scope"]},
     )
 
     # Handle response
@@ -173,7 +187,7 @@ async def make_request(
 ) -> Dict[str, Any]:
     """Make a request to the NZBN API."""
     headers = await get_headers(context)
-    url = f"{PRODUCTION_BASE_URL}{endpoint}"
+    url = f"{_get_endpoints()['base_url']}{endpoint}"
 
     response = await context.fetch(url, method=method, headers=headers, params=params)
 
@@ -208,7 +222,7 @@ class SearchEntitiesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            search_term = inputs.get("search_term", "")
+            search_term = inputs["search_term"]
             if not search_term:
                 return ActionError(message="search_term is required")
 
@@ -249,7 +263,7 @@ class GetEntityAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -269,7 +283,7 @@ class GetEntitySummaryAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -323,25 +337,30 @@ class GetEntityAddressesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
-            params = {}
-            if inputs.get("address_type"):
-                params["address-type"] = inputs["address_type"]
-
-            result = await make_request(
-                context,
-                "GET",
-                f"/entities/{nzbn_id}/addresses",
-                params if params else None,
-            )
+            # The addresses endpoint requires address-type, so without a filter
+            # read every address from the entity record instead.
+            address_type = inputs.get("address_type", "").strip().upper()
+            if address_type:
+                result = await make_request(
+                    context,
+                    "GET",
+                    f"/entities/{nzbn_id}/addresses",
+                    {"address-type": address_type},
+                )
+            else:
+                result = await make_request(context, "GET", f"/entities/{nzbn_id}")
 
             if not result["success"]:
                 return ActionError(message=result["error"])
 
-            addresses = result["data"] if isinstance(result["data"], list) else result["data"].get("items", [])
+            data = result["data"]
+            if not address_type:
+                data = data.get("addresses") or {}
+            addresses = data.get("addressList", [])
             return ActionResult(data={"result": True, "addresses": addresses}, cost_usd=0.0)
         except Exception as e:
             return ActionError(message=str(e))
@@ -353,7 +372,7 @@ class GetEntityRolesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -374,7 +393,7 @@ class GetEntityTradingNamesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -395,7 +414,7 @@ class GetCompanyDetailsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -415,7 +434,7 @@ class GetEntityGstNumbersAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -436,7 +455,7 @@ class GetEntityIndustryClassificationsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            nzbn_id = inputs.get("nzbn", "")
+            nzbn_id = inputs["nzbn"]
             if not nzbn_id:
                 return ActionError(message="nzbn is required")
 
@@ -460,7 +479,7 @@ class GetChangesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            change_event_type = inputs.get("change_event_type", "")
+            change_event_type = inputs["change_event_type"]
             if not change_event_type:
                 return ActionError(message="change_event_type is required")
 

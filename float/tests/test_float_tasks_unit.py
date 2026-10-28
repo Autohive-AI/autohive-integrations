@@ -37,7 +37,7 @@ def mock_context():
     ctx.auth = {
         "auth_type": "Custom",
         "credentials": {
-            "api_key": "test_api_key",  # nosec B105
+            "api_key": "test_api_key",
             "application_name": "Test App",
             "contact_email": "test@example.com",
         },

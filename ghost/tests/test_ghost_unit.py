@@ -1,3 +1,4 @@
+import base64
 from unittest.mock import AsyncMock
 import pytest
 from autohive_integrations_sdk import FetchResponse, ResultType
@@ -152,22 +153,145 @@ async def test_create_page(mock_context):
     assert "admin/pages" in mock_context.fetch.call_args[0][0]
 
 
-@pytest.mark.asyncio
-async def test_upload_image(mock_context, tmp_path):
-    img_file = tmp_path / "test.png"
-    img_file.write_bytes(b"\x89PNG\r\n")
+def _image_file(name="test.png", data=b"\x89PNG\r\n", content_type="image/png"):
+    return {"name": name, "content": base64.b64encode(data).decode(), "contentType": content_type}
+
+
+async def _upload(mock_context, inputs):
     mock_context.fetch = AsyncMock(
         return_value=_fetch_result({"images": [{"url": "https://demo.ghost.io/content/images/test.png"}]})
     )
-    result = await ghost.execute_action("upload_image", {"file_path": str(img_file)}, mock_context)
+    result = await ghost.execute_action("upload_image", inputs, mock_context)
+    return result, mock_context.fetch.call_args
+
+
+@pytest.mark.asyncio
+async def test_upload_image(mock_context):
+    result, call = await _upload(mock_context, {"file": _image_file()})
     assert result.type == ResultType.ACTION
     assert "url" in result.result.data["image"]
-    url = mock_context.fetch.call_args[0][0]
-    assert "admin/images/upload" in url
+    assert "admin/images/upload" in call[0][0]
+
+
+@pytest.mark.asyncio
+async def test_upload_image_request_shape(mock_context):
+    _, call = await _upload(mock_context, {"file": _image_file()})
+    kwargs = call[1]
+    assert kwargs["method"] == "POST"
+    assert kwargs["headers"]["Content-Type"].startswith("multipart/form-data; boundary=")
+    assert kwargs["headers"]["Authorization"].startswith("Ghost ")
+    boundary = kwargs["headers"]["Content-Type"].split("boundary=")[1]
     # multipart body passed as data=, not files= or body=
-    body = mock_context.fetch.call_args[1].get("data")
-    assert body is not None
-    assert b"test.png" in body
+    assert kwargs["data"].endswith(f"--{boundary}--\r\n".encode())
+
+
+@pytest.mark.asyncio
+async def test_upload_image_default_purpose(mock_context):
+    _, call = await _upload(mock_context, {"file": _image_file()})
+    assert b'name="purpose"\r\n\r\nimage\r\n' in call[1]["data"]
+
+
+@pytest.mark.asyncio
+async def test_upload_image_custom_purpose(mock_context):
+    _, call = await _upload(mock_context, {"file": _image_file(), "purpose": "profile_image"})
+    assert b'name="purpose"\r\n\r\nprofile_image\r\n' in call[1]["data"]
+
+
+@pytest.mark.asyncio
+async def test_upload_image_sends_decoded_bytes(mock_context):
+    data = bytes(range(256))
+    _, call = await _upload(mock_context, {"file": _image_file(name="photo.jpg", data=data, content_type="image/jpeg")})
+    body = call[1]["data"]
+    assert data in body
+    assert b'filename="photo.jpg"' in body
+    assert b"Content-Type: image/jpeg" in body
+
+
+@pytest.mark.asyncio
+async def test_upload_image_empty_response(mock_context):
+    mock_context.fetch = AsyncMock(return_value=_fetch_result({"images": []}))
+    result = await ghost.execute_action("upload_image", {"file": _image_file()}, mock_context)
+    assert result.type == ResultType.ACTION
+    assert result.result.data["image"] is None
+
+
+@pytest.mark.asyncio
+async def test_upload_image_invalid_base64(mock_context):
+    mock_context.fetch = AsyncMock()
+    result = await ghost.execute_action(
+        "upload_image", {"file": {**_image_file(), "content": "not-base64!"}}, mock_context
+    )
+    assert result.type == ResultType.ACTION_ERROR
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upload_image_empty_content(mock_context):
+    mock_context.fetch = AsyncMock()
+    result = await ghost.execute_action("upload_image", {"file": _image_file(data=b"")}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "empty" in result.result.message
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upload_image_whitespace_only_content(mock_context):
+    mock_context.fetch = AsyncMock()
+    result = await ghost.execute_action("upload_image", {"file": {**_image_file(), "content": " \n "}}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "empty" in result.result.message
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("missing", ["name", "content", "contentType"])
+async def test_upload_image_file_missing_field(mock_context, missing):
+    file_obj = _image_file()
+    del file_obj[missing]
+    mock_context.fetch = AsyncMock()
+    result = await ghost.execute_action("upload_image", {"file": file_obj}, mock_context)
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upload_image_missing_admin_key(mock_context):
+    mock_context.auth = {
+        "auth_type": "Custom",
+        "credentials": {"api_url": "https://demo.ghost.io", "content_api_key": "key"},  # nosec B105
+    }
+    mock_context.fetch = AsyncMock()
+    result = await ghost.execute_action("upload_image", {"file": _image_file()}, mock_context)
+    assert result.type != ResultType.ACTION
+    mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_upload_image_wrapped_base64(mock_context):
+    data = bytes(range(100))
+    encoded = base64.encodebytes(data).decode()  # MIME-style, newline every 76 chars
+    _, call = await _upload(mock_context, {"file": {**_image_file(), "content": encoded}})
+    assert data in call[1]["data"]
+
+
+@pytest.mark.asyncio
+async def test_upload_image_filename_with_quote_and_newline(mock_context):
+    _, call = await _upload(mock_context, {"file": _image_file(name='my "best"\r\nphoto.png')})
+    assert b'filename="my %22best%22photo.png"\r\n' in call[1]["data"]
+
+
+@pytest.mark.asyncio
+async def test_upload_image_fetch_error(mock_context):
+    mock_context.fetch = AsyncMock(side_effect=Exception("HTTP 413: Request Entity Too Large"))
+    result = await ghost.execute_action("upload_image", {"file": _image_file()}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "413" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_upload_image_missing_file(mock_context):
+    result = await ghost.execute_action("upload_image", {}, mock_context)
+    assert result.type == ResultType.VALIDATION_ERROR
 
 
 @pytest.mark.asyncio
@@ -221,3 +345,29 @@ async def test_missing_api_url(mock_context):
     }
     result = await ghost.execute_action("get_posts", {}, mock_context)
     assert result.type == ResultType.ACTION_ERROR
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("configured_id", ["", "chosen-post"])
+async def test_live_get_post_uses_configured_or_discovered_post(mock_context, monkeypatch, configured_id):
+    from ghost.tests import test_ghost_integration as live_tests
+
+    monkeypatch.setattr(live_tests, "GHOST_TEST_POST_ID", configured_id)
+    post_id = configured_id or "published-post"
+    responses = [_fetch_result({"posts": [{"id": post_id}]})]
+    if not configured_id:
+        responses.insert(0, _fetch_result({"posts": [{"id": post_id}]}))
+    mock_context.fetch = AsyncMock(side_effect=responses)
+    await live_tests.test_get_post_live(mock_context)
+    assert mock_context.fetch.await_count == (1 if configured_id else 2)
+    assert mock_context.fetch.call_args.args[0].endswith(f"/posts/{post_id}/")
+
+
+@pytest.mark.asyncio
+async def test_live_get_post_skips_only_when_no_published_posts(mock_context, monkeypatch):
+    from ghost.tests import test_ghost_integration as live_tests
+
+    monkeypatch.setattr(live_tests, "GHOST_TEST_POST_ID", "")
+    mock_context.fetch = AsyncMock(return_value=_fetch_result({"posts": []}))
+    with pytest.raises(pytest.skip.Exception, match="No published posts"):
+        await live_tests.test_get_post_live(mock_context)

@@ -230,12 +230,12 @@ class TestGetRole:
         if not roles:
             pytest.skip("No roles in account to test with")
 
-        role_id = roles[0]["role_id"]
+        role_id = roles[0]["id"]
         result = await float_integration.execute_action("get_role", {"role_id": role_id}, live_context)
 
         data = result.result.data
         assert isinstance(data, dict)
-        assert "role_id" in data
+        assert data["id"] == role_id
 
 
 class TestListTimeOffTypes:
@@ -393,14 +393,14 @@ class TestGetProjectExpense:
         if not expenses:
             pytest.skip("No project expenses in account to test with")
 
-        expense_id = expenses[0]["project_expense_id"]
+        expense_id = expenses[0]["id"]
         result = await float_integration.execute_action(
             "get_project_expense", {"project_expense_id": expense_id}, live_context
         )
 
         data = result.result.data
         assert isinstance(data, dict)
-        assert "project_expense_id" in data
+        assert data["id"] == expense_id
 
 
 class TestListPhases:

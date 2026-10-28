@@ -32,9 +32,10 @@ def stripe_context():
     from unittest.mock import AsyncMock, MagicMock
     from autohive_integrations_sdk.integration import FetchResponse
 
-    api_key = _get_env("STRIPE_TEST_API_KEY")
+    # CI supplies STRIPE_ACCESS_TOKEN from the platform OAuth connection; locally a test-mode key works too.
+    api_key = _get_env("STRIPE_ACCESS_TOKEN") or _get_env("STRIPE_TEST_API_KEY")
     if not api_key:
-        pytest.skip("STRIPE_TEST_API_KEY not set — skipping integration tests")
+        pytest.skip("STRIPE_ACCESS_TOKEN or STRIPE_TEST_API_KEY not set — skipping integration tests")
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, data=None, **kwargs):
         merged = dict(headers or {})

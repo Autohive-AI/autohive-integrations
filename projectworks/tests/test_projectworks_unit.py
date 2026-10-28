@@ -33,8 +33,9 @@ def ok(data):
 
 class TestGetHeaders:
     def test_basic_auth_header_from_credentials(self):
+        dummy_value = "secret456"
         ctx = type("Ctx", (), {})()
-        ctx.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": "secret456"}}  # nosec B105
+        ctx.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": dummy_value}}
         headers = _get_headers(ctx)
         expected = base64.b64encode(b"key123:secret456").decode()
         assert headers["Authorization"] == f"Basic {expected}"
@@ -47,16 +48,21 @@ class TestGetHeaders:
             _get_headers(ctx)
 
     def test_blank_credentials_raise(self):
+        empty_value = ""
         ctx = type("Ctx", (), {})()
-        ctx.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": ""}}  # nosec B105
+        ctx.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": empty_value}}
         with pytest.raises(ValueError, match="Consumer Key and Consumer Secret are required"):
             _get_headers(ctx)
 
     @pytest.mark.asyncio
     async def test_action_surfaces_blank_credential_error(self, mock_context):
+        empty_value = ""
         # The runtime guard should reach the caller as a clear ActionError,
         # not an unauthenticated request.
-        mock_context.auth = {"auth_type": "Custom", "credentials": {"consumer_key": "key123", "consumer_secret": ""}}  # nosec B105
+        mock_context.auth = {
+            "auth_type": "Custom",
+            "credentials": {"consumer_key": "key123", "consumer_secret": empty_value},
+        }
         result = await projectworks.execute_action("list_users", {}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "Consumer Key and Consumer Secret are required" in result.result.message

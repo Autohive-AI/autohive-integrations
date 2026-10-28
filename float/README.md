@@ -795,14 +795,7 @@ All action handlers now return `ActionResult` objects instead of plain dictionar
 
 Example response structure:
 ```python
-ActionResult(
-    data={
-        "people_id": 123,
-        "name": "John Doe",
-        "email": "john@example.com"
-    },
-    cost_usd=0.0
-)
+ActionResult(data={"people_id": 123, "name": "John Doe", "email": "john@example.com"}, cost_usd=0.0)
 ```
 
 ### Connected Account Information
@@ -847,3 +840,11 @@ The connected account handler fetches:
 ## License
 
 This integration is provided as part of the Autohive platform. Refer to your Autohive license agreement for terms and conditions.
+
+## TeamCity live tests
+
+`tests/teamcity.env` declares the live-test environment. Each `ah:secret` entry
+resolves from AWS SSM `/integration-testing/float/<ENV_VAR>` in the beta management
+account (`us-east-1`). Terraform creates SecureString placeholders; populate them
+with dedicated test-account values outside Terraform before running live tests.
+Do not commit credentials.

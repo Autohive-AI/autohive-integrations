@@ -11,7 +11,7 @@ This integration provides full access to Ghost's content and membership platform
 - **Member Management**: Create and update members with labels and newsletter subscriptions
 - **Content Discovery**: Browse tags, authors, site settings, and membership tiers
 - **Newsletter Delivery**: Trigger email delivery of published posts to subscribers
-- **Image Uploads**: Upload images from the local filesystem to Ghost's media library
+- **Image Uploads**: Upload image files to Ghost's media library
 
 ## Setup & Authentication
 
@@ -135,8 +135,8 @@ Create a new post in Ghost.
 | `html` | string | No | Post body as HTML (automatically sets `?source=html` on the API request) |
 | `lexical` | string | No | Post body in Lexical JSON format |
 | `status` | string | No | `draft` or `published` (default: `draft`) |
-| `tags` | array | No | Tag objects, e.g. `[{"name": "news"}]` |
-| `authors` | array | No | Author objects, e.g. `[{"email": "author@example.com"}]` |
+| `tags` | array | No | Tag names or objects, e.g. `["news"]` or `[{"name": "news"}]` |
+| `authors` | array | No | Author emails or objects, e.g. `["author@example.com"]` or `[{"email": "author@example.com"}]` |
 | `feature_image` | string | No | URL of the feature image |
 | `excerpt` | string | No | Post excerpt |
 
@@ -174,12 +174,12 @@ Create a new page in Ghost.
 ---
 
 #### `upload_image`
-Upload an image from the local filesystem to Ghost's media library.
+Upload an image file to Ghost's media library.
 
 **Inputs:**
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `file_path` | string | **Yes** | Absolute path to the image file |
+| `file` | object | **Yes** | Image file: `name`, `content` (base64), `contentType` |
 | `purpose` | string | No | `image`, `profile_image`, or `icon` (default: `image`) |
 
 **Outputs:** `result`, `image` (object with `url`), `error`, `error_type`
@@ -273,3 +273,17 @@ python tests/test_ghost.py
 ## Version History
 
 - **1.0.0** - Initial release: 8 read actions (Content API) + 7 write actions (Admin API)
+
+## TeamCity live tests
+
+`tests/teamcity.env` declares the live-test environment. Each `ah:secret` entry
+resolves from AWS SSM `/integration-testing/ghost/<ENV_VAR>` in the beta management
+account (`us-east-1`). Terraform creates SecureString placeholders; populate them
+with dedicated test-account values outside Terraform before running live tests.
+Do not commit credentials. Optional fixture variables are documented in the env
+file; leave them unset unless the corresponding test data is ready.
+
+The read-only single-post live test uses an explicitly configured post ID when
+available, otherwise it discovers a published post through the Content API. It
+skips only when no published posts are available. Newsletter inputs remain
+separate and are never inferred by this read-only test.

@@ -22,18 +22,24 @@ from nzbn.nzbn import (
     _token_cache,
     make_request,
     get_headers,
+    get_oauth_token,
+    _get_endpoints,
+    PRODUCTION_BASE_URL,
+    PRODUCTION_SCOPE,
+    TOKEN_URL,
 )
 
 pytestmark = pytest.mark.unit
 
 TEST_NZBN = "9429041525746"
+CREDENTIAL_NAMES = ("client_id", "client_secret", "subscription_key")
+TEST_CREDENTIALS = {name: f"test-{name}" for name in CREDENTIAL_NAMES}
 
 
 @pytest.fixture
 def mock_context():
     """Create a mock ExecutionContext."""
     context = MagicMock()
-    context.auth = {"auth_type": "Custom", "credentials": {}}
     context.fetch = AsyncMock()
     return context
 
@@ -298,14 +304,17 @@ class TestGetEntityAddresses:
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.make_request")
-    async def test_addresses_success(self, mock_make_request, mock_context):
+    async def test_addresses_without_type_read_entity_record(self, mock_make_request, mock_context):
         mock_make_request.return_value = {
             "success": True,
             "data": {
-                "items": [
-                    {"addressType": "REGISTERED", "address1": "123 Main St"},
-                    {"addressType": "POSTAL", "address1": "PO Box 100"},
-                ]
+                "nzbn": TEST_NZBN,
+                "addresses": {
+                    "addressList": [
+                        {"addressType": "REGISTERED", "address1": "123 Main St"},
+                        {"addressType": "SERVICE", "address1": "PO Box 100"},
+                    ]
+                },
             },
         }
 
@@ -313,25 +322,36 @@ class TestGetEntityAddresses:
         data = result.result.data
 
         assert data["result"] is True
-        assert len(data["addresses"]) == 2
+        assert [address["addressType"] for address in data["addresses"]] == ["REGISTERED", "SERVICE"]
+        assert mock_make_request.call_args[0][2] == f"/entities/{TEST_NZBN}"
+
+    @pytest.mark.asyncio
+    @patch("nzbn.nzbn.make_request")
+    async def test_addresses_without_type_and_no_addresses(self, mock_make_request, mock_context):
+        mock_make_request.return_value = {"success": True, "data": {"nzbn": TEST_NZBN}}
+
+        result = await nzbn.execute_action("get_entity_addresses", {"nzbn": TEST_NZBN}, mock_context)
+
+        assert result.result.data["addresses"] == []
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.make_request")
     async def test_addresses_with_type_filter(self, mock_make_request, mock_context):
         mock_make_request.return_value = {
             "success": True,
-            "data": {"items": [{"addressType": "REGISTERED", "address1": "123 Main St"}]},
+            "data": {"addressList": [{"addressType": "REGISTERED", "address1": "123 Main St"}]},
         }
 
-        await nzbn.execute_action(
+        result = await nzbn.execute_action(
             "get_entity_addresses",
-            {"nzbn": TEST_NZBN, "address_type": "RegisteredOffice"},
+            {"nzbn": TEST_NZBN, "address_type": "registered"},
             mock_context,
         )
 
         call_args = mock_make_request.call_args
-        params = call_args[0][3]
-        assert params["address-type"] == "RegisteredOffice"
+        assert call_args[0][2] == f"/entities/{TEST_NZBN}/addresses"
+        assert call_args[0][3] == {"address-type": "REGISTERED"}
+        assert len(result.result.data["addresses"]) == 1
 
 
 class TestGetEntityRoles:
@@ -549,30 +569,72 @@ class TestMakeRequest:
         assert result["not_modified"] is True
 
 
+class TestEndpoints:
+    """Test optional endpoint overrides."""
+
+    def test_defaults_to_production_when_unset(self, monkeypatch):
+        for name in ("NZBN_BASE_URL", "NZBN_TOKEN_URL", "NZBN_SCOPE"):
+            monkeypatch.delenv(name, raising=False)
+
+        assert _get_endpoints() == {
+            "base_url": PRODUCTION_BASE_URL,
+            "token_url": TOKEN_URL,
+            "scope": PRODUCTION_SCOPE,
+        }
+
+    def test_defaults_to_production_when_empty(self, monkeypatch):
+        for name in ("NZBN_BASE_URL", "NZBN_TOKEN_URL", "NZBN_SCOPE"):
+            monkeypatch.setenv(name, "")
+
+        assert _get_endpoints()["base_url"] == PRODUCTION_BASE_URL
+        assert _get_endpoints()["token_url"] == TOKEN_URL
+        assert _get_endpoints()["scope"] == PRODUCTION_SCOPE
+
+    @pytest.mark.asyncio
+    @patch("nzbn.nzbn.get_headers")
+    async def test_make_request_uses_base_url_override(self, mock_get_headers, mock_context, monkeypatch):
+        monkeypatch.setenv("NZBN_BASE_URL", "https://sandbox.example/nzbn/v5")
+        mock_get_headers.return_value = {}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={})
+
+        await make_request(mock_context, "GET", "/entities/test")
+
+        assert mock_context.fetch.call_args[0][0] == "https://sandbox.example/nzbn/v5/entities/test"
+
+    @pytest.mark.asyncio
+    async def test_token_request_uses_token_url_and_scope_overrides(self, mock_context, monkeypatch):
+        monkeypatch.setenv("NZBN_TOKEN_URL", "https://login.example/token")
+        monkeypatch.setenv("NZBN_SCOPE", "https://sandbox.example/.default")
+        issued = f"test-{TEST_NZBN}"
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"access_token": issued, "expires_in": 3600}
+        )
+
+        result = await get_oauth_token(mock_context, TEST_CREDENTIALS["client_id"], TEST_CREDENTIALS["client_secret"])
+
+        assert result == issued
+        assert mock_context.fetch.call_args[0][0] == "https://login.example/token"
+        assert mock_context.fetch.call_args[1]["data"]["scope"] == "https://sandbox.example/.default"
+
+
 class TestGetHeaders:
     """Test get_headers helper."""
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.get_oauth_token")
-    @patch(
-        "nzbn.nzbn._get_credentials",
-        return_value={"client_id": "cid", "client_secret": "csec", "subscription_key": "test-sub-key"},  # nosec B105
-    )
+    @patch("nzbn.nzbn._get_credentials", return_value=TEST_CREDENTIALS)
     async def test_headers_include_subscription_key(self, mock_get_creds, mock_get_oauth_token, mock_context):
         mock_get_oauth_token.return_value = "tok_abc"
 
         headers = await get_headers(mock_context)
 
-        assert headers["Ocp-Apim-Subscription-Key"] == "test-sub-key"
+        assert headers["Ocp-Apim-Subscription-Key"] == TEST_CREDENTIALS["subscription_key"]
         assert headers["Authorization"] == "Bearer tok_abc"
         assert headers["Accept"] == "application/json"
 
     @pytest.mark.asyncio
     @patch("nzbn.nzbn.get_oauth_token")
-    @patch(
-        "nzbn.nzbn._get_credentials",
-        return_value={"client_id": "cid", "client_secret": "csec", "subscription_key": "sub-key"},  # nosec B105
-    )
+    @patch("nzbn.nzbn._get_credentials", return_value=TEST_CREDENTIALS)
     async def test_headers_without_token(self, mock_get_creds, mock_get_oauth_token, mock_context):
         mock_get_oauth_token.return_value = None
 
@@ -581,7 +643,7 @@ class TestGetHeaders:
         assert "Authorization" not in headers
 
     @pytest.mark.asyncio
-    @patch("nzbn.nzbn._get_credentials", return_value={"client_id": "", "client_secret": "", "subscription_key": ""})  # nosec B105
+    @patch("nzbn.nzbn._get_credentials", return_value=dict.fromkeys(CREDENTIAL_NAMES, ""))
     async def test_headers_fail_fast_on_missing_credentials(self, mock_get_creds, mock_context):
         with pytest.raises(ValueError, match="Missing required environment variable"):
             await get_headers(mock_context)

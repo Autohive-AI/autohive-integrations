@@ -4,11 +4,15 @@ from autohive_integrations_sdk import (
     ActionHandler,
     ActionResult,
     ActionError,
+    HTTPError,
 )
 from typing import Dict, Any, List, Callable
 from datetime import datetime, timedelta, timezone
+import asyncio
 import base64
 import binascii
+from html import escape
+import re
 import urllib.parse
 import aiohttp
 
@@ -18,6 +22,7 @@ microsoft365 = Integration.load()
 # Microsoft Graph API Base URL
 GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
 MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
+MAX_DRAFT_ATTACHMENT_BYTES = 3_000_000
 DEFAULT_CONTACT_SEARCH_SCAN_LIMIT = 1000
 MAX_CONTACT_SEARCH_SCAN_LIMIT = 10000
 CONTACT_SEARCH_PAGE_SIZE = 100
@@ -280,6 +285,7 @@ async def _fetch_collection(
     item_filter: Callable[[Dict[str, Any]], bool] | None = None,
     scan_limit: int | None = None,
     page_limit: int | None = None,
+    retry_server_errors: bool = False,
 ) -> tuple[List[Dict[str, Any]], bool]:
     """Follow Graph pagination with separate result and optional scan limits."""
     if limit is not None and (not isinstance(limit, int) or isinstance(limit, bool) or limit < 1):
@@ -307,10 +313,19 @@ async def _fetch_collection(
             raise ValueError("Microsoft Graph pagination returned a repeated '@odata.nextLink' URL")
         requested_urls.add(next_url)
 
-        if first_request and params:
-            resp = await context.fetch(next_url, params=params)
-        else:
-            resp = await context.fetch(next_url)
+        for attempt in range(3):
+            try:
+                if first_request and params:
+                    resp = await context.fetch(next_url, params=params)
+                else:
+                    resp = await context.fetch(next_url)
+                if retry_server_errors and resp.status in {500, 502, 503, 504}:
+                    raise HTTPError(resp.status, str(resp.data), resp.data)
+                break
+            except HTTPError as error:
+                if not retry_server_errors or error.status not in {500, 502, 503, 504} or attempt == 2:
+                    raise
+                await asyncio.sleep(2**attempt)
         first_request = False
         fetched_pages += 1
         response = resp.data
@@ -431,6 +446,44 @@ def _resolve_file_bytes(file_obj: Dict[str, Any]) -> bytes:
         return base64.b64decode(stripped, validate=True)
     except (binascii.Error, ValueError, TypeError):
         raise ValueError("file 'content' is not valid base64-encoded data")
+
+
+def _prepare_draft_attachments(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Validate every file before creating a draft or uploading any attachments."""
+    attachments = []
+    for index, file in enumerate(files, 1):
+        name = file["name"].strip()
+        if not name:
+            raise ValueError(f"Attachment {index} needs a non-blank name")
+        raw = _resolve_file_bytes(file)
+        if len(raw) >= MAX_DRAFT_ATTACHMENT_BYTES:
+            raise ValueError(f"Attachment {index} must be smaller than 3 MB (3,000,000 bytes)")
+        attachments.append(
+            {
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": name,
+                "contentType": file.get("contentType") or "application/octet-stream",
+                "contentBytes": base64.b64encode(raw).decode("ascii"),
+            }
+        )
+    return attachments
+
+
+async def _attach_draft_files(context: ExecutionContext, draft_id: str, attachments: List[Dict[str, Any]]) -> None:
+    for index, attachment in enumerate(attachments, 1):
+        try:
+            resp = await context.fetch(
+                f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(draft_id)}/attachments",
+                method="POST",
+                json=attachment,
+            )
+            _check_fetch_success(resp)
+            _check_response(resp.data, "id")
+        except Exception as exc:
+            raise ValueError(
+                f"Attachment {index} of {len(attachments)} could not be confirmed; "
+                f"{index - 1} attachment(s) were confirmed. Inspect the draft before retrying: {exc}"
+            ) from exc
 
 
 # ---- Action Handlers ----
@@ -859,6 +912,8 @@ class ListEmailsFromContactAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             contact_email = inputs["contact_email"]
+            if not contact_email.strip():
+                raise ValueError("contact_email must not be blank")
             limit = inputs.get("limit", 5)
             folder = await _resolve_mail_folder(context, inputs.get("folder", "Inbox"))
 
@@ -880,7 +935,9 @@ class ListEmailsFromContactAction(ActionHandler):
             }
 
             api_url = f"{GRAPH_API_BASE}/me/mailFolders/{_encode_path_segment(folder)}/messages"
-            all_emails, _ = await _fetch_collection(context, api_url, params=params, limit=limit)
+            all_emails, _ = await _fetch_collection(
+                context, api_url, params=params, limit=limit, retry_server_errors=True
+            )
 
             emails = []
             for email in all_emails:
@@ -1356,7 +1413,9 @@ class ReadOneDriveFileContentAction(ActionHandler):
 @microsoft365.action("create_draft_email")
 class CreateDraftEmailAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        draft_id = None
         try:
+            attachments = _prepare_draft_attachments(inputs.get("attachments") or [])
             message = {
                 "subject": inputs["subject"],
                 "body": {
@@ -1413,9 +1472,11 @@ class CreateDraftEmailAction(ActionHandler):
                 message["importance"] = inputs["importance"]
 
             resp = await context.fetch(f"{GRAPH_API_BASE}/me/messages", method="POST", json=message)
+            _check_fetch_success(resp)
             response = resp.data
             _check_response(response, "id")
             draft_id = response["id"]
+            await _attach_draft_files(context, draft_id, attachments)
 
             return ActionResult(
                 data={
@@ -1423,11 +1484,132 @@ class CreateDraftEmailAction(ActionHandler):
                     "subject": response.get("subject") or "",
                     "created_datetime": response.get("createdDateTime") or "",
                     "is_draft": response.get("isDraft", True),
+                    "attachment_count": len(attachments),
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
+            if draft_id:
+                return ActionError(message=f"Draft {draft_id} was created but could not be completed: {e}")
+            return ActionError(message=str(e))
+
+
+def _draft_reply_recipients(recipients: List[Any]) -> List[Dict[str, Any]]:
+    """Convert additional recipients to Graph's shape before creating a draft."""
+    result = []
+    for recipient in recipients:
+        address = recipient if isinstance(recipient, str) else recipient["address"]
+        if not address.strip():
+            raise ValueError("Recipient address must not be blank")
+        email = {"address": address.strip()}
+        if isinstance(recipient, dict) and recipient.get("name"):
+            email["name"] = recipient["name"]
+        result.append({"emailAddress": email})
+    return result
+
+
+@microsoft365.action("create_draft_reply")
+class CreateDraftReplyAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        draft_id = None
+        try:
+            message_id = inputs["message_id"]
+            if not message_id.strip():
+                raise ValueError("message_id must not be blank")
+            comment = inputs.get("comment")
+            body = inputs.get("body")
+            if comment is not None and body is not None:
+                raise ValueError("Specify either comment or body, not both")
+            body_type = inputs.get("body_type", "Text")
+            if "body_type" in inputs and body is None:
+                raise ValueError("body_type requires body")
+
+            attachments = _prepare_draft_attachments(inputs.get("attachments") or [])
+            extras = {
+                "toRecipients": _draft_reply_recipients(inputs.get("to_recipients") or []),
+                "ccRecipients": _draft_reply_recipients(inputs.get("cc_recipients") or []),
+                "bccRecipients": _draft_reply_recipients(inputs.get("bcc_recipients") or []),
+            }
+            payload = {}
+            if body is not None:
+                payload["message"] = {"body": {"contentType": body_type, "content": body}}
+            operation = "createReplyAll" if inputs.get("reply_all", False) else "createReply"
+            resp = await context.fetch(
+                f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(message_id)}/{operation}",
+                method="POST",
+                json=payload,
+            )
+            _check_fetch_success(resp)
+            response = resp.data
+            _check_response(response, "id")
+            draft_id = response["id"]
+
+            updates = {}
+            if comment:
+                # Graph can omit createReply's comment, so prepend it to the generated history explicitly.
+                generated_body = response.get("body")
+                if not isinstance(generated_body, dict):
+                    resp = await context.fetch(
+                        f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(draft_id)}",
+                        params={"$select": "body"},
+                    )
+                    _check_fetch_success(resp)
+                    _check_response(resp.data, "body")
+                    generated_body = resp.data["body"]
+                if not isinstance(generated_body, dict) or not isinstance(generated_body.get("content"), str):
+                    raise ValueError("Graph did not return a readable draft body; quoted history cannot be preserved")
+                history = generated_body["content"]
+                content_type = generated_body.get("contentType", "").casefold()
+                if content_type == "html":
+                    text = escape(comment).replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
+                    prefix = f"<div>{text}</div><br>"
+                    opening_body = re.search(r"<body\b[^>]*>", history, re.IGNORECASE)
+                    position = opening_body.end() if opening_body else 0
+                    updated_content = history[:position] + prefix + history[position:]
+                elif content_type == "text":
+                    updated_content = comment + "\n\n" + history
+                else:
+                    raise ValueError(
+                        "Graph returned an unsupported draft body type; quoted history cannot be preserved"
+                    )
+                updates["body"] = {"contentType": generated_body["contentType"], "content": updated_content}
+
+            # Append to Graph's reply recipients instead of replacing the sender or reply-all list.
+            for field, recipients in extras.items():
+                if not recipients:
+                    continue
+                combined = list(response.get(field) or [])
+                addresses = {item["emailAddress"]["address"].casefold() for item in combined}
+                for recipient in recipients:
+                    address = recipient["emailAddress"]["address"].casefold()
+                    if address not in addresses:
+                        combined.append(recipient)
+                        addresses.add(address)
+                updates[field] = combined
+            if updates:
+                resp = await context.fetch(
+                    f"{GRAPH_API_BASE}/me/messages/{_encode_path_segment(draft_id)}",
+                    method="PATCH",
+                    json=updates,
+                )
+                _check_fetch_success(resp)
+                _check_response(resp.data, "id")
+                response = {**response, **resp.data}
+
+            await _attach_draft_files(context, draft_id, attachments)
+            return ActionResult(
+                data={
+                    "draft_id": draft_id,
+                    "web_link": response.get("webLink") or "",
+                    "is_draft": response.get("isDraft", True),
+                    "attachment_count": len(attachments),
+                },
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            if draft_id:
+                return ActionError(message=f"Draft {draft_id} was created but could not be completed: {e}")
             return ActionError(message=str(e))
 
 

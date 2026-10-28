@@ -1,8 +1,13 @@
 """HubSpot Integration Actions Module"""
 
-from typing import Dict, Any
+from typing import Any, Callable, Dict
+from collections import Counter
 from datetime import datetime, timezone
 import asyncio
+import math
+import re
+
+import aiohttp
 
 from autohive_integrations_sdk import (
     Integration,
@@ -10,6 +15,7 @@ from autohive_integrations_sdk import (
     ActionHandler,
     ActionResult,
     ActionError,
+    HTTPError,
 )
 
 # HubSpot integration with UTC date handling
@@ -132,9 +138,45 @@ async def parse_response(response):
 
 
 def is_rate_limit_error(error: Exception) -> bool:
-    """Return whether an exception looks like a HubSpot rate-limit response."""
-    error_text = str(error).lower()
-    return "429" in error_text or "rate limit" in error_text
+    """Return whether an exception is a HubSpot 429 response.
+
+    Checks the HTTP status, not the message, so a server error that mentions "429" isn't resent.
+    """
+    return getattr(error, "status", None) == 429
+
+
+# Errors from a request that may or may not have reached HubSpot
+REQUEST_ERRORS = (aiohttp.ClientError, asyncio.TimeoutError, HTTPError)
+
+
+def _error_text(error: Exception) -> str:
+    """Return an error's message, or its type for errors like TimeoutError that have none."""
+    return str(error) or type(error).__name__
+
+
+def _outcome_unknown(error: Exception) -> bool:
+    """Return whether HubSpot may still have applied a write that failed with this error."""
+    return not isinstance(error, HTTPError) or error.status >= 500
+
+
+def _property_value(value: Any) -> str:
+    """Return a value in HubSpot's string form: "true"/"false", "" to clear, and "a;b" for multi-select options."""
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, list):
+        return ";".join(_property_value(item) for item in value)
+    return str(value)
+
+
+def _unfinished_batch_reason(data: Dict[str, Any]) -> str | None:
+    """Return why a HubSpot batch response is not final, or None when it completed."""
+    if data.get("status") == "CANCELED":
+        return "canceled"
+    if data.get("status") in ("PENDING", "PROCESSING"):
+        return "is still processing"
+    return None
 
 
 def get_retry_after_seconds(error: Exception, fallback_seconds: int, max_delay_seconds: int = 10) -> int:
@@ -154,9 +196,14 @@ async def fetch_with_rate_limit_retries(
     max_retries: int = 3,
     max_total_sleep_seconds: int = 10,
     retry_sleep_budget: Dict[str, int] | None = None,
+    resend_on_connection_error: bool = True,
     **kwargs,
 ):
-    """Fetch with a bounded backoff for transient HubSpot 429 responses."""
+    """Fetch with a bounded backoff for transient HubSpot 429 responses.
+
+    Pass resend_on_connection_error=False for writes that aren't safe to repeat. The SDK otherwise resends
+    the request after a dropped connection or timeout, when HubSpot may already have applied it.
+    """
     if max_retries < 0:
         raise ValueError("max_retries must be >= 0")
     if max_total_sleep_seconds < 0:
@@ -169,6 +216,10 @@ async def fetch_with_rate_limit_retries(
         retry_sleep_budget.get("remaining", max_total_sleep_seconds),
         max_total_sleep_seconds,
     )
+
+    if not resend_on_connection_error:
+        # Starting at the SDK's retry limit makes it raise instead of resending
+        kwargs["retry_count"] = context.config["max_retries"]
 
     for attempt in range(max_retries + 1):
         try:
@@ -531,6 +582,583 @@ class DeleteNoteActionHandler(ActionHandler):
             return ActionError(message=f"Failed to delete note: {str(e)}")
 
 
+# Communications (LinkedIn messages)
+
+COMMUNICATIONS_API_URL = "https://api.hubapi.com/crm/v3/objects/communications"
+CONTACTS_SEARCH_API_URL = "https://api.hubapi.com/crm/v3/objects/contacts/search"
+CONTACTS_BATCH_READ_API_URL = "https://api.hubapi.com/crm/v3/objects/contacts/batch/read"
+CONTACTS_BATCH_UPSERT_API_URL = "https://api.hubapi.com/crm/v3/objects/contacts/batch/upsert"
+
+# HubSpot-defined association type IDs from a communication to other records
+COMMUNICATION_TO_CONTACT_ASSOCIATION_ID = 81
+COMMUNICATION_TO_COMPANY_ASSOCIATION_ID = 87
+COMMUNICATION_TO_DEAL_ASSOCIATION_ID = 85
+
+# Number of matching contacts returned as candidates when a name or email is ambiguous
+CONTACT_MATCH_LIMIT = 5
+
+# HubSpot allows 5 CRM search requests per second per account; space name searches to stay under it
+NAME_SEARCH_INTERVAL_SECONDS = 0.25
+
+
+def _hubspot_defined_association(record_id: Any, association_type_id: int) -> Dict[str, Any]:
+    return {
+        "to": {"id": str(record_id)},
+        "types": [{"associationCategory": "HUBSPOT_DEFINED", "associationTypeId": association_type_id}],
+    }
+
+
+def _linked_id(row: Dict[str, Any], field: str) -> str:
+    return str(row.get(field) or "").strip()
+
+
+# hs_timestamp must fall between 1970 and the end of year 9999
+MAX_TIMESTAMP_MS = 253402300800000
+TIMESTAMP_FORMAT_HINT = "Unix milliseconds or an ISO 8601 date such as 2026-10-21T09:30:00Z"
+
+
+def _timestamp_ms(timestamp: Any) -> str | None:
+    """Return a timestamp as Unix milliseconds (now when empty), or None if it can't be read.
+
+    Dates are converted here rather than sent as text, so HubSpot never sees a format it might reject
+    along with the whole batch. Plain digits are milliseconds; a date without a time zone is read as UTC.
+    """
+    if timestamp is None or timestamp == "":
+        return str(int(datetime.now(timezone.utc).timestamp() * 1000))
+    if isinstance(timestamp, bool):
+        return None
+    if isinstance(timestamp, int):
+        milliseconds = timestamp
+    elif isinstance(timestamp, float):
+        if not math.isfinite(timestamp):
+            return None
+        milliseconds = int(timestamp)
+    else:
+        text = str(timestamp).strip()
+        if re.fullmatch(r"[0-9]+", text):
+            # Anything longer than MAX_TIMESTAMP_MS is out of range, and huge digit strings can't be converted
+            if len(text) > len(str(MAX_TIMESTAMP_MS)):
+                return None
+            milliseconds = int(text)
+        else:
+            try:
+                parsed = datetime.fromisoformat(re.sub(r"[zZ]$", "+00:00", text))
+            except ValueError:
+                return None
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            milliseconds = int(parsed.timestamp() * 1000)
+    return str(milliseconds) if 0 <= milliseconds < MAX_TIMESTAMP_MS else None
+
+
+def _row_identifier(row: Dict[str, Any]) -> tuple[str, Any, str] | None:
+    """Return (kind, lookup key, label) for how a message row identifies its contact, or None.
+
+    kind is "contact_id", "email" (key is the lowercased email) or "name" (key is (first, last)).
+    """
+    contact_id = (row.get("contact_id") or "").strip()
+    if contact_id:
+        return "contact_id", contact_id, f"contact_id:{contact_id}"
+    email = (row.get("email") or "").strip()
+    if email:
+        return "email", email.lower(), f"email:{email}"
+    first_name = (row.get("first_name") or "").strip()
+    last_name = (row.get("last_name") or "").strip()
+    if first_name and last_name:
+        return "name", (first_name, last_name), f"name:{first_name} {last_name}"
+    return None
+
+
+def _status_counts(results: list[Dict[str, Any]], statuses: tuple[str, ...]) -> Dict[str, int]:
+    counts = Counter(result["status"] for result in results)
+    return {status: counts[status] for status in statuses}
+
+
+def _match_batch_results(
+    data: Dict[str, Any],
+    trace_ids: list[str],
+    missing_message: str,
+    trace_id_for: Callable[[Dict[str, Any]], str | None] | None = None,
+) -> tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
+    """Match a HubSpot batch response to its input rows.
+
+    Returns ({trace_id: returned item}, {trace_id: error}) so every trace ID lands in exactly one.
+    Results are matched on the echoed objectWriteTraceId, or on trace_id_for(item) when HubSpot
+    doesn't echo it. Errors are matched via context.objectWriteTraceId. If some results still
+    can't be attributed: when every row came back they all count as done (with an empty item);
+    otherwise the unmatched rows fail with a warning, because a blind retry could duplicate the
+    rows that did succeed.
+    """
+    items = data.get("results", [])
+    trace_id_set = set(trace_ids)
+    items_by_trace = {}
+    leftover_items = []
+    for item in items:
+        trace_id = item.get("objectWriteTraceId") or (trace_id_for(item) if trace_id_for else None)
+        if trace_id in trace_id_set:
+            items_by_trace[trace_id] = item
+        else:
+            leftover_items.append(item)
+
+    messages_by_trace: Dict[str, list[str]] = {}
+    unmapped = []
+    for error in data.get("errors", []):
+        message = error.get("message", "")
+        error_trace_ids = (error.get("context") or {}).get("objectWriteTraceId") or []
+        for trace_id in error_trace_ids:
+            messages_by_trace.setdefault(str(trace_id), []).append(message)
+        if not error_trace_ids:
+            unmapped.append(message)
+    warnings = []
+    reason = _unfinished_batch_reason(data)
+    if reason:
+        # An unfinished or canceled batch may have written some rows, so a retry could write them twice
+        warnings.append(f"HubSpot {reason} this batch; check HubSpot before retrying")
+
+    # When the leftover results match the rows with no result or error of their own, those rows all succeeded.
+    # A single pair can only belong together; otherwise which ID is which row is unknown, so the item is empty.
+    leftover_trace_ids = [t for t in trace_ids if t not in items_by_trace and t not in messages_by_trace]
+    if leftover_items and len(leftover_items) == len(leftover_trace_ids):
+        only_item = leftover_items[0] if len(leftover_items) == 1 else {}
+        items_by_trace.update({trace_id: only_item for trace_id in leftover_trace_ids})
+    elif leftover_items:
+        warnings.insert(
+            0,
+            f"HubSpot completed {len(items)} of {len(trace_ids)} rows without saying which; "
+            "check HubSpot before retrying",
+        )
+    batch_error = "; ".join(warnings + unmapped) or None
+
+    errors_by_trace = {
+        trace_id: "; ".join(messages_by_trace.get(trace_id, [])) or batch_error or missing_message
+        for trace_id in trace_ids
+        if trace_id not in items_by_trace
+    }
+    return items_by_trace, errors_by_trace
+
+
+async def _find_contact_ids_by_email(
+    emails: list[str], context: ExecutionContext, retry_sleep_budget: Dict[str, int]
+) -> tuple[Dict[str, str], Dict[str, str]]:
+    """Return ({lowercased email: contact ID}, {email: lookup error}) for the given emails using one batch read.
+
+    Batch read looks contacts up by their unique email directly, so it doesn't depend on the
+    search index (which can lag behind newly created contacts) or the search rate limit.
+    """
+    try:
+        response = await fetch_with_rate_limit_retries(
+            context,
+            CONTACTS_BATCH_READ_API_URL,
+            retry_sleep_budget=retry_sleep_budget,
+            method="POST",
+            json={
+                "idProperty": "email",
+                "inputs": [{"id": email} for email in emails],
+                "properties": ["email", "hs_additional_emails"],
+                "propertiesWithHistory": [],
+            },
+            headers={"Content-Type": "application/json"},
+        )
+    except HTTPError as e:
+        # HubSpot answers 404 when none of the emails match a contact
+        if e.status == 404:
+            return {}, {}
+        raise
+    data = await parse_response(response) or {}
+    contact_ids_by_email = {}
+    for contact in data.get("results", []):
+        properties = contact.get("properties") or {}
+        # A contact can be found by an additional email, which HubSpot returns in hs_additional_emails
+        additional_emails = re.split(r"[;,]", properties.get("hs_additional_emails") or "")
+        for address in [properties.get("email") or "", *additional_emails]:
+            if address.strip():
+                contact_ids_by_email[address.strip().lower()] = str(contact["id"])
+
+    # Only OBJECT_NOT_FOUND means a contact is missing; an unfinished batch or any other error is a failed lookup
+    unmatched = [email for email in emails if email not in contact_ids_by_email]
+    errors_by_email: Dict[str, str] = {}
+    reason = _unfinished_batch_reason(data)
+    if reason:
+        errors_by_email.update({email: f"HubSpot {reason} the lookup" for email in unmatched})
+    for error in data.get("errors", []):
+        if error.get("category") == "OBJECT_NOT_FOUND":
+            continue
+        error_emails = [str(i).lower() for i in (error.get("context") or {}).get("ids") or []] or unmatched
+        for email in error_emails:
+            if email in unmatched:
+                errors_by_email[email] = error.get("message") or "HubSpot could not look up this email"
+    return contact_ids_by_email, errors_by_email
+
+
+async def _check_object_ids(
+    object_type: str, object_ids: list[str], context: ExecutionContext, retry_sleep_budget: Dict[str, int]
+) -> Dict[str, str | None]:
+    """Return {ID: None if it exists, "missing", or a lookup error} for one object type using one batch read.
+
+    HubSpot rejects a whole batch create when one association points at a missing record, so
+    missing IDs are found first and only those rows are skipped.
+    """
+    # HubSpot record IDs are plain numbers; a malformed ID could fail the whole lookup, so it is never sent
+    checked: Dict[str, str | None] = {i: "missing" for i in object_ids if not re.fullmatch(r"[1-9][0-9]*", i)}
+    to_read = [object_id for object_id in object_ids if object_id not in checked]
+    if not to_read:
+        return checked
+    try:
+        response = await fetch_with_rate_limit_retries(
+            context,
+            f"https://api.hubapi.com/crm/v3/objects/{object_type}/batch/read",
+            retry_sleep_budget=retry_sleep_budget,
+            method="POST",
+            json={"inputs": [{"id": object_id} for object_id in to_read], "properties": []},
+            headers={"Content-Type": "application/json"},
+        )
+        data = await parse_response(response) or {}
+    except HTTPError as e:
+        # HubSpot answers 404 when none of the IDs match a record
+        if e.status == 404:
+            return {**checked, **dict.fromkeys(to_read, "missing")}
+        return {**checked, **dict.fromkeys(to_read, _error_text(e))}
+    except REQUEST_ERRORS as e:
+        return {**checked, **dict.fromkeys(to_read, _error_text(e))}
+
+    # Returned IDs exist. Of the rest, only IDs HubSpot names as not found are missing:
+    # a merged record's old ID still resolves, under the surviving record's ID
+    returned = {str(item.get("id")) for item in data.get("results", [])}
+    unreturned = [object_id for object_id in to_read if object_id not in returned]
+    checked.update(dict.fromkeys(to_read))
+    reason = _unfinished_batch_reason(data)
+    if reason:
+        checked.update(dict.fromkeys(unreturned, f"HubSpot {reason} the lookup"))
+    for error in data.get("errors", []):
+        error_ids = [str(i) for i in (error.get("context") or {}).get("ids") or []] or unreturned
+        for object_id in error_ids:
+            if object_id in unreturned:
+                is_missing = error.get("category") == "OBJECT_NOT_FOUND"
+                checked[object_id] = "missing" if is_missing else error.get("message") or "HubSpot lookup failed"
+    return checked
+
+
+async def _find_contact_ids_by_name(
+    first_name: str, last_name: str, context: ExecutionContext, retry_sleep_budget: Dict[str, int]
+) -> list[str]:
+    """Return the IDs of contacts whose first and last name exactly match."""
+    filters = [
+        {"propertyName": "firstname", "operator": "EQ", "value": first_name},
+        {"propertyName": "lastname", "operator": "EQ", "value": last_name},
+    ]
+    response = await fetch_with_rate_limit_retries(
+        context,
+        CONTACTS_SEARCH_API_URL,
+        retry_sleep_budget=retry_sleep_budget,
+        method="POST",
+        json={"filterGroups": [{"filters": filters}], "properties": ["email"], "limit": CONTACT_MATCH_LIMIT},
+        headers={"Content-Type": "application/json"},
+    )
+    data = await parse_response(response) or {}
+    return [str(contact["id"]) for contact in data.get("results", [])]
+
+
+# (row field, CRM object type, communication association type ID) for records a message can also link to
+LINKED_RECORD_TYPES = (
+    ("company_id", "companies", COMMUNICATION_TO_COMPANY_ASSOCIATION_ID),
+    ("deal_id", "deals", COMMUNICATION_TO_DEAL_ASSOCIATION_ID),
+)
+
+
+def _build_communication_input(
+    row: Dict[str, Any], row_index: int, contact_id: str, body: str, timestamp_ms: str, owner_id: Any
+) -> Dict[str, Any]:
+    properties = {
+        "hs_communication_channel_type": "LINKEDIN_MESSAGE",
+        "hs_communication_logged_from": "CRM",
+        "hs_communication_body": body,
+        "hs_timestamp": timestamp_ms,
+    }
+    if owner_id:
+        properties["hubspot_owner_id"] = str(owner_id)
+
+    associations = [_hubspot_defined_association(contact_id, COMMUNICATION_TO_CONTACT_ASSOCIATION_ID)]
+    for field, _, association_type_id in LINKED_RECORD_TYPES:
+        if _linked_id(row, field):
+            associations.append(_hubspot_defined_association(_linked_id(row, field), association_type_id))
+
+    return {"properties": properties, "associations": associations, "objectWriteTraceId": str(row_index)}
+
+
+@hubspot.action("log_linkedin_messages")
+class LogLinkedInMessagesActionHandler(ActionHandler):
+    """
+    Action handler to log LinkedIn messages on HubSpot contacts in bulk.
+
+    Each row is matched to exactly one existing contact by contact ID, email, or first and last name.
+    Rows that match no contact, or more than one, are reported and not logged. Matched rows are
+    created in a single Communications batch create call.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        default_body = (inputs.get("default_message_body") or "").strip()
+        owner_id = inputs.get("hubspot_owner_id")
+        # One rate-limit retry budget for the whole action, so repeated 429s can't stall it per request
+        retry_sleep_budget = {"remaining": 10}
+
+        results = []
+        pending = []  # (row, result, body, timestamp_ms, kind, key) for rows that passed validation
+        for row_index, row in enumerate(inputs["messages"]):
+            identifier = _row_identifier(row)
+            body = (row.get("message_body") or "").strip() or default_body
+            timestamp_ms = _timestamp_ms(row.get("timestamp"))
+            result = {
+                "row_index": row_index,
+                "identifier": identifier[2] if identifier else None,
+                "status": None,
+                "contact_id": None,
+                "communication_id": None,
+                "candidates": [],
+                "error": None,
+            }
+            results.append(result)
+
+            if identifier is None:
+                result["status"] = "invalid"
+                result["error"] = "Provide contact_id, email, or both first_name and last_name"
+            elif not body:
+                result["status"] = "invalid"
+                result["error"] = "Provide message_body for this row or default_message_body"
+            elif timestamp_ms is None:
+                # HubSpot would reject the whole batch over one unreadable timestamp
+                result["status"] = "invalid"
+                result["error"] = f"timestamp must be {TIMESTAMP_FORMAT_HINT} (1970 to 9999)"
+            else:
+                pending.append((row, result, body, timestamp_ms, identifier[0], identifier[1]))
+
+        # Each lookup maps (kind, key) to its matching contact IDs, or to an error message. The kind keeps an
+        # email that looks like an ID from sharing another row's contact ID result
+        matches: Dict[tuple[str, Any], list[str] | str] = {}
+        emails = sorted({key for _, _, _, _, kind, key in pending if kind == "email"})
+        if emails:
+            try:
+                contact_ids_by_email, errors_by_email = await _find_contact_ids_by_email(
+                    emails, context, retry_sleep_budget
+                )
+                for email in emails:
+                    if email in contact_ids_by_email:
+                        matches[("email", email)] = [contact_ids_by_email[email]]
+                    elif email in errors_by_email:
+                        matches[("email", email)] = f"Contact lookup failed: {errors_by_email[email]}"
+                    else:
+                        matches[("email", email)] = []
+            except REQUEST_ERRORS as e:
+                matches.update({("email", email): f"Contact lookup failed: {_error_text(e)}" for email in emails})
+
+        direct_ids = list(dict.fromkeys(key for _, _, _, _, kind, key in pending if kind == "contact_id"))
+        for contact_id, problem in (
+            await _check_object_ids("contacts", direct_ids, context, retry_sleep_budget)
+        ).items():
+            if problem is None:
+                matches[("contact_id", contact_id)] = [contact_id]
+            else:
+                matches[("contact_id", contact_id)] = (
+                    [] if problem == "missing" else f"Contact lookup failed: {problem}"
+                )
+
+        names = list(dict.fromkeys(key for _, _, _, _, kind, key in pending if kind == "name"))
+        for index, (first_name, last_name) in enumerate(names):
+            if index:
+                await asyncio.sleep(NAME_SEARCH_INTERVAL_SECONDS)
+            try:
+                matches[("name", (first_name, last_name))] = await _find_contact_ids_by_name(
+                    first_name, last_name, context, retry_sleep_budget
+                )
+            except REQUEST_ERRORS as e:
+                matches[("name", (first_name, last_name))] = f"Contact lookup failed: {_error_text(e)}"
+
+        matched = []  # (row, result, body, timestamp_ms) for rows matched to exactly one contact
+        for row, result, body, timestamp_ms, kind, key in pending:
+            contact_ids = matches[(kind, key)]
+            if isinstance(contact_ids, str):
+                result["status"] = "failed"
+                result["error"] = contact_ids
+            elif not contact_ids:
+                result["status"] = "not_found"
+            elif len(contact_ids) > 1:
+                result["status"] = "ambiguous"
+                result["candidates"] = contact_ids
+            else:
+                result["contact_id"] = contact_ids[0]
+                matched.append((row, result, body, timestamp_ms))
+
+        # A missing company or deal would also make HubSpot reject the whole batch, so check matched rows' ones
+        linked_problems = {}
+        for field, object_type, _ in LINKED_RECORD_TYPES:
+            linked_ids = list(dict.fromkeys(_linked_id(row, field) for row, *_ in matched if _linked_id(row, field)))
+            checked = await _check_object_ids(object_type, linked_ids, context, retry_sleep_budget)
+            linked_problems.update({(field, object_id): problem for object_id, problem in checked.items()})
+
+        batch_inputs = []
+        for row, result, body, timestamp_ms in matched:
+            problems = [
+                (field, _linked_id(row, field), linked_problems[(field, _linked_id(row, field))])
+                for field, _, _ in LINKED_RECORD_TYPES
+                if _linked_id(row, field) and linked_problems[(field, _linked_id(row, field))]
+            ]
+            if problems:
+                field, object_id, problem = problems[0]
+                label = "Company" if field == "company_id" else "Deal"
+                if problem == "missing":
+                    result["status"] = "invalid"
+                    result["error"] = f"{label} {object_id} does not exist"
+                else:
+                    result["status"] = "failed"
+                    result["error"] = f"{label} lookup failed: {problem}"
+            else:
+                batch_inputs.append(
+                    _build_communication_input(
+                        row, result["row_index"], result["contact_id"], body, timestamp_ms, owner_id
+                    )
+                )
+
+        returned_items: list[Dict[str, Any]] = []
+        if batch_inputs:
+            trace_ids = [batch_input["objectWriteTraceId"] for batch_input in batch_inputs]
+            try:
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    f"{COMMUNICATIONS_API_URL}/batch/create",
+                    retry_sleep_budget=retry_sleep_budget,
+                    resend_on_connection_error=False,
+                    method="POST",
+                    json={"inputs": batch_inputs},
+                    headers={"Content-Type": "application/json"},
+                )
+                data = await parse_response(response) or {}
+                returned_items = data.get("results", [])
+                created_by_row, errors_by_row = _match_batch_results(
+                    data, trace_ids, "HubSpot did not return a created message for this row"
+                )
+            except REQUEST_ERRORS as e:
+                error = _error_text(e)
+                if _outcome_unknown(e):
+                    error = (
+                        f"{error}; HubSpot may have logged this message, check the contact's timeline before retrying"
+                    )
+                created_by_row, errors_by_row = {}, {trace_id: error for trace_id in trace_ids}
+
+            for trace_id in trace_ids:
+                result = results[int(trace_id)]
+                if trace_id in created_by_row:
+                    result["status"] = "logged"
+                    created_id = created_by_row[trace_id].get("id")
+                    result["communication_id"] = str(created_id) if created_id else None
+                else:
+                    result["status"] = "failed"
+                    result["error"] = errors_by_row[trace_id]
+
+        # IDs HubSpot created but didn't tie to a row, so they can still be read, updated or deleted
+        attached_ids = {result["communication_id"] for result in results if result["communication_id"]}
+        unmatched_ids = [str(item["id"]) for item in returned_items if item.get("id")]
+        counts = _status_counts(results, ("logged", "not_found", "ambiguous", "invalid", "failed"))
+        return ActionResult(
+            data={
+                "results": results,
+                **counts,
+                "unmatched_communication_ids": [i for i in unmatched_ids if i not in attached_ids],
+                "success": counts["logged"] == len(results),
+            },
+            cost_usd=None,
+        )
+
+
+@hubspot.action("get_linkedin_message")
+class GetLinkedInMessageActionHandler(ActionHandler):
+    """Action handler to read a logged LinkedIn message (communication) by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        communication_id = inputs["communication_id"]
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{COMMUNICATIONS_API_URL}/{communication_id}",
+                params={
+                    "properties": "hs_communication_channel_type,hs_communication_body,hs_timestamp,hubspot_owner_id",
+                    "associations": "contacts,companies,deals",
+                },
+            )
+            return ActionResult(
+                data={
+                    "communication": await parse_response(response),
+                    "success": True,
+                    "message": "LinkedIn message retrieved successfully",
+                },
+                cost_usd=None,
+            )
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to get LinkedIn message: {_error_text(e)}")
+
+
+@hubspot.action("update_linkedin_message")
+class UpdateLinkedInMessageActionHandler(ActionHandler):
+    """Action handler to update the body, timestamp, or owner of a logged LinkedIn message."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        communication_id = inputs["communication_id"]
+
+        # An empty string clears the body or owner in HubSpot, so check presence rather than truthiness
+        properties = {}
+        if inputs.get("message_body") is not None:
+            properties["hs_communication_body"] = inputs["message_body"]
+        if inputs.get("timestamp") not in (None, ""):
+            properties["hs_timestamp"] = _timestamp_ms(inputs["timestamp"])
+            if properties["hs_timestamp"] is None:
+                return ActionError(message=f"timestamp must be {TIMESTAMP_FORMAT_HINT} (1970 to 9999)")
+        if inputs.get("hubspot_owner_id") is not None:
+            properties["hubspot_owner_id"] = str(inputs["hubspot_owner_id"])
+
+        if not properties:
+            return ActionError(message="Provide message_body, timestamp, or hubspot_owner_id to update")
+
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{COMMUNICATIONS_API_URL}/{communication_id}",
+                method="PATCH",
+                json={"properties": properties},
+                headers={"Content-Type": "application/json"},
+            )
+            return ActionResult(
+                data={
+                    "communication": await parse_response(response),
+                    "success": True,
+                    "message": "LinkedIn message updated successfully",
+                    "updated_properties": properties,
+                },
+                cost_usd=None,
+            )
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to update LinkedIn message: {_error_text(e)}")
+
+
+@hubspot.action("delete_linkedin_message")
+class DeleteLinkedInMessageActionHandler(ActionHandler):
+    """Action handler to delete (archive) a logged LinkedIn message."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        communication_id = inputs["communication_id"]
+        try:
+            await fetch_with_rate_limit_retries(
+                context, f"{COMMUNICATIONS_API_URL}/{communication_id}", method="DELETE"
+            )
+            return ActionResult(
+                data={
+                    "success": True,
+                    "message": f"LinkedIn message {communication_id} deleted successfully",
+                    "communication_id": communication_id,
+                },
+                cost_usd=None,
+            )
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to delete LinkedIn message: {_error_text(e)}")
+
+
 @hubspot.action("create_task")
 class CreateTaskActionHandler(ActionHandler):
     """
@@ -548,12 +1176,13 @@ class CreateTaskActionHandler(ActionHandler):
         :return: Dictionary with the created task information.
         """
         # Required by input_schema; missing keys are rejected by the runner before execute.
-        task_body = inputs["hs_task_body"]
         timestamp = inputs["hs_timestamp"]
 
         # Build the task properties
-        properties = {"hs_task_body": task_body, "hs_timestamp": str(timestamp)}
+        properties = {"hs_timestamp": str(timestamp)}
 
+        if inputs.get("hs_task_body"):
+            properties["hs_task_body"] = inputs.get("hs_task_body")
         if inputs.get("hs_task_subject"):
             properties["hs_task_subject"] = inputs.get("hs_task_subject")
         if inputs.get("hs_task_status"):
@@ -806,22 +1435,203 @@ class GetTaskActionHandler(ActionHandler):
             return ActionError(message=f"Failed to retrieve task: {str(e)}")
 
 
+TASKS_SEARCH_API_URL = "https://api.hubapi.com/crm/v3/objects/tasks/search"
+
+# list_tasks inputs that need the CRM search API; without them it lists every task in ID order
+_TASK_SEARCH_INPUTS = (
+    "owner_id",
+    "owner_email",
+    "status",
+    "exclude_completed",
+    "priority",
+    "task_type",
+    "due_after",
+    "due_before",
+    "query",
+    "contact_id",
+    "company_id",
+    "deal_id",
+    "sort_direction",
+)
+
+# HubSpot rejects a filter group with more than 6 filters
+MAX_SEARCH_FILTERS_PER_GROUP = 6
+
+
+def _due_date_filter(input_name: str, operator: str, value: Any) -> Dict[str, Any]:
+    """Return an hs_timestamp filter, raising ValueError when the date can't be read."""
+    milliseconds = _timestamp_ms(value)
+    if milliseconds is None:
+        raise ValueError(f"{input_name} must be {TIMESTAMP_FORMAT_HINT}, got {value!r}")
+    return {"propertyName": "hs_timestamp", "operator": operator, "value": milliseconds}
+
+
+def _task_search_filters(inputs: Dict[str, Any]) -> list[Dict[str, Any]]:
+    """Return list_tasks' search filters other than the owner; they're ANDed in one filter group.
+
+    Raises ValueError for a due date that can't be read.
+    """
+    filters = []
+    # Enumeration values are case-sensitive, so these are sent as given (e.g. NOT_STARTED)
+    if inputs.get("status"):
+        filters.append({"propertyName": "hs_task_status", "operator": "IN", "values": inputs["status"]})
+    if inputs.get("exclude_completed"):
+        filters.append({"propertyName": "hs_task_status", "operator": "NEQ", "value": "COMPLETED"})
+    if inputs.get("priority"):
+        filters.append({"propertyName": "hs_task_priority", "operator": "IN", "values": inputs["priority"]})
+    if inputs.get("task_type"):
+        filters.append({"propertyName": "hs_task_type", "operator": "IN", "values": inputs["task_type"]})
+    if inputs.get("due_after"):
+        filters.append(_due_date_filter("due_after", "GTE", inputs["due_after"]))
+    if inputs.get("due_before"):
+        filters.append(_due_date_filter("due_before", "LT", inputs["due_before"]))
+    if inputs.get("contact_id"):
+        filters.append({"propertyName": "associations.contact", "operator": "EQ", "value": str(inputs["contact_id"])})
+    if inputs.get("company_id"):
+        filters.append({"propertyName": "associations.company", "operator": "EQ", "value": str(inputs["company_id"])})
+    if inputs.get("deal_id"):
+        filters.append({"propertyName": "associations.deal", "operator": "EQ", "value": str(inputs["deal_id"])})
+    return filters
+
+
+async def _task_associations(
+    context: ExecutionContext, task_ids: list[str], retry_sleep_budget: Dict[str, int]
+) -> Dict[str, Dict[str, Any]]:
+    """Return each task's associated contacts, companies and deals, keyed by task ID.
+
+    The search API doesn't return associations, so this fills the same associations.<type>.results[].id
+    shape that listing tasks returns.
+    """
+    associations: Dict[str, Dict[str, Any]] = {task_id: {} for task_id in task_ids}
+    for object_type in ("contacts", "companies", "deals"):
+        response = await fetch_with_rate_limit_retries(
+            context,
+            f"https://api.hubapi.com/crm/associations/2026-09/tasks/{object_type}/batch/read",
+            retry_sleep_budget=retry_sleep_budget,
+            method="POST",
+            json={"inputs": [{"id": task_id} for task_id in task_ids]},
+            headers={"Content-Type": "application/json"},
+        )
+        data = await parse_response(response)
+        reason = _unfinished_batch_reason(data)
+        if reason:
+            raise ValueError(f"HubSpot {reason} the linked {object_type} lookup")
+        # A task with nothing of this type linked comes back as an OBJECT_NOT_FOUND error and is left out of
+        # results, as listing tasks omits empty types; any other error means its links couldn't be read
+        for error in data.get("errors", []):
+            if error.get("category") != "OBJECT_NOT_FOUND":
+                raise ValueError(
+                    f"Could not read linked {object_type}: {error.get('message') or error.get('category')}"
+                )
+        for row in data.get("results", []):
+            associations[str(row["from"]["id"])][object_type] = {
+                "results": [{"id": str(linked["toObjectId"])} for linked in row.get("to", [])]
+            }
+    return associations
+
+
+async def _search_tasks(inputs: Dict[str, Any], filters: list[Dict[str, Any]], context: ExecutionContext):
+    """Run list_tasks through the CRM search API, adding the owner filter and each task's linked records."""
+    owner_id = inputs.get("owner_id")
+    owner_email = inputs.get("owner_email")
+    filter_count = len(filters) + bool(owner_id or owner_email)
+    if filter_count > MAX_SEARCH_FILTERS_PER_GROUP:
+        return ActionError(
+            message=(
+                f"HubSpot allows at most {MAX_SEARCH_FILTERS_PER_GROUP} task filters per search; "
+                f"{filter_count} were given. Remove some filters and try again."
+            )
+        )
+
+    retry_sleep_budget = {"remaining": 10}
+    if not owner_id and owner_email:
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                "https://api.hubapi.com/crm/v3/owners/",
+                retry_sleep_budget=retry_sleep_budget,
+                params={"email": owner_email},
+                headers={"Content-Type": "application/json"},
+            )
+            owners = (await parse_response(response)).get("results", [])
+        except Exception as e:
+            return ActionError(message=f"Failed to look up owner {owner_email}: {str(e)}")
+        if not owners:
+            return ActionError(message=f"No HubSpot owner has the email {owner_email}")
+        owner_id = owners[0]["id"]
+    if owner_id:
+        filters = [{"propertyName": "hubspot_owner_id", "operator": "EQ", "value": str(owner_id)}, *filters]
+
+    payload = {
+        "limit": min(inputs.get("limit", 100), 100),
+        "properties": list(inputs.get("hs_task_properties", _DEFAULT_HS_TASK_PROPERTY_NAMES)),
+        "sorts": [{"propertyName": "hs_timestamp", "direction": inputs.get("sort_direction", "ASCENDING")}],
+    }
+    if filters:
+        payload["filterGroups"] = [{"filters": filters}]
+    if inputs.get("query"):
+        payload["query"] = inputs["query"]
+    if inputs.get("after"):
+        payload["after"] = inputs["after"]
+
+    try:
+        response = await fetch_with_rate_limit_retries(
+            context,
+            TASKS_SEARCH_API_URL,
+            retry_sleep_budget=retry_sleep_budget,
+            method="POST",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        result = await parse_response(response)
+        tasks = result.get("results", [])
+
+        if tasks:
+            associations = await _task_associations(context, [str(task["id"]) for task in tasks], retry_sleep_budget)
+            for task in tasks:
+                task["associations"] = associations[str(task["id"])]
+    except Exception as e:
+        return ActionError(message=f"Failed to search tasks: {str(e)}")
+
+    for task in tasks:
+        _apply_readable_utc_to_task_properties(task.get("properties", {}))
+
+    return ActionResult(
+        data={
+            "tasks": tasks,
+            "total": len(tasks),
+            "total_matching": result.get("total", len(tasks)),
+            "paging": result.get("paging"),
+            "success": True,
+            "message": "Tasks retrieved successfully",
+        },
+        cost_usd=None,
+    )
+
+
 @hubspot.action("list_tasks")
 class ListTasksActionHandler(ActionHandler):
     """
     Action handler to retrieve tasks from HubSpot.
 
-    Lists tasks using the CRM objects API with optional pagination.
+    Lists every task in ID order, or searches when filters (owner, status, due date, linked record, text) are given.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         """
         Execute the list_tasks action.
 
-        :param inputs: Dictionary with optional "limit", "after", and "hs_task_properties".
+        :param inputs: Dictionary with optional "limit", "after", "hs_task_properties" and search filters.
         :param context: Execution context containing authentication and fetch method.
         :return: Dictionary with the retrieved tasks and paging metadata.
         """
+        if any(inputs.get(name) for name in _TASK_SEARCH_INPUTS):
+            try:
+                filters = _task_search_filters(inputs)
+            except ValueError as e:
+                return ActionError(message=str(e))
+            return await _search_tasks(inputs, filters, context)
+
         limit = min(inputs.get("limit", 100), 100)
         after = inputs.get("after")
         hs_task_properties = inputs.get("hs_task_properties", _DEFAULT_HS_TASK_PROPERTY_NAMES)
@@ -977,7 +1787,7 @@ class CreateContactActionHandler(ActionHandler):
         url = "https://api.hubapi.com/crm/v3/objects/contacts"
 
         # Merge properties and additional_properties
-        properties = inputs.get("properties", {}).copy()
+        properties = inputs["properties"].copy()
         additional_properties = inputs.get("additional_properties", {})
         properties.update(additional_properties)
 
@@ -991,6 +1801,130 @@ class CreateContactActionHandler(ActionHandler):
         result = await parse_response(response)
         return ActionResult(
             data={"contact": result, "created_properties": properties},
+            cost_usd=None,
+        )
+
+
+@hubspot.action("upsert_contacts")
+class UpsertContactsActionHandler(ActionHandler):
+    """
+    Action handler to create or update up to 100 contacts in one call, matched on email.
+
+    Uses the CRM batch upsert endpoint with email as the unique ID property, so existing contacts are
+    updated instead of duplicated.
+    """
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        contacts = inputs["contacts"]
+
+        emails = [contact["email"].strip().lower() for contact in contacts]
+        duplicates = sorted(email for email, count in Counter(emails).items() if count > 1)
+        if duplicates:
+            return ActionError(message=f"Each email can appear only once per call. Duplicates: {', '.join(duplicates)}")
+        # HubSpot rejects objectWriteTraceId on email-keyed upserts, so rows are matched by email or contact ID
+        row_key_by_email = {email: str(row_index) for row_index, email in enumerate(emails)}
+        # One rate-limit retry budget for the upsert and the lookups that match its results
+        retry_sleep_budget = {"remaining": 10}
+
+        # Look the emails up first: two rows can be one contact when one is that contact's additional email.
+        # Without a complete lookup that can't be ruled out, so nothing is written
+        not_checked = "Could not check the emails before upserting, so nothing was written; retrying is safe"
+        try:
+            existing_ids_by_email, lookup_errors = await _find_contact_ids_by_email(emails, context, retry_sleep_budget)
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"{not_checked}: {_error_text(e)}")
+        if lookup_errors:
+            details = "; ".join(f"{email}: {error}" for email, error in lookup_errors.items())
+            return ActionError(message=f"{not_checked}: {details}")
+        emails_by_contact_id: Dict[str, list[str]] = {}
+        for email in emails:
+            if email in existing_ids_by_email:
+                emails_by_contact_id.setdefault(existing_ids_by_email[email], []).append(email)
+        shared = [", ".join(group) for group in emails_by_contact_id.values() if len(group) > 1]
+        if shared:
+            return ActionError(
+                message=f"These emails belong to the same HubSpot contact, pass only one of each: {' | '.join(shared)}"
+            )
+        row_key_by_contact_id = {
+            contact_id: row_key_by_email[group[0]] for contact_id, group in emails_by_contact_id.items()
+        }
+
+        batch_inputs = []
+        for contact, email in zip(contacts, emails):
+            properties = {key: _property_value(value) for key, value in (contact.get("properties") or {}).items()}
+            # The email only identifies the contact. Writing it could make an additional email the primary one
+            properties.pop("email", None)
+            if contact.get("first_name"):
+                properties["firstname"] = contact["first_name"]
+            if contact.get("last_name"):
+                properties["lastname"] = contact["last_name"]
+            batch_inputs.append(
+                {
+                    "id": email,
+                    "idProperty": "email",
+                    "properties": properties,
+                }
+            )
+
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                CONTACTS_BATCH_UPSERT_API_URL,
+                retry_sleep_budget=retry_sleep_budget,
+                # A resend would see contacts this call created and report them as updated
+                resend_on_connection_error=False,
+                method="POST",
+                json={"inputs": batch_inputs},
+                headers={"Content-Type": "application/json"},
+            )
+        except REQUEST_ERRORS as e:
+            message = f"Failed to upsert contacts: {_error_text(e)}"
+            if _outcome_unknown(e):
+                message += "; HubSpot may have saved some of them, and retrying is safe"
+            return ActionError(message=message)
+
+        def row_key_for(item: Dict[str, Any]) -> str | None:
+            email = ((item.get("properties") or {}).get("email") or "").lower()
+            return row_key_by_email.get(email) or row_key_by_contact_id.get(str(item.get("id")))
+
+        data = await parse_response(response) or {}
+        # New contacts may come back without their email, so read them back by email to match on contact ID
+        if any(row_key_for(item) is None for item in data.get("results", [])):
+            try:
+                contact_ids_by_email, _ = await _find_contact_ids_by_email(emails, context, retry_sleep_budget)
+            except REQUEST_ERRORS:
+                contact_ids_by_email = {}  # unmatched rows are reported as unattributed below
+            row_key_by_contact_id.update(
+                {
+                    contact_id: row_key_by_email[address]
+                    for address, contact_id in contact_ids_by_email.items()
+                    if address in row_key_by_email
+                }
+            )
+
+        upserted_by_row, errors_by_row = _match_batch_results(
+            data,
+            list(row_key_by_email.values()),
+            "HubSpot did not return a contact for this row",
+            trace_id_for=row_key_for,
+        )
+
+        results = []
+        for email, row_key in row_key_by_email.items():
+            result = {"row_index": int(row_key), "email": email, "status": "failed", "contact_id": None, "error": None}
+            upserted = upserted_by_row.get(row_key)
+            if upserted is None:
+                result["error"] = errors_by_row[row_key]
+            elif not upserted:
+                result["error"] = "HubSpot didn't say which contact this row matched; retrying is safe"
+            else:
+                result["status"] = "created" if upserted.get("new") else "updated"
+                result["contact_id"] = str(upserted["id"]) if upserted.get("id") else None
+            results.append(result)
+
+        counts = _status_counts(results, ("created", "updated", "failed"))
+        return ActionResult(
+            data={"results": results, **counts, "success": counts["failed"] == 0},
             cost_usd=None,
         )
 
@@ -1018,7 +1952,7 @@ class UpdateContactActionHandler(ActionHandler):
         url = f"https://api.hubapi.com/crm/v3/objects/contacts/{contact_id}"
 
         # Merge properties and additional_properties
-        properties = inputs.get("properties", {}).copy()
+        properties = inputs["properties"].copy()
         additional_properties = inputs.get("additional_properties", {})
         properties.update(additional_properties)
 
@@ -1053,7 +1987,7 @@ class SearchContactsActionHandler(ActionHandler):
         :return: Parsed JSON response containing search results.
         """
 
-        query = inputs.get("query", "")
+        query = inputs["query"]
         limit = inputs.get("limit", 100)
         after = inputs.get("after")
 
@@ -1607,7 +2541,7 @@ class CreateCompanyActionHandler(ActionHandler):
         url = "https://api.hubapi.com/crm/v3/objects/companies"
 
         # Transform properties to HubSpot format
-        payload = {"properties": inputs.get("properties", {})}
+        payload = {"properties": inputs["properties"]}
 
         response = await context.fetch(
             url,
@@ -1642,7 +2576,7 @@ class UpdateCompanyActionHandler(ActionHandler):
         url = f"https://api.hubapi.com/crm/v3/objects/companies/{company_id}"
 
         # Transform properties to HubSpot format
-        payload = {"properties": inputs.get("properties", {})}
+        payload = {"properties": inputs["properties"]}
 
         response = await context.fetch(
             url,
@@ -1672,7 +2606,7 @@ class SearchCompaniesActionHandler(ActionHandler):
         :return: Parsed JSON response with the search results.
         """
 
-        query = inputs.get("query", "")
+        query = inputs["query"]
         limit = inputs.get("limit", 100)
 
         url = "https://api.hubapi.com/crm/v3/objects/companies/search"
@@ -2665,6 +3599,7 @@ class SearchDealsActionHandler(ActionHandler):
         unique_deal_ids = set()  # For deduplication
         has_more = True
         after = inputs.get("after")  # Allow starting from specific pagination token
+        next_after = None  # HubSpot's cursor for the page after the last one fetched
         total_fetched = 0
         # Respect user's limit parameter even when fetch_all is false
         user_limit = inputs.get("limit", 50)
@@ -2706,97 +3641,33 @@ class SearchDealsActionHandler(ActionHandler):
             if query:
                 request_body["query"] = query
 
-            filter_groups = []
+            # All filters share one group so HubSpot ANDs them; separate groups would be ORed
+            filters = []
 
             if inputs.get("pipeline_id"):
-                filter_groups.append(
-                    {
-                        "filters": [
-                            {
-                                "propertyName": "pipeline",
-                                "operator": "EQ",
-                                "value": inputs["pipeline_id"],
-                            }
-                        ]
-                    }
-                )
+                filters.append({"propertyName": "pipeline", "operator": "EQ", "value": inputs["pipeline_id"]})
 
             # Year filtering to reduce response size
             if inputs.get("year"):
-                try:
-                    year = int(inputs["year"])
-                    # Create start and end of year in UTC milliseconds
-                    start_of_year = datetime(year, 1, 1, tzinfo=timezone.utc)
-                    end_of_year = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+                year = int(inputs["year"])
+                start_ms = int(datetime(year, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+                end_ms = int(datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
+                filters.append({"propertyName": "closedate", "operator": "GTE", "value": str(start_ms)})
+                filters.append({"propertyName": "closedate", "operator": "LTE", "value": str(end_ms)})
 
-                    start_ms = int(start_of_year.timestamp() * 1000)
-                    end_ms = int(end_of_year.timestamp() * 1000)
-
-                    filter_groups.append(
-                        {
-                            "filters": [
-                                {
-                                    "propertyName": "closedate",
-                                    "operator": "GTE",
-                                    "value": str(start_ms),
-                                },
-                                {
-                                    "propertyName": "closedate",
-                                    "operator": "LTE",
-                                    "value": str(end_ms),
-                                },
-                            ]
-                        }
-                    )
-                except (ValueError, TypeError):
-                    pass  # Invalid year, skip filtering
-
-            # Filter by deal stage
             if inputs.get("deal_stage"):
-                filter_groups.append(
-                    {
-                        "filters": [
-                            {
-                                "propertyName": "dealstage",
-                                "operator": "EQ",
-                                "value": inputs["deal_stage"],
-                            }
-                        ]
-                    }
-                )
+                filters.append({"propertyName": "dealstage", "operator": "EQ", "value": inputs["deal_stage"]})
 
-            # Instead, we'll fetch all deals and filter by date in post-processing
-            # This is more reliable than HubSpot's buggy date range API filtering
+            # Close date ranges are filtered after each page is fetched, below
 
-            # Filter by amount range
             if inputs.get("min_amount"):
-                filter_groups.append(
-                    {
-                        "filters": [
-                            {
-                                "propertyName": "amount",
-                                "operator": "GTE",
-                                "value": str(inputs["min_amount"]),
-                            }
-                        ]
-                    }
-                )
+                filters.append({"propertyName": "amount", "operator": "GTE", "value": str(inputs["min_amount"])})
 
             if inputs.get("max_amount"):
-                filter_groups.append(
-                    {
-                        "filters": [
-                            {
-                                "propertyName": "amount",
-                                "operator": "LTE",
-                                "value": str(inputs["max_amount"]),
-                            }
-                        ]
-                    }
-                )
+                filters.append({"propertyName": "amount", "operator": "LTE", "value": str(inputs["max_amount"])})
 
-            if filter_groups:
-                request_body["filterGroups"] = filter_groups
+            if filters:
+                request_body["filterGroups"] = [{"filters": filters}]
 
             # Add sorting
             if inputs.get("sort_property"):
@@ -2890,19 +3761,32 @@ class SearchDealsActionHandler(ActionHandler):
                 # Check for more pages
                 paging = result.get("paging")
                 if paging and paging.get("next") and paging["next"].get("after"):
-                    after = paging["next"]["after"]
+                    after = next_after = paging["next"]["after"]
                     # Continue if fetch_all is True OR if we haven't reached the user's requested limit
                     has_more = fetch_all or total_fetched < max_total
                 else:
+                    next_after = None
                     has_more = False
             else:
+                next_after = None
                 has_more = False
 
         # Convert deal dates from UTC timestamps to readable UTC strings
         for deal in deals:
             convert_deal_dates_to_utc(deal)
 
-        return ActionResult(data={"results": deals, "total": len(deals)}, cost_usd=None)
+        return ActionResult(
+            data={
+                "results": deals,
+                "total": len(deals),
+                "pagination": {
+                    "has_more_pages": next_after is not None,
+                    "current_page_size": len(deals),
+                    "after": next_after,
+                },
+            },
+            cost_usd=None,
+        )
 
 
 @hubspot.action("create_deal")
@@ -2925,7 +3809,7 @@ class CreateDealActionHandler(ActionHandler):
 
         url = "https://api.hubapi.com/crm/v3/objects/deals"
 
-        payload = {"properties": inputs.get("properties", {})}
+        payload = {"properties": inputs["properties"]}
 
         if inputs.get("associations"):
             payload["associations"] = inputs["associations"]
@@ -2962,7 +3846,7 @@ class UpdateDealActionHandler(ActionHandler):
 
         url = f"https://api.hubapi.com/crm/v3/objects/deals/{deal_id}"
 
-        payload = {"properties": inputs.get("properties", {})}
+        payload = {"properties": inputs["properties"]}
 
         response = await context.fetch(
             url,
@@ -3083,8 +3967,7 @@ class GetListsHandler(ActionHandler):
         if inputs.get("processing_types"):
             search_body["processingTypes"] = inputs["processing_types"]
 
-        # Note: includeFilters is not supported in search endpoint
-        # We'll get filters in individual list calls if needed
+        # The search endpoint can't return filter definitions; get_list does
 
         response = await fetch_with_rate_limit_retries(
             context,
@@ -3369,6 +4252,39 @@ class GetDealAssociationsHandler(ActionHandler):
         )
 
 
+@hubspot.action("create_association")
+class CreateAssociationHandler(ActionHandler):
+    """Link two CRM records with HubSpot's default association type using the v4 Associations API"""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        from_type = inputs["from_object_type"]
+        from_id = inputs["from_object_id"]
+        to_type = inputs["to_object_type"]
+        to_id = inputs["to_object_id"]
+
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"https://api.hubapi.com/crm/v4/objects/{from_type}/{from_id}/associations/default/{to_type}/{to_id}",
+                method="PUT",
+                # HubSpot rejects this bodyless PUT with 415 unless it's marked as JSON
+                headers={"Content-Type": "application/json"},
+            )
+        except REQUEST_ERRORS as e:
+            return ActionError(
+                message=f"Failed to associate {from_type} {from_id} with {to_type} {to_id}: {_error_text(e)}"
+            )
+
+        return ActionResult(
+            data={
+                "success": True,
+                "message": f"Associated {from_type} {from_id} with {to_type} {to_id}",
+                "response": await parse_response(response),
+            },
+            cost_usd=None,
+        )
+
+
 @hubspot.action("get_list_members")
 class GetListMembersHandler(ActionHandler):
     """Retrieve list members with complete contact information"""
@@ -3573,6 +4489,8 @@ class GetMarketingEmailsHandler(ActionHandler):
 
         if after:
             params["after"] = after
+        if inputs.get("is_published") is not None:
+            params["isPublished"] = str(inputs["is_published"]).lower()
 
         response = await fetch_with_rate_limit_retries(context, url, params=params)
         data = await parse_response(response)

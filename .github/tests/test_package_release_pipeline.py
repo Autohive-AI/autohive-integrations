@@ -25,23 +25,14 @@ class PackageReleasePipelineTests(unittest.TestCase):
         self.integration("unchanged", "1.0.0")
         self.base = self.commit("baseline")
         self.integration("first", "1.0.1")
-        self.before = self.commit("first bump; packaging run skipped")
+        self.before = self.commit("first bump")
         self.integration("second", "1.0.1")
         self.current = self.commit("second bump")
         self.bin = self.root / "bin"
         self.bin.mkdir()
         fake_gh = self.bin / "gh"
-        fake_gh.write_text(textwrap.dedent("""\
-            #!/bin/bash
-            if [[ "$*" == *"/releases?"* || "$*" == *"/releases?per_page=100"* ]]; then
-              printf "%s\n" "$GH_RELEASES"
-              exit "${GH_RELEASES_EXIT:-0}"
-            fi
-            printf "%s\n" "$GH_HISTORY"
-            exit "${GH_HISTORY_EXIT:-0}"
-        """))
+        fake_gh.write_text("#!/bin/bash\nprintf 'gh should not be called for release selection\\n' >&2\nexit 1\n")
         fake_gh.chmod(0o755)
-        # Extract the real workflow's selection step. No copy of its logic is tested.
         workflow = Path(__file__).resolve().parents[1] / "workflows" / "package-and-release.yml"
         source = workflow.read_text()
         start = source.index("        run: |", source.index("      - name: Resolve release contents"))
@@ -58,8 +49,6 @@ class PackageReleasePipelineTests(unittest.TestCase):
             GITHUB_SHA=self.current,
             GITHUB_REF_NAME="master",
             GITHUB_REPOSITORY="example/integrations",
-            GH_HISTORY="",
-            GH_RELEASES=f"integration-packages-1-1\t{self.base}\tIntegration incremental packages built from {self.base}.",
             RUNNER_TEMP=str(self.root),
             GITHUB_OUTPUT=str(self.root / "outputs"),
         )
@@ -90,76 +79,46 @@ class PackageReleasePipelineTests(unittest.TestCase):
             check=False,
         )
 
-    def test_release_baseline_includes_bumps_from_skipped_intermediate_merge(self):
-        result = self.run_selection()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["first", "second"])
-        self.assertIn(f"previous_commit_sha={self.base}", (self.root / "outputs").read_text())
-
-    def test_release_api_failure_blocks_incomplete_release(self):
-        self.environment.update(GH_RELEASES="", GH_RELEASES_EXIT="1")
-        result = self.run_selection()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse((self.root / "integration-paths.txt").exists())
-        self.assertFalse((self.root / "outputs").exists())
-
-    def test_truncated_workflow_history_does_not_drop_unreleased_bumps(self):
-        self.environment.update(
-            GH_HISTORY=f"{self.before}\tsuccess",
-            GH_RELEASES=f"integration-packages-1-1\t{self.base}\tIntegration incremental packages built from {self.base}.",
-        )
-        result = self.run_selection()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["first", "second"])
-        self.assertIn(f"previous_commit_sha={self.base}", (self.root / "outputs").read_text())
-
-    def test_partial_snapshot_does_not_advance_incremental_baseline(self):
-        self.environment.update(
-            GH_RELEASES="\n".join(
-                [
-                    f"integration-packages-2-1\t{self.before}\tIntegration snapshot packages built from {self.before}.",
-                    f"integration-packages-1-1\t{self.base}\tIntegration incremental packages built from {self.base}.",
-                ]
-            )
-        )
-        result = self.run_selection()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["first", "second"])
-        self.assertIn(f"previous_commit_sha={self.base}", (self.root / "outputs").read_text())
-
-    def test_push_without_bootstrap_or_incremental_release_fails(self):
-        self.environment["GH_RELEASES"] = ""
-        result = self.run_selection()
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("No prior integration bootstrap or incremental release was found", result.stderr)
-        self.assertFalse((self.root / "integration-paths.txt").exists())
-
-    def test_manual_selection_creates_snapshot_without_reading_push_history(self):
-        self.environment.update(EVENT_NAME="workflow_dispatch", MANUAL_SELECTION="second", GH_RELEASES_EXIT="1")
+    def test_push_selects_only_version_bumps_in_current_push_range(self):
         result = self.run_selection()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["second"])
-        self.assertIn("release_kind=snapshot", (self.root / "outputs").read_text())
+        outputs = (self.root / "outputs").read_text()
+        self.assertIn(f"previous_commit_sha={self.before}", outputs)
+        self.assertIn("release_kind=incremental", outputs)
 
-    def test_manual_all_selection_creates_bootstrap_release(self):
-        self.environment.update(EVENT_NAME="workflow_dispatch", MANUAL_SELECTION="all", GH_RELEASES_EXIT="1")
+    def test_push_can_package_multiple_bumps_from_current_push_range(self):
+        self.environment["EVENT_BEFORE"] = self.base
         result = self.run_selection()
         self.assertEqual(result.returncode, 0, result.stderr)
-        outputs = (self.root / "outputs").read_text()
-        self.assertIn("release_kind=snapshot", outputs)
-        self.assertIn("release_baseline_kind=bootstrap", outputs)
+        self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["first", "second"])
 
     def test_no_version_bumps_creates_no_release(self):
         self.git("commit", "--allow-empty", "-q", "-m", "no version bumps")
         nochange = self.git("rev-parse", "HEAD")
-        self.environment.update(
-            GITHUB_SHA=nochange,
-            EVENT_BEFORE=self.current,
-            GH_RELEASES=f"integration-packages-2-1\t{self.current}\tIntegration incremental packages built from {self.current}.",
-        )
+        self.environment.update(GITHUB_SHA=nochange, EVENT_BEFORE=self.current)
         result = self.run_selection()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("has_changes=false", (self.root / "outputs").read_text())
+
+    def test_manual_selection_creates_snapshot_without_reading_push_history(self):
+        self.environment.update(EVENT_NAME="workflow_dispatch", MANUAL_SELECTION="second")
+        result = self.run_selection()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / "integration-paths.txt").read_text().splitlines(), ["second"])
+        outputs = (self.root / "outputs").read_text()
+        self.assertIn(f"previous_commit_sha={self.before}", outputs)
+        self.assertIn("release_kind=snapshot", outputs)
+
+    def test_manual_all_selection_stays_snapshot(self):
+        self.environment.update(EVENT_NAME="workflow_dispatch", MANUAL_SELECTION="all")
+        result = self.run_selection()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            (self.root / "integration-paths.txt").read_text().splitlines(),
+            ["first", "second", "unchanged"],
+        )
+        self.assertIn("release_kind=snapshot", (self.root / "outputs").read_text())
 
 
 if __name__ == "__main__":

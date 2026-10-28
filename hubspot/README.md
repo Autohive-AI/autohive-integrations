@@ -11,6 +11,7 @@ Key features include:
 - Company management with comprehensive property support
 - Advanced deal pipeline management with UTC date handling
 - Support ticket management with conversation threading
+- LinkedIn message logging - Log LinkedIn messages on up to 100 contacts at once (for example, accepted connection requests), and create or update contacts in bulk by email
 - Call and meeting transcript access - Retrieve transcripts and notes from calls and meetings (including Google Meet recordings saved to HubSpot)
 - Marketing emails - List and retrieve marketing emails
 - Campaigns - Browse marketing campaigns and their associated content
@@ -77,6 +78,26 @@ This integration provides comprehensive actions covering complete CRUD operation
     - `jobtitle`: Job title
 - **Outputs:** Created contact object with `id` and contact details
 
+#### Action: `upsert_contacts`
+- **Description:** Create or update up to 100 contacts in one call, matched on email. Existing contacts are updated instead of duplicated, so this is the step to run before `log_linkedin_messages` for people who aren't in HubSpot yet.
+- **Inputs:**
+  - `contacts` (required): 1–100 rows, each with:
+    - `email` (required): Used to match an existing contact. Each contact may appear only once per call: repeating an email, or passing two emails of the same contact (for example its primary and an additional email), rejects the call before anything is written
+    - `first_name`, `last_name` (optional)
+    - `properties` (optional): Other contact properties by internal name, e.g. `{"jobtitle": "CTO"}`. `null` or `""` clears a value and a list sets multi-select options. `email` is ignored here: it only identifies the contact, so this action never changes a contact's primary email
+- **Outputs:**
+  - `results`: One row per input with `row_index`, `email`, `status` (`created`, `updated`, or `failed`), `contact_id`, and `error`. A row is `failed` when HubSpot rejected it or didn't say which contact it matched; retrying is safe
+  - `created`, `updated`, `failed`: Counts
+  - `success`: `true` when no rows failed
+- **Note:** People without an email address can't be matched or created by this action. The emails are looked up before anything is written; if HubSpot can't confirm them, nothing is written and the call fails, and retrying is safe. Uses HubSpot's [contacts batch upsert](https://developers.hubspot.com/docs/api-reference/crm-contacts-v3/batch/post-crm-v3-objects-contacts-batch-upsert) endpoint.
+
+#### Action: `get_contact_emails`
+- **Description:** Retrieve recent email conversations for a contact using the v4 Associations API
+- **Inputs:**
+  - `contact_id` (required): Internal object ID of the contact
+  - `email_limit` (optional): Maximum number of recent emails to retrieve (default: 5, max: 20)
+- **Outputs:** `contact_id`, `recent_emails` (with UTC timestamps), and `email_summary`
+
 #### Action: `update_contact`
 - **Description:** Updates an existing contact's information
 - **Inputs:**
@@ -125,6 +146,7 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `contact_id` (optional): Contact ID to associate the note with
   - `company_id` (optional): Company ID to associate the note with
   - `deal_id` (optional): Deal ID to associate the note with
+  - `associations` (optional): HubSpot associations array (native `to` / `types` format) for linking to other records, e.g. a ticket (type ID 228)
   - `timestamp` (optional): Custom timestamp in milliseconds (defaults to current time)
 - **Outputs:**
   - `note`: The created note object with HubSpot properties
@@ -178,6 +200,48 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `deal_id` (required): The deal ID to retrieve notes for
   - `limit` (optional): Maximum number of notes to retrieve (default: 100, max: 200)
 - **Outputs:** Array of note objects with UTC timestamps
+
+### Communications (LinkedIn Messages)
+
+These actions use HubSpot's [Communications API](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/guide). A logged message appears on the contact's timeline as **LinkedIn message**, the same as **Log activity > LinkedIn message** in the HubSpot UI.
+
+#### Action: `log_linkedin_messages`
+- **Description:** Log a LinkedIn message on up to 100 existing contacts in one call, for example everyone who accepted a LinkedIn connection request this week
+- **Inputs:**
+  - `messages` (required): 1–100 rows. Each row identifies one person by `contact_id`, `email`, or both `first_name` and `last_name` (checked in that order). Optional per row: `message_body`, `timestamp` (Unix milliseconds, or an ISO 8601 date such as `2026-10-21T09:30:00Z` read as UTC when it has no time zone; between 1970 and 9999; defaults to now), `company_id`, `deal_id`
+  - `default_message_body` (optional): Text used for rows without their own `message_body`, e.g. "Accepted LinkedIn connection request"
+  - `hubspot_owner_id` (optional): Owner shown as the author of every logged message
+- **Outputs:**
+  - `results`: One row per input with `row_index`, `identifier`, `status`, `contact_id`, `communication_id`, `candidates`, and `error`
+  - `logged`, `not_found`, `ambiguous`, `invalid`, `failed`: Counts
+  - `unmatched_communication_ids`: IDs of messages HubSpot created without saying which row each belongs to (those rows have `communication_id` null). Usually empty; use these IDs with the get/update/delete actions
+  - `success`: `true` only when every row was logged
+- **Row statuses:**
+  - `logged`: The message was created and associated with the contact (and the company/deal, if given)
+  - `not_found`: No contact matched the contact ID, email, or name. Nothing is created; run `upsert_contacts` first and pass the returned `contact_id`
+  - `ambiguous`: More than one contact matched; the matching IDs are in `candidates`. The action never guesses between people with the same name. Re-run the row with a `contact_id`
+  - `invalid`: The row has no identifier, no message body and no `default_message_body`, an unreadable `timestamp`, or a `company_id`/`deal_id` that doesn't exist
+  - `failed`: The contact, company, or deal lookup or HubSpot's create call returned an error, shown in `error`. If HubSpot creates only some messages without saying which rows they belong to, the remaining rows are `failed` with a warning to check HubSpot before retrying, so a retry doesn't log duplicates
+- **Note:** All email rows are looked up in one contacts batch read, which finds contacts created moments ago. A match on one of a contact's additional emails (`hs_additional_emails`) counts too. Name rows use HubSpot's exact (`EQ`) CRM search, one request per unique name, spaced to stay under HubSpot's limit of 5 searches per second. HubSpot's search index can lag behind newly created contacts, so after `upsert_contacts` pass the returned `contact_id` (or the email) rather than the name. Contact IDs, company IDs, and deal IDs are each checked with one batch read first, because HubSpot rejects the whole create if one linked record is missing; only the affected rows are skipped. All matched rows are created in a single [batch create](https://developers.hubspot.com/docs/api-reference/crm-communications-v3/batch/post-crm-v3-objects-communications-batch-create) call.
+
+#### Action: `get_linkedin_message`
+- **Description:** Get a logged LinkedIn message by ID
+- **Inputs:**
+  - `communication_id` (required): ID of the logged message (`communication_id` from `log_linkedin_messages`)
+- **Outputs:** `communication` with channel type, body, timestamp, owner, and associated contacts, companies, and deals
+
+#### Action: `update_linkedin_message`
+- **Description:** Update the text, timestamp, or owner of a logged LinkedIn message
+- **Inputs:**
+  - `communication_id` (required): ID of the logged message
+  - `message_body`, `timestamp`, `hubspot_owner_id` (at least one required). `timestamp` takes the same formats as in `log_linkedin_messages`. An empty `message_body` or `hubspot_owner_id` clears that value
+- **Outputs:** `communication`, `success`, `message`, `updated_properties`
+
+#### Action: `delete_linkedin_message`
+- **Description:** Delete a logged LinkedIn message. HubSpot moves it to the recycling bin, where it can be restored for 90 days
+- **Inputs:**
+  - `communication_id` (required): ID of the logged message
+- **Outputs:** `success`, `message`, `communication_id`
 
 ### Calls and Meetings (Transcripts)
 
@@ -309,6 +373,7 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Description:** Retrieve deals with comprehensive pagination support and optional rate limiting - ideal for accessing ALL deals from a pipeline
 - **Inputs:**
   - `limit` (optional): Deals per page (default: 50, max: 100)
+  - `after` (optional): Pagination cursor to continue from (`pagination.last_after_token` of the previous call)
   - `sort_property` (optional): Property to sort by (default: hs_lastmodifieddate)
   - `sort_direction` (optional): Sort direction ASC/DESC (default: DESC)
   - `fetch_all` (optional): Fetch all available pages (default: false)
@@ -324,11 +389,16 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `query` (optional): Text search across deal names
   - `pipeline_id` (optional): Filter by pipeline
   - `deal_stage` (optional): Filter by specific deal stage
+  - `year` (optional): Filter by close date year
   - `close_date_start/close_date_end` (optional): Date range filtering with flexible format support
   - `min_amount/max_amount` (optional): Amount range filtering
   - `sort_property` (optional): Sorting options
-  - `limit` (optional): Results per page (default: 100)
-- **Outputs:** Filtered deals with pagination guidance and timezone conversion
+  - `limit` (optional): Results per page (default: 50, max: 100)
+  - `after` (optional): Pagination cursor to continue from (`pagination.after` of the previous call)
+  - `fetch_all` (optional): Keep fetching pages until `max_total` deals are found (default: false)
+  - `max_total` (optional): Maximum deals across pages (default: `limit`, or 100 with `fetch_all`)
+- **Outputs:** Filtered deals with UTC dates, plus `pagination` (`has_more_pages`, `current_page_size`, `after`)
+- **Note:** All filters must match (AND)
 
 #### Action: `create_deal`
 - **Description:** Creates a new deal with optional associations
@@ -390,15 +460,31 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Outputs:** Similar structure to get_contact_associations with deal_id
 - **Use Case:** Get all contacts and companies involved in a deal
 
+#### Action: `create_association`
+- **Description:** Link two records, such as a contact to a company or a contact to a deal, using HubSpot's default association type (v4 Associations API)
+- **Inputs:**
+  - `from_object_type` (required): `contacts`, `companies`, `deals`, or `tickets`
+  - `from_object_id` (required): ID of the first record
+  - `to_object_type` (required): `contacts`, `companies`, `deals`, or `tickets`
+  - `to_object_id` (required): ID of the record to link to
+- **Outputs:** `success`, `message`, and HubSpot's association `response`
+
+### Owners
+
+#### Action: `get_owner`
+- **Description:** Retrieve a HubSpot owner by ID
+- **Inputs:**
+  - `owner_id` (required): The ID of the owner
+- **Outputs:** `owner` with name, email, and team information
+
 ### Lists/Segments Management
 
 #### Action: `get_lists`
 - **Description:** Retrieve all available lists/segments from HubSpot with filtering options
 - **Inputs:**
   - `list_ids` (optional): Array of specific list IDs to retrieve
-  - `include_filters` (optional): Include filter definitions for dynamic lists (default: false)
   - `processing_types` (optional): Filter by list types - ["MANUAL", "DYNAMIC", "SNAPSHOT"]
-- **Outputs:** Array of list objects with metadata including size, processing type, and creation dates
+- **Outputs:** Array of list objects with metadata including size, processing type, and creation dates. Filter definitions aren't included; use `get_list` with `include_filters` for a list's filters
 
 #### Action: `get_list`
 - **Description:** Retrieve detailed information about a specific list by ID
@@ -433,39 +519,13 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `batch_size` (optional): Records per API request (default: 250, max: 250)
 - **Outputs:** Array of membership records with contact IDs and timestamps only
 
-### Lead Management
-
-#### Action: `create_lead`
-- **Description:** Creates a new lead for potential customers
-- **Inputs:**
-  - `Last_Name` (required): Lead's last name
-  - `First_Name`: Lead's first name
-  - `Email`: Email address
-  - `Phone`, `Mobile`: Contact numbers
-  - `Company`: Lead's company
-  - `Title`: Job title
-  - `Industry`: Lead's industry
-  - `Lead_Status`: Current status (e.g., New, Contacted, Qualified)
-  - `Lead_Source`: How the lead was acquired
-  - `Rating`: Lead quality rating (Hot, Warm, Cold)
-  - Address fields and description
-- **Outputs:** Lead object with `id` and lead details
-
-#### Action: `convert_lead`
-- **Description:** Converts a qualified lead into contact, account, and/or deal records
-- **Inputs:** `lead_id` and conversion options
-- **Outputs:** IDs of created records (contact, account, deal)
-
-#### Action: `get_lead`, `update_lead`, `delete_lead`, `list_leads`, `search_leads`
-- **Description:** Standard CRUD operations for leads
-
 ### Task Management
 
 #### Action: `create_task`
 - **Description:** Create a new HubSpot task and optionally associate it with contacts, companies, or deals
 - **Inputs:**
-  - `hs_task_body` (required): The task notes (HubSpot property `hs_task_body`)
   - `hs_timestamp` (required): Task due date; Unix timestamp in milliseconds or UTC string (HubSpot `hs_timestamp`)
+  - `hs_task_body` (optional): The task notes (HubSpot property `hs_task_body`)
   - `hs_task_subject` (optional): Task title
   - `hs_task_status` (optional): Task status (e.g., `COMPLETED`, `NOT_STARTED`)
   - `hs_task_priority` (optional): Task priority (e.g., `LOW`, `MEDIUM`, `HIGH`)
@@ -492,17 +552,34 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `message`: Success or error message
 
 #### Action: `list_tasks`
-- **Description:** Retrieve tasks with optional pagination
+- **Description:** Retrieve tasks. With no filters it lists every task in ID order. With any filter it uses HubSpot's [CRM search API](https://developers.hubspot.com/docs/api-reference/search/guide) and sorts by due date, so you can fetch, for example, one person's open tasks that are overdue or due today.
 - **Inputs:**
   - `limit` (optional): Maximum tasks to return (default: 100, max: 100)
-  - `after` (optional): Paging cursor for next page
+  - `after` (optional): Paging cursor (`paging.next.after`) from the previous call with the same filters
   - `hs_task_properties` (optional): Array of HubSpot task CRM property internal names to retrieve (defaults match create/update task fields)
+  - `owner_id` (optional): Only tasks assigned to this owner ID
+  - `owner_email` (optional): Only tasks assigned to the HubSpot user with this email; resolved with the Owners API. Ignored when `owner_id` is given
+  - `status` (optional): Array of statuses to include: `NOT_STARTED`, `IN_PROGRESS`, `WAITING`, `COMPLETED`, `DEFERRED`
+  - `exclude_completed` (optional): `true` to leave out completed tasks
+  - `priority` (optional): Array of priorities to include: `NONE`, `LOW`, `MEDIUM`, `HIGH`
+  - `task_type` (optional): Array of task types to include, e.g. `CALL`, `EMAIL`, `TODO`
+  - `due_after` (optional): Only tasks due at or after this time
+  - `due_before` (optional): Only tasks due before this time (exclusive)
+  - `query` (optional): Text to search for in the task title and notes
+  - `contact_id` / `company_id` / `deal_id` (optional): Only tasks associated with this record
+  - `sort_direction` (optional): `ASCENDING` (default, oldest due date first) or `DESCENDING`
 - **Outputs:**
-  - `tasks`: Array of task objects
+  - `tasks`: Array of task objects, each with `associations.contacts`, `associations.companies` and `associations.deals` listing linked record IDs (types with no linked records are omitted)
   - `total`: Number of tasks returned in this response
+  - `total_matching`: Number of tasks matching the filters across all pages (filtered searches only)
   - `paging`: Next-page metadata if available
   - `success`: Boolean indicating retrieval status
   - `message`: Success or error message
+- **Notes:**
+  - `due_after` and `due_before` take Unix milliseconds or an ISO 8601 date. Include the user's UTC offset to filter by their local day: `due_before: "2026-10-28T00:00:00+13:00"` returns everything overdue or due by the end of 27 October in New Zealand. A date without a time zone is read as UTC.
+  - HubSpot allows up to 6 filters per search; the owner, each of `status`/`exclude_completed`/`priority`/`task_type`, each due date bound and each linked record count as one.
+  - Search results can lag a few seconds behind recent changes, and HubSpot returns at most 10,000 matches per search.
+  - Filtered searches make 3 extra requests per page to read each task's linked contacts, companies and deals.
 
 #### Action: `update_task`
 - **Description:** Update an existing task's content or properties
@@ -564,11 +641,12 @@ This integration provides comprehensive actions covering complete CRUD operation
 ### Marketing Emails
 
 #### Action: `get_marketing_emails`
-- **Description:** Retrieve a list of marketing emails with optional filtering by archived status
+- **Description:** Retrieve a list of marketing emails with optional filtering by archived and published status
 - **Inputs:**
   - `limit` (optional): Maximum number of emails to return (default: 50, max: 100)
   - `after` (optional): Pagination cursor for fetching next page of results
   - `archived` (optional): Filter by archived status (default: false)
+  - `is_published` (optional): `true` for only published emails, `false` for only unpublished; omit for both
 - **Outputs:**
   - `emails`: Array of marketing email objects with id, name, subject, type, state, created_at, updated_at
   - `total`: Total number of emails returned
@@ -603,7 +681,7 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `campaign_id` (required): The GUID of the campaign
   - `asset_type` (required): Type of assets to retrieve (LANDING_PAGE, MARKETING_EMAIL, FORM, BLOG_POST, SOCIAL_POST, CTA, WORKFLOW, SMS)
   - `start_date` (optional): Start date for metrics period (YYYY-MM-DD format)
-  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format)
+  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format). HubSpot only returns metrics when both dates are given
   - `limit` (optional): Maximum number of assets to return (default: 50, max: 100)
   - `after` (optional): Pagination cursor
 - **Outputs:**
@@ -618,7 +696,7 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Inputs:**
   - `campaign_id` (required): The GUID of the campaign
   - `start_date` (optional): Start date for metrics period (YYYY-MM-DD format)
-  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format)
+  - `end_date` (optional): End date for metrics period (YYYY-MM-DD format). HubSpot only returns metrics when both dates are given; without them every total is 0
 - **Outputs:**
   - `campaign_id`: The campaign GUID
   - `date_range`: Object with start_date and end_date
@@ -723,8 +801,7 @@ The integration has the following dependencies:
 **Example 7: Getting all lists/segments**
 ```json
 {
-  "processing_types": ["DYNAMIC", "MANUAL"],
-  "include_filters": false
+  "processing_types": ["DYNAMIC", "MANUAL"]
 }
 ```
 
@@ -953,7 +1030,49 @@ The integration has the following dependencies:
 }
 ```
 
+**Example 18: Get one person's open tasks that are overdue or due today (New Zealand time)**
+```json
+{
+  "owner_email": "rep@example.com",
+  "exclude_completed": true,
+  "due_before": "2026-10-28T00:00:00+13:00",
+  "hs_task_properties": ["hs_task_subject", "hs_task_body", "hs_task_status", "hs_task_priority", "hs_timestamp"]
+}
+```
+
+**Response:**
+```json
+{
+  "tasks": [
+    {
+      "id": "11",
+      "properties": {
+        "hs_task_subject": "Call Acme about renewal",
+        "hs_task_status": "NOT_STARTED",
+        "hs_task_priority": "HIGH",
+        "hs_timestamp": "24 Oct 2026 08:00 PM UTC"
+      },
+      "associations": {
+        "contacts": {"results": [{"id": "501"}]},
+        "deals": {"results": [{"id": "701"}]}
+      }
+    }
+  ],
+  "total": 1,
+  "total_matching": 1,
+  "paging": null,
+  "success": true,
+  "message": "Tasks retrieved successfully"
+}
+```
+
 ## Common Workflows
+
+### Task Triage Workflow
+1. Fetch the user's open tasks due before tomorrow's local midnight with `list_tasks` (`owner_email` or `owner_id`, `exclude_completed: true`, `due_before`)
+2. Page with `after` while `paging.next.after` is returned; `total_matching` says how many tasks matched
+3. For tasks that need context, read the linked companies and deals listed in each task's `associations` with `get_company` and `get_deal`
+4. Pull recent activity on the linked records with `get_contact_notes`, `get_contact_emails`, `get_contact_calls_and_meetings`, `get_deal_notes` or `get_deal_calls_and_meetings`, which all take the record ID
 
 ### Contact Management Workflow
 1. Search for existing contact using `get_contact` by email
@@ -977,6 +1096,12 @@ The integration has the following dependencies:
 4. Use `get_deals` with fetch_all for complete pipeline analysis
 5. Update deal stages and properties as they progress with `update_deal`
 6. For large pipelines, use `get_deals` with `delay_between_requests` to avoid rate limits
+
+### LinkedIn Connection Logging Workflow
+1. Add people who aren't in HubSpot yet with `upsert_contacts` (needs an email per person)
+2. Log the messages with `log_linkedin_messages`, passing each `contact_id` returned by step 1 and a `default_message_body` such as "Accepted LinkedIn connection request"
+3. Re-run any `ambiguous` rows with the right `contact_id` from `candidates`
+4. Fix or remove a wrongly logged message with `update_linkedin_message` or `delete_linkedin_message`
 
 ### Lists/Segments Management Workflow
 1. Discover available lists using `get_lists` with optional filtering by processing types
@@ -1042,18 +1167,24 @@ To run the tests included with the integration:
 5. To run only the read-only ticket tests, append `-k TestGetRecentTickets` to the read-only command. These request pages of 5 and 100 tickets, check limits/sorting and response structure, and compare the action output with the raw API response so missing/null values or records cannot silently be dropped. An empty account skips ticket-record coverage rather than claiming it was exercised.
 6. Optionally set `HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID` to a dedicated test ticket within the latest 100 modified tickets whose search response contains an explicit `subject: null`. This enables the targeted live regression; it fails if the configured fixture is absent or no longer null, and skips if the variable is unset. Tests do not create or modify the fixture.
 7. To run the destructive ticket-note test, set `HUBSPOT_TEST_TICKET_ID` to a test ticket and run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k TestAddTicketComment`. The test creates an internal note, verifies it is associated with the ticket through HubSpot's associations API, then deletes the note.
+8. To run the destructive LinkedIn message, contact upsert, and record-linking tests, run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k "LinkedInMessageWorkflow or UpsertContacts or CreateAssociation"`:
+   - `TestLinkedInMessageWorkflow` logs a LinkedIn message on `HUBSPOT_TEST_CONTACT_ID`, reads it, edits it, checks the edit saved, deletes it, and checks it is gone
+   - `TestUpsertContacts` changes the job title of the contact with `HUBSPOT_TEST_CONTACT_EMAIL`, checks it saved on the same contact, then restores the original value
+   - `TestCreateAssociation` links `HUBSPOT_TEST_CONTACT_ID` to `HUBSPOT_TEST_COMPANY_ID`, checks the link appears, then removes it. It skips if the two are already linked, so use an unlinked pair
 
 Use a current HubSpot OAuth access token for a dedicated test account, with the `tickets` scope for ticket tests. Missing credentials skip live tests; expired tokens, permission errors, and API failures fail rather than passing. Refresh expired tokens through your HubSpot OAuth app's token-refresh flow and update the local `.env`; never commit tokens.
 
 **Warning: destructive tests mutate real account data.** Run the list-membership tests deliberately on a test account with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k contact_to_static_list`.
 
-The list-membership tests reuse existing HubSpot test variables; this action does not introduce any new environment variables:
+The destructive tests use these HubSpot test variables, all listed in `.env.example`:
 
 | Variable | Purpose |
 | --- | --- |
 | `HUBSPOT_ACCESS_TOKEN` | OAuth access token for the live test account |
 | `HUBSPOT_TEST_LIST_ID` | ID of a manual or snapshot test list |
-| `HUBSPOT_TEST_CONTACT_ID` | Contact whose membership is added and removed during the test |
+| `HUBSPOT_TEST_CONTACT_ID` | Contact used for list-membership, LinkedIn message, and record-linking tests |
+| `HUBSPOT_TEST_CONTACT_EMAIL` | Email of an existing test contact, used by the contact upsert test |
+| `HUBSPOT_TEST_COMPANY_ID` | Company not yet linked to the test contact, used by the record-linking test |
 
 Both membership tests detect the contact's initial membership and restore that state in cleanup, including when an assertion fails.
 

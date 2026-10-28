@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
@@ -146,6 +146,16 @@ class TestGetDeals:
         call_args = mock_context.fetch.call_args
         assert call_args.args[0] == "https://api.hubapi.com/crm/v3/objects/deals/search"
         assert call_args.kwargs["method"] == "POST"
+
+    @pytest.mark.asyncio
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_resumes_from_after_cursor(self, mock_sleep, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        result = await hubspot.execute_action("get_deals", {"after": "150"}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"]["after"] == "150"
 
     @pytest.mark.asyncio
     @patch("asyncio.sleep", new_callable=AsyncMock)
@@ -328,7 +338,7 @@ class TestSearchDeals:
     async def test_retries_rate_limit_and_returns_deals(self, mock_sleep, mock_context):
         deal_data = {"id": "s1", "properties": {"dealname": "Search Hit"}}
         mock_context.fetch.side_effect = [
-            Exception("RateLimitError: HTTP 429: Rate limit exceeded"),
+            RateLimitError(1, 429, "Rate limit exceeded"),
             FetchResponse(status=200, headers={}, data={"results": [deal_data]}),
         ]
 
@@ -348,6 +358,61 @@ class TestSearchDeals:
         payload = mock_context.fetch.call_args.kwargs["json"]
         assert payload["query"] == "Acme"
         assert payload["limit"] == 25
+
+    @pytest.mark.asyncio
+    async def test_filters_are_combined_with_and(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        await hubspot.execute_action(
+            "search_deals",
+            {
+                "pipeline_id": "default",
+                "deal_stage": "closedwon",
+                "year": 2026,
+                "min_amount": 10000,
+                "max_amount": 50000,
+            },
+            mock_context,
+        )
+
+        # HubSpot ORs separate filter groups, so every filter must be in the same one
+        filter_groups = mock_context.fetch.call_args.kwargs["json"]["filterGroups"]
+        assert filter_groups == [
+            {
+                "filters": [
+                    {"propertyName": "pipeline", "operator": "EQ", "value": "default"},
+                    {"propertyName": "closedate", "operator": "GTE", "value": "1767225600000"},
+                    {"propertyName": "closedate", "operator": "LTE", "value": "1798761599000"},
+                    {"propertyName": "dealstage", "operator": "EQ", "value": "closedwon"},
+                    {"propertyName": "amount", "operator": "GTE", "value": "10000"},
+                    {"propertyName": "amount", "operator": "LTE", "value": "50000"},
+                ]
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_returns_cursor_when_limit_reached_before_last_page(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"results": [{"id": "s1", "properties": {}}], "paging": {"next": {"after": "1"}}},
+        )
+
+        result = await hubspot.execute_action("search_deals", {"query": "Acme", "limit": 1}, mock_context)
+
+        assert result.result.data["pagination"] == {"has_more_pages": True, "current_page_size": 1, "after": "1"}
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_last_page_has_no_cursor(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"results": [{"id": "s1", "properties": {}}]}
+        )
+
+        result = await hubspot.execute_action("search_deals", {"query": "Acme", "after": "1"}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["json"]["after"] == "1"
+        assert result.result.data["pagination"] == {"has_more_pages": False, "current_page_size": 1, "after": None}
 
 
 # ---- create_deal ----
@@ -656,7 +721,7 @@ class TestGetContactCallsAndMeetings:
         calls_response = FetchResponse(status=200, headers={}, data={"results": []})
         meetings_response = FetchResponse(status=200, headers={}, data={"results": []})
         mock_context.fetch.side_effect = [
-            Exception("HTTP 429: Rate limit exceeded"),
+            RateLimitError(1, 429, "Rate limit exceeded"),
             calls_response,
             meetings_response,
         ]
@@ -743,7 +808,7 @@ class TestGetDealCallsAndMeetings:
         meetings_response = FetchResponse(status=200, headers={}, data={"results": []})
         mock_context.fetch.side_effect = [
             calls_response,
-            Exception("HTTP 429: Rate limit exceeded"),
+            RateLimitError(1, 429, "Rate limit exceeded"),
             meetings_response,
         ]
 

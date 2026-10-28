@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
@@ -642,7 +642,7 @@ class TestAddTicketComment:
             headers={},
             data={"id": "note-new", "properties": {"hs_note_body": "rate limited"}},
         )
-        rate_limit_error = Exception("HTTP 429: Rate limit exceeded")
+        rate_limit_error = RateLimitError(1, 429, "Rate limit exceeded")
         mock_context.fetch.side_effect = [
             note_post_response,
             rate_limit_error,

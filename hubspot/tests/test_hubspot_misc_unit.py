@@ -796,6 +796,22 @@ class TestGetMarketingEmails:
         assert params["after"] == "abc123"
 
     @pytest.mark.asyncio
+    async def test_published_filter(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        await hubspot.execute_action("get_marketing_emails", {"is_published": False}, mock_context)
+
+        assert mock_context.fetch.call_args[1]["params"]["isPublished"] == "false"
+
+    @pytest.mark.asyncio
+    async def test_published_filter_omitted_by_default(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        await hubspot.execute_action("get_marketing_emails", {}, mock_context)
+
+        assert "isPublished" not in mock_context.fetch.call_args[1]["params"]
+
+    @pytest.mark.asyncio
     async def test_response_structure(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(
             status=200,
@@ -999,6 +1015,21 @@ class TestGetCampaignAssets:
         assert data["total"] == 1
         assert data["assets"][0]["name"] == "Spring Landing Page"
         assert data["assets"][0]["metrics"]["VIEWS"] == 500
+
+    @pytest.mark.asyncio
+    async def test_metrics_date_range_is_sent(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        result = await hubspot.execute_action(
+            "get_campaign_assets",
+            {"campaign_id": "c55", "asset_type": "FORM", "start_date": "2026-01-01", "end_date": "2026-03-31"},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION
+        params = mock_context.fetch.call_args.kwargs["params"]
+        assert params["startDate"] == "2026-01-01"
+        assert params["endDate"] == "2026-03-31"
 
     @pytest.mark.asyncio
     async def test_request_url_contains_campaign_id(self, mock_context):
