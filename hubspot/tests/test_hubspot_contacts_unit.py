@@ -72,6 +72,46 @@ class TestGetContact:
         assert sleep_mock.await_count == 3
 
     @pytest.mark.asyncio
+    async def test_contact_read_by_id(self, mock_context):
+        contact_data = {"id": "123", "properties": {"email": "test@example.com", "jobtitle": "CTO"}}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=contact_data)
+
+        result = await hubspot.execute_action(
+            "get_contact",
+            {"contact_id": "123", "email": "other@example.com", "properties": ["email", "jobtitle"]},
+            mock_context,
+        )
+
+        assert result.result.data["contact"] == contact_data
+        call = mock_context.fetch.call_args
+        assert call.args[0] == "https://api.hubapi.com/crm/objects/2026-09/contacts/123"
+        assert call.kwargs["params"] == {"properties": "email,jobtitle"}
+
+    @pytest.mark.asyncio
+    async def test_unknown_contact_id_not_found(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "Not found")
+
+        result = await hubspot.execute_action("get_contact", {"contact_id": "999"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Contact not found"
+
+    @pytest.mark.asyncio
+    async def test_contact_id_or_email_required(self, mock_context):
+        result = await hubspot.execute_action("get_contact", {"properties": ["email"]}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Give contact_id or email"
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_contact_id_cannot_change_the_path(self, mock_context):
+        result = await hubspot.execute_action("get_contact", {"contact_id": "1/../../owners"}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_contact_not_found(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
 

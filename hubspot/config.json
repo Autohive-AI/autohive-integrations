@@ -29,13 +29,18 @@
   "actions": {
     "get_contact": {
       "display_name": "Get Contact",
-      "description": "Retrieve a HubSpot contact by email address using CRM v3 API. Supports custom properties.",
+      "description": "Retrieve a HubSpot contact by ID or email address. Supports custom properties. Use the ID for contacts linked to tasks, deals or companies",
       "input_schema": {
         "type": "object",
         "properties": {
+          "contact_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "HubSpot contact ID. Takes precedence over email"
+          },
           "email": {
             "type": "string",
-            "description": "Email address of the contact to retrieve"
+            "description": "Email address of the contact to retrieve, when contact_id isn't known"
           },
           "properties": {
             "type": "array",
@@ -44,10 +49,7 @@
             },
             "description": "Optional list of specific properties to retrieve (including custom properties). If not provided, returns standard properties (email, firstname, lastname, phone, company, jobtitle)."
           }
-        },
-        "required": [
-          "email"
-        ]
+        }
       },
       "output_schema": {
         "type": "object",

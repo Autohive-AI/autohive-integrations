@@ -146,6 +146,15 @@ async def contact_is_in_test_list(context):
 
 
 class TestGetContact:
+    async def test_read_by_id(self, live_context):
+        require_contact_id()
+        result = await hubspot.execute_action(
+            "get_contact", {"contact_id": TEST_CONTACT_ID, "properties": ["email"]}, live_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["contact"]["id"] == TEST_CONTACT_ID
+        assert "email" in result.result.data["contact"]["properties"]
+
     async def test_search_by_email(self, live_context):
         require_contact_email()
         result = await hubspot.execute_action("get_contact", {"email": TEST_CONTACT_EMAIL}, live_context)

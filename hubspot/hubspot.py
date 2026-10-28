@@ -352,24 +352,39 @@ async def _association_labels(
 @hubspot.action("get_contact")
 class GetContactActionHandler(ActionHandler):
     """
-    Action handler to retrieve a HubSpot contact by email.
-
-    Fetches the contact profile using v3 API.
+    Action handler to retrieve a HubSpot contact by ID or email.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         """
         Execute the get_contact action.
 
-        :param inputs: Dictionary with key "email" and optional "properties".
+        :param inputs: Dictionary with "contact_id" or "email", and optional "properties".
         :param context: Execution context containing authentication and fetch method.
         :return: Dictionary with contact information.
         """
-        email = inputs["email"]
+        contact_id = inputs.get("contact_id")
+        email = inputs.get("email")
         properties = inputs.get(
             "properties",
             ["email", "firstname", "lastname", "phone", "company", "jobtitle"],
         )
+
+        if contact_id:
+            try:
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    f"{OBJECTS_API_URL}/contacts/{contact_id}",
+                    params={"properties": ",".join(properties)},
+                    headers={"Content-Type": "application/json"},
+                )
+            except HTTPError as e:
+                if e.status == 404:
+                    return ActionError(message="Contact not found")
+                raise
+            return ActionResult(data={"contact": await parse_response(response)}, cost_usd=None)
+        if not email:
+            return ActionError(message="Give contact_id or email")
 
         # Get contact by email using v3 search API
         search_url = "https://api.hubapi.com/crm/v3/objects/contacts/search"

@@ -59,12 +59,12 @@ This integration provides comprehensive actions covering complete CRUD operation
 ### Contact Management
 
 #### Action: `get_contact`
-- **Description:** Retrieve a HubSpot contact by email address with optional recent email conversations
+- **Description:** Retrieve a HubSpot contact by ID or email address
 - **Inputs:**
-  - `email` (required): Email address of the contact to retrieve
-  - `include_recent_emails` (optional): Include recent email conversations (default: false)
-  - `email_limit` (optional): Maximum number of recent emails to retrieve (default: 5, max: 20)
-- **Outputs:** Contact object with profile information and optional email history with UTC timestamps
+  - `contact_id` (optional): HubSpot contact ID, e.g. from a task's or deal's associations. Takes precedence over `email`
+  - `email` (optional): Email address of the contact, when the ID isn't known
+  - `properties` (optional): Properties to return, including custom ones (default: email, firstname, lastname, phone, company, jobtitle)
+- **Outputs:** `contact` with `id` and `properties`. One of `contact_id` or `email` is required
 
 #### Action: `create_contact`
 - **Description:** Creates a new contact in HubSpot CRM
@@ -783,12 +783,17 @@ The integration has the following dependencies:
 
 ## Usage Examples
 
-**Example 1: Getting a contact with recent emails**
+**Example 1: Getting a contact by email, then by ID**
 ```json
 {
   "email": "john.smith@company.com",
-  "include_recent_emails": true,
-  "email_limit": 10
+  "properties": ["firstname", "lastname", "jobtitle", "hubspot_owner_id"]
+}
+```
+
+```json
+{
+  "contact_id": "501"
 }
 ```
 
@@ -1213,7 +1218,7 @@ The integration has the following dependencies:
 2. If contact doesn't exist, create new contact with `create_contact`
 3. Update contact information as needed with `update_contact`
 4. Add or remove the contact from marketing lists using `add_contact_to_list` or `remove_contact_from_list`
-5. Track recent email conversations with `get_contact` (include_recent_emails: true)
+5. Track recent email conversations with `get_contact_emails`
 
 ### Note Management Workflow
 1. Add notes to contacts after interactions using `create_note`
