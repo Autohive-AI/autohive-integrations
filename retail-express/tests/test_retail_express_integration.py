@@ -43,16 +43,19 @@ def live_context(env_credentials, make_context):
     return context
 
 
-def assert_list_result(result, records_key: str, max_items: int) -> list:
+def assert_list_result(result, records_key: str, page_size: int, page_number: int = 1) -> list:
     assert result.type == ResultType.ACTION
     data = result.result.data
-    assert isinstance(data[records_key], list)
-    assert len(data[records_key]) <= max_items
-    assert isinstance(data["page_number"], int)
-    assert isinstance(data["page_size"], int)
+    records = data[records_key]
+    assert isinstance(records, list)
+    assert len(records) <= page_size
+    assert data["page_number"] == page_number
+    assert data["page_size"] == page_size
     assert isinstance(data["total_records"], int)
+    if page_number == 1 and data["total_records"] > 0:
+        assert records, f"{records_key} was empty despite a positive first-page total"
     assert data["result"] is True
-    return data[records_key]
+    return records
 
 
 class TestProducts:
