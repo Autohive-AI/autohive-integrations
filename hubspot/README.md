@@ -383,12 +383,14 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `after` (optional): Pagination cursor to continue from (`pagination.last_after_token` of the previous call)
   - `sort_property` (optional): Property to sort by (default: hs_lastmodifieddate)
   - `sort_direction` (optional): Sort direction ASC/DESC (default: DESC)
-  - `fetch_all` (optional): Fetch all available pages (default: false)
+  - `fetch_all` (optional): Keep paging until the last page or `max_total` deals (default: false)
   - `pipeline_id` (optional): Filter by specific pipeline ID
   - `year` (optional): Filter by close date year for performance
-  - `max_total` (optional): Maximum total deals across all pages (default: 100, max: 5000)
+  - `start_date` / `end_date` (optional): Only deals whose `date_field` falls in this range (UTC dates, e.g. `2026-01-31`). A date that can't be read is an error rather than being ignored
+  - `date_field` (optional): `hs_lastmodifieddate` (default), `createdate` or `closedate`
+  - `max_total` (optional): Maximum total deals across all pages (default: `limit`, or 100 with `fetch_all`; max: 5000)
   - `delay_between_requests` (optional): Delay in seconds between requests for rate limiting (default: 0, no delay)
-- **Outputs:** Array of deals with comprehensive pagination metadata and UTC formatted dates
+- **Outputs:** Array of deals with pagination metadata and UTC formatted dates. `pagination.has_more_pages` is `true` (and `fetched_all_available` `false`) whenever HubSpot has more deals, including when `max_total` stopped the fetch; continue with `pagination.last_after_token`
 
 #### Action: `search_deals`
 - **Description:** Search deals using advanced filters and text queries with intelligent post-processing

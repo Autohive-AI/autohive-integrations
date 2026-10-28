@@ -3384,7 +3384,6 @@ class GetDealsActionHandler(ActionHandler):
 
         deals = []
         unique_deal_ids = set()  # For deduplication
-        has_more = True
         after = inputs.get("after")  # Allow starting from specific pagination token
         total_fetched = 0
         # Respect user's limit parameter even when fetch_all is false
@@ -3419,7 +3418,41 @@ class GetDealsActionHandler(ActionHandler):
             ],
         )
 
-        while has_more and total_fetched < max_total:
+        # Build single filter group with AND logic (all filters in one group)
+        all_filters = []
+
+        # Pipeline filtering
+        if inputs.get("pipeline_id"):
+            all_filters.append({"propertyName": "pipeline", "operator": "EQ", "value": inputs["pipeline_id"]})
+
+        # Year filtering to reduce response size
+        if inputs.get("year"):
+            start_ms = int(datetime(inputs["year"], 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+            end_ms = int(datetime(inputs["year"], 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
+            all_filters.append({"propertyName": "closedate", "operator": "GTE", "value": str(start_ms)})
+            all_filters.append({"propertyName": "closedate", "operator": "LTE", "value": str(end_ms)})
+
+        # Date range filtering with flexible start and end dates
+        date_field = inputs.get("date_field", "hs_lastmodifieddate")
+        try:
+            # The parsed dates are naive; they're UTC, not the server's local time
+            if inputs.get("start_date"):
+                start_date = parse_date_string_to_utc(inputs["start_date"]).replace(tzinfo=timezone.utc)
+                start_ms = int(start_date.timestamp() * 1000)
+                all_filters.append({"propertyName": date_field, "operator": "GTE", "value": str(start_ms)})
+            if inputs.get("end_date"):
+                # Set to end of day (23:59:59) for end date
+                end_date = parse_date_string_to_utc(inputs["end_date"]).replace(
+                    hour=23, minute=59, second=59, tzinfo=timezone.utc
+                )
+                end_ms = int(end_date.timestamp() * 1000)
+                all_filters.append({"propertyName": date_field, "operator": "LTE", "value": str(end_ms)})
+        except ValueError as e:
+            # Searching without the date filter would return deals outside the requested range
+            return ActionError(message=str(e))
+
+        next_after = None
+        while total_fetched < max_total:
             # Add delay between requests to avoid rate limits (skip on first request)
             if total_fetched > 0 and delay_between_requests > 0:
                 await asyncio.sleep(delay_between_requests)
@@ -3433,83 +3466,6 @@ class GetDealsActionHandler(ActionHandler):
             # Add after token for pagination
             if after:
                 request_body["after"] = after
-
-            # Build single filter group with AND logic (all filters in one group)
-            all_filters = []
-
-            # Pipeline filtering
-            if inputs.get("pipeline_id"):
-                all_filters.append(
-                    {
-                        "propertyName": "pipeline",
-                        "operator": "EQ",
-                        "value": inputs["pipeline_id"],
-                    }
-                )
-
-            # Year filtering to reduce response size
-            if inputs.get("year"):
-                try:
-                    year = int(inputs["year"])
-                    # Create start and end of year in UTC milliseconds
-                    start_of_year = datetime(year, 1, 1, tzinfo=timezone.utc)
-                    end_of_year = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
-
-                    start_ms = int(start_of_year.timestamp() * 1000)
-                    end_ms = int(end_of_year.timestamp() * 1000)
-
-                    all_filters.extend(
-                        [
-                            {
-                                "propertyName": "closedate",
-                                "operator": "GTE",
-                                "value": str(start_ms),
-                            },
-                            {
-                                "propertyName": "closedate",
-                                "operator": "LTE",
-                                "value": str(end_ms),
-                            },
-                        ]
-                    )
-                except (ValueError, TypeError):
-                    pass  # Invalid year, skip filtering
-
-            # Date range filtering with flexible start and end dates
-            if inputs.get("start_date") or inputs.get("end_date"):
-                try:
-                    date_field = inputs.get("date_field", "hs_lastmodifieddate")
-
-                    # Parse and add start date filter if provided
-                    if inputs.get("start_date"):
-                        start_date = parse_date_string_to_utc(inputs["start_date"])
-                        if start_date:
-                            start_ms = int(start_date.timestamp() * 1000)
-                            all_filters.append(
-                                {
-                                    "propertyName": date_field,
-                                    "operator": "GTE",
-                                    "value": str(start_ms),
-                                }
-                            )
-
-                    # Parse and add end date filter if provided
-                    if inputs.get("end_date"):
-                        end_date = parse_date_string_to_utc(inputs["end_date"])
-                        if end_date:
-                            # Set to end of day (23:59:59) for end date
-                            end_date = end_date.replace(hour=23, minute=59, second=59)
-                            end_ms = int(end_date.timestamp() * 1000)
-                            all_filters.append(
-                                {
-                                    "propertyName": date_field,
-                                    "operator": "LTE",
-                                    "value": str(end_ms),
-                                }
-                            )
-
-                except (ValueError, TypeError):
-                    pass  # Invalid date format, skip filtering
 
             # Create single filter group if any filters exist
             if all_filters:
@@ -3525,80 +3481,73 @@ class GetDealsActionHandler(ActionHandler):
             )
 
             result = await parse_response(response)
+            page_deals = (result or {}).get("results") or []
 
-            if result and result.get("results"):
-                page_deals = result["results"]
+            # Deduplicate deals by ID
+            new_deals = []
+            for deal in page_deals:
+                deal_id = deal.get("id")
+                if deal_id and deal_id not in unique_deal_ids:
+                    unique_deal_ids.add(deal_id)
+                    new_deals.append(deal)
 
-                # Deduplicate deals by ID
-                new_deals = []
-                for deal in page_deals:
-                    deal_id = deal.get("id")
-                    if deal_id and deal_id not in unique_deal_ids:
-                        unique_deal_ids.add(deal_id)
-                        new_deals.append(deal)
+            deals.extend(new_deals)
+            total_fetched += len(new_deals)
 
-                deals.extend(new_deals)
-                total_fetched += len(new_deals)
+            # Log deduplication info if duplicates were found
+            duplicates_removed = len(page_deals) - len(new_deals)
+            if duplicates_removed > 0:
+                # Store deduplication info for debugging
+                if not hasattr(context, "_deduplication_stats"):
+                    context._deduplication_stats = {
+                        "pages_with_duplicates": 0,
+                        "total_duplicates_removed": 0,
+                    }
+                context._deduplication_stats["pages_with_duplicates"] += 1
+                context._deduplication_stats["total_duplicates_removed"] += duplicates_removed
 
-                # Check for more pages
-                paging = result.get("paging")
-                if paging and paging.get("next") and paging["next"].get("after"):
-                    after = paging["next"]["after"]
-                    # Continue if fetch_all is True OR if we haven't reached the user's requested limit
-                    has_more = fetch_all or total_fetched < max_total
-                else:
-                    has_more = False
-
-                # Log deduplication info if duplicates were found
-                duplicates_removed = len(page_deals) - len(new_deals)
-                if duplicates_removed > 0:
-                    # Store deduplication info for debugging
-                    if not hasattr(context, "_deduplication_stats"):
-                        context._deduplication_stats = {
-                            "pages_with_duplicates": 0,
-                            "total_duplicates_removed": 0,
-                        }
-                    context._deduplication_stats["pages_with_duplicates"] += 1
-                    context._deduplication_stats["total_duplicates_removed"] += duplicates_removed
-            else:
-                has_more = False
+            # HubSpot only returns a cursor when there's another page
+            next_after = (((result or {}).get("paging") or {}).get("next") or {}).get("after")
+            if not next_after or not page_deals:
+                next_after = None
+                break
+            after = next_after
 
         # Convert deal dates from UTC timestamps to readable UTC strings
         for deal in deals:
             convert_deal_dates_to_utc(deal)
 
         # Prepare clear pagination guidance
-        has_more_pages = has_more and total_fetched < max_total
+        has_more_pages = next_after is not None
         pagination_instructions = ""
         next_page_params = {}
 
         if has_more_pages:
+            limit_note = (
+                f"Stopped at the maximum of {max_total} deals; increase 'max_total' (up to 5000) to get more at once. "
+                if total_fetched >= max_total and fetch_all
+                else ""
+            )
             pagination_instructions = (
-                f"There are more deals available. You retrieved {total_fetched} deals so far. "
-                f"To get the next page, use 'get_deals' with the same parameters plus 'after': '{after}'. "
-                "Or set 'fetch_all': true to get all remaining deals automatically. "
+                f"There are more deals available. You retrieved {total_fetched} deals so far. {limit_note}"
+                f"To get the next page, use 'get_deals' with the same parameters plus 'after': '{next_after}'. "
+                "Or set 'fetch_all': true to get the remaining deals automatically, up to 'max_total'. "
                 "For rate limiting, add 'delay_between_requests': 1.0."
             )
             next_page_params = {
                 "action": "get_deals",
-                "parameters": {**inputs, "after": after},
-                "alternative": {**inputs, "fetch_all": True},
+                "parameters": {**inputs, "after": next_after},
+                "alternative": {**inputs, "after": next_after, "fetch_all": True},
                 "rate_limited_alternative": {
                     **inputs,
+                    "after": next_after,
                     "fetch_all": True,
                     "delay_between_requests": 1.0,
                 },
             }
-        elif not has_more:
-            pagination_instructions = (
-                f"You have retrieved all available deals ({total_fetched} total). No more pages available."
-            )
         else:
             pagination_instructions = (
-                f"Reached the maximum limit of {max_total} deals. There may be more deals available. "
-                "To get more, increase 'max_total' or use specific filters to narrow the search. "
-                "For comprehensive fetching with rate limiting, use 'fetch_all': true "
-                "and 'delay_between_requests': 1.0."
+                f"You have retrieved all available deals ({total_fetched} total). No more pages available."
             )
 
         # Get deduplication stats if available
@@ -3609,9 +3558,9 @@ class GetDealsActionHandler(ActionHandler):
             "results": deals,
             "total": len(deals),
             "pagination": {
-                "fetched_all_available": not has_more or total_fetched >= max_total,
+                "fetched_all_available": not has_more_pages,
                 "total_fetched": total_fetched,
-                "last_after_token": after,
+                "last_after_token": next_after,
                 "has_more_pages": has_more_pages,
                 "current_page_size": len(deals),
                 "pagination_instructions": pagination_instructions,
