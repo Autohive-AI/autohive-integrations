@@ -390,6 +390,21 @@ class TestSearchCompanies:
         assert payload["limit"] == 25
 
     @pytest.mark.asyncio
+    async def test_after_cursor_sent(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        await hubspot.execute_action("search_companies", {"query": "test", "after": "100"}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["json"] == {"query": "test", "limit": 100, "after": "100"}
+
+    @pytest.mark.asyncio
+    async def test_limit_over_200_rejected_by_schema(self, mock_context):
+        result = await hubspot.execute_action("search_companies", {"query": "test", "limit": 500}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_default_limit_100(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": [], "total": 0})
 

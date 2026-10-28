@@ -332,8 +332,9 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Description:** Search companies using text queries
 - **Inputs:**
   - `query` (required): Search query string
-  - `limit` (optional): Maximum results (default: 100)
-- **Outputs:** Array of matching company objects
+  - `limit` (optional): Results per page (default: 100, max: 200)
+  - `after` (optional): `paging.next.after` from the previous call, to get the next page
+- **Outputs:** `results`, `total` (all pages) and `paging`
 
 #### Action: `search_companies_by_owner_name`
 - **Description:** Search companies assigned to a HubSpot owner by first/last/full owner name. Owner lookup paginates through HubSpot owners before searching companies.

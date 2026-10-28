@@ -2706,7 +2706,7 @@ class SearchCompaniesActionHandler(ActionHandler):
         """
         Execute the search_companies action.
 
-        :param inputs: Dictionary with keys "query" (search term) and "limit" (maximum number of results).
+        :param inputs: Dictionary with keys "query" (search term), "limit" (results per page) and "after".
         :param context: Execution context containing authentication details.
         :return: Parsed JSON response with the search results.
         """
@@ -2717,6 +2717,8 @@ class SearchCompaniesActionHandler(ActionHandler):
         url = "https://api.hubapi.com/crm/v3/objects/companies/search"
 
         payload = {"query": query, "limit": limit}
+        if inputs.get("after"):
+            payload["after"] = inputs["after"]
 
         response = await fetch_with_rate_limit_retries(
             context,

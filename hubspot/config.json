@@ -2622,8 +2622,14 @@
             "description": "Search query for companies."
           },
           "limit": {
-            "type": "number",
-            "description": "Number of results to return (default: 100)."
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "description": "Number of results per page (default: 100, max: 200)"
+          },
+          "after": {
+            "type": "string",
+            "description": "paging.next.after from the previous call, to get the next page"
           }
         },
         "required": [
@@ -2636,6 +2642,17 @@
           "results": {
             "type": "array",
             "description": "Search results for companies."
+          },
+          "total": {
+            "type": "integer",
+            "description": "Companies matching across all pages"
+          },
+          "paging": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "paging.next.after holds the cursor for the next page; absent on the last page"
           }
         },
         "required": [
