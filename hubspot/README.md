@@ -1371,6 +1371,12 @@ The integration has the following dependencies:
 
 ## Testing
 
+All live tests that create, update, link, unlink or delete data are marked
+`destructive` and skip unless `--run-hubspot-destructive` is explicitly supplied.
+Unmarked live tests reject write requests before opening a network session.
+CI/default pytest selects only mocked unit tests; broad live selections remain
+read-only unless the destructive opt-in is deliberately enabled.
+
 The read-optimization checks use only existing records and reject writes before
 sending requests. Run them separately with:
 
@@ -1399,15 +1405,15 @@ To run the tests included with the integration:
 4. Run read-only live tests with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and not destructive"`
 5. To run only the read-only ticket tests, append `-k TestGetRecentTickets` to the read-only command. These request pages of 5 and 100 tickets, check limits/sorting and response structure, and compare the action output with the raw API response so missing/null values or records cannot silently be dropped. An empty account skips ticket-record coverage rather than claiming it was exercised.
 6. Optionally set `HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID` to a dedicated test ticket within the latest 100 modified tickets whose search response contains an explicit `subject: null`. This enables the targeted live regression; it fails if the configured fixture is absent or no longer null, and skips if the variable is unset. Tests do not create or modify the fixture.
-7. To run the destructive ticket-note test, set `HUBSPOT_TEST_TICKET_ID` to a test ticket and run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k TestAddTicketComment`. The test creates an internal note, verifies it is associated with the ticket through HubSpot's associations API, then deletes the note.
-8. To run the destructive LinkedIn message, contact upsert, and record-linking tests, run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k "LinkedInMessageWorkflow or UpsertContacts or CreateAssociation"`:
+7. To run the destructive ticket-note test, set `HUBSPOT_TEST_TICKET_ID` to a test ticket and run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" --run-hubspot-destructive -k TestAddTicketComment`. The test creates an internal note, verifies it is associated with the ticket through HubSpot's associations API, then deletes the note.
+8. To run the destructive LinkedIn message, contact upsert, and record-linking tests, run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" --run-hubspot-destructive -k "LinkedInMessageWorkflow or UpsertContacts or CreateAssociation"`:
    - `TestLinkedInMessageWorkflow` logs a LinkedIn message on `HUBSPOT_TEST_CONTACT_ID`, reads it, edits it, checks the edit saved, deletes it, and checks it is gone
    - `TestUpsertContacts` changes the job title of the contact with `HUBSPOT_TEST_CONTACT_EMAIL`, checks it saved on the same contact, then restores the original value
    - `TestCreateAssociation` links `HUBSPOT_TEST_CONTACT_ID` to `HUBSPOT_TEST_COMPANY_ID`, checks the link appears, then removes it. It skips if the two are already linked, so use an unlinked pair
 
 Use a current HubSpot OAuth access token for a dedicated test account, with the `tickets` scope for ticket tests. Missing credentials skip live tests; expired tokens, permission errors, and API failures fail rather than passing. Refresh expired tokens through your HubSpot OAuth app's token-refresh flow and update the local `.env`; never commit tokens.
 
-**Warning: destructive tests mutate real account data.** Run the list-membership tests deliberately on a test account with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k contact_to_static_list`.
+**Warning: destructive tests mutate real account data.** Run the list-membership tests deliberately on a test account with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" --run-hubspot-destructive -k contact_to_static_list`.
 
 The destructive tests use these HubSpot test variables, all listed in `.env.example`:
 

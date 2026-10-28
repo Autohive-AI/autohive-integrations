@@ -19,7 +19,7 @@ Run read-only tests with:
 
 Tests that create, update, or delete data are marked @pytest.mark.destructive.
 Run them deliberately on a test account only; this command mutates real data:
-    pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive"
+    pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" --run-hubspot-destructive
 
 For the targeted nullable-subject regression, set
 HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID to a ticket returned in the latest 100
@@ -56,13 +56,17 @@ TEST_CONTACT_EMAIL = os.environ.get("HUBSPOT_TEST_CONTACT_EMAIL", "")
 
 
 @pytest.fixture
-def live_context(env_credentials):
+def live_context(request, env_credentials):
     """Execution context wired to a real HTTP client with HubSpot OAuth token.
 
     The HubSpot integration relies on context.fetch to auto-inject the OAuth token
     (auth.type = "platform"). In tests we bypass the SDK auth layer and manually
     add the Authorization header to every request.
     """
+    allow_writes = request.node.get_closest_marker("destructive") is not None
+    if allow_writes and not request.config.getoption("--run-hubspot-destructive"):
+        pytest.skip("Destructive HubSpot tests require --run-hubspot-destructive and a dedicated test account")
+
     access_token = env_credentials("HUBSPOT_ACCESS_TOKEN")
     if not access_token:
         pytest.skip("HUBSPOT_ACCESS_TOKEN not set — skipping integration tests")
@@ -72,6 +76,12 @@ def live_context(env_credentials):
     api_responses = []
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
+        target = urlsplit(url)
+        assert target.scheme == "https" and target.netloc == "api.hubapi.com", "Unexpected HubSpot API host"
+        if not allow_writes:
+            assert method.upper() == "GET" or (
+                method.upper() == "POST" and target.path.endswith(("/search", "/batch/read"))
+            ), f"Read-only test blocked {method} {target.path}"
         merged_headers = dict(headers or {})
         merged_headers["Authorization"] = f"Bearer {access_token}"
         async with (
@@ -932,7 +942,7 @@ class TestLegacyReadEfficiency:
 
 # ---- Destructive Tests (Write Operations) ----
 # These create, update, or delete real data in HubSpot.
-# Only run with: pytest -m "integration and destructive"
+# Only run with: pytest -m "integration and destructive" --run-hubspot-destructive
 
 
 @pytest.mark.destructive
