@@ -469,6 +469,8 @@ class GetContactNotesActionHandler(ActionHandler):
                 "limit": limit,
                 "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
             }
+            if inputs.get("after"):
+                search_body["after"] = inputs["after"]
 
             response = await fetch_with_rate_limit_retries(
                 context,
@@ -493,11 +495,15 @@ class GetContactNotesActionHandler(ActionHandler):
                         if timestamp_field in props and props[timestamp_field]:
                             props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(props[timestamp_field])
 
+            after = ((result.get("paging") or {}).get("next") or {}).get("after")
             return ActionResult(
                 data={
                     "contact_id": contact_id,
                     "notes": notes,
                     "total": len(notes),
+                    "total_matching": result.get("total", len(notes)),
+                    "has_more": after is not None,
+                    "after": after,
                 },
                 cost_usd=None,
             )
@@ -2536,6 +2542,8 @@ class GetCompanyNotesActionHandler(ActionHandler):
                 "limit": limit,
                 "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
             }
+            if inputs.get("after"):
+                search_body["after"] = inputs["after"]
 
             response = await fetch_with_rate_limit_retries(
                 context,
@@ -2560,11 +2568,15 @@ class GetCompanyNotesActionHandler(ActionHandler):
                         if timestamp_field in props and props[timestamp_field]:
                             props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(props[timestamp_field])
 
+            after = ((result.get("paging") or {}).get("next") or {}).get("after")
             return ActionResult(
                 data={
                     "company_id": company_id,
                     "notes": notes,
                     "total": len(notes),
+                    "total_matching": result.get("total", len(notes)),
+                    "has_more": after is not None,
+                    "after": after,
                 },
                 cost_usd=None,
             )
@@ -3060,6 +3072,8 @@ class GetDealNotesActionHandler(ActionHandler):
                 "limit": limit,
                 "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
             }
+            if inputs.get("after"):
+                search_body["after"] = inputs["after"]
 
             response = await fetch_with_rate_limit_retries(
                 context,
@@ -3084,8 +3098,16 @@ class GetDealNotesActionHandler(ActionHandler):
                         if timestamp_field in props and props[timestamp_field]:
                             props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(props[timestamp_field])
 
+            after = ((result.get("paging") or {}).get("next") or {}).get("after")
             return ActionResult(
-                data={"deal_id": deal_id, "notes": notes, "total": len(notes)},
+                data={
+                    "deal_id": deal_id,
+                    "notes": notes,
+                    "total": len(notes),
+                    "total_matching": result.get("total", len(notes)),
+                    "has_more": after is not None,
+                    "after": after,
+                },
                 cost_usd=None,
             )
 

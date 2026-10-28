@@ -177,29 +177,36 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `message`: Success or error message
 
 #### Action: `get_contact_notes`
-- **Description:** Retrieve all notes associated with a specific contact
+- **Description:** Retrieve a contact's notes, newest first
 - **Inputs:**
   - `contact_id` (required): The contact ID to retrieve notes for
-  - `limit` (optional): Maximum number of notes to retrieve (default: 100, max: 200)
+  - `limit` (optional): Notes per page (default: 100, max: 200)
   - `properties` (optional): Array of note properties to retrieve
+  - `after` (optional): The `after` value from the previous page, to get older notes
 - **Outputs:**
   - `notes`: Array of note objects with timestamps converted to UTC strings
-  - `total`: Total number of notes retrieved
+  - `total`: Number of notes on this page
+  - `total_matching`: Number of notes on the contact across all pages
+  - `has_more` / `after`: Whether there are older notes, and the cursor to get them
   - `contact_id`: The contact ID that was queried
 
 #### Action: `get_company_notes`
-- **Description:** Retrieve all notes associated with a specific company
+- **Description:** Retrieve a company's notes, newest first
 - **Inputs:**
   - `company_id` (required): The company ID to retrieve notes for
-  - `limit` (optional): Maximum number of notes to retrieve (default: 100, max: 200)
-- **Outputs:** Array of note objects with UTC timestamps
+  - `limit` (optional): Notes per page (default: 100, max: 200)
+  - `properties` (optional): Array of note properties to retrieve
+  - `after` (optional): The `after` value from the previous page, to get older notes
+- **Outputs:** `notes` with UTC timestamps, `total` (this page), `total_matching` (all pages), `has_more` and `after`
 
 #### Action: `get_deal_notes`
-- **Description:** Retrieve all notes associated with a specific deal
+- **Description:** Retrieve a deal's notes, newest first
 - **Inputs:**
   - `deal_id` (required): The deal ID to retrieve notes for
-  - `limit` (optional): Maximum number of notes to retrieve (default: 100, max: 200)
-- **Outputs:** Array of note objects with UTC timestamps
+  - `limit` (optional): Notes per page (default: 100, max: 200)
+  - `properties` (optional): Array of note properties to retrieve
+  - `after` (optional): The `after` value from the previous page, to get older notes
+- **Outputs:** `notes` with UTC timestamps, `total` (this page), `total_matching` (all pages), `has_more` and `after`
 
 ### Communications (LinkedIn Messages)
 

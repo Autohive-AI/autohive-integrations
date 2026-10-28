@@ -159,6 +159,10 @@
               "type": "string"
             },
             "description": "List of note properties to retrieve (default: hs_note_body, hs_timestamp, hubspot_owner_id, hs_createdate, hs_lastmodifieddate)"
+          },
+          "after": {
+            "type": "string",
+            "description": "Cursor from a previous call's after output, to get the next page of older notes"
           }
         },
         "required": [
@@ -232,6 +236,21 @@
           "error": {
             "type": "string",
             "description": "Error message if note retrieval failed"
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Notes on the record across all pages"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether there are more (older) notes"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor for the next page; null on the last page"
           }
         },
         "required": [
@@ -2220,6 +2239,10 @@
               "type": "string"
             },
             "description": "List of note properties to retrieve (default: hs_note_body, hs_timestamp, hubspot_owner_id, hs_createdate, hs_lastmodifieddate)"
+          },
+          "after": {
+            "type": "string",
+            "description": "Cursor from a previous call's after output, to get the next page of older notes"
           }
         },
         "required": [
@@ -2293,6 +2316,21 @@
           "error": {
             "type": "string",
             "description": "Error message if note retrieval failed"
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Notes on the record across all pages"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether there are more (older) notes"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor for the next page; null on the last page"
           }
         },
         "required": [
@@ -2933,6 +2971,10 @@
               "type": "string"
             },
             "description": "List of note properties to retrieve (default: hs_note_body, hs_timestamp, hubspot_owner_id, hs_createdate, hs_lastmodifieddate)"
+          },
+          "after": {
+            "type": "string",
+            "description": "Cursor from a previous call's after output, to get the next page of older notes"
           }
         },
         "required": [
@@ -3006,6 +3048,21 @@
           "error": {
             "type": "string",
             "description": "Error message if note retrieval failed"
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Notes on the record across all pages"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether there are more (older) notes"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor for the next page; null on the last page"
           }
         },
         "required": [
