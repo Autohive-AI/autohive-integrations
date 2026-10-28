@@ -3087,6 +3087,10 @@ class GetDealNotesActionHandler(ActionHandler):
             )
 
 
+# Transcripts fetched at once for one calls lookup; more trips HubSpot's rate limit
+MAX_PARALLEL_TRANSCRIPT_FETCHES = 5
+
+
 async def fetch_transcript(
     transcript_id: str,
     context: ExecutionContext,
@@ -3095,20 +3099,34 @@ async def fetch_transcript(
     """
     Fetch transcript utterances from the HubSpot Calling Transcripts API.
     Google Meet transcripts are stored here, not on the call object properties.
-    Returns None if the transcript cannot be fetched.
+    Raises the request error when the transcript can't be fetched.
     """
-    try:
-        url = f"https://api.hubapi.com/crm/extensions/calling/2026-03/transcripts/{transcript_id}"
-        response = await fetch_with_rate_limit_retries(
-            context,
-            url,
-            retry_sleep_budget=retry_sleep_budget,
-            method="GET",
-        )
-        result = await parse_response(response)
-        return result.get("transcriptUtterances", [])
-    except Exception:
-        return None
+    url = f"https://api.hubapi.com/crm/extensions/calling/2026-03/transcripts/{transcript_id}"
+    response = await fetch_with_rate_limit_retries(
+        context,
+        url,
+        retry_sleep_budget=retry_sleep_budget,
+        method="GET",
+    )
+    result = await parse_response(response)
+    return result.get("transcriptUtterances", [])
+
+
+async def _add_transcript(
+    call: Dict[str, Any],
+    transcript_id: str | None,
+    context: ExecutionContext,
+    retry_sleep_budget: Dict[str, int] | None,
+    slots: asyncio.Semaphore,
+) -> None:
+    """Add a call's transcript utterances as "transcript", or why they couldn't be read as "transcript_error"."""
+    async with slots:
+        try:
+            call["transcript"] = await fetch_transcript(transcript_id or call["id"], context, retry_sleep_budget)
+        except REQUEST_ERRORS as e:
+            # Without a transcript ID the call ID is only a guess, so a 404 for it means no transcript was found
+            if transcript_id or getattr(e, "status", None) != 404:
+                call["transcript_error"] = _error_text(e)
 
 
 async def fetch_calls_with_transcripts(
@@ -3167,27 +3185,18 @@ async def fetch_calls_with_transcripts(
     # Note: hs_call_transcription_id can be null even when a transcript exists (known HubSpot bug).
     # Fallback: when hs_call_has_transcript is true but hs_call_transcription_id is null,
     # try using the call's own ID as the transcript ID — HubSpot often maps them 1:1.
+    slots = asyncio.Semaphore(MAX_PARALLEL_TRANSCRIPT_FETCHES)
     transcript_tasks = []
-    calls_needing_transcripts = []
     for call in calls:
         props = call.get("properties", {})
         transcript_id = props.get("hs_call_transcription_id")
         has_transcript = props.get("hs_call_has_transcript") == "true"
 
-        if transcript_id:
-            transcript_tasks.append(fetch_transcript(transcript_id, context, retry_sleep_budget))
-            calls_needing_transcripts.append(call)
-        elif has_transcript:
-            # Fallback for HubSpot bug: try the call ID itself as the transcript ID
-            transcript_tasks.append(fetch_transcript(call["id"], context, retry_sleep_budget))
-            calls_needing_transcripts.append(call)
+        # Without a transcript ID, fall back to the call ID (HubSpot bug workaround)
+        if transcript_id or has_transcript:
+            transcript_tasks.append(_add_transcript(call, transcript_id, context, retry_sleep_budget, slots))
 
-    if transcript_tasks:
-        transcripts = await asyncio.gather(*transcript_tasks)
-        for call, utterances in zip(calls_needing_transcripts, transcripts):
-            if utterances is not None:
-                call["transcript"] = utterances
-
+    await asyncio.gather(*transcript_tasks)
     return calls
 
 

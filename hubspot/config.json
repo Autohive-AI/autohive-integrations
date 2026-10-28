@@ -6206,6 +6206,10 @@
                       }
                     }
                   }
+                },
+                "transcript_error": {
+                  "type": "string",
+                  "description": "Why the call's transcript couldn't be read, when HubSpot has one that failed to load"
                 }
               }
             }
@@ -6411,6 +6415,10 @@
                       }
                     }
                   }
+                },
+                "transcript_error": {
+                  "type": "string",
+                  "description": "Why the call's transcript couldn't be read, when HubSpot has one that failed to load"
                 }
               }
             }

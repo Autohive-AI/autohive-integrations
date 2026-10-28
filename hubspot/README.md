@@ -267,11 +267,12 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
     - `hs_call_transcription_id`: Transcript ID (may be null due to a known HubSpot bug even when a transcript exists)
     - `hs_timestamp`: Call time (UTC)
     - `transcript`: Array of utterances from the Calling Transcripts API, each with `speakerId`, `text`, and `timestamp`
+    - `transcript_error`: Why the transcript couldn't be read, when HubSpot has one that failed to load (e.g. rate limiting). Transcripts are fetched 5 at a time
   - `meetings`: Array of meeting metadata objects (title, start/end time, location — no transcript content)
   - `total_calls`: Number of calls returned
   - `total_meetings`: Number of meetings returned
 - **Note:** Requires Sales Hub or Service Hub Professional/Enterprise for Google Meet transcript sync (Conversational Intelligence feature)
-- **Transcript fallback:** When `hs_call_transcription_id` is null but `hs_call_has_transcript` is true (known HubSpot bug), the integration automatically falls back to using the call's own ID as the transcript ID to attempt recovery
+- **Transcript fallback:** When `hs_call_transcription_id` is null but `hs_call_has_transcript` is true (known HubSpot bug), the integration automatically falls back to using the call's own ID as the transcript ID to attempt recovery. If nothing is found under that ID, the call has no `transcript` and no `transcript_error`
 
 #### Action: `get_deal_calls_and_meetings`
 - **Description:** Retrieve calls (with transcripts) and meetings (metadata) associated with a deal. Same transcript behaviour as `get_contact_calls_and_meetings`.

@@ -1,6 +1,8 @@
+import asyncio
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from autohive_integrations_sdk import FetchResponse, RateLimitError
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
@@ -705,6 +707,73 @@ class TestGetDealPipelines:
 
 
 # ---- get_contact_calls_and_meetings ----
+
+
+def calls_found(*calls):
+    return FetchResponse(status=200, headers={}, data={"results": list(calls)})
+
+
+def call_with_transcript(call_id, transcript_id):
+    return {
+        "id": call_id,
+        "properties": {"hs_call_has_transcript": "true", "hs_call_transcription_id": transcript_id},
+    }
+
+
+class TestCallTranscripts:
+    @pytest.mark.asyncio
+    async def test_failed_transcript_is_reported_on_its_call(self, mock_context):
+        mock_context.fetch.side_effect = [
+            calls_found(call_with_transcript("c1", "t1"), call_with_transcript("c2", "t2")),
+            FetchResponse(status=200, headers={}, data={"transcriptUtterances": [{"text": "hi"}]}),
+            HTTPError(500, "Transcript service unavailable"),
+            calls_found(),
+        ]
+
+        result = await hubspot.execute_action("get_contact_calls_and_meetings", {"contact_id": "100"}, mock_context)
+
+        first, second = result.result.data["calls"]
+        assert first["transcript"] == [{"text": "hi"}]
+        assert "transcript_error" not in first
+        assert second["transcript_error"] == "HTTP 500: Transcript service unavailable"
+        assert "transcript" not in second
+
+    @pytest.mark.asyncio
+    async def test_guessed_transcript_id_not_found_is_not_an_error(self, mock_context):
+        mock_context.fetch.side_effect = [
+            calls_found(call_with_transcript("c1", None)),
+            HTTPError(404, "Not found"),
+            calls_found(),
+        ]
+
+        result = await hubspot.execute_action("get_contact_calls_and_meetings", {"contact_id": "100"}, mock_context)
+
+        call = result.result.data["calls"][0]
+        assert mock_context.fetch.call_args_list[1].args[0].endswith("/transcripts/c1")
+        assert "transcript" not in call
+        assert "transcript_error" not in call
+
+    @pytest.mark.asyncio
+    async def test_transcripts_fetched_at_most_5_at_a_time(self, mock_context):
+        in_flight = peak = 0
+
+        async def fetch(url, **kwargs):
+            nonlocal in_flight, peak
+            if "/transcripts/" not in url:
+                calls = [call_with_transcript(f"c{n}", f"t{n}") for n in range(12)]
+                return calls_found(*calls) if "calls" in url else calls_found()
+            in_flight += 1
+            peak = max(peak, in_flight)
+            await asyncio.sleep(0)
+            in_flight -= 1
+            return FetchResponse(status=200, headers={}, data={"transcriptUtterances": []})
+
+        mock_context.fetch.side_effect = fetch
+
+        result = await hubspot.execute_action("get_contact_calls_and_meetings", {"contact_id": "100"}, mock_context)
+
+        assert all(call["transcript"] == [] for call in result.result.data["calls"])
+        assert peak == 5
 
 
 class TestGetContactCallsAndMeetings:
