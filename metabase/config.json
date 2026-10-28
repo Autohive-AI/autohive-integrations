@@ -1,0 +1,1523 @@
+{
+    "name": "Metabase",
+    "display_name": "Metabase",
+    "version": "1.0.0",
+    "description": "Search, query and build in Metabase (Cloud or self-hosted): explore databases and tables, run SQL and saved questions, and create questions, collections and dashboards.",
+    "entry_point": "metabase.py",
+    "auth": {
+        "type": "custom",
+        "title": "Metabase Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "type": "string",
+                    "format": "text",
+                    "label": "Metabase URL",
+                    "help_text": "The address you open Metabase at, e.g. https://yourcompany.metabaseapp.com or https://metabase.example.com (https:// required). Include the sub-path if Metabase is served from one, e.g. https://example.com/metabase."
+                },
+                "api_key": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "API Key",
+                    "help_text": "Create one in Metabase under Admin → Settings → Authentication → API keys (Metabase 0.49+). The key acts with the permissions of the group you assign it, so pick a group that can see only the data and collections the agent should use."
+                }
+            },
+            "required": [
+                "base_url",
+                "api_key"
+            ]
+        }
+    },
+    "actions": {
+        "get_current_user": {
+            "display_name": "Get Current User",
+            "description": "Return the Metabase user the API key acts as. Useful to check the connection works.",
+            "input_schema": {
+                "type": "object",
+                "properties": {}
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "User id."
+                    },
+                    "email": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "User email (API-key users have a generated address)."
+                    },
+                    "common_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "User's name."
+                    },
+                    "is_superuser": {
+                        "type": "boolean",
+                        "description": "Whether the key has admin rights."
+                    },
+                    "group_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Permission groups the key belongs to."
+                    },
+                    "personal_collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "The user's personal collection id."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "list_databases": {
+            "display_name": "List Databases",
+            "description": "List the databases connected to Metabase. Use the ids with get_database_schema and run_sql_query.",
+            "input_schema": {
+                "type": "object",
+                "properties": {}
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "databases": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Database id."
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Database name."
+                                },
+                                "engine": {
+                                    "type": "string",
+                                    "description": "Database engine, e.g. postgres, bigquery-cloud-sdk, snowflake."
+                                },
+                                "description": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Description."
+                                },
+                                "is_sample": {
+                                    "type": "boolean",
+                                    "description": "Whether this is Metabase's sample database."
+                                }
+                            }
+                        },
+                        "description": "Connected databases."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of databases."
+                    }
+                },
+                "required": [
+                    "databases",
+                    "count"
+                ]
+            }
+        },
+        "get_database_schema": {
+            "display_name": "Get Database Schema",
+            "description": "List the tables in a database, optionally with their fields. Filter by schema or table name on large warehouses.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id from list_databases."
+                    },
+                    "schema": {
+                        "type": "string",
+                        "description": "Only return tables in this schema (case-insensitive)."
+                    },
+                    "table_name_contains": {
+                        "type": "string",
+                        "description": "Only return tables whose name contains this text (case-insensitive)."
+                    },
+                    "include_fields": {
+                        "type": "boolean",
+                        "description": "Include each table's fields (default false; can be large)."
+                    }
+                },
+                "required": [
+                    "database_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id."
+                    },
+                    "database_name": {
+                        "type": "string",
+                        "description": "Database name."
+                    },
+                    "engine": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Database engine."
+                    },
+                    "tables": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Table id."
+                                },
+                                "schema": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Schema name."
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Table name."
+                                },
+                                "display_name": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Display name."
+                                },
+                                "description": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Table description."
+                                },
+                                "fields": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "id": {
+                                                "type": "integer",
+                                                "description": "Field id."
+                                            },
+                                            "name": {
+                                                "type": "string",
+                                                "description": "Column name."
+                                            },
+                                            "display_name": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "description": "Display name."
+                                            },
+                                            "base_type": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "description": "Metabase type."
+                                            },
+                                            "semantic_type": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "description": "Semantic type, e.g. type/PK or type/FK."
+                                            },
+                                            "description": {
+                                                "type": [
+                                                    "string",
+                                                    "null"
+                                                ],
+                                                "description": "Field description."
+                                            },
+                                            "foreign_key_target_field_id": {
+                                                "type": [
+                                                    "integer",
+                                                    "null"
+                                                ],
+                                                "description": "For foreign keys, the id of the field it points to."
+                                            }
+                                        }
+                                    },
+                                    "description": "Fields (only when include_fields is true)."
+                                }
+                            }
+                        },
+                        "description": "Matching tables."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of tables returned."
+                    }
+                },
+                "required": [
+                    "tables",
+                    "count"
+                ]
+            }
+        },
+        "get_table": {
+            "display_name": "Get Table",
+            "description": "Get a table's fields with their types and foreign keys. Use before writing SQL against the table.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "table_id": {
+                        "type": "integer",
+                        "description": "Table id from get_database_schema or search."
+                    }
+                },
+                "required": [
+                    "table_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Table id."
+                    },
+                    "schema": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Schema name."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Table name."
+                    },
+                    "display_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Display name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Table description."
+                    },
+                    "database_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Database the table belongs to."
+                    },
+                    "fields": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Field id."
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Column name."
+                                },
+                                "display_name": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Display name."
+                                },
+                                "base_type": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Metabase type."
+                                },
+                                "semantic_type": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Semantic type, e.g. type/PK or type/FK."
+                                },
+                                "description": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Field description."
+                                },
+                                "foreign_key_target_field_id": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "For foreign keys, the id of the field it points to."
+                                }
+                            }
+                        },
+                        "description": "Table fields."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "fields"
+                ]
+            }
+        },
+        "search": {
+            "display_name": "Search",
+            "description": "Search Metabase for saved questions, models, metrics, dashboards, collections, tables and databases.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Text to search for. Leave empty to list recent items of the chosen types."
+                    },
+                    "models": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "card",
+                                "dataset",
+                                "metric",
+                                "dashboard",
+                                "collection",
+                                "table",
+                                "database",
+                                "document"
+                            ]
+                        },
+                        "description": "Limit results to these item types: card (saved question), dataset (model), metric, dashboard, collection, table, database, document."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Search trashed items instead (default false)."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Results per page (default 50, max 200).",
+                        "minimum": 1,
+                        "maximum": 200
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of results to skip, for paging.",
+                        "minimum": 0
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "model": {
+                                    "type": "string",
+                                    "description": "Item type."
+                                },
+                                "id": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ],
+                                    "description": "Item id."
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Item name."
+                                },
+                                "description": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Description."
+                                },
+                                "collection": {
+                                    "type": [
+                                        "object",
+                                        "null"
+                                    ],
+                                    "description": "Collection the item lives in.",
+                                    "properties": {
+                                        "id": {
+                                            "type": [
+                                                "integer",
+                                                "string",
+                                                "null"
+                                            ]
+                                        },
+                                        "name": {
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ]
+                                        }
+                                    }
+                                },
+                                "database_id": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Database id (tables and questions)."
+                                },
+                                "table_schema": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Schema (tables)."
+                                },
+                                "archived": {
+                                    "type": "boolean",
+                                    "description": "Whether the item is trashed."
+                                },
+                                "updated_at": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Last update time."
+                                }
+                            }
+                        },
+                        "description": "Matching items."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Results in this page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total matching results."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Page size used."
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Offset used."
+                    }
+                },
+                "required": [
+                    "results",
+                    "count"
+                ]
+            }
+        },
+        "list_collections": {
+            "display_name": "List Collections",
+            "description": "List the collections (folders) the API key can see. Personal collections are left out unless include_personal is true.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "include_personal": {
+                        "type": "boolean",
+                        "description": "Include personal collections (default false)."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "List trashed collections instead (default false)."
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "collections": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ],
+                                    "description": "Collection id ('root' for the top level)."
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Collection name."
+                                },
+                                "description": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Description."
+                                },
+                                "parent_id": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Parent collection id (null = top level)."
+                                },
+                                "location": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Path of ancestor ids, e.g. /4/12/."
+                                },
+                                "is_personal": {
+                                    "type": "boolean",
+                                    "description": "Whether it is a personal collection."
+                                },
+                                "archived": {
+                                    "type": "boolean",
+                                    "description": "Whether it is trashed."
+                                }
+                            }
+                        },
+                        "description": "Collections."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of collections."
+                    }
+                },
+                "required": [
+                    "collections",
+                    "count"
+                ]
+            }
+        },
+        "list_collection_items": {
+            "display_name": "List Collection Items",
+            "description": "List the questions, models, dashboards and sub-collections inside a collection.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "string"
+                        ],
+                        "description": "Collection id, or 'root' for the top level (default)."
+                    },
+                    "models": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "card",
+                                "dataset",
+                                "metric",
+                                "dashboard",
+                                "collection",
+                                "document"
+                            ]
+                        },
+                        "description": "Only return these item types."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Results per page (default 50, max 200).",
+                        "minimum": 1,
+                        "maximum": 200
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of results to skip, for paging.",
+                        "minimum": 0
+                    }
+                }
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "model": {
+                                    "type": "string",
+                                    "description": "Item type."
+                                },
+                                "id": {
+                                    "type": [
+                                        "integer",
+                                        "string"
+                                    ],
+                                    "description": "Item id."
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Item name."
+                                },
+                                "description": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Description."
+                                },
+                                "display": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Visualization type (questions)."
+                                }
+                            }
+                        },
+                        "description": "Items in the collection."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Results in this page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total matching results."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Page size used."
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Offset used."
+                    }
+                },
+                "required": [
+                    "items",
+                    "count"
+                ]
+            }
+        },
+        "create_collection": {
+            "display_name": "Create Collection",
+            "description": "Create a collection, optionally inside another collection.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Collection name."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional description."
+                    },
+                    "parent_collection_id": {
+                        "type": "integer",
+                        "description": "Optional parent collection id. Omit to create at the top level."
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "New collection id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Collection name."
+                    },
+                    "location": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Path of ancestor ids."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ]
+            }
+        },
+        "get_question": {
+            "display_name": "Get Question",
+            "description": "Get a saved question (card), including its SQL when it is a native query and the parameters it accepts.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "question_id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    }
+                },
+                "required": [
+                    "question_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Question name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "question, model or metric."
+                    },
+                    "display": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Visualization type, e.g. table, bar, line."
+                    },
+                    "database_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Database the question queries."
+                    },
+                    "query_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "native (SQL) or query (GUI builder)."
+                    },
+                    "native_sql": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The SQL text when the question is a native query."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "collection": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Collection the item lives in.",
+                        "properties": {
+                            "id": {
+                                "type": [
+                                    "integer",
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "name": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        }
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the question is in the trash."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filter parameters the question accepts (id, slug, type, ...)."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ]
+            }
+        },
+        "run_question": {
+            "display_name": "Run Question",
+            "description": "Run a saved question and return its rows. Pass parameters to set the question's filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "question_id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filter values in Metabase's format, e.g. [{\"type\": \"category\", \"target\": [\"variable\", [\"template-tag\", \"region\"]], \"value\": \"EU\"}]. See get_question for the accepted parameters."
+                    },
+                    "max_rows": {
+                        "type": "integer",
+                        "description": "Maximum rows to return (default 100, max 2000).",
+                        "minimum": 1,
+                        "maximum": 2000
+                    }
+                },
+                "required": [
+                    "question_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "columns": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Column name used as the key in each row object."
+                                },
+                                "display_name": {
+                                    "type": "string",
+                                    "description": "Column label shown in Metabase."
+                                },
+                                "base_type": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Metabase type, e.g. type/Integer or type/Text."
+                                }
+                            }
+                        },
+                        "description": "Result columns in order."
+                    },
+                    "rows": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Result rows as objects keyed by column name (duplicate names get a _2, _3 suffix)."
+                    },
+                    "row_count": {
+                        "type": "integer",
+                        "description": "Number of rows returned here."
+                    },
+                    "total_row_count": {
+                        "type": "integer",
+                        "description": "Number of rows Metabase returned before max_rows was applied."
+                    },
+                    "truncated": {
+                        "type": "boolean",
+                        "description": "True when more rows existed than were returned (max_rows or Metabase's 2,000-row API limit)."
+                    }
+                },
+                "required": [
+                    "columns",
+                    "rows",
+                    "row_count",
+                    "truncated"
+                ]
+            }
+        },
+        "run_sql_query": {
+            "display_name": "Run SQL Query",
+            "description": "Run a read query in the database's own SQL dialect and return its rows. Metabase returns at most 2,000 rows; aggregate or add LIMIT for large tables. Metabase permissions apply.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id from list_databases."
+                    },
+                    "sql": {
+                        "type": "string",
+                        "description": "SQL to run."
+                    },
+                    "max_rows": {
+                        "type": "integer",
+                        "description": "Maximum rows to return (default 100, max 2000).",
+                        "minimum": 1,
+                        "maximum": 2000
+                    }
+                },
+                "required": [
+                    "database_id",
+                    "sql"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "columns": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Column name used as the key in each row object."
+                                },
+                                "display_name": {
+                                    "type": "string",
+                                    "description": "Column label shown in Metabase."
+                                },
+                                "base_type": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Metabase type, e.g. type/Integer or type/Text."
+                                }
+                            }
+                        },
+                        "description": "Result columns in order."
+                    },
+                    "rows": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Result rows as objects keyed by column name (duplicate names get a _2, _3 suffix)."
+                    },
+                    "row_count": {
+                        "type": "integer",
+                        "description": "Number of rows returned here."
+                    },
+                    "total_row_count": {
+                        "type": "integer",
+                        "description": "Number of rows Metabase returned before max_rows was applied."
+                    },
+                    "truncated": {
+                        "type": "boolean",
+                        "description": "True when more rows existed than were returned (max_rows or Metabase's 2,000-row API limit)."
+                    }
+                },
+                "required": [
+                    "columns",
+                    "rows",
+                    "row_count",
+                    "truncated"
+                ]
+            }
+        },
+        "create_question": {
+            "display_name": "Create Question",
+            "description": "Save a SQL query as a question in Metabase.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Question name."
+                    },
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id the SQL runs against."
+                    },
+                    "sql": {
+                        "type": "string",
+                        "description": "SQL for the question."
+                    },
+                    "display": {
+                        "type": "string",
+                        "description": "Visualization type (default table).",
+                        "enum": [
+                            "table",
+                            "bar",
+                            "line",
+                            "area",
+                            "row",
+                            "pie",
+                            "scalar",
+                            "combo",
+                            "scatter",
+                            "funnel",
+                            "progress",
+                            "gauge",
+                            "map",
+                            "pivot"
+                        ]
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional description."
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection to save into. Omit for the top level."
+                    }
+                },
+                "required": [
+                    "name",
+                    "database_id",
+                    "sql"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Question name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "question, model or metric."
+                    },
+                    "display": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Visualization type, e.g. table, bar, line."
+                    },
+                    "database_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Database the question queries."
+                    },
+                    "query_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "native (SQL) or query (GUI builder)."
+                    },
+                    "native_sql": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The SQL text when the question is a native query."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "collection": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Collection the item lives in.",
+                        "properties": {
+                            "id": {
+                                "type": [
+                                    "integer",
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "name": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        }
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the question is in the trash."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filter parameters the question accepts (id, slug, type, ...)."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ]
+            }
+        },
+        "get_dashboard": {
+            "display_name": "Get Dashboard",
+            "description": "Get a dashboard with its cards (questions), tabs and filters.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    }
+                },
+                "required": [
+                    "dashboard_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Dashboard name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether it is trashed."
+                    },
+                    "tabs": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Tab id."
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Tab name."
+                                }
+                            }
+                        },
+                        "description": "Dashboard tabs."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Filter id."
+                                },
+                                "name": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Filter name."
+                                },
+                                "slug": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "URL slug."
+                                },
+                                "type": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Filter type."
+                                }
+                            }
+                        },
+                        "description": "Dashboard filters."
+                    },
+                    "cards": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "dashcard_id": {
+                                    "type": "integer",
+                                    "description": "Dashboard card id."
+                                },
+                                "card_id": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Question id (null for text/heading cards)."
+                                },
+                                "card_name": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Question name."
+                                },
+                                "display": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Visualization type."
+                                },
+                                "row": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Grid row."
+                                },
+                                "col": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Grid column."
+                                },
+                                "size_x": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Width (grid is 24 wide)."
+                                },
+                                "size_y": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Height."
+                                },
+                                "dashboard_tab_id": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Tab id."
+                                }
+                            }
+                        },
+                        "description": "Cards on the dashboard."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "cards"
+                ]
+            }
+        },
+        "create_dashboard": {
+            "display_name": "Create Dashboard",
+            "description": "Create an empty dashboard. Add questions to it with add_question_to_dashboard.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Dashboard name."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional description."
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection to save into. Omit for the top level."
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "New dashboard id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Dashboard name."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ]
+            }
+        },
+        "add_question_to_dashboard": {
+            "display_name": "Add Question to Dashboard",
+            "description": "Add a saved question to a dashboard. The card is placed below the existing cards; other cards are left as they are.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "question_id": {
+                        "type": "integer",
+                        "description": "Question (card) id to add."
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "Card width in grid units (default 12, max 24).",
+                        "minimum": 1,
+                        "maximum": 24
+                    },
+                    "height": {
+                        "type": "integer",
+                        "description": "Card height in grid units (default 6).",
+                        "minimum": 1,
+                        "maximum": 50
+                    },
+                    "tab_id": {
+                        "type": "integer",
+                        "description": "Tab to add the card to. Defaults to the first tab."
+                    }
+                },
+                "required": [
+                    "dashboard_id",
+                    "question_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "dashcard_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Id of the new dashboard card."
+                    },
+                    "card_id": {
+                        "type": "integer",
+                        "description": "Question id that was added."
+                    },
+                    "row": {
+                        "type": "integer",
+                        "description": "Grid row."
+                    },
+                    "col": {
+                        "type": "integer",
+                        "description": "Grid column."
+                    },
+                    "size_x": {
+                        "type": "integer",
+                        "description": "Width."
+                    },
+                    "size_y": {
+                        "type": "integer",
+                        "description": "Height."
+                    },
+                    "card_count": {
+                        "type": "integer",
+                        "description": "Number of cards on the dashboard afterwards."
+                    }
+                },
+                "required": [
+                    "dashboard_id",
+                    "card_id"
+                ]
+            }
+        }
+    }
+}
