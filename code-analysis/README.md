@@ -43,7 +43,7 @@ The following third-party libraries are pre-installed:
 
 - **numpy** - Numerical computing
 - **Pillow** - Image processing
-- **PyPDF2** - PDF manipulation
+- **pypdf** - PDF manipulation
 - **python-docx** - Word document creation/editing
 - **reportlab** - PDF generation
 - **openpyxl** - Excel file reading/writing
@@ -82,13 +82,7 @@ total = sum(float(row['amount']) for row in data)
 print(json.dumps({'total': total, 'count': len(data)}))
 """
 
-files = [
-    {
-        "name": "data.csv",
-        "content": "<base64-encoded-csv>",
-        "contentType": "text/csv"
-    }
-]
+files = [{"name": "data.csv", "content": "<base64-encoded-csv>", "contentType": "text/csv"}]
 ```
 
 ### Generate Excel Report
@@ -158,13 +152,7 @@ img.save('output.jpg', 'JPEG', quality=85)
 print(f"Converted image: {img.size}")
 """
 
-files = [
-    {
-        "name": "input.png",
-        "content": "<base64-encoded-png>",
-        "contentType": "image/png"
-    }
-]
+files = [{"name": "input.png", "content": "<base64-encoded-png>", "contentType": "image/png"}]
 ```
 
 ## Best Practices
@@ -177,25 +165,43 @@ files = [
 
 ## Requirements
 
-- `autohive-integrations-sdk~=1.0.2`
-- `numpy`
-- `Pillow`
-- `PyPDF2`
-- `python-docx`
-- `reportlab`
-- `openpyxl`
-- `XlsxWriter`
-- `matplotlib`
-- `python-pptx`
+Python 3.13+ is required by the SDK. Direct dependencies were checked against PyPI on 2026-10-28:
+
+- `autohive-integrations-sdk~=2.0.1`
+- `numpy==2.5.4`
+- `Pillow==13.0.0`
+- `pypdf==6.21.3`
+- `python-docx==1.2.0`
+- `reportlab==5.1.0`
+- `openpyxl==3.1.5`
+- `XlsxWriter==3.3.0`
+- `matplotlib==3.11.2`
+- `python-pptx==1.0.2`
+
+The SDK follows the repository's compatible patch release convention; other direct dependencies are pinned to the reviewed releases. Transitive dependencies are resolved at install time, so repeat the vulnerability audit before deployment.
+
+### Migrating to version 3
+
+PyPDF2 has been replaced by its maintained successor, pypdf. PyPDF2's final release (3.0.1) has no fix for [CVE-2023-36464](https://github.com/py-pdf/pypdf/security/advisories/GHSA-4vvm-4w3v-6mr8), which allows a crafted PDF to cause an infinite loop during text extraction.
+
+Update existing scripts to import from `pypdf`, for example `from pypdf import PdfReader, PdfWriter` instead of `from PyPDF2 import PdfReader, PdfWriter`. For merging, use `PdfWriter.append()`; the old `PdfMerger` API has been removed. Check the [pypdf migration guide](https://pypdf.readthedocs.io/en/stable/user/migration-1-to-2.html) for other legacy APIs used by your scripts.
 
 ## Testing
 
-To run the tests:
+From the repository root, install dependencies and run the unit tests:
 
-1. Navigate to the integration directory: `cd code-analysis`
-2. Install dependencies: `pip install -r requirements.txt -t dependencies`
-3. Run the tests: `python tests/test_code_analysis.py`
+```bash
+python -m pip install -r code-analysis/requirements.txt -r requirements-test.txt
+python -m pytest code-analysis/
+```
+
+Audit the resolved dependencies, including transitive packages:
+
+```bash
+python -m pip install pip-audit
+python -m pip_audit -r code-analysis/requirements.txt
+```
 
 ## Version
 
-1.0.0
+3.0.0

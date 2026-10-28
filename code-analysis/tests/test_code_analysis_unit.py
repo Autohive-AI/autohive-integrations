@@ -104,6 +104,34 @@ print(len(lines))
         self.assertIn("ValueError", result.data["error"])
         self.assertIn("Test error", result.data["error"])
 
+    async def test_pdf_generation_and_text_extraction(self):
+        action = ExecutePythonCodeAction()
+        inputs = {
+            "python_code": """
+from reportlab.pdfgen import canvas
+from pypdf import PdfReader, PdfWriter
+
+document = canvas.Canvas('source.pdf')
+document.drawString(72, 720, 'Dependency compatibility check')
+document.save()
+
+reader = PdfReader('source.pdf')
+writer = PdfWriter()
+writer.add_page(reader.pages[0])
+with open('output.pdf', 'wb') as output:
+    writer.write(output)
+print(PdfReader('output.pdf').pages[0].extract_text().strip())
+"""
+        }
+
+        result = await action.execute(inputs, MockContext())
+
+        self.assertNotIn("error", result.data)
+        self.assertEqual(result.data["result"].strip(), "Dependency compatibility check")
+        self.assertEqual({file["name"] for file in result.data["files"]}, {"source.pdf", "output.pdf"})
+        for file in result.data["files"]:
+            self.assertTrue(base64.b64decode(file["content"]).startswith(b"%PDF-"))
+
     async def test_missing_python_code(self):
         action = ExecutePythonCodeAction()
         context = MockContext()
