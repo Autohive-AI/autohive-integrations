@@ -137,12 +137,12 @@ Creates an empty dashboard. Inputs: `name` (required), `description` and `collec
 
 ### `add_question_to_dashboard`
 
-Adds a saved question to a dashboard, placed below the existing cards (on the first tab, or on `tab_id`). Existing cards, filters and their settings are kept. Optional `width` (1–24, default 12) and `height` (default 6) are in Metabase grid units; the grid is 24 wide. Returns the new dashboard card id and its position.
+Adds a saved question to a dashboard, placed below the existing cards (on the first tab, or on `tab_id`). Existing cards and their settings, including filter connections, are sent back unchanged. Optional `width` (1–24, default 12) and `height` (default 6) are in Metabase grid units; the grid is 24 wide. Returns the new dashboard card id and its position.
 
 ## Limits
 
 - **2,000 rows per query.** Metabase's API returns at most 2,000 rows for a query that isn't aggregated, and this integration returns at most `max_rows` (max 2,000) of them. For large tables, aggregate in SQL or add a `LIMIT`. `truncated` shows when rows were cut off.
-- **Query timeout.** Queries are given 120 seconds. Slower queries return an error.
+- **Query timeout.** Queries are given 120 seconds and are never retried automatically, so a slow query is not run twice. Slower queries return an error. Creates and dashboard updates are also sent only once.
 - **No deletes.** The integration never deletes or archives content.
 - **Not covered in this version:** alerts and subscriptions, building queries with Metabase's GUI query builder (MBQL), exporting results, and editing existing questions.
 

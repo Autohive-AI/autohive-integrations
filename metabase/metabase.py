@@ -6,6 +6,7 @@ from autohive_integrations_sdk import (
     ActionError,
     HTTPError,
 )
+import asyncio
 import sys
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote, urlencode, urlparse
@@ -22,6 +23,10 @@ DASHBOARD_GRID_WIDTH = 24
 DEFAULT_CARD_WIDTH = 12
 DEFAULT_CARD_HEIGHT = 6
 MAX_CARD_HEIGHT = 50
+MAX_ERROR_LENGTH = 500
+# The SDK retries any request on network errors and timeouts. Starting a POST/PUT at a retry count
+# above its limit sends it exactly once, so a slow create or query is never repeated.
+NO_RETRY = 1_000
 # Dashcard fields sent back unchanged on PUT (the PUT dashcard shape; server-managed fields are left out).
 DASHCARD_PUT_KEYS = (
     "id",
@@ -81,6 +86,8 @@ def _path_id(value: Any) -> str:
 
 
 async def _api(context: ExecutionContext, method: str, path: str, **kwargs: Any) -> Any:
+    if method != "GET":
+        kwargs.setdefault("retry_count", NO_RETRY)
     response = await context.fetch(
         f"{get_base_url(context)}/api{path}",
         method=method,
@@ -110,11 +117,13 @@ def _with_optional(body: Dict[str, Any], **values: Any) -> Dict[str, Any]:
 def _error_message(error: Exception) -> str:
     if isinstance(error, HTTPError):
         data = error.response_data
+        detail = None
         if isinstance(data, dict):
             detail = data.get("error") or data.get("message") or data.get("errors")
-            if detail:
-                return f"Metabase returned HTTP {error.status}: {detail}"
-        return f"Metabase returned HTTP {error.status}: {error.message}"
+        message = f"Metabase returned HTTP {error.status}: {detail or error.message}"
+        return message[:MAX_ERROR_LENGTH]
+    if isinstance(error, asyncio.TimeoutError):
+        return "Metabase did not respond in time. For queries, aggregate or add a LIMIT and try again."
     return str(error)
 
 
@@ -639,6 +648,8 @@ class AddQuestionToDashboardAction(ActionHandler):
             tab_id = inputs.get("tab_id")
             if tab_id is None and tabs:
                 tab_id = tabs[0].get("id")
+            elif tab_id is not None and tab_id not in [t.get("id") for t in tabs]:
+                raise ValueError(f"tab_id {tab_id} is not a tab on dashboard {inputs['dashboard_id']}")
 
             # PUT replaces the whole dashcard list, so every existing card is sent back unchanged.
             dashcards = [{k: dc[k] for k in DASHCARD_PUT_KEYS if k in dc} for dc in existing]

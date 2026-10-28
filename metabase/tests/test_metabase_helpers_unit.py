@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from unittest.mock import MagicMock
 from autohive_integrations_sdk import HTTPError
@@ -85,6 +87,14 @@ class TestErrorMessage:
         assert _error_message(HTTPError(401, "Unauthenticated", "Unauthenticated")) == (
             "Metabase returned HTTP 401: Unauthenticated"
         )
+
+    def test_long_error_page_truncated(self):
+        message = _error_message(HTTPError(502, "<html>" + "x" * 5000, "<html>" + "x" * 5000))
+        assert message.startswith("Metabase returned HTTP 502: <html>")
+        assert len(message) == 500
+
+    def test_timeout(self):
+        assert "did not respond in time" in _error_message(asyncio.TimeoutError())
 
     def test_other_exception(self):
         assert _error_message(ValueError("boom")) == "boom"

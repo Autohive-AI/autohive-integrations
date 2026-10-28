@@ -1,7 +1,9 @@
+import asyncio
+
 import pytest
 from autohive_integrations_sdk import HTTPError, ResultType
 
-from metabase.metabase import metabase
+from metabase.metabase import NO_RETRY, metabase
 from metabase.tests.conftest import BASE, ok as _ok
 
 pytestmark = pytest.mark.unit
@@ -55,7 +57,8 @@ class TestGetCurrentUser:
     async def test_missing_credentials(self, make_context):
         ctx = make_context(auth={"auth_type": "Custom", "credentials": {"base_url": BASE}})
         result = await metabase.execute_action("get_current_user", {}, ctx)
-        assert result.type in (ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR)
+        # auth.fields.required is enforced by the SDK before the handler runs
+        assert result.type == ResultType.VALIDATION_ERROR
         ctx.fetch.assert_not_called()
 
     @pytest.mark.asyncio
@@ -77,6 +80,27 @@ class TestGetCurrentUser:
 
 
 # ---- Data model ----
+
+
+class TestRetries:
+    @pytest.mark.asyncio
+    async def test_reads_keep_sdk_retries(self, mock_context):
+        mock_context.fetch.return_value = _ok({"data": []})
+        await metabase.execute_action("list_databases", {}, mock_context)
+        assert "retry_count" not in mock_context.fetch.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_writes_are_sent_once(self, mock_context):
+        mock_context.fetch.return_value = _ok({"id": 1, "name": "X"})
+        await metabase.execute_action("create_collection", {"name": "X"}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_timeout_message(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action("create_collection", {"name": "X"}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "did not respond in time" in result.result.message
 
 
 class TestListDatabases:

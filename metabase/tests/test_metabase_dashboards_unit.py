@@ -1,7 +1,7 @@
 import pytest
 from autohive_integrations_sdk import HTTPError, ResultType
 
-from metabase.metabase import metabase
+from metabase.metabase import NO_RETRY, metabase
 from metabase.tests.conftest import BASE, ok as _ok
 
 pytestmark = pytest.mark.unit
@@ -214,6 +214,35 @@ class TestAddQuestionToDashboard:
         )
         new = mock_context.fetch.call_args_list[1].kwargs["json"]["dashcards"][-1]
         assert (new["dashboard_tab_id"], new["row"]) == (12, 0)
+
+    @pytest.mark.asyncio
+    async def test_unknown_tab_rejected_before_put(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD)]
+        result = await metabase.execute_action(
+            "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77, "tab_id": 999}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "tab_id 999" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_same_question_twice_returns_new_dashcard(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_DASHBOARD),
+            _ok(self._updated(new_card_id=42, new_dashcard_id=600)),
+        ]
+        result = await metabase.execute_action(
+            "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 42}, mock_context
+        )
+        assert result.result.data["dashcard_id"] == 600
+
+    @pytest.mark.asyncio
+    async def test_put_sent_once(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok(self._updated())]
+        await metabase.execute_action("add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context)
+        get_call, put_call = mock_context.fetch.call_args_list
+        assert "retry_count" not in get_call.kwargs
+        assert put_call.kwargs["retry_count"] == NO_RETRY
 
     @pytest.mark.asyncio
     async def test_dashboard_not_found_skips_put(self, mock_context):
