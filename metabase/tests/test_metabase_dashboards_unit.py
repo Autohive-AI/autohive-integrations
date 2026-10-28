@@ -1,16 +1,10 @@
 import pytest
-from autohive_integrations_sdk import FetchResponse, HTTPError
-from autohive_integrations_sdk.integration import ResultType
+from autohive_integrations_sdk import HTTPError, ResultType
 
 from metabase.metabase import metabase
+from metabase.tests.conftest import BASE, ok as _ok
 
 pytestmark = pytest.mark.unit
-
-BASE = "https://metabase.test"
-
-
-def _ok(data, status=200):
-    return FetchResponse(status=status, headers={}, data=data)
 
 
 EXISTING_DASHCARD = {

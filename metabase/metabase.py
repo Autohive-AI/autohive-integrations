@@ -6,6 +6,7 @@ from autohive_integrations_sdk import (
     ActionError,
     HTTPError,
 )
+import sys
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote, urlencode, urlparse
 
@@ -20,6 +21,22 @@ QUERY_TIMEOUT_SECONDS = 120
 DASHBOARD_GRID_WIDTH = 24
 DEFAULT_CARD_WIDTH = 12
 DEFAULT_CARD_HEIGHT = 6
+MAX_CARD_HEIGHT = 50
+# Dashcard fields sent back unchanged on PUT (the PUT dashcard shape; server-managed fields are left out).
+DASHCARD_PUT_KEYS = (
+    "id",
+    "card_id",
+    "dashboard_tab_id",
+    "row",
+    "col",
+    "size_x",
+    "size_y",
+    "series",
+    "parameter_mappings",
+    "visualization_settings",
+    "action_id",
+    "inline_parameters",
+)
 
 
 # ---- Helper Functions ----
@@ -63,6 +80,33 @@ def _path_id(value: Any) -> str:
     return quote(str(value), safe="")
 
 
+async def _api(context: ExecutionContext, method: str, path: str, **kwargs: Any) -> Any:
+    response = await context.fetch(
+        f"{get_base_url(context)}/api{path}",
+        method=method,
+        headers=get_auth_headers(context),
+        **kwargs,
+    )
+    return response.data
+
+
+def _required_text(value: Any, key: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError(f"{key} is required")
+    return text
+
+
+def _native_query(database_id: Any, sql: str) -> Dict[str, Any]:
+    return {"database": database_id, "type": "native", "native": {"query": sql, "template-tags": {}}}
+
+
+def _with_optional(body: Dict[str, Any], **values: Any) -> Dict[str, Any]:
+    """Add optional fields to a request body, skipping ones that are missing or empty."""
+    body.update({key: value for key, value in values.items() if value is not None and value != ""})
+    return body
+
+
 def _error_message(error: Exception) -> str:
     if isinstance(error, HTTPError):
         data = error.response_data
@@ -81,10 +125,9 @@ def _clamp(value: Any, default: int, maximum: int) -> int:
 
 
 def _page(inputs: Dict[str, Any]) -> Dict[str, int]:
-    offset = inputs.get("offset")
     return {
         "limit": _clamp(inputs.get("limit"), DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT),
-        "offset": offset if isinstance(offset, int) and not isinstance(offset, bool) and offset > 0 else 0,
+        "offset": _clamp(inputs.get("offset"), 0, sys.maxsize),
     }
 
 
@@ -214,6 +257,11 @@ def _list_data(data: Any) -> List[Dict[str, Any]]:
     return data or []
 
 
+def _paged(key: str, items: List[Dict[str, Any]], data: Any, page: Dict[str, int]) -> Dict[str, Any]:
+    total = data.get("total") if isinstance(data, dict) else len(items)
+    return {key: items, "count": len(items), "total": total, **page}
+
+
 # ---- Account ----
 
 
@@ -223,12 +271,7 @@ class GetCurrentUserAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/user/current",
-                method="GET",
-                headers=get_auth_headers(context),
-            )
-            user = response.data or {}
+            user = await _api(context, "GET", "/user/current") or {}
             return ActionResult(
                 data={
                     "id": user.get("id"),
@@ -253,11 +296,7 @@ class ListDatabasesAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/database",
-                method="GET",
-                headers=get_auth_headers(context),
-            )
+            data = await _api(context, "GET", "/database")
             databases = [
                 {
                     "id": db.get("id"),
@@ -266,7 +305,7 @@ class ListDatabasesAction(ActionHandler):
                     "description": db.get("description"),
                     "is_sample": bool(db.get("is_sample")),
                 }
-                for db in _list_data(response.data)
+                for db in _list_data(data)
             ]
             return ActionResult(data={"databases": databases, "count": len(databases)}, cost_usd=0.0)
         except Exception as e:
@@ -284,13 +323,13 @@ class GetDatabaseSchemaAction(ActionHandler):
             schema = str(inputs.get("schema") or "").strip().lower()
             name_contains = str(inputs.get("table_name_contains") or "").strip().lower()
 
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/database/{database_id}/metadata",
-                method="GET",
-                headers=get_auth_headers(context),
+            data = await _api(
+                context,
+                "GET",
+                f"/database/{database_id}/metadata",
                 params={"skip_fields": "false" if include_fields else "true"},
             )
-            database = response.data or {}
+            database = data or {}
             tables = []
             for table in database.get("tables") or []:
                 if schema and str(table.get("schema") or "").lower() != schema:
@@ -319,12 +358,7 @@ class GetTableAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             table_id = _path_id(inputs["table_id"])
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/table/{table_id}/query_metadata",
-                method="GET",
-                headers=get_auth_headers(context),
-            )
-            table = response.data or {}
+            table = await _api(context, "GET", f"/table/{table_id}/query_metadata") or {}
             summary = _table_summary(table, include_fields=True)
             summary["database_id"] = table.get("db_id")
             return ActionResult(data=summary, cost_usd=0.0)
@@ -346,14 +380,9 @@ class SearchAction(ActionHandler):
             params += [("models", m) for m in inputs.get("models") or []]
             if inputs.get("archived"):
                 params.append(("archived", "true"))
-            params += [("limit", page["limit"]), ("offset", page["offset"])]
+            params += list(page.items())
 
-            response = await context.fetch(
-                _with_query(f"{get_base_url(context)}/api/search", params),
-                method="GET",
-                headers=get_auth_headers(context),
-            )
-            data = response.data or {}
+            data = await _api(context, "GET", _with_query("/search", params))
             results = [
                 {
                     "model": item.get("model"),
@@ -368,16 +397,7 @@ class SearchAction(ActionHandler):
                 }
                 for item in _list_data(data)
             ]
-            return ActionResult(
-                data={
-                    "results": results,
-                    "count": len(results),
-                    "total": data.get("total") if isinstance(data, dict) else len(results),
-                    "limit": page["limit"],
-                    "offset": page["offset"],
-                },
-                cost_usd=0.0,
-            )
+            return ActionResult(data=_paged("results", results, data, page), cost_usd=0.0)
         except Exception as e:
             return ActionError(message=_error_message(e))
 
@@ -388,10 +408,10 @@ class ListCollectionsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/collection",
-                method="GET",
-                headers=get_auth_headers(context),
+            data = await _api(
+                context,
+                "GET",
+                "/collection",
                 params={"archived": "true" if inputs.get("archived") else "false"},
             )
             include_personal = bool(inputs.get("include_personal", False))
@@ -405,7 +425,7 @@ class ListCollectionsAction(ActionHandler):
                     "is_personal": bool(c.get("is_personal")),
                     "archived": bool(c.get("archived")),
                 }
-                for c in _list_data(response.data)
+                for c in _list_data(data)
                 if include_personal or not c.get("is_personal")
             ]
             return ActionResult(data={"collections": collections, "count": len(collections)}, cost_usd=0.0)
@@ -422,14 +442,9 @@ class ListCollectionItemsAction(ActionHandler):
             collection_id = _path_id(inputs.get("collection_id") or "root")
             page = _page(inputs)
             params: List[tuple] = [("models", m) for m in inputs.get("models") or []]
-            params += [("limit", page["limit"]), ("offset", page["offset"])]
+            params += list(page.items())
 
-            response = await context.fetch(
-                _with_query(f"{get_base_url(context)}/api/collection/{collection_id}/items", params),
-                method="GET",
-                headers=get_auth_headers(context),
-            )
-            data = response.data or {}
+            data = await _api(context, "GET", _with_query(f"/collection/{collection_id}/items", params))
             items = [
                 {
                     "model": item.get("model"),
@@ -440,16 +455,7 @@ class ListCollectionItemsAction(ActionHandler):
                 }
                 for item in _list_data(data)
             ]
-            return ActionResult(
-                data={
-                    "items": items,
-                    "count": len(items),
-                    "total": data.get("total") if isinstance(data, dict) else len(items),
-                    "limit": page["limit"],
-                    "offset": page["offset"],
-                },
-                cost_usd=0.0,
-            )
+            return ActionResult(data=_paged("items", items, data, page), cost_usd=0.0)
         except Exception as e:
             return ActionError(message=_error_message(e))
 
@@ -460,22 +466,12 @@ class CreateCollectionAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            name = str(inputs["name"] or "").strip()
-            if not name:
-                raise ValueError("name is required")
-            body: Dict[str, Any] = {"name": name}
-            if inputs.get("description"):
-                body["description"] = inputs["description"]
-            if inputs.get("parent_collection_id") is not None:
-                body["parent_id"] = inputs["parent_collection_id"]
-
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/collection",
-                method="POST",
-                headers=get_auth_headers(context),
-                json=body,
+            name = _required_text(inputs["name"], "name")
+            body = _with_optional(
+                {"name": name}, description=inputs.get("description"), parent_id=inputs.get("parent_collection_id")
             )
-            collection = response.data or {}
+
+            collection = await _api(context, "POST", "/collection", json=body) or {}
             if collection.get("id") is None:
                 raise ValueError("Metabase did not return a collection id")
             return ActionResult(
@@ -500,12 +496,8 @@ class GetQuestionAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             card_id = _path_id(inputs["question_id"])
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/card/{card_id}",
-                method="GET",
-                headers=get_auth_headers(context),
-            )
-            return ActionResult(data=_card_summary(response.data or {}), cost_usd=0.0)
+            data = await _api(context, "GET", f"/card/{card_id}")
+            return ActionResult(data=_card_summary(data or {}), cost_usd=0.0)
         except Exception as e:
             return ActionError(message=_error_message(e))
 
@@ -522,14 +514,8 @@ class RunQuestionAction(ActionHandler):
             if inputs.get("parameters"):
                 body["parameters"] = inputs["parameters"]
 
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/card/{card_id}/query",
-                method="POST",
-                headers=get_auth_headers(context),
-                json=body,
-                timeout=QUERY_TIMEOUT_SECONDS,
-            )
-            return ActionResult(data=_query_result(response.data, max_rows), cost_usd=0.0)
+            data = await _api(context, "POST", f"/card/{card_id}/query", json=body, timeout=QUERY_TIMEOUT_SECONDS)
+            return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)
         except Exception as e:
             return ActionError(message=_error_message(e))
 
@@ -540,23 +526,17 @@ class RunSqlQueryAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            sql = str(inputs["sql"] or "").strip()
-            if not sql:
-                raise ValueError("sql is required")
+            sql = _required_text(inputs["sql"], "sql")
             max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
 
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/dataset",
-                method="POST",
-                headers=get_auth_headers(context),
-                json={
-                    "database": inputs["database_id"],
-                    "type": "native",
-                    "native": {"query": sql, "template-tags": {}},
-                },
+            data = await _api(
+                context,
+                "POST",
+                "/dataset",
+                json=_native_query(inputs["database_id"], sql),
                 timeout=QUERY_TIMEOUT_SECONDS,
             )
-            return ActionResult(data=_query_result(response.data, max_rows), cost_usd=0.0)
+            return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)
         except Exception as e:
             return ActionError(message=_error_message(e))
 
@@ -567,35 +547,18 @@ class CreateQuestionAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            name = str(inputs["name"] or "").strip()
-            sql = str(inputs["sql"] or "").strip()
-            if not name:
-                raise ValueError("name is required")
-            if not sql:
-                raise ValueError("sql is required")
+            name = _required_text(inputs["name"], "name")
+            sql = _required_text(inputs["sql"], "sql")
             body: Dict[str, Any] = {
                 "name": name,
                 "type": "question",
                 "display": inputs.get("display") or "table",
                 "visualization_settings": {},
-                "dataset_query": {
-                    "database": inputs["database_id"],
-                    "type": "native",
-                    "native": {"query": sql, "template-tags": {}},
-                },
+                "dataset_query": _native_query(inputs["database_id"], sql),
             }
-            if inputs.get("description"):
-                body["description"] = inputs["description"]
-            if inputs.get("collection_id") is not None:
-                body["collection_id"] = inputs["collection_id"]
+            _with_optional(body, description=inputs.get("description"), collection_id=inputs.get("collection_id"))
 
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/card",
-                method="POST",
-                headers=get_auth_headers(context),
-                json=body,
-            )
-            card = response.data or {}
+            card = await _api(context, "POST", "/card", json=body) or {}
             if card.get("id") is None:
                 raise ValueError("Metabase did not return a question id")
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
@@ -613,12 +576,7 @@ class GetDashboardAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             dashboard_id = _path_id(inputs["dashboard_id"])
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/dashboard/{dashboard_id}",
-                method="GET",
-                headers=get_auth_headers(context),
-            )
-            dashboard = response.data or {}
+            dashboard = await _api(context, "GET", f"/dashboard/{dashboard_id}") or {}
             return ActionResult(
                 data={
                     "id": dashboard.get("id"),
@@ -645,22 +603,12 @@ class CreateDashboardAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            name = str(inputs["name"] or "").strip()
-            if not name:
-                raise ValueError("name is required")
-            body: Dict[str, Any] = {"name": name}
-            if inputs.get("description"):
-                body["description"] = inputs["description"]
-            if inputs.get("collection_id") is not None:
-                body["collection_id"] = inputs["collection_id"]
-
-            response = await context.fetch(
-                f"{get_base_url(context)}/api/dashboard",
-                method="POST",
-                headers=get_auth_headers(context),
-                json=body,
+            name = _required_text(inputs["name"], "name")
+            body = _with_optional(
+                {"name": name}, description=inputs.get("description"), collection_id=inputs.get("collection_id")
             )
-            dashboard = response.data or {}
+
+            dashboard = await _api(context, "POST", "/dashboard", json=body) or {}
             if dashboard.get("id") is None:
                 raise ValueError("Metabase did not return a dashboard id")
             return ActionResult(
@@ -681,14 +629,11 @@ class AddQuestionToDashboardAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            base_url = get_base_url(context)
-            headers = get_auth_headers(context)
             dashboard_id = _path_id(inputs["dashboard_id"])
             size_x = _clamp(inputs.get("width"), DEFAULT_CARD_WIDTH, DASHBOARD_GRID_WIDTH)
-            size_y = _clamp(inputs.get("height"), DEFAULT_CARD_HEIGHT, 50)
+            size_y = _clamp(inputs.get("height"), DEFAULT_CARD_HEIGHT, MAX_CARD_HEIGHT)
 
-            current = await context.fetch(f"{base_url}/api/dashboard/{dashboard_id}", method="GET", headers=headers)
-            dashboard = current.data or {}
+            dashboard = await _api(context, "GET", f"/dashboard/{dashboard_id}") or {}
             existing = dashboard.get("dashcards") or []
             tabs = dashboard.get("tabs") or []
             tab_id = inputs.get("tab_id")
@@ -696,21 +641,7 @@ class AddQuestionToDashboardAction(ActionHandler):
                 tab_id = tabs[0].get("id")
 
             # PUT replaces the whole dashcard list, so every existing card is sent back unchanged.
-            keep_keys = (
-                "id",
-                "card_id",
-                "dashboard_tab_id",
-                "row",
-                "col",
-                "size_x",
-                "size_y",
-                "series",
-                "parameter_mappings",
-                "visualization_settings",
-                "action_id",
-                "inline_parameters",
-            )
-            dashcards = [{k: dc[k] for k in keep_keys if k in dc} for dc in existing]
+            dashcards = [{k: dc[k] for k in DASHCARD_PUT_KEYS if k in dc} for dc in existing]
             same_tab = [dc for dc in existing if tab_id is None or dc.get("dashboard_tab_id") == tab_id]
             next_row = max((int(dc.get("row") or 0) + int(dc.get("size_y") or 0) for dc in same_tab), default=0)
 
@@ -734,13 +665,7 @@ class AddQuestionToDashboardAction(ActionHandler):
             if tabs:
                 body["tabs"] = [{"id": t.get("id"), "name": t.get("name")} for t in tabs]
 
-            response = await context.fetch(
-                f"{base_url}/api/dashboard/{dashboard_id}",
-                method="PUT",
-                headers=headers,
-                json=body,
-            )
-            updated = response.data or {}
+            updated = await _api(context, "PUT", f"/dashboard/{dashboard_id}", json=body) or {}
             known_ids = {dc.get("id") for dc in existing}
             added = next(
                 (
