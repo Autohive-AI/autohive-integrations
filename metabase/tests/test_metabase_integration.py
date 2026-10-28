@@ -164,13 +164,31 @@ class TestReadOnly:
 
     @pytest.mark.asyncio
     async def test_get_and_run_question(self, live_context):
-        hit = await _first_search_hit(live_context, "card")
-        question = _assert_ok(await metabase.execute_action("get_question", {"question_id": hit["id"]}, live_context))
-        assert question["id"] == hit["id"]
-        if question["parameters"]:
-            pytest.skip("First question needs parameters")
+        question = None
+        seen = 0
+        for offset in range(0, 200, 50):
+            page = _assert_ok(
+                await metabase.execute_action(
+                    "search", {"models": ["card"], "limit": 50, "offset": offset}, live_context
+                )
+            )
+            for hit in page["results"]:
+                seen += 1
+                candidate = _assert_ok(
+                    await metabase.execute_action("get_question", {"question_id": hit["id"]}, live_context)
+                )
+                assert candidate["id"] == hit["id"]
+                if not candidate["parameters"]:
+                    question = candidate
+                    break
+            if question or len(page["results"]) < 50:
+                break
+        if not seen:
+            pytest.skip("No card visible to this API key")
+        if question is None:
+            pytest.skip(f"All {seen} questions checked need parameters")
         data = _assert_ok(
-            await metabase.execute_action("run_question", {"question_id": hit["id"], "max_rows": 5}, live_context)
+            await metabase.execute_action("run_question", {"question_id": question["id"], "max_rows": 5}, live_context)
         )
         assert data["row_count"] <= 5
 
