@@ -4085,12 +4085,16 @@ class SearchListsHandler(ActionHandler):
 
         data = await parse_response(response)
         results = data.get("lists", [])
+        has_more = bool(data.get("hasMore"))
 
         return ActionResult(
             data={
                 "results": results,
                 "total": len(results),
-                "has_more": len(results) == inputs.get("count", 20),
+                "total_matching": data.get("total", len(results)),
+                "has_more": has_more,
+                # The offset to send for the next page
+                "next_offset": (inputs.get("offset") or 0) + len(results) if has_more else None,
             },
             cost_usd=None,
         )
@@ -4336,6 +4340,8 @@ class GetListMembersHandler(ActionHandler):
         membership_timestamps = {m["recordId"]: m["membershipTimestamp"] for m in all_memberships}
 
         all_contacts = []
+        failed_contact_ids = []
+        batch_errors = []
 
         # Process contacts in batches of 100 (max for batch read)
         for i in range(0, len(contact_ids), 100):
@@ -4362,10 +4368,10 @@ class GetListMembersHandler(ActionHandler):
                 batch_contacts = contacts_data.get("results", [])
                 all_contacts.extend(batch_contacts)
 
-            except Exception as e:
-                if "429" in str(e) or "rate limit" in str(e).lower():
-                    raise
-                # Continue even if some contacts fail to load
+            except REQUEST_ERRORS as e:
+                # Keep the members that loaded, and name the ones that didn't rather than dropping them
+                failed_contact_ids.extend(batch_ids)
+                batch_errors.append(_error_text(e))
                 continue
 
         # Step 4: Combine data
@@ -4402,16 +4408,17 @@ class GetListMembersHandler(ActionHandler):
             "members_per_second": round(len(members) / execution_time, 2) if execution_time > 0 else 0,
         }
 
-        return ActionResult(
-            data={
-                "list_metadata": list_metadata,
-                "members": members,
-                "total_members": list_metadata["size"],
-                "retrieved_count": len(members),
-                "performance_stats": performance_stats,
-            },
-            cost_usd=None,
-        )
+        result = {
+            "list_metadata": list_metadata,
+            "members": members,
+            "total_members": list_metadata["size"],
+            "retrieved_count": len(members),
+            "performance_stats": performance_stats,
+        }
+        if failed_contact_ids:
+            result["failed_contact_ids"] = failed_contact_ids
+            result["errors"] = batch_errors
+        return ActionResult(data=result, cost_usd=None)
 
 
 @hubspot.action("get_owner")

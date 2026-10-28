@@ -3958,7 +3958,7 @@
           },
           "offset": {
             "type": "integer",
-            "description": "Pagination offset",
+            "description": "Pagination offset: next_offset from the previous call",
             "default": 0
           },
           "processing_types": {
@@ -4010,11 +4010,22 @@
           },
           "total": {
             "type": "integer",
-            "description": "Total results found"
+            "description": "Number of lists on this page"
           },
           "has_more": {
             "type": "boolean",
-            "description": "Whether more results are available"
+            "description": "Whether HubSpot has more matching lists"
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Lists matching across all pages"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "offset to send for the next page; null on the last page"
           }
         },
         "required": [
@@ -4179,6 +4190,20 @@
                 "type": "number"
               }
             }
+          },
+          "failed_contact_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Members whose contact details HubSpot couldn't return; they're missing from members"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Why those contacts couldn't be read"
           }
         },
         "required": [

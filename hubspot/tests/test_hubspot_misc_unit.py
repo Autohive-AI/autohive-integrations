@@ -180,6 +180,30 @@ class TestSearchLists:
         assert "has_more" in data
         assert data["total"] == 2
 
+    @pytest.mark.asyncio
+    async def test_next_offset_from_hubspot_has_more(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"lists": [{"listId": "1"}, {"listId": "2"}], "hasMore": True, "total": 45, "offset": 40},
+        )
+
+        result = await hubspot.execute_action("search_lists", {"count": 2, "offset": 40}, mock_context)
+
+        data = result.result.data
+        assert (data["has_more"], data["next_offset"], data["total_matching"]) == (True, 42, 45)
+
+    @pytest.mark.asyncio
+    async def test_short_last_page_has_no_next_offset(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"lists": [{"listId": "1"}], "hasMore": False, "total": 1, "offset": 0}
+        )
+
+        result = await hubspot.execute_action("search_lists", {"count": 1}, mock_context)
+
+        # A full page used to be reported as having more
+        assert (result.result.data["has_more"], result.result.data["next_offset"]) == (False, None)
+
 
 class TestGetListMemberships:
     @pytest.mark.asyncio
@@ -300,6 +324,29 @@ class TestGetListMembers:
         assert len(data["members"]) == 2
         assert data["members"][0]["email"] == "a@example.com"
         assert data["members"][1]["email"] == "b@example.com"
+
+    @pytest.mark.asyncio
+    async def test_failed_contact_batch_is_reported_not_dropped(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            HTTPError(502, "Bad gateway"),
+        ]
+
+        result = await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+
+        data = result.result.data
+        assert data["members"] == []
+        assert data["failed_contact_ids"] == ["101", "102"]
+        assert data["errors"] == ["HTTP 502: Bad gateway"]
+
+    @pytest.mark.asyncio
+    async def test_no_failure_fields_when_every_batch_loads(self, mock_context):
+        mock_context.fetch.side_effect = [self.LIST_META_RESPONSE, self.MEMBERSHIPS_RESPONSE, self.CONTACTS_RESPONSE]
+
+        result = await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+
+        assert "failed_contact_ids" not in result.result.data
 
     @pytest.mark.asyncio
     async def test_request_sequence(self, mock_context):

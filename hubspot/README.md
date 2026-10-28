@@ -578,9 +578,9 @@ These actions work across HubSpot object types, so questions that the fixed filt
 - **Inputs:**
   - `query` (optional): Search query for list names
   - `count` (optional): Number of results to return (default: 20, max: 500)
-  - `offset` (optional): Pagination offset (default: 0)
+  - `offset` (optional): Pagination offset (default: 0); pass the previous call's `next_offset`
   - `processing_types` (optional): Filter by processing types
-- **Outputs:** Paginated search results with total count and more results indicator
+- **Outputs:** `results`, `total` (this page), `total_matching` (all pages), `has_more`, and `next_offset` for the next page
 
 #### Action: `get_list_members`
 - **Description:** Retrieve list members with complete contact information including names, emails, and custom properties
@@ -589,7 +589,7 @@ These actions work across HubSpot object types, so questions that the fixed filt
   - `limit` (optional): Maximum number of members to return (default: 1000, max: 10000)
   - `contact_properties` (optional): Contact properties to include (default: ["email", "firstname", "lastname", "phone", "company", "jobtitle"])
   - `include_membership_timestamps` (optional): Include when contacts were added to list (default: true)
-- **Outputs:** List metadata, array of members with contact details, performance statistics, and pagination info
+- **Outputs:** List metadata, array of members with contact details, performance statistics, and pagination info. When HubSpot can't return some members' contact details, their IDs are listed in `failed_contact_ids` with the reasons in `errors`, rather than being left out silently
 
 #### Action: `get_list_memberships`
 - **Description:** Get raw list member IDs and timestamps without contact details (for advanced use cases)
