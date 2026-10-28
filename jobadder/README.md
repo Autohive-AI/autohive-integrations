@@ -17,6 +17,8 @@ This integration uses JobAdder OAuth 2.0 through Autohive. It requests only the 
 
 JobAdder returns the account's API base URL during OAuth. Autohive stores that URL as connection metadata; the integration requires it and validates that it is an HTTPS `jobadder.com` URL before making requests. Reconnect accounts created before this metadata was available.
 
+Existing JobAdder connections created before version 1.3.0 must also reconnect or reauthorise to grant the new `write_contact` scope before using `update_contact` or `set_contact_status`.
+
 API access requires a JobAdder developer application and approval. See the [JobAdder API documentation](https://developers.jobadder.com/docs/) and [OAuth 2.0 guide](https://jobadderapi.zendesk.com/hc/en-us/articles/360022196774-OAuth2-Authentication).
 
 ## Actions
@@ -46,7 +48,7 @@ API access requires a JobAdder developer application and approval. See the [JobA
 - `create_candidate` — create a candidate with optional identity, contact, status, source, skills, recruiter, employment, availability, education, address, social, and custom-field data. JobAdder does not require first and last names in its published request schema. A duplicate override code from a prior HTTP 409 response can be supplied when duplication is intentional.
 - `update_candidate` — update only the supplied fields on an existing candidate, including names, email, contact details, status, recruiter assignments, employment data, availability, skills, social profiles, summary, and custom fields. Explicit `null` values clear fields that JobAdder permits to be cleared. A duplicate override code from a prior HTTP 409 response can be supplied when changing an email intentionally creates a duplicate.
 - `list_candidate_statuses` — discover the account's candidate status definitions and filter them by ID, name, active state, or default state.
-- `set_candidate_status` — change a candidate to a selected status ID. Use `list_candidate_statuses` with `active: false` to discover valid inactive statuses for the connected account.
+- `set_candidate_status` — change a candidate to a selected status ID, optionally recording a note type and text with the change. Use `list_candidate_statuses` with `active: false` to discover valid inactive statuses for the connected account.
 - `list_candidate_applications` and `list_candidate_active_applications` — list all or only active applications for a candidate.
 - `list_candidate_placements` and `list_candidate_approved_placements` — list all or only approved placements for a candidate.
 - `list_candidate_attachments` — list candidate documents by native type, tenant category, latest-version flag, and pagination.
@@ -62,9 +64,9 @@ API access requires a JobAdder developer application and approval. See the [JobA
 
 - `list_contacts` — find contacts by company ID or company name, contact name, email, phone, creator/consultant, status, hiring-manager flag, and audit dates. Company-name searches first resolve matching JobAdder company IDs.
 - `get_contact` — retrieve full details for one contact.
-- `update_contact` — update only the supplied fields on an existing contact, including names, email, phone, company, position, status, recruiter assignments, reporting contact, social profiles, summary, subscription state, and custom fields. Explicit `null` values clear fields that JobAdder permits to be cleared. A duplicate override code from a prior HTTP 409 response is supported.
+- `update_contact` — update only the supplied fields on an existing contact, including names, primary and additional emails, phone and mobile, company, office address, position, status, owner and recruiter assignments, reporting contact, social profiles, summary, subscription state, and custom fields. Explicit `null` values clear fields that JobAdder permits to be cleared. A duplicate override code from a prior HTTP 409 response is supported.
 - `list_contact_statuses` — discover the account's contact status definitions and filter them by ID, name, active state, or default state.
-- `set_contact_status` — change a contact to a selected status ID. Use `list_contact_statuses` with `active: false` to discover valid inactive statuses for the connected account.
+- `set_contact_status` — change a contact to a selected status ID, optionally recording a note type and text with the change. Use `list_contact_statuses` with `active: false` to discover valid inactive statuses for the connected account.
 - `list_companies` — find companies by name, status, creator/consultant, and audit dates.
 - `get_company` — retrieve full details for one company.
 - `list_contact_jobs` — list the jobs associated with one contact.

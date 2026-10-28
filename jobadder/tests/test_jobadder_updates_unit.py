@@ -59,6 +59,13 @@ class TestUpdateCandidate:
 
         assert mock_context.fetch.call_args.kwargs["json"] == {"email": None}
 
+    @pytest.mark.parametrize("field", ["seeking", "address", "employment", "availability"])
+    async def test_rejects_null_for_provider_non_nullable_fields(self, mock_context, field):
+        result = await jobadder.execute_action("update_candidate", {"candidate_id": 21, field: None}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_awaited()
+
     async def test_rejects_empty_update_before_fetch(self, mock_context):
         result = await jobadder.execute_action("update_candidate", {"candidate_id": 21}, mock_context)
 
@@ -89,7 +96,11 @@ class TestUpdateContact:
                 "first_name": "Morgan",
                 "last_name": "Lee",
                 "email": "morgan.lee@example.com",
+                "mobile": "+64 21 555 0101",
                 "status_id": 4,
+                "owner_user_id": 17,
+                "office_address_id": "3e9ffaf1-ee5d-48c3-9378-5f88d8e03401",
+                "other_emails": ["morgan.alt@example.com"],
                 "custom_fields": [{"fieldId": 7, "value": "Enriched"}],
             },
             mock_context,
@@ -105,7 +116,11 @@ class TestUpdateContact:
                 "firstName": "Morgan",
                 "lastName": "Lee",
                 "email": "morgan.lee@example.com",
+                "mobile": "+64 21 555 0101",
                 "statusId": 4,
+                "ownerUserId": 17,
+                "officeAddressId": "3e9ffaf1-ee5d-48c3-9378-5f88d8e03401",
+                "otherEmail": ["morgan.alt@example.com"],
                 "custom": [{"fieldId": 7, "value": "Enriched"}],
             },
         )
@@ -201,6 +216,20 @@ class TestSetStatus:
             headers={"Content-Type": "application/json"},
             json={"statusId": 8},
         )
+
+    async def test_includes_optional_note(self, mock_context, action, id_field, record_id, path):
+        mock_context.fetch.return_value = response()
+
+        await jobadder.execute_action(
+            action,
+            {id_field: record_id, "status_id": 8, "note_type": "Status update", "note_text": "Archived"},
+            mock_context,
+        )
+
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "statusId": 8,
+            "note": {"type": "Status update", "text": "Archived"},
+        }
 
     async def test_exception_returns_action_error(self, mock_context, action, id_field, record_id, path):
         mock_context.fetch.side_effect = Exception(f"{path} failed")

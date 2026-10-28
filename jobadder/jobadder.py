@@ -425,11 +425,19 @@ class ListCandidateStatusesAction(ActionHandler):
 class SetCandidateStatusAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
+            body: dict[str, Any] = {"statusId": inputs["status_id"]}
+            note = {}
+            if "note_type" in inputs:
+                note["type"] = inputs.get("note_type")
+            if "note_text" in inputs:
+                note["text"] = inputs.get("note_text")
+            if note:
+                body["note"] = note
             await context.fetch(
                 f"{get_api_base_url(context)}/candidates/{inputs['candidate_id']}/status",
                 method="PUT",
                 headers={"Content-Type": "application/json"},
-                json={"statusId": inputs["status_id"]},
+                json=body,
             )
             return ActionResult(
                 data={
@@ -507,11 +515,15 @@ class UpdateContactAction(ActionHandler):
                 "lastName": ("last_name", inputs.get("last_name")),
                 "email": ("email", inputs.get("email")),
                 "phone": ("phone", inputs.get("phone")),
+                "mobile": ("mobile", inputs.get("mobile")),
                 "salutation": ("salutation", inputs.get("salutation")),
                 "position": ("position", inputs.get("position")),
                 "statusId": ("status_id", inputs.get("status_id")),
                 "recruiterUserId": ("recruiter_user_ids", inputs.get("recruiter_user_ids")),
+                "ownerUserId": ("owner_user_id", inputs.get("owner_user_id")),
                 "reportsToContactId": ("reports_to_contact_id", inputs.get("reports_to_contact_id")),
+                "officeAddressId": ("office_address_id", inputs.get("office_address_id")),
+                "otherEmail": ("other_emails", inputs.get("other_emails")),
                 "social": ("social", inputs.get("social")),
                 "summary": ("summary", inputs.get("summary")),
                 "unsubscribed": ("unsubscribed", inputs.get("unsubscribed")),
@@ -559,11 +571,19 @@ class ListContactStatusesAction(ActionHandler):
 class SetContactStatusAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
+            body: dict[str, Any] = {"statusId": inputs["status_id"]}
+            note = {}
+            if "note_type" in inputs:
+                note["type"] = inputs.get("note_type")
+            if "note_text" in inputs:
+                note["text"] = inputs.get("note_text")
+            if note:
+                body["note"] = note
             await context.fetch(
                 f"{get_api_base_url(context)}/contacts/{inputs['contact_id']}/status",
                 method="PUT",
                 headers={"Content-Type": "application/json"},
-                json={"statusId": inputs["status_id"]},
+                json=body,
             )
             return ActionResult(
                 data={
