@@ -131,11 +131,12 @@ def _ensure_read_only_sql(sql: str) -> str:
         else:
             break
     first_word = re.match(r"[A-Za-z]*", text).group(0).lower()
+    code = SQL_QUOTED_OR_COMMENT.sub(" ", sql)
     # A second statement after a semicolon could be anything, so only one statement is allowed.
-    code = sql if "\\" in sql else SQL_QUOTED_OR_COMMENT.sub(" ", sql)
+    separators = sql if "\\" in sql else code
     if (
         first_word not in READ_ONLY_SQL_KEYWORDS
-        or ";" in code.strip().rstrip(";")
+        or ";" in separators.strip().rstrip(";")
         or EXPLAIN_ANALYZE.match(code.lstrip().lstrip("(").lstrip())
         or NESTED_BLOCK_COMMENT.search(sql)
         or (first_word == "with" and WRITE_KEYWORD.search(code))
