@@ -375,6 +375,8 @@ class TestReadOnlySql:
             "select 1",
             "  SELECT * FROM t",
             "with x as (select 1) select * from x",
+            "with x as (select last_update, deleted_at from t) select * from x",
+            "with x as (select 'delete' as action) select * from x",
             "-- note\nselect 1",
             "/* hi */ select 1",
             "(select 1) union (select 2)",
@@ -420,6 +422,10 @@ class TestReadOnlySql:
             "/* note */ (explain analyze delete from t)",
             "/* outer /* inner */ SELECT 1 */ DELETE FROM users",
             "select 1 /* a /* b */ c */",
+            "WITH removed AS (DELETE FROM users RETURNING *) SELECT * FROM removed",
+            "with x as (update t set a = 1 returning a) select * from x",
+            "with x as (insert into t values (1) returning *) select 1",
+            "with x as (select 1) merge into t using x on true when matched then delete",
         ],
     )
     def test_rejected(self, sql):
