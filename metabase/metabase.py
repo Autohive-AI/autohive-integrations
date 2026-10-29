@@ -136,7 +136,8 @@ WRITE_KEYWORD = re.compile(
     r"|\b(?:end|move|get)\s+conversation\b|\bsend\s+on\s+conversation\b|\breceive\s+(?:top\b|\*|\w+\s+from\b)"
     r"|\b(?:open|close)\s+(?:master|symmetric|all\s+symmetric)\s+keys?\b|\badd\s+(?:counter\s+)?signature\b"
     # Functions with side effects: sequences, sessions, locks, sleeps, server files, replication, remote
-    # databases and URLs, and commands (ClickHouse executable, Spark reflect)
+    # databases and URLs, and commands (ClickHouse executable, Spark reflect). The name may be quoted or bracketed
+    # ("nextval", [nextval]) and followed by spaces or comments (setval/**/(...)) before its arguments.
     r"|\b(?:setval|nextval|set_config|pg_terminate_backend|pg_cancel_backend|pg_reload_conf|pg_rotate_logfile\w*"
     r"|pg_promote|pg_switch_wal|pg_create_restore_point|pg_wal_replay_\w+|pg_notify|pg_(?:try_)?advisory\w*"
     r"|pg_file_\w+|pg_stat_reset\w*|pg_logical_\w+|pg_import_system_collations|pg_replication_\w+"
@@ -144,7 +145,9 @@ WRITE_KEYWORD = re.compile(
     r"|link_schema|pg_sleep\w*|pg_read_file|pg_read_binary_file|pg_ls_\w+|pg_stat_file|pg_logdir_ls|sleep|benchmark"
     r"|load_file|file_read|url|urlcluster|s3|s3cluster|gcs|file|remote|remotesecure|hdfs|azureblobstorage\w*"
     r"|deltalake|iceberg\w*|hudi|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect"
-    r"|java_method|httpuritype)\s*\(",
+    r"|java_method|httpuritype)[\"`\]]?(?:\s|/\*(?:[^*]|\*(?!/))*\*/|--[^\r\n]*|#[^\r\n]*)*+\("
+    # PostgreSQL U&"..." names can spell any word in hex escapes (U&"\0073etval").
+    r"|\bu&[\"']",
     re.IGNORECASE,
 )
 # EXPLAIN ANALYZE runs the statement it explains.
