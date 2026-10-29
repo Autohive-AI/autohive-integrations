@@ -273,9 +273,66 @@ class TestCardSummary:
             "id": 1,
             "name": "Q",
             "parameters": [{"id": "p1", "slug": "region"}],
-            "dataset_query": {"stages": [{"native": "x", "template-tags": [{"name": "other", "type": "text"}]}]},
+            "dataset_query": {
+                "stages": [{"native": "x", "template-tags": [{"id": "p1", "name": "region", "type": "text"}]}]
+            },
         }
         assert _card_summary(card)["parameters"] == [{"id": "p1", "slug": "region"}]
+
+    def test_template_tags_missing_from_explicit_parameters_are_added(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "parameters": [{"id": "p1", "slug": "region"}],
+            "dataset_query": {
+                "stages": [
+                    {
+                        "native": "x",
+                        "template-tags": [
+                            {"id": "p1", "name": "region", "type": "text"},
+                            {"id": "p2", "name": "cutoff", "type": "date", "required": True},
+                        ],
+                    }
+                ]
+            },
+        }
+        params = _card_summary(card)["parameters"]
+        assert [p["slug"] for p in params] == ["region", "cutoff"]
+        assert params[1]["required"] is True
+
+    def test_template_tag_matched_by_slug_is_not_duplicated(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "parameters": [{"id": "p1", "slug": "region"}],
+            "dataset_query": {"stages": [{"native": "x", "template-tags": [{"name": "region", "type": "text"}]}]},
+        }
+        assert _card_summary(card)["parameters"] == [{"id": "p1", "slug": "region"}]
+
+    def test_template_tag_without_id_kept_when_explicit_parameter_has_no_id(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "parameters": [{"slug": "region"}],
+            "dataset_query": {"native": {"query": "x", "template-tags": {"n": {"name": "n", "type": "number"}}}},
+        }
+        assert [p["slug"] for p in _card_summary(card)["parameters"]] == ["region", "n"]
+
+    def test_temporal_unit_tag_targets_dimension(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "dataset_query": {
+                "stages": [
+                    {
+                        "native": "x",
+                        "template-tags": [{"id": "t", "name": "unit", "type": "temporal-unit", "default": "month"}],
+                    }
+                ]
+            },
+        }
+        param = _card_summary(card)["parameters"][0]
+        assert (param["type"], param["target"]) == ("temporal-unit", ["dimension", ["template-tag", "unit"]])
 
     def test_field_filter_without_widget_type_uses_category(self):
         card = {
@@ -322,6 +379,8 @@ class TestReadOnlySql:
             "/* hi */ select 1",
             "(select 1) union (select 2)",
             "explain select 1",
+            "explain (format json) select 1",
+            "explain select analyze_count from t",
             "show tables",
             "describe t",
             "values (1)",
@@ -353,6 +412,12 @@ class TestReadOnlySql:
             "select 1 /* ; */; delete from t",
             "select 'a\\''; drop table t; -- '",
             "select 'a\\'; drop table t; --'",
+            "EXPLAIN ANALYZE DELETE FROM users",
+            "explain analyse update t set a = 1",
+            "explain (analyze, buffers) insert into t values (1)",
+            "explain (ANALYZE true) select 1",
+            "explain /* x */ analyze delete from t",
+            "/* note */ (explain analyze delete from t)",
         ],
     )
     def test_rejected(self, sql):

@@ -109,6 +109,8 @@ READ_ONLY_SQL_KEYWORDS = ("select", "with", "explain", "show", "describe", "desc
 # Quoted strings, quoted identifiers and comments, which may contain semicolons that end nothing.
 # Backslash escapes differ between databases, so SQL with a backslash keeps the plain semicolon check.
 SQL_QUOTED_OR_COMMENT = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|`[^`]*`|--[^\n]*|/\*.*?\*/", re.DOTALL)
+# EXPLAIN ANALYZE runs the statement it explains, so it could run an UPDATE or DELETE.
+EXPLAIN_ANALYZE = re.compile(r"explain\s*(?:analy[sz]e\b|\([^)]*\banaly[sz]e\b)", re.IGNORECASE)
 
 
 def _ensure_read_only_sql(sql: str) -> str:
@@ -125,7 +127,11 @@ def _ensure_read_only_sql(sql: str) -> str:
     first_word = re.match(r"[A-Za-z]*", text).group(0).lower()
     # A second statement after a semicolon could be anything, so only one statement is allowed.
     code = sql if "\\" in sql else SQL_QUOTED_OR_COMMENT.sub(" ", sql)
-    if first_word not in READ_ONLY_SQL_KEYWORDS or ";" in code.strip().rstrip(";"):
+    if (
+        first_word not in READ_ONLY_SQL_KEYWORDS
+        or ";" in code.strip().rstrip(";")
+        or EXPLAIN_ANALYZE.match(code.lstrip().lstrip("(").lstrip())
+    ):
         raise ValueError(
             "Only a single read-only SQL statement is allowed (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES). "
             "Use a read-only database user in Metabase to fully block writes."
@@ -261,7 +267,8 @@ def _template_tag_parameters(tags: Any) -> List[Dict[str, Any]]:
     for tag in tags or []:
         if not isinstance(tag, dict) or tag.get("type") == "snippet" or tag.get("type") == "card":
             continue
-        kind = "dimension" if tag.get("type") == "dimension" else "variable"
+        # Metabase matches field filters and time grouping tags by dimension targets, other tags by variable.
+        kind = "dimension" if tag.get("type") in ("dimension", "temporal-unit") else "variable"
         parameters.append(
             {
                 "id": tag.get("id"),
@@ -269,7 +276,7 @@ def _template_tag_parameters(tags: Any) -> List[Dict[str, Any]]:
                 "name": tag.get("display-name") or tag.get("name"),
                 # Metabase wants the widget type as the value type; a field filter's tag type (dimension)
                 # is only valid in the target.
-                "type": tag.get("widget-type") or ("category" if kind == "dimension" else tag.get("type")),
+                "type": tag.get("widget-type") or ("category" if tag.get("type") == "dimension" else tag.get("type")),
                 "widget_type": tag.get("widget-type"),
                 "required": bool(tag.get("required")),
                 "default": tag.get("default"),
@@ -277,6 +284,12 @@ def _template_tag_parameters(tags: Any) -> List[Dict[str, Any]]:
             }
         )
     return parameters
+
+
+def _merge_parameters(explicit: List[Dict[str, Any]], from_tags: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Keep the card's own parameters and add any template tag they leave out."""
+    known = ({p.get("id") for p in explicit} | {p.get("slug") for p in explicit}) - {None}
+    return explicit + [p for p in from_tags if p["id"] not in known and p["slug"] not in known]
 
 
 def _card_summary(card: Dict[str, Any]) -> Dict[str, Any]:
@@ -301,8 +314,8 @@ def _card_summary(card: Dict[str, Any]) -> Dict[str, Any]:
         "collection_id": card.get("collection_id"),
         "collection": _collection_ref(card.get("collection")),
         "archived": bool(card.get("archived")),
-        # Native questions often keep their filters only as template tags, with empty parameters.
-        "parameters": card.get("parameters") or _template_tag_parameters(tags),
+        # Native questions often keep some or all of their filters only as template tags.
+        "parameters": _merge_parameters(card.get("parameters") or [], _template_tag_parameters(tags)),
     }
 
 
