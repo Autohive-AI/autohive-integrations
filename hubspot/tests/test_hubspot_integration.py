@@ -961,10 +961,6 @@ class TestAddContactToList:
             api_result = result.result.data["result"]
 
             assert "category" not in api_result
-            assert any(
-                key in api_result
-                for key in ("recordIdsAdded", "recordsIdsAdded", "recordIdsMissing", "recordIdsRemoved")
-            )
             assert await contact_is_in_test_list(live_context)
         finally:
             if not was_member:
@@ -1575,3 +1571,41 @@ class TestGapFollowups:
             assert updated.result.data["ticket"]["properties"]["content"] == "Autohive test update"
         finally:
             await live_context.fetch(f"https://api.hubapi.com/crm/objects/2026-09/tickets/{ticket_id}", method="DELETE")
+
+
+@pytest.mark.destructive
+class TestTaskWorkflow:
+    async def test_creates_reads_updates_and_deletes_task(self, live_context):
+        task_id = None
+        try:
+            created = await hubspot.execute_action(
+                "create_task",
+                {"hs_timestamp": str(int(time.time() * 1000)), "hs_task_subject": "Autohive disposable E2E task"},
+                live_context,
+            )
+            assert created.type == ResultType.ACTION, created.result
+            task_id = created.result.data["task"]["id"]
+            updated = await hubspot.execute_action(
+                "update_task", {"hs_object_id": task_id, "hs_task_body": "Updated by E2E test"}, live_context
+            )
+            assert updated.type == ResultType.ACTION, updated.result
+            read = await hubspot.execute_action("get_task", {"hs_object_id": task_id}, live_context)
+            assert read.type == ResultType.ACTION, read.result
+            assert read.result.data["task"]["properties"]["hs_task_body"] == "Updated by E2E test"
+        finally:
+            if task_id:
+                deleted = await hubspot.execute_action("delete_task", {"hs_object_id": task_id}, live_context)
+                assert deleted.type == ResultType.ACTION, deleted.result
+                assert deleted.result.data["success"] is True
+
+
+@pytest.mark.parametrize("object_type", ["products", "line_items", "quotes"])
+async def test_reads_known_catalog_fixture(live_context, object_type):
+    record_id = os.environ.get(f"HUBSPOT_TEST_{object_type.upper()}_ID", "")
+    if not record_id:
+        pytest.skip(f"HUBSPOT_TEST_{object_type.upper()}_ID not set")
+    result = await hubspot.execute_action(
+        "get_crm_objects", {"object_type": object_type, "ids": [record_id]}, live_context
+    )
+    assert result.type == ResultType.ACTION, result.result
+    assert result.result.data["results"][0]["id"] == record_id

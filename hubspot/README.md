@@ -1492,3 +1492,16 @@ New live-test settings: `HUBSPOT_TEST_CUSTOM_OBJECT_TYPE` enables custom-object
 schema/search/read checks. `HUBSPOT_TEST_TICKET_STAGE_ID` and
 `HUBSPOT_TEST_TICKET_PIPELINE_ID` enable the opt-in destructive ticket test,
 which creates a test ticket, updates it, and archives it in cleanup.
+
+For a full live run on a dedicated test account:
+
+```bash
+pytest hubspot/tests/test_hubspot_integration.py -m integration --run-hubspot-destructive
+```
+
+This includes the task create/read/update/delete lifecycle. Set
+`HUBSPOT_TEST_PRODUCTS_ID`, `HUBSPOT_TEST_LINE_ITEMS_ID`, and
+`HUBSPOT_TEST_QUOTES_ID` to existing fixture records to verify real record reads
+rather than empty search responses. Keep fixture IDs in the ignored local `.env`
+or your CI environment, and keep tokens out of source control. Optional fixture
+settings left blank are reported as skipped, not passed.
