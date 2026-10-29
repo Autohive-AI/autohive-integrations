@@ -113,8 +113,11 @@ SQL_QUOTED_OR_COMMENT = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|`[^`]*`|
 EXPLAIN_ANALYZE = re.compile(r"explain\s*(?:analy[sz]e\b|\([^)]*\banaly[sz]e\b)", re.IGNORECASE)
 # PostgreSQL nests block comments, so /* a /* b */ c */ could hide a statement after the first */.
 NESTED_BLOCK_COMMENT = re.compile(r"/\*(?:(?!\*/).)*?/\*", re.DOTALL)
-# PostgreSQL allows INSERT, UPDATE, DELETE and MERGE inside a WITH query.
-WRITE_KEYWORD = re.compile(r"\b(?:insert|update|delete|merge)\b", re.IGNORECASE)
+# PostgreSQL allows INSERT, UPDATE, DELETE and MERGE inside a WITH query, and SQL Server runs a second statement
+# without a semicolon (SELECT 1 DELETE FROM t), so these words are refused anywhere outside quotes and comments.
+WRITE_KEYWORD = re.compile(
+    r"\b(?:insert|update|delete|merge|drop|create|alter|truncate|grant|revoke|exec|execute)\b", re.IGNORECASE
+)
 # MySQL runs the code inside /*! ... */ and MariaDB inside /*M! ... */, so these are never treated as comments.
 EXECUTABLE_COMMENT = re.compile(r"/\*M?!")
 # PostgreSQL dollar quotes ($$...$$, $tag$...$tag$) can hide the quotes and comments the masking relies on.
@@ -150,7 +153,7 @@ def _ensure_read_only_sql(sql: str) -> str:
         or EXPLAIN_ANALYZE.match(masked.lstrip().lstrip("(").lstrip())
         or NESTED_BLOCK_COMMENT.search(sql)
         or EXECUTABLE_COMMENT.search(sql)
-        or (first_word == "with" and any(WRITE_KEYWORD.search(v) for v in variants))
+        or any(WRITE_KEYWORD.search(v) for v in variants)
         or any(INTO_KEYWORD.search(v) for v in variants)
     ):
         raise ValueError(
