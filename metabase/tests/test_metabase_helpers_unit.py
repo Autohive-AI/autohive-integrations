@@ -479,8 +479,6 @@ class TestReadOnlySql:
             "  SELECT * FROM t",
             "with x as (select 1) select * from x",
             "with x as (select last_update, deleted_at from t) select * from x",
-            "with x as (select 'delete' as action) select * from x",
-            "select 'insert into' as label, intomark from t",
             "-- note\nselect 1",
             "/* hi */ select 1",
             "(select 1) union (select 2)",
@@ -491,14 +489,12 @@ class TestReadOnlySql:
             "describe t",
             "values (1)",
             "select 1;",
-            "select ';' as separator",
-            "select 'it''s; fine'",
-            'select 1 as "a;b"',
-            "select 1 /* explain; only */",
-            "select 1; -- trailing note",
-            "select 1 -- note; with semicolon\nfrom t",
             "select 5--2 as three",
-            "select created_at, updated_by, deleted from t where status = 'drop' and kind <> 'insert'",
+            "# note\nselect 1",
+            "select created_at, updated_by, deleted, intomark from t where status = 'dropped'",
+            "select replace(name, 'a', 'b'), do_not_call from t",
+            "select update_time, call_count, lock_status, refresh_date, copy_of, user_settings, used_at from t",
+            "select dataset, system_id, killed_at from t",
             "select [order id] from t",
             "select tags[1] from t",
             "-- note\r\nselect 1 -- trailing\r\nfrom t",
@@ -508,6 +504,23 @@ class TestReadOnlySql:
     )
     def test_allowed(self, sql):
         assert _ensure_read_only_sql(sql) == sql
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "with x as (select 'delete' as action) select * from x",
+            "select 'insert into' as label from t",
+            "select ';' as separator",
+            'select 1 as "a;b"',
+            "select 1 /* explain; only */",
+            "select 1; -- trailing note",
+            "select 1 -- note; with semicolon\nfrom t",
+        ],
+    )
+    def test_semicolons_and_write_words_refused_even_in_quotes_and_comments(self, sql):
+        # Databases disagree on what is a quote or a comment, so the raw text is checked.
+        with pytest.raises(ValueError, match="rephrase"):
+            _ensure_read_only_sql(sql)
 
     @pytest.mark.parametrize(
         "sql",
@@ -538,6 +551,28 @@ class TestReadOnlySql:
             "with x as (insert into t values (1) returning *) select 1",
             "with x as (select 1) merge into t using x on true when matched then delete",
             "SELECT * INTO backup FROM users",
+            "WITH x AS (SELECT 1 # '\n) DELETE FROM users # '",
+            "# note\ncall wipe()",
+            "select 1 call wipe()",
+            "select 1 SHUTDOWN",
+            "select 1 KILL 55",
+            "select 1 BACKUP DATABASE x TO DISK = 'c:/x'",
+            "select 1 RESTORE DATABASE x FROM DISK = 'y'",
+            "select 1 DBCC SHRINKDATABASE(x)",
+            "select 1 DENY SELECT ON t TO u",
+            "select 1 DISABLE TRIGGER all ON t",
+            "select 1 SET IDENTITY_INSERT t ON",
+            "select 1 sp_configure 'x', 1",
+            "select 1 RECONFIGURE",
+            "select 1 USE master",
+            "select 1 WAITFOR DELAY '00:01'",
+            "select 1 ATTACH 'x' AS y",
+            "select 1 SYSTEM FLUSH LOGS",
+            "select 1 BEGIN TRAN",
+            "select 1 copy t to '/tmp/x'",
+            "select 1 load data infile '/tmp/x' into table t",
+            "/* /* */ select 1 */ do $$begin perform 1; end$$",
+            "/* x /* y */ select 1 */ do $$ begin null end $$",
             "EXPLAIN (ANALYZE TRUE) DELETE FROM users",
             "explain (verbose, analyze on) update t set a = 1",
             "SELECT 1 AS one DELETE FROM users",

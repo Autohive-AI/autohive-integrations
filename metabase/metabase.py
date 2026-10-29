@@ -106,58 +106,43 @@ def _required_text(value: Any, key: str) -> str:
 
 
 READ_ONLY_SQL_KEYWORDS = ("select", "with", "explain", "show", "describe", "desc", "values")
-# Quoted strings, quoted identifiers and comments, which may contain semicolons that end nothing.
-# Backslash escapes differ between databases, so SQL with a backslash keeps the plain semicolon check.
-SQL_QUOTED_OR_COMMENT = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|`[^`]*`|--[^\r\n]*|/\*.*?\*/", re.DOTALL)
-# EXPLAIN ANALYZE runs the statement it explains, so it could run an UPDATE or DELETE.
-EXPLAIN_ANALYZE = re.compile(r"explain\s*(?:analy[sz]e\b|\([^)]*\banaly[sz]e\b)", re.IGNORECASE)
-# PostgreSQL nests block comments, so /* a /* b */ c */ could hide a statement after the first */.
-NESTED_BLOCK_COMMENT = re.compile(r"/\*(?:(?!\*/).)*?/\*", re.DOTALL)
-# PostgreSQL allows INSERT, UPDATE, DELETE and MERGE inside a WITH query, and SQL Server runs a second statement
-# without a semicolon (SELECT 1 DELETE FROM t), so these words are refused anywhere outside quotes and comments.
+# Databases disagree on quoting and comments (backslash escapes, $$ quotes, [brackets], # and --1 in MySQL,
+# /*! */ code), so every check below reads the raw SQL. A semicolon or write word inside a quoted value or a
+# comment is refused too; that only refuses more, never less.
+# SQL Server runs a second statement without a semicolon (SELECT 1 SHUTDOWN), so statement verbs are refused too.
 WRITE_KEYWORD = re.compile(
-    r"\b(?:insert|update|delete|merge|drop|create|alter|truncate|grant|revoke|exec|execute)\b", re.IGNORECASE
+    r"\b(?:insert|update|delete|merge|upsert|drop|create|alter|truncate|rename|grant|revoke|deny|exec|execute|call"
+    r"|copy|unload|vacuum|reindex|refresh|lock|into|set|use|declare|begin|commit|rollback|shutdown|kill|backup"
+    r"|restore|dbcc|reconfigure|checkpoint|waitfor|setuser|enable|disable|attach|detach|pragma|system)\b"
+    r"|\bload\s+data\b|\bdo\s*\$|\b(?:sp|xp)_\w+",
+    re.IGNORECASE,
 )
-# MySQL runs the code inside /*! ... */ and MariaDB inside /*M! ... */, so these are never treated as comments.
-EXECUTABLE_COMMENT = re.compile(r"/\*M?!")
-# PostgreSQL dollar quotes ($$...$$, $tag$...$tag$) can hide the quotes and comments the masking relies on.
-DOLLAR_QUOTE = re.compile(r"\$(?:[A-Za-z_]\w*)?\$")
-# SELECT ... INTO creates a table (PostgreSQL, SQL Server) or writes a file or variable (MySQL).
-INTO_KEYWORD = re.compile(r"\binto\b", re.IGNORECASE)
+# EXPLAIN ANALYZE runs the statement it explains.
+EXPLAIN_ANALYZE = re.compile(r"\bexplain\s*(?:\([^)]*)?\banaly[sz]e\b", re.IGNORECASE)
+# PostgreSQL nests block comments, so /* a /* b */ c */ could hide the real first word.
+NESTED_BLOCK_COMMENT = re.compile(r"/\*(?:(?!\*/).)*?/\*", re.DOTALL)
+LEADING_COMMENT = re.compile(r"\s*(?:--[^\r\n]*|#[^\r\n]*|/\*.*?\*/|\()", re.DOTALL)
 
 
 def _ensure_read_only_sql(sql: str) -> str:
-    """Refuse SQL that does not start with a read keyword, ignoring leading comments and brackets."""
+    """Refuse SQL that is not a single read statement. A keyword check, not a parser: a read-only database user in
+    Metabase is what fully blocks writes."""
     text = sql
-    while True:
-        text = text.lstrip().lstrip("(").lstrip()
-        if text.startswith("--"):
-            # PostgreSQL and MySQL end a line comment at a carriage return as well as a newline.
-            text = (re.split(r"[\r\n]", text, maxsplit=1) + [""])[1]
-        elif text.startswith("/*"):
-            text = text.partition("*/")[2]
-        else:
-            break
-    first_word = re.match(r"[A-Za-z]*", text).group(0).lower()
-    # Backslash escapes, dollar quotes, SQL Server [brackets] and MySQL's -- (a comment only before whitespace,
-    # otherwise minus minus) differ between databases, so masking quotes and comments may be wrong.
-    # For that SQL every check also runs on the raw text, which can only refuse more.
-    masked = SQL_QUOTED_OR_COMMENT.sub(" ", sql)
-    risky = "\\" in sql or "[" in sql or DOLLAR_QUOTE.search(sql) or re.search(r"--(?!\s)", sql)
-    variants = [masked, sql] if risky else [masked]
+    while match := LEADING_COMMENT.match(text):
+        text = text[match.end() :]
+    first_word = re.match(r"\s*([A-Za-z]*)", text).group(1).lower()
+    # A second statement after a semicolon could be anything, so only one statement is allowed.
     if (
         first_word not in READ_ONLY_SQL_KEYWORDS
-        # A second statement after a semicolon could be anything, so only one statement is allowed.
-        or any(";" in v.strip().rstrip(";") for v in variants)
-        or EXPLAIN_ANALYZE.match(text)
-        or EXPLAIN_ANALYZE.match(masked.lstrip().lstrip("(").lstrip())
+        or ";" in sql.strip().rstrip(";")
+        or WRITE_KEYWORD.search(sql)
+        or EXPLAIN_ANALYZE.search(sql)
         or NESTED_BLOCK_COMMENT.search(sql)
-        or EXECUTABLE_COMMENT.search(sql)
-        or any(WRITE_KEYWORD.search(v) for v in variants)
-        or any(INTO_KEYWORD.search(v) for v in variants)
     ):
         raise ValueError(
             "Only a single read-only SQL statement is allowed (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES). "
+            "Semicolons and words such as INSERT, UPDATE, DELETE, INTO or CREATE are refused anywhere, even inside "
+            "quotes or comments, so rephrase the query without them. "
             "Use a read-only database user in Metabase to fully block writes."
         )
     return sql
