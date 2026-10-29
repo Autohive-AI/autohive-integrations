@@ -95,6 +95,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 ### Fathom
 
 [fathom](fathom): Conversation intelligence integration with Fathom AI for accessing meeting recordings, transcripts, and team data. Supports listing and filtering meeting recordings with advanced search capabilities by date range, participants, domains, and meeting type, retrieving full transcripts with speaker attribution and timestamps, accessing team and team member information, and comprehensive pagination support for all endpoints. Features OAuth 2.0 authentication with public_api scope and integration with Fathom's video meeting recording and transcription platform. Includes 4 actions covering meeting data access, transcript retrieval, and team management. Ideal for meeting analytics, conversation intelligence workflows, and automated report generation from meeting data.
+### EstimateOne (E1)
+
+[estimateone](estimateone): Read supplier Speci-finder matched projects and tenders for lead discovery and CRM workflows. Supports E1-issued custom OAuth client credentials; partner onboarding and customer company registration are required. Includes one paginated read action.
+
 ### Eventbrite
 
 [eventbrite](eventbrite): Comprehensive event management integration with Eventbrite API v3 for managing events, venues, attendees, orders, and ticket classes. Supports full event lifecycle management (create, update, delete, publish, unpublish, cancel, copy events), venue operations (create, update, list venues with address management), ticket class management (create, update, delete ticket types with pricing and quantity controls), order tracking by event or organization with status filtering, attendee management with check-in status, and category browsing. Features OAuth2 platform authentication with scopes for events, orders, attendees, venues, organizations, and user data. Includes 28 actions covering user info, organizations, events, venues, orders, attendees, ticket classes, and categories. Ideal for event automation, ticketing workflows, attendee tracking, and venue management.

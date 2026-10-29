@@ -1,0 +1,99 @@
+{
+    "name": "estimateone",
+    "display_name": "EstimateOne (E1)",
+    "version": "1.0.0",
+    "description": "Retrieve supplier Speci-finder matched construction projects and tenders for lead discovery and CRM workflows.",
+    "entry_point": "estimateone.py",
+    "supports_billing": false,
+    "auth": {
+        "type": "custom",
+        "title": "E1 Partner Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Client ID",
+                    "help_text": "Issued by E1 during partner onboarding.",
+                    "minLength": 1
+                },
+                "client_secret": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Client Secret",
+                    "help_text": "Issued by E1 during partner onboarding.",
+                    "minLength": 1
+                }
+            },
+            "required": [
+                "client_id",
+                "client_secret"
+            ]
+        }
+    },
+    "actions": {
+        "list_matched_projects": {
+            "display_name": "List Matched Projects",
+            "description": "Read one page of live Tender and Procurement projects matching the registered supplier account\u2019s Speci-finder keywords. Follow next_cursor for all results.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "company_id": {
+                        "type": "string",
+                        "description": "E1 supplier company account number registered for these credentials.",
+                        "pattern": "^[0-9]+$"
+                    },
+                    "created_since": {
+                        "type": "string",
+                        "description": "Optional RFC 3339 project creation timestamp with UTC offset. Does not capture changes to existing projects.",
+                        "format": "date-time"
+                    },
+                    "cursor": {
+                        "type": "string",
+                        "description": "Opaque next_cursor from the preceding page."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Projects per page.",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 25
+                    }
+                },
+                "required": [
+                    "company_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "projects": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Matched projects and their tenders, in the provider response shape."
+                    },
+                    "next_cursor": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Pass as cursor to retrieve the next page."
+                    },
+                    "has_next_page": {
+                        "type": "boolean",
+                        "description": "Whether another page is available."
+                    }
+                },
+                "required": [
+                    "projects",
+                    "next_cursor",
+                    "has_next_page"
+                ]
+            }
+        }
+    }
+}
