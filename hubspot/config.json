@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -2672,7 +2672,7 @@
     },
     "search_companies_by_owner_name": {
       "display_name": "Search Companies by Owner Name",
-      "description": "Search companies by owner ID, email or name. Reuse the returned owner.id on subsequent pages to avoid scanning owners again.",
+      "description": "Search companies by owner ID, email or name. Reuse the returned owner.id on subsequent pages to avoid scanning owners again. Provide at least one of owner_id, owner_email or owner_name.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -2708,24 +2708,7 @@
             "minLength": 1,
             "description": "Exact owner email, filtered by HubSpot. Takes precedence over owner_name."
           }
-        },
-        "anyOf": [
-          {
-            "required": [
-              "owner_id"
-            ]
-          },
-          {
-            "required": [
-              "owner_email"
-            ]
-          },
-          {
-            "required": [
-              "owner_name"
-            ]
-          }
-        ]
+        }
       },
       "output_schema": {
         "type": "object",
