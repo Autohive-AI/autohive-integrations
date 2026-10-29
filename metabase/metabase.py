@@ -114,7 +114,9 @@ WRITE_KEYWORD = re.compile(
     r"\b(?:insert|update|delete|merge|upsert|drop|create|alter|truncate|rename|grant|revoke|deny|exec|execute|call"
     r"|copy|unload|vacuum|reindex|refresh|lock|into|set|use|declare|begin|commit|rollback|shutdown|kill|backup"
     r"|restore|dbcc|reconfigure|checkpoint|waitfor|setuser|enable|disable|attach|detach|pragma|system)\b"
-    r"|\bload\s+data\b|\bdo\s*\$|\b(?:sp|xp)_\w+",
+    r"|\bload\s+data\b|\bdo\s*\$|\b(?:sp|xp)_\w+"
+    # SQL Server Service Broker statements that drop conversations or move messages.
+    r"|\b(?:end|move)\s+conversation\b|\bsend\s+on\s+conversation\b|\breceive\s+(?:top\b|\*|\w+\s+from\b)",
     re.IGNORECASE,
 )
 # EXPLAIN ANALYZE runs the statement it explains.
