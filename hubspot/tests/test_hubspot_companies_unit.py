@@ -1059,3 +1059,13 @@ class TestGetContactProperties:
         prop = result.result.data["properties"][0]
         assert prop["type"] == "enumeration"
         assert len(prop["options"]) == 2
+
+
+def test_action_schemas_support_claude_tool_catalogues():
+    import json
+    from pathlib import Path
+
+    config = json.loads((Path(__file__).parent.parent / "config.json").read_text())
+    for name, action in config["actions"].items():
+        unsupported = {"oneOf", "allOf", "anyOf"}.intersection(action["input_schema"])
+        assert not unsupported, f"{name} has unsupported root keywords: {unsupported}"
