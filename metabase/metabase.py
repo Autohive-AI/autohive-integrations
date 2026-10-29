@@ -733,6 +733,10 @@ class AddQuestionToDashboardAction(ActionHandler):
 
             # PUT replaces the whole dashcard list, so every existing card is sent back unchanged.
             dashcards = [{k: dc[k] for k in DASHCARD_PUT_KEYS if k in dc} for dc in existing]
+            # GET returns each extra series as a full card, but PUT only accepts its id.
+            for dc in dashcards:
+                if dc.get("series"):
+                    dc["series"] = [{"id": s["id"]} for s in dc["series"]]
             same_tab = [dc for dc in existing if tab_id is None or dc.get("dashboard_tab_id") == tab_id]
             next_row = max((int(dc.get("row") or 0) + int(dc.get("size_y") or 0) for dc in same_tab), default=0)
 

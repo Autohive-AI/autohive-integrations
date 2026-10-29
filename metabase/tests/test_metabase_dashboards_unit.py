@@ -177,6 +177,15 @@ class TestAddQuestionToDashboard:
         assert "tabs" not in put.kwargs["json"]
 
     @pytest.mark.asyncio
+    async def test_existing_series_sent_as_ids(self, mock_context):
+        combo = {**EXISTING_DASHCARD, "series": [{"id": 43, "name": "Weekly churn", "display": "line"}]}
+        dashboard = {**SAMPLE_DASHBOARD, "dashcards": [combo, TEXT_DASHCARD]}
+        mock_context.fetch.side_effect = [_ok(dashboard), _ok(self._updated())]
+        await metabase.execute_action("add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context)
+        dashcards = mock_context.fetch.call_args_list[1].kwargs["json"]["dashcards"]
+        assert [dc["series"] for dc in dashcards] == [[{"id": 43}], [], []]
+
+    @pytest.mark.asyncio
     async def test_response_shape(self, mock_context):
         mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok(self._updated())]
         result = await metabase.execute_action(

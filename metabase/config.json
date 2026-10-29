@@ -420,7 +420,7 @@
                                 "document"
                             ]
                         },
-                        "description": "Limit results to these item types: card (saved question), dataset (model), metric, dashboard, collection, table, database, document."
+                        "description": "Limit results to these item types: card (saved question), dataset (model), metric, dashboard, collection, table, database, document. metric needs Metabase 0.51+ and document needs 0.57+; older versions reject the whole request."
                     },
                     "archived": {
                         "type": "boolean",
@@ -651,7 +651,7 @@
                                 "document"
                             ]
                         },
-                        "description": "Only return these item types."
+                        "description": "Only return these item types. metric needs Metabase 0.51+ and document needs 0.57+; older versions reject the whole request."
                     },
                     "limit": {
                         "type": "integer",
