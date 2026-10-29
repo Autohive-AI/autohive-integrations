@@ -1240,6 +1240,7 @@ The integration has the following dependencies:
 ```json
 {
   "owner_email": "rep@example.com",
+  "include_associations": true,
   "exclude_completed": true,
   "due_before": "2026-10-28T00:00:00+13:00",
   "hs_task_properties": ["hs_task_subject", "hs_task_body", "hs_task_status", "hs_task_priority", "hs_timestamp"]
@@ -1275,7 +1276,7 @@ The integration has the following dependencies:
 ## Common Workflows
 
 ### Task Triage Workflow
-1. Fetch the user's open tasks due before tomorrow's local midnight with `list_tasks` (`owner_email` or `owner_id`, `exclude_completed: true`, `due_before`)
+1. Fetch the user's open tasks due before tomorrow's local midnight with `list_tasks` (`owner_email` or `owner_id`, `exclude_completed: true`, `due_before`, `include_associations: true`)
 2. Page with `after` while `paging.next.after` is returned; `total_matching` says how many tasks matched
 3. For tasks that need context, read the linked contacts, companies and deals listed in each task's `associations` with `get_crm_objects` (one call per object type)
 4. Pull recent activity on a linked record with `search_crm_objects`: `object_type` `notes`, `emails`, `calls` or `meetings`, `associated_with` the record, an `hs_timestamp` `GTE` filter, sorted by `hs_timestamp` `DESCENDING`
