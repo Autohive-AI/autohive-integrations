@@ -1,0 +1,2422 @@
+{
+    "name": "procore",
+    "display_name": "Procore",
+    "version": "1.0.0",
+    "description": "Manage construction projects, RFIs, submittals, project directories, and document folders in Procore.",
+    "entry_point": "procore.py",
+    "supports_billing": false,
+    "auth": {
+        "type": "platform",
+        "provider": "procore",
+        "scopes": []
+    },
+    "actions": {
+        "list_companies": {
+            "display_name": "List Companies",
+            "description": "List Companies",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    }
+                },
+                "required": [],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records."
+                    },
+                    "next_page": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Next page, or null on the final page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total records when supplied by the provider."
+                    }
+                },
+                "required": [
+                    "items",
+                    "next_page",
+                    "total"
+                ]
+            }
+        },
+        "list_projects": {
+            "display_name": "List Projects",
+            "description": "List projects",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Project activity filter.",
+                        "enum": [
+                            "All",
+                            "Active",
+                            "Inactive"
+                        ]
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Project name filter."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "description": "One-based page number."
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 100,
+                        "description": "Items per page."
+                    }
+                },
+                "required": [
+                    "company_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records."
+                    },
+                    "next_page": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Next page, or null on the final page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total records when supplied by the provider."
+                    }
+                },
+                "required": [
+                    "items",
+                    "next_page",
+                    "total"
+                ]
+            }
+        },
+        "get_project": {
+            "display_name": "Get Project",
+            "description": "Show project",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "create_project": {
+            "display_name": "Create Project",
+            "description": "Create project",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project": {
+                        "title": "Project",
+                        "type": "object",
+                        "required": [
+                            "name"
+                        ],
+                        "properties": {
+                            "active": {
+                                "type": "boolean",
+                                "description": "The project active status.",
+                                "default": true
+                            },
+                            "address": {
+                                "type": "string",
+                                "description": "The street address of the project."
+                            },
+                            "city": {
+                                "type": "string",
+                                "description": "The city where the project is located."
+                            },
+                            "country_code": {
+                                "type": "string",
+                                "description": "The country code (ISO-3166 Alpha-2 format) where the project is located."
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "The project description."
+                            },
+                            "start_date": {
+                                "type": "string",
+                                "description": "The date that the contract for the project is signed. Note: This field replaces estimated_start_date and will mirror its value."
+                            },
+                            "completion_date": {
+                                "type": "string",
+                                "description": "The date that all parties agree the project meets or must meet \u201csubstantial completion\u201d. Note: This field replaces estimated_completion_date and will mirror its value."
+                            },
+                            "total_value": {
+                                "type": "number",
+                                "description": "The total amount of construction work performed, planned, or put in place during the project. Note: This field is a replacement of estimated_value and will mirror its value."
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The project name."
+                            },
+                            "office_id": {
+                                "type": "integer",
+                                "description": "The project office identifier."
+                            },
+                            "phone": {
+                                "type": "string",
+                                "description": "The project telephone number."
+                            },
+                            "project_number": {
+                                "type": "string",
+                                "maxLength": 255,
+                                "description": "The project number."
+                            },
+                            "project_stage_id": {
+                                "type": "integer",
+                                "description": "The project stage identifier."
+                            },
+                            "state_code": {
+                                "type": "string",
+                                "description": "The state code (ISO-3166 Alpha-2 format) where the project is located."
+                            },
+                            "time_zone": {
+                                "type": "string",
+                                "description": "The timezone where the project is located."
+                            },
+                            "zip": {
+                                "type": "string",
+                                "description": "The project postal code."
+                            },
+                            "project_type_id": {
+                                "type": "integer",
+                                "description": "The project type identifier."
+                            },
+                            "project_template_id": {
+                                "type": "integer",
+                                "description": "The project template identifier as designated by another project on this company.\nIt must be a project that is a template defined by `template: true`."
+                            }
+                        },
+                        "additionalProperties": false,
+                        "minProperties": 1
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "update_project": {
+            "display_name": "Update Project",
+            "description": "Update project",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "project": {
+                        "title": "Project",
+                        "type": "object",
+                        "properties": {
+                            "active": {
+                                "type": "boolean",
+                                "description": "The Active status of the project. Must be true or false.",
+                                "default": true
+                            },
+                            "address": {
+                                "type": "string",
+                                "description": "The street address for the Project location"
+                            },
+                            "city": {
+                                "type": "string",
+                                "description": "The City in which the project is located"
+                            },
+                            "country_code": {
+                                "type": "string",
+                                "description": "The two character code that represents the country in which the project is located (ISO-3166 Alpha-2 format)"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "The description for the project"
+                            },
+                            "start_date": {
+                                "type": "string",
+                                "description": "The date that the contract for the project is signed. Note: this field is a replacement to estimated_start_date and will mirror its value."
+                            },
+                            "completion_date": {
+                                "type": "string",
+                                "description": "The date that all parties agree the project meets or must meet \u201csubstantial completion\u201d. Note: this field is a replacement to estimated_completion_date and will mirror its value."
+                            },
+                            "total_value": {
+                                "type": "number",
+                                "description": "The total amount of construction work performed, planned, or put in place during the project. Note: this field is a replacement to estimated_value and will mirror its value."
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The name of the project"
+                            },
+                            "office_id": {
+                                "type": "integer",
+                                "description": "The identifier for the Project Office"
+                            },
+                            "phone": {
+                                "type": "string",
+                                "description": "The telephone number for the Project"
+                            },
+                            "project_number": {
+                                "type": "string",
+                                "description": "The number for the Project"
+                            },
+                            "project_stage_id": {
+                                "type": "integer",
+                                "description": "The identifier for the Project Stage"
+                            },
+                            "state_code": {
+                                "type": "string",
+                                "description": "The code that represents the Project State (ISO-3166 Alpha-2 format)"
+                            },
+                            "time_zone": {
+                                "type": "string",
+                                "description": "The timezone the Project is located in"
+                            },
+                            "zip": {
+                                "type": "string",
+                                "description": "The postal code for the Project"
+                            },
+                            "project_type_id": {
+                                "type": "integer",
+                                "description": "The identifier for the Project Type"
+                            },
+                            "project_template_id": {
+                                "type": "integer",
+                                "description": "The identifier for the Project Template as designated by another Project on this company.\nIt must be a Project that is a Template defined by template: `true`"
+                            }
+                        },
+                        "required": [],
+                        "additionalProperties": false,
+                        "minProperties": 1
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "project"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "list_rfis": {
+            "display_name": "List Rfis",
+            "description": "List RFIs",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "RFI status.",
+                        "enum": [
+                            "open",
+                            "closed",
+                            "draft",
+                            "closed_with_revision",
+                            "closed_draft"
+                        ]
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "description": "One-based page number."
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 100,
+                        "description": "Items per page."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records."
+                    },
+                    "next_page": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Next page, or null on the final page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total records when supplied by the provider."
+                    }
+                },
+                "required": [
+                    "items",
+                    "next_page",
+                    "total"
+                ]
+            }
+        },
+        "get_rfi": {
+            "display_name": "Get Rfi",
+            "description": "Show RFI",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "rfi_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "RFI ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "rfi_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "create_rfi": {
+            "display_name": "Create Rfi",
+            "description": "Create an RFI. Defaults to draft=true; set false to issue it. Required project fieldsets still apply.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "rfi": {
+                        "type": "object",
+                        "required": [
+                            "subject",
+                            "question",
+                            "rfi_manager_id"
+                        ],
+                        "properties": {
+                            "subject": {
+                                "type": "string",
+                                "description": "The Subject of the RFI"
+                            },
+                            "reference": {
+                                "type": "string",
+                                "description": "The Reference of the RFI"
+                            },
+                            "assignee_ids": {
+                                "type": "array",
+                                "description": "An array of IDs of the Assignees of the RFI\n*Only admin users can set this field\n**If this param is not provided, the assigned_id will be used instead",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required_assignee_ids": {
+                                "type": "array",
+                                "description": "An array of IDs of the Assignees that are required to respond to the RFI * Only admin users can set this field ** IDs must also be present in assignee_ids\n",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            "draft": {
+                                "type": "boolean",
+                                "description": "The Draft status of the RFI",
+                                "default": true
+                            },
+                            "due_date": {
+                                "type": "string",
+                                "description": "The Due Date of the RFI\n*Only admin users can set this field"
+                            },
+                            "responsible_contractor_id": {
+                                "type": "integer",
+                                "description": "The ID of the Responsible Contractor Vendor of the RFI"
+                            },
+                            "distribution_ids": {
+                                "type": "array",
+                                "description": "An array of IDs of the Distributions of the RFI",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            "number": {
+                                "type": "string",
+                                "description": "The Number of the RFI\n*This field will be auto-populated if the RFI is not draft\n**When creating a new revision of an RFI, if not provided, it will inherit the number from the source RFI."
+                            },
+                            "private": {
+                                "type": "boolean",
+                                "description": "The Private status of the RFI",
+                                "default": false
+                            },
+                            "project_stage_id": {
+                                "type": "integer",
+                                "description": "The ID of the Project Stage of the RFI\n*If Number By Stage is enabled in RFI settings, this will add the prefix of the project stage to the full number of the RFI.\n**This field is not needed when creating a new revision of an RFI, as it will inherit the project stage from the source RFI."
+                            },
+                            "location_id": {
+                                "type": "integer",
+                                "description": "The ID of the Location of the RFI"
+                            },
+                            "drawing_number": {
+                                "type": "string",
+                                "description": "The Drawing Number of the RFI"
+                            },
+                            "specification_section_id": {
+                                "type": "integer",
+                                "description": "The ID of the Specification Section of the RFI"
+                            },
+                            "cost_code_id": {
+                                "type": "integer",
+                                "description": "The ID of the Cost Code of the RFI"
+                            },
+                            "rfi_manager_id": {
+                                "type": "integer",
+                                "description": "The ID of the RFI Manager User of the RFI\n*Only admin users (or standard users, if the project's configuration allows for it) can set this field"
+                            },
+                            "question": {
+                                "type": "object",
+                                "description": "The Question of the RFI",
+                                "required": [
+                                    "body"
+                                ],
+                                "properties": {
+                                    "body": {
+                                        "type": "string",
+                                        "description": "The Body of the Question"
+                                    },
+                                    "prostore_file_ids": {
+                                        "type": "array",
+                                        "description": "An array of Prostore File IDs. The Prostore Files will be associated with the RFI as attachments.",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "drawing_revision_ids": {
+                                        "type": "array",
+                                        "description": "Drawing Revisions to attach to the response",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "file_version_ids": {
+                                        "type": "array",
+                                        "description": "File Versions to attach to the response",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "form_ids": {
+                                        "type": "array",
+                                        "description": "Forms to attach to the response",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "image_ids": {
+                                        "type": "array",
+                                        "description": "Images to attach to the response",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "upload_ids": {
+                                        "type": "array",
+                                        "description": "Uploads to attach to the response",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "document_management_document_revision_ids": {
+                                        "type": "array",
+                                        "description": "Document Management Document Revisions to attach to the response",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "custom_textfield_1": {
+                                "type": "string",
+                                "description": "The Custom Textfield 1 of the RFI"
+                            },
+                            "custom_textfield_2": {
+                                "type": "string",
+                                "description": "The Custom Textfield 2 of the RFI"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "minProperties": 1
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "rfi"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "update_rfi": {
+            "display_name": "Update Rfi",
+            "description": "Update supplied RFI fields without replacing omitted fields.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "rfi_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "RFI ID."
+                    },
+                    "rfi": {
+                        "type": "object",
+                        "properties": {
+                            "subject": {
+                                "type": "string",
+                                "description": "The Subject of the RFI"
+                            },
+                            "reference": {
+                                "type": "string",
+                                "description": "The Reference of the RFI"
+                            },
+                            "assignee_ids": {
+                                "type": "array",
+                                "description": "An array of IDs of the Assignees of the RFI\n*Only admin users can set this field\n**If this param is not provided, the assigned_id will be used instead",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required_assignee_ids": {
+                                "type": "array",
+                                "description": "An array of IDs of the Assignees that are required to respond to the RFI * Only admin users can set this field ** IDs must also be present in assignee_ids\n",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            "draft": {
+                                "type": "boolean",
+                                "description": "The Draft status of the RFI (Can only be changed on draft RFIs)",
+                                "default": false
+                            },
+                            "due_date": {
+                                "type": "string",
+                                "description": "The Due Date of the RFI\n*Only admin users can set this field"
+                            },
+                            "responsible_contractor_id": {
+                                "type": "integer",
+                                "description": "The ID of the Responsible Contractor Vendor of the RFI"
+                            },
+                            "distribution_ids": {
+                                "type": "array",
+                                "description": "An array of IDs of the Distributions of the RFI",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            "number": {
+                                "type": "string",
+                                "description": "The Number of the RFI\n*This field will be auto-populated if the RFI is not draft"
+                            },
+                            "private": {
+                                "type": "boolean",
+                                "description": "The Private status of the RFI",
+                                "default": false
+                            },
+                            "project_stage_id": {
+                                "type": "integer",
+                                "description": "The ID of the Project Stage of the RFI\n*If Number By Stage is enabled in RFI settings, this will add the prefix of the project stage to the full number of the RFI."
+                            },
+                            "location_id": {
+                                "type": "integer",
+                                "description": "The ID of the Location of the RFI"
+                            },
+                            "drawing_number": {
+                                "type": "string",
+                                "description": "The Drawing Number of the RFI"
+                            },
+                            "specification_section_id": {
+                                "type": "integer",
+                                "description": "The ID of the Specification Section of the RFI"
+                            },
+                            "cost_code_id": {
+                                "type": "integer",
+                                "description": "The ID of the Cost Code of the RFI"
+                            },
+                            "rfi_manager_id": {
+                                "type": "integer",
+                                "description": "The ID of the RFI Manager User of the RFI\n*Only admin users (or standard users, if the project's configuration allows for it) can set this field"
+                            },
+                            "question": {
+                                "type": "object",
+                                "description": "The Question of the RFI",
+                                "required": [
+                                    "body"
+                                ],
+                                "properties": {
+                                    "body": {
+                                        "type": "string",
+                                        "description": "The Body of the Question"
+                                    },
+                                    "prostore_file_ids": {
+                                        "type": "array",
+                                        "description": "An array of Prostore File IDs. The Prostore Files will be associated with the RFI as attachments.",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "drawing_revision_ids": {
+                                        "type": "array",
+                                        "description": "Drawing Revisions to attach to the response",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "file_version_ids": {
+                                        "type": "array",
+                                        "description": "File Versions to attach to the response",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "form_ids": {
+                                        "type": "array",
+                                        "description": "Forms to attach to the response",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "image_ids": {
+                                        "type": "array",
+                                        "description": "Images to attach to the response",
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "upload_ids": {
+                                        "type": "array",
+                                        "description": "Uploads to attach to the response",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "document_management_document_revision_ids": {
+                                        "type": "array",
+                                        "description": "Document Management Document Revisions to attach to the response",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                },
+                                "additionalProperties": false
+                            },
+                            "custom_textfield_1": {
+                                "type": "string",
+                                "description": "The Custom Textfield 1 of the RFI"
+                            },
+                            "custom_textfield_2": {
+                                "type": "string",
+                                "description": "The Custom Textfield 2 of the RFI"
+                            }
+                        },
+                        "required": [],
+                        "additionalProperties": false,
+                        "minProperties": 1
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "rfi_id",
+                    "rfi"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "recycle_rfi": {
+            "display_name": "Recycle Rfi",
+            "description": "Recycle RFI",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "rfi_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "RFI ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "rfi_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "restore_rfi": {
+            "display_name": "Restore Rfi",
+            "description": "Retrieve Recycled RFI",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "rfi_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "RFI ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "rfi_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "list_submittals": {
+            "display_name": "List Submittals",
+            "description": "List Submittals on a project",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "description": "One-based page number."
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 100,
+                        "description": "Items per page."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records."
+                    },
+                    "next_page": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Next page, or null on the final page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total records when supplied by the provider."
+                    }
+                },
+                "required": [
+                    "items",
+                    "next_page",
+                    "total"
+                ]
+            }
+        },
+        "get_submittal": {
+            "display_name": "Get Submittal",
+            "description": "Show Submittal",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "submittal_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Submittal ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "submittal_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "create_submittal": {
+            "display_name": "Create Submittal",
+            "description": "Create Submittal",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "submittal": {
+                        "type": "object",
+                        "required": [
+                            "number"
+                        ],
+                        "properties": {
+                            "cost_code_id": {
+                                "type": "integer",
+                                "description": "The ID of the Cost Code of the Submittal\n*This field can only be set by admins"
+                            },
+                            "custom_textarea_1": {
+                                "type": "string",
+                                "description": "Value for the project's custom submittal textarea field (label configured in Submittals Settings).\n*This field can only be set by admins"
+                            },
+                            "custom_textfield_1": {
+                                "type": "string",
+                                "description": "Value for the project's custom submittal text field (label configured in Submittals Settings).\n*This field can only be set by admins"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "The Description of the Submittal"
+                            },
+                            "distribution_member_ids": {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer"
+                                },
+                                "description": "The IDs of the Distribution Members of the Submittal"
+                            },
+                            "due_date": {
+                                "type": "string",
+                                "description": "The Due Date of the Submittal\n*This field is not available to be set if sequential approvers is enabled"
+                            },
+                            "issue_date": {
+                                "type": "string",
+                                "description": "The Issue Date of the Submittal\n*This field can only be set by admins"
+                            },
+                            "location_id": {
+                                "type": "integer",
+                                "description": "The Location of the Submittal"
+                            },
+                            "number": {
+                                "type": "string",
+                                "description": "The Number of the Submittal"
+                            },
+                            "private": {
+                                "type": "boolean",
+                                "description": "Whether the Submittal is Private or not"
+                            },
+                            "prostore_file_ids": {
+                                "type": "array",
+                                "description": "An array of Prostore File IDs. The Prostore Files will be associated with the Submittal as attachments.",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            "received_date": {
+                                "type": "string",
+                                "description": "The Received Date of the Submittal\n*This field can only be set by admins"
+                            },
+                            "received_from_id": {
+                                "type": "integer",
+                                "description": "The Received From of the Submittal"
+                            },
+                            "required_on_site_date": {
+                                "type": "string",
+                                "description": "The Required On Site Date of the Submittal\n*This field can only be set by admins or if the project has schedule calculations enabled"
+                            },
+                            "responsible_contractor_id": {
+                                "type": "integer",
+                                "description": "The Responsible Contractor of the Submittal\n*This field is required when received_from_id is present and the field is visible in the project's field configuration"
+                            },
+                            "revision": {
+                                "type": "string",
+                                "description": "The Revision of the Submittal"
+                            },
+                            "specification_section_id": {
+                                "type": "integer",
+                                "description": "The ID of the Specification Section of the Submittal"
+                            },
+                            "status_id": {
+                                "type": "integer",
+                                "description": "The ID of the Submittal Status of the Submittal\n*This field can only be set by admins"
+                            },
+                            "submit_by": {
+                                "type": "string",
+                                "description": "The Submit By Date of the Submittal\n*This field can only be set by admins"
+                            },
+                            "submittal_manager_id": {
+                                "type": "integer",
+                                "description": "The ID of the Submittal Manager of the Submittal\n*This field can only be set by admins"
+                            },
+                            "submittal_package_id": {
+                                "type": "integer",
+                                "description": "The ID of the Submittal Package of the Submittal\n*This field can only be set by admins"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "The Title of the Submittal"
+                            },
+                            "type": {
+                                "type": "string",
+                                "description": "The Submittal Type of the Submittal"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "minProperties": 1
+                    },
+                    "send_emails": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Notify recipients when supported; omitted defaults to false."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "submittal"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "update_submittal": {
+            "display_name": "Update Submittal",
+            "description": "Update Submittal",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "submittal_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Submittal ID."
+                    },
+                    "submittal": {
+                        "type": "object",
+                        "required": [
+                            "number"
+                        ],
+                        "properties": {
+                            "cost_code_id": {
+                                "type": "integer",
+                                "description": "The ID of the Cost Code of the Submittal\n*This field can only be set by admins"
+                            },
+                            "custom_textarea_1": {
+                                "type": "string",
+                                "description": "Value for the project's custom submittal textarea field (label configured in Submittals Settings).\n*This field can only be set by admins"
+                            },
+                            "custom_textfield_1": {
+                                "type": "string",
+                                "description": "Value for the project's custom submittal text field (label configured in Submittals Settings).\n*This field can only be set by admins"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "The Description of the Submittal"
+                            },
+                            "distribution_member_ids": {
+                                "type": "array",
+                                "items": {
+                                    "type": "integer"
+                                },
+                                "description": "The IDs of the Distribution Members of the Submittal"
+                            },
+                            "due_date": {
+                                "type": "string",
+                                "description": "The Due Date of the Submittal\n*This field is not available to be set if sequential approvers is enabled"
+                            },
+                            "issue_date": {
+                                "type": "string",
+                                "description": "The Issue Date of the Submittal\n*This field can only be set by admins"
+                            },
+                            "location_id": {
+                                "type": "integer",
+                                "description": "The Location of the Submittal"
+                            },
+                            "number": {
+                                "type": "string",
+                                "description": "The Number of the Submittal"
+                            },
+                            "private": {
+                                "type": "boolean",
+                                "description": "Whether the Submittal is Private or not"
+                            },
+                            "prostore_file_ids": {
+                                "type": "array",
+                                "description": "An array of Prostore File IDs. The Prostore Files will be associated with the Submittal as attachments.",
+                                "items": {
+                                    "type": "integer"
+                                }
+                            },
+                            "received_date": {
+                                "type": "string",
+                                "description": "The Received Date of the Submittal\n*This field can only be set by admins"
+                            },
+                            "received_from_id": {
+                                "type": "integer",
+                                "description": "The Received From of the Submittal"
+                            },
+                            "required_on_site_date": {
+                                "type": "string",
+                                "description": "The Required On Site Date of the Submittal\n*This field can only be set by admins or if the project has schedule calculations enabled"
+                            },
+                            "responsible_contractor_id": {
+                                "type": "integer",
+                                "description": "The Responsible Contractor of the Submittal\n*This field is required when received_from_id is present and the field is visible in the project's field configuration"
+                            },
+                            "revision": {
+                                "type": "string",
+                                "description": "The Revision of the Submittal"
+                            },
+                            "specification_section_id": {
+                                "type": "integer",
+                                "description": "The ID of the Specification Section of the Submittal"
+                            },
+                            "status_id": {
+                                "type": "integer",
+                                "description": "The ID of the Submittal Status of the Submittal\n*This field can only be set by admins"
+                            },
+                            "submit_by": {
+                                "type": "string",
+                                "description": "The Submit By Date of the Submittal\n*This field can only be set by admins"
+                            },
+                            "submittal_manager_id": {
+                                "type": "integer",
+                                "description": "The ID of the Submittal Manager of the Submittal\n*This field can only be set by admins"
+                            },
+                            "submittal_package_id": {
+                                "type": "integer",
+                                "description": "The ID of the Submittal Package of the Submittal\n*This field can only be set by admins"
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "The Title of the Submittal"
+                            },
+                            "type": {
+                                "type": "string",
+                                "description": "The Submittal Type of the Submittal"
+                            }
+                        },
+                        "additionalProperties": false,
+                        "minProperties": 1
+                    },
+                    "send_emails": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Notify recipients when supported; omitted defaults to false."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "submittal_id",
+                    "submittal"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "delete_submittal": {
+            "display_name": "Delete Submittal",
+            "description": "Delete Submittal",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "submittal_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Submittal ID to delete."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "submittal_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "list_submittal_revisions": {
+            "display_name": "List Submittal Revisions",
+            "description": "Get Revisions",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "submittal_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Submittal ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "submittal_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records."
+                    },
+                    "next_page": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Next page, or null on the final page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total records when supplied by the provider."
+                    }
+                },
+                "required": [
+                    "items",
+                    "next_page",
+                    "total"
+                ]
+            }
+        },
+        "get_submittal_workflow": {
+            "display_name": "Get Submittal Workflow",
+            "description": "Get Workflow Data",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "submittal_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Submittal ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "submittal_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "list_project_users": {
+            "display_name": "List Project Users",
+            "description": "List Project Users",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "description": "One-based page number."
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 100,
+                        "description": "Items per page."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records."
+                    },
+                    "next_page": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Next page, or null on the final page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total records when supplied by the provider."
+                    }
+                },
+                "required": [
+                    "items",
+                    "next_page",
+                    "total"
+                ]
+            }
+        },
+        "get_project_user": {
+            "display_name": "Get Project User",
+            "description": "Show project user",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "user_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Resource ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "user_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "list_project_vendors": {
+            "display_name": "List Project Vendors",
+            "description": "List project vendors",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "description": "One-based page number."
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 100,
+                        "description": "Items per page."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records."
+                    },
+                    "next_page": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Next page, or null on the final page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total records when supplied by the provider."
+                    }
+                },
+                "required": [
+                    "items",
+                    "next_page",
+                    "total"
+                ]
+            }
+        },
+        "get_project_vendor": {
+            "display_name": "Get Project Vendor",
+            "description": "Show project vendor",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "vendor_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Resource ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "vendor_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "list_locations": {
+            "display_name": "List Locations",
+            "description": "List Project Locations",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "description": "One-based page number."
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 100,
+                        "description": "Items per page."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records."
+                    },
+                    "next_page": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Next page, or null on the final page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total records when supplied by the provider."
+                    }
+                },
+                "required": [
+                    "items",
+                    "next_page",
+                    "total"
+                ]
+            }
+        },
+        "list_submittal_types": {
+            "display_name": "List Submittal Types",
+            "description": "List Submittal Types",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    }
+                },
+                "required": [
+                    "company_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records."
+                    },
+                    "next_page": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Next page, or null on the final page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total records when supplied by the provider."
+                    }
+                },
+                "required": [
+                    "items",
+                    "next_page",
+                    "total"
+                ]
+            }
+        },
+        "list_submittal_statuses": {
+            "display_name": "List Submittal Statuses",
+            "description": "List Submittal Statuses",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "default": 1,
+                        "description": "One-based page number."
+                    },
+                    "per_page": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 100,
+                        "description": "Items per page."
+                    }
+                },
+                "required": [
+                    "company_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Provider records."
+                    },
+                    "next_page": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Next page, or null on the final page."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Total records when supplied by the provider."
+                    }
+                },
+                "required": [
+                    "items",
+                    "next_page",
+                    "total"
+                ]
+            }
+        },
+        "get_document_root": {
+            "display_name": "Get Document Root",
+            "description": "Read the root document folder and its child files and folders.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "get_folder": {
+            "display_name": "Get Folder",
+            "description": "Show Project Folder",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "folder_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Document resource ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "folder_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "get_file": {
+            "display_name": "Get File",
+            "description": "Show project File",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "file_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Document resource ID."
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "file_id"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "create_folder": {
+            "display_name": "Create Folder",
+            "description": "Create Project Folder",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "environment": {
+                        "type": "string",
+                        "description": "API environment; must match the connected OAuth application.",
+                        "enum": [
+                            "production",
+                            "sandbox"
+                        ],
+                        "default": "production"
+                    },
+                    "company_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore company ID returned by List Companies."
+                    },
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Procore project ID."
+                    },
+                    "folder": {
+                        "type": "object",
+                        "required": [
+                            "name"
+                        ],
+                        "properties": {
+                            "parent_id": {
+                                "type": "integer",
+                                "description": "The ID of the parent folder to create the folder in. If not set the folder will be created under the root folder."
+                            },
+                            "parent_path": {
+                                "type": "object",
+                                "description": "Target parent folder expressed as a path instead of `parent_id`. Folders along the path that do not exist yet are created, which requires permission to upload folders.",
+                                "properties": {
+                                    "folder_id": {
+                                        "type": "integer",
+                                        "description": "Folder the path is resolved from. Defaults to the root folder."
+                                    },
+                                    "path": {
+                                        "type": "string",
+                                        "description": "Slash-separated folder names."
+                                    },
+                                    "paths": {
+                                        "type": "array",
+                                        "description": "Folder names as separate segments. Takes precedence over `path`.",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            },
+                            "name": {
+                                "type": "string",
+                                "description": "The Name of the folder"
+                            },
+                            "is_tracked": {
+                                "type": "boolean",
+                                "description": "When true, the requesting user is added as a watcher of the Folder.",
+                                "default": false
+                            }
+                        },
+                        "additionalProperties": false,
+                        "minProperties": 1
+                    }
+                },
+                "required": [
+                    "company_id",
+                    "project_id",
+                    "folder"
+                ],
+                "additionalProperties": false
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object",
+                        "description": "Provider resource or operation result."
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        }
+    }
+}

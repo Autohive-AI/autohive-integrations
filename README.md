@@ -320,6 +320,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [webcal](webcal): WebCalendar integration for fetching and processing events from webcal/iCal calendar feeds. Supports retrieving upcoming events within a configurable time range, searching events by keywords across summary, description, and location fields, timezone conversion for displaying events in any timezone, and detection of recurring and all-day events. Works with any iCal-compatible calendar source including Google Calendar, Apple iCloud, Microsoft Outlook, and Airbnb. Features no authentication required (public feeds), case-insensitive search with match field identification, and comprehensive event metadata extraction (organizer, attendees, URLs). Includes 2 actions for event fetching and searching. Ideal for calendar aggregation, scheduling automation, availability monitoring, and event-based workflow triggers.
 
+### Procore
+
+[procore](procore): Construction project management with 29 actions for projects, RFIs, submittals, directories, locations, and document folders. Uses platform OAuth and supports production/developer sandbox API environments. Commercial rollout requires Procore partner verification.
+
 ### Productboard
 
 [productboard](productboard): Comprehensive product management integration with Productboard API v2 for managing product hierarchy entities, notes, and analytics. Supports full entity lifecycle management for features, products, components, initiatives, objectives, releases, and subfeatures with custom field support. Includes complete note/feedback operations (create, list, get, update) for simple notes and conversations with tagging, owner assignment, and customer linking. Features analytics report access, entity configuration metadata, and user information retrieval. Supports OAuth2 authentication with comprehensive scopes (product_hierarchy_data, notes, custom_fields, users, companies), cursor-based pagination, and robust error handling. Includes 12 actions covering entities, notes, analytics, and user operations. Ideal for product roadmap automation, customer feedback management, and product analytics workflows.
