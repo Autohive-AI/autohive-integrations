@@ -760,6 +760,11 @@ class AddQuestionToDashboardAction(ActionHandler):
             for dc in dashcards:
                 if dc.get("series"):
                     dc["series"] = [{"id": s["id"]} for s in dc["series"]]
+                # GET hides a link the API key can't read as {"restricted": true}; leaving the settings out
+                # keeps the stored link instead of overwriting it.
+                link = ((dc.get("visualization_settings") or {}).get("link") or {}).get("entity") or {}
+                if link.get("restricted"):
+                    del dc["visualization_settings"]
             same_tab = [dc for dc in existing if tab_id is None or dc.get("dashboard_tab_id") == tab_id]
             next_row = max((int(dc.get("row") or 0) + int(dc.get("size_y") or 0) for dc in same_tab), default=0)
 

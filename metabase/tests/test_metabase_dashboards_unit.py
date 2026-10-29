@@ -186,6 +186,25 @@ class TestAddQuestionToDashboard:
         assert [dc["series"] for dc in dashcards] == [[{"id": 43}], [], []]
 
     @pytest.mark.asyncio
+    async def test_restricted_link_card_settings_not_sent_back(self, mock_context):
+        link = {
+            "id": 504,
+            "card_id": None,
+            "row": 8,
+            "col": 0,
+            "size_x": 6,
+            "size_y": 2,
+            "visualization_settings": {"link": {"entity": {"restricted": True}}},
+        }
+        dashboard = {**SAMPLE_DASHBOARD, "dashcards": [EXISTING_DASHCARD, link]}
+        mock_context.fetch.side_effect = [_ok(dashboard), _ok(self._updated())]
+        await metabase.execute_action("add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context)
+        dashcards = mock_context.fetch.call_args_list[1].kwargs["json"]["dashcards"]
+        # Metabase hides a link the key can't read; sending that back would erase the real link.
+        assert "visualization_settings" not in dashcards[1]
+        assert dashcards[0]["visualization_settings"] == {"graph.dimensions": ["week"]}
+
+    @pytest.mark.asyncio
     async def test_response_shape(self, mock_context):
         mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok(self._updated())]
         result = await metabase.execute_action(
