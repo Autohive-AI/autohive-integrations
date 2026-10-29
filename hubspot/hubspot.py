@@ -236,30 +236,168 @@ async def fetch_with_rate_limit_retries(
             delay_seconds *= 2
 
 
+ASSOCIATIONS_API_URL = "https://api.hubapi.com/crm/associations/2026-09"
+OBJECTS_API_URL = "https://api.hubapi.com/crm/objects/2026-09"
+
+# HubSpot reads at most 1,000 records' links in one batch request
+MAX_ASSOCIATION_READ_INPUTS = 1000
+
+# Requests one links lookup makes before stopping, so a cursor that never ends can't loop forever
+MAX_ASSOCIATION_READ_REQUESTS = 20
+
+
+async def _read_associations(
+    context: ExecutionContext,
+    from_type: str,
+    to_type: str,
+    object_ids: list[str],
+    retry_sleep_budget: Dict[str, int],
+    limit: int | None = None,
+) -> tuple[Dict[str, list], set[str]]:
+    """Return each record's links to records of to_type, keyed by record ID, and the IDs that have more.
+
+    Follows each record's paging cursor until it has `limit` links, or all of them when limit is None, for up to
+    MAX_ASSOCIATION_READ_REQUESTS requests. Each link is HubSpot's {toObjectId, associationTypes: [{category,
+    typeId, label}]}. Raises ValueError when HubSpot can't read them.
+    """
+    links: Dict[str, list] = {str(object_id): [] for object_id in object_ids}
+    has_more: set[str] = set()
+    pending = [{"id": object_id} for object_id in links]
+    for _ in range(MAX_ASSOCIATION_READ_REQUESTS):
+        if not pending:
+            break
+        inputs, pending = pending[:MAX_ASSOCIATION_READ_INPUTS], pending[MAX_ASSOCIATION_READ_INPUTS:]
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{ASSOCIATIONS_API_URL}/{from_type}/{to_type}/batch/read",
+                retry_sleep_budget=retry_sleep_budget,
+                method="POST",
+                json={"inputs": inputs},
+                headers={"Content-Type": "application/json"},
+            )
+        except HTTPError as e:
+            # As with HubSpot's object batch reads, a 404 may mean none of these records has a link of this type
+            if e.status == 404:
+                continue
+            raise
+        data = await parse_response(response) or {}
+        reason = _unfinished_batch_reason(data)
+        if reason:
+            raise ValueError(f"HubSpot {reason} the linked {to_type} lookup")
+        # A record with nothing of this type linked comes back as an OBJECT_NOT_FOUND error and is left out of
+        # results; any other error means its links couldn't be read
+        for error in data.get("errors", []):
+            if error.get("category") != "OBJECT_NOT_FOUND":
+                raise ValueError(f"Could not read linked {to_type}: {error.get('message') or error.get('category')}")
+        for row in data.get("results", []):
+            object_id = str(row["from"]["id"])
+            record_links = links.setdefault(object_id, [])
+            record_links.extend(row.get("to", []))
+            after = ((row.get("paging") or {}).get("next") or {}).get("after")
+            if limit is not None and len(record_links) >= limit:
+                if after or len(record_links) > limit:
+                    has_more.add(object_id)
+                del record_links[limit:]
+            elif after:
+                pending.append({"id": object_id, "after": after})
+    # Records still waiting on a page when the request cap was reached
+    has_more.update(str(request["id"]) for request in pending)
+    return links, has_more
+
+
+async def _record_associations(
+    record_type: str,
+    record_id: str,
+    inputs: Dict[str, Any],
+    default_types: list[str],
+    context: ExecutionContext,
+) -> Dict[str, Any] | ActionError:
+    """Return one record's links to each requested type, for the get_*_associations actions.
+
+    A type HubSpot can't read is reported under "errors" rather than shown as having no links.
+    """
+    limit = inputs.get("limit", 100)
+    retry_sleep_budget = {"remaining": 10}
+    associations, summary, has_more, errors = {}, {}, {}, {}
+    for association_type in inputs.get("association_types", default_types):
+        try:
+            links, truncated = await _read_associations(
+                context, record_type, association_type, [record_id], retry_sleep_budget, limit
+            )
+        except (*REQUEST_ERRORS, ValueError) as e:
+            errors[association_type] = _error_text(e)
+            continue
+        associations[association_type] = links[str(record_id)]
+        summary[f"{association_type}_count"] = len(associations[association_type])
+        has_more[association_type] = str(record_id) in truncated
+
+    if errors and not associations:
+        details = "; ".join(f"{association_type}: {message}" for association_type, message in errors.items())
+        return ActionError(message=f"Failed to read associations for {record_type} {record_id}: {details}")
+    data = {
+        "associations": associations,
+        "total_associations": sum(len(links) for links in associations.values()),
+        "summary": summary,
+        "has_more": has_more,
+    }
+    if errors:
+        data["errors"] = errors
+    return data
+
+
+async def _association_labels(
+    context: ExecutionContext, from_type: str, to_type: str, retry_sleep_budget: Dict[str, int]
+) -> list[Dict[str, Any]]:
+    """Return the association types between two object types: [{category, typeId, label}]."""
+    response = await fetch_with_rate_limit_retries(
+        context,
+        f"{ASSOCIATIONS_API_URL}/{from_type}/{to_type}/labels",
+        retry_sleep_budget=retry_sleep_budget,
+        headers={"Content-Type": "application/json"},
+    )
+    return (await parse_response(response)).get("results", [])
+
+
 # Contact Management Actions
 
 
 @hubspot.action("get_contact")
 class GetContactActionHandler(ActionHandler):
     """
-    Action handler to retrieve a HubSpot contact by email.
-
-    Fetches the contact profile using v3 API.
+    Action handler to retrieve a HubSpot contact by ID or email.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         """
         Execute the get_contact action.
 
-        :param inputs: Dictionary with key "email" and optional "properties".
+        :param inputs: Dictionary with "contact_id" or "email", and optional "properties".
         :param context: Execution context containing authentication and fetch method.
         :return: Dictionary with contact information.
         """
-        email = inputs["email"]
+        contact_id = inputs.get("contact_id")
+        email = inputs.get("email")
         properties = inputs.get(
             "properties",
             ["email", "firstname", "lastname", "phone", "company", "jobtitle"],
         )
+
+        if contact_id:
+            try:
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    f"{OBJECTS_API_URL}/contacts/{contact_id}",
+                    params={"properties": ",".join(properties)},
+                    headers={"Content-Type": "application/json"},
+                )
+            except HTTPError as e:
+                if e.status == 404:
+                    return ActionError(message="Contact not found")
+                raise
+            return ActionResult(data={"contact": await parse_response(response)}, cost_usd=None)
+        if not email:
+            return ActionError(message="Give contact_id or email")
 
         # Get contact by email using v3 search API
         search_url = "https://api.hubapi.com/crm/v3/objects/contacts/search"
@@ -344,6 +482,8 @@ class GetContactNotesActionHandler(ActionHandler):
                 "limit": limit,
                 "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
             }
+            if inputs.get("after"):
+                search_body["after"] = inputs["after"]
 
             response = await fetch_with_rate_limit_retries(
                 context,
@@ -368,11 +508,15 @@ class GetContactNotesActionHandler(ActionHandler):
                         if timestamp_field in props and props[timestamp_field]:
                             props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(props[timestamp_field])
 
+            after = ((result.get("paging") or {}).get("next") or {}).get("after")
             return ActionResult(
                 data={
                     "contact_id": contact_id,
                     "notes": notes,
                     "total": len(notes),
+                    "total_matching": result.get("total", len(notes)),
+                    "has_more": after is not None,
+                    "after": after,
                 },
                 cost_usd=None,
             )
@@ -1500,33 +1644,14 @@ async def _task_associations(
     """Return each task's associated contacts, companies and deals, keyed by task ID.
 
     The search API doesn't return associations, so this fills the same associations.<type>.results[].id
-    shape that listing tasks returns.
+    shape that listing tasks returns, leaving out types with nothing linked as listing does.
     """
     associations: Dict[str, Dict[str, Any]] = {task_id: {} for task_id in task_ids}
     for object_type in ("contacts", "companies", "deals"):
-        response = await fetch_with_rate_limit_retries(
-            context,
-            f"https://api.hubapi.com/crm/associations/2026-09/tasks/{object_type}/batch/read",
-            retry_sleep_budget=retry_sleep_budget,
-            method="POST",
-            json={"inputs": [{"id": task_id} for task_id in task_ids]},
-            headers={"Content-Type": "application/json"},
-        )
-        data = await parse_response(response)
-        reason = _unfinished_batch_reason(data)
-        if reason:
-            raise ValueError(f"HubSpot {reason} the linked {object_type} lookup")
-        # A task with nothing of this type linked comes back as an OBJECT_NOT_FOUND error and is left out of
-        # results, as listing tasks omits empty types; any other error means its links couldn't be read
-        for error in data.get("errors", []):
-            if error.get("category") != "OBJECT_NOT_FOUND":
-                raise ValueError(
-                    f"Could not read linked {object_type}: {error.get('message') or error.get('category')}"
-                )
-        for row in data.get("results", []):
-            associations[str(row["from"]["id"])][object_type] = {
-                "results": [{"id": str(linked["toObjectId"])} for linked in row.get("to", [])]
-            }
+        links, _ = await _read_associations(context, "tasks", object_type, task_ids, retry_sleep_budget)
+        for task_id, linked in links.items():
+            if linked:
+                associations[task_id][object_type] = {"results": [{"id": str(link["toObjectId"])} for link in linked]}
     return associations
 
 
@@ -1563,7 +1688,7 @@ async def _search_tasks(inputs: Dict[str, Any], filters: list[Dict[str, Any]], c
         filters = [{"propertyName": "hubspot_owner_id", "operator": "EQ", "value": str(owner_id)}, *filters]
 
     payload = {
-        "limit": min(inputs.get("limit", 100), 100),
+        "limit": inputs.get("limit", 100),
         "properties": list(inputs.get("hs_task_properties", _DEFAULT_HS_TASK_PROPERTY_NAMES)),
         "sorts": [{"propertyName": "hs_timestamp", "direction": inputs.get("sort_direction", "ASCENDING")}],
     }
@@ -1586,7 +1711,7 @@ async def _search_tasks(inputs: Dict[str, Any], filters: list[Dict[str, Any]], c
         result = await parse_response(response)
         tasks = result.get("results", [])
 
-        if tasks:
+        if tasks and inputs.get("include_associations", False):
             associations = await _task_associations(context, [str(task["id"]) for task in tasks], retry_sleep_budget)
             for task in tasks:
                 task["associations"] = associations[str(task["id"])]
@@ -1632,6 +1757,7 @@ class ListTasksActionHandler(ActionHandler):
                 return ActionError(message=str(e))
             return await _search_tasks(inputs, filters, context)
 
+        # Listing returns at most 100 tasks a page; searching allows 200
         limit = min(inputs.get("limit", 100), 100)
         after = inputs.get("after")
         hs_task_properties = inputs.get("hs_task_properties", _DEFAULT_HS_TASK_PROPERTY_NAMES)
@@ -1641,8 +1767,9 @@ class ListTasksActionHandler(ActionHandler):
             params = {
                 "limit": limit,
                 "properties": ",".join(hs_task_properties),
-                "associations": "contacts,companies,deals",
             }
+            if inputs.get("include_associations", False):
+                params["associations"] = "contacts,companies,deals"
             if after:
                 params["after"] = after
 
@@ -1676,9 +1803,7 @@ class ListTasksActionHandler(ActionHandler):
 @hubspot.action("get_contact_emails")
 class GetContactEmailsActionHandler(ActionHandler):
     """
-    Action handler to retrieve recent email conversations for a HubSpot contact.
-
-    Fetches associated email communications for a specific contact using v4 associations API.
+    Action handler to retrieve a HubSpot contact's most recent logged emails, newest first.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -1693,78 +1818,52 @@ class GetContactEmailsActionHandler(ActionHandler):
         email_limit = inputs.get("email_limit", 5)
 
         try:
-            retry_sleep_budget = {"remaining": 10}
-
-            # Get associated emails using v4 associations API
-            associations_url = f"https://api.hubapi.com/crm/v4/objects/contacts/{contact_id}/associations/emails"
-            associations_response = await fetch_with_rate_limit_retries(
+            response = await fetch_with_rate_limit_retries(
                 context,
-                associations_url,
-                retry_sleep_budget=retry_sleep_budget,
+                f"{OBJECTS_API_URL}/emails/search",
+                method="POST",
+                json={
+                    "filterGroups": [
+                        {
+                            "filters": [
+                                {"propertyName": "associations.contact", "operator": "EQ", "value": str(contact_id)}
+                            ]
+                        }
+                    ],
+                    "properties": [
+                        "hs_email_subject",
+                        "hs_email_text",
+                        "hs_timestamp",
+                        "hs_email_direction",
+                        "hs_email_status",
+                        "hs_email_from_email",
+                        "hs_email_to_email",
+                    ],
+                    "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
+                    "limit": email_limit,
+                },
                 headers={"Content-Type": "application/json"},
             )
-            associations_data = await parse_response(associations_response)
+            recent_emails = (await parse_response(response)).get("results", [])
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to retrieve emails: {_error_text(e)}")
 
-            recent_emails = []
-            email_count = 0
+        for email in recent_emails:
+            properties = email.get("properties") or {}
+            if properties.get("hs_timestamp"):
+                properties["hs_timestamp"] = convert_hubspot_timestamp_to_utc_string(properties["hs_timestamp"])
 
-            # Get email details for each associated email (limited by email_limit)
-            for association in associations_data.get("results", []):
-                if email_count >= email_limit:
-                    break
-
-                email_id = association["toObjectId"]
-                email_url = f"https://api.hubapi.com/crm/v3/objects/emails/{email_id}"
-                properties_param = (
-                    "hs_email_subject,hs_email_text,hs_timestamp,"
-                    "hs_email_direction,hs_email_status,hs_email_from_email,hs_email_to_email"
-                )
-
-                try:
-                    email_response = await fetch_with_rate_limit_retries(
-                        context,
-                        f"{email_url}?properties={properties_param}",
-                        retry_sleep_budget=retry_sleep_budget,
-                        headers={"Content-Type": "application/json"},
-                    )
-                    email_data = await parse_response(email_response)
-
-                    # Convert timestamp to UTC string
-                    if (
-                        "properties" in email_data
-                        and "hs_timestamp" in email_data["properties"]
-                        and email_data["properties"]["hs_timestamp"]
-                    ):
-                        email_data["properties"]["hs_timestamp"] = convert_hubspot_timestamp_to_utc_string(
-                            email_data["properties"]["hs_timestamp"]
-                        )
-
-                    recent_emails.append(email_data)
-                    email_count += 1
-                except Exception:  # nosec B112
-                    # Skip emails that can't be retrieved
-                    continue
-
-            # Sort emails by timestamp (most recent first)
-            recent_emails.sort(
-                key=lambda x: x.get("properties", {}).get("hs_timestamp", ""),
-                reverse=True,
-            )
-
-            return ActionResult(
-                data={
-                    "contact_id": contact_id,
-                    "recent_emails": recent_emails,
-                    "email_summary": {
-                        "total_emails_retrieved": len(recent_emails),
-                        "email_limit_applied": email_limit,
-                    },
+        return ActionResult(
+            data={
+                "contact_id": contact_id,
+                "recent_emails": recent_emails,
+                "email_summary": {
+                    "total_emails_retrieved": len(recent_emails),
+                    "email_limit_applied": email_limit,
                 },
-                cost_usd=None,
-            )
-
-        except Exception as e:
-            return ActionError(message=f"Failed to retrieve emails: {str(e)}")
+            },
+            cost_usd=None,
+        )
 
 
 @hubspot.action("create_contact")
@@ -2086,14 +2185,24 @@ class GetRecentContactsActionHandler(ActionHandler):
         """
 
         limit = inputs.get("limit", 100)
-        url = f"https://api.hubapi.com/crm/v3/objects/contacts?limit={limit}&sort=createdat"
 
-        response = await fetch_with_rate_limit_retries(context, url, headers={"Content-Type": "application/json"})
+        # Listing contacts can't sort, so it returns the oldest first; search sorts by creation date
+        response = await fetch_with_rate_limit_retries(
+            context,
+            CONTACTS_SEARCH_API_URL,
+            method="POST",
+            json={"sorts": [{"propertyName": "createdate", "direction": "DESCENDING"}], "limit": limit},
+            headers={"Content-Type": "application/json"},
+        )
         recent_contacts = await parse_response(response)
         return ActionResult(data={"recent_contacts": recent_contacts}, cost_usd=None)
 
 
 # Ticket Management Actions
+
+
+# Conversation message pages read for one ticket
+MAX_CONVERSATION_PAGES = 20
 
 
 async def get_thread_id_from_ticket(ticket_id: str, context: ExecutionContext) -> str:
@@ -2106,9 +2215,7 @@ async def get_thread_id_from_ticket(ticket_id: str, context: ExecutionContext) -
     :param context: Execution context with fetch utility.
     :return: The conversation thread ID or None if not found.
     """
-    ticket_url = (
-        f"https://api.hubapi.com/crm/v3/objects/tickets/{ticket_id}?properties=hs_conversations_originating_thread_id"
-    )
+    ticket_url = f"{OBJECTS_API_URL}/tickets/{ticket_id}?properties=hs_conversations_originating_thread_id"
     ticket_response = await fetch_with_rate_limit_retries(
         context,
         ticket_url,
@@ -2142,7 +2249,7 @@ class GetRecentTicketsActionHandler(ActionHandler):
         sort_direction_map = {"DESC": "DESCENDING", "ASC": "ASCENDING"}
         sort_direction = sort_direction_map.get(inputs.get("sort_direction", "DESC"), "DESCENDING")
 
-        url = "https://api.hubapi.com/crm/v3/objects/tickets/search"
+        url = f"{OBJECTS_API_URL}/tickets/search"
 
         properties = [
             "subject",
@@ -2224,57 +2331,63 @@ class GetTicketConversationActionHandler(ActionHandler):
                 cost_usd=None,
             )
 
-        try:
-            conversation_url = f"https://api.hubapi.com/conversations/v3/conversations/threads/{thread_id}/messages"
-            conversation_response = await fetch_with_rate_limit_retries(
-                context,
-                conversation_url,
-                headers={"Content-Type": "application/json"},
-            )
-            conversation_data = await parse_response(conversation_response)
+        conversation_url = f"https://api.hubapi.com/conversations/v3/conversations/threads/{thread_id}/messages"
+        retry_sleep_budget = {"remaining": 10}
+        after = None
+        for _ in range(MAX_CONVERSATION_PAGES):
+            try:
+                conversation_response = await fetch_with_rate_limit_retries(
+                    context,
+                    conversation_url,
+                    retry_sleep_budget=retry_sleep_budget,
+                    params={"after": after} if after else None,
+                    headers={"Content-Type": "application/json"},
+                )
+                conversation_data = await parse_response(conversation_response)
+            except REQUEST_ERRORS as e:
+                return ActionError(
+                    message=f"Failed to read the conversation for ticket {ticket_id} (thread {thread_id}): "
+                    f"{_error_text(e)}"
+                )
 
-            if conversation_data.get("results"):
-                for message in conversation_data["results"]:
-                    message_content = message.get("text")
-                    if not message_content:
-                        continue
+            for message in conversation_data.get("results", []):
+                message_content = message.get("text") or message.get("richText")
+                if not message_content:
+                    continue
 
-                    message_type = message.get("type", "")
-                    if message_type == "COMMENT":
-                        sender = "Private Note"
-                    else:
-                        sender = None
-                        if message.get("senders") and len(message["senders"]) > 0:
-                            sender_info = message["senders"][0]
-                            sender = sender_info.get("name", "Unknown Sender")
+                message_type = message.get("type", "")
+                if message_type == "COMMENT":
+                    sender = "Private Note"
+                else:
+                    sender = None
+                    if message.get("senders") and len(message["senders"]) > 0:
+                        sender_info = message["senders"][0]
+                        sender = sender_info.get("name", "Unknown Sender")
 
-                    conversation_results.append(
-                        {
-                            "sender": sender,
-                            "message": message_content,
-                            "timestamp": message.get("createdAt"),
-                            "message_id": message.get("id"),
-                            "type": message_type,
-                        }
-                    )
-        except Exception:  # nosec B110
-            pass
+                conversation_results.append(
+                    {
+                        "sender": sender,
+                        "message": message_content,
+                        "timestamp": message.get("createdAt"),
+                        "message_id": message.get("id"),
+                        "type": message_type,
+                        **({"rich_text": message["richText"]} if message.get("richText") else {}),
+                    }
+                )
+
+            after = ((conversation_data.get("paging") or {}).get("next") or {}).get("after")
+            if not after:
+                break
 
         try:
             sorted_conversation = sorted(conversation_results, key=lambda x: x.get("timestamp", ""))
         except Exception:
             sorted_conversation = conversation_results
 
-        return ActionResult(
-            data={
-                "conversation": {
-                    "results": sorted_conversation,
-                    "ticket_id": ticket_id,
-                    "thread_id": thread_id,
-                }
-            },
-            cost_usd=None,
-        )
+        conversation = {"results": sorted_conversation, "ticket_id": ticket_id, "thread_id": thread_id}
+        if after:
+            conversation["message"] = f"Showing the first {MAX_CONVERSATION_PAGES} pages of a longer conversation"
+        return ActionResult(data={"conversation": conversation}, cost_usd=None)
 
 
 @hubspot.action("add_ticket_comment")
@@ -2443,6 +2556,8 @@ class GetCompanyNotesActionHandler(ActionHandler):
                 "limit": limit,
                 "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
             }
+            if inputs.get("after"):
+                search_body["after"] = inputs["after"]
 
             response = await fetch_with_rate_limit_retries(
                 context,
@@ -2467,11 +2582,15 @@ class GetCompanyNotesActionHandler(ActionHandler):
                         if timestamp_field in props and props[timestamp_field]:
                             props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(props[timestamp_field])
 
+            after = ((result.get("paging") or {}).get("next") or {}).get("after")
             return ActionResult(
                 data={
                     "company_id": company_id,
                     "notes": notes,
                     "total": len(notes),
+                    "total_matching": result.get("total", len(notes)),
+                    "has_more": after is not None,
+                    "after": after,
                 },
                 cost_usd=None,
             )
@@ -2601,7 +2720,7 @@ class SearchCompaniesActionHandler(ActionHandler):
         """
         Execute the search_companies action.
 
-        :param inputs: Dictionary with keys "query" (search term) and "limit" (maximum number of results).
+        :param inputs: Dictionary with keys "query" (search term), "limit" (results per page) and "after".
         :param context: Execution context containing authentication details.
         :return: Parsed JSON response with the search results.
         """
@@ -2612,6 +2731,8 @@ class SearchCompaniesActionHandler(ActionHandler):
         url = "https://api.hubapi.com/crm/v3/objects/companies/search"
 
         payload = {"query": query, "limit": limit}
+        if inputs.get("after"):
+            payload["after"] = inputs["after"]
 
         response = await fetch_with_rate_limit_retries(
             context,
@@ -2639,12 +2760,16 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
         """
         Execute the search_companies_by_owner_name action.
 
-        :param inputs: Dictionary with keys "owner_name" (required), "limit" (optional), and "properties" (optional).
+        :param inputs: Dictionary with an owner ID, email or name, plus optional paging and properties.
         :param context: Execution context containing authentication details.
         :return: Dictionary with companies associated with the specified owner.
         """
 
-        owner_name = inputs["owner_name"]
+        owner_name = inputs.get("owner_name", "")
+        owner_id = inputs.get("owner_id")
+        owner_email = inputs.get("owner_email")
+        if not (owner_id or owner_email or owner_name.strip()):
+            return ActionError(message="Provide an owner_id, owner_email or owner_name")
         limit = inputs.get("limit", 100)
         after = inputs.get("after")
         properties = inputs.get(
@@ -2664,72 +2789,56 @@ class SearchCompaniesByOwnerNameActionHandler(ActionHandler):
         )
 
         try:
-            # Step 1: Page through owners from HubSpot until the requested owner is found
+            # Step 1: Find the owner by full name, or by first or last name when no full name matches
             retry_sleep_budget = {"remaining": 10}
-            owners_url = "https://api.hubapi.com/crm/v3/owners/"
-            owner_id = None
-            matched_owner = None
-            owners_after = None
-            owner_pages_checked = 0
-            max_owner_pages = 10
-
-            while owner_pages_checked < max_owner_pages:
-                owner_params = {"limit": 100}
-                if owners_after:
-                    owner_params["after"] = owners_after
-
-                owners_response = await fetch_with_rate_limit_retries(
-                    context,
-                    owners_url,
-                    retry_sleep_budget=retry_sleep_budget,
-                    params=owner_params,
-                    headers={"Content-Type": "application/json"},
+            if owner_id:
+                # Reuse the ID returned on the first page instead of reading the owner directory again.
+                matches, read_every_owner = [{"id": owner_id}], True
+            else:
+                owners, read_every_owner = await _list_owners(context, retry_sleep_budget, email=owner_email)
+                wanted = owner_name.strip().casefold()
+                matches = (
+                    owners
+                    if owner_email
+                    else (
+                        [owner for owner in owners if _owner_name(owner).casefold() == wanted]
+                        or [
+                            owner
+                            for owner in owners
+                            if wanted
+                            in ((owner.get("firstName") or "").casefold(), (owner.get("lastName") or "").casefold())
+                        ]
+                    )
                 )
-                owners_data = await parse_response(owners_response)
-                owner_pages_checked += 1
 
-                # Step 2: Find the owner ID by matching the name
-                for owner in owners_data.get("results", []):
-                    # Check both firstName + lastName combination and full name
-                    first_name = owner.get("firstName", "")
-                    last_name = owner.get("lastName", "")
-                    full_name = f"{first_name} {last_name}".strip()
-
-                    # Case-insensitive matching
-                    if (
-                        owner_name.lower() == full_name.lower()
-                        or owner_name.lower() == first_name.lower()
-                        or owner_name.lower() == last_name.lower()
-                    ):
-                        owner_id = owner.get("id")
-                        matched_owner = {
-                            "id": owner_id,
-                            "firstName": first_name,
-                            "lastName": last_name,
-                            "email": owner.get("email"),
-                        }
-                        break
-
-                if owner_id:
-                    break
-
-                owners_after = owners_data.get("paging", {}).get("next", {}).get("after")
-                if not owners_after:
-                    break
-
-            if not owner_id:
-                if owners_after:
+            if not matches:
+                if not read_every_owner:
                     return ActionError(
                         message=(
-                            f"Owner with name '{owner_name}' not found in the first "
-                            f"{max_owner_pages} owner pages. Use the exact owner name "
-                            "or owner ID for large HubSpot portals."
+                            f"Owner with name '{owner_name}' not found in the first {MAX_OWNER_PAGES * 100} owners. "
+                            "Use search_owners to find the owner ID, then search_crm_objects with hubspot_owner_id."
                         ),
                     )
-
                 return ActionError(
-                    message=f"Owner with name '{owner_name}' not found",
+                    message=f"Owner with email '{owner_email}' not found"
+                    if owner_email
+                    else f"Owner with name '{owner_name}' not found"
                 )
+            if len(matches) > 1:
+                candidates = ", ".join(
+                    f"{_owner_name(owner)} ({owner.get('email') or owner.get('id')})" for owner in matches
+                )
+                return ActionError(
+                    message=f"More than one owner matches '{owner_name}': {candidates}. Use the owner's full name."
+                )
+
+            owner_id = matches[0].get("id")
+            matched_owner = {
+                "id": owner_id,
+                "firstName": matches[0].get("firstName"),
+                "lastName": matches[0].get("lastName"),
+                "email": matches[0].get("email"),
+            }
 
             # Step 3: Search for companies with this owner ID
             search_url = "https://api.hubapi.com/crm/v3/objects/companies/search"
@@ -2967,6 +3076,8 @@ class GetDealNotesActionHandler(ActionHandler):
                 "limit": limit,
                 "sorts": [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}],
             }
+            if inputs.get("after"):
+                search_body["after"] = inputs["after"]
 
             response = await fetch_with_rate_limit_retries(
                 context,
@@ -2991,8 +3102,16 @@ class GetDealNotesActionHandler(ActionHandler):
                         if timestamp_field in props and props[timestamp_field]:
                             props[timestamp_field] = convert_hubspot_timestamp_to_utc_string(props[timestamp_field])
 
+            after = ((result.get("paging") or {}).get("next") or {}).get("after")
             return ActionResult(
-                data={"deal_id": deal_id, "notes": notes, "total": len(notes)},
+                data={
+                    "deal_id": deal_id,
+                    "notes": notes,
+                    "total": len(notes),
+                    "total_matching": result.get("total", len(notes)),
+                    "has_more": after is not None,
+                    "after": after,
+                },
                 cost_usd=None,
             )
 
@@ -3000,6 +3119,10 @@ class GetDealNotesActionHandler(ActionHandler):
             return ActionError(
                 message=f"Failed to retrieve notes for deal {deal_id}: {str(e)}",
             )
+
+
+# Transcripts fetched at once for one calls lookup; more trips HubSpot's rate limit
+MAX_PARALLEL_TRANSCRIPT_FETCHES = 5
 
 
 async def fetch_transcript(
@@ -3010,20 +3133,36 @@ async def fetch_transcript(
     """
     Fetch transcript utterances from the HubSpot Calling Transcripts API.
     Google Meet transcripts are stored here, not on the call object properties.
-    Returns None if the transcript cannot be fetched.
+    Raises the request error when the transcript can't be fetched.
     """
-    try:
-        url = f"https://api.hubapi.com/crm/extensions/calling/2026-03/transcripts/{transcript_id}"
-        response = await fetch_with_rate_limit_retries(
-            context,
-            url,
-            retry_sleep_budget=retry_sleep_budget,
-            method="GET",
-        )
-        result = await parse_response(response)
-        return result.get("transcriptUtterances", [])
-    except Exception:
-        return None
+    url = f"https://api.hubapi.com/crm/extensions/calling/2026-03/transcripts/{transcript_id}"
+    response = await fetch_with_rate_limit_retries(
+        context,
+        url,
+        retry_sleep_budget=retry_sleep_budget,
+        method="GET",
+    )
+    result = await parse_response(response)
+    if not isinstance(result, dict):
+        raise ValueError("HubSpot returned an unreadable transcript")
+    return result.get("transcriptUtterances", [])
+
+
+async def _add_transcript(
+    call: Dict[str, Any],
+    transcript_id: str | None,
+    context: ExecutionContext,
+    retry_sleep_budget: Dict[str, int] | None,
+    slots: asyncio.Semaphore,
+) -> None:
+    """Add a call's transcript utterances as "transcript", or why they couldn't be read as "transcript_error"."""
+    async with slots:
+        try:
+            call["transcript"] = await fetch_transcript(transcript_id or call["id"], context, retry_sleep_budget)
+        except (*REQUEST_ERRORS, ValueError) as e:
+            # Without a transcript ID the call ID is only a guess, so a 404 for it means no transcript was found
+            if transcript_id or getattr(e, "status", None) != 404:
+                call["transcript_error"] = _error_text(e)
 
 
 async def fetch_calls_with_transcripts(
@@ -3031,10 +3170,10 @@ async def fetch_calls_with_transcripts(
     limit: int,
     context: ExecutionContext,
     retry_sleep_budget: Dict[str, int] | None = None,
+    include_transcripts: bool = False,
 ):
     """
-    Fetch calls for a given association filter, then enrich each call that has a transcript
-    by fetching the full transcript utterances from the transcripts API.
+    Fetch calls for an association filter, optionally enriching them with full transcripts.
     """
     call_properties = [
         "hs_call_title",
@@ -3078,31 +3217,25 @@ async def fetch_calls_with_transcripts(
                 if call["properties"].get(field):
                     call["properties"][field] = convert_hubspot_timestamp_to_utc_string(call["properties"][field])
 
+    if not include_transcripts:
+        return calls
+
     # Fetch transcripts in parallel for calls that have one.
     # Note: hs_call_transcription_id can be null even when a transcript exists (known HubSpot bug).
     # Fallback: when hs_call_has_transcript is true but hs_call_transcription_id is null,
     # try using the call's own ID as the transcript ID — HubSpot often maps them 1:1.
+    slots = asyncio.Semaphore(MAX_PARALLEL_TRANSCRIPT_FETCHES)
     transcript_tasks = []
-    calls_needing_transcripts = []
     for call in calls:
         props = call.get("properties", {})
         transcript_id = props.get("hs_call_transcription_id")
         has_transcript = props.get("hs_call_has_transcript") == "true"
 
-        if transcript_id:
-            transcript_tasks.append(fetch_transcript(transcript_id, context, retry_sleep_budget))
-            calls_needing_transcripts.append(call)
-        elif has_transcript:
-            # Fallback for HubSpot bug: try the call ID itself as the transcript ID
-            transcript_tasks.append(fetch_transcript(call["id"], context, retry_sleep_budget))
-            calls_needing_transcripts.append(call)
+        # Without a transcript ID, fall back to the call ID (HubSpot bug workaround)
+        if transcript_id or has_transcript:
+            transcript_tasks.append(_add_transcript(call, transcript_id, context, retry_sleep_budget, slots))
 
-    if transcript_tasks:
-        transcripts = await asyncio.gather(*transcript_tasks)
-        for call, utterances in zip(calls_needing_transcripts, transcripts):
-            if utterances is not None:
-                call["transcript"] = utterances
-
+    await asyncio.gather(*transcript_tasks)
     return calls
 
 
@@ -3166,9 +3299,8 @@ class GetContactCallsAndMeetingsActionHandler(ActionHandler):
     """
     Action handler to retrieve calls and meetings associated with a HubSpot contact.
 
-    Fetches calls with transcripts (via the Calling Transcripts API) and meetings
-    (metadata only) for a specific contact. Google Meet transcripts are stored on
-    call records, not meeting records.
+    Fetches call and meeting metadata for a contact, with transcripts only when requested.
+    Google Meet transcripts are stored on call records, not meeting records.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -3183,7 +3315,9 @@ class GetContactCallsAndMeetingsActionHandler(ActionHandler):
 
         try:
             retry_sleep_budget = {"remaining": 10}
-            calls = await fetch_calls_with_transcripts(association_filter, limit, context, retry_sleep_budget)
+            calls = await fetch_calls_with_transcripts(
+                association_filter, limit, context, retry_sleep_budget, inputs.get("include_transcripts", False)
+            )
             meetings = await fetch_meetings(association_filter, limit, context, retry_sleep_budget)
 
             return ActionResult(
@@ -3206,9 +3340,8 @@ class GetDealCallsAndMeetingsActionHandler(ActionHandler):
     """
     Action handler to retrieve calls and meetings associated with a HubSpot deal.
 
-    Fetches calls with transcripts (via the Calling Transcripts API) and meetings
-    (metadata only) for a specific deal. Google Meet transcripts are stored on
-    call records, not meeting records.
+    Fetches call and meeting metadata for a deal, with transcripts only when requested.
+    Google Meet transcripts are stored on call records, not meeting records.
     """
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
@@ -3223,7 +3356,9 @@ class GetDealCallsAndMeetingsActionHandler(ActionHandler):
 
         try:
             retry_sleep_budget = {"remaining": 10}
-            calls = await fetch_calls_with_transcripts(association_filter, limit, context, retry_sleep_budget)
+            calls = await fetch_calls_with_transcripts(
+                association_filter, limit, context, retry_sleep_budget, inputs.get("include_transcripts", False)
+            )
             meetings = await fetch_meetings(association_filter, limit, context, retry_sleep_budget)
 
             return ActionResult(
@@ -3269,7 +3404,6 @@ class GetDealsActionHandler(ActionHandler):
 
         deals = []
         unique_deal_ids = set()  # For deduplication
-        has_more = True
         after = inputs.get("after")  # Allow starting from specific pagination token
         total_fetched = 0
         # Respect user's limit parameter even when fetch_all is false
@@ -3304,7 +3438,41 @@ class GetDealsActionHandler(ActionHandler):
             ],
         )
 
-        while has_more and total_fetched < max_total:
+        # Build single filter group with AND logic (all filters in one group)
+        all_filters = []
+
+        # Pipeline filtering
+        if inputs.get("pipeline_id"):
+            all_filters.append({"propertyName": "pipeline", "operator": "EQ", "value": inputs["pipeline_id"]})
+
+        # Year filtering to reduce response size
+        if inputs.get("year"):
+            start_ms = int(datetime(inputs["year"], 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+            end_ms = int(datetime(inputs["year"], 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
+            all_filters.append({"propertyName": "closedate", "operator": "GTE", "value": str(start_ms)})
+            all_filters.append({"propertyName": "closedate", "operator": "LTE", "value": str(end_ms)})
+
+        # Date range filtering with flexible start and end dates
+        date_field = inputs.get("date_field", "hs_lastmodifieddate")
+        try:
+            # The parsed dates are naive; they're UTC, not the server's local time
+            if inputs.get("start_date"):
+                start_date = parse_date_string_to_utc(inputs["start_date"]).replace(tzinfo=timezone.utc)
+                start_ms = int(start_date.timestamp() * 1000)
+                all_filters.append({"propertyName": date_field, "operator": "GTE", "value": str(start_ms)})
+            if inputs.get("end_date"):
+                # Set to end of day (23:59:59) for end date
+                end_date = parse_date_string_to_utc(inputs["end_date"]).replace(
+                    hour=23, minute=59, second=59, tzinfo=timezone.utc
+                )
+                end_ms = int(end_date.timestamp() * 1000)
+                all_filters.append({"propertyName": date_field, "operator": "LTE", "value": str(end_ms)})
+        except ValueError as e:
+            # Searching without the date filter would return deals outside the requested range
+            return ActionError(message=str(e))
+
+        next_after = None
+        while total_fetched < max_total:
             # Add delay between requests to avoid rate limits (skip on first request)
             if total_fetched > 0 and delay_between_requests > 0:
                 await asyncio.sleep(delay_between_requests)
@@ -3318,83 +3486,6 @@ class GetDealsActionHandler(ActionHandler):
             # Add after token for pagination
             if after:
                 request_body["after"] = after
-
-            # Build single filter group with AND logic (all filters in one group)
-            all_filters = []
-
-            # Pipeline filtering
-            if inputs.get("pipeline_id"):
-                all_filters.append(
-                    {
-                        "propertyName": "pipeline",
-                        "operator": "EQ",
-                        "value": inputs["pipeline_id"],
-                    }
-                )
-
-            # Year filtering to reduce response size
-            if inputs.get("year"):
-                try:
-                    year = int(inputs["year"])
-                    # Create start and end of year in UTC milliseconds
-                    start_of_year = datetime(year, 1, 1, tzinfo=timezone.utc)
-                    end_of_year = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
-
-                    start_ms = int(start_of_year.timestamp() * 1000)
-                    end_ms = int(end_of_year.timestamp() * 1000)
-
-                    all_filters.extend(
-                        [
-                            {
-                                "propertyName": "closedate",
-                                "operator": "GTE",
-                                "value": str(start_ms),
-                            },
-                            {
-                                "propertyName": "closedate",
-                                "operator": "LTE",
-                                "value": str(end_ms),
-                            },
-                        ]
-                    )
-                except (ValueError, TypeError):
-                    pass  # Invalid year, skip filtering
-
-            # Date range filtering with flexible start and end dates
-            if inputs.get("start_date") or inputs.get("end_date"):
-                try:
-                    date_field = inputs.get("date_field", "hs_lastmodifieddate")
-
-                    # Parse and add start date filter if provided
-                    if inputs.get("start_date"):
-                        start_date = parse_date_string_to_utc(inputs["start_date"])
-                        if start_date:
-                            start_ms = int(start_date.timestamp() * 1000)
-                            all_filters.append(
-                                {
-                                    "propertyName": date_field,
-                                    "operator": "GTE",
-                                    "value": str(start_ms),
-                                }
-                            )
-
-                    # Parse and add end date filter if provided
-                    if inputs.get("end_date"):
-                        end_date = parse_date_string_to_utc(inputs["end_date"])
-                        if end_date:
-                            # Set to end of day (23:59:59) for end date
-                            end_date = end_date.replace(hour=23, minute=59, second=59)
-                            end_ms = int(end_date.timestamp() * 1000)
-                            all_filters.append(
-                                {
-                                    "propertyName": date_field,
-                                    "operator": "LTE",
-                                    "value": str(end_ms),
-                                }
-                            )
-
-                except (ValueError, TypeError):
-                    pass  # Invalid date format, skip filtering
 
             # Create single filter group if any filters exist
             if all_filters:
@@ -3410,80 +3501,73 @@ class GetDealsActionHandler(ActionHandler):
             )
 
             result = await parse_response(response)
+            page_deals = (result or {}).get("results") or []
 
-            if result and result.get("results"):
-                page_deals = result["results"]
+            # Deduplicate deals by ID
+            new_deals = []
+            for deal in page_deals:
+                deal_id = deal.get("id")
+                if deal_id and deal_id not in unique_deal_ids:
+                    unique_deal_ids.add(deal_id)
+                    new_deals.append(deal)
 
-                # Deduplicate deals by ID
-                new_deals = []
-                for deal in page_deals:
-                    deal_id = deal.get("id")
-                    if deal_id and deal_id not in unique_deal_ids:
-                        unique_deal_ids.add(deal_id)
-                        new_deals.append(deal)
+            deals.extend(new_deals)
+            total_fetched += len(new_deals)
 
-                deals.extend(new_deals)
-                total_fetched += len(new_deals)
+            # Log deduplication info if duplicates were found
+            duplicates_removed = len(page_deals) - len(new_deals)
+            if duplicates_removed > 0:
+                # Store deduplication info for debugging
+                if not hasattr(context, "_deduplication_stats"):
+                    context._deduplication_stats = {
+                        "pages_with_duplicates": 0,
+                        "total_duplicates_removed": 0,
+                    }
+                context._deduplication_stats["pages_with_duplicates"] += 1
+                context._deduplication_stats["total_duplicates_removed"] += duplicates_removed
 
-                # Check for more pages
-                paging = result.get("paging")
-                if paging and paging.get("next") and paging["next"].get("after"):
-                    after = paging["next"]["after"]
-                    # Continue if fetch_all is True OR if we haven't reached the user's requested limit
-                    has_more = fetch_all or total_fetched < max_total
-                else:
-                    has_more = False
-
-                # Log deduplication info if duplicates were found
-                duplicates_removed = len(page_deals) - len(new_deals)
-                if duplicates_removed > 0:
-                    # Store deduplication info for debugging
-                    if not hasattr(context, "_deduplication_stats"):
-                        context._deduplication_stats = {
-                            "pages_with_duplicates": 0,
-                            "total_duplicates_removed": 0,
-                        }
-                    context._deduplication_stats["pages_with_duplicates"] += 1
-                    context._deduplication_stats["total_duplicates_removed"] += duplicates_removed
-            else:
-                has_more = False
+            # HubSpot only returns a cursor when there's another page
+            next_after = (((result or {}).get("paging") or {}).get("next") or {}).get("after")
+            if not next_after or not page_deals:
+                next_after = None
+                break
+            after = next_after
 
         # Convert deal dates from UTC timestamps to readable UTC strings
         for deal in deals:
             convert_deal_dates_to_utc(deal)
 
         # Prepare clear pagination guidance
-        has_more_pages = has_more and total_fetched < max_total
+        has_more_pages = next_after is not None
         pagination_instructions = ""
         next_page_params = {}
 
         if has_more_pages:
+            limit_note = (
+                f"Stopped at the maximum of {max_total} deals; increase 'max_total' (up to 5000) to get more at once. "
+                if total_fetched >= max_total and fetch_all
+                else ""
+            )
             pagination_instructions = (
-                f"There are more deals available. You retrieved {total_fetched} deals so far. "
-                f"To get the next page, use 'get_deals' with the same parameters plus 'after': '{after}'. "
-                "Or set 'fetch_all': true to get all remaining deals automatically. "
+                f"There are more deals available. You retrieved {total_fetched} deals so far. {limit_note}"
+                f"To get the next page, use 'get_deals' with the same parameters plus 'after': '{next_after}'. "
+                "Or set 'fetch_all': true to get the remaining deals automatically, up to 'max_total'. "
                 "For rate limiting, add 'delay_between_requests': 1.0."
             )
             next_page_params = {
                 "action": "get_deals",
-                "parameters": {**inputs, "after": after},
-                "alternative": {**inputs, "fetch_all": True},
+                "parameters": {**inputs, "after": next_after},
+                "alternative": {**inputs, "after": next_after, "fetch_all": True},
                 "rate_limited_alternative": {
                     **inputs,
+                    "after": next_after,
                     "fetch_all": True,
                     "delay_between_requests": 1.0,
                 },
             }
-        elif not has_more:
-            pagination_instructions = (
-                f"You have retrieved all available deals ({total_fetched} total). No more pages available."
-            )
         else:
             pagination_instructions = (
-                f"Reached the maximum limit of {max_total} deals. There may be more deals available. "
-                "To get more, increase 'max_total' or use specific filters to narrow the search. "
-                "For comprehensive fetching with rate limiting, use 'fetch_all': true "
-                "and 'delay_between_requests': 1.0."
+                f"You have retrieved all available deals ({total_fetched} total). No more pages available."
             )
 
         # Get deduplication stats if available
@@ -3494,9 +3578,9 @@ class GetDealsActionHandler(ActionHandler):
             "results": deals,
             "total": len(deals),
             "pagination": {
-                "fetched_all_available": not has_more or total_fetched >= max_total,
+                "fetched_all_available": not has_more_pages,
                 "total_fetched": total_fetched,
-                "last_after_token": after,
+                "last_after_token": next_after,
                 "has_more_pages": has_more_pages,
                 "current_page_size": len(deals),
                 "pagination_instructions": pagination_instructions,
@@ -3627,6 +3711,21 @@ class SearchDealsActionHandler(ActionHandler):
             ],
         )
 
+        # Apply close-date bounds in HubSpot, including the intersection with an optional year.
+        try:
+            start_date = parse_date_string_to_utc(inputs.get("close_date_start"))
+            end_date = parse_date_string_to_utc(inputs.get("close_date_end"))
+            if inputs.get("year"):
+                year = int(inputs["year"])
+                year_start = datetime(year, 1, 1)
+                year_end = datetime(year, 12, 31, 23, 59, 59)
+                start_date = max(start_date, year_start) if start_date else year_start
+                end_date = min(end_date, year_end) if end_date else year_end
+            if start_date and end_date and start_date > end_date:
+                return ActionError(message="The close-date start must be at or before the close-date end")
+        except ValueError as e:
+            return ActionError(message=str(e))
+
         while has_more and total_fetched < max_total:
             request_body = {
                 "limit": min(limit_per_page, max_total - total_fetched),
@@ -3647,23 +3746,30 @@ class SearchDealsActionHandler(ActionHandler):
             if inputs.get("pipeline_id"):
                 filters.append({"propertyName": "pipeline", "operator": "EQ", "value": inputs["pipeline_id"]})
 
-            # Year filtering to reduce response size
-            if inputs.get("year"):
-                year = int(inputs["year"])
-                start_ms = int(datetime(year, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
-                end_ms = int(datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc).timestamp() * 1000)
-                filters.append({"propertyName": "closedate", "operator": "GTE", "value": str(start_ms)})
-                filters.append({"propertyName": "closedate", "operator": "LTE", "value": str(end_ms)})
+            if start_date:
+                filters.append(
+                    {
+                        "propertyName": "closedate",
+                        "operator": "GTE",
+                        "value": str(int(start_date.replace(tzinfo=timezone.utc).timestamp() * 1000)),
+                    }
+                )
+            if end_date:
+                filters.append(
+                    {
+                        "propertyName": "closedate",
+                        "operator": "LTE",
+                        "value": str(int(end_date.replace(tzinfo=timezone.utc).timestamp() * 1000)),
+                    }
+                )
 
             if inputs.get("deal_stage"):
                 filters.append({"propertyName": "dealstage", "operator": "EQ", "value": inputs["deal_stage"]})
 
-            # Close date ranges are filtered after each page is fetched, below
-
-            if inputs.get("min_amount"):
+            if inputs.get("min_amount") is not None:
                 filters.append({"propertyName": "amount", "operator": "GTE", "value": str(inputs["min_amount"])})
 
-            if inputs.get("max_amount"):
+            if inputs.get("max_amount") is not None:
                 filters.append({"propertyName": "amount", "operator": "LTE", "value": str(inputs["max_amount"])})
 
             if filters:
@@ -3692,49 +3798,6 @@ class SearchDealsActionHandler(ActionHandler):
             if result and result.get("results"):
                 page_deals = result["results"]
 
-                # This bypasses HubSpot's buggy date range API filtering
-                if inputs.get("close_date_start") or inputs.get("close_date_end"):
-                    filtered_deals = []
-                    start_date_obj = (
-                        parse_date_string_to_utc(inputs["close_date_start"]) if inputs.get("close_date_start") else None
-                    )
-                    end_date_obj = (
-                        parse_date_string_to_utc(inputs["close_date_end"]) if inputs.get("close_date_end") else None
-                    )
-
-                    for deal in page_deals:
-                        closedate_str = deal.get("properties", {}).get("closedate")
-                        if closedate_str:
-                            try:
-                                if isinstance(closedate_str, str) and closedate_str.endswith("Z"):
-                                    closedate_obj = datetime.fromisoformat(
-                                        closedate_str.replace("Z", "+00:00")
-                                    ).replace(tzinfo=None)
-                                else:
-                                    closedate_obj = datetime.fromtimestamp(
-                                        int(closedate_str) / 1000,
-                                        tz=timezone.utc,
-                                    ).replace(tzinfo=None)
-
-                                # Apply precise date filtering
-                                include_deal = True
-                                if start_date_obj and closedate_obj < start_date_obj:
-                                    include_deal = False
-                                if end_date_obj and closedate_obj > end_date_obj:
-                                    include_deal = False
-
-                                if include_deal:
-                                    filtered_deals.append(deal)
-                            except (ValueError, TypeError):
-                                # Include deals with invalid dates to avoid data loss
-                                filtered_deals.append(deal)
-                        else:
-                            # Include deals without close dates - only include if no date filtering requested
-                            if not start_date_obj and not end_date_obj:
-                                filtered_deals.append(deal)
-
-                    page_deals = filtered_deals
-
                 # Deduplicate deals by ID
                 new_deals = []
                 for deal in page_deals:
@@ -3762,8 +3825,8 @@ class SearchDealsActionHandler(ActionHandler):
                 paging = result.get("paging")
                 if paging and paging.get("next") and paging["next"].get("after"):
                     after = next_after = paging["next"]["after"]
-                    # Continue if fetch_all is True OR if we haven't reached the user's requested limit
-                    has_more = fetch_all or total_fetched < max_total
+                    # Extra pages are opt-in; always return the next cursor.
+                    has_more = fetch_all and total_fetched < max_total
                 else:
                     next_after = None
                     has_more = False
@@ -3779,6 +3842,7 @@ class SearchDealsActionHandler(ActionHandler):
             data={
                 "results": deals,
                 "total": len(deals),
+                "total_matching": result.get("total", len(deals)),
                 "pagination": {
                     "has_more_pages": next_after is not None,
                     "current_page_size": len(deals),
@@ -4042,12 +4106,19 @@ class SearchListsHandler(ActionHandler):
 
         data = await parse_response(response)
         results = data.get("lists", [])
+        has_more = bool(data.get("hasMore"))
 
         return ActionResult(
             data={
                 "results": results,
                 "total": len(results),
-                "has_more": len(results) == inputs.get("count", 20),
+                "total_matching": data.get("total", len(results)),
+                "has_more": has_more,
+                # HubSpot documents the response offset both as the next page's and as this page's start, so
+                # take whichever is further on
+                "next_offset": max(data.get("offset") or 0, (inputs.get("offset") or 0) + len(results))
+                if has_more
+                else None,
             },
             cost_usd=None,
         )
@@ -4107,178 +4178,124 @@ class GetListMembershipsHandler(ActionHandler):
 
 @hubspot.action("get_contact_associations")
 class GetContactAssociationsHandler(ActionHandler):
-    """Retrieve all associated objects for a contact using v4 Associations API"""
+    """Retrieve a contact's linked records, with association labels"""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         contact_id = inputs["contact_id"]
-        association_types = inputs.get("association_types", ["companies", "deals", "meetings"])
-        limit = inputs.get("limit", 100)
-
-        associations = {}
-        total_count = 0
-        summary = {}
-        retry_sleep_budget = {"remaining": 10}
-
-        # Fetch associations for each type in parallel
-        for assoc_type in association_types:
-            try:
-                url = f"https://api.hubapi.com/crm/v4/objects/contacts/{contact_id}/associations/{assoc_type}"
-                params = {"limit": limit}
-
-                response = await fetch_with_rate_limit_retries(
-                    context,
-                    url,
-                    retry_sleep_budget=retry_sleep_budget,
-                    params=params,
-                )
-                data = await parse_response(response)
-
-                results = data.get("results", [])
-                associations[assoc_type] = results
-                total_count += len(results)
-                summary[f"{assoc_type}_count"] = len(results)
-
-            except Exception:
-                # If association type doesn't exist or fails, continue with empty list
-                associations[assoc_type] = []
-                summary[f"{assoc_type}_count"] = 0
-
-        return ActionResult(
-            data={
-                "contact_id": contact_id,
-                "associations": associations,
-                "total_associations": total_count,
-                "summary": summary,
-            },
-            cost_usd=None,
-        )
+        data = await _record_associations("contacts", contact_id, inputs, ["companies", "deals", "meetings"], context)
+        if isinstance(data, ActionError):
+            return data
+        return ActionResult(data={"contact_id": contact_id, **data}, cost_usd=None)
 
 
 @hubspot.action("get_company_associations")
 class GetCompanyAssociationsHandler(ActionHandler):
-    """Retrieve all associated objects for a company using v4 Associations API"""
+    """Retrieve a company's linked records, with association labels"""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         company_id = inputs["company_id"]
-        association_types = inputs.get("association_types", ["contacts", "deals", "tickets"])
-        limit = inputs.get("limit", 100)
-
-        associations = {}
-        total_count = 0
-        summary = {}
-        retry_sleep_budget = {"remaining": 10}
-
-        # Fetch associations for each type
-        for assoc_type in association_types:
-            try:
-                url = f"https://api.hubapi.com/crm/v4/objects/companies/{company_id}/associations/{assoc_type}"
-                params = {"limit": limit}
-
-                response = await fetch_with_rate_limit_retries(
-                    context,
-                    url,
-                    retry_sleep_budget=retry_sleep_budget,
-                    params=params,
-                )
-                data = await parse_response(response)
-
-                results = data.get("results", [])
-                associations[assoc_type] = results
-                total_count += len(results)
-                summary[f"{assoc_type}_count"] = len(results)
-
-            except Exception:
-                # If association type doesn't exist or fails, continue with empty list
-                associations[assoc_type] = []
-                summary[f"{assoc_type}_count"] = 0
-
-        return ActionResult(
-            data={
-                "company_id": company_id,
-                "associations": associations,
-                "total_associations": total_count,
-                "summary": summary,
-            },
-            cost_usd=None,
-        )
+        data = await _record_associations("companies", company_id, inputs, ["contacts", "deals", "tickets"], context)
+        if isinstance(data, ActionError):
+            return data
+        return ActionResult(data={"company_id": company_id, **data}, cost_usd=None)
 
 
 @hubspot.action("get_deal_associations")
 class GetDealAssociationsHandler(ActionHandler):
-    """Retrieve all associated objects for a deal using v4 Associations API"""
+    """Retrieve a deal's linked records, with association labels"""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         deal_id = inputs["deal_id"]
-        association_types = inputs.get("association_types", ["contacts", "companies"])
-        limit = inputs.get("limit", 100)
+        data = await _record_associations("deals", deal_id, inputs, ["contacts", "companies"], context)
+        if isinstance(data, ActionError):
+            return data
+        return ActionResult(data={"deal_id": deal_id, **data}, cost_usd=None)
 
-        associations = {}
-        total_count = 0
-        summary = {}
-        retry_sleep_budget = {"remaining": 10}
 
-        # Fetch associations for each type
-        for assoc_type in association_types:
-            try:
-                url = f"https://api.hubapi.com/crm/v4/objects/deals/{deal_id}/associations/{assoc_type}"
-                params = {"limit": limit}
+@hubspot.action("get_association_labels")
+class GetAssociationLabelsHandler(ActionHandler):
+    """List the association types, including custom labels, that can link two object types"""
 
-                response = await fetch_with_rate_limit_retries(
-                    context,
-                    url,
-                    retry_sleep_budget=retry_sleep_budget,
-                    params=params,
-                )
-                data = await parse_response(response)
-
-                results = data.get("results", [])
-                associations[assoc_type] = results
-                total_count += len(results)
-                summary[f"{assoc_type}_count"] = len(results)
-
-            except Exception:
-                # If association type doesn't exist or fails, continue with empty list
-                associations[assoc_type] = []
-                summary[f"{assoc_type}_count"] = 0
-
-        return ActionResult(
-            data={
-                "deal_id": deal_id,
-                "associations": associations,
-                "total_associations": total_count,
-                "summary": summary,
-            },
-            cost_usd=None,
-        )
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        from_type = inputs["from_object_type"]
+        to_type = inputs["to_object_type"]
+        try:
+            labels = await _association_labels(context, from_type, to_type, {"remaining": 10})
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to list {from_type} to {to_type} association labels: {_error_text(e)}")
+        return ActionResult(data={"labels": labels, "total": len(labels)}, cost_usd=None)
 
 
 @hubspot.action("create_association")
 class CreateAssociationHandler(ActionHandler):
-    """Link two CRM records with HubSpot's default association type using the v4 Associations API"""
+    """Link two CRM records with HubSpot's default association type, or with a named label"""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         from_type = inputs["from_object_type"]
         from_id = inputs["from_object_id"]
         to_type = inputs["to_object_type"]
         to_id = inputs["to_object_id"]
+        label = inputs.get("label")
+        association_type_id = inputs.get("association_type_id")
+        records = f"{from_type} {from_id} with {to_type} {to_id}"
+        message = f"Associated {records}"
+        url = f"{OBJECTS_API_URL}/{from_type}/{from_id}/associations"
+        retry_sleep_budget = {"remaining": 10}
 
         try:
-            response = await fetch_with_rate_limit_retries(
-                context,
-                f"https://api.hubapi.com/crm/v4/objects/{from_type}/{from_id}/associations/default/{to_type}/{to_id}",
-                method="PUT",
-                # HubSpot rejects this bodyless PUT with 415 unless it's marked as JSON
-                headers={"Content-Type": "application/json"},
-            )
-        except REQUEST_ERRORS as e:
-            return ActionError(
-                message=f"Failed to associate {from_type} {from_id} with {to_type} {to_id}: {_error_text(e)}"
-            )
+            if label or association_type_id is not None:
+                types = await _association_labels(context, from_type, to_type, retry_sleep_budget)
+                if association_type_id is not None:
+                    match = next((t for t in types if t.get("typeId") == association_type_id), None)
+                    wanted = f"type ID {association_type_id}"
+                else:
+                    match = next((t for t in types if (t.get("label") or "").casefold() == label.casefold()), None)
+                    wanted = f"label {label!r}"
+                if match is None:
+                    available = ", ".join(f"{t['label']} ({t['typeId']})" for t in types if t.get("label")) or "none"
+                    return ActionError(
+                        message=f"No {from_type} to {to_type} association has the {wanted}. Labels: {available}"
+                    )
+                message += f" as {match.get('label') or match['typeId']}"
+                links, unfinished = await _read_associations(context, from_type, to_type, [from_id], retry_sleep_budget)
+                if unfinished:
+                    return ActionError(message="Cannot safely add a label: existing association labels are incomplete")
+                association_types = {}
+                for link in links.get(str(from_id), []):
+                    if str(link["toObjectId"]) == str(to_id):
+                        for existing in link.get("associationTypes", []):
+                            association_types[(existing["category"], existing["typeId"])] = {
+                                "associationCategory": existing["category"],
+                                "associationTypeId": existing["typeId"],
+                            }
+                association_types[(match["category"], match["typeId"])] = {
+                    "associationCategory": match["category"],
+                    "associationTypeId": match["typeId"],
+                }
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    f"{url}/{to_type}/{to_id}",
+                    retry_sleep_budget=retry_sleep_budget,
+                    method="PUT",
+                    json=list(association_types.values()),
+                    headers={"Content-Type": "application/json"},
+                )
+            else:
+                response = await fetch_with_rate_limit_retries(
+                    context,
+                    f"{url}/default/{to_type}/{to_id}",
+                    retry_sleep_budget=retry_sleep_budget,
+                    method="PUT",
+                    # HubSpot rejects this bodyless PUT with 415 unless it's marked as JSON
+                    headers={"Content-Type": "application/json"},
+                )
+        except (*REQUEST_ERRORS, ValueError) as e:
+            return ActionError(message=f"Failed to associate {records}: {_error_text(e)}")
 
         return ActionResult(
             data={
                 "success": True,
-                "message": f"Associated {from_type} {from_id} with {to_type} {to_id}",
+                "message": message,
                 "response": await parse_response(response),
             },
             cost_usd=None,
@@ -4287,7 +4304,7 @@ class CreateAssociationHandler(ActionHandler):
 
 @hubspot.action("get_list_members")
 class GetListMembersHandler(ActionHandler):
-    """Retrieve list members with complete contact information"""
+    """Retrieve a bounded set of list members with optional contact details."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         import time
@@ -4295,12 +4312,13 @@ class GetListMembersHandler(ActionHandler):
         start_time = time.time()
 
         list_id = inputs["list_id"]
-        limit = inputs.get("limit", 1000)
+        limit = inputs.get("limit", 50)
         contact_properties = inputs.get(
             "contact_properties",
             ["email", "firstname", "lastname", "phone", "company", "jobtitle"],
         )
         include_timestamps = inputs.get("include_membership_timestamps", True)
+        include_contact_details = inputs.get("include_contact_details", True)
 
         total_api_calls = 0
         retry_sleep_budget = {"remaining": 10}
@@ -4327,7 +4345,7 @@ class GetListMembersHandler(ActionHandler):
         # Step 2: Get member IDs with timestamps
         memberships_url = f"https://api.hubapi.com/crm/v3/lists/{list_id}/memberships"
         all_memberships = []
-        after_token = None
+        after_token = inputs.get("after")
         total_retrieved = 0
 
         # Fetch memberships in batches of 250 (max limit)
@@ -4362,9 +4380,12 @@ class GetListMembersHandler(ActionHandler):
         membership_timestamps = {m["recordId"]: m["membershipTimestamp"] for m in all_memberships}
 
         all_contacts = []
+        failed_contact_ids = []
+        batch_errors = []
 
         # Process contacts in batches of 100 (max for batch read)
-        for i in range(0, len(contact_ids), 100):
+        detail_ids = contact_ids if include_contact_details else []
+        for i in range(0, len(detail_ids), 100):
             batch_ids = contact_ids[i : i + 100]
 
             batch_request = {
@@ -4387,12 +4408,25 @@ class GetListMembersHandler(ActionHandler):
 
                 batch_contacts = contacts_data.get("results", [])
                 all_contacts.extend(batch_contacts)
+                returned_ids = {str(contact["id"]) for contact in batch_contacts}
+                missing_ids = [contact_id for contact_id in batch_ids if str(contact_id) not in returned_ids]
+                failed_contact_ids.extend(missing_ids)
+                if missing_ids:
+                    batch_errors.append("Contact batch did not return IDs: " + ", ".join(map(str, missing_ids)))
+                for error in contacts_data.get("errors", []):
+                    batch_errors.append(error.get("message") or error.get("category") or "Contact batch failed")
+                reason = _unfinished_batch_reason(contacts_data)
+                if reason:
+                    batch_errors.append(f"HubSpot {reason} the contact lookup")
 
-            except Exception as e:
-                if "429" in str(e) or "rate limit" in str(e).lower():
-                    raise
-                # Continue even if some contacts fail to load
+            except REQUEST_ERRORS as e:
+                # Keep the members that loaded, and name the ones that didn't rather than dropping them
+                failed_contact_ids.extend(batch_ids)
+                batch_errors.append(_error_text(e))
                 continue
+
+        if not include_contact_details:
+            all_contacts = [{"id": contact_id} for contact_id in contact_ids]
 
         # Step 4: Combine data
         members = []
@@ -4400,18 +4434,13 @@ class GetListMembersHandler(ActionHandler):
             contact_id = contact.get("id")
             properties = contact.get("properties", {})
 
-            member = {"contact_id": contact_id, "properties": properties}
+            member = {"contact_id": contact_id}
 
-            # Add standard properties for easy access
-            for prop in [
-                "email",
-                "firstname",
-                "lastname",
-                "phone",
-                "company",
-                "jobtitle",
-            ]:
-                member[prop] = properties.get(prop)
+            if include_contact_details:
+                member["properties"] = properties
+                # Preserve the convenient top-level fields for existing workflows.
+                for prop in ("email", "firstname", "lastname", "phone", "company", "jobtitle"):
+                    member[prop] = properties.get(prop)
 
             # Add membership timestamp if requested
             if include_timestamps and contact_id in membership_timestamps:
@@ -4428,16 +4457,20 @@ class GetListMembersHandler(ActionHandler):
             "members_per_second": round(len(members) / execution_time, 2) if execution_time > 0 else 0,
         }
 
-        return ActionResult(
-            data={
-                "list_metadata": list_metadata,
-                "members": members,
-                "total_members": list_metadata["size"],
-                "retrieved_count": len(members),
-                "performance_stats": performance_stats,
-            },
-            cost_usd=None,
-        )
+        result = {
+            "list_metadata": list_metadata,
+            "members": members,
+            "total_members": list_metadata["size"],
+            "retrieved_count": len(members),
+            "has_more": after_token is not None,
+            "after": after_token,
+            "performance_stats": performance_stats,
+        }
+        if failed_contact_ids:
+            result["failed_contact_ids"] = failed_contact_ids
+        if batch_errors:
+            result["errors"] = batch_errors
+        return ActionResult(data=result, cost_usd=None)
 
 
 @hubspot.action("get_owner")
@@ -4468,6 +4501,378 @@ class GetOwnerActionHandler(ActionHandler):
 
         except Exception as e:
             return ActionError(message=f"Failed to retrieve owner: {str(e)}")
+
+
+# ==================== Any CRM Object ====================
+
+OWNERS_API_URL = "https://api.hubapi.com/crm/owners/2026-09"
+ACCOUNT_DETAILS_API_URL = "https://api.hubapi.com/account-info/2026-09/details"
+PROPERTIES_API_URL = "https://api.hubapi.com/crm/properties/2026-09"
+
+# Owner pages read when matching by name, 100 owners each
+MAX_OWNER_PAGES = 20
+
+# HubSpot's limits on one search: filter groups, and filters across all groups
+MAX_SEARCH_FILTER_GROUPS = 5
+MAX_SEARCH_FILTERS = 18
+
+# The associations.<type> search pseudo-property names the linked record's type in the singular
+ASSOCIATION_FILTER_TYPES = {"contacts": "contact", "companies": "company", "deals": "deal", "tickets": "ticket"}
+
+# Object types with a record page in HubSpot, and the type ID their page URLs use
+RECORD_PAGE_TYPE_IDS = {"contacts": "0-1", "companies": "0-2", "deals": "0-3", "tickets": "0-5"}
+
+# Linked records returned per type for each record get_crm_objects reads
+MAX_LINKS_PER_RECORD = 100
+
+
+async def _list_owners(
+    context: ExecutionContext, retry_sleep_budget: Dict[str, int], email: str | None = None
+) -> tuple[list[Dict[str, Any]], bool]:
+    """Return active HubSpot owners, only those with the email when one is given, and whether every page was read."""
+    owners, after = [], None
+    for _ in range(MAX_OWNER_PAGES):
+        params = {"limit": 100}
+        if email:
+            params["email"] = email
+        if after:
+            params["after"] = after
+        response = await fetch_with_rate_limit_retries(
+            context,
+            OWNERS_API_URL,
+            retry_sleep_budget=retry_sleep_budget,
+            params=params,
+            headers={"Content-Type": "application/json"},
+        )
+        data = await parse_response(response)
+        owners.extend(data.get("results", []))
+        after = ((data.get("paging") or {}).get("next") or {}).get("after")
+        if not after:
+            return owners, True
+    return owners, False
+
+
+def _owner_name(owner: Dict[str, Any]) -> str:
+    """Return an owner's full name; HubSpot leaves firstName or lastName null for some owners."""
+    return f"{owner.get('firstName') or ''} {owner.get('lastName') or ''}".strip()
+
+
+def _search_filter(search_filter: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a search filter with its values in HubSpot's string form."""
+    normalized = {"propertyName": search_filter["propertyName"], "operator": search_filter["operator"]}
+    for field in ("value", "highValue"):
+        if field in search_filter:
+            normalized[field] = _property_value(search_filter[field])
+    if "values" in search_filter:
+        normalized["values"] = [_property_value(value) for value in search_filter["values"]]
+    return normalized
+
+
+def _search_filter_groups(inputs: Dict[str, Any]) -> list[Dict[str, Any]]:
+    """Return search_crm_objects' filter groups, raising ValueError for ones HubSpot would reject."""
+    if inputs.get("filters") and inputs.get("filter_groups"):
+        raise ValueError("Give filters or filter_groups, not both")
+    if inputs.get("filters"):
+        groups = [inputs["filters"]]
+    else:
+        groups = [group["filters"] for group in inputs.get("filter_groups", [])]
+    groups = [[_search_filter(search_filter) for search_filter in group] for group in groups]
+
+    associated_with = inputs.get("associated_with")
+    if associated_with:
+        # Every group needs the link filter, since a record matching any group is returned
+        link_filter = {
+            "propertyName": f"associations.{ASSOCIATION_FILTER_TYPES[associated_with['object_type']]}",
+            "operator": "EQ",
+            "value": str(associated_with["id"]),
+        }
+        groups = [[link_filter, *group] for group in groups] or [[link_filter]]
+
+    if len(groups) > MAX_SEARCH_FILTER_GROUPS:
+        raise ValueError(f"HubSpot allows at most {MAX_SEARCH_FILTER_GROUPS} filter groups; {len(groups)} were given")
+    for group in groups:
+        if len(group) > MAX_SEARCH_FILTERS_PER_GROUP:
+            raise ValueError(
+                f"HubSpot allows at most {MAX_SEARCH_FILTERS_PER_GROUP} filters in a group; one has {len(group)}"
+            )
+    filter_count = sum(len(group) for group in groups)
+    if filter_count > MAX_SEARCH_FILTERS:
+        raise ValueError(f"HubSpot allows at most {MAX_SEARCH_FILTERS} filters in a search; {filter_count} were given")
+    return [{"filters": group} for group in groups]
+
+
+def _record_page_type_id(object_type: str) -> str | None:
+    """Return the type ID in a record's HubSpot page URL, or None for types without record pages."""
+    if re.fullmatch(r"2-[0-9]+", object_type) or object_type in RECORD_PAGE_TYPE_IDS.values():
+        return object_type
+    return RECORD_PAGE_TYPE_IDS.get(object_type.lower())
+
+
+async def _add_record_urls(
+    context: ExecutionContext, object_type: str, records: list[Dict[str, Any]], retry_sleep_budget: Dict[str, int]
+) -> None:
+    """Make sure each record has its HubSpot page as "url", when the object type has record pages.
+
+    The 2026-09 API can return url itself; it's only built, from the account's domain and ID, when missing.
+    """
+    missing = [record for record in records if not record.get("url")]
+    type_id = _record_page_type_id(object_type)
+    if type_id is None or not missing:
+        return
+    response = await fetch_with_rate_limit_retries(
+        context,
+        ACCOUNT_DETAILS_API_URL,
+        retry_sleep_budget=retry_sleep_budget,
+        headers={"Content-Type": "application/json"},
+    )
+    account = await parse_response(response)
+    # EU-hosted accounts use app-eu1.hubspot.com
+    base_url = f"https://{account.get('uiDomain') or 'app.hubspot.com'}/contacts/{account['portalId']}/record/{type_id}"
+    for record in missing:
+        record["url"] = f"{base_url}/{record['id']}"
+
+
+@hubspot.action("search_crm_objects")
+class SearchCrmObjectsHandler(ActionHandler):
+    """Search any CRM object type with HubSpot's filters, text query, sort and paging"""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        object_type = inputs["object_type"]
+        try:
+            filter_groups = _search_filter_groups(inputs)
+        except ValueError as e:
+            return ActionError(message=str(e))
+
+        payload: Dict[str, Any] = {"limit": inputs.get("limit", 100)}
+        if filter_groups:
+            payload["filterGroups"] = filter_groups
+        if inputs.get("query"):
+            payload["query"] = inputs["query"]
+        if inputs.get("properties"):
+            payload["properties"] = inputs["properties"]
+        if inputs.get("sort_property"):
+            payload["sorts"] = [
+                {"propertyName": inputs["sort_property"], "direction": inputs.get("sort_direction", "ASCENDING")}
+            ]
+        if inputs.get("after"):
+            payload["after"] = inputs["after"]
+
+        retry_sleep_budget = {"remaining": 10}
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{OBJECTS_API_URL}/{object_type}/search",
+                retry_sleep_budget=retry_sleep_budget,
+                method="POST",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            data = await parse_response(response)
+            results = data.get("results", [])
+            if inputs.get("include_urls"):
+                await _add_record_urls(context, object_type, results, retry_sleep_budget)
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to search {object_type}: {_error_text(e)}")
+
+        after = ((data.get("paging") or {}).get("next") or {}).get("after")
+        return ActionResult(
+            data={
+                "results": results,
+                "count": len(results),
+                "total": data.get("total", len(results)),
+                "has_more": after is not None,
+                "after": after,
+            },
+            cost_usd=None,
+        )
+
+
+@hubspot.action("get_crm_objects")
+class GetCrmObjectsHandler(ActionHandler):
+    """Read up to 100 records of any CRM object type by ID or unique property, with optional linked records"""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        object_type = inputs["object_type"]
+        ids = [str(object_id) for object_id in inputs["ids"]]
+        payload: Dict[str, Any] = {
+            "inputs": [{"id": object_id} for object_id in ids],
+            "properties": list(inputs.get("properties", [])),
+            "propertiesWithHistory": [],
+        }
+        if inputs.get("id_property"):
+            payload["idProperty"] = inputs["id_property"]
+            if payload["properties"] and inputs["id_property"] not in payload["properties"]:
+                payload["properties"].append(inputs["id_property"])
+
+        retry_sleep_budget = {"remaining": 10}
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{OBJECTS_API_URL}/{object_type}/batch/read",
+                retry_sleep_budget=retry_sleep_budget,
+                method="POST",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            data = await parse_response(response) or {}
+        except HTTPError as e:
+            if e.status != 404:
+                return ActionError(message=f"Failed to read {object_type}: {_error_text(e)}")
+            # HubSpot answers 404 when none of the IDs match a record
+            data = {"results": [], "errors": [{"category": "OBJECT_NOT_FOUND", "context": {"ids": ids}}]}
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to read {object_type}: {_error_text(e)}")
+
+        reason = _unfinished_batch_reason(data)
+        if reason:
+            return ActionError(message=f"HubSpot {reason} the {object_type} lookup")
+        results = data.get("results", [])
+        not_found, errors = [], []
+        for error in data.get("errors", []):
+            if error.get("category") == "OBJECT_NOT_FOUND":
+                not_found.extend(str(object_id) for object_id in (error.get("context") or {}).get("ids") or [])
+            else:
+                errors.append(error.get("message") or error.get("category"))
+
+        try:
+            record_ids = [str(record["id"]) for record in results]
+            for to_type in inputs.get("associations", []) if results else []:
+                links, has_more = await _read_associations(
+                    context, object_type, to_type, record_ids, retry_sleep_budget, MAX_LINKS_PER_RECORD
+                )
+                for record in results:
+                    record.setdefault("associations", {})[to_type] = links.get(str(record["id"]), [])
+                    if str(record["id"]) in has_more:
+                        record.setdefault("associations_with_more", []).append(to_type)
+            if inputs.get("include_urls"):
+                await _add_record_urls(context, object_type, results, retry_sleep_budget)
+        except (*REQUEST_ERRORS, ValueError) as e:
+            return ActionError(message=f"Read {len(results)} {object_type} but not their links: {_error_text(e)}")
+
+        output = {"results": results, "total": len(results), "not_found": not_found}
+        if errors:
+            output["errors"] = errors
+        return ActionResult(data=output, cost_usd=None)
+
+
+@hubspot.action("get_object_properties")
+class GetObjectPropertiesHandler(ActionHandler):
+    """List the properties of any CRM object type, optionally only those whose name or label matches"""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        object_type = inputs["object_type"]
+        query = (inputs.get("query") or "").casefold()
+        include_details = inputs.get("include_details", False)
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context, f"{PROPERTIES_API_URL}/{object_type}", headers={"Content-Type": "application/json"}
+            )
+            results = (await parse_response(response)).get("results", [])
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to list {object_type} properties: {_error_text(e)}")
+
+        if query:
+            results = [
+                prop
+                for prop in results
+                if query in (prop.get("name") or "").casefold() or query in (prop.get("label") or "").casefold()
+            ]
+        pipelines = None
+        pipeline_fields = {"deals": ("pipeline", "dealstage"), "tickets": ("hs_pipeline", "hs_pipeline_stage")}
+        fields = pipeline_fields.get(object_type)
+        if (
+            include_details
+            and fields
+            and any(
+                prop.get("externalOptions") and prop.get("name") in fields and not prop.get("options")
+                for prop in results
+            )
+        ):
+            try:
+                response = await fetch_with_rate_limit_retries(
+                    context, f"https://api.hubapi.com/crm/pipelines/2026-09/{object_type}"
+                )
+                pipelines = (await parse_response(response)).get("results", [])
+            except REQUEST_ERRORS as e:
+                return ActionError(message=f"Failed to read {object_type} pipeline options: {_error_text(e)}")
+        properties = []
+        for prop in results:
+            summary = {"name": prop.get("name"), "label": prop.get("label"), "type": prop.get("type")}
+            if include_details:
+                summary.update(
+                    {
+                        "fieldType": prop.get("fieldType"),
+                        "groupName": prop.get("groupName"),
+                        "description": prop.get("description"),
+                        "hubspotDefined": prop.get("hubspotDefined", False),
+                        # The value is what filters and updates use; the label is what HubSpot shows
+                        "options": [
+                            {"label": option.get("label"), "value": option.get("value")}
+                            for option in prop.get("options") or []
+                        ],
+                    }
+                )
+            if pipelines is not None and prop.get("externalOptions") and not prop.get("options"):
+                if prop.get("name") == fields[0]:
+                    summary["options"] = [{"label": row["label"], "value": row["id"]} for row in pipelines]
+                elif prop.get("name") == fields[1]:
+                    summary["options"] = [
+                        {"label": stage["label"], "value": stage["id"], "pipeline_id": row["id"]}
+                        for row in pipelines
+                        for stage in row.get("stages", [])
+                    ]
+            properties.append(summary)
+
+        return ActionResult(data={"properties": properties, "total": len(properties)}, cost_usd=None)
+
+
+@hubspot.action("search_owners")
+class SearchOwnersHandler(ActionHandler):
+    """Find HubSpot owners (users who can own records) by email or name, or list them all"""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        email = inputs.get("email")
+        name = (inputs.get("name") or "").casefold()
+        try:
+            owners, complete = await _list_owners(context, {"remaining": 10}, email=email)
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to list owners: {_error_text(e)}")
+
+        if name:
+            owners = [owner for owner in owners if name in _owner_name(owner).casefold()]
+        return ActionResult(
+            data={
+                "owners": [
+                    {
+                        "id": owner.get("id"),
+                        "email": owner.get("email"),
+                        "firstName": owner.get("firstName"),
+                        "lastName": owner.get("lastName"),
+                        "userId": owner.get("userId"),
+                        "teams": owner.get("teams", []),
+                    }
+                    for owner in owners
+                ],
+                "total": len(owners),
+                # A portal with more owners than were read may have other matches
+                "complete": complete,
+            },
+            cost_usd=None,
+        )
+
+
+@hubspot.action("get_account_details")
+class GetAccountDetailsHandler(ActionHandler):
+    """Return the connected HubSpot account's ID, time zone, currency and app domain"""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context, ACCOUNT_DETAILS_API_URL, headers={"Content-Type": "application/json"}
+            )
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to read account details: {_error_text(e)}")
+        return ActionResult(data={"account": await parse_response(response)}, cost_usd=None)
 
 
 # ==================== Marketing Emails ====================
@@ -4850,3 +5255,130 @@ class GetCallTranscriptActionHandler(ActionHandler):
 
         except Exception as e:
             return ActionError(message=f"Failed to retrieve transcript for {transcript_id}: {str(e)}")
+
+
+@hubspot.action("get_current_user")
+class GetCurrentUserHandler(ActionHandler):
+    """Resolve the user who authorized the shared connection, using platform-provided metadata."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        metadata = context.metadata
+        email = metadata.get("connected_user")
+        if not isinstance(email, str) or not email.strip():
+            return ActionError(
+                message="Connected-user identity is unavailable. Reconnect HubSpot, "
+                "or use Search Owners with your email."
+            )
+        try:
+            owners, complete = await _list_owners(context, {"remaining": 10}, email=email)
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to resolve the connected user's owner: {_error_text(e)}")
+        owners = [owner for owner in owners if (owner.get("email") or "").casefold() == email.casefold()]
+        if not complete or len(owners) > 1:
+            return ActionError(message="Could not uniquely resolve the connected user's owner")
+        return ActionResult(
+            data={"email": email, "owner": owners[0] if owners else None, "portal_id": metadata.get("hub_id")},
+            cost_usd=None,
+        )
+
+
+@hubspot.action("get_object_schemas")
+class GetObjectSchemasHandler(ActionHandler):
+    """Discover custom object type IDs and their schemas."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context, "https://api.hubapi.com/crm-object-schemas/2026-09/schemas"
+            )
+            data = await parse_response(response)
+        except REQUEST_ERRORS as e:
+            return ActionError(
+                message=f"Failed to list custom object schemas (requires crm.schemas.custom.read): {_error_text(e)}"
+            )
+        return ActionResult(data={"schemas": data.get("results", [])}, cost_usd=None)
+
+
+@hubspot.action("create_ticket")
+class CreateTicketHandler(ActionHandler):
+    """Create a support ticket with a subject, pipeline stage and optional properties."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        properties = {
+            **inputs.get("properties", {}),
+            "subject": inputs["subject"],
+            "hs_pipeline_stage": inputs["hs_pipeline_stage"],
+        }
+        if inputs.get("hs_pipeline"):
+            properties["hs_pipeline"] = inputs["hs_pipeline"]
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{OBJECTS_API_URL}/tickets",
+                method="POST",
+                json={"properties": properties},
+                headers={"Content-Type": "application/json"},
+                resend_on_connection_error=False,
+            )
+            ticket = await parse_response(response)
+        except REQUEST_ERRORS as e:
+            if _outcome_unknown(e):
+                return ActionError(
+                    message="Ticket creation outcome is unknown. Check HubSpot before retrying to avoid duplicates."
+                )
+            return ActionError(message=f"Failed to create ticket: {_error_text(e)}")
+        return ActionResult(data={"ticket": ticket}, cost_usd=None)
+
+
+@hubspot.action("update_ticket")
+class UpdateTicketHandler(ActionHandler):
+    """Update only the supplied ticket properties; an empty string clears a property."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context,
+                f"{OBJECTS_API_URL}/tickets/{inputs['ticket_id']}",
+                method="PATCH",
+                json={"properties": inputs["properties"]},
+                headers={"Content-Type": "application/json"},
+            )
+            ticket = await parse_response(response)
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to update ticket: {_error_text(e)}")
+        return ActionResult(data={"ticket": ticket}, cost_usd=None)
+
+
+@hubspot.action("search_conversations")
+class SearchConversationsHandler(ActionHandler):
+    """Retrieve a page of inbox threads with HubSpot's native filters."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        params = {"limit": inputs.get("limit", 100), "sort": "id", "association": "TICKET"}
+        filters = {
+            "after": inputs.get("after"),
+            "inboxId": inputs.get("inbox_id"),
+            "associatedContactId": inputs.get("contact_id"),
+            "associatedTicketId": inputs.get("ticket_id"),
+            "threadStatus": inputs.get("status"),
+        }
+        params.update({key: value for key, value in filters.items() if value})
+        if "archived" in inputs:
+            params["archived"] = "true" if inputs.get("archived") else "false"
+        try:
+            response = await fetch_with_rate_limit_retries(
+                context, "https://api.hubapi.com/conversations/v3/conversations/threads", params=params
+            )
+            data = await parse_response(response)
+        except REQUEST_ERRORS as e:
+            return ActionError(message=f"Failed to search conversations: {_error_text(e)}")
+        after = ((data.get("paging") or {}).get("next") or {}).get("after")
+        return ActionResult(
+            data={
+                "results": data.get("results", []),
+                "paging": data.get("paging", {}),
+                "has_more": after is not None,
+                "after": str(after) if after is not None else None,
+            },
+            cost_usd=None,
+        )

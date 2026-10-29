@@ -4,7 +4,7 @@ Comprehensive HubSpot CRM integration for managing contacts, companies, deals, s
 
 ## Description
 
-This integration provides complete access to HubSpot CRM and Marketing functionality through Autohive, enabling users to manage their entire customer relationship lifecycle and marketing operations. It supports comprehensive CRUD operations across all major CRM objects including contacts, companies, deals, tickets, and conversations, plus read access to marketing emails and campaigns. The integration features UTC date handling, pagination support, specialized rate limiting for high-volume operations, and powerful v4 Associations API support.
+This integration provides complete access to HubSpot CRM and Marketing functionality through Autohive, enabling users to manage their entire customer relationship lifecycle and marketing operations. It supports comprehensive CRUD operations across all major CRM objects including contacts, companies, deals, tickets, and conversations, plus read access to marketing emails and campaigns. The integration features UTC date handling, pagination support, specialized rate limiting for high-volume operations, and association reads that include labels.
 
 Key features include:
 - Complete contact management with email conversation history
@@ -15,19 +15,19 @@ Key features include:
 - Call and meeting transcript access - Retrieve transcripts and notes from calls and meetings (including Google Meet recordings saved to HubSpot)
 - Marketing emails - List and retrieve marketing emails
 - Campaigns - Browse marketing campaigns and their associated content
-- v4 Associations API - Retrieve all related objects (companies, deals, tickets, etc.) for any contact, company, or deal
+- Associations - Retrieve all related objects (companies, deals, tickets, etc.) for any contact, company, or deal, with their association labels, and link records with a label such as "Architect"
 - Intelligent pagination and rate limiting for large datasets
 - Comprehensive search and filtering capabilities
 - Real-time conversation management for customer support
 - Lists/segments management with member exports and static-list membership updates
 
-This integration interacts with HubSpot's CRM v3 API, v4 Associations API, Marketing v3 API (emails and campaigns), and Conversations API, providing robust error handling, UTC date formatting, and optimized performance for large-scale operations.
+This integration interacts with HubSpot's CRM v3 API, the 2026-09 CRM objects and associations APIs, Marketing v3 API (emails and campaigns), and Conversations API, providing robust error handling, UTC date formatting, and optimized performance for large-scale operations.
 
 ## Setup & Authentication
 
 The integration uses HubSpot's OAuth 2.0 platform authentication. No manual API key configuration is required - authentication is handled automatically through Autohive's platform integration system.
 
-**Required Scopes:**
+**Requested Scopes:**
 The integration automatically requests the following HubSpot permissions:
 - `conversations.read` - Read access to conversation threads
 - `crm.objects.companies.read` - Read access to company records
@@ -39,12 +39,26 @@ The integration automatically requests the following HubSpot permissions:
 - `crm.objects.owners.read` - Read access to owner information
 - `crm.lists.read` - Read access to lists/segments and their memberships
 - `crm.lists.write` - Add or remove contacts from manual or snapshot lists
-- `tickets` - Full access to support tickets
+- `crm.objects.tickets.read` - Read ticket records
+- `crm.objects.tickets.write` - Create and update ticket records
+- `tickets` - Legacy ticket access, retained during the OAuth app migration
 - `sales-email-read` - Read access to sales email data
 - `oauth` - OAuth authentication
 - `content` - Read access to marketing emails and content
 - `marketing.campaigns.read` - Read access to marketing campaigns and performance data
+- `crm.objects.custom.read` - Read custom object records (Enterprise only)
+- `crm.schemas.custom.read` - Discover custom object schemas (Enterprise only)
+- `crm.objects.line_items.read` - Read line items
+- `crm.objects.quotes.read` - Read quotes
+- `crm.objects.products.read` - Read products
 - `crm.extensions_calling_transcripts.read` - Read access to call and meeting transcripts (required for Google Meet transcript retrieval)
+
+Autohive's HubSpot authorization flow sends `oauth` as required and other scopes
+as optional, so portals without Enterprise features can still connect. The
+HubSpot app and Autohive auth-provider settings must include these optional
+scopes before deployment. Existing connections must reconnect to grant newly
+requested scopes; requesting them does not upgrade an existing token. Missing
+grants return provider permission errors when the relevant action is called.
 
 **Setup Steps:**
 1. Configure the HubSpot integration in your Autohive platform
@@ -52,19 +66,35 @@ The integration automatically requests the following HubSpot permissions:
 3. Grant the required permissions when prompted
 4. The integration will automatically handle token management and refresh
 
+## Efficient reads and upgrade notes
+
+Task associations and call transcripts are now opt-in. Existing workflows that
+read those fields must set `include_associations: true` or
+`include_transcripts: true`. List-member reads now default to 50 members; follow
+`after` while `has_more` is true, or supply an explicit larger export limit.
+Deal searches read one page unless `fetch_all` is true. Select only needed
+properties and use `limit: 1` with `total_matching` for deal/task counts.
+
+Ticket search, ticket-to-thread lookup, ticket create/update, generic CRM reads,
+properties, schemas and association helpers use HubSpot's 2026-09 CRM endpoints.
+Conversation messages continue to use the Conversations API and require
+`conversations.read` in addition to permission to read the ticket. Endpoint
+updates do not grant OAuth permissions; the HubSpot app and auth-provider DB
+control requested scopes. Keep the legacy `tickets` scope during the migration.
+
 ## Actions
 
-This integration provides comprehensive actions covering complete CRUD operations for all major HubSpot CRM modules including note management, lists/segments management, v4 Associations API, custom properties discovery, and marketing functionality (emails and campaigns with performance analytics):
+This integration provides comprehensive actions covering complete CRUD operations for all major HubSpot CRM modules including note management, lists/segments management, associations and labels, custom properties discovery, and marketing functionality (emails and campaigns with performance analytics):
 
 ### Contact Management
 
 #### Action: `get_contact`
-- **Description:** Retrieve a HubSpot contact by email address with optional recent email conversations
+- **Description:** Retrieve a HubSpot contact by ID or email address
 - **Inputs:**
-  - `email` (required): Email address of the contact to retrieve
-  - `include_recent_emails` (optional): Include recent email conversations (default: false)
-  - `email_limit` (optional): Maximum number of recent emails to retrieve (default: 5, max: 20)
-- **Outputs:** Contact object with profile information and optional email history with UTC timestamps
+  - `contact_id` (optional): HubSpot contact ID, e.g. from a task's or deal's associations. Takes precedence over `email`
+  - `email` (optional): Email address of the contact, when the ID isn't known
+  - `properties` (optional): Properties to return, including custom ones (default: email, firstname, lastname, phone, company, jobtitle)
+- **Outputs:** `contact` with `id` and `properties`. One of `contact_id` or `email` is required
 
 #### Action: `create_contact`
 - **Description:** Creates a new contact in HubSpot CRM
@@ -92,7 +122,7 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **Note:** People without an email address can't be matched or created by this action. The emails are looked up before anything is written; if HubSpot can't confirm them, nothing is written and the call fails, and retrying is safe. Uses HubSpot's [contacts batch upsert](https://developers.hubspot.com/docs/api-reference/crm-contacts-v3/batch/post-crm-v3-objects-contacts-batch-upsert) endpoint.
 
 #### Action: `get_contact_emails`
-- **Description:** Retrieve recent email conversations for a contact using the v4 Associations API
+- **Description:** Retrieve a contact's most recent logged emails, newest first, in one search request
 - **Inputs:**
   - `contact_id` (required): Internal object ID of the contact
   - `email_limit` (optional): Maximum number of recent emails to retrieve (default: 5, max: 20)
@@ -132,7 +162,7 @@ This integration provides comprehensive actions covering complete CRUD operation
 - **API:** [Remove records from a list](https://developers.hubspot.com/docs/api-reference/latest/crm/lists/guide#remove-records-from-an-existing-list)
 
 #### Action: `get_recent_contacts`
-- **Description:** Retrieve recently created contacts sorted by creation date
+- **Description:** Retrieve the most recently created contacts, newest first
 - **Inputs:**
   - `limit` (optional): Number of contacts to retrieve (default: 100, max: 100)
 - **Outputs:** Array of recent contacts with pagination metadata
@@ -177,29 +207,36 @@ This integration provides comprehensive actions covering complete CRUD operation
   - `message`: Success or error message
 
 #### Action: `get_contact_notes`
-- **Description:** Retrieve all notes associated with a specific contact
+- **Description:** Retrieve a contact's notes, newest first
 - **Inputs:**
   - `contact_id` (required): The contact ID to retrieve notes for
-  - `limit` (optional): Maximum number of notes to retrieve (default: 100, max: 200)
+  - `limit` (optional): Notes per page (default: 100, max: 200)
   - `properties` (optional): Array of note properties to retrieve
+  - `after` (optional): The `after` value from the previous page, to get older notes
 - **Outputs:**
   - `notes`: Array of note objects with timestamps converted to UTC strings
-  - `total`: Total number of notes retrieved
+  - `total`: Number of notes on this page
+  - `total_matching`: Number of notes on the contact across all pages
+  - `has_more` / `after`: Whether there are older notes, and the cursor to get them
   - `contact_id`: The contact ID that was queried
 
 #### Action: `get_company_notes`
-- **Description:** Retrieve all notes associated with a specific company
+- **Description:** Retrieve a company's notes, newest first
 - **Inputs:**
   - `company_id` (required): The company ID to retrieve notes for
-  - `limit` (optional): Maximum number of notes to retrieve (default: 100, max: 200)
-- **Outputs:** Array of note objects with UTC timestamps
+  - `limit` (optional): Notes per page (default: 100, max: 200)
+  - `properties` (optional): Array of note properties to retrieve
+  - `after` (optional): The `after` value from the previous page, to get older notes
+- **Outputs:** `notes` with UTC timestamps, `total` (this page), `total_matching` (all pages), `has_more` and `after`
 
 #### Action: `get_deal_notes`
-- **Description:** Retrieve all notes associated with a specific deal
+- **Description:** Retrieve a deal's notes, newest first
 - **Inputs:**
   - `deal_id` (required): The deal ID to retrieve notes for
-  - `limit` (optional): Maximum number of notes to retrieve (default: 100, max: 200)
-- **Outputs:** Array of note objects with UTC timestamps
+  - `limit` (optional): Notes per page (default: 100, max: 200)
+  - `properties` (optional): Array of note properties to retrieve
+  - `after` (optional): The `after` value from the previous page, to get older notes
+- **Outputs:** `notes` with UTC timestamps, `total` (this page), `total_matching` (all pages), `has_more` and `after`
 
 ### Communications (LinkedIn Messages)
 
@@ -246,10 +283,11 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 ### Calls and Meetings (Transcripts)
 
 #### Action: `get_contact_calls_and_meetings`
-- **Description:** Retrieve calls (with transcripts) and meetings (metadata) associated with a contact. Google Meet transcripts are stored on call records via HubSpot's Calling Transcripts API — not on meeting records.
+- **Description:** Retrieve call and meeting metadata, with optional call transcripts associated with a contact. Google Meet transcripts are stored on call records via HubSpot's Calling Transcripts API — not on meeting records.
 - **Inputs:**
   - `contact_id` (required): The internal object ID of the contact
   - `limit` (optional): Maximum number of calls/meetings to retrieve each (default: 50, max: 100)
+  - `include_transcripts` (optional): Fetch full transcripts for returned calls (default: false). For one transcript, use `get_call_transcript` instead
 - **Outputs:**
   - `calls`: Array of call objects, each containing:
     - `hs_call_title`: Call title
@@ -259,18 +297,20 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
     - `hs_call_has_transcript`: Whether a transcript exists
     - `hs_call_transcription_id`: Transcript ID (may be null due to a known HubSpot bug even when a transcript exists)
     - `hs_timestamp`: Call time (UTC)
-    - `transcript`: Array of utterances from the Calling Transcripts API, each with `speakerId`, `text`, and `timestamp`
+    - `transcript`: Present only when `include_transcripts` is true; array of utterances from the Calling Transcripts API, each with `speakerId`, `text`, and `timestamp`
+    - `transcript_error`: Why the transcript couldn't be read, when HubSpot has one that failed to load (e.g. rate limiting). Transcripts are fetched 5 at a time
   - `meetings`: Array of meeting metadata objects (title, start/end time, location — no transcript content)
   - `total_calls`: Number of calls returned
   - `total_meetings`: Number of meetings returned
 - **Note:** Requires Sales Hub or Service Hub Professional/Enterprise for Google Meet transcript sync (Conversational Intelligence feature)
-- **Transcript fallback:** When `hs_call_transcription_id` is null but `hs_call_has_transcript` is true (known HubSpot bug), the integration automatically falls back to using the call's own ID as the transcript ID to attempt recovery
+- **Transcript fallback:** With `include_transcripts: true`, when `hs_call_transcription_id` is null but `hs_call_has_transcript` is true (known HubSpot bug), the integration automatically falls back to using the call's own ID as the transcript ID to attempt recovery. If nothing is found under that ID, the call has no `transcript` and no `transcript_error`
 
 #### Action: `get_deal_calls_and_meetings`
-- **Description:** Retrieve calls (with transcripts) and meetings (metadata) associated with a deal. Same transcript behaviour as `get_contact_calls_and_meetings`.
+- **Description:** Retrieve call and meeting metadata, with optional call transcripts associated with a deal. Same transcript behaviour as `get_contact_calls_and_meetings`.
 - **Inputs:**
   - `deal_id` (required): The internal object ID of the deal
   - `limit` (optional): Maximum number of calls/meetings to retrieve each (default: 50, max: 100)
+  - `include_transcripts` (optional): Fetch full transcripts for returned calls (default: false). For one transcript, use `get_call_transcript` instead
 - **Outputs:**
   - `calls`: Array of call objects with transcript utterances (same structure as `get_contact_calls_and_meetings`)
   - `meetings`: Array of meeting metadata objects
@@ -325,16 +365,20 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Description:** Search companies using text queries
 - **Inputs:**
   - `query` (required): Search query string
-  - `limit` (optional): Maximum results (default: 100)
-- **Outputs:** Array of matching company objects
+  - `limit` (optional): Results per page (default: 100, max: 200)
+  - `after` (optional): `paging.next.after` from the previous call, to get the next page
+- **Outputs:** `results`, `total` (all pages) and `paging`
 
 #### Action: `search_companies_by_owner_name`
-- **Description:** Search companies assigned to a HubSpot owner by first/last/full owner name. Owner lookup paginates through HubSpot owners before searching companies.
+- **Description:** Search companies assigned to an owner. Use a known owner ID for a single search request, or an exact email for a filtered owner lookup. Name-only lookup reads up to 2,000 owners.
 - **Inputs:**
-  - `owner_name` (required): HubSpot owner name to match case-insensitively
+  - `owner_id` (optional): Owner ID; skips owner lookup and takes precedence over email/name. Reuse the returned `owner.id` on subsequent pages
+  - `owner_email` (optional): Exact owner email; takes precedence over name
+  - `owner_name` (optional): HubSpot owner name to match case-insensitively. A full name match wins; otherwise a first or last name must match exactly one owner, and a name shared by several owners is an error listing them
   - `limit` (optional): Maximum results for this page (default: 100, max: 100)
   - `after` (optional): Cursor from `paging.next.after` to retrieve the next page
   - `properties` (optional): Company properties to return
+- **Note:** One of `owner_id`, `owner_email`, or `owner_name` is required. When an ID is supplied, only the owner ID is returned; name/email fields are null to avoid another lookup
 - **Outputs:** Matched owner, companies for the requested page, `total`/`page_total` for the current page count, `has_more`, and `paging.next.after` when more owner-matched companies are available
 
 #### Action: `get_company_properties`
@@ -376,15 +420,17 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `after` (optional): Pagination cursor to continue from (`pagination.last_after_token` of the previous call)
   - `sort_property` (optional): Property to sort by (default: hs_lastmodifieddate)
   - `sort_direction` (optional): Sort direction ASC/DESC (default: DESC)
-  - `fetch_all` (optional): Fetch all available pages (default: false)
+  - `fetch_all` (optional): Keep paging until the last page or `max_total` deals (default: false)
   - `pipeline_id` (optional): Filter by specific pipeline ID
   - `year` (optional): Filter by close date year for performance
-  - `max_total` (optional): Maximum total deals across all pages (default: 100, max: 5000)
+  - `start_date` / `end_date` (optional): Only deals whose `date_field` falls in this range (UTC dates, e.g. `2026-01-31`). A date that can't be read is an error rather than being ignored
+  - `date_field` (optional): `hs_lastmodifieddate` (default), `createdate` or `closedate`
+  - `max_total` (optional): Maximum total deals across all pages (default: `limit`, or 100 with `fetch_all`; max: 5000)
   - `delay_between_requests` (optional): Delay in seconds between requests for rate limiting (default: 0, no delay)
-- **Outputs:** Array of deals with comprehensive pagination metadata and UTC formatted dates
+- **Outputs:** Array of deals with pagination metadata and UTC formatted dates. `pagination.has_more_pages` is `true` (and `fetched_all_available` `false`) whenever HubSpot has more deals, including when `max_total` stopped the fetch; continue with `pagination.last_after_token`
 
 #### Action: `search_deals`
-- **Description:** Search deals using advanced filters and text queries with intelligent post-processing
+- **Description:** Search deals with server-side filters and selected properties. Close-date ranges are sent to HubSpot rather than filtered after downloading rows
 - **Inputs:**
   - `query` (optional): Text search across deal names
   - `pipeline_id` (optional): Filter by pipeline
@@ -396,9 +442,9 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `limit` (optional): Results per page (default: 50, max: 100)
   - `after` (optional): Pagination cursor to continue from (`pagination.after` of the previous call)
   - `fetch_all` (optional): Keep fetching pages until `max_total` deals are found (default: false)
-  - `max_total` (optional): Maximum deals across pages (default: `limit`, or 100 with `fetch_all`)
-- **Outputs:** Filtered deals with UTC dates, plus `pagination` (`has_more_pages`, `current_page_size`, `after`)
-- **Note:** All filters must match (AND)
+  - `max_total` (optional): Maximum deals across pages when `fetch_all` is true (default: 100); otherwise exactly one page is read
+- **Outputs:** Filtered deals with UTC dates, `total_matching` from HubSpot (use `limit: 1` for a count), plus `pagination` (`has_more_pages`, `current_page_size`, `after`)
+- **Note:** All filters must match (AND). Close-date bounds are inclusive UTC instants; a date-only end is midnight at the start of that date. A supplied year is intersected with the date range
 
 #### Action: `create_deal`
 - **Description:** Creates a new deal with optional associations
@@ -430,20 +476,22 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 ### Associations Management
 
 #### Action: `get_contact_associations`
-- **Description:** Retrieve all associated objects for a contact (companies, deals, tickets, tasks, notes, emails, etc.) using v4 Associations API
+- **Description:** Retrieve all associated objects for a contact (companies, deals, tickets, tasks, notes, emails, etc.), with each link's association labels
 - **Inputs:**
   - `contact_id` (required): Internal object ID of the contact
   - `association_types` (optional): Array of association types to retrieve - ["companies", "deals", "tickets", "tasks", "notes", "emails", "meetings", "calls"] (default: ["companies", "deals", "meetings"])
-  - `limit` (optional): Maximum associations per type (default: 100, max: 500)
+  - `limit` (optional): Maximum associations per type (default: 100, max: 500). Pages are followed until the limit is reached
 - **Outputs:** Object containing:
   - `contact_id`: The contact ID queried
-  - `associations`: Object with arrays for each association type (e.g., companies, deals)
+  - `associations`: Object with arrays for each association type (e.g., companies, deals). Each entry has `toObjectId` and `associationTypes` (`category`, `typeId`, `label`)
   - `total_associations`: Total count across all types
   - `summary`: Count breakdown by type (e.g., companies_count, deals_count)
+  - `has_more`: Per type, `true` when the contact has more links than `limit` returned
+  - `errors` (only when a type couldn't be read): Per type, HubSpot's error. Those types are left out of `associations` rather than shown as empty; the action fails if every type fails
 - **Use Case:** Get everything connected to a contact - "Show me all companies, deals, and tickets for this contact"
 
 #### Action: `get_company_associations`
-- **Description:** Retrieve all associated objects for a company (contacts, deals, tickets, etc.) using v4 Associations API
+- **Description:** Retrieve all associated objects for a company (contacts, deals, tickets, etc.), with each link's association labels
 - **Inputs:**
   - `company_id` (required): Internal object ID of the company
   - `association_types` (optional): Array of association types - ["contacts", "deals", "tickets", "tasks", "notes", "emails"] (default: ["contacts", "deals", "tickets"])
@@ -452,7 +500,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Use Case:** Get all contacts and deals associated with a company
 
 #### Action: `get_deal_associations`
-- **Description:** Retrieve all associated objects for a deal (contacts, companies, tickets, line items, quotes) using v4 Associations API
+- **Description:** Retrieve all associated objects for a deal (contacts, companies, tickets, line items, quotes), with each link's association labels
 - **Inputs:**
   - `deal_id` (required): Internal object ID of the deal
   - `association_types` (optional): Array of association types - ["contacts", "companies", "tickets", "line_items", "quotes"] (default: ["contacts", "companies"])
@@ -460,13 +508,23 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Outputs:** Similar structure to get_contact_associations with deal_id
 - **Use Case:** Get all contacts and companies involved in a deal
 
+#### Action: `get_association_labels`
+- **Description:** List the association types that can link two kinds of record, including custom labels such as "Architect" or "Decision maker"
+- **Inputs:**
+  - `from_object_type` (required): Type of the first record, e.g. `deals`
+  - `to_object_type` (required): Type of the linked record, e.g. `contacts`
+- **Outputs:** `labels` (each with `category`, `typeId` and `label`; the default type's label is `null`) and `total`
+- **Use Case:** Find the label to pass to `create_association`, or what a `typeId` returned by the `get_*_associations` actions means
+
 #### Action: `create_association`
-- **Description:** Link two records, such as a contact to a company or a contact to a deal, using HubSpot's default association type (v4 Associations API)
+- **Description:** Link two records, such as a contact to a company or a contact to a deal. Uses HubSpot's default association type unless a label or type ID is given
 - **Inputs:**
   - `from_object_type` (required): `contacts`, `companies`, `deals`, or `tickets`
   - `from_object_id` (required): ID of the first record
   - `to_object_type` (required): `contacts`, `companies`, `deals`, or `tickets`
   - `to_object_id` (required): ID of the record to link to
+  - `label` (optional): Association label to apply, e.g. `Architect`, matched case-insensitively. An unknown label fails and lists the labels that exist
+  - `association_type_id` (optional): Association type ID from `get_association_labels`. Takes precedence over `label`
 - **Outputs:** `success`, `message`, and HubSpot's association `response`
 
 ### Owners
@@ -476,6 +534,63 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Inputs:**
   - `owner_id` (required): The ID of the owner
 - **Outputs:** `owner` with name, email, and team information
+
+#### Action: `search_owners`
+- **Description:** Find owners (the users who can own records) by email or name, or list them all
+- **Inputs:**
+  - `email` (optional): Owner's exact email address
+  - `name` (optional): Text the owner's full name contains, case-insensitive (e.g. `john` matches John Smith and Ana Johnson)
+- **Outputs:** `owners` (`id`, `email`, `firstName`, `lastName`, `userId`, `teams`), `total`, and `complete` (`false` when the portal has more than 2,000 owners and only the first 2,000 were searched)
+- **Use Case:** Turn a person's name or email into the owner ID that `hubspot_owner_id` filters use
+
+### Any Object Type
+
+These actions work across HubSpot object types, so questions that the fixed filters of other actions can't answer don't need a new action.
+
+#### Action: `search_crm_objects`
+- **Description:** Search any object type with HubSpot's CRM search: filters, a text query, one sort and paging
+- **Inputs:**
+  - `object_type` (required): `contacts`, `companies`, `deals`, `tickets`, `tasks`, `notes`, `calls`, `emails` or `meetings`. Also accepts `line_items`, `quotes`, `products` and custom object IDs (`2-xxxx`) when the connection has the corresponding optional scopes. Discover custom IDs with `get_object_schemas`
+  - `filters` (optional): Filters a record must all match (AND), each `{propertyName, operator, value}`. `values` is used for `IN`/`NOT_IN`, and `highValue` with `value` for `BETWEEN`. Operators: `EQ`, `NEQ`, `LT`, `LTE`, `GT`, `GTE`, `BETWEEN`, `IN`, `NOT_IN`, `HAS_PROPERTY`, `NOT_HAS_PROPERTY`, `CONTAINS_TOKEN`, `NOT_CONTAINS_TOKEN`
+  - `filter_groups` (optional): Instead of `filters`, groups of filters that are ORed: `[{"filters": [...]}, ...]`. HubSpot allows 5 groups, 6 filters per group and 18 filters in total
+  - `associated_with` (optional): `{object_type, id}`. Only records linked to that contact, company, deal or ticket, e.g. emails on a deal
+  - `query` (optional): Text to search for in the object type's default text properties
+  - `properties` (optional): Properties to return (defaults to HubSpot's standard set)
+  - `sort_property` / `sort_direction` (optional): One property to sort by, `ASCENDING` (default) or `DESCENDING`
+  - `limit` (optional): Records per page (default 100, max 200)
+  - `after` (optional): The `after` value from the previous page
+  - `include_urls` (optional): Make sure each record has its HubSpot page link as `url` (contacts, companies, deals and tickets). HubSpot usually returns `url` itself; when it doesn't, the link is built from the account details, which costs one extra request
+- **Outputs:** `results`, `count` (this page), `total` (all pages), `has_more` and `after`
+- **Notes:**
+  - Dates in filters are Unix milliseconds, e.g. `1793098800000`
+  - Dropdown (enumeration) values are the internal values `get_object_properties` lists, and are case-sensitive
+  - HubSpot returns at most 10,000 results for one search, and newly changed records can take a few seconds to appear
+  - Searching for records linked to a custom object isn't supported by HubSpot's search
+
+#### Action: `get_crm_objects`
+- **Description:** Read up to 100 records of any object type by ID, or by a unique property such as `email`
+- **Inputs:**
+  - `object_type` (required): Object type, as for `search_crm_objects`
+  - `ids` (required): Record IDs, or values of `id_property` (1-100)
+  - `id_property` (optional): Unique property the `ids` are values of, e.g. `email` for contacts
+  - `properties` (optional): Properties to return (defaults to HubSpot's standard set)
+  - `associations` (optional): Linked record types to include for each record, e.g. `["contacts", "companies"]`. Up to 100 per type per record; `associations_with_more` lists types that had more
+  - `include_urls` (optional): Make sure each record has its HubSpot page link as `url`, as for `search_crm_objects`
+- **Outputs:** `results`, `total`, `not_found` (requested IDs that matched nothing) and, when HubSpot reports other problems, `errors`
+
+#### Action: `get_object_properties`
+- **Description:** List the properties of any object type, including custom ones, to find the internal names and dropdown values to filter, sort or update by
+- **Inputs:**
+  - `object_type` (required): Object type, as for `search_crm_objects`
+  - `query` (optional): Only properties whose internal name or label contains this text, e.g. `architect`
+  - `include_details` (optional): Add `fieldType`, `groupName`, `description`, `hubspotDefined` and dropdown `options` (`label` and `value`)
+- **Outputs:** `properties` (`name`, `label`, `type`, plus details) and `total`
+
+#### Action: `get_account_details`
+- **Description:** Get the connected account's ID (`portalId`), time zone, UTC offset, currency and app domain
+- **Inputs:** None
+- **Outputs:** `account`
+- **Use Case:** Work out "today" in the account's time zone before filtering by date
 
 ### Lists/Segments Management
 
@@ -498,18 +613,20 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Inputs:**
   - `query` (optional): Search query for list names
   - `count` (optional): Number of results to return (default: 20, max: 500)
-  - `offset` (optional): Pagination offset (default: 0)
+  - `offset` (optional): Pagination offset (default: 0); pass the previous call's `next_offset`
   - `processing_types` (optional): Filter by processing types
-- **Outputs:** Paginated search results with total count and more results indicator
+- **Outputs:** `results`, `total` (this page), `total_matching` (all pages), `has_more`, and `next_offset` for the next page
 
 #### Action: `get_list_members`
-- **Description:** Retrieve list members with complete contact information including names, emails, and custom properties
+- **Description:** Retrieve list members with optional contact details. Use `get_list` for list size alone
 - **Inputs:**
   - `list_id` (required): The ILS list ID to get members from
-  - `limit` (optional): Maximum number of members to return (default: 1000, max: 10000)
+  - `limit` (optional): Maximum members in this call (default: 50, max: 10000). Large explicit limits read multiple pages
+  - `after` (optional): Continuation cursor from the previous response
+  - `include_contact_details` (optional): Include contact properties (default: true). Set false for IDs and timestamps only, avoiding batch contact reads
   - `contact_properties` (optional): Contact properties to include (default: ["email", "firstname", "lastname", "phone", "company", "jobtitle"])
   - `include_membership_timestamps` (optional): Include when contacts were added to list (default: true)
-- **Outputs:** List metadata, array of members with contact details, performance statistics, and pagination info
+- **Outputs:** `after` and `has_more` for continuation, list metadata, array of members with optional contact details, performance statistics, and pagination info. When HubSpot can't return some members' contact details, their IDs are listed in `failed_contact_ids` with the reasons in `errors`, rather than being left out silently
 
 #### Action: `get_list_memberships`
 - **Description:** Get raw list member IDs and timestamps without contact details (for advanced use cases)
@@ -554,8 +671,9 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 #### Action: `list_tasks`
 - **Description:** Retrieve tasks. With no filters it lists every task in ID order. With any filter it uses HubSpot's [CRM search API](https://developers.hubspot.com/docs/api-reference/search/guide) and sorts by due date, so you can fetch, for example, one person's open tasks that are overdue or due today.
 - **Inputs:**
-  - `limit` (optional): Maximum tasks to return (default: 100, max: 100)
+  - `limit` (optional): Maximum tasks per page (default: 100). Up to 200 when any filter is given; without filters HubSpot returns at most 100
   - `after` (optional): Paging cursor (`paging.next.after`) from the previous call with the same filters
+  - `include_associations` (optional): Include linked contact/company/deal IDs (default: false)
   - `hs_task_properties` (optional): Array of HubSpot task CRM property internal names to retrieve (defaults match create/update task fields)
   - `owner_id` (optional): Only tasks assigned to this owner ID
   - `owner_email` (optional): Only tasks assigned to the HubSpot user with this email; resolved with the Owners API. Ignored when `owner_id` is given
@@ -569,7 +687,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `contact_id` / `company_id` / `deal_id` (optional): Only tasks associated with this record
   - `sort_direction` (optional): `ASCENDING` (default, oldest due date first) or `DESCENDING`
 - **Outputs:**
-  - `tasks`: Array of task objects, each with `associations.contacts`, `associations.companies` and `associations.deals` listing linked record IDs (types with no linked records are omitted)
+  - `tasks`: Array of task objects. With `include_associations: true`, includes `associations.contacts`, `associations.companies` and `associations.deals` listing linked record IDs (types with no linked records are omitted)
   - `total`: Number of tasks returned in this response
   - `total_matching`: Number of tasks matching the filters across all pages (filtered searches only)
   - `paging`: Next-page metadata if available
@@ -579,7 +697,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `due_after` and `due_before` take Unix milliseconds or an ISO 8601 date. Include the user's UTC offset to filter by their local day: `due_before: "2026-10-28T00:00:00+13:00"` returns everything overdue or due by the end of 27 October in New Zealand. A date without a time zone is read as UTC.
   - HubSpot allows up to 6 filters per search; the owner, each of `status`/`exclude_completed`/`priority`/`task_type`, each due date bound and each linked record count as one.
   - Search results can lag a few seconds behind recent changes, and HubSpot returns at most 10,000 matches per search.
-  - Filtered searches make 3 extra requests per page to read each task's linked contacts, companies and deals.
+  - Filtered searches make no association requests by default. Enabling `include_associations` makes at least 3 extra requests per page.
 
 #### Action: `update_task`
 - **Description:** Update an existing task's content or properties
@@ -609,9 +727,34 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
   - `hs_object_id`: HubSpot task record ID that was deleted
   - `message`: Success or error message
 
-### Advanced Operations
+### Connected user and custom object discovery
+
+#### Action: `get_current_user`
+- **Inputs:** none.
+- **Outputs:** `email`, `owner` (or null when there is no active owner), and `portal_id`.
+- Identifies the user who authorized the shared connection, which may differ from the person chatting. Uses Autohive connection metadata (`connected_user`, `hub_id`); it never puts a token in a URL. Older connections without identity metadata must reconnect, or use `search_owners` with an explicit email.
+
+#### Action: `get_object_schemas`
+- **Inputs:** none.
+- **Outputs:** `schemas`, including each custom object's `objectTypeId` and property definitions.
+- Requires Enterprise and the `crm.schemas.custom.read` grant. Use these IDs in `search_crm_objects`, `get_crm_objects`, `get_object_properties`, `get_association_labels`, `create_association`, and association read actions.
+- HubSpot cannot search associations to custom objects with an `associations.*` filter. Read linked IDs with `get_crm_objects` and its `associations` input, then batch-read those records.
 
 ### Ticket Management
+
+#### Action: `create_ticket`
+- **Inputs:** `subject`, `hs_pipeline_stage` (required internal stage ID), `hs_pipeline` (optional internal pipeline ID), `properties` (optional additional string-valued properties, such as `content`, `hs_ticket_priority`, or `hubspot_owner_id`).
+- **Outputs:** `ticket`, the created HubSpot record.
+- Uses the default pipeline when no pipeline is specified. Discover stage and pipeline IDs with `get_object_properties` for `tickets` and `include_details: true`. Creation disables transport retries because a timeout can occur after HubSpot has created the record; check HubSpot before retrying an unknown outcome.
+
+#### Action: `update_ticket`
+- **Inputs:** `ticket_id` and a nonempty `properties` map of internal names to string values.
+- **Outputs:** `ticket`, the updated record. Only supplied properties change; an empty string clears a value.
+
+#### Action: `search_conversations`
+- **Inputs:** optional `inbox_id`, `contact_id`, `ticket_id`, `status` (`OPEN` or `CLOSED`), `archived`, `limit` (1–500, default 100), and `after`.
+- **Outputs:** `results`, `paging`, `has_more`, and `after`. Pass the returned cursor to retrieve the next page. Threads are ordered by ascending ID.
+- Uses HubSpot's native thread filters; this is not full-text message search. Requires `conversations.read`.
 
 #### Action: `get_recent_tickets`
 - **Description:** Retrieve a single page of recent support tickets with filtering and sorting capabilities. By default, tickets are sorted by their most recent modification, not their creation date.
@@ -627,7 +770,7 @@ These actions use HubSpot's [Communications API](https://developers.hubspot.com/
 - **Description:** Retrieve the complete conversation thread associated with a support ticket
 - **Inputs:**
   - `ticket_id` (required): ID of the ticket to retrieve conversation for
-- **Outputs:** Sorted conversation messages with sender information, timestamps, and message types
+- **Outputs:** Sorted conversation messages with sender information, timestamps, and message types. Reads up to 20 pages of messages; a longer conversation says so in `conversation.message`. Fails if HubSpot can't return the messages, rather than showing an empty conversation
 
 #### Action: `add_ticket_comment`
 - **Description:** Add an internal CRM note to an existing ticket
@@ -714,12 +857,17 @@ The integration has the following dependencies:
 
 ## Usage Examples
 
-**Example 1: Getting a contact with recent emails**
+**Example 1: Getting a contact by email, then by ID**
 ```json
 {
   "email": "john.smith@company.com",
-  "include_recent_emails": true,
-  "email_limit": 10
+  "properties": ["firstname", "lastname", "jobtitle", "hubspot_owner_id"]
+}
+```
+
+```json
+{
+  "contact_id": "501"
 }
 ```
 
@@ -828,7 +976,7 @@ The integration has the following dependencies:
 ```json
 {
   "contact_id": "123456",
-  "association_types": ["companies", "deals", "meetings", "tasks"],
+  "association_types": ["companies", "deals", "tickets", "tasks"],
   "limit": 200
 }
 ```
@@ -840,7 +988,7 @@ The integration has the following dependencies:
   "associations": {
     "companies": [
       {
-        "toObjectId": "789012",
+        "toObjectId": 789012,
         "associationTypes": [
           {
             "category": "HUBSPOT_DEFINED",
@@ -852,12 +1000,17 @@ The integration has the following dependencies:
     ],
     "deals": [
       {
-        "toObjectId": "345678",
+        "toObjectId": 345678,
         "associationTypes": [
           {
             "category": "HUBSPOT_DEFINED",
-            "typeId": 3,
+            "typeId": 4,
             "label": null
+          },
+          {
+            "category": "USER_DEFINED",
+            "typeId": 42,
+            "label": "Architect"
           }
         ]
       }
@@ -871,7 +1024,24 @@ The integration has the following dependencies:
     "deals_count": 1,
     "tickets_count": 0,
     "tasks_count": 0
+  },
+  "has_more": {
+    "companies": false,
+    "deals": false,
+    "tickets": false,
+    "tasks": false
   }
+}
+```
+
+**Example 10b: Link a contact to a deal as the deal's architect**
+```json
+{
+  "from_object_type": "deals",
+  "from_object_id": "345678",
+  "to_object_type": "contacts",
+  "to_object_id": "123456",
+  "label": "Architect"
 }
 ```
 
@@ -1030,10 +1200,47 @@ The integration has the following dependencies:
 }
 ```
 
-**Example 18: Get one person's open tasks that are overdue or due today (New Zealand time)**
+**Example 18: Emails on a deal since 1 October 2026, newest first (`search_crm_objects`)**
+```json
+{
+  "object_type": "emails",
+  "associated_with": {"object_type": "deals", "id": "345678"},
+  "filters": [{"propertyName": "hs_timestamp", "operator": "GTE", "value": 1790812800000}],
+  "properties": ["hs_email_subject", "hs_email_direction", "hs_timestamp"],
+  "sort_property": "hs_timestamp",
+  "sort_direction": "DESCENDING",
+  "limit": 50
+}
+```
+
+**Example 19: Open deals in either of two stages, with page links (`search_crm_objects`)**
+```json
+{
+  "object_type": "deals",
+  "filter_groups": [
+    {"filters": [{"propertyName": "dealstage", "operator": "EQ", "value": "appointmentscheduled"}]},
+    {"filters": [{"propertyName": "dealstage", "operator": "EQ", "value": "qualifiedtobuy"}]}
+  ],
+  "properties": ["dealname", "amount", "closedate", "hubspot_owner_id"],
+  "include_urls": true
+}
+```
+
+**Example 20: Read contacts by ID with their companies (`get_crm_objects`)**
+```json
+{
+  "object_type": "contacts",
+  "ids": ["501", "502"],
+  "properties": ["firstname", "lastname", "email", "jobtitle"],
+  "associations": ["companies"]
+}
+```
+
+**Example 21: Get one person's open tasks that are overdue or due today (New Zealand time)**
 ```json
 {
   "owner_email": "rep@example.com",
+  "include_associations": true,
   "exclude_completed": true,
   "due_before": "2026-10-28T00:00:00+13:00",
   "hs_task_properties": ["hs_task_subject", "hs_task_body", "hs_task_status", "hs_task_priority", "hs_timestamp"]
@@ -1069,17 +1276,24 @@ The integration has the following dependencies:
 ## Common Workflows
 
 ### Task Triage Workflow
-1. Fetch the user's open tasks due before tomorrow's local midnight with `list_tasks` (`owner_email` or `owner_id`, `exclude_completed: true`, `due_before`)
+1. Fetch the user's open tasks due before tomorrow's local midnight with `list_tasks` (`owner_email` or `owner_id`, `exclude_completed: true`, `due_before`, `include_associations: true`)
 2. Page with `after` while `paging.next.after` is returned; `total_matching` says how many tasks matched
-3. For tasks that need context, read the linked companies and deals listed in each task's `associations` with `get_company` and `get_deal`
-4. Pull recent activity on the linked records with `get_contact_notes`, `get_contact_emails`, `get_contact_calls_and_meetings`, `get_deal_notes` or `get_deal_calls_and_meetings`, which all take the record ID
+3. For tasks that need context, read the linked contacts, companies and deals listed in each task's `associations` with `get_crm_objects` (one call per object type)
+4. Pull recent activity on a linked record with `search_crm_objects`: `object_type` `notes`, `emails`, `calls` or `meetings`, `associated_with` the record, an `hs_timestamp` `GTE` filter, sorted by `hs_timestamp` `DESCENDING`
+5. Use `get_account_details` for the account's time zone when working out "today", and `include_urls` to give the user links to the records
+
+### Ad-hoc Query Workflow
+1. Find the object type's property names and dropdown values with `get_object_properties` (`query` narrows them down)
+2. Turn people's names or emails into owner IDs with `search_owners`
+3. Run the query with `search_crm_objects`, paging with `after` while `has_more` is true
+4. Read linked records in bulk with `get_crm_objects` and its `associations` input
 
 ### Contact Management Workflow
 1. Search for existing contact using `get_contact` by email
 2. If contact doesn't exist, create new contact with `create_contact`
 3. Update contact information as needed with `update_contact`
 4. Add or remove the contact from marketing lists using `add_contact_to_list` or `remove_contact_from_list`
-5. Track recent email conversations with `get_contact` (include_recent_emails: true)
+5. Track recent email conversations with `get_contact_emails`
 
 ### Note Management Workflow
 1. Add notes to contacts after interactions using `create_note`
@@ -1122,7 +1336,7 @@ The integration has the following dependencies:
 6. Build a complete relationship map of the contact's CRM network
 
 ### Custom Properties Workflow
-1. Use `get_deal_properties` with `include_details: true` to discover all available deal properties
+1. Use `get_deal_properties` with `include_details: true` to discover all available deal properties (or `get_object_properties` for any object type)
 2. Identify custom properties by checking `hubspotDefined: false`
 3. Note the internal property `name` (e.g., "custom_property_example")
 4. Use `get_deal` or `get_deals` with the `properties` parameter including your custom property names
@@ -1158,6 +1372,32 @@ The integration has the following dependencies:
 
 ## Testing
 
+All live tests that create, update, link, unlink or delete data are marked
+`destructive` and skip unless `--run-hubspot-destructive` is explicitly supplied.
+Unmarked live tests reject write requests before opening a network session.
+CI/default pytest selects only mocked unit tests; broad live selections remain
+read-only unless the destructive opt-in is deliberately enabled.
+
+The read-optimization checks use only existing records and reject writes before
+sending requests. Run them separately with:
+
+```bash
+pytest hubspot/tests/test_hubspot_integration.py -m "integration and not destructive" -k TestLegacyReadEfficiency -rs
+```
+
+Set `HUBSPOT_ACCESS_TOKEN` to a fresh OAuth token in the local environment; do not
+commit it. For full coverage, configure `HUBSPOT_TEST_DEAL_ID` to a search-indexed
+deal with a close date, `HUBSPOT_TEST_OWNER_ID` to an owner with an email, and
+`HUBSPOT_TEST_LIST_ID` to a contact list with at least two readable members.
+`HUBSPOT_TEST_CONTACT_ID` and `HUBSPOT_TEST_DEAL_ID` should have a real transcript
+ID among their five latest calls to exercise transcript opt-in. Set
+`HUBSPOT_TEST_CONVERSATION_TICKET_ID` to a ticket with existing conversation
+replies to verify the current ticket lookup and actual message retrieval.
+Missing credentials or data fixtures are reported as skips; permission errors
+and failed reads fail the tests. Successful request counts exclude rate-limit
+retries. These tests do not validate ticket writes or change account data.
+
+
 To run the tests included with the integration:
 
 1. From the repository root, install the test and integration dependencies
@@ -1166,15 +1406,15 @@ To run the tests included with the integration:
 4. Run read-only live tests with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and not destructive"`
 5. To run only the read-only ticket tests, append `-k TestGetRecentTickets` to the read-only command. These request pages of 5 and 100 tickets, check limits/sorting and response structure, and compare the action output with the raw API response so missing/null values or records cannot silently be dropped. An empty account skips ticket-record coverage rather than claiming it was exercised.
 6. Optionally set `HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID` to a dedicated test ticket within the latest 100 modified tickets whose search response contains an explicit `subject: null`. This enables the targeted live regression; it fails if the configured fixture is absent or no longer null, and skips if the variable is unset. Tests do not create or modify the fixture.
-7. To run the destructive ticket-note test, set `HUBSPOT_TEST_TICKET_ID` to a test ticket and run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k TestAddTicketComment`. The test creates an internal note, verifies it is associated with the ticket through HubSpot's associations API, then deletes the note.
-8. To run the destructive LinkedIn message, contact upsert, and record-linking tests, run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k "LinkedInMessageWorkflow or UpsertContacts or CreateAssociation"`:
+7. To run the destructive ticket-note test, set `HUBSPOT_TEST_TICKET_ID` to a test ticket and run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" --run-hubspot-destructive -k TestAddTicketComment`. The test creates an internal note, verifies it is associated with the ticket through HubSpot's associations API, then deletes the note.
+8. To run the destructive LinkedIn message, contact upsert, and record-linking tests, run `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" --run-hubspot-destructive -k "LinkedInMessageWorkflow or UpsertContacts or CreateAssociation"`:
    - `TestLinkedInMessageWorkflow` logs a LinkedIn message on `HUBSPOT_TEST_CONTACT_ID`, reads it, edits it, checks the edit saved, deletes it, and checks it is gone
    - `TestUpsertContacts` changes the job title of the contact with `HUBSPOT_TEST_CONTACT_EMAIL`, checks it saved on the same contact, then restores the original value
    - `TestCreateAssociation` links `HUBSPOT_TEST_CONTACT_ID` to `HUBSPOT_TEST_COMPANY_ID`, checks the link appears, then removes it. It skips if the two are already linked, so use an unlinked pair
 
 Use a current HubSpot OAuth access token for a dedicated test account, with the `tickets` scope for ticket tests. Missing credentials skip live tests; expired tokens, permission errors, and API failures fail rather than passing. Refresh expired tokens through your HubSpot OAuth app's token-refresh flow and update the local `.env`; never commit tokens.
 
-**Warning: destructive tests mutate real account data.** Run the list-membership tests deliberately on a test account with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" -k contact_to_static_list`.
+**Warning: destructive tests mutate real account data.** Run the list-membership tests deliberately on a test account with `pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" --run-hubspot-destructive -k contact_to_static_list`.
 
 The destructive tests use these HubSpot test variables, all listed in `.env.example`:
 
@@ -1228,3 +1468,41 @@ For issues specific to this integration, check:
 5. UTC date format consistency
 
 For Autohive platform support, contact your Autohive administrator.
+
+
+## Gap-analysis follow-ups (3.7.0)
+
+- Label creation reads existing association types, including their pages, and retains the target pair's labels. If the read fails or hits its request cap, it does not write an incomplete replacement.
+- Batch reads using `id_property` automatically request that property, preserving the lookup value even when records arrive in a different order.
+- List-member exports report missing contacts in partial/207 batch responses as `failed_contact_ids` and `errors`, while retaining successful contacts.
+- Ticket conversations retain rich-text-only messages. `message` falls back to HTML when plain text is absent; `rich_text` preserves the original HTML when supplied.
+- With `include_details`, `get_object_properties` resolves externally backed deal/ticket pipeline and stage dropdown options through the pipelines API. Stage options include `pipeline_id`.
+
+Unit tests verify these request and response contracts. A live portal must still
+confirm the optional scope grants, label updates, association paging and empty
+results, email search permission, list offsets, and record links (including EU
+portals). Ticket write tests are opt-in and must use a dedicated test portal.
+
+
+Provider references: [ticket creation and updates](https://developers.hubspot.com/docs/api-reference/latest/crm/objects/tickets/guide),
+[custom object schemas](https://developers.hubspot.com/docs/api-reference/latest/crm/objects/schemas/get-schemas),
+[pipelines](https://developers.hubspot.com/docs/api-reference/latest/crm/pipelines/get-pipelines),
+and [optional OAuth scopes](https://developers.hubspot.com/docs/guides/apps/public-apps/overview#scope-types).
+
+New live-test settings: `HUBSPOT_TEST_CUSTOM_OBJECT_TYPE` enables custom-object
+schema/search/read checks. `HUBSPOT_TEST_TICKET_STAGE_ID` and
+`HUBSPOT_TEST_TICKET_PIPELINE_ID` enable the opt-in destructive ticket test,
+which creates a test ticket, updates it, and archives it in cleanup.
+
+For a full live run on a dedicated test account:
+
+```bash
+pytest hubspot/tests/test_hubspot_integration.py -m integration --run-hubspot-destructive
+```
+
+This includes the task create/read/update/delete lifecycle. Set
+`HUBSPOT_TEST_PRODUCTS_ID`, `HUBSPOT_TEST_LINE_ITEMS_ID`, and
+`HUBSPOT_TEST_QUOTES_ID` to existing fixture records to verify real record reads
+rather than empty search responses. Keep fixture IDs in the ignored local `.env`
+or your CI environment, and keep tokens out of source control. Optional fixture
+settings left blank are reported as skipped, not passed.

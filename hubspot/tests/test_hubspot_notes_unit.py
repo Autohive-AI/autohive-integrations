@@ -415,3 +415,47 @@ class TestDeleteNote:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "Failed to delete note" in result.result.message
+
+
+# ---- Paging through a record's notes ----
+
+NOTES_ACTIONS = [
+    ("get_contact_notes", "contact_id"),
+    ("get_company_notes", "company_id"),
+    ("get_deal_notes", "deal_id"),
+]
+
+
+class TestRecordNotesPaging:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("action,id_input", NOTES_ACTIONS)
+    async def test_cursor_returned_when_there_are_older_notes(self, mock_context, action, id_input):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"total": 250, "results": [{"id": "1", "properties": {}}], "paging": {"next": {"after": "100"}}},
+        )
+
+        result = await hubspot.execute_action(action, {id_input: "9"}, mock_context)
+
+        data = result.result.data
+        assert (data["total"], data["total_matching"], data["has_more"], data["after"]) == (1, 250, True, "100")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("action,id_input", NOTES_ACTIONS)
+    async def test_cursor_sent_for_next_page(self, mock_context, action, id_input):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"total": 1, "results": []})
+
+        result = await hubspot.execute_action(action, {id_input: "9", "after": "100"}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["json"]["after"] == "100"
+        assert (result.result.data["has_more"], result.result.data["after"]) == (False, None)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("action,id_input", NOTES_ACTIONS)
+    async def test_first_page_sends_no_cursor(self, mock_context, action, id_input):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        await hubspot.execute_action(action, {id_input: "9"}, mock_context)
+
+        assert "after" not in mock_context.fetch.call_args.kwargs["json"]

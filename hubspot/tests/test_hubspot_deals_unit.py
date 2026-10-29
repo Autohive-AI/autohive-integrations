@@ -1,6 +1,8 @@
+import asyncio
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from autohive_integrations_sdk import FetchResponse, RateLimitError
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
@@ -205,6 +207,77 @@ class TestGetDeals:
 
         payload = mock_context.fetch.call_args.kwargs["json"]
         assert payload["sorts"][0]["propertyName"] == "hs_lastmodifieddate"
+
+    @pytest.mark.asyncio
+    async def test_stopping_at_the_limit_reports_more_pages(self, mock_context):
+        mock_context.fetch.return_value = deals_page("d1", "d2", after="2")
+
+        result = await hubspot.execute_action("get_deals", {"limit": 2}, mock_context)
+
+        pagination = result.result.data["pagination"]
+        assert pagination["has_more_pages"] is True
+        assert pagination["fetched_all_available"] is False
+        assert pagination["last_after_token"] == "2"
+        assert pagination["next_page_params"]["parameters"]["after"] == "2"
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_stopping_at_max_total_reports_more_pages(self, mock_context):
+        mock_context.fetch.side_effect = [deals_page("d1", "d2", after="2"), deals_page("d3", "d4", after="4")]
+
+        result = await hubspot.execute_action("get_deals", {"fetch_all": True, "max_total": 4}, mock_context)
+
+        pagination = result.result.data["pagination"]
+        assert pagination["total_fetched"] == 4
+        assert pagination["fetched_all_available"] is False
+        assert pagination["last_after_token"] == "4"
+        assert "maximum of 4 deals" in pagination["pagination_instructions"]
+
+    @pytest.mark.asyncio
+    async def test_last_page_reports_everything_fetched(self, mock_context):
+        mock_context.fetch.side_effect = [deals_page("d1", after="1"), deals_page("d2")]
+
+        result = await hubspot.execute_action("get_deals", {"fetch_all": True}, mock_context)
+
+        pagination = result.result.data["pagination"]
+        assert pagination["total_fetched"] == 2
+        assert pagination["fetched_all_available"] is True
+        assert pagination["has_more_pages"] is False
+        assert pagination["last_after_token"] is None
+        assert mock_context.fetch.call_args.kwargs["json"]["after"] == "1"
+
+    @pytest.mark.asyncio
+    async def test_unreadable_date_is_an_error_not_an_unfiltered_search(self, mock_context):
+        result = await hubspot.execute_action("get_deals", {"start_date": "next tuesday"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Unable to parse date 'next tuesday'" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_date_range_filters(self, mock_context):
+        mock_context.fetch.return_value = deals_page()
+
+        await hubspot.execute_action(
+            "get_deals",
+            {"start_date": "2026-01-01", "end_date": "2026-01-31", "date_field": "closedate"},
+            mock_context,
+        )
+
+        assert mock_context.fetch.call_args.kwargs["json"]["filterGroups"] == [
+            {
+                "filters": [
+                    {"propertyName": "closedate", "operator": "GTE", "value": "1767225600000"},
+                    {"propertyName": "closedate", "operator": "LTE", "value": "1769903999000"},
+                ]
+            }
+        ]
+
+
+def deals_page(*deal_ids, after=None):
+    data = {"results": [{"id": deal_id, "properties": {}} for deal_id in deal_ids]}
+    if after:
+        data["paging"] = {"next": {"after": after}}
+    return FetchResponse(status=200, headers={}, data=data)
 
 
 # ---- get_deal ----
@@ -634,6 +707,96 @@ class TestGetDealPipelines:
 
 
 # ---- get_contact_calls_and_meetings ----
+
+
+def calls_found(*calls):
+    return FetchResponse(status=200, headers={}, data={"results": list(calls)})
+
+
+def call_with_transcript(call_id, transcript_id):
+    return {
+        "id": call_id,
+        "properties": {"hs_call_has_transcript": "true", "hs_call_transcription_id": transcript_id},
+    }
+
+
+class TestCallTranscripts:
+    @pytest.mark.asyncio
+    async def test_failed_transcript_is_reported_on_its_call(self, mock_context):
+        mock_context.fetch.side_effect = [
+            calls_found(call_with_transcript("c1", "t1"), call_with_transcript("c2", "t2")),
+            FetchResponse(status=200, headers={}, data={"transcriptUtterances": [{"text": "hi"}]}),
+            HTTPError(500, "Transcript service unavailable"),
+            calls_found(),
+        ]
+
+        result = await hubspot.execute_action(
+            "get_contact_calls_and_meetings", {"contact_id": "100", "include_transcripts": True}, mock_context
+        )
+
+        first, second = result.result.data["calls"]
+        assert first["transcript"] == [{"text": "hi"}]
+        assert "transcript_error" not in first
+        assert second["transcript_error"] == "HTTP 500: Transcript service unavailable"
+        assert "transcript" not in second
+
+    @pytest.mark.asyncio
+    async def test_unreadable_transcript_is_reported_on_its_call(self, mock_context):
+        mock_context.fetch.side_effect = [
+            calls_found(call_with_transcript("c1", "t1"), call_with_transcript("c2", "t2")),
+            FetchResponse(status=200, headers={}, data=None),
+            FetchResponse(status=200, headers={}, data={"transcriptUtterances": []}),
+            calls_found(),
+        ]
+
+        result = await hubspot.execute_action(
+            "get_contact_calls_and_meetings", {"contact_id": "100", "include_transcripts": True}, mock_context
+        )
+
+        first, second = result.result.data["calls"]
+        assert first["transcript_error"] == "HubSpot returned an unreadable transcript"
+        assert second["transcript"] == []
+
+    @pytest.mark.asyncio
+    async def test_guessed_transcript_id_not_found_is_not_an_error(self, mock_context):
+        mock_context.fetch.side_effect = [
+            calls_found(call_with_transcript("c1", None)),
+            HTTPError(404, "Not found"),
+            calls_found(),
+        ]
+
+        result = await hubspot.execute_action(
+            "get_contact_calls_and_meetings", {"contact_id": "100", "include_transcripts": True}, mock_context
+        )
+
+        call = result.result.data["calls"][0]
+        assert mock_context.fetch.call_args_list[1].args[0].endswith("/transcripts/c1")
+        assert "transcript" not in call
+        assert "transcript_error" not in call
+
+    @pytest.mark.asyncio
+    async def test_transcripts_fetched_at_most_5_at_a_time(self, mock_context):
+        in_flight = peak = 0
+
+        async def fetch(url, **kwargs):
+            nonlocal in_flight, peak
+            if "/transcripts/" not in url:
+                calls = [call_with_transcript(f"c{n}", f"t{n}") for n in range(12)]
+                return calls_found(*calls) if "calls" in url else calls_found()
+            in_flight += 1
+            peak = max(peak, in_flight)
+            await asyncio.sleep(0)
+            in_flight -= 1
+            return FetchResponse(status=200, headers={}, data={"transcriptUtterances": []})
+
+        mock_context.fetch.side_effect = fetch
+
+        result = await hubspot.execute_action(
+            "get_contact_calls_and_meetings", {"contact_id": "100", "include_transcripts": True}, mock_context
+        )
+
+        assert all(call["transcript"] == [] for call in result.result.data["calls"])
+        assert peak == 5
 
 
 class TestGetContactCallsAndMeetings:

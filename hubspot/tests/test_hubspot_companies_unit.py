@@ -390,6 +390,21 @@ class TestSearchCompanies:
         assert payload["limit"] == 25
 
     @pytest.mark.asyncio
+    async def test_after_cursor_sent(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+
+        await hubspot.execute_action("search_companies", {"query": "test", "after": "100"}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["json"] == {"query": "test", "limit": 100, "after": "100"}
+
+    @pytest.mark.asyncio
+    async def test_limit_over_200_rejected_by_schema(self, mock_context):
+        result = await hubspot.execute_action("search_companies", {"query": "test", "limit": 500}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_default_limit_100(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": [], "total": 0})
 
@@ -412,6 +427,10 @@ class TestSearchCompanies:
 
 
 # ---- Search Companies by Owner Name ----
+
+
+def owners_response(*owners):
+    return FetchResponse(status=200, headers={}, data={"results": list(owners)})
 
 
 class TestSearchCompaniesByOwnerName:
@@ -705,7 +724,7 @@ class TestSearchCompaniesByOwnerName:
                     "paging": {"next": {"after": f"owners-page-{index + 1}"}},
                 },
             )
-            for index in range(10)
+            for index in range(20)
         ]
 
         result = await hubspot.execute_action(
@@ -715,8 +734,57 @@ class TestSearchCompaniesByOwnerName:
         )
 
         assert result.type == ResultType.ACTION_ERROR
-        assert "not found in the first 10 owner pages" in result.result.message
-        assert mock_context.fetch.call_count == 10
+        assert "not found in the first 2000 owners" in result.result.message
+        assert mock_context.fetch.call_count == 20
+        assert mock_context.fetch.call_args.args[0] == "https://api.hubapi.com/crm/owners/2026-09"
+
+    @pytest.mark.asyncio
+    async def test_owners_without_names_do_not_break_matching(self, mock_context):
+        mock_context.fetch.side_effect = [
+            owners_response(
+                {"id": "o1", "firstName": None, "lastName": None, "email": "integration@example.com"},
+                {"id": "o2", "firstName": "Jane", "lastName": None, "email": "jane@example.com"},
+            ),
+            FetchResponse(status=200, headers={}, data={"results": []}),
+        ]
+
+        result = await hubspot.execute_action("search_companies_by_owner_name", {"owner_name": "Jane"}, mock_context)
+
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["owner"]["id"] == "o2"
+
+    @pytest.mark.asyncio
+    async def test_shared_first_name_is_ambiguous(self, mock_context):
+        mock_context.fetch.return_value = owners_response(
+            {"id": "o1", "firstName": "John", "lastName": "Smith", "email": "js@example.com"},
+            {"id": "o2", "firstName": "John", "lastName": "Brown", "email": "jb@example.com"},
+        )
+
+        result = await hubspot.execute_action("search_companies_by_owner_name", {"owner_name": "john"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == (
+            "More than one owner matches 'john': John Smith (js@example.com), John Brown (jb@example.com). "
+            "Use the owner's full name."
+        )
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_full_name_wins_over_first_name_matches(self, mock_context):
+        mock_context.fetch.side_effect = [
+            owners_response(
+                {"id": "o1", "firstName": "Smith", "lastName": "Jones", "email": "sj@example.com"},
+                {"id": "o2", "firstName": "John", "lastName": "Smith", "email": "js@example.com"},
+                {"id": "o3", "firstName": "John", "lastName": "Smith Jr", "email": "jsj@example.com"},
+            ),
+            FetchResponse(status=200, headers={}, data={"results": []}),
+        ]
+
+        result = await hubspot.execute_action(
+            "search_companies_by_owner_name", {"owner_name": " John Smith "}, mock_context
+        )
+
+        assert result.result.data["owner"]["id"] == "o2"
 
     @pytest.mark.asyncio
     async def test_after_cursor_is_sent_to_company_search(self, mock_context):

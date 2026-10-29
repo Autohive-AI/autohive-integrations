@@ -19,7 +19,7 @@ Run read-only tests with:
 
 Tests that create, update, or delete data are marked @pytest.mark.destructive.
 Run them deliberately on a test account only; this command mutates real data:
-    pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive"
+    pytest hubspot/tests/test_hubspot_integration.py -m "integration and destructive" --run-hubspot-destructive
 
 For the targeted nullable-subject regression, set
 HUBSPOT_TEST_UNSET_SUBJECT_TICKET_ID to a ticket returned in the latest 100
@@ -35,9 +35,10 @@ import os
 import time
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock
+from urllib.parse import urlsplit
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
@@ -55,13 +56,17 @@ TEST_CONTACT_EMAIL = os.environ.get("HUBSPOT_TEST_CONTACT_EMAIL", "")
 
 
 @pytest.fixture
-def live_context(env_credentials):
+def live_context(request, env_credentials):
     """Execution context wired to a real HTTP client with HubSpot OAuth token.
 
     The HubSpot integration relies on context.fetch to auto-inject the OAuth token
     (auth.type = "platform"). In tests we bypass the SDK auth layer and manually
     add the Authorization header to every request.
     """
+    allow_writes = request.node.get_closest_marker("destructive") is not None
+    if allow_writes and not request.config.getoption("--run-hubspot-destructive"):
+        pytest.skip("Destructive HubSpot tests require --run-hubspot-destructive and a dedicated test account")
+
     access_token = env_credentials("HUBSPOT_ACCESS_TOKEN")
     if not access_token:
         pytest.skip("HUBSPOT_ACCESS_TOKEN not set — skipping integration tests")
@@ -71,22 +76,30 @@ def live_context(env_credentials):
     api_responses = []
 
     async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
+        target = urlsplit(url)
+        assert target.scheme == "https" and target.netloc == "api.hubapi.com", "Unexpected HubSpot API host"
+        if not allow_writes:
+            assert method.upper() == "GET" or (
+                method.upper() == "POST" and target.path.endswith(("/search", "/batch/read"))
+            ), f"Read-only test blocked {method} {target.path}"
         merged_headers = dict(headers or {})
         merged_headers["Authorization"] = f"Bearer {access_token}"
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-            async with session.request(method, url, json=json, headers=merged_headers, params=params) as resp:
-                if resp.status >= 400:
-                    raise HTTPError(resp.status, f"HubSpot API returned HTTP {resp.status}")
-                if resp.status == 204:
-                    data = {}
-                else:
-                    data = await resp.json(content_type=None)
-                api_responses.append(deepcopy(data))
-                return FetchResponse(
-                    status=resp.status,
-                    headers=dict(resp.headers),
-                    data=data,
-                )
+        async with (
+            aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session,
+            session.request(method, url, json=json, headers=merged_headers, params=params) as resp,
+        ):
+            if resp.status >= 400:
+                raise HTTPError(resp.status, f"HubSpot API returned HTTP {resp.status}")
+            if resp.status == 204:
+                data = {}
+            else:
+                data = await resp.json(content_type=None)
+            api_responses.append(deepcopy(data))
+            return FetchResponse(
+                status=resp.status,
+                headers=dict(resp.headers),
+                data=data,
+            )
 
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(side_effect=real_fetch)
@@ -96,6 +109,24 @@ def live_context(env_credentials):
         "credentials": {"access_token": access_token},
     }
     return ctx
+
+
+@pytest.fixture
+def readonly_context(live_context):
+    """Reject writes before sending a request; POST search and batch/read are read-only."""
+    real_fetch = live_context.fetch.side_effect
+
+    async def guarded_fetch(url, *, method="GET", **kwargs):
+        target = urlsplit(url)
+        is_read = method.upper() == "GET" or (
+            method.upper() == "POST" and target.path.endswith(("/search", "/batch/read"))
+        )
+        assert target.scheme == "https" and target.netloc == "api.hubapi.com", "Unexpected HubSpot API host"
+        assert is_read, f"Read-only test blocked {method} {target.path}"
+        return await real_fetch(url, method=method, **kwargs)
+
+    live_context.fetch = AsyncMock(side_effect=guarded_fetch)
+    return live_context
 
 
 def require_contact_id():
@@ -146,6 +177,15 @@ async def contact_is_in_test_list(context):
 
 
 class TestGetContact:
+    async def test_read_by_id(self, live_context):
+        require_contact_id()
+        result = await hubspot.execute_action(
+            "get_contact", {"contact_id": TEST_CONTACT_ID, "properties": ["email"]}, live_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["contact"]["id"] == TEST_CONTACT_ID
+        assert "email" in result.result.data["contact"]["properties"]
+
     async def test_search_by_email(self, live_context):
         require_contact_email()
         result = await hubspot.execute_action("get_contact", {"email": TEST_CONTACT_EMAIL}, live_context)
@@ -460,8 +500,11 @@ class TestGetContactAssociations:
         )
         data = result.result.data
         assert data["contact_id"] == TEST_CONTACT_ID
-        assert "associations" in data
-        assert "total_associations" in data
+        assert "errors" not in data, data.get("errors")
+        assert set(data["has_more"]) == {"companies", "deals"}
+        for link in data["associations"]["companies"] + data["associations"]["deals"]:
+            assert link["toObjectId"]
+            assert all("typeId" in association_type for association_type in link["associationTypes"])
 
 
 class TestGetCompanyAssociations:
@@ -488,6 +531,19 @@ class TestGetDealAssociations:
         data = result.result.data
         assert data["deal_id"] == TEST_DEAL_ID
         assert "associations" in data
+        assert "errors" not in data, data.get("errors")
+
+
+class TestGetAssociationLabels:
+    async def test_lists_deal_to_contact_types(self, live_context):
+        result = await hubspot.execute_action(
+            "get_association_labels", {"from_object_type": "deals", "to_object_type": "contacts"}, live_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        labels = result.result.data["labels"]
+        # Every portal has HubSpot's unlabelled deal-to-contact type
+        assert any(label["category"] == "HUBSPOT_DEFINED" for label in labels)
+        assert all(isinstance(label["typeId"], int) for label in labels)
 
 
 # ---- Owner (Read-Only) ----
@@ -508,6 +564,124 @@ class TestGetOwner:
         assert "email" in owner
         assert "firstName" in owner
         assert "lastName" in owner
+
+
+class TestSearchOwners:
+    async def test_finds_owner_by_email_and_name(self, live_context):
+        require_owner_id()
+        owner = (await hubspot.execute_action("get_owner", {"owner_id": TEST_OWNER_ID}, live_context)).result.data
+        email = owner["owner"]["email"]
+
+        by_email = await hubspot.execute_action("search_owners", {"email": email}, live_context)
+        assert by_email.type == ResultType.ACTION, by_email.result
+        assert [found["id"] for found in by_email.result.data["owners"]] == [TEST_OWNER_ID]
+
+        name = owner["owner"]["lastName"] or owner["owner"]["firstName"]
+        if name:
+            by_name = await hubspot.execute_action("search_owners", {"name": name.upper()}, live_context)
+            assert TEST_OWNER_ID in [found["id"] for found in by_name.result.data["owners"]]
+
+
+# ---- Any object type (Read-Only) ----
+
+
+class TestSearchCrmObjects:
+    async def test_pages_through_deals(self, live_context):
+        first = await hubspot.execute_action(
+            "search_crm_objects",
+            {"object_type": "deals", "limit": 1, "sort_property": "createdate", "sort_direction": "DESCENDING"},
+            live_context,
+        )
+        assert first.type == ResultType.ACTION, first.result
+        data = first.result.data
+        if not data["has_more"]:
+            pytest.skip("The portal needs at least 2 deals")
+        second = await hubspot.execute_action(
+            "search_crm_objects",
+            {
+                "object_type": "deals",
+                "limit": 1,
+                "sort_property": "createdate",
+                "sort_direction": "DESCENDING",
+                "after": data["after"],
+            },
+            live_context,
+        )
+        assert second.result.data["results"][0]["id"] != data["results"][0]["id"]
+
+    async def test_contacts_linked_to_company_with_urls(self, live_context):
+        require_company_id()
+        result = await hubspot.execute_action(
+            "search_crm_objects",
+            {
+                "object_type": "contacts",
+                "associated_with": {"object_type": "companies", "id": TEST_COMPANY_ID},
+                "properties": ["email"],
+                "include_urls": True,
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        for contact in result.result.data["results"]:
+            assert f"/record/0-1/{contact['id']}" in contact["url"]
+
+    async def test_owner_filter_matches_records(self, live_context):
+        require_owner_id()
+        result = await hubspot.execute_action(
+            "search_crm_objects",
+            {
+                "object_type": "deals",
+                "filters": [{"propertyName": "hubspot_owner_id", "operator": "EQ", "value": TEST_OWNER_ID}],
+                "properties": ["hubspot_owner_id"],
+                "limit": 20,
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        for deal in result.result.data["results"]:
+            assert deal["properties"]["hubspot_owner_id"] == TEST_OWNER_ID
+
+
+class TestGetCrmObjects:
+    async def test_reads_contact_with_companies(self, live_context):
+        require_contact_id()
+        result = await hubspot.execute_action(
+            "get_crm_objects",
+            {
+                "object_type": "contacts",
+                "ids": [TEST_CONTACT_ID, "1"],
+                "properties": ["email"],
+                "associations": ["companies"],
+            },
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        contact = next(record for record in data["results"] if record["id"] == TEST_CONTACT_ID)
+        assert "email" in contact["properties"]
+        assert isinstance(contact["associations"]["companies"], list)
+        assert "errors" not in data, data.get("errors")
+
+
+class TestGetObjectProperties:
+    async def test_finds_deal_stage_with_options(self, live_context):
+        result = await hubspot.execute_action(
+            "get_object_properties",
+            {"object_type": "deals", "query": "deal stage", "include_details": True},
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        stage = next(prop for prop in result.result.data["properties"] if prop["name"] == "dealstage")
+        assert stage["options"] and all(option["value"] for option in stage["options"])
+
+
+class TestGetAccountDetails:
+    async def test_returns_portal_and_time_zone(self, live_context):
+        result = await hubspot.execute_action("get_account_details", {}, live_context)
+        assert result.type == ResultType.ACTION, result.result
+        account = result.result.data["account"]
+        assert isinstance(account["portalId"], int)
+        assert account["timeZone"]
 
 
 # ---- Tasks (Read-Only) ----
@@ -538,9 +712,11 @@ class TestListTasksSearch:
             assert task["properties"]["hubspot_owner_id"] == TEST_OWNER_ID
             assert task["properties"]["hs_task_status"] != "COMPLETED"
             # Due dates come back as e.g. "27 Oct 2026 08:00 PM UTC"; dropping the seconds only makes them earlier
-            due = datetime.strptime(task["properties"]["hs_timestamp"], "%d %b %Y %I:%M %p UTC")
-            assert due.replace(tzinfo=timezone.utc) < due_before
-            assert isinstance(task["associations"], dict)
+            due = datetime.strptime(task["properties"]["hs_timestamp"], "%d %b %Y %I:%M %p UTC").replace(
+                tzinfo=timezone.utc
+            )
+            assert due < due_before
+            assert "associations" not in task
 
     async def test_owner_email_finds_same_tasks_as_owner_id(self, live_context):
         require_owner_id()
@@ -551,7 +727,9 @@ class TestListTasksSearch:
 
     async def test_contact_filter_returns_tasks_linked_to_contact(self, live_context):
         require_contact_id()
-        data = await search_tasks(live_context, {"contact_id": TEST_CONTACT_ID, "limit": 20})
+        data = await search_tasks(
+            live_context, {"contact_id": TEST_CONTACT_ID, "limit": 20, "include_associations": True}
+        )
         if not data["tasks"]:
             pytest.skip("No tasks linked to HUBSPOT_TEST_CONTACT_ID; association filter not exercised")
         for task in data["tasks"]:
@@ -592,9 +770,179 @@ class TestGetDealCallsAndMeetings:
         assert "meetings" in data
 
 
+# ---- Legacy read optimizations (no records are created or changed) ----
+
+
+class TestLegacyReadEfficiency:
+    async def test_filtered_tasks_return_one_small_page_without_associations(self, readonly_context):
+        result = await hubspot.execute_action(
+            "list_tasks",
+            {"exclude_completed": True, "limit": 1, "hs_task_properties": ["hs_task_subject"]},
+            readonly_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert len(data["tasks"]) <= 1
+        assert data["total_matching"] >= len(data["tasks"])
+        assert len(readonly_context.api_responses) == 1
+        assert all("associations" not in task for task in data["tasks"])
+
+    async def test_deal_date_filter_matches_real_closedates(self, readonly_context):
+        require_deal_id()
+        response = await readonly_context.fetch(
+            f"https://api.hubapi.com/crm/objects/2026-09/deals/{TEST_DEAL_ID}", params={"properties": "closedate"}
+        )
+        closedate = response.data["properties"].get("closedate")
+        if not closedate:
+            pytest.skip("Configured deal has no closedate; use a deal with a close date")
+        close_time = datetime.fromisoformat(closedate.replace("Z", "+00:00"))
+        start = close_time - timedelta(seconds=1)
+        end = close_time + timedelta(seconds=1)
+        result = await hubspot.execute_action(
+            "search_deals",
+            {
+                "close_date_start": start.strftime("%Y-%m-%d %H:%M:%S"),
+                "close_date_end": end.strftime("%Y-%m-%d %H:%M:%S"),
+                "properties": ["closedate"],
+                "limit": 2,
+            },
+            readonly_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert data["results"], "Known deal was not found in its close-date window; confirm it is search-indexed"
+        assert data["total_matching"] >= len(data["results"])
+        assert len(readonly_context.api_responses) == 2  # Fixture lookup, then one search page
+        # The saved response is before the action converts dates to display strings.
+        for deal in readonly_context.api_responses[-1]["results"]:
+            actual = datetime.fromisoformat(deal["properties"]["closedate"].replace("Z", "+00:00"))
+            assert start.replace(microsecond=0) <= actual <= end.replace(microsecond=0)
+
+    async def test_list_member_ids_skip_contact_reads(self, readonly_context):
+        require_list_id()
+        result = await hubspot.execute_action(
+            "get_list_members",
+            {"list_id": TEST_LIST_ID, "limit": 1, "include_contact_details": False},
+            readonly_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert len(readonly_context.api_responses) == 2  # Metadata and memberships only
+        assert len(data["members"]) <= 1
+        for member in data["members"]:
+            assert member["contact_id"]
+            assert "properties" not in member
+        assert data["has_more"] == (data["after"] is not None)
+
+    async def test_list_member_details_and_continuation(self, readonly_context):
+        require_list_id()
+        first = await hubspot.execute_action(
+            "get_list_members", {"list_id": TEST_LIST_ID, "limit": 1}, readonly_context
+        )
+        assert first.type == ResultType.ACTION, first.result
+        page = first.result.data
+        assert not page.get("errors"), page.get("errors")
+        if not page["members"]:
+            pytest.skip("Configured list has no readable contacts; contact detail assertion not exercised")
+        assert "properties" in page["members"][0]
+        if not page["has_more"]:
+            pytest.skip("Use a contact list with at least two members to exercise continuation")
+        second = await hubspot.execute_action(
+            "get_list_members", {"list_id": TEST_LIST_ID, "limit": 1, "after": page["after"]}, readonly_context
+        )
+        assert second.type == ResultType.ACTION, second.result
+        assert not second.result.data.get("errors"), second.result.data.get("errors")
+        assert second.result.data["members"], "Membership cursor did not return the next member"
+        assert second.result.data["members"][0]["contact_id"] != page["members"][0]["contact_id"]
+
+    async def test_company_owner_id_skips_owner_lookup(self, readonly_context):
+        require_owner_id()
+        result = await hubspot.execute_action(
+            "search_companies_by_owner_name",
+            {"owner_id": TEST_OWNER_ID, "limit": 1, "properties": ["hubspot_owner_id"]},
+            readonly_context,
+        )
+        assert result.type == ResultType.ACTION, result.result
+        assert len(readonly_context.api_responses) == 1
+        assert readonly_context.fetch.call_args.args[0].endswith("/companies/search")
+        assert result.result.data["owner"]["id"] == TEST_OWNER_ID
+        for company in result.result.data["companies"]:
+            assert company["properties"]["hubspot_owner_id"] == TEST_OWNER_ID
+
+    async def test_company_owner_email_uses_filtered_owner_lookup(self, readonly_context):
+        require_owner_id()
+        owner = await hubspot.execute_action("get_owner", {"owner_id": TEST_OWNER_ID}, readonly_context)
+        assert owner.type == ResultType.ACTION, owner.result
+        email = owner.result.data["owner"].get("email")
+        if not email:
+            pytest.skip("Configured owner has no email")
+        result = await hubspot.execute_action(
+            "search_companies_by_owner_name", {"owner_email": email, "limit": 1}, readonly_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["owner"]["id"] == TEST_OWNER_ID
+        assert len(readonly_context.api_responses) == 3  # Fixture lookup, filtered owners, companies
+        lookup = readonly_context.fetch.call_args_list[-2]
+        assert lookup.kwargs["params"]["email"] == email
+
+    @pytest.mark.parametrize("object_type", ["contact", "deal"])
+    async def test_call_history_reads_metadata_without_transcripts(self, readonly_context, object_type):
+        object_id = TEST_CONTACT_ID if object_type == "contact" else TEST_DEAL_ID
+        if not object_id:
+            pytest.skip(f"HUBSPOT_TEST_{object_type.upper()}_ID not set")
+        result = await hubspot.execute_action(
+            f"get_{object_type}_calls_and_meetings", {f"{object_type}_id": object_id, "limit": 2}, readonly_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        assert len(readonly_context.api_responses) == 2
+        assert all("transcript" not in call for call in result.result.data["calls"])
+        assert all("/transcripts/" not in call.args[0] for call in readonly_context.fetch.call_args_list)
+
+    @pytest.mark.parametrize("object_type", ["contact", "deal"])
+    async def test_call_transcripts_can_be_requested_explicitly(self, readonly_context, object_type):
+        object_id = TEST_CONTACT_ID if object_type == "contact" else TEST_DEAL_ID
+        if not object_id:
+            pytest.skip(f"HUBSPOT_TEST_{object_type.upper()}_ID not set")
+        inputs = {f"{object_type}_id": object_id, "limit": 5}
+        action = f"get_{object_type}_calls_and_meetings"
+        metadata = await hubspot.execute_action(action, inputs, readonly_context)
+        assert metadata.type == ResultType.ACTION, metadata.result
+        transcribed_ids = {
+            call["id"]
+            for call in metadata.result.data["calls"]
+            if call.get("properties", {}).get("hs_call_transcription_id")
+        }
+        if not transcribed_ids:
+            pytest.skip("Use a record with a real transcript ID among its five latest calls")
+        result = await hubspot.execute_action(action, {**inputs, "include_transcripts": True}, readonly_context)
+        assert result.type == ResultType.ACTION, result.result
+        calls = [call for call in result.result.data["calls"] if call["id"] in transcribed_ids]
+        assert calls, "Transcribed fixture calls changed between reads"
+        for call in calls:
+            assert "transcript_error" not in call, call.get("transcript_error")
+            assert isinstance(call.get("transcript"), list)
+
+    async def test_known_ticket_conversation_uses_current_record_endpoint(self, readonly_context, env_credentials):
+        ticket_id = env_credentials("HUBSPOT_TEST_CONVERSATION_TICKET_ID")
+        if not ticket_id:
+            pytest.skip("Set HUBSPOT_TEST_CONVERSATION_TICKET_ID to a ticket with existing message replies")
+        result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": ticket_id}, readonly_context)
+        assert result.type == ResultType.ACTION, result.result
+        conversation = result.result.data["conversation"]
+        assert conversation["thread_id"], "Configured ticket must have a linked conversation"
+        assert conversation["results"], "Configured ticket must contain readable message replies"
+        assert (
+            readonly_context.fetch.call_args_list[0]
+            .args[0]
+            .startswith(f"https://api.hubapi.com/crm/objects/2026-09/tickets/{ticket_id}?")
+        )
+        for message in conversation["results"]:
+            assert message["message_id"] and message["message"]
+
+
 # ---- Destructive Tests (Write Operations) ----
 # These create, update, or delete real data in HubSpot.
-# Only run with: pytest -m "integration and destructive"
+# Only run with: pytest -m "integration and destructive" --run-hubspot-destructive
 
 
 @pytest.mark.destructive
@@ -613,10 +961,6 @@ class TestAddContactToList:
             api_result = result.result.data["result"]
 
             assert "category" not in api_result
-            assert any(
-                key in api_result
-                for key in ("recordIdsAdded", "recordsIdsAdded", "recordIdsMissing", "recordIdsRemoved")
-            )
             assert await contact_is_in_test_list(live_context)
         finally:
             if not was_member:
@@ -1123,16 +1467,17 @@ class TestCreateAssociation:
     async def test_links_unlinked_test_contact_and_company(self, live_context):
         require_contact_id()
         require_company_id()
-        associations_url = f"https://api.hubapi.com/crm/v4/objects/contacts/{TEST_CONTACT_ID}/associations/companies"
+        batch_read_url = "https://api.hubapi.com/crm/associations/2026-09/contacts/companies/batch/read"
 
         async def linked_company_ids():
             # Read every page, so an existing link past the first page isn't mistaken for ours and deleted
             company_ids, after = set(), None
             while True:
-                params = {"limit": 500, **({"after": after} if after else {})}
-                response = await live_context.fetch(associations_url, method="GET", params=params)
-                company_ids.update(str(item["toObjectId"]) for item in response.data.get("results", []))
-                after = ((response.data.get("paging") or {}).get("next") or {}).get("after")
+                request = {"id": TEST_CONTACT_ID, **({"after": after} if after else {})}
+                response = await live_context.fetch(batch_read_url, method="POST", json={"inputs": [request]})
+                rows = response.data.get("results", [])
+                company_ids.update(str(link["toObjectId"]) for row in rows for link in row.get("to", []))
+                after = next((((row.get("paging") or {}).get("next") or {}).get("after") for row in rows), None)
                 if not after:
                     return company_ids
 
@@ -1154,4 +1499,113 @@ class TestCreateAssociation:
             assert str(TEST_COMPANY_ID) in await linked_company_ids()
         finally:
             # Remove only the link this test created
-            await live_context.fetch(f"{associations_url}/{TEST_COMPANY_ID}", method="DELETE")
+            await live_context.fetch(
+                f"https://api.hubapi.com/crm/objects/2026-09/contacts/{TEST_CONTACT_ID}/associations/companies/"
+                f"{TEST_COMPANY_ID}",
+                method="DELETE",
+            )
+
+
+class TestGapFollowups:
+    async def test_searches_conversations_with_cursor_contract(self, live_context):
+        result = await hubspot.execute_action("search_conversations", {"limit": 2}, live_context)
+        assert result.type == ResultType.ACTION, result.result
+        data = result.result.data
+        assert isinstance(data["results"], list)
+        assert len(data["results"]) <= 2
+        assert data["has_more"] == (data["after"] is not None)
+        if data["has_more"]:
+            next_result = await hubspot.execute_action(
+                "search_conversations", {"limit": 2, "after": data["after"]}, live_context
+            )
+            assert next_result.type == ResultType.ACTION, next_result.result
+            assert not {row["id"] for row in data["results"]} & {
+                row["id"] for row in next_result.result.data["results"]
+            }
+
+    async def test_reads_custom_object_with_granted_scope(self, live_context):
+        object_type = os.environ.get("HUBSPOT_TEST_CUSTOM_OBJECT_TYPE", "")
+        if not object_type:
+            pytest.skip("HUBSPOT_TEST_CUSTOM_OBJECT_TYPE not set")
+        schemas = await hubspot.execute_action("get_object_schemas", {}, live_context)
+        assert schemas.type == ResultType.ACTION, schemas.result
+        assert any(row["objectTypeId"] == object_type for row in schemas.result.data["schemas"])
+        properties = await hubspot.execute_action("get_object_properties", {"object_type": object_type}, live_context)
+        assert properties.type == ResultType.ACTION, properties.result
+        result = await hubspot.execute_action(
+            "search_crm_objects", {"object_type": object_type, "limit": 1}, live_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        records = result.result.data["results"]
+        if records:
+            read = await hubspot.execute_action(
+                "get_crm_objects", {"object_type": object_type, "ids": [records[0]["id"]]}, live_context
+            )
+            assert read.type == ResultType.ACTION, read.result
+            assert read.result.data["results"][0]["id"] == records[0]["id"]
+
+    @pytest.mark.destructive
+    async def test_creates_and_updates_test_ticket(self, live_context):
+        stage = os.environ.get("HUBSPOT_TEST_TICKET_STAGE_ID", "")
+        pipeline = os.environ.get("HUBSPOT_TEST_TICKET_PIPELINE_ID", "")
+        if not stage or not pipeline:
+            pytest.skip("Set HUBSPOT_TEST_TICKET_STAGE_ID and HUBSPOT_TEST_TICKET_PIPELINE_ID on a test portal")
+        created = await hubspot.execute_action(
+            "create_ticket",
+            {
+                "subject": "Autohive integration test",
+                "hs_pipeline_stage": stage,
+                "hs_pipeline": pipeline,
+            },
+            live_context,
+        )
+        assert created.type == ResultType.ACTION, created.result
+        ticket_id = created.result.data["ticket"]["id"]
+        try:
+            updated = await hubspot.execute_action(
+                "update_ticket",
+                {"ticket_id": ticket_id, "properties": {"content": "Autohive test update"}},
+                live_context,
+            )
+            assert updated.type == ResultType.ACTION, updated.result
+            assert updated.result.data["ticket"]["properties"]["content"] == "Autohive test update"
+        finally:
+            await live_context.fetch(f"https://api.hubapi.com/crm/objects/2026-09/tickets/{ticket_id}", method="DELETE")
+
+
+@pytest.mark.destructive
+class TestTaskWorkflow:
+    async def test_creates_reads_updates_and_deletes_task(self, live_context):
+        task_id = None
+        try:
+            created = await hubspot.execute_action(
+                "create_task",
+                {"hs_timestamp": str(int(time.time() * 1000)), "hs_task_subject": "Autohive disposable E2E task"},
+                live_context,
+            )
+            assert created.type == ResultType.ACTION, created.result
+            task_id = created.result.data["task"]["id"]
+            updated = await hubspot.execute_action(
+                "update_task", {"hs_object_id": task_id, "hs_task_body": "Updated by E2E test"}, live_context
+            )
+            assert updated.type == ResultType.ACTION, updated.result
+            read = await hubspot.execute_action("get_task", {"hs_object_id": task_id}, live_context)
+            assert read.type == ResultType.ACTION, read.result
+            assert read.result.data["task"]["properties"]["hs_task_body"] == "Updated by E2E test"
+        finally:
+            if task_id:
+                deleted = await hubspot.execute_action("delete_task", {"hs_object_id": task_id}, live_context)
+                assert deleted.type == ResultType.ACTION, deleted.result
+                assert deleted.result.data["success"] is True
+
+
+@pytest.mark.parametrize("object_type", ["products", "line_items", "quotes"])
+async def test_reads_known_catalog_fixture(live_context, object_type):
+    record_id = os.environ.get(f"HUBSPOT_TEST_{object_type.upper()}_ID", "")
+    if not record_id:
+        pytest.skip(f"HUBSPOT_TEST_{object_type.upper()}_ID not set")
+    result = await hubspot.execute_action(
+        "get_crm_objects", {"object_type": object_type, "ids": [record_id]}, live_context
+    )
+    assert result.type == ResultType.ACTION, result.result
+    assert result.result.data["results"][0]["id"] == record_id

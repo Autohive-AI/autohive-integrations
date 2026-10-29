@@ -72,6 +72,46 @@ class TestGetContact:
         assert sleep_mock.await_count == 3
 
     @pytest.mark.asyncio
+    async def test_contact_read_by_id(self, mock_context):
+        contact_data = {"id": "123", "properties": {"email": "test@example.com", "jobtitle": "CTO"}}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=contact_data)
+
+        result = await hubspot.execute_action(
+            "get_contact",
+            {"contact_id": "123", "email": "other@example.com", "properties": ["email", "jobtitle"]},
+            mock_context,
+        )
+
+        assert result.result.data["contact"] == contact_data
+        call = mock_context.fetch.call_args
+        assert call.args[0] == "https://api.hubapi.com/crm/objects/2026-09/contacts/123"
+        assert call.kwargs["params"] == {"properties": "email,jobtitle"}
+
+    @pytest.mark.asyncio
+    async def test_unknown_contact_id_not_found(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "Not found")
+
+        result = await hubspot.execute_action("get_contact", {"contact_id": "999"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Contact not found"
+
+    @pytest.mark.asyncio
+    async def test_contact_id_or_email_required(self, mock_context):
+        result = await hubspot.execute_action("get_contact", {"properties": ["email"]}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Give contact_id or email"
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_contact_id_cannot_change_the_path(self, mock_context):
+        result = await hubspot.execute_action("get_contact", {"contact_id": "1/../../owners"}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_contact_not_found(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
 
@@ -248,170 +288,79 @@ class TestGetContactNotes:
 # ---- GetContactEmails ----
 
 
+EMAILS_SEARCH_URL = "https://api.hubapi.com/crm/objects/2026-09/emails/search"
+
+
+def emails_found(*emails):
+    return FetchResponse(status=200, headers={}, data={"total": len(emails), "results": list(emails)})
+
+
+def email(email_id, timestamp):
+    return {"id": email_id, "properties": {"hs_email_subject": email_id, "hs_timestamp": timestamp}}
+
+
 class TestGetContactEmails:
     @pytest.mark.asyncio
-    async def test_happy_path_with_emails(self, mock_context):
-        associations_data = {
-            "results": [
-                {"toObjectId": "email-1"},
-                {"toObjectId": "email-2"},
-            ]
-        }
-        email_1 = {
-            "id": "email-1",
-            "properties": {
-                "hs_email_subject": "Hello",
-                "hs_timestamp": "2025-04-01T12:00:00.000Z",
-                "hs_email_direction": "OUTBOUND",
-            },
-        }
-        email_2 = {
-            "id": "email-2",
-            "properties": {
-                "hs_email_subject": "Follow-up",
-                "hs_timestamp": "2025-04-02T08:00:00.000Z",
-                "hs_email_direction": "INBOUND",
-            },
-        }
-        mock_context.fetch.side_effect = [
-            FetchResponse(status=200, headers={}, data=associations_data),
-            FetchResponse(status=200, headers={}, data=email_1),
-            FetchResponse(status=200, headers={}, data=email_2),
+    async def test_searches_newest_emails_on_the_contact(self, mock_context):
+        mock_context.fetch.return_value = emails_found(email("new", "2025-04-15T12:00:00.000Z"))
+
+        await hubspot.execute_action("get_contact_emails", {"contact_id": "123", "email_limit": 3}, mock_context)
+
+        call = mock_context.fetch.call_args
+        assert call.args[0] == EMAILS_SEARCH_URL
+        body = call.kwargs["json"]
+        assert body["filterGroups"] == [
+            {"filters": [{"propertyName": "associations.contact", "operator": "EQ", "value": "123"}]}
         ]
-
-        result = await hubspot.execute_action("get_contact_emails", {"contact_id": "123"}, mock_context)
-
-        data = result.result.data
-        assert data["contact_id"] == "123"
-        assert data["email_summary"]["total_emails_retrieved"] == 2
-        # Should be sorted most recent first
-        assert data["recent_emails"][0]["id"] == "email-2"
+        # HubSpot sorts by the real timestamp, so the newest come back first across every email on the contact
+        assert body["sorts"] == [{"propertyName": "hs_timestamp", "direction": "DESCENDING"}]
+        assert body["limit"] == 3
+        assert "hs_email_subject" in body["properties"]
 
     @pytest.mark.asyncio
-    async def test_empty_associations(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+    async def test_default_limit_is_5(self, mock_context):
+        mock_context.fetch.return_value = emails_found()
 
-        result = await hubspot.execute_action("get_contact_emails", {"contact_id": "123"}, mock_context)
+        await hubspot.execute_action("get_contact_emails", {"contact_id": "123"}, mock_context)
 
-        data = result.result.data
-        assert data["recent_emails"] == []
-        assert data["email_summary"]["total_emails_retrieved"] == 0
+        assert mock_context.fetch.call_args.kwargs["json"]["limit"] == 5
 
     @pytest.mark.asyncio
-    async def test_email_fetch_failure_skipped(self, mock_context):
-        associations_data = {
-            "results": [
-                {"toObjectId": "email-ok"},
-                {"toObjectId": "email-fail"},
-            ]
-        }
-        email_ok = {
-            "id": "email-ok",
-            "properties": {
-                "hs_email_subject": "Good email",
-                "hs_timestamp": "2025-04-01T12:00:00.000Z",
-            },
-        }
-        mock_context.fetch.side_effect = [
-            FetchResponse(status=200, headers={}, data=associations_data),
-            FetchResponse(status=200, headers={}, data=email_ok),
-            Exception("Email not found"),
-        ]
-
-        result = await hubspot.execute_action("get_contact_emails", {"contact_id": "123"}, mock_context)
-
-        data = result.result.data
-        assert data["email_summary"]["total_emails_retrieved"] == 1
-
-    @pytest.mark.asyncio
-    async def test_email_limit_respected(self, mock_context):
-        associations_data = {
-            "results": [
-                {"toObjectId": "email-1"},
-                {"toObjectId": "email-2"},
-                {"toObjectId": "email-3"},
-            ]
-        }
-        email_1 = {
-            "id": "email-1",
-            "properties": {
-                "hs_email_subject": "E1",
-                "hs_timestamp": "2025-04-01T12:00:00.000Z",
-            },
-        }
-        email_2 = {
-            "id": "email-2",
-            "properties": {
-                "hs_email_subject": "E2",
-                "hs_timestamp": "2025-04-02T12:00:00.000Z",
-            },
-        }
-        mock_context.fetch.side_effect = [
-            FetchResponse(status=200, headers={}, data=associations_data),
-            FetchResponse(status=200, headers={}, data=email_1),
-            FetchResponse(status=200, headers={}, data=email_2),
-        ]
-
-        result = await hubspot.execute_action(
-            "get_contact_emails", {"contact_id": "123", "email_limit": 2}, mock_context
+    async def test_emails_returned_in_hubspot_order(self, mock_context):
+        mock_context.fetch.return_value = emails_found(
+            email("new", "2025-04-15T12:00:00.000Z"), email("old", "2025-03-30T12:00:00.000Z")
         )
 
+        result = await hubspot.execute_action("get_contact_emails", {"contact_id": "123"}, mock_context)
+
         data = result.result.data
-        assert data["email_summary"]["total_emails_retrieved"] == 2
-        # Third email should NOT have been fetched
-        assert mock_context.fetch.call_count == 3  # 1 associations + 2 emails
+        assert [e["id"] for e in data["recent_emails"]] == ["new", "old"]
+        assert data["email_summary"] == {"total_emails_retrieved": 2, "email_limit_applied": 5}
 
     @pytest.mark.asyncio
     async def test_timestamp_conversion(self, mock_context):
-        associations_data = {"results": [{"toObjectId": "email-1"}]}
-        email_1 = {
-            "id": "email-1",
-            "properties": {
-                "hs_email_subject": "Hi",
-                "hs_timestamp": "2025-04-01T12:00:00.000Z",
-            },
-        }
-        mock_context.fetch.side_effect = [
-            FetchResponse(status=200, headers={}, data=associations_data),
-            FetchResponse(status=200, headers={}, data=email_1),
-        ]
+        mock_context.fetch.return_value = emails_found(email("1", "2025-04-01T12:00:00.000Z"))
 
         result = await hubspot.execute_action("get_contact_emails", {"contact_id": "123"}, mock_context)
 
-        ts = result.result.data["recent_emails"][0]["properties"]["hs_timestamp"]
-        assert "UTC" in ts
+        assert result.result.data["recent_emails"][0]["properties"]["hs_timestamp"] == "01 Apr 2025 12:00 PM UTC"
 
     @pytest.mark.asyncio
-    async def test_emails_sorted_by_timestamp(self, mock_context):
-        associations_data = {"results": [{"toObjectId": "email-old"}, {"toObjectId": "email-new"}]}
-        email_old = {
-            "id": "email-old",
-            "properties": {
-                "hs_email_subject": "Old",
-                "hs_timestamp": "2025-03-01T12:00:00.000Z",
-            },
-        }
-        email_new = {
-            "id": "email-new",
-            "properties": {
-                "hs_email_subject": "New",
-                "hs_timestamp": "2025-04-15T12:00:00.000Z",
-            },
-        }
-        mock_context.fetch.side_effect = [
-            FetchResponse(status=200, headers={}, data=associations_data),
-            FetchResponse(status=200, headers={}, data=email_old),
-            FetchResponse(status=200, headers={}, data=email_new),
-        ]
+    async def test_no_emails(self, mock_context):
+        mock_context.fetch.return_value = emails_found()
 
         result = await hubspot.execute_action("get_contact_emails", {"contact_id": "123"}, mock_context)
 
-        emails = result.result.data["recent_emails"]
-        assert emails[0]["id"] == "email-new"
-        assert emails[1]["id"] == "email-old"
+        assert result.result.data["recent_emails"] == []
 
+    @pytest.mark.asyncio
+    async def test_http_error_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(403, "Missing scopes")
 
-# ---- CreateContact ----
+        result = await hubspot.execute_action("get_contact_emails", {"contact_id": "123"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Failed to retrieve emails: HTTP 403: Missing scopes"
 
 
 class TestCreateContact:
@@ -733,30 +682,29 @@ class TestGetRecentContacts:
     async def test_happy_path(self, mock_context):
         contacts = {
             "results": [
-                {"id": "1", "properties": {"email": "a@example.com"}},
                 {"id": "2", "properties": {"email": "b@example.com"}},
+                {"id": "1", "properties": {"email": "a@example.com"}},
             ]
         }
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=contacts)
 
         result = await hubspot.execute_action("get_recent_contacts", {"limit": 10}, mock_context)
 
-        data = result.result.data
-        assert len(data["recent_contacts"]["results"]) == 2
-        mock_context.fetch.assert_called_once()
-        url = mock_context.fetch.call_args.args[0]
-        assert "limit=10" in url
-        assert "sort=createdat" in url
+        assert [c["id"] for c in result.result.data["recent_contacts"]["results"]] == ["2", "1"]
 
     @pytest.mark.asyncio
-    async def test_request_url_with_limit(self, mock_context):
+    async def test_searches_newest_first(self, mock_context):
         mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
 
         await hubspot.execute_action("get_recent_contacts", {"limit": 25}, mock_context)
 
-        url = mock_context.fetch.call_args.args[0]
-        assert "limit=25" in url
-        assert "sort=createdat" in url
+        call = mock_context.fetch.call_args
+        assert call.args[0] == "https://api.hubapi.com/crm/v3/objects/contacts/search"
+        assert call.kwargs["method"] == "POST"
+        assert call.kwargs["json"] == {
+            "sorts": [{"propertyName": "createdate", "direction": "DESCENDING"}],
+            "limit": 25,
+        }
 
     @pytest.mark.asyncio
     async def test_default_limit(self, mock_context):
@@ -764,5 +712,4 @@ class TestGetRecentContacts:
 
         await hubspot.execute_action("get_recent_contacts", {}, mock_context)
 
-        url = mock_context.fetch.call_args.args[0]
-        assert "limit=100" in url
+        assert mock_context.fetch.call_args.kwargs["json"]["limit"] == 100

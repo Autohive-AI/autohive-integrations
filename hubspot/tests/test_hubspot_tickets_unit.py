@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import FetchResponse, RateLimitError
+from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
@@ -105,7 +105,7 @@ class TestGetRecentTickets:
         assert data["tickets"]["results"][0]["properties"]["hubspot_owner_id"] == "owner-123"
 
         call_kwargs = mock_context.fetch.call_args
-        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/v3/objects/tickets/search"
+        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/objects/2026-09/tickets/search"
         assert call_kwargs.kwargs["method"] == "POST"
         body = call_kwargs.kwargs["json"]
         assert body["limit"] == 20
@@ -160,7 +160,7 @@ class TestGetRecentTickets:
         await hubspot.execute_action("get_recent_tickets", {}, mock_context)
 
         call_kwargs = mock_context.fetch.call_args
-        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/v3/objects/tickets/search"
+        assert call_kwargs.args[0] == "https://api.hubapi.com/crm/objects/2026-09/tickets/search"
         assert call_kwargs.kwargs["method"] == "POST"
 
     @pytest.mark.asyncio
@@ -346,7 +346,7 @@ class TestGetTicketConversation:
 
         assert mock_context.fetch.call_count == 2
         ticket_url = mock_context.fetch.call_args_list[0].args[0]
-        assert "/crm/v3/objects/tickets/ticket-1" in ticket_url
+        assert "/crm/objects/2026-09/tickets/ticket-1" in ticket_url
         conv_url = mock_context.fetch.call_args_list[1].args[0]
         assert "/conversations/v3/conversations/threads/thread-123/messages" in conv_url
 
@@ -460,6 +460,49 @@ class TestGetTicketConversation:
 
         conv = result.result.data["conversation"]
         assert conv["thread_id"] == "thread-123"
+
+    @pytest.mark.asyncio
+    async def test_reads_every_page(self, mock_context):
+        def page(message_id, after=None):
+            data = {"results": [{"text": message_id, "type": "MESSAGE", "createdAt": message_id, "id": message_id}]}
+            if after:
+                data["paging"] = {"next": {"after": after}}
+            return FetchResponse(status=200, headers={}, data=data)
+
+        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, page("1", after="p2"), page("2")]
+
+        result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
+
+        conv = result.result.data["conversation"]
+        assert [m["message_id"] for m in conv["results"]] == ["1", "2"]
+        assert "message" not in conv
+        assert mock_context.fetch.call_args.kwargs["params"] == {"after": "p2"}
+
+    @pytest.mark.asyncio
+    async def test_long_conversation_says_it_was_cut_short(self, mock_context):
+        page = FetchResponse(
+            status=200,
+            headers={},
+            data={"results": [{"text": "hi", "type": "MESSAGE"}], "paging": {"next": {"after": "more"}}},
+        )
+        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD] + [page] * 20
+
+        result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
+
+        conv = result.result.data["conversation"]
+        assert len(conv["results"]) == 20
+        assert conv["message"] == "Showing the first 20 pages of a longer conversation"
+
+    @pytest.mark.asyncio
+    async def test_message_read_failure_is_an_error_not_an_empty_conversation(self, mock_context):
+        mock_context.fetch.side_effect = [TICKET_RESPONSE_WITH_THREAD, HTTPError(403, "Missing scopes")]
+
+        result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "t1"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == (
+            "Failed to read the conversation for ticket t1 (thread thread-123): HTTP 403: Missing scopes"
+        )
 
 
 # ---- add_ticket_comment ----
@@ -679,3 +722,29 @@ class TestAddTicketComment:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "note was created without an id" in result.result.message
+
+
+@pytest.mark.asyncio
+async def test_ticket_conversation_retains_rich_text_only_message(mock_context):
+    mock_context.fetch.side_effect = [
+        TICKET_RESPONSE_WITH_THREAD,
+        FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "results": [
+                    {
+                        "id": "rich-1",
+                        "richText": "<p>Hello <b>there</b></p>",
+                        "createdAt": "2026-10-28T00:00:00Z",
+                        "type": "MESSAGE",
+                    }
+                ]
+            },
+        ),
+    ]
+    result = await hubspot.execute_action("get_ticket_conversation", {"ticket_id": "123"}, mock_context)
+    messages = result.result.data["conversation"]["results"]
+    assert len(messages) == 1
+    assert messages[0]["message"] == "<p>Hello <b>there</b></p>"
+    assert messages[0]["rich_text"] == messages[0]["message"]

@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from hubspot.hubspot import hubspot
@@ -180,6 +180,42 @@ class TestSearchLists:
         assert "has_more" in data
         assert data["total"] == 2
 
+    @pytest.mark.asyncio
+    async def test_next_offset_from_hubspot_has_more(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"lists": [{"listId": "1"}, {"listId": "2"}], "hasMore": True, "total": 45, "offset": 42},
+        )
+
+        result = await hubspot.execute_action("search_lists", {"count": 2, "offset": 40}, mock_context)
+
+        data = result.result.data
+        assert (data["has_more"], data["next_offset"], data["total_matching"]) == (True, 42, 45)
+
+    @pytest.mark.asyncio
+    async def test_next_offset_moves_on_when_hubspot_echoes_this_page_start(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={"lists": [{"listId": "1"}, {"listId": "2"}], "hasMore": True, "total": 45, "offset": 40},
+        )
+
+        result = await hubspot.execute_action("search_lists", {"count": 2, "offset": 40}, mock_context)
+
+        assert result.result.data["next_offset"] == 42
+
+    @pytest.mark.asyncio
+    async def test_short_last_page_has_no_next_offset(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200, headers={}, data={"lists": [{"listId": "1"}], "hasMore": False, "total": 1, "offset": 0}
+        )
+
+        result = await hubspot.execute_action("search_lists", {"count": 1}, mock_context)
+
+        # A full page used to be reported as having more
+        assert (result.result.data["has_more"], result.result.data["next_offset"]) == (False, None)
+
 
 class TestGetListMemberships:
     @pytest.mark.asyncio
@@ -302,6 +338,50 @@ class TestGetListMembers:
         assert data["members"][1]["email"] == "b@example.com"
 
     @pytest.mark.asyncio
+    async def test_failed_contact_batch_is_reported_not_dropped(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            HTTPError(502, "Bad gateway"),
+        ]
+
+        result = await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+
+        data = result.result.data
+        assert data["members"] == []
+        assert data["failed_contact_ids"] == ["101", "102"]
+        assert data["errors"] == ["HTTP 502: Bad gateway"]
+
+    @pytest.mark.asyncio
+    async def test_partial_207_contact_batch_reports_missing_member(self, mock_context):
+        mock_context.fetch.side_effect = [
+            self.LIST_META_RESPONSE,
+            self.MEMBERSHIPS_RESPONSE,
+            FetchResponse(
+                status=207,
+                headers={},
+                data={
+                    "status": "COMPLETE",
+                    "results": [{"id": "101", "properties": {"email": "a@example.com"}}],
+                    "errors": [{"category": "OBJECT_NOT_FOUND", "context": {"ids": ["102"]}}],
+                },
+            ),
+        ]
+        result = await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+        data = result.result.data
+        assert [member["contact_id"] for member in data["members"]] == ["101"]
+        assert data["failed_contact_ids"] == ["102"]
+        assert "OBJECT_NOT_FOUND" in data["errors"]
+
+    @pytest.mark.asyncio
+    async def test_no_failure_fields_when_every_batch_loads(self, mock_context):
+        mock_context.fetch.side_effect = [self.LIST_META_RESPONSE, self.MEMBERSHIPS_RESPONSE, self.CONTACTS_RESPONSE]
+
+        result = await hubspot.execute_action("get_list_members", {"list_id": "42"}, mock_context)
+
+        assert "failed_contact_ids" not in result.result.data
+
+    @pytest.mark.asyncio
     async def test_request_sequence(self, mock_context):
         mock_context.fetch.side_effect = [
             self.LIST_META_RESPONSE,
@@ -422,80 +502,160 @@ class TestGetListMembers:
 
 # ---- Associations ----
 
+ASSOCIATIONS_URL = "https://api.hubapi.com/crm/associations/2026-09"
+PRIMARY = {"category": "HUBSPOT_DEFINED", "typeId": 1, "label": "Primary"}
+
+
+def links(record_id, *to_ids, after=None, association_types=None):
+    """Return a batch association read response linking record_id to to_ids."""
+    row = {
+        "from": {"id": record_id},
+        "to": [{"toObjectId": int(to_id), "associationTypes": association_types or []} for to_id in to_ids],
+    }
+    if after:
+        row["paging"] = {"next": {"after": after}}
+    return FetchResponse(status=200, headers={}, data={"status": "COMPLETE", "results": [row]})
+
+
+def no_links():
+    """Return HubSpot's batch association read response for a record with nothing of that type linked."""
+    return FetchResponse(
+        status=207,
+        headers={},
+        data={
+            "status": "COMPLETE",
+            "results": [],
+            "errors": [{"category": "OBJECT_NOT_FOUND", "subCategory": "crm.associations.NO_ASSOCIATIONS_FOUND"}],
+        },
+    )
+
 
 class TestGetContactAssociations:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.side_effect = [
-            FetchResponse(
-                status=200,
-                headers={},
-                data={"results": [{"toObjectId": "c1"}]},
-            ),
-            FetchResponse(
-                status=200,
-                headers={},
-                data={"results": [{"toObjectId": "d1"}, {"toObjectId": "d2"}]},
-            ),
-            FetchResponse(
-                status=200,
-                headers={},
-                data={"results": []},
-            ),
-        ]
+        mock_context.fetch.side_effect = [links("100", "1"), links("100", "2", "3"), no_links()]
 
         result = await hubspot.execute_action(
             "get_contact_associations",
-            {
-                "contact_id": "100",
-                "association_types": ["companies", "deals", "meetings"],
-            },
+            {"contact_id": "100", "association_types": ["companies", "deals", "meetings"]},
             mock_context,
         )
 
         data = result.result.data
         assert data["contact_id"] == "100"
         assert data["total_associations"] == 3
-        assert data["summary"]["companies_count"] == 1
-        assert data["summary"]["deals_count"] == 2
-        assert data["summary"]["meetings_count"] == 0
+        assert data["summary"] == {"companies_count": 1, "deals_count": 2, "meetings_count": 0}
+        assert data["associations"]["meetings"] == []
+        assert data["has_more"] == {"companies": False, "deals": False, "meetings": False}
+        assert "errors" not in data
 
     @pytest.mark.asyncio
-    async def test_request_url_structure(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+    async def test_reads_links_with_the_batch_api(self, mock_context):
+        mock_context.fetch.return_value = no_links()
 
         await hubspot.execute_action(
-            "get_contact_associations",
-            {"contact_id": "55", "association_types": ["companies"]},
-            mock_context,
+            "get_contact_associations", {"contact_id": "55", "association_types": ["companies"]}, mock_context
         )
 
-        url = mock_context.fetch.call_args[0][0]
-        assert "/crm/v4/objects/contacts/55/associations/companies" in url
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{ASSOCIATIONS_URL}/contacts/companies/batch/read"
+        assert call.kwargs["method"] == "POST"
+        assert call.kwargs["json"] == {"inputs": [{"id": "55"}]}
 
     @pytest.mark.asyncio
-    async def test_response_associations_structure(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"results": [{"toObjectId": "x1"}]}
+    async def test_association_labels_returned(self, mock_context):
+        mock_context.fetch.return_value = links("55", "7", association_types=[PRIMARY])
+
+        result = await hubspot.execute_action(
+            "get_contact_associations", {"contact_id": "55", "association_types": ["companies"]}, mock_context
         )
+
+        assert result.result.data["associations"]["companies"] == [{"toObjectId": 7, "associationTypes": [PRIMARY]}]
+
+    @pytest.mark.asyncio
+    async def test_follows_paging_until_limit(self, mock_context):
+        mock_context.fetch.side_effect = [links("55", "1", "2", after="p2"), links("55", "3", "4", after="p3")]
 
         result = await hubspot.execute_action(
             "get_contact_associations",
-            {"contact_id": "55", "association_types": ["deals"]},
+            {"contact_id": "55", "association_types": ["deals"], "limit": 3},
             mock_context,
         )
 
         data = result.result.data
-        assert "associations" in data
-        assert "summary" in data
-        assert "total_associations" in data
-        assert data["associations"]["deals"] == [{"toObjectId": "x1"}]
+        assert [link["toObjectId"] for link in data["associations"]["deals"]] == [1, 2, 3]
+        assert data["has_more"] == {"deals": True}
+        assert mock_context.fetch.call_count == 2
+        assert mock_context.fetch.call_args.kwargs["json"] == {"inputs": [{"id": "55", "after": "p2"}]}
 
     @pytest.mark.asyncio
-    async def test_exception_handling(self, mock_context):
+    async def test_reads_every_page_within_limit(self, mock_context):
+        mock_context.fetch.side_effect = [links("55", "1", after="p2"), links("55", "2")]
+
+        result = await hubspot.execute_action(
+            "get_contact_associations", {"contact_id": "55", "association_types": ["deals"]}, mock_context
+        )
+
+        data = result.result.data
+        assert data["summary"]["deals_count"] == 2
+        assert data["has_more"] == {"deals": False}
+
+    @pytest.mark.asyncio
+    async def test_404_means_no_links(self, mock_context):
+        mock_context.fetch.side_effect = [HTTPError(404, "Not found"), links("55", "1")]
+
+        result = await hubspot.execute_action(
+            "get_contact_associations",
+            {"contact_id": "55", "association_types": ["deals", "companies"]},
+            mock_context,
+        )
+
+        data = result.result.data
+        assert data["associations"] == {"deals": [], "companies": [{"toObjectId": 1, "associationTypes": []}]}
+        assert "errors" not in data
+
+    @pytest.mark.asyncio
+    async def test_cursor_that_never_ends_stops_after_20_requests(self, mock_context):
+        mock_context.fetch.return_value = links("55", "1", after="same")
+
+        result = await hubspot.execute_action(
+            "get_contact_associations",
+            {"contact_id": "55", "association_types": ["deals"], "limit": 500},
+            mock_context,
+        )
+
+        assert mock_context.fetch.call_count == 20
+        assert result.result.data["summary"] == {"deals_count": 20}
+        assert result.result.data["has_more"] == {"deals": True}
+
+    @pytest.mark.asyncio
+    async def test_failed_type_reported_instead_of_empty(self, mock_context):
+        mock_context.fetch.side_effect = [HTTPError(403, "Missing scopes"), links("55", "1")]
+
+        result = await hubspot.execute_action(
+            "get_contact_associations",
+            {"contact_id": "55", "association_types": ["tickets", "deals"]},
+            mock_context,
+        )
+
+        data = result.result.data
+        assert "tickets" not in data["associations"]
+        assert "Missing scopes" in data["errors"]["tickets"]
+        assert data["summary"] == {"deals_count": 1}
+
+    @pytest.mark.asyncio
+    async def test_embedded_error_is_reported(self, mock_context):
         mock_context.fetch.side_effect = [
-            Exception("API error"),
-            FetchResponse(status=200, headers={}, data={"results": [{"toObjectId": "d1"}]}),
+            FetchResponse(
+                status=207,
+                headers={},
+                data={
+                    "status": "COMPLETE",
+                    "results": [],
+                    "errors": [{"category": "RATE_LIMITS", "message": "Slow down"}],
+                },
+            ),
+            links("55", "1"),
         ]
 
         result = await hubspot.execute_action(
@@ -504,113 +664,54 @@ class TestGetContactAssociations:
             mock_context,
         )
 
-        data = result.result.data
-        assert data["summary"]["companies_count"] == 0
-        assert data["associations"]["companies"] == []
-        assert data["summary"]["deals_count"] == 1
+        assert result.result.data["errors"] == {"companies": "Could not read linked companies: Slow down"}
+
+    @pytest.mark.asyncio
+    async def test_every_type_failing_is_an_action_error(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(403, "Missing scopes")
+
+        result = await hubspot.execute_action(
+            "get_contact_associations",
+            {"contact_id": "55", "association_types": ["companies", "deals"]},
+            mock_context,
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "companies:" in result.result.message
+        assert "deals:" in result.result.message
 
 
 class TestGetCompanyAssociations:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.side_effect = [
-            FetchResponse(
-                status=200,
-                headers={},
-                data={"results": [{"toObjectId": "c1"}, {"toObjectId": "c2"}]},
-            ),
-            FetchResponse(
-                status=200,
-                headers={},
-                data={"results": [{"toObjectId": "d1"}]},
-            ),
-            FetchResponse(
-                status=200,
-                headers={},
-                data={"results": []},
-            ),
-        ]
+        mock_context.fetch.side_effect = [links("200", "1", "2"), links("200", "3"), no_links()]
 
         result = await hubspot.execute_action(
             "get_company_associations",
-            {
-                "company_id": "200",
-                "association_types": ["contacts", "deals", "tickets"],
-            },
+            {"company_id": "200", "association_types": ["contacts", "deals", "tickets"]},
             mock_context,
         )
 
         data = result.result.data
         assert data["company_id"] == "200"
         assert data["total_associations"] == 3
-        assert data["summary"]["contacts_count"] == 2
-        assert data["summary"]["deals_count"] == 1
-        assert data["summary"]["tickets_count"] == 0
+        assert data["summary"] == {"contacts_count": 2, "deals_count": 1, "tickets_count": 0}
 
     @pytest.mark.asyncio
-    async def test_request_url_structure(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+    async def test_reads_company_links(self, mock_context):
+        mock_context.fetch.return_value = no_links()
 
         await hubspot.execute_action(
-            "get_company_associations",
-            {"company_id": "200", "association_types": ["contacts"]},
-            mock_context,
+            "get_company_associations", {"company_id": "200", "association_types": ["contacts"]}, mock_context
         )
 
-        url = mock_context.fetch.call_args[0][0]
-        assert "/crm/v4/objects/companies/200/associations/contacts" in url
-
-    @pytest.mark.asyncio
-    async def test_response_associations_structure(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"results": [{"toObjectId": "c1"}]}
-        )
-
-        result = await hubspot.execute_action(
-            "get_company_associations",
-            {"company_id": "200", "association_types": ["deals"]},
-            mock_context,
-        )
-
-        data = result.result.data
-        assert "associations" in data
-        assert "summary" in data
-        assert data["associations"]["deals"] == [{"toObjectId": "c1"}]
-
-    @pytest.mark.asyncio
-    async def test_exception_handling(self, mock_context):
-        mock_context.fetch.side_effect = [
-            Exception("timeout"),
-            FetchResponse(status=200, headers={}, data={"results": []}),
-        ]
-
-        result = await hubspot.execute_action(
-            "get_company_associations",
-            {"company_id": "200", "association_types": ["contacts", "deals"]},
-            mock_context,
-        )
-
-        data = result.result.data
-        assert data["summary"]["contacts_count"] == 0
-        assert data["associations"]["contacts"] == []
-        assert data["summary"]["deals_count"] == 0
+        assert mock_context.fetch.call_args.args[0] == f"{ASSOCIATIONS_URL}/companies/contacts/batch/read"
 
 
 class TestGetDealAssociations:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.side_effect = [
-            FetchResponse(
-                status=200,
-                headers={},
-                data={"results": [{"toObjectId": "c1"}]},
-            ),
-            FetchResponse(
-                status=200,
-                headers={},
-                data={"results": [{"toObjectId": "co1"}]},
-            ),
-        ]
+        mock_context.fetch.side_effect = [links("300", "1"), links("300", "2")]
 
         result = await hubspot.execute_action(
             "get_deal_associations",
@@ -621,56 +722,51 @@ class TestGetDealAssociations:
         data = result.result.data
         assert data["deal_id"] == "300"
         assert data["total_associations"] == 2
-        assert data["summary"]["contacts_count"] == 1
-        assert data["summary"]["companies_count"] == 1
+        assert data["summary"] == {"contacts_count": 1, "companies_count": 1}
 
     @pytest.mark.asyncio
-    async def test_request_url_structure(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": []})
+    async def test_reads_deal_links(self, mock_context):
+        mock_context.fetch.return_value = no_links()
 
         await hubspot.execute_action(
-            "get_deal_associations",
-            {"deal_id": "300", "association_types": ["companies"]},
-            mock_context,
+            "get_deal_associations", {"deal_id": "300", "association_types": ["companies"]}, mock_context
         )
 
-        url = mock_context.fetch.call_args[0][0]
-        assert "/crm/v4/objects/deals/300/associations/companies" in url
+        assert mock_context.fetch.call_args.args[0] == f"{ASSOCIATIONS_URL}/deals/companies/batch/read"
 
+
+class TestGetAssociationLabels:
     @pytest.mark.asyncio
-    async def test_response_associations_structure(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"results": [{"toObjectId": "co1"}]}
-        )
+    async def test_lists_labels(self, mock_context):
+        architect = {"category": "USER_DEFINED", "typeId": 42, "label": "Architect"}
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": [PRIMARY, architect]})
 
         result = await hubspot.execute_action(
-            "get_deal_associations",
-            {"deal_id": "300", "association_types": ["contacts"]},
-            mock_context,
+            "get_association_labels", {"from_object_type": "deals", "to_object_type": "contacts"}, mock_context
         )
 
-        data = result.result.data
-        assert "associations" in data
-        assert "summary" in data
-        assert data["associations"]["contacts"] == [{"toObjectId": "co1"}]
+        assert result.result.data == {"labels": [PRIMARY, architect], "total": 2}
+        assert mock_context.fetch.call_args.args[0] == f"{ASSOCIATIONS_URL}/deals/contacts/labels"
 
     @pytest.mark.asyncio
-    async def test_exception_handling(self, mock_context):
-        mock_context.fetch.side_effect = [
-            Exception("server error"),
-            FetchResponse(status=200, headers={}, data={"results": [{"toObjectId": "c1"}]}),
-        ]
+    async def test_http_error_returns_action_error(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(400, "Unknown object type")
 
         result = await hubspot.execute_action(
-            "get_deal_associations",
-            {"deal_id": "300", "association_types": ["contacts", "companies"]},
-            mock_context,
+            "get_association_labels", {"from_object_type": "deals", "to_object_type": "widgets"}, mock_context
         )
 
-        data = result.result.data
-        assert data["summary"]["contacts_count"] == 0
-        assert data["associations"]["contacts"] == []
-        assert data["summary"]["companies_count"] == 1
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Unknown object type" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_object_type_cannot_change_the_path(self, mock_context):
+        result = await hubspot.execute_action(
+            "get_association_labels", {"from_object_type": "deals/../x", "to_object_type": "contacts"}, mock_context
+        )
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
 
 
 # ---- Owner ----
@@ -885,6 +981,21 @@ class TestGetCampaigns:
 
         params = mock_context.fetch.call_args[1]["params"]
         assert params["limit"] == 10
+
+    @pytest.mark.asyncio
+    async def test_sort_by_creation_time(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"results": [], "total": 0})
+
+        await hubspot.execute_action("get_campaigns", {"sort": "-createdAt"}, mock_context)
+
+        assert mock_context.fetch.call_args.kwargs["params"]["sort"] == "-createdAt"
+
+    @pytest.mark.asyncio
+    async def test_sort_hubspot_does_not_support_rejected_by_schema(self, mock_context):
+        result = await hubspot.execute_action("get_campaigns", {"sort": "-hs_start_date"}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_response_structure(self, mock_context):

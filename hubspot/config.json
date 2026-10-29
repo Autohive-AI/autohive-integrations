@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "3.6.0",
+  "version": "4.0.0",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -23,19 +23,29 @@
       "sales-email-read",
       "content",
       "marketing.campaigns.read",
-      "crm.extensions_calling_transcripts.read"
+      "crm.extensions_calling_transcripts.read",
+      "crm.objects.custom.read",
+      "crm.schemas.custom.read",
+      "crm.objects.line_items.read",
+      "crm.objects.quotes.read",
+      "crm.objects.products.read"
     ]
   },
   "actions": {
     "get_contact": {
       "display_name": "Get Contact",
-      "description": "Retrieve a HubSpot contact by email address using CRM v3 API. Supports custom properties.",
+      "description": "Retrieve a HubSpot contact by ID or email address. Supports custom properties. Use the ID for contacts linked to tasks, deals or companies",
       "input_schema": {
         "type": "object",
         "properties": {
+          "contact_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "HubSpot contact ID. Takes precedence over email"
+          },
           "email": {
             "type": "string",
-            "description": "Email address of the contact to retrieve"
+            "description": "Email address of the contact to retrieve, when contact_id isn't known"
           },
           "properties": {
             "type": "array",
@@ -44,10 +54,7 @@
             },
             "description": "Optional list of specific properties to retrieve (including custom properties). If not provided, returns standard properties (email, firstname, lastname, phone, company, jobtitle)."
           }
-        },
-        "required": [
-          "email"
-        ]
+        }
       },
       "output_schema": {
         "type": "object",
@@ -157,6 +164,10 @@
               "type": "string"
             },
             "description": "List of note properties to retrieve (default: hs_note_body, hs_timestamp, hubspot_owner_id, hs_createdate, hs_lastmodifieddate)"
+          },
+          "after": {
+            "type": "string",
+            "description": "Cursor from a previous call's after output, to get the next page of older notes"
           }
         },
         "required": [
@@ -230,6 +241,21 @@
           "error": {
             "type": "string",
             "description": "Error message if note retrieval failed"
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Notes on the record across all pages"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether there are more (older) notes"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor for the next page; null on the last page"
           }
         },
         "required": [
@@ -1066,9 +1092,9 @@
         "properties": {
           "limit": {
             "type": "integer",
-            "description": "Maximum number of tasks to retrieve (default: 100, max: 100)",
+            "description": "Maximum number of tasks per page (default: 100). Up to 200 when filtering; 100 otherwise",
             "minimum": 1,
-            "maximum": 100
+            "maximum": 200
           },
           "after": {
             "type": "string",
@@ -1164,6 +1190,11 @@
               "ASCENDING",
               "DESCENDING"
             ]
+          },
+          "include_associations": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include linked contact, company and deal IDs. Default false; filtered searches make at least three extra API requests when enabled."
           }
         }
       },
@@ -1172,7 +1203,7 @@
         "properties": {
           "tasks": {
             "type": "array",
-            "description": "List of retrieved tasks, each with associations.contacts/companies/deals listing linked record IDs",
+            "description": "Retrieved tasks; associations are included only when include_associations is true",
             "items": {
               "type": "object"
             }
@@ -1214,7 +1245,7 @@
     },
     "get_contact_emails": {
       "display_name": "Get Contact Emails",
-      "description": "Retrieve recent email conversations for a HubSpot contact using v4 associations API",
+      "description": "Retrieve a HubSpot contact's most recent logged emails, newest first",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1925,13 +1956,13 @@
     },
     "get_recent_contacts": {
       "display_name": "Get Recent Contacts",
-      "description": "Retrieve recently created contacts from HubSpot using CRM v3 API, sorted by creation date",
+      "description": "Retrieve the most recently created HubSpot contacts, newest first",
       "input_schema": {
         "type": "object",
         "properties": {
           "limit": {
             "type": "integer",
-            "description": "Number of contacts to retrieve",
+            "description": "Number of contacts to retrieve (default: 100)",
             "minimum": 1,
             "maximum": 100
           }
@@ -2218,6 +2249,10 @@
               "type": "string"
             },
             "description": "List of note properties to retrieve (default: hs_note_body, hs_timestamp, hubspot_owner_id, hs_createdate, hs_lastmodifieddate)"
+          },
+          "after": {
+            "type": "string",
+            "description": "Cursor from a previous call's after output, to get the next page of older notes"
           }
         },
         "required": [
@@ -2291,6 +2326,21 @@
           "error": {
             "type": "string",
             "description": "Error message if note retrieval failed"
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Notes on the record across all pages"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether there are more (older) notes"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor for the next page; null on the last page"
           }
         },
         "required": [
@@ -2582,8 +2632,14 @@
             "description": "Search query for companies."
           },
           "limit": {
-            "type": "number",
-            "description": "Number of results to return (default: 100)."
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "description": "Number of results per page (default: 100, max: 200)"
+          },
+          "after": {
+            "type": "string",
+            "description": "paging.next.after from the previous call, to get the next page"
           }
         },
         "required": [
@@ -2596,6 +2652,17 @@
           "results": {
             "type": "array",
             "description": "Search results for companies."
+          },
+          "total": {
+            "type": "integer",
+            "description": "Companies matching across all pages"
+          },
+          "paging": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "paging.next.after holds the cursor for the next page; absent on the last page"
           }
         },
         "required": [
@@ -2605,7 +2672,7 @@
     },
     "search_companies_by_owner_name": {
       "display_name": "Search Companies by Owner Name",
-      "description": "Search for companies in HubSpot by owner name. First looks up the owner ID by name from the Owners API, then retrieves one page of companies associated with that owner. Follow paging.next.after while has_more is true for additional pages.",
+      "description": "Search companies by owner ID, email or name. Reuse the returned owner.id on subsequent pages to avoid scanning owners again.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -2630,10 +2697,34 @@
               "type": "string"
             },
             "description": "List of company properties to retrieve. If not provided, returns standard properties including name, domain, phone, city, state, country, industry, numberofemployees, annualrevenue, and hubspot_owner_id."
+          },
+          "owner_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Known HubSpot owner ID. Takes precedence over email and name and avoids the owner lookup. Reuse owner.id from a previous response."
+          },
+          "owner_email": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Exact owner email, filtered by HubSpot. Takes precedence over owner_name."
           }
         },
-        "required": [
-          "owner_name"
+        "anyOf": [
+          {
+            "required": [
+              "owner_id"
+            ]
+          },
+          {
+            "required": [
+              "owner_email"
+            ]
+          },
+          {
+            "required": [
+              "owner_name"
+            ]
+          }
         ]
       },
       "output_schema": {
@@ -2655,15 +2746,24 @@
                 "description": "Owner ID in HubSpot"
               },
               "firstName": {
-                "type": "string",
+                "type": [
+                  "string",
+                  "null"
+                ],
                 "description": "Owner's first name"
               },
               "lastName": {
-                "type": "string",
+                "type": [
+                  "string",
+                  "null"
+                ],
                 "description": "Owner's last name"
               },
               "email": {
-                "type": "string",
+                "type": [
+                  "string",
+                  "null"
+                ],
                 "description": "Owner's email address"
               }
             }
@@ -2931,6 +3031,10 @@
               "type": "string"
             },
             "description": "List of note properties to retrieve (default: hs_note_body, hs_timestamp, hubspot_owner_id, hs_createdate, hs_lastmodifieddate)"
+          },
+          "after": {
+            "type": "string",
+            "description": "Cursor from a previous call's after output, to get the next page of older notes"
           }
         },
         "required": [
@@ -3004,6 +3108,21 @@
           "error": {
             "type": "string",
             "description": "Error message if note retrieval failed"
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Notes on the record across all pages"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether there are more (older) notes"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor for the next page; null on the last page"
           }
         },
         "required": [
@@ -3290,7 +3409,7 @@
           },
           "max_total": {
             "type": "integer",
-            "description": "Maximum deals to return across pages (default: limit, or 100 with fetch_all)",
+            "description": "Maximum deals across pages when fetch_all is true (default 100). Otherwise only one page is read.",
             "minimum": 1,
             "maximum": 5000
           },
@@ -3434,6 +3553,10 @@
                 "description": "Cursor for the next page; pass it as after with the same filters. Null when there are no more results"
               }
             }
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Total matching deals from HubSpot, across pages. For counts, request limit 1 and use this value rather than fetching all rows."
           }
         },
         "required": [
@@ -3501,7 +3624,7 @@
           },
           "fetch_all": {
             "type": "boolean",
-            "description": "Whether to fetch all available pages of results. If false (default), automatically paginates to reach the requested limit. If true, fetches all deals regardless of limit."
+            "description": "Whether to keep paging until the last page or max_total deals (default 100 with fetch_all). If false (default), pages only until limit deals are fetched"
           },
           "pipeline_id": {
             "type": "string",
@@ -3515,7 +3638,7 @@
           },
           "max_total": {
             "type": "integer",
-            "description": "Maximum total deals to retrieve across all pages",
+            "description": "Maximum total deals to retrieve across all pages (default: limit, or 100 with fetch_all)",
             "minimum": 1,
             "maximum": 5000
           },
@@ -3527,12 +3650,12 @@
           },
           "start_date": {
             "type": "string",
-            "description": "Filter deals with date >= this date (YYYY-MM-DD format, e.g., '2024-01-01')",
+            "description": "Filter deals with date_field >= this UTC date (YYYY-MM-DD, e.g. '2024-01-01')",
             "format": "date"
           },
           "end_date": {
             "type": "string",
-            "description": "Filter deals with date <= this date (YYYY-MM-DD format, e.g., '2024-09-01')",
+            "description": "Filter deals with date_field <= the end of this UTC date (YYYY-MM-DD, e.g. '2024-09-01')",
             "format": "date"
           },
           "date_field": {
@@ -3642,7 +3765,7 @@
             "properties": {
               "fetched_all_available": {
                 "type": "boolean",
-                "description": "Whether all available deals were fetched"
+                "description": "Whether the last page was reached; false when max_total or limit stopped the fetch first"
               },
               "total_fetched": {
                 "type": "integer",
@@ -3653,7 +3776,7 @@
                   "string",
                   "null"
                 ],
-                "description": "Last pagination token"
+                "description": "Cursor for the next page (pass as after); null on the last page"
               },
               "has_more_pages": {
                 "type": "boolean",
@@ -3873,7 +3996,7 @@
           },
           "offset": {
             "type": "integer",
-            "description": "Pagination offset",
+            "description": "Pagination offset: next_offset from the previous call",
             "default": 0
           },
           "processing_types": {
@@ -3925,11 +4048,22 @@
           },
           "total": {
             "type": "integer",
-            "description": "Total results found"
+            "description": "Number of lists on this page"
           },
           "has_more": {
             "type": "boolean",
-            "description": "Whether more results are available"
+            "description": "Whether HubSpot has more matching lists"
+          },
+          "total_matching": {
+            "type": "integer",
+            "description": "Lists matching across all pages"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "offset to send for the next page; null on the last page"
           }
         },
         "required": [
@@ -3940,7 +4074,7 @@
     },
     "get_list_members": {
       "display_name": "Get List Members with Details",
-      "description": "Retrieve list members with complete contact information including names, emails, and custom properties",
+      "description": "Retrieve list members with optional contact details. Defaults to 50 members; continue using after. For list size only, use get_list.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -3952,8 +4086,8 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 10000,
-            "description": "Maximum number of members to return",
-            "default": 1000
+            "description": "Maximum members to return in this call (default 50). Larger values read multiple pages; prefer after for continuation.",
+            "default": 50
           },
           "contact_properties": {
             "type": "array",
@@ -3974,6 +4108,15 @@
             "type": "boolean",
             "description": "Include when contacts were added to list",
             "default": true
+          },
+          "after": {
+            "type": "string",
+            "description": "Continuation cursor from the previous response, with the same list_id and options"
+          },
+          "include_contact_details": {
+            "type": "boolean",
+            "default": true,
+            "description": "Include contact properties (default true). Set false for member IDs and timestamps only, avoiding contact batch reads."
           }
         },
         "required": [
@@ -4011,7 +4154,7 @@
           },
           "members": {
             "type": "array",
-            "description": "Array of list members with contact details",
+            "description": "List members; contact properties are omitted when include_contact_details is false",
             "items": {
               "type": "object",
               "properties": {
@@ -4094,6 +4237,31 @@
                 "type": "number"
               }
             }
+          },
+          "failed_contact_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Members whose contact details HubSpot couldn't return; they're missing from members"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Why those contacts couldn't be read"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor for the next membership page, or null when finished"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether more memberships are available"
           }
         },
         "required": [
@@ -4175,7 +4343,7 @@
     },
     "get_contact_associations": {
       "display_name": "Get Contact Associations",
-      "description": "Retrieve all associated objects for a contact (companies, deals, tickets, etc.) using v4 Associations API",
+      "description": "Retrieve a contact's linked records (companies, deals, tickets, etc.), including association labels such as Primary or custom labels",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4187,15 +4355,25 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "companies",
-                "deals",
-                "tickets",
-                "tasks",
-                "notes",
-                "emails",
-                "meetings",
-                "calls"
+              "anyOf": [
+                {
+                  "enum": [
+                    "companies",
+                    "deals",
+                    "tickets",
+                    "tasks",
+                    "notes",
+                    "emails",
+                    "meetings",
+                    "calls",
+                    "line_items",
+                    "quotes",
+                    "products"
+                  ]
+                },
+                {
+                  "pattern": "^2-[0-9]+$"
+                }
               ]
             },
             "description": "List of association types to retrieve. If not provided, retrieves all common types.",
@@ -4207,7 +4385,7 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of associations to retrieve per type (default: 100, max: 500)",
+            "description": "Maximum number of linked records to return per type (default: 100, max: 500). has_more shows which types had more",
             "minimum": 1,
             "maximum": 500,
             "default": 100
@@ -4296,6 +4474,20 @@
                 "type": "integer"
               }
             }
+          },
+          "has_more": {
+            "type": "object",
+            "description": "Per type, whether the record has more linked records than limit returned",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "errors": {
+            "type": "object",
+            "description": "Per type, why HubSpot couldn't read those links. Types listed here are left out of associations",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -4307,7 +4499,7 @@
     },
     "get_company_associations": {
       "display_name": "Get Company Associations",
-      "description": "Retrieve all associated objects for a company (contacts, deals, tickets, etc.) using v4 Associations API",
+      "description": "Retrieve a company's linked records (contacts, deals, tickets, etc.), including association labels such as Primary or custom labels",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4319,13 +4511,23 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "contacts",
-                "deals",
-                "tickets",
-                "tasks",
-                "notes",
-                "emails"
+              "anyOf": [
+                {
+                  "enum": [
+                    "contacts",
+                    "deals",
+                    "tickets",
+                    "tasks",
+                    "notes",
+                    "emails",
+                    "line_items",
+                    "quotes",
+                    "products"
+                  ]
+                },
+                {
+                  "pattern": "^2-[0-9]+$"
+                }
               ]
             },
             "description": "List of association types to retrieve. If not provided, retrieves all common types.",
@@ -4337,7 +4539,7 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of associations to retrieve per type (default: 100, max: 500)",
+            "description": "Maximum number of linked records to return per type (default: 100, max: 500). has_more shows which types had more",
             "minimum": 1,
             "maximum": 500,
             "default": 100
@@ -4365,6 +4567,20 @@
           "summary": {
             "type": "object",
             "description": "Summary of associations by type"
+          },
+          "has_more": {
+            "type": "object",
+            "description": "Per type, whether the record has more linked records than limit returned",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "errors": {
+            "type": "object",
+            "description": "Per type, why HubSpot couldn't read those links. Types listed here are left out of associations",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -4376,7 +4592,7 @@
     },
     "get_deal_associations": {
       "display_name": "Get Deal Associations",
-      "description": "Retrieve all associated objects for a deal (contacts, companies, tickets, etc.) using v4 Associations API",
+      "description": "Retrieve a deal's linked records (contacts, companies, tickets, etc.), including association labels such as Primary or custom labels",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -4388,12 +4604,20 @@
             "type": "array",
             "items": {
               "type": "string",
-              "enum": [
-                "contacts",
-                "companies",
-                "tickets",
-                "line_items",
-                "quotes"
+              "anyOf": [
+                {
+                  "enum": [
+                    "contacts",
+                    "companies",
+                    "tickets",
+                    "line_items",
+                    "quotes",
+                    "products"
+                  ]
+                },
+                {
+                  "pattern": "^2-[0-9]+$"
+                }
               ]
             },
             "description": "List of association types to retrieve. If not provided, retrieves all common types.",
@@ -4404,7 +4628,7 @@
           },
           "limit": {
             "type": "integer",
-            "description": "Maximum number of associations to retrieve per type (default: 100, max: 500)",
+            "description": "Maximum number of linked records to return per type (default: 100, max: 500). has_more shows which types had more",
             "minimum": 1,
             "maximum": 500,
             "default": 100
@@ -4432,6 +4656,20 @@
           "summary": {
             "type": "object",
             "description": "Summary of associations by type"
+          },
+          "has_more": {
+            "type": "object",
+            "description": "Per type, whether the record has more linked records than limit returned",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "errors": {
+            "type": "object",
+            "description": "Per type, why HubSpot couldn't read those links. Types listed here are left out of associations",
+            "additionalProperties": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -4441,21 +4679,96 @@
         ]
       }
     },
-    "create_association": {
-      "display_name": "Link Records",
-      "description": "Link two HubSpot records, such as a contact to a company or a contact to a deal, using HubSpot's default association type",
+    "get_association_labels": {
+      "display_name": "Get Association Labels",
+      "description": "List the association types that can link two kinds of record, including custom labels such as 'Architect' or 'Decision maker'. Use the label or type ID with Link Records",
       "input_schema": {
         "type": "object",
         "properties": {
           "from_object_type": {
             "type": "string",
-            "enum": [
-              "contacts",
-              "companies",
-              "deals",
-              "tickets"
-            ],
-            "description": "Type of the first record"
+            "description": "Type of the first record, e.g. contacts, companies, deals, tickets",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "to_object_type": {
+            "type": "string",
+            "description": "Type of the linked record, e.g. contacts, companies, deals, tickets",
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "required": [
+          "from_object_type",
+          "to_object_type"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "labels": {
+            "type": "array",
+            "description": "Association types between the two object types",
+            "items": {
+              "type": "object",
+              "properties": {
+                "category": {
+                  "type": "string",
+                  "description": "HUBSPOT_DEFINED, USER_DEFINED, INTEGRATOR_DEFINED or WORK"
+                },
+                "typeId": {
+                  "type": "integer",
+                  "description": "Association type ID"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Label shown in HubSpot; null for the default unlabelled type"
+                }
+              }
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Number of association types"
+          }
+        },
+        "required": [
+          "labels",
+          "total"
+        ]
+      }
+    },
+    "create_association": {
+      "display_name": "Link Records",
+      "description": "Link two HubSpot records, such as a contact to a company or a contact to a deal. Uses HubSpot's default association type unless a label (e.g. 'Architect') or association type ID is given. Existing labels are retained when adding a label.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "from_object_type": {
+            "type": "string",
+            "description": "Type of the first record",
+            "anyOf": [
+              {
+                "enum": [
+                  "contacts",
+                  "companies",
+                  "deals",
+                  "tickets",
+                  "tasks",
+                  "notes",
+                  "calls",
+                  "emails",
+                  "meetings",
+                  "line_items",
+                  "quotes",
+                  "products"
+                ]
+              },
+              {
+                "pattern": "^2-[0-9]+$"
+              }
+            ]
           },
           "from_object_id": {
             "type": "string",
@@ -4464,18 +4777,41 @@
           },
           "to_object_type": {
             "type": "string",
-            "enum": [
-              "contacts",
-              "companies",
-              "deals",
-              "tickets"
-            ],
-            "description": "Type of the record to link to"
+            "description": "Type of the record to link to",
+            "anyOf": [
+              {
+                "enum": [
+                  "contacts",
+                  "companies",
+                  "deals",
+                  "tickets",
+                  "tasks",
+                  "notes",
+                  "calls",
+                  "emails",
+                  "meetings",
+                  "line_items",
+                  "quotes",
+                  "products"
+                ]
+              },
+              {
+                "pattern": "^2-[0-9]+$"
+              }
+            ]
           },
           "to_object_id": {
             "type": "string",
             "description": "ID of the record to link to",
             "pattern": "^[0-9]+$"
+          },
+          "label": {
+            "type": "string",
+            "description": "Association label to apply, matched case-insensitively. Get Association Labels lists the labels for the two record types"
+          },
+          "association_type_id": {
+            "type": "integer",
+            "description": "Association type ID to apply, from Get Association Labels. Takes precedence over label"
           }
         },
         "required": [
@@ -4604,6 +4940,648 @@
         },
         "required": [
           "owner"
+        ]
+      }
+    },
+    "search_owners": {
+      "display_name": "Search Owners",
+      "description": "Find HubSpot owners (the users who can own records) by email or name, or list them all. Use the owner ID to filter records by hubspot_owner_id",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Owner's exact email address"
+          },
+          "name": {
+            "type": "string",
+            "description": "Text the owner's full name contains (case-insensitive), e.g. a first name"
+          }
+        }
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "owners": {
+            "type": "array",
+            "description": "Matching owners",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Owner ID, the value of hubspot_owner_id"
+                },
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Owner email address"
+                },
+                "firstName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Owner first name"
+                },
+                "lastName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Owner last name"
+                },
+                "userId": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "HubSpot user ID"
+                },
+                "teams": {
+                  "type": "array",
+                  "description": "Teams the owner belongs to"
+                }
+              }
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Number of matching owners"
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "False when the portal has more than 2,000 owners and only the first 2,000 were searched"
+          }
+        },
+        "required": [
+          "owners",
+          "total",
+          "complete"
+        ]
+      }
+    },
+    "search_crm_objects": {
+      "display_name": "Search CRM Records",
+      "description": "Search any HubSpot object type (contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, etc.) with HubSpot's filters, text query, sort and paging. Use for questions the other actions' fixed filters can't answer, e.g. deals in a stage closing this month, or emails on a deal since a date",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "object_type": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
+          },
+          "filters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "propertyName": {
+                  "type": "string",
+                  "description": "Internal property name, e.g. dealstage or hs_timestamp. Get Object Properties lists them"
+                },
+                "operator": {
+                  "type": "string",
+                  "enum": [
+                    "EQ",
+                    "NEQ",
+                    "LT",
+                    "LTE",
+                    "GT",
+                    "GTE",
+                    "BETWEEN",
+                    "IN",
+                    "NOT_IN",
+                    "HAS_PROPERTY",
+                    "NOT_HAS_PROPERTY",
+                    "CONTAINS_TOKEN",
+                    "NOT_CONTAINS_TOKEN"
+                  ],
+                  "description": "Comparison to apply"
+                },
+                "value": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ],
+                  "description": "Value to compare with. Dates are Unix milliseconds. CONTAINS_TOKEN accepts * wildcards, e.g. *@example.com"
+                },
+                "values": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "string",
+                      "number",
+                      "boolean"
+                    ]
+                  },
+                  "description": "Values for IN and NOT_IN. Enumeration values are case-sensitive internal values"
+                },
+                "highValue": {
+                  "type": [
+                    "string",
+                    "number",
+                    "boolean"
+                  ],
+                  "description": "Upper bound for BETWEEN, with value as the lower bound"
+                }
+              },
+              "required": [
+                "propertyName",
+                "operator"
+              ]
+            },
+            "maxItems": 6,
+            "description": "Filters a record must all match (AND). Use filter_groups instead for OR"
+          },
+          "filter_groups": {
+            "type": "array",
+            "maxItems": 5,
+            "description": "Groups of filters: a record matches when it matches every filter in any one group (OR across groups). Up to 5 groups, 6 filters per group and 18 filters in total",
+            "items": {
+              "type": "object",
+              "properties": {
+                "filters": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "propertyName": {
+                        "type": "string",
+                        "description": "Internal property name, e.g. dealstage or hs_timestamp. Get Object Properties lists them"
+                      },
+                      "operator": {
+                        "type": "string",
+                        "enum": [
+                          "EQ",
+                          "NEQ",
+                          "LT",
+                          "LTE",
+                          "GT",
+                          "GTE",
+                          "BETWEEN",
+                          "IN",
+                          "NOT_IN",
+                          "HAS_PROPERTY",
+                          "NOT_HAS_PROPERTY",
+                          "CONTAINS_TOKEN",
+                          "NOT_CONTAINS_TOKEN"
+                        ],
+                        "description": "Comparison to apply"
+                      },
+                      "value": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ],
+                        "description": "Value to compare with. Dates are Unix milliseconds. CONTAINS_TOKEN accepts * wildcards, e.g. *@example.com"
+                      },
+                      "values": {
+                        "type": "array",
+                        "items": {
+                          "type": [
+                            "string",
+                            "number",
+                            "boolean"
+                          ]
+                        },
+                        "description": "Values for IN and NOT_IN. Enumeration values are case-sensitive internal values"
+                      },
+                      "highValue": {
+                        "type": [
+                          "string",
+                          "number",
+                          "boolean"
+                        ],
+                        "description": "Upper bound for BETWEEN, with value as the lower bound"
+                      }
+                    },
+                    "required": [
+                      "propertyName",
+                      "operator"
+                    ]
+                  },
+                  "minItems": 1,
+                  "maxItems": 6
+                }
+              },
+              "required": [
+                "filters"
+              ]
+            }
+          },
+          "associated_with": {
+            "type": "object",
+            "description": "Only return records linked to this record, e.g. notes on a deal",
+            "properties": {
+              "object_type": {
+                "type": "string",
+                "enum": [
+                  "contacts",
+                  "companies",
+                  "deals",
+                  "tickets"
+                ],
+                "description": "Type of the linked record"
+              },
+              "id": {
+                "type": "string",
+                "description": "ID of the linked record"
+              }
+            },
+            "required": [
+              "object_type",
+              "id"
+            ]
+          },
+          "query": {
+            "type": "string",
+            "description": "Text to search for across the object type's default text properties"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Properties to return. Defaults to HubSpot's standard set for the object type"
+          },
+          "sort_property": {
+            "type": "string",
+            "description": "Property to sort by, e.g. createdate or hs_timestamp"
+          },
+          "sort_direction": {
+            "type": "string",
+            "enum": [
+              "ASCENDING",
+              "DESCENDING"
+            ],
+            "default": "ASCENDING",
+            "description": "Sort direction when sort_property is given"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 100,
+            "description": "Records per page (default 100, max 200)"
+          },
+          "after": {
+            "type": "string",
+            "description": "Cursor from a previous call's after output, to get the next page. HubSpot stops at 10,000 results"
+          },
+          "include_urls": {
+            "type": "boolean",
+            "default": false,
+            "description": "Make sure each record has its HubSpot page link as url (contacts, companies, deals, tickets). HubSpot usually includes it; when it doesn't, the link is built from the account details (one extra request)"
+          }
+        },
+        "required": [
+          "object_type"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "description": "Matching records",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Record ID"
+                },
+                "properties": {
+                  "type": "object",
+                  "description": "Requested property values; unset properties are null"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "description": "Creation time (ISO 8601)"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "description": "Last update time (ISO 8601)"
+                },
+                "archived": {
+                  "type": "boolean",
+                  "description": "Whether the record is archived"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Record's page in HubSpot, when HubSpot returns it or include_urls is true"
+                }
+              }
+            }
+          },
+          "count": {
+            "type": "integer",
+            "description": "Records on this page"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Records matching across all pages"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "Whether there's another page"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Cursor for the next page; null on the last page"
+          }
+        },
+        "required": [
+          "results",
+          "count",
+          "total",
+          "has_more",
+          "after"
+        ]
+      }
+    },
+    "get_crm_objects": {
+      "display_name": "Get CRM Records",
+      "description": "Read up to 100 records of any HubSpot object type by ID, or by a unique property such as email, with the properties and linked records you ask for",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "object_type": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 100,
+            "description": "Record IDs, or values of id_property"
+          },
+          "id_property": {
+            "type": "string",
+            "description": "Unique property the ids are values of, e.g. email for contacts. Defaults to the record ID"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Properties to return. Defaults to HubSpot's standard set for the object type"
+          },
+          "associations": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "description": "Linked record types to include for each record, e.g. [\"contacts\", \"companies\"]. Up to 100 per type per record"
+          },
+          "include_urls": {
+            "type": "boolean",
+            "default": false,
+            "description": "Make sure each record has its HubSpot page link as url (contacts, companies, deals, tickets). HubSpot usually includes it; when it doesn't, the link is built from the account details (one extra request)"
+          }
+        },
+        "required": [
+          "object_type",
+          "ids"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "description": "Records found",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Record ID"
+                },
+                "properties": {
+                  "type": "object",
+                  "description": "Requested property values; unset properties are null"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "description": "Creation time (ISO 8601)"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "description": "Last update time (ISO 8601)"
+                },
+                "archived": {
+                  "type": "boolean",
+                  "description": "Whether the record is archived"
+                },
+                "url": {
+                  "type": "string",
+                  "description": "Record's page in HubSpot, when HubSpot returns it or include_urls is true"
+                },
+                "associations": {
+                  "type": "object",
+                  "description": "Per requested type, linked records as {toObjectId, associationTypes: [{category, typeId, label}]}"
+                },
+                "associations_with_more": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Types with more than 100 linked records, of which only 100 are listed"
+                }
+              }
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Number of records found"
+          },
+          "not_found": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Requested IDs that matched no record"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Other errors HubSpot reported for some IDs"
+          }
+        },
+        "required": [
+          "results",
+          "total",
+          "not_found"
+        ]
+      }
+    },
+    "get_object_properties": {
+      "display_name": "Get Object Properties",
+      "description": "List the properties of any HubSpot object type, including custom properties, to find the internal names and dropdown values to filter, sort or update by",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "object_type": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Object type: contacts, companies, deals, tickets, tasks, notes, calls, emails, meetings, line_items, quotes, products or a custom object type ID (2-xxxx). Requires the corresponding granted scope."
+          },
+          "query": {
+            "type": "string",
+            "description": "Only return properties whose internal name or label contains this text (case-insensitive)"
+          },
+          "include_details": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include field type, group, description and dropdown options"
+          }
+        },
+        "required": [
+          "object_type"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "properties": {
+            "type": "array",
+            "description": "Properties of the object type",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Internal name used in filters and updates"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Name shown in HubSpot"
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Data type, e.g. string, number, date, enumeration"
+                },
+                "fieldType": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Input type, e.g. select, checkbox"
+                },
+                "groupName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Property group"
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Property description"
+                },
+                "hubspotDefined": {
+                  "type": "boolean",
+                  "description": "False for custom properties"
+                },
+                "options": {
+                  "type": "array",
+                  "description": "Dropdown options; filter and update with value",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string"
+                      },
+                      "value": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Number of properties returned"
+          }
+        },
+        "required": [
+          "properties",
+          "total"
+        ]
+      }
+    },
+    "get_account_details": {
+      "display_name": "Get Account Details",
+      "description": "Get the connected HubSpot account's ID, time zone, currency and app domain, e.g. to work out today's date in the account's time zone",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "object",
+            "description": "HubSpot account details",
+            "properties": {
+              "portalId": {
+                "type": "integer",
+                "description": "HubSpot account (portal) ID"
+              },
+              "accountType": {
+                "type": "string",
+                "description": "e.g. STANDARD, SANDBOX, DEVELOPER_TEST"
+              },
+              "timeZone": {
+                "type": "string",
+                "description": "Account time zone, e.g. Pacific/Auckland"
+              },
+              "utcOffset": {
+                "type": "string",
+                "description": "Current UTC offset, e.g. +13:00"
+              },
+              "companyCurrency": {
+                "type": "string",
+                "description": "Account currency code"
+              },
+              "uiDomain": {
+                "type": "string",
+                "description": "HubSpot app domain, e.g. app.hubspot.com"
+              },
+              "dataHostingLocation": {
+                "type": "string",
+                "description": "Data center, e.g. na1, eu1"
+              }
+            }
+          }
+        },
+        "required": [
+          "account"
         ]
       }
     },
@@ -4749,13 +5727,13 @@
             "enum": [
               "hs_name",
               "-hs_name",
-              "hs_start_date",
-              "-hs_start_date",
-              "hs_end_date",
-              "-hs_end_date"
+              "createdAt",
+              "-createdAt",
+              "updatedAt",
+              "-updatedAt"
             ],
-            "description": "Sort order for results. Prefix with - for descending order.",
-            "default": "-hs_start_date"
+            "description": "Sort order for results: campaign name, creation time or last update. Prefix with - for descending order.",
+            "default": "-updatedAt"
           }
         },
         "required": []
@@ -5252,7 +6230,7 @@
     },
     "get_contact_calls_and_meetings": {
       "display_name": "Get Contact Calls and Meetings",
-      "description": "Retrieve calls and meetings (with transcripts) associated with a HubSpot contact",
+      "description": "Retrieve calls and meetings (transcripts optional) associated with a HubSpot contact",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -5265,6 +6243,11 @@
             "description": "Max calls/meetings to retrieve each (default: 50, max: 100)",
             "minimum": 1,
             "maximum": 100
+          },
+          "include_transcripts": {
+            "type": "boolean",
+            "default": false,
+            "description": "Fetch full transcript utterances for each call that has one. Default false; use get_call_transcript for a single call instead."
           }
         },
         "required": [
@@ -5280,7 +6263,7 @@
           },
           "calls": {
             "type": "array",
-            "description": "Calls with transcript utterances (Google Meet transcripts are stored on call records)",
+            "description": "Call metadata, with transcript utterances only when include_transcripts is true",
             "items": {
               "type": "object",
               "properties": {
@@ -5369,6 +6352,10 @@
                       }
                     }
                   }
+                },
+                "transcript_error": {
+                  "type": "string",
+                  "description": "Why the call's transcript couldn't be read, when HubSpot has one that failed to load"
                 }
               }
             }
@@ -5457,7 +6444,7 @@
     },
     "get_deal_calls_and_meetings": {
       "display_name": "Get Deal Calls and Meetings",
-      "description": "Retrieve calls and meetings (with transcripts) associated with a HubSpot deal",
+      "description": "Retrieve calls and meetings (transcripts optional) associated with a HubSpot deal",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -5470,6 +6457,11 @@
             "description": "Max calls/meetings to retrieve each (default: 50, max: 100)",
             "minimum": 1,
             "maximum": 100
+          },
+          "include_transcripts": {
+            "type": "boolean",
+            "default": false,
+            "description": "Fetch full transcript utterances for each call that has one. Default false; use get_call_transcript for a single call instead."
           }
         },
         "required": [
@@ -5485,7 +6477,7 @@
           },
           "calls": {
             "type": "array",
-            "description": "Calls with transcript utterances (Google Meet transcripts are stored on call records)",
+            "description": "Call metadata, with transcript utterances only when include_transcripts is true",
             "items": {
               "type": "object",
               "properties": {
@@ -5574,6 +6566,10 @@
                       }
                     }
                   }
+                },
+                "transcript_error": {
+                  "type": "string",
+                  "description": "Why the call's transcript couldn't be read, when HubSpot has one that failed to load"
                 }
               }
             }
@@ -5738,6 +6734,213 @@
           "transcript_id",
           "utterances",
           "total_utterances"
+        ]
+      }
+    },
+    "get_current_user": {
+      "display_name": "Get Connected User",
+      "description": "Resolve the user who authorized this shared HubSpot connection, not the person currently chatting. Older connections must reconnect to supply identity metadata.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "owner": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "portal_id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "email",
+          "owner",
+          "portal_id"
+        ]
+      }
+    },
+    "get_object_schemas": {
+      "display_name": "Get Custom Object Schemas",
+      "description": "Discover custom object type IDs and property definitions. Requires Enterprise and crm.schemas.custom.read; use returned IDs in generic CRM and association actions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "schemas": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "schemas"
+        ]
+      }
+    },
+    "create_ticket": {
+      "display_name": "Create Ticket",
+      "description": "Create a support ticket. Use internal pipeline and stage IDs; Get Object Properties with include_details discovers them. Additional properties may include content, hs_ticket_priority and hubspot_owner_id.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hs_pipeline_stage": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "hs_pipeline": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "properties": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "HubSpot internal property names mapped to string values. An empty string clears a value."
+          }
+        },
+        "required": [
+          "subject",
+          "hs_pipeline_stage"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "ticket"
+        ]
+      }
+    },
+    "update_ticket": {
+      "display_name": "Update Ticket",
+      "description": "Update selected ticket properties by ID. Supply internal property names; an empty string clears a property.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "properties": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "HubSpot internal property names mapped to string values. An empty string clears a value."
+          }
+        },
+        "required": [
+          "ticket_id",
+          "properties"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "ticket"
+        ]
+      }
+    },
+    "search_conversations": {
+      "display_name": "Search Conversations",
+      "description": "Retrieve conversation/inbox threads with contact, ticket, inbox or status filters. Returns one page in ascending ID order and a cursor. Does not support full-text message search.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "inbox_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "contact_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "ticket_id": {
+            "type": "string",
+            "pattern": "^[0-9]+$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "CLOSED"
+            ]
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 500,
+            "default": 100
+          },
+          "after": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "paging": {
+            "type": "object"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "results",
+          "paging",
+          "has_more",
+          "after"
         ]
       }
     }
