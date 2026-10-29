@@ -95,6 +95,10 @@ async def _api(context: ExecutionContext, method: str, path: str, **kwargs: Any)
         headers=get_auth_headers(context),
         **kwargs,
     )
+    # Metabase always answers with JSON; HTML or an empty body means the URL points somewhere else, such as a
+    # login proxy or the wrong path.
+    if not isinstance(response.data, (dict, list)):
+        raise ValueError("Metabase returned a response that isn't JSON. Check the Metabase URL.")
     return response.data
 
 
@@ -105,18 +109,42 @@ def _required_text(value: Any, key: str) -> str:
     return text
 
 
+# Keys Metabase accepts on a parameter value when running a saved question (parameters.schema/parameter-with-value).
+RUN_PARAMETER_KEYS = ("id", "name", "slug", "sectionId", "type", "value", "default", "target", "options")
 READ_ONLY_SQL_KEYWORDS = ("select", "with", "explain", "show", "describe", "desc", "values")
 # Databases disagree on quoting and comments (backslash escapes, $$ quotes, [brackets], # and --1 in MySQL,
 # /*! */ code), so every check below reads the raw SQL. A semicolon or write word inside a quoted value or a
 # comment is refused too; that only refuses more, never less.
-# SQL Server runs a second statement without a semicolon (SELECT 1 SHUTDOWN), so statement verbs are refused too.
+# Words that start a statement which changes data, schema, settings, sessions or the server. SQL Server runs a
+# second statement without a semicolon (SELECT 1 SHUTDOWN), so these are refused anywhere, not just first.
+STATEMENT_WORDS = (
+    # Standard SQL and PostgreSQL/MySQL writes
+    "insert update delete merge upsert drop create alter truncate rename grant revoke deny"
+    " copy unload lock into vacuum reindex refresh optimize purge flush"
+    # Procedures, sessions and transactions
+    " exec execute call do set use declare begin commit rollback savepoint prepare discard notify listen unlisten"
+    # SQL Server statements (Transact-SQL statement reference)
+    " shutdown kill backup restore dbcc reconfigure checkpoint waitfor setuser revert enable disable"
+    " updatetext writetext bulk raiserror openquery openrowset opendatasource"
+    # SQLite, ClickHouse, Spark/Databricks, Oracle
+    " attach detach pragma system msck uncache"
+).split()
 WRITE_KEYWORD = re.compile(
-    r"\b(?:insert|update|delete|merge|upsert|drop|create|alter|truncate|rename|grant|revoke|deny|exec|execute|call"
-    r"|copy|unload|vacuum|reindex|refresh|lock|into|set|use|declare|begin|commit|rollback|shutdown|kill|backup"
-    r"|restore|dbcc|reconfigure|checkpoint|waitfor|setuser|enable|disable|attach|detach|pragma|system)\b"
-    r"|\bload\s+data\b|\bdo\s*\$|\b(?:sp|xp)_\w+"
-    # SQL Server Service Broker statements that drop conversations or move messages.
-    r"|\b(?:end|move)\s+conversation\b|\bsend\s+on\s+conversation\b|\breceive\s+(?:top\b|\*|\w+\s+from\b)",
+    r"\b(?:" + "|".join(STATEMENT_WORDS) + r")\b"
+    # SQL Server stored procedures, Oracle packages, SQL Server Service Broker and key statements
+    r"|\b(?:sp|xp|dbms|utl)_\w+|\bload\s+data\b|\bcache\s+(?:lazy\s+)?table\b"
+    r"|\b(?:end|move|get)\s+conversation\b|\bsend\s+on\s+conversation\b|\breceive\s+(?:top\b|\*|\w+\s+from\b)"
+    r"|\b(?:open|close)\s+(?:master|symmetric|all\s+symmetric)\s+keys?\b|\badd\s+(?:counter\s+)?signature\b"
+    # Functions with side effects: sequences, sessions, locks, sleeps, server files, replication, remote
+    # databases and URLs, and commands (ClickHouse executable, Spark reflect)
+    r"|\b(?:setval|nextval|set_config|pg_terminate_backend|pg_cancel_backend|pg_reload_conf|pg_rotate_logfile\w*"
+    r"|pg_promote|pg_switch_wal|pg_create_restore_point|pg_wal_replay_\w+|pg_notify|pg_(?:try_)?advisory\w*"
+    r"|pg_file_\w+|pg_stat_reset\w*|pg_logical_\w+|pg_import_system_collations|pg_replication_\w+"
+    r"|pg_\w*replication_slot\w*|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvwrite|file_write"
+    r"|link_schema|pg_sleep\w*|pg_read_file|pg_read_binary_file|pg_ls_\w+|pg_stat_file|pg_logdir_ls|sleep|benchmark"
+    r"|load_file|file_read|url|urlcluster|s3|s3cluster|gcs|file|remote|remotesecure|hdfs|azureblobstorage\w*"
+    r"|deltalake|iceberg\w*|hudi|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect"
+    r"|java_method|httpuritype)\s*\(",
     re.IGNORECASE,
 )
 # EXPLAIN ANALYZE runs the statement it explains.
@@ -188,7 +216,8 @@ def _page(inputs: Dict[str, Any]) -> Dict[str, int]:
 
 def _with_query(url: str, params: List[tuple]) -> str:
     # Metabase expects repeated keys (models=card&models=dashboard); the SDK's params
-    # argument JSON-encodes lists, so build the query string here instead.
+    # argument JSON-encodes lists, and SDK 2.0.1 appends params a second time when it retries a GET
+    # (archived=true&archived=true, which Metabase reads as false). So queries are always built here.
     params = [(k, v) for k, v in params if v is not None]
     return f"{url}?{urlencode(params)}" if params else url
 
@@ -437,11 +466,9 @@ class GetDatabaseSchemaAction(ActionHandler):
             schema = str(inputs.get("schema") or "").strip().lower()
             name_contains = str(inputs.get("table_name_contains") or "").strip().lower()
 
+            skip_fields = "false" if include_fields else "true"
             data = await _api(
-                context,
-                "GET",
-                f"/database/{database_id}/metadata",
-                params={"skip_fields": "false" if include_fields else "true"},
+                context, "GET", _with_query(f"/database/{database_id}/metadata", [("skip_fields", skip_fields)])
             )
             database = data or {}
             tables = []
@@ -522,12 +549,8 @@ class ListCollectionsAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            data = await _api(
-                context,
-                "GET",
-                "/collection",
-                params={"archived": "true" if inputs.get("archived") else "false"},
-            )
+            archived = "true" if inputs.get("archived") else "false"
+            data = await _api(context, "GET", _with_query("/collection", [("archived", archived)]))
             include_personal = bool(inputs.get("include_personal", False))
             collections = [
                 {
@@ -626,7 +649,11 @@ class RunQuestionAction(ActionHandler):
             max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
             body: Dict[str, Any] = {}
             if inputs.get("parameters"):
-                body["parameters"] = inputs["parameters"]
+                # Metabase 0.64+ refuses any other key, such as the widget_type and required that get_question lists.
+                body["parameters"] = [
+                    {k: v for k, v in p.items() if k in RUN_PARAMETER_KEYS} if isinstance(p, dict) else p
+                    for p in inputs["parameters"]
+                ]
 
             data = await _api(context, "POST", f"/card/{card_id}/query", json=body, timeout=QUERY_TIMEOUT_SECONDS)
             return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)

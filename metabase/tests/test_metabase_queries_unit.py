@@ -80,6 +80,37 @@ class TestRunQuestion:
         assert call.kwargs["timeout"] == 120
 
     @pytest.mark.asyncio
+    async def test_parameters_copied_from_get_question_are_trimmed(self, mock_context):
+        # Metabase 0.64+ rejects keys outside its parameter-with-value schema with HTTP 400.
+        target = ["variable", ["template-tag", "region"]]
+        copied = {
+            "id": "p1",
+            "slug": "region",
+            "name": "Region",
+            "type": "category",
+            "widget_type": None,
+            "required": False,
+            "default": None,
+            "target": target,
+            "value": "EU",
+        }
+        mock_context.fetch.return_value = _ok(_dataset([[1]]), status=202)
+        await metabase.execute_action("run_question", {"question_id": 42, "parameters": [copied]}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "parameters": [
+                {
+                    "id": "p1",
+                    "slug": "region",
+                    "name": "Region",
+                    "type": "category",
+                    "default": None,
+                    "target": target,
+                    "value": "EU",
+                }
+            ]
+        }
+
+    @pytest.mark.asyncio
     async def test_no_parameters_sends_empty_body(self, mock_context):
         mock_context.fetch.return_value = _ok(_dataset([]), status=202)
         await metabase.execute_action("run_question", {"question_id": 42}, mock_context)

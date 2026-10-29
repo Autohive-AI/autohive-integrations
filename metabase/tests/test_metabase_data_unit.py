@@ -184,8 +184,9 @@ class TestGetDatabaseSchema:
         mock_context.fetch.return_value = _ok(SAMPLE_METADATA)
         await metabase.execute_action("get_database_schema", {"database_id": 3}, mock_context)
         call = mock_context.fetch.call_args
-        assert call.args[0] == f"{BASE}/api/database/3/metadata"
-        assert call.kwargs["params"] == {"skip_fields": "true"}
+        assert call.args[0] == f"{BASE}/api/database/3/metadata?skip_fields=true"
+        # The SDK repeats params= on a retry, so the query must be in the URL.
+        assert "params" not in call.kwargs
 
     @pytest.mark.asyncio
     async def test_include_fields(self, mock_context):
@@ -193,7 +194,7 @@ class TestGetDatabaseSchema:
         result = await metabase.execute_action(
             "get_database_schema", {"database_id": 3, "include_fields": True}, mock_context
         )
-        assert mock_context.fetch.call_args.kwargs["params"] == {"skip_fields": "false"}
+        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/database/3/metadata?skip_fields=false"
         fields = result.result.data["tables"][0]["fields"]
         assert fields[1]["foreign_key_target_field_id"] == 200
         assert fields[0]["semantic_type"] == "type/PK"
@@ -357,8 +358,8 @@ class TestListCollections:
         mock_context.fetch.return_value = _ok([])
         await metabase.execute_action("list_collections", {"archived": True}, mock_context)
         call = mock_context.fetch.call_args
-        assert call.args[0] == f"{BASE}/api/collection"
-        assert call.kwargs["params"] == {"archived": "true"}
+        assert call.args[0] == f"{BASE}/api/collection?archived=true"
+        assert "params" not in call.kwargs
 
     @pytest.mark.asyncio
     async def test_error(self, mock_context):
@@ -440,3 +441,23 @@ class TestCreateCollection:
         mock_context.fetch.return_value = _ok({})
         result = await metabase.execute_action("create_collection", {"name": "X"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
+
+
+class TestNonJsonResponse:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("body", ["<html>Sign in</html>", None, ""])
+    @pytest.mark.parametrize(
+        "action,inputs",
+        [
+            ("get_current_user", {}),
+            ("list_databases", {}),
+            ("search", {"query": "x"}),
+            ("get_question", {"question_id": 1}),
+            ("get_dashboard", {"dashboard_id": 1}),
+        ],
+    )
+    async def test_clear_error(self, mock_context, action, inputs, body):
+        mock_context.fetch.return_value = _ok(body)
+        result = await metabase.execute_action(action, inputs, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Check the Metabase URL" in result.result.message
