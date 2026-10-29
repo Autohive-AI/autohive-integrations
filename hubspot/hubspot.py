@@ -4701,7 +4701,7 @@ class GetCrmObjectsHandler(ActionHandler):
         }
         if inputs.get("id_property"):
             payload["idProperty"] = inputs["id_property"]
-            if inputs["id_property"] not in payload["properties"]:
+            if payload["properties"] and inputs["id_property"] not in payload["properties"]:
                 payload["properties"].append(inputs["id_property"])
 
         retry_sleep_budget = {"remaining": 10}

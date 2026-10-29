@@ -283,21 +283,27 @@ class TestGetCrmObjects:
         assert result.result.data == {"results": [{"id": "1", "properties": {}}], "total": 1, "not_found": []}
 
     @pytest.mark.asyncio
-    async def test_reads_records_by_unique_property(self, mock_context):
+    @pytest.mark.parametrize("properties", [None, [], ["firstname"], ["email", "firstname"]])
+    @pytest.mark.parametrize("id_property", ["email", "external_id"])
+    async def test_unique_lookup_preserves_default_or_explicit_properties(self, mock_context, properties, id_property):
         mock_context.fetch.return_value = ok({"status": "COMPLETE", "results": []})
+        inputs = {"object_type": "contacts", "ids": ["lookup-value"], "id_property": id_property}
+        if properties is not None:
+            inputs["properties"] = properties
+        original_properties = list(properties or [])
 
-        await hubspot.execute_action(
-            "get_crm_objects",
-            {"object_type": "contacts", "ids": ["a@example.com"], "id_property": "email"},
-            mock_context,
-        )
+        await hubspot.execute_action("get_crm_objects", inputs, mock_context)
 
+        expected = list(original_properties)
+        if expected and id_property not in expected:
+            expected.append(id_property)
         assert mock_context.fetch.call_args.kwargs["json"] == {
-            "inputs": [{"id": "a@example.com"}],
-            "properties": ["email"],
+            "inputs": [{"id": "lookup-value"}],
+            "properties": expected,
             "propertiesWithHistory": [],
-            "idProperty": "email",
+            "idProperty": id_property,
         }
+        assert properties is None or properties == original_properties
 
     @pytest.mark.asyncio
     async def test_missing_ids_reported(self, mock_context):
