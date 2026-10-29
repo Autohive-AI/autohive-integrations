@@ -277,7 +277,9 @@ class TestCardSummary:
                 "stages": [{"native": "x", "template-tags": [{"id": "p1", "name": "region", "type": "text"}]}]
             },
         }
-        assert _card_summary(card)["parameters"] == [{"id": "p1", "slug": "region"}]
+        assert _card_summary(card)["parameters"] == [
+            {"id": "p1", "slug": "region", "target": ["variable", ["template-tag", "region"]]}
+        ]
 
     def test_template_tags_missing_from_explicit_parameters_are_added(self):
         card = {
@@ -307,7 +309,9 @@ class TestCardSummary:
             "parameters": [{"id": "p1", "slug": "region"}],
             "dataset_query": {"stages": [{"native": "x", "template-tags": [{"name": "region", "type": "text"}]}]},
         }
-        assert _card_summary(card)["parameters"] == [{"id": "p1", "slug": "region"}]
+        assert _card_summary(card)["parameters"] == [
+            {"id": "p1", "slug": "region", "target": ["variable", ["template-tag", "region"]]}
+        ]
 
     def test_template_tag_without_id_kept_when_explicit_parameter_has_no_id(self):
         card = {
@@ -337,6 +341,85 @@ class TestCardSummary:
             },
         }
         assert [p["slug"] for p in _card_summary(card)["parameters"]] == ["n"]
+
+    def test_explicit_parameter_without_target_gets_tag_target(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "parameters": [{"id": "p1", "slug": "region", "type": "category"}],
+            "dataset_query": {
+                "stages": [{"native": "x", "template-tags": [{"id": "p1", "name": "region", "type": "text"}]}]
+            },
+        }
+        assert _card_summary(card)["parameters"] == [
+            {"id": "p1", "slug": "region", "type": "category", "target": ["variable", ["template-tag", "region"]]}
+        ]
+
+    def test_explicit_parameter_prefers_tag_with_same_id(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "parameters": [{"id": "p2", "slug": "region"}],
+            "dataset_query": {
+                "stages": [
+                    {
+                        "native": "x",
+                        "template-tags": [
+                            {"id": "p1", "name": "region", "type": "text"},
+                            {"id": "p2", "name": "area", "type": "text"},
+                        ],
+                    }
+                ]
+            },
+        }
+        assert _card_summary(card)["parameters"][0]["target"] == ["variable", ["template-tag", "area"]]
+
+    def test_explicit_parameter_target_kept(self):
+        target = ["dimension", ["template-tag", "region"]]
+        card = {
+            "id": 1,
+            "name": "Q",
+            "parameters": [{"id": "p1", "slug": "region", "target": target}],
+            "dataset_query": {
+                "stages": [{"native": "x", "template-tags": [{"id": "p1", "name": "region", "type": "text"}]}]
+            },
+        }
+        assert _card_summary(card)["parameters"][0]["target"] == target
+
+    def test_disabled_field_filter_is_not_a_filter(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "dataset_query": {
+                "stages": [
+                    {
+                        "native": "x",
+                        "template-tags": [
+                            {"id": "d", "name": "region", "type": "dimension", "widget-type": "none"},
+                            {"id": "n", "name": "n", "type": "number"},
+                        ],
+                    }
+                ]
+            },
+        }
+        assert [p["slug"] for p in _card_summary(card)["parameters"]] == ["n"]
+
+    def test_required_disabled_field_filter_without_default_is_kept(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "dataset_query": {
+                "stages": [
+                    {
+                        "native": "x",
+                        "template-tags": [
+                            {"id": "d", "name": "region", "type": "dimension", "widget-type": "none", "required": True}
+                        ],
+                    }
+                ]
+            },
+        }
+        assert [p["slug"] for p in _card_summary(card)["parameters"]] == ["region"]
 
     def test_temporal_unit_tag_targets_dimension(self):
         card = {
@@ -414,6 +497,8 @@ class TestReadOnlySql:
             "select 1 /* explain; only */",
             "select 1; -- trailing note",
             "select 1 -- note; with semicolon\nfrom t",
+            "select $$hello$$ as greeting",
+            "select price$1 from t",
         ],
     )
     def test_allowed(self, sql):
@@ -448,6 +533,11 @@ class TestReadOnlySql:
             "with x as (insert into t values (1) returning *) select 1",
             "with x as (select 1) merge into t using x on true when matched then delete",
             "SELECT * INTO backup FROM users",
+            "SELECT $$'$$; DELETE FROM users; SELECT '$$'",
+            "SELECT $$'$$ INTO t2 --'",
+            "SELECT $tag$'$tag$ INTO t2 --'",
+            "with x as (select $$'$$ as a) delete from t --'",
+            "/* $$ */ SELECT $$'$$ INTO t2 --'",
             "-- C:\\reports\nEXPLAIN ANALYZE DELETE FROM users",
             "-- C:\\reports\nwith x as (delete from t returning *) select * from x",
             "select 'C:\\tmp' as p into t2",

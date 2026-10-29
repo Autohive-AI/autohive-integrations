@@ -115,6 +115,8 @@ EXPLAIN_ANALYZE = re.compile(r"explain\s*(?:analy[sz]e\b|\([^)]*\banaly[sz]e\b)"
 NESTED_BLOCK_COMMENT = re.compile(r"/\*(?:(?!\*/).)*?/\*", re.DOTALL)
 # PostgreSQL allows INSERT, UPDATE, DELETE and MERGE inside a WITH query.
 WRITE_KEYWORD = re.compile(r"\b(?:insert|update|delete|merge)\b", re.IGNORECASE)
+# PostgreSQL dollar quotes ($$...$$, $tag$...$tag$) can hide the quotes and comments the masking relies on.
+DOLLAR_QUOTE = re.compile(r"\$(?:[A-Za-z_]\w*)?\$")
 # SELECT ... INTO creates a table (PostgreSQL, SQL Server) or writes a file or variable (MySQL).
 INTO_KEYWORD = re.compile(r"\binto\b", re.IGNORECASE)
 
@@ -131,16 +133,20 @@ def _ensure_read_only_sql(sql: str) -> str:
         else:
             break
     first_word = re.match(r"[A-Za-z]*", text).group(0).lower()
-    code = SQL_QUOTED_OR_COMMENT.sub(" ", sql)
-    # A second statement after a semicolon could be anything, so only one statement is allowed.
-    separators = sql if "\\" in sql else code
+    # Backslash escapes and dollar quotes differ between databases, so masking quotes and comments may be wrong.
+    # For that SQL every check also runs on the raw text, which can only refuse more.
+    masked = SQL_QUOTED_OR_COMMENT.sub(" ", sql)
+    risky = "\\" in sql or DOLLAR_QUOTE.search(sql)
+    variants = [masked, sql] if risky else [masked]
     if (
         first_word not in READ_ONLY_SQL_KEYWORDS
-        or ";" in separators.strip().rstrip(";")
-        or EXPLAIN_ANALYZE.match(code.lstrip().lstrip("(").lstrip())
+        # A second statement after a semicolon could be anything, so only one statement is allowed.
+        or any(";" in v.strip().rstrip(";") for v in variants)
+        or EXPLAIN_ANALYZE.match(text)
+        or EXPLAIN_ANALYZE.match(masked.lstrip().lstrip("(").lstrip())
         or NESTED_BLOCK_COMMENT.search(sql)
-        or (first_word == "with" and WRITE_KEYWORD.search(code))
-        or INTO_KEYWORD.search(code)
+        or (first_word == "with" and any(WRITE_KEYWORD.search(v) for v in variants))
+        or any(INTO_KEYWORD.search(v) for v in variants)
     ):
         raise ValueError(
             "Only a single read-only SQL statement is allowed (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES). "
@@ -278,6 +284,10 @@ def _template_tag_parameters(tags: Any) -> List[Dict[str, Any]]:
         # Snippets, saved-question references and table references insert SQL; they are not filters.
         if not isinstance(tag, dict) or tag.get("type") in ("snippet", "card", "table"):
             continue
+        # A filter whose widget is set to None has no filter box in Metabase, so it is hidden unless the question
+        # cannot run without a value for it.
+        if tag.get("widget-type") == "none" and (not tag.get("required") or tag.get("default") is not None):
+            continue
         # Metabase matches field filters and time grouping tags by dimension targets, other tags by variable.
         kind = "dimension" if tag.get("type") in ("dimension", "temporal-unit") else "variable"
         parameters.append(
@@ -298,9 +308,18 @@ def _template_tag_parameters(tags: Any) -> List[Dict[str, Any]]:
 
 
 def _merge_parameters(explicit: List[Dict[str, Any]], from_tags: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Keep the card's own parameters and add any template tag they leave out."""
+    """Keep the card's own parameters, filling a missing target from their tag, and add any tag they leave out."""
+    by_id = {t["id"]: t for t in from_tags if t["id"] is not None}
+    by_slug = {t["slug"]: t for t in from_tags if t["slug"] is not None}
+    merged = []
+    for param in explicit:
+        tag = by_id.get(param.get("id")) or by_slug.get(param.get("slug"))
+        # Metabase runs a parameter by its target, so one stored without a target borrows its tag's.
+        if tag and not param.get("target"):
+            param = {**param, "target": tag["target"]}
+        merged.append(param)
     known = ({p.get("id") for p in explicit} | {p.get("slug") for p in explicit}) - {None}
-    return explicit + [p for p in from_tags if p["id"] not in known and p["slug"] not in known]
+    return merged + [p for p in from_tags if p["id"] not in known and p["slug"] not in known]
 
 
 def _card_summary(card: Dict[str, Any]) -> Dict[str, Any]:
