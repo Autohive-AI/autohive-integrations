@@ -136,11 +136,11 @@ def _ensure_read_only_sql(sql: str) -> str:
         else:
             break
     first_word = re.match(r"[A-Za-z]*", text).group(0).lower()
-    # Backslash escapes, dollar quotes and SQL Server [brackets] differ between databases, so masking quotes and
-    # comments may be wrong.
+    # Backslash escapes, dollar quotes, SQL Server [brackets] and MySQL's -- (a comment only before whitespace,
+    # otherwise minus minus) differ between databases, so masking quotes and comments may be wrong.
     # For that SQL every check also runs on the raw text, which can only refuse more.
     masked = SQL_QUOTED_OR_COMMENT.sub(" ", sql)
-    risky = "\\" in sql or "[" in sql or DOLLAR_QUOTE.search(sql)
+    risky = "\\" in sql or "[" in sql or DOLLAR_QUOTE.search(sql) or re.search(r"--(?!\s)", sql)
     variants = [masked, sql] if risky else [masked]
     if (
         first_word not in READ_ONLY_SQL_KEYWORDS

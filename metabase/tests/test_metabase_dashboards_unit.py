@@ -223,8 +223,13 @@ class TestAddQuestionToDashboard:
                 {**TEXT_DASHCARD, "dashboard_tab_id": 12, "row": 20},
             ],
         }
-        mock_context.fetch.side_effect = [_ok(tabbed), _ok(tabbed)]
-        await metabase.execute_action("add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context)
+        added = {"id": 503, "card_id": 77, "dashboard_tab_id": 11, "row": 6, "col": 0, "size_x": 12, "size_y": 6}
+        mock_context.fetch.side_effect = [_ok(tabbed), _ok({**tabbed, "dashcards": tabbed["dashcards"] + [added]})]
+        result = await metabase.execute_action(
+            "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert (result.result.data["dashcard_id"], result.result.data["card_count"]) == (503, 3)
         body = mock_context.fetch.call_args_list[1].kwargs["json"]
         new = body["dashcards"][-1]
         assert new["dashboard_tab_id"] == 11
@@ -238,10 +243,13 @@ class TestAddQuestionToDashboard:
             "tabs": [{"id": 11, "name": "Overview"}, {"id": 12, "name": "Detail"}],
             "dashcards": [{**EXISTING_DASHCARD, "dashboard_tab_id": 11}],
         }
-        mock_context.fetch.side_effect = [_ok(tabbed), _ok(tabbed)]
-        await metabase.execute_action(
+        added = {"id": 503, "card_id": 77, "dashboard_tab_id": 12, "row": 0, "col": 0, "size_x": 12, "size_y": 6}
+        mock_context.fetch.side_effect = [_ok(tabbed), _ok({**tabbed, "dashcards": tabbed["dashcards"] + [added]})]
+        result = await metabase.execute_action(
             "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77, "tab_id": 12}, mock_context
         )
+        assert result.type == ResultType.ACTION
+        assert (result.result.data["dashcard_id"], result.result.data["card_count"]) == (503, 2)
         new = mock_context.fetch.call_args_list[1].kwargs["json"]["dashcards"][-1]
         assert (new["dashboard_tab_id"], new["row"]) == (12, 0)
 
