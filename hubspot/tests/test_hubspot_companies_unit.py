@@ -1069,3 +1069,51 @@ def test_action_schemas_support_claude_tool_catalogues():
     for name, action in config["actions"].items():
         unsupported = {"oneOf", "allOf", "anyOf"}.intersection(action["input_schema"])
         assert not unsupported, f"{name} has unsupported root keywords: {unsupported}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("object_type", ["company", "contact", "deal"])
+@pytest.mark.parametrize("include_details", [False, True])
+async def test_property_counts_include_omitted_custom_flag(mock_context, object_type, include_details):
+    mock_context.fetch.return_value = FetchResponse(
+        status=200,
+        headers={},
+        data={
+            "results": [
+                {
+                    "name": "standard",
+                    "label": "Standard",
+                    "type": "string",
+                    "fieldType": "text",
+                    "groupName": "test",
+                    "hubspotDefined": True,
+                },
+                {
+                    "name": "explicit_custom",
+                    "label": "Explicit",
+                    "type": "string",
+                    "fieldType": "text",
+                    "groupName": "test",
+                    "hubspotDefined": False,
+                },
+                {
+                    "name": "implicit_custom",
+                    "label": "Implicit",
+                    "type": "string",
+                    "fieldType": "text",
+                    "groupName": "test",
+                },
+            ]
+        },
+    )
+    result = await hubspot.execute_action(
+        f"get_{object_type}_properties", {"include_details": include_details}, mock_context
+    )
+    assert result.type == ResultType.ACTION
+    data = result.result.data
+    assert data["total_properties"] == 3
+    assert data["custom_properties_count"] == 2
+    if include_details:
+        assert [p["hubspotDefined"] for p in data["properties"]] == [True, False, False]
+    else:
+        assert data["properties"] == ["standard", "explicit_custom", "implicit_custom"]
