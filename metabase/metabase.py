@@ -108,7 +108,7 @@ def _required_text(value: Any, key: str) -> str:
 READ_ONLY_SQL_KEYWORDS = ("select", "with", "explain", "show", "describe", "desc", "values")
 # Quoted strings, quoted identifiers and comments, which may contain semicolons that end nothing.
 # Backslash escapes differ between databases, so SQL with a backslash keeps the plain semicolon check.
-SQL_QUOTED_OR_COMMENT = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|`[^`]*`|--[^\n]*|/\*.*?\*/", re.DOTALL)
+SQL_QUOTED_OR_COMMENT = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|`[^`]*`|--[^\r\n]*|/\*.*?\*/", re.DOTALL)
 # EXPLAIN ANALYZE runs the statement it explains, so it could run an UPDATE or DELETE.
 EXPLAIN_ANALYZE = re.compile(r"explain\s*(?:analy[sz]e\b|\([^)]*\banaly[sz]e\b)", re.IGNORECASE)
 # PostgreSQL nests block comments, so /* a /* b */ c */ could hide a statement after the first */.
@@ -127,7 +127,8 @@ def _ensure_read_only_sql(sql: str) -> str:
     while True:
         text = text.lstrip().lstrip("(").lstrip()
         if text.startswith("--"):
-            text = text.partition("\n")[2]
+            # PostgreSQL and MySQL end a line comment at a carriage return as well as a newline.
+            text = (re.split(r"[\r\n]", text, maxsplit=1) + [""])[1]
         elif text.startswith("/*"):
             text = text.partition("*/")[2]
         else:
