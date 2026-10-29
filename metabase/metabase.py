@@ -274,7 +274,8 @@ def _template_tag_parameters(tags: Any) -> List[Dict[str, Any]]:
         tags = list(tags.values())
     parameters = []
     for tag in tags or []:
-        if not isinstance(tag, dict) or tag.get("type") == "snippet" or tag.get("type") == "card":
+        # Snippets, saved-question references and table references insert SQL; they are not filters.
+        if not isinstance(tag, dict) or tag.get("type") in ("snippet", "card", "table"):
             continue
         # Metabase matches field filters and time grouping tags by dimension targets, other tags by variable.
         kind = "dimension" if tag.get("type") in ("dimension", "temporal-unit") else "variable"

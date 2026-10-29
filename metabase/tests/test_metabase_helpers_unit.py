@@ -318,6 +318,26 @@ class TestCardSummary:
         }
         assert [p["slug"] for p in _card_summary(card)["parameters"]] == ["region", "n"]
 
+    def test_snippet_card_and_table_tags_are_not_filters(self):
+        card = {
+            "id": 1,
+            "name": "Q",
+            "dataset_query": {
+                "stages": [
+                    {
+                        "native": "x",
+                        "template-tags": [
+                            {"id": "s", "name": "snippet: base", "type": "snippet"},
+                            {"id": "c", "name": "#5", "type": "card"},
+                            {"id": "t", "name": "orders", "type": "table"},
+                            {"id": "n", "name": "n", "type": "number"},
+                        ],
+                    }
+                ]
+            },
+        }
+        assert [p["slug"] for p in _card_summary(card)["parameters"]] == ["n"]
+
     def test_temporal_unit_tag_targets_dimension(self):
         card = {
             "id": 1,
