@@ -377,6 +377,7 @@ class TestReadOnlySql:
             "with x as (select 1) select * from x",
             "with x as (select last_update, deleted_at from t) select * from x",
             "with x as (select 'delete' as action) select * from x",
+            "select 'insert into' as label, intomark from t",
             "-- note\nselect 1",
             "/* hi */ select 1",
             "(select 1) union (select 2)",
@@ -426,6 +427,9 @@ class TestReadOnlySql:
             "with x as (update t set a = 1 returning a) select * from x",
             "with x as (insert into t values (1) returning *) select 1",
             "with x as (select 1) merge into t using x on true when matched then delete",
+            "SELECT * INTO backup FROM users",
+            "select a into temp t2 from t",
+            "with x as (select 1 as a) select a into t2 from x",
         ],
     )
     def test_rejected(self, sql):
