@@ -101,7 +101,6 @@ class TestRunQuestion:
                 {
                     "id": "p1",
                     "slug": "region",
-                    "name": "Region",
                     "type": "category",
                     "default": None,
                     "target": target,
@@ -109,6 +108,14 @@ class TestRunQuestion:
                 }
             ]
         }
+
+    @pytest.mark.asyncio
+    async def test_name_kept_without_template_tag_target(self, mock_context):
+        # Without a template-tag target Metabase can only match the filter by its name.
+        param = {"id": "p1", "name": "region", "type": "category", "value": "EU"}
+        mock_context.fetch.return_value = _ok(_dataset([[1]]), status=202)
+        await metabase.execute_action("run_question", {"question_id": 42, "parameters": [param]}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"] == {"parameters": [param]}
 
     @pytest.mark.asyncio
     async def test_no_parameters_sends_empty_body(self, mock_context):

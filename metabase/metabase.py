@@ -111,6 +111,27 @@ def _required_text(value: Any, key: str) -> str:
 
 # Keys Metabase accepts on a parameter value when running a saved question (parameters.schema/parameter-with-value).
 RUN_PARAMETER_KEYS = ("id", "name", "slug", "sectionId", "type", "value", "default", "target", "options")
+
+
+def _run_parameter(param: Any) -> Any:
+    """Shape a filter for running a saved question."""
+    if not isinstance(param, dict):
+        return param
+    # Metabase 0.64+ refuses any other key, such as the widget_type and required that get_question lists.
+    param = {k: v for k, v in param.items() if k in RUN_PARAMETER_KEYS}
+    # Metabase 0.49 looks a filter up by name before target, and get_question's name is the display label
+    # ("Region", not the tag "region"). A template-tag target already names the tag, so the label is dropped.
+    target = param.get("target")
+    if (
+        isinstance(target, list)
+        and len(target) > 1
+        and isinstance(target[1], list)
+        and target[1][:1] == ["template-tag"]
+    ):
+        param.pop("name", None)
+    return param
+
+
 READ_ONLY_SQL_KEYWORDS = ("select", "with", "explain", "show", "describe", "desc", "values")
 # Databases disagree on quoting and comments (backslash escapes, $$ quotes, [brackets], # and --1 in MySQL,
 # /*! */ code), so every check below reads the raw SQL. A semicolon or write word inside a quoted value or a
@@ -129,6 +150,16 @@ STATEMENT_WORDS = (
     # SQLite, ClickHouse, Spark/Databricks, Oracle
     " attach detach pragma system msck uncache"
 ).split()
+# Read-only PostgreSQL pg_ functions analysts use (sizes, types, definitions, visibility, server status).
+PG_READ_FUNCTIONS = (
+    r"(?:size_pretty|size_bytes|\w*_size|typeof|get_\w+|has_role|\w+_is_visible|encoding_to_char|client_encoding"
+    r"|postmaster_start_time|conf_load_time|backend_pid|is_in_recovery|last_xact_replay_timestamp|jit_available"
+    r"|input_is_valid|input_error_info|column_compression|describe_object|identify_object\w*|blocking_pids"
+    r"|tablespace_location|options_to_table|current_snapshot|snapshot_\w+|visible_in_snapshot|xact_status"
+    r"|current_xact_id_if_assigned|stat_get_\w+|index_column_has_property|index_has_property"
+    r"|indexam_has_property|collation_is_visible|char_to_encoding|safe_snapshot_blocking_pids|trigger_depth"
+    r"|my_temp_schema|is_other_temp_schema|listening_channels|notification_queue_usage)\b"
+)
 WRITE_KEYWORD = re.compile(
     r"\b(?:" + "|".join(STATEMENT_WORDS) + r")\b"
     # SQL Server stored procedures, Oracle packages, SQL Server Service Broker and key statements
@@ -138,11 +169,10 @@ WRITE_KEYWORD = re.compile(
     # Functions with side effects: sequences, sessions, locks, sleeps, server files, replication, remote
     # databases and URLs, and commands (ClickHouse executable, Spark reflect). The name may be quoted or bracketed
     # ("nextval", [nextval]) and followed by spaces or comments (setval/**/(...)) before its arguments.
-    r"|\b(?:setval|nextval|set_config|pg_terminate_backend|pg_cancel_backend|pg_reload_conf|pg_rotate_logfile\w*"
-    r"|pg_promote|pg_switch_wal|pg_create_restore_point|pg_wal_replay_\w+|pg_notify|pg_(?:try_)?advisory\w*"
-    r"|pg_file_\w+|pg_stat_reset\w*|pg_logical_\w+|pg_import_system_collations|pg_replication_\w+"
-    r"|pg_\w*replication_slot\w*|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvwrite|file_write"
-    r"|link_schema|pg_sleep\w*|pg_read_file|pg_read_binary_file|pg_ls_\w+|pg_stat_file|pg_logdir_ls|sleep|benchmark"
+    # PostgreSQL admin functions all start pg_, so every pg_ function is refused except common read-only ones.
+    r"|\b(?:pg_(?!" + PG_READ_FUNCTIONS + r")\w+"
+    r"|setval|nextval|set_config|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvwrite|file_write"
+    r"|link_schema|sleep|benchmark"
     r"|load_file|file_read|url|urlcluster|s3|s3cluster|gcs|file|remote|remotesecure|hdfs|azureblobstorage\w*"
     r"|deltalake|iceberg\w*|hudi|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect"
     r"|java_method|httpuritype)[\"`\]]?(?:\s|/\*(?:[^*]|\*(?!/))*\*/|--[^\r\n]*|#[^\r\n]*)*+\("
@@ -652,11 +682,7 @@ class RunQuestionAction(ActionHandler):
             max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
             body: Dict[str, Any] = {}
             if inputs.get("parameters"):
-                # Metabase 0.64+ refuses any other key, such as the widget_type and required that get_question lists.
-                body["parameters"] = [
-                    {k: v for k, v in p.items() if k in RUN_PARAMETER_KEYS} if isinstance(p, dict) else p
-                    for p in inputs["parameters"]
-                ]
+                body["parameters"] = [_run_parameter(p) for p in inputs["parameters"]]
 
             data = await _api(context, "POST", f"/card/{card_id}/query", json=body, timeout=QUERY_TIMEOUT_SECONDS)
             return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)
