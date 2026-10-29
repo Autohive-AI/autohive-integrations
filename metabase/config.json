@@ -1098,8 +1098,7 @@
                             "funnel",
                             "progress",
                             "gauge",
-                            "map",
-                            "pivot"
+                            "map"
                         ]
                     },
                     "description": {

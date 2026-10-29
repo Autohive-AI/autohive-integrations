@@ -418,6 +418,8 @@ class TestReadOnlySql:
             "explain (ANALYZE true) select 1",
             "explain /* x */ analyze delete from t",
             "/* note */ (explain analyze delete from t)",
+            "/* outer /* inner */ SELECT 1 */ DELETE FROM users",
+            "select 1 /* a /* b */ c */",
         ],
     )
     def test_rejected(self, sql):

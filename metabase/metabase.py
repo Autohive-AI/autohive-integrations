@@ -111,6 +111,8 @@ READ_ONLY_SQL_KEYWORDS = ("select", "with", "explain", "show", "describe", "desc
 SQL_QUOTED_OR_COMMENT = re.compile(r"'(?:[^']|'')*'|\"(?:[^\"]|\"\")*\"|`[^`]*`|--[^\n]*|/\*.*?\*/", re.DOTALL)
 # EXPLAIN ANALYZE runs the statement it explains, so it could run an UPDATE or DELETE.
 EXPLAIN_ANALYZE = re.compile(r"explain\s*(?:analy[sz]e\b|\([^)]*\banaly[sz]e\b)", re.IGNORECASE)
+# PostgreSQL nests block comments, so /* a /* b */ c */ could hide a statement after the first */.
+NESTED_BLOCK_COMMENT = re.compile(r"/\*(?:(?!\*/).)*?/\*", re.DOTALL)
 
 
 def _ensure_read_only_sql(sql: str) -> str:
@@ -131,6 +133,7 @@ def _ensure_read_only_sql(sql: str) -> str:
         first_word not in READ_ONLY_SQL_KEYWORDS
         or ";" in code.strip().rstrip(";")
         or EXPLAIN_ANALYZE.match(code.lstrip().lstrip("(").lstrip())
+        or NESTED_BLOCK_COMMENT.search(sql)
     ):
         raise ValueError(
             "Only a single read-only SQL statement is allowed (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES). "

@@ -259,9 +259,11 @@ class TestCreateQuestion:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_invalid_display(self, mock_context):
+    @pytest.mark.parametrize("display", ["sparkle", "pivot"])
+    async def test_invalid_display(self, mock_context, display):
+        # Metabase only builds pivot tables from query builder questions, not SQL.
         result = await metabase.execute_action(
-            "create_question", {"name": "N", "database_id": 3, "sql": "select 1", "display": "sparkle"}, mock_context
+            "create_question", {"name": "N", "database_id": 3, "sql": "select 1", "display": display}, mock_context
         )
         assert result.type == ResultType.VALIDATION_ERROR
 
