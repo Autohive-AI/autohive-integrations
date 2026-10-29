@@ -115,6 +115,8 @@ EXPLAIN_ANALYZE = re.compile(r"explain\s*(?:analy[sz]e\b|\([^)]*\banaly[sz]e\b)"
 NESTED_BLOCK_COMMENT = re.compile(r"/\*(?:(?!\*/).)*?/\*", re.DOTALL)
 # PostgreSQL allows INSERT, UPDATE, DELETE and MERGE inside a WITH query.
 WRITE_KEYWORD = re.compile(r"\b(?:insert|update|delete|merge)\b", re.IGNORECASE)
+# MySQL runs the code inside /*! ... */ and MariaDB inside /*M! ... */, so these are never treated as comments.
+EXECUTABLE_COMMENT = re.compile(r"/\*M?!")
 # PostgreSQL dollar quotes ($$...$$, $tag$...$tag$) can hide the quotes and comments the masking relies on.
 DOLLAR_QUOTE = re.compile(r"\$(?:[A-Za-z_]\w*)?\$")
 # SELECT ... INTO creates a table (PostgreSQL, SQL Server) or writes a file or variable (MySQL).
@@ -134,10 +136,11 @@ def _ensure_read_only_sql(sql: str) -> str:
         else:
             break
     first_word = re.match(r"[A-Za-z]*", text).group(0).lower()
-    # Backslash escapes and dollar quotes differ between databases, so masking quotes and comments may be wrong.
+    # Backslash escapes, dollar quotes and SQL Server [brackets] differ between databases, so masking quotes and
+    # comments may be wrong.
     # For that SQL every check also runs on the raw text, which can only refuse more.
     masked = SQL_QUOTED_OR_COMMENT.sub(" ", sql)
-    risky = "\\" in sql or DOLLAR_QUOTE.search(sql)
+    risky = "\\" in sql or "[" in sql or DOLLAR_QUOTE.search(sql)
     variants = [masked, sql] if risky else [masked]
     if (
         first_word not in READ_ONLY_SQL_KEYWORDS
@@ -146,6 +149,7 @@ def _ensure_read_only_sql(sql: str) -> str:
         or EXPLAIN_ANALYZE.match(text)
         or EXPLAIN_ANALYZE.match(masked.lstrip().lstrip("(").lstrip())
         or NESTED_BLOCK_COMMENT.search(sql)
+        or EXECUTABLE_COMMENT.search(sql)
         or (first_word == "with" and any(WRITE_KEYWORD.search(v) for v in variants))
         or any(INTO_KEYWORD.search(v) for v in variants)
     ):
