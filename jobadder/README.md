@@ -9,13 +9,15 @@ This integration uses JobAdder OAuth 2.0 through Autohive. It requests only the 
 - `read_user`
 - `read_job` and `write_job`
 - `read_candidate` and `write_candidate`
-- `read_contact`, `read_company`, and `read_note`
+- `read_contact`, `write_contact`, `read_company`, and `read_note`
 - `read_contact_note`, `read_candidate_note`, `read_job_note`, `read_jobapplication_note`, `read_placement_note`, and `read_company_note`
 - `read_jobapplication` and `write_jobapplication`
 - `read_placement`
 - `offline_access` so Autohive can refresh JobAdder's 60-minute access tokens
 
 JobAdder returns the account's API base URL during OAuth. Autohive stores that URL as connection metadata; the integration requires it and validates that it is an HTTPS `jobadder.com` URL before making requests. Reconnect accounts created before this metadata was available.
+
+Existing JobAdder connections created before version 1.3.0 must also reconnect or reauthorise to grant the new `write_contact` scope before using `update_contact` or `set_contact_status`.
 
 API access requires a JobAdder developer application and approval. See the [JobAdder API documentation](https://developers.jobadder.com/docs/) and [OAuth 2.0 guide](https://jobadderapi.zendesk.com/hc/en-us/articles/360022196774-OAuth2-Authentication).
 
@@ -44,6 +46,9 @@ API access requires a JobAdder developer application and approval. See the [JobA
 - `list_candidates` — search by name, email, phone, resume keywords, status, recruiter, creation/update time, and sort order.
 - `get_candidate` — retrieve a full candidate profile.
 - `create_candidate` — create a candidate with optional identity, contact, status, source, skills, recruiter, employment, availability, education, address, social, and custom-field data. JobAdder does not require first and last names in its published request schema. A duplicate override code from a prior HTTP 409 response can be supplied when duplication is intentional.
+- `update_candidate` — update only the supplied fields on an existing candidate, including names, email, contact details, status, recruiter assignments, employment data, availability, skills, social profiles, summary, and custom fields. Explicit `null` values clear fields that JobAdder permits to be cleared. A duplicate override code from a prior HTTP 409 response can be supplied when changing an email intentionally creates a duplicate.
+- `list_candidate_statuses` — discover the account's candidate status definitions and filter them by ID, name, active state, or default state.
+- `set_candidate_status` — change a candidate to a selected status ID, optionally recording a note type and text with the change. Use `list_candidate_statuses` with `active: false` to discover valid inactive statuses for the connected account.
 - `list_candidate_applications` and `list_candidate_active_applications` — list all or only active applications for a candidate.
 - `list_candidate_placements` and `list_candidate_approved_placements` — list all or only approved placements for a candidate.
 - `list_candidate_attachments` — list candidate documents by native type, tenant category, latest-version flag, and pagination.
@@ -59,6 +64,9 @@ API access requires a JobAdder developer application and approval. See the [JobA
 
 - `list_contacts` — find contacts by company ID or company name, contact name, email, phone, creator/consultant, status, hiring-manager flag, and audit dates. Company-name searches first resolve matching JobAdder company IDs.
 - `get_contact` — retrieve full details for one contact.
+- `update_contact` — update only the supplied fields on an existing contact, including names, primary and additional emails, phone and mobile, company, office address, position, status, owner and recruiter assignments, reporting contact, social profiles, summary, subscription state, and custom fields. Explicit `null` values clear fields that JobAdder permits to be cleared. A duplicate override code from a prior HTTP 409 response is supported.
+- `list_contact_statuses` — discover the account's contact status definitions and filter them by ID, name, active state, or default state.
+- `set_contact_status` — change a contact to a selected status ID, optionally recording a note type and text with the change. Use `list_contact_statuses` with `active: false` to discover valid inactive statuses for the connected account.
 - `list_companies` — find companies by name, status, creator/consultant, and audit dates.
 - `get_company` — retrieve full details for one company.
 - `list_contact_jobs` — list the jobs associated with one contact.
@@ -106,6 +114,9 @@ List actions return the records, `total_count`, and JobAdder's pagination `links
 
 - Find open engineering roles with `list_jobs` using `{"job_title": "Engineer", "active": true}`.
 - Create a candidate with `create_candidate` using `{"first_name": "Alex", "last_name": "Smith", "email": "alex@example.com"}`.
+- Correct a candidate's capitalisation with `update_candidate` using `{"candidate_id": 456, "first_name": "John", "last_name": "Smith"}`.
+- Enrich a contact with `update_contact` using `{"contact_id": 789, "email": "contact@example.com"}`.
+- Find inactive candidate statuses with `list_candidate_statuses` using `{"active": false}`, then pass the selected `statusId` to `set_candidate_status`.
 - Add that candidate to a job with `add_candidates_to_job` using `{"job_id": 123, "candidate_ids": [456], "source": "Autohive"}`.
 - Find contacts created by a consultant with `list_contacts` using `{"company_id": 123, "created_by_user_id": 7}`.
 - Build a monthly activity report with `list_all_contact_activities` using `{"contact_ids": [123, 456], "created_at_from": "2026-09-01T00:00:00Z", "created_at_to": "2026-09-30T23:59:59Z"}`.
@@ -126,12 +137,12 @@ Read-only live tests are opt-in and require the `JOBADDER_ACCESS_TOKEN` and `JOB
 pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 ```
 
-The six write actions are deliberately excluded from live tests. JobAdder does not expose matching delete operations for candidates, applications, candidate attachments, or job attachments, and updating an existing attachment would mutate persistent customer data, so these tests could not reliably restore the account to its original state.
+The ten write actions are deliberately excluded from live tests. JobAdder does not expose matching delete operations for candidates, applications, candidate attachments, or job attachments. Candidate/contact updates, status changes, and attachment updates also mutate persistent customer data, so these tests could not reliably restore the account to its original state.
 
 ## Important limitations
 
 - API access is controlled by JobAdder and may require partner/developer approval.
 - Rate limits are applied per JobAdder account. The SDK handles ordinary request transport and errors, but workflows should avoid unnecessarily aggressive polling.
-- Candidate and job attachments can be uploaded and updated. Other related-record actions remain read-only; the integration does not create or update contacts, companies, notes, activities, application or placement attachments, placements, or timesheets.
+- Candidate and contact profiles and statuses can be updated, and candidate and job attachments can be uploaded and updated. Other related-record actions remain read-only; the integration does not create contacts or update companies, notes, activities, application or placement attachments, placements, or timesheets.
 - JobAdder restricts attachment file extensions and returns HTTP 422 for unsupported files. See [Attachments - File Type restrictions](https://jobadderapi.zendesk.com/hc/en-us/articles/4407420419353-Attachments-File-Type-restrictions).
 - The integration does not manage job records, application statuses, requisitions, job ads, partner actions, or webhooks.
