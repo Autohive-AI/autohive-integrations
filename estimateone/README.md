@@ -24,10 +24,16 @@ There is no process-global token cache shared between customer connections.
 
 | Action | Inputs | Outputs |
 | --- | --- | --- |
-| `list_matched_projects` | Required `company_id`; optional `created_since` (RFC 3339 with offset), `cursor`, `limit` (1–100, default 25) | `projects`, `next_cursor`, `has_next_page` |
+| `list_matched_projects` | Required `company_id`; optional `created_since` (RFC 3339 with offset), `cursor`, `limit` (1–100, default 25), `include_tenders` (default false) | `company_id`, compact `projects`, `returned_count`, `total_matching`, `next_cursor`, `has_next_page`, `truncated`, `message` |
 
-The project objects preserve E1's response fields, including project details, budgets, matching tenders,
-closing dates, matched keywords, consultants, subcontractors, and E1 links when supplied by E1.
+Project summaries contain labelled `id`, `name`, `status`, `category`, `address`, `created_at`,
+`budget` bounds, and `tender_count`. Missing values are null, never invented zeroes.
+`include_tenders=true` adds compact tender IDs, names, types, builder names, and quote deadlines.
+Tender bodies, matched keywords, consultants, subcontractors, URLs, and unrelated provider fields are omitted.
+`total_matching` is always null because the provider does not report an account-wide total.
+`returned_count` counts only this page. `truncated` means more provider pages remain; it never means
+part of a record was silently removed. Results exceeding 32 KiB return `ActionError` rather than a partial page.
+Retry with a smaller limit or disable tender details. Empty pages include a filter/keyword hint.
 Call once per page, passing `next_cursor` as `cursor` until `has_next_page` is false.
 Do not use `created_since` as an update cursor: it filters project creation, not tender additions or
 changes to existing projects. Perform periodic full reads and reconcile by project/tender IDs downstream.
@@ -37,12 +43,38 @@ changes to existing projects. Perform periodic full reads and reconcile by proje
 - Production is the only partner environment. E1 supplies test company IDs during onboarding.
 - The published rate limit is 100 requests per five minutes per bearer-token/client-ID bucket across API paths.
 - Data changes over hours. Prefer hourly/daily polling and cache results downstream.
-- 429 has no `Retry-After`; schedule a later attempt with exponential backoff. The action surfaces the
-  SDK rate-limit error rather than spinning or retrying indefinitely.
+- 429 has no `Retry-After`; schedule a later attempt with exponential backoff. The action returns
+  `ActionError` naming `list_matched_projects` and a conservative 300-second wait rather than retrying indefinitely.
 - 401 may mean invalid scope, unpublished permission, or an unregistered company; a single token retry
   does not fix those access problems. Contact E1 onboarding if it persists.
 - 400 usually indicates malformed input or a missing client-ID header.
 - Empty results may be legitimate: matches depend on the supplier account's configured keywords.
+
+## Error recovery
+
+Expected HTTP, transport, authentication-shape, and malformed/incomplete response failures return
+`ActionError` with the action name and a concrete next step. Provider HTTP bodies are retained as
+bounded diagnostics after credential and HTML removal. A repeated/non-advancing next cursor fails
+instead of trapping an agent in a pagination loop. Invalid `created_since` timestamps fail before
+credential exchange. All supported actions are reads, so retry guidance does not risk duplicate writes.
+A 401/403 may require the user to restore connection access, company registration, or supplier licence.
+
+## Version history
+
+### 2.0.0
+
+Breaking output change applying the supplied **Building Agent-Friendly Integrations** skill:
+raw E1 project/tender payloads are replaced by compact typed summaries, with `projectId` becoming
+`projects[].id` and `projectName` becoming `projects[].name`. Budget absence is represented by null bounds.
+Existing workflows that read raw provider fields must update those paths; tender details now require
+`include_tenders=true`. Existing input names are preserved. Pagination retains `next_cursor` and
+`has_next_page`, adding the echoed company ID, returned count, unknown total, continuation flag, and message.
+Failures now return actionable `ActionError` instead of unhandled provider exceptions.
+No other integration or action was changed.
+
+### 1.0.0
+
+Initial paginated Supplier API integration with provider-shaped project objects.
 
 ## Testing
 
