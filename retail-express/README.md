@@ -4,7 +4,7 @@ Integration with the Retail Express POS and retail management platform REST API.
 
 ## Overview
 
-Retail Express is an Australian-based point-of-sale (POS) and retail management system. This integration allows you to manage products, customers, orders, and outlets through the Retail Express REST API v2.1.
+Retail Express is an Australian-based point-of-sale (POS) and retail management system. This integration allows you to manage products, inventory, customers, orders, and outlets through the Retail Express REST API v2.1.
 
 ## Authentication
 
@@ -30,6 +30,13 @@ For sandbox/testing access, contact:
 |--------|-------------|
 | `list_products` | Retrieve a paginated list of products |
 | `get_product` | Get details of a specific product by ID |
+
+### Inventory
+
+| Action | Description |
+|--------|-------------|
+| `list_inventory_levels` | Retrieve current stock quantities by product and outlet, including available, stock-on-hand, allocated, on-order, picked, received, requested, faulty, and in-transit quantities |
+| `list_inventory_movements` | Retrieve stock movement history with before, delta, and after values for reconciliation and auditing |
 
 ### Customers
 
@@ -79,12 +86,60 @@ All list endpoints support pagination with the following parameters:
 ### List Products with Filtering
 
 ```python
-# List products updated since a specific date
+# List products modified since a specific date
 inputs = {
     "page_size": 50,
-    "updated_since": "2024-01-01T00:00:00+10:00"
+    "modified_since": "2024-01-01T00:00:00+10:00",
 }
 ```
+
+### Filter Customers by Email
+
+```python
+inputs = {
+    "email": "customer@example.com",
+    "modified_since": "2024-01-01T00:00:00+10:00",
+}
+```
+
+The integration translates `email` to Retail Express's `filter_by` syntax.
+
+### Filter Orders
+
+```python
+inputs = {
+    "customer_id": "10001",
+    "order_status_id": 2,
+    "modified_since": "2024-01-01T00:00:00+10:00",
+}
+```
+
+Customer and order status filters are combined into the API's `filter_by` parameter.
+
+### Capture Inventory Levels for an Outlet
+
+```python
+inputs = {
+    "outlet_id": "10001",
+    "modified_since": "2026-01-01T00:00:00+13:00",
+    "page_size": 100,
+}
+```
+
+Use `product_id`, `sku`, or `sales_channel_id` to narrow inventory further. Each inventory record identifies a product and outlet and includes the current quantity fields returned by Retail Express.
+
+### Capture Inventory Movements
+
+```python
+inputs = {
+    "plu": "SKU-123",
+    "movement_types": "PO,Invoice",
+    "order_by": "created_on desc",
+    "page_size": 100,
+}
+```
+
+Movement records are useful for explaining changes in inventory levels because Retail Express returns quantity values before and after each movement, together with the delta.
 
 ### Create a Customer
 
@@ -95,14 +150,28 @@ inputs = {
     "email": "john.doe@example.com",
     "phone": "+61 2 1234 5678",
     "billing_address": {
-        "address_line_1": "123 Main St",
+        "address_line1": "123 Main St",
+        "address_line2": "Suite 2",
         "suburb": "Sydney",
         "state": "NSW",
         "postcode": "2000",
-        "country": "Australia"
-    }
+        "country": "Australia",
+        "country_code": "AU",
+        "first_name": "John",
+        "last_name": "Doe",
+    },
 }
 ```
+
+## Integration Tests
+
+Set `RETAIL_EXPRESS_API_KEY` in the repository-root `.env` file, then run the read-only live suite:
+
+```bash
+pytest retail-express/tests/test_retail_express_integration.py -m "integration and not destructive" -v
+```
+
+The suite covers every read-only action, including inventory levels and movement history. Customer creation and updates are intentionally excluded because the integration has no delete action for reliable cleanup, and updating an arbitrary existing customer cannot be safely restored.
 
 ## Notes
 

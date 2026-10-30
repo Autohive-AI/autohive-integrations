@@ -1,5 +1,6 @@
-from autohive_integrations_sdk import Integration, ExecutionContext, ActionHandler, ActionResult
 from typing import Dict, Any
+
+from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, Integration
 
 # Create the integration using the config.json
 retail_express = Integration.load()
@@ -33,7 +34,7 @@ async def get_access_token(context: ExecutionContext) -> str:
         headers={"x-api-key": api_key, "Accept": "application/json"},
     )
 
-    return response.get("access_token", "")
+    return response.data.get("access_token", "")
 
 
 async def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
@@ -64,12 +65,35 @@ def build_pagination_params(inputs: Dict[str, Any]) -> Dict[str, Any]:
     """Build pagination query parameters."""
     params = {}
 
-    if "page_number" in inputs:
-        params["page_number"] = inputs["page_number"]
-    if "page_size" in inputs:
-        params["page_size"] = min(inputs["page_size"], 250)
+    page_number = inputs.get("page_number")
+    page_size = inputs.get("page_size")
+
+    if page_number is not None:
+        params["page_number"] = page_number
+    if page_size is not None:
+        params["page_size"] = min(page_size, 250)
 
     return params
+
+
+def escape_filter_value(value: Any) -> str:
+    """Escape Retail Express filter delimiters in a scalar value."""
+    return str(value).replace("\\", "\\\\").replace(",", "\\,").replace("|", "\\|")
+
+
+def build_filter_by(inputs: Dict[str, Any], field_mappings: Dict[str, str]) -> str:
+    """Build a Retail Express filter expression from convenient action inputs."""
+    filters = []
+    existing_filter = inputs.get("filter_by")
+    if existing_filter:
+        filters.append(existing_filter)
+
+    for input_name, field_name in field_mappings.items():
+        value = inputs.get(input_name)
+        if value is not None and value != "":
+            filters.append(f"{field_name}:eq:{escape_filter_value(value)}")
+
+    return ",".join(filters)
 
 
 # ---- Product Action Handlers ----
@@ -83,11 +107,12 @@ class ListProductsAction(ActionHandler):
         try:
             params = build_pagination_params(inputs)
 
-            # Add optional filters
-            if "sku" in inputs and inputs["sku"]:
-                params["sku"] = inputs["sku"]
-            if "updated_since" in inputs and inputs["updated_since"]:
-                params["updated_since"] = inputs["updated_since"]
+            sku = inputs.get("sku")
+            modified_since = inputs.get("modified_since")
+            if sku:
+                params["sku"] = sku
+            if modified_since:
+                params["modified_since"] = modified_since
 
             headers = await get_auth_headers(context)
 
@@ -95,31 +120,22 @@ class ListProductsAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/products", method="GET", headers=headers, params=params
             )
 
-            products = response.get("data", [])
+            body = response.data
+            products = body.get("data", [])
 
             return ActionResult(
                 data={
                     "products": products,
-                    "page_number": response.get("page_number", 1),
-                    "page_size": response.get("page_size", 20),
-                    "total_records": response.get("total_records", len(products)),
+                    "page_number": body.get("page_number", 1),
+                    "page_size": body.get("page_size", 20),
+                    "total_records": body.get("total_records", len(products)),
                     "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={
-                    "products": [],
-                    "page_number": 1,
-                    "page_size": 20,
-                    "total_records": 0,
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @retail_express.action("get_product")
@@ -136,10 +152,118 @@ class GetProductAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/products/{product_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data={"product": response.get("data", response), "result": True}, cost_usd=0.0)
+            body = response.data
+            return ActionResult(data={"product": body.get("data", body), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"product": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
+
+
+# ---- Inventory Action Handlers ----
+
+
+@retail_express.action("list_inventory_levels")
+class ListInventoryLevelsAction(ActionHandler):
+    """Retrieve current inventory quantities by product and outlet."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            params = build_pagination_params(inputs)
+
+            sales_channel_id = inputs.get("sales_channel_id")
+            sku = inputs.get("sku")
+            outlet_id = inputs.get("outlet_id")
+            product_id = inputs.get("product_id")
+            modified_since = inputs.get("modified_since")
+            order_by = inputs.get("order_by")
+            filter_by = inputs.get("filter_by")
+
+            if sales_channel_id:
+                params["sales_channel_id"] = sales_channel_id
+            if sku:
+                params["sku"] = sku
+            if outlet_id:
+                params["outlet_id"] = outlet_id
+            if product_id:
+                params["product_id"] = product_id
+            if modified_since:
+                params["modified_since"] = modified_since
+            if order_by:
+                params["order_by"] = order_by
+            if filter_by:
+                params["filter_by"] = filter_by
+
+            headers = await get_auth_headers(context)
+            response = await context.fetch(
+                f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/inventory",
+                method="GET",
+                headers=headers,
+                params=params,
+            )
+
+            body = response.data
+            inventory_levels = body.get("data") or []
+            return ActionResult(
+                data={
+                    "inventory_levels": inventory_levels,
+                    "page_number": body.get("page_number", 1),
+                    "page_size": body.get("page_size", 20),
+                    "total_records": body.get("total_records", len(inventory_levels)),
+                    "result": True,
+                },
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@retail_express.action("list_inventory_movements")
+class ListInventoryMovementsAction(ActionHandler):
+    """Retrieve inventory movement history for reconciliation and auditing."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        try:
+            params = build_pagination_params(inputs)
+
+            plu = inputs.get("plu")
+            reference_ids = inputs.get("reference_ids")
+            movement_types = inputs.get("movement_types")
+            filter_by = inputs.get("filter_by")
+            order_by = inputs.get("order_by")
+
+            if plu:
+                params["plu"] = plu
+            if reference_ids:
+                params["reference_ids"] = reference_ids
+            if movement_types:
+                params["movement_types"] = movement_types
+            if filter_by:
+                params["filter_by"] = filter_by
+            if order_by:
+                params["order_by"] = order_by
+
+            headers = await get_auth_headers(context)
+            response = await context.fetch(
+                f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/inventorymovementlogs",
+                method="GET",
+                headers=headers,
+                params=params,
+            )
+
+            body = response.data
+            inventory_movements = body.get("data") or []
+            return ActionResult(
+                data={
+                    "inventory_movements": inventory_movements,
+                    "page_number": body.get("page_number", 1),
+                    "page_size": body.get("page_size", 20),
+                    "total_records": body.get("total_records", len(inventory_movements)),
+                    "result": True,
+                },
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
 
 
 # ---- Customer Action Handlers ----
@@ -153,11 +277,16 @@ class ListCustomersAction(ActionHandler):
         try:
             params = build_pagination_params(inputs)
 
-            # Add optional filters
-            if "email" in inputs and inputs["email"]:
-                params["email"] = inputs["email"]
-            if "updated_since" in inputs and inputs["updated_since"]:
-                params["updated_since"] = inputs["updated_since"]
+            email = inputs.get("email")
+            modified_since = inputs.get("modified_since")
+            filter_by = build_filter_by(
+                {"filter_by": inputs.get("filter_by"), "email": email},
+                {"email": "email"},
+            )
+            if modified_since:
+                params["modified_since"] = modified_since
+            if filter_by:
+                params["filter_by"] = filter_by
 
             headers = await get_auth_headers(context)
 
@@ -165,31 +294,22 @@ class ListCustomersAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/customers", method="GET", headers=headers, params=params
             )
 
-            customers = response.get("data", [])
+            body = response.data
+            customers = body.get("data", [])
 
             return ActionResult(
                 data={
                     "customers": customers,
-                    "page_number": response.get("page_number", 1),
-                    "page_size": response.get("page_size", 20),
-                    "total_records": response.get("total_records", len(customers)),
+                    "page_number": body.get("page_number", 1),
+                    "page_size": body.get("page_size", 20),
+                    "total_records": body.get("total_records", len(customers)),
                     "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={
-                    "customers": [],
-                    "page_number": 1,
-                    "page_size": 20,
-                    "total_records": 0,
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @retail_express.action("get_customer")
@@ -206,10 +326,11 @@ class GetCustomerAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/customers/{customer_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data={"customer": response.get("data", response), "result": True}, cost_usd=0.0)
+            body = response.data
+            return ActionResult(data={"customer": body.get("data", body), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @retail_express.action("create_customer")
@@ -220,19 +341,25 @@ class CreateCustomerAction(ActionHandler):
         try:
             body = {"first_name": inputs["first_name"], "last_name": inputs["last_name"]}
 
-            # Add optional fields
-            if "email" in inputs and inputs["email"]:
-                body["email"] = inputs["email"]
-            if "phone" in inputs and inputs["phone"]:
-                body["phone"] = inputs["phone"]
-            if "mobile" in inputs and inputs["mobile"]:
-                body["mobile"] = inputs["mobile"]
-            if "company" in inputs and inputs["company"]:
-                body["company"] = inputs["company"]
-            if "billing_address" in inputs and inputs["billing_address"]:
-                body["billing_address"] = inputs["billing_address"]
-            if "shipping_address" in inputs and inputs["shipping_address"]:
-                body["shipping_address"] = inputs["shipping_address"]
+            email = inputs.get("email")
+            phone = inputs.get("phone")
+            mobile = inputs.get("mobile")
+            company = inputs.get("company")
+            billing_address = inputs.get("billing_address")
+            shipping_address = inputs.get("shipping_address")
+
+            if email:
+                body["email"] = email
+            if phone:
+                body["phone"] = phone
+            if mobile:
+                body["mobile"] = mobile
+            if company:
+                body["company"] = company
+            if billing_address:
+                body["billing_address"] = billing_address
+            if shipping_address:
+                body["shipping_address"] = shipping_address
 
             headers = await get_auth_headers(context)
 
@@ -240,10 +367,11 @@ class CreateCustomerAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/customers", method="POST", headers=headers, json=body
             )
 
-            return ActionResult(data={"customer": response.get("data", response), "result": True}, cost_usd=0.0)
+            body = response.data
+            return ActionResult(data={"customer": body.get("data", body), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 @retail_express.action("update_customer")
@@ -255,19 +383,25 @@ class UpdateCustomerAction(ActionHandler):
             customer_id = inputs["customer_id"]
             body = {}
 
-            # Add only provided fields
-            if "first_name" in inputs and inputs["first_name"]:
-                body["first_name"] = inputs["first_name"]
-            if "last_name" in inputs and inputs["last_name"]:
-                body["last_name"] = inputs["last_name"]
-            if "email" in inputs and inputs["email"]:
-                body["email"] = inputs["email"]
-            if "phone" in inputs and inputs["phone"]:
-                body["phone"] = inputs["phone"]
-            if "mobile" in inputs and inputs["mobile"]:
-                body["mobile"] = inputs["mobile"]
-            if "company" in inputs and inputs["company"]:
-                body["company"] = inputs["company"]
+            first_name = inputs.get("first_name")
+            last_name = inputs.get("last_name")
+            email = inputs.get("email")
+            phone = inputs.get("phone")
+            mobile = inputs.get("mobile")
+            company = inputs.get("company")
+
+            if first_name:
+                body["first_name"] = first_name
+            if last_name:
+                body["last_name"] = last_name
+            if email:
+                body["email"] = email
+            if phone:
+                body["phone"] = phone
+            if mobile:
+                body["mobile"] = mobile
+            if company:
+                body["company"] = company
 
             headers = await get_auth_headers(context)
 
@@ -278,10 +412,11 @@ class UpdateCustomerAction(ActionHandler):
                 json=body,
             )
 
-            return ActionResult(data={"customer": response.get("data", response), "result": True}, cost_usd=0.0)
+            body = response.data
+            return ActionResult(data={"customer": body.get("data", body), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"customer": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Order Action Handlers ----
@@ -295,13 +430,24 @@ class ListOrdersAction(ActionHandler):
         try:
             params = build_pagination_params(inputs)
 
-            # Add optional filters
-            if "status" in inputs and inputs["status"]:
-                params["status"] = inputs["status"]
-            if "customer_id" in inputs and inputs["customer_id"]:
-                params["customer_id"] = inputs["customer_id"]
-            if "updated_since" in inputs and inputs["updated_since"]:
-                params["updated_since"] = inputs["updated_since"]
+            customer_id = inputs.get("customer_id")
+            order_status_id = inputs.get("order_status_id")
+            modified_since = inputs.get("modified_since")
+            filter_by = build_filter_by(
+                {
+                    "filter_by": inputs.get("filter_by"),
+                    "customer_id": customer_id,
+                    "order_status_id": order_status_id,
+                },
+                {
+                    "customer_id": "customer_id",
+                    "order_status_id": "order_status_id",
+                },
+            )
+            if modified_since:
+                params["modified_since"] = modified_since
+            if filter_by:
+                params["filter_by"] = filter_by
 
             headers = await get_auth_headers(context)
 
@@ -309,31 +455,22 @@ class ListOrdersAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/orders", method="GET", headers=headers, params=params
             )
 
-            orders = response.get("data", [])
+            body = response.data
+            orders = body.get("data", [])
 
             return ActionResult(
                 data={
                     "orders": orders,
-                    "page_number": response.get("page_number", 1),
-                    "page_size": response.get("page_size", 20),
-                    "total_records": response.get("total_records", len(orders)),
+                    "page_number": body.get("page_number", 1),
+                    "page_size": body.get("page_size", 20),
+                    "total_records": body.get("total_records", len(orders)),
                     "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={
-                    "orders": [],
-                    "page_number": 1,
-                    "page_size": 20,
-                    "total_records": 0,
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @retail_express.action("get_order")
@@ -350,10 +487,11 @@ class GetOrderAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/orders/{order_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data={"order": response.get("data", response), "result": True}, cost_usd=0.0)
+            body = response.data
+            return ActionResult(data={"order": body.get("data", body), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"order": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
 
 
 # ---- Outlet Action Handlers ----
@@ -373,31 +511,22 @@ class ListOutletsAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/outlets", method="GET", headers=headers, params=params
             )
 
-            outlets = response.get("data", [])
+            body = response.data
+            outlets = body.get("data", [])
 
             return ActionResult(
                 data={
                     "outlets": outlets,
-                    "page_number": response.get("page_number", 1),
-                    "page_size": response.get("page_size", 20),
-                    "total_records": response.get("total_records", len(outlets)),
+                    "page_number": body.get("page_number", 1),
+                    "page_size": body.get("page_size", 20),
+                    "total_records": body.get("total_records", len(outlets)),
                     "result": True,
                 },
                 cost_usd=0.0,
             )
 
         except Exception as e:
-            return ActionResult(
-                data={
-                    "outlets": [],
-                    "page_number": 1,
-                    "page_size": 20,
-                    "total_records": 0,
-                    "result": False,
-                    "error": str(e),
-                },
-                cost_usd=0.0,
-            )
+            return ActionError(message=str(e))
 
 
 @retail_express.action("get_outlet")
@@ -414,7 +543,8 @@ class GetOutletAction(ActionHandler):
                 f"{RETAIL_EXPRESS_API_BASE_URL}/{API_VERSION}/outlets/{outlet_id}", method="GET", headers=headers
             )
 
-            return ActionResult(data={"outlet": response.get("data", response), "result": True}, cost_usd=0.0)
+            body = response.data
+            return ActionResult(data={"outlet": body.get("data", body), "result": True}, cost_usd=0.0)
 
         except Exception as e:
-            return ActionResult(data={"outlet": {}, "result": False, "error": str(e)}, cost_usd=0.0)
+            return ActionError(message=str(e))
