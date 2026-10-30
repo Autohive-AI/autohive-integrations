@@ -200,7 +200,21 @@ class TestRunSqlQuery:
             "run_sql_query", {"database_id": 3, "sql": "delete from users"}, mock_context
         )
         assert result.type == ResultType.ACTION_ERROR
-        assert "read-only" in result.result.message
+        assert "Only a single read statement" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "WITH removed AS (DELETE FROM users RETURNING *) SELECT * FROM removed",
+            "SELECT * INTO backup FROM users",
+            "select 1 SHUTDOWN",
+        ],
+    )
+    async def test_write_inside_a_read_never_sent(self, mock_context, sql):
+        result = await metabase.execute_action("run_sql_query", {"database_id": 3, "sql": sql}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio

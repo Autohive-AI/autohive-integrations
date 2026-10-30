@@ -142,11 +142,53 @@ NESTED_BLOCK_COMMENT = re.compile(r"/\*(?:(?!\*/).)*?/\*", re.DOTALL)
 # MySQL and MariaDB run the SQL inside /*! ... */ and /*M! ... */ comments.
 EXECUTABLE_COMMENT = re.compile(r"/\*M?!", re.IGNORECASE)
 LEADING_COMMENT = re.compile(r"\s*(?:--[^\r\n]*|#[^\r\n]*|/\*.*?\*/|\()", re.DOTALL)
+# Read-only PostgreSQL pg_ functions analysts use (sizes, types, definitions, visibility, server status).
+PG_READ_FUNCTIONS = (
+    r"(?:size_pretty|size_bytes|\w*_size|typeof|get_\w+|has_role|\w+_is_visible|encoding_to_char|client_encoding"
+    r"|postmaster_start_time|conf_load_time|backend_pid|is_in_recovery|last_xact_replay_timestamp|jit_available"
+    r"|input_is_valid|input_error_info|column_compression|describe_object|identify_object\w*|blocking_pids"
+    r"|tablespace_location|options_to_table|current_snapshot|snapshot_\w+|visible_in_snapshot|xact_status"
+    r"|current_xact_id_if_assigned|stat_get_\w+|index_column_has_property|index_has_property"
+    r"|indexam_has_property|collation_is_visible|char_to_encoding|safe_snapshot_blocking_pids|trigger_depth"
+    r"|my_temp_schema|is_other_temp_schema|listening_channels|notification_queue_usage)\b"
+)
+# Space or comments between two words (delete/**/from).
+_GAP = r"(?:\s|/\*(?:[^*]|\*(?!/))*\*/|--[^\r\n]*|#[^\r\n]*)++"
+_NAME = r"[\w.\[\]\"`]+"
+# Writes and admin statements that can sit inside a read: a data-modifying CTE (WITH x AS (DELETE FROM ...)),
+# SELECT INTO, or a second SQL Server statement with no semicolon (SELECT 1 SHUTDOWN). These are matched as
+# phrases, not single words, so columns such as system, lock or copy and values such as 'delete' still run.
+WRITE_PHRASE = re.compile(
+    rf"\bdelete{_GAP}(?:from|top)\b|\bdelete{_GAP}{_NAME}{_GAP}(?:from|where)\b"
+    rf"|\bupdate{_GAP}\S+(?:{_GAP}\S+){{0,4}}?{_GAP}set\b"
+    rf"|\binsert{_GAP}(?:into|overwrite|ignore)\b|\binsert{_GAP}{_NAME}(?:{_GAP})?(?:\(|values\b|select\b|default\b)"
+    rf"|\bmerge{_GAP}\S+(?:{_GAP}\S+){{0,2}}?{_GAP}using\b|\bbulk{_GAP}insert\b"
+    rf"|\b(?:backup|restore){_GAP}(?:database|log)\b|\bkill{_GAP}\d"
+    r"|\b(?:into|drop|truncate|alter|create|grant|revoke|deny|exec|execute|shutdown|dbcc|reconfigure|waitfor"
+    r"|updatetext|writetext)\b"
+    # SQL Server trigger, Service Broker, key and signature statements, and error-log writes.
+    rf"|\b(?:disable|enable){_GAP}trigger\b|\b(?:end|move|get){_GAP}conversation\b|\bsend{_GAP}on{_GAP}conversation\b"
+    rf"|\breceive{_GAP}(?:top\b|\*)|\braiserror\b"
+    rf"|\b(?:open|close){_GAP}(?:master|symmetric|all{_GAP}symmetric){_GAP}keys?\b|\badd{_GAP}(?:counter{_GAP})?signature\b"
+    # Functions with side effects: sequences, sessions, locks, sleeps, server files, remote databases and URLs,
+    # and commands (ClickHouse executable, Spark reflect). Every PostgreSQL pg_ function is refused except common
+    # read-only ones. Only a name followed by "(" counts, so columns such as url or file still run. The name may be
+    # quoted or bracketed and followed by comments before its "(".
+    r"|\b(?:pg_(?!" + PG_READ_FUNCTIONS + r")\w+|(?:sp|xp|dbms|utl)_\w+(?:\.\w+)?"
+    r"|setval|nextval|set_config|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvwrite|file_write"
+    r"|link_schema|sleep|benchmark|load_file|file_read|openquery|openrowset|opendatasource"
+    r"|url|urlcluster|s3|s3cluster|gcs|file|remote|remotesecure|hdfs|azureblobstorage\w*|deltalake|iceberg\w*|hudi"
+    r"|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect|java_method|httpuritype)"
+    rf"[\"`\]]?(?:{_GAP})?\("
+    # PostgreSQL U&"..." names can spell any word in hex escapes (U&"\0073etval").
+    r"|\bu&[\"']",
+    re.IGNORECASE,
+)
 
 
 def _ensure_read_only_sql(sql: str) -> str:
-    """Refuse SQL that is not a single statement starting with a read keyword. This only stops obvious writes; a
-    read-only database user in Metabase is what blocks writes such as a data-modifying CTE or SELECT INTO."""
+    """Refuse SQL that is not a single read statement or that contains a common write. A pattern check, not a
+    parser: only a read-only database user in Metabase blocks every write."""
     text = sql
     while match := LEADING_COMMENT.match(text):
         text = text[match.end() :]
@@ -159,11 +201,13 @@ def _ensure_read_only_sql(sql: str) -> str:
         or (EXPLAIN.search(sql) and ANALYZE.search(sql))
         or NESTED_BLOCK_COMMENT.search(sql)
         or EXECUTABLE_COMMENT.search(sql)
+        or WRITE_PHRASE.search(sql)
     ):
         raise ValueError(
-            "Only a single read-only SQL statement is allowed. It must start with SELECT, WITH, EXPLAIN, SHOW, "
-            "DESCRIBE or VALUES, and can't contain a semicolon before the end (even inside quotes or comments), "
-            "EXPLAIN ANALYZE, nested /* */ comments or MySQL /*! */ comments."
+            "Only a single read statement is allowed. It must start with SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or "
+            "VALUES. A semicolon before the end, writes such as DELETE FROM, UPDATE ... SET, INSERT INTO, INTO, DROP, "
+            "CREATE or SHUTDOWN, functions such as nextval(), EXPLAIN ANALYZE, nested /* */ comments and MySQL /*! */ "
+            "comments are refused anywhere, even inside quotes or comments."
         )
     return sql
 

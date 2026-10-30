@@ -114,7 +114,16 @@ Runs SQL in the database's own dialect and returns its rows.
 | `sql` | string | Yes | SQL to run |
 | `max_rows` | integer | No (default 100, max 2000) | Rows to return |
 
-Only a single statement that starts with `SELECT`, `WITH`, `EXPLAIN`, `SHOW`, `DESCRIBE` or `VALUES` (after any comments) is sent. A `;` before the end is refused anywhere in the SQL, even inside quotes or comments, because databases disagree on what counts as a quote or a comment. `EXPLAIN ANALYZE`, nested `/* */` comments and MySQL `/*! */` comments are refused too. `create_question` applies the same rule. This check only stops SQL that is obviously not a read. It doesn't stop a write inside a read statement, such as a PostgreSQL `WITH ... DELETE`, `SELECT ... INTO`, `nextval()` or a second SQL Server statement without a semicolon. Column names such as `system` or `lock`, and values such as `'delete'`, are fine. **Connect the database in Metabase with a read-only database user**; that is what blocks writes. The API key's group also needs permission to write native queries against that database. A query that fails, for example because of a syntax error or a missing table, returns an error with Metabase's message.
+Only a single statement that starts with `SELECT`, `WITH`, `EXPLAIN`, `SHOW`, `DESCRIBE` or `VALUES` (after any comments) is sent. Common writes are refused anywhere in the SQL, including inside a read statement:
+
+- write phrases: `DELETE FROM`, `UPDATE ... SET`, `INSERT INTO`, `MERGE ... USING`, `INTO` (so `SELECT ... INTO` and `WITH x AS (DELETE ...)` are refused)
+- schema, permission and server statements: `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `GRANT`, `REVOKE`, `EXEC`, `SHUTDOWN`, `DBCC` and similar. SQL Server runs a second statement without a semicolon (`SELECT 1 SHUTDOWN`), so these are refused anywhere.
+- functions with side effects, such as `nextval()`, `pg_terminate_backend()`, `dblink()`, `load_file()` or ClickHouse `url()`, and every PostgreSQL `pg_` function except common read-only ones like `pg_size_pretty` or `pg_get_viewdef`
+- a `;` before the end, `EXPLAIN ANALYZE`, nested `/* */` comments and MySQL `/*! */` comments
+
+Databases disagree on what counts as a quote or a comment, so these are refused even inside quotes or comments: a value like `'delete from the queue'` is refused. Single words that are often column names are fine, for example `system`, `lock`, `use`, `copy`, `url` or the value `'delete'`. `create_question` applies the same rule.
+
+**This blocks common writes, not every write.** It is a pattern check, not a SQL parser. Connect the database in Metabase with a read-only database user to block all writes. The API key's group also needs permission to write native queries against that database. A query that fails, for example because of a syntax error or a missing table, returns an error with Metabase's message.
 
 #### Query results
 
@@ -149,7 +158,7 @@ Add cards to the same dashboard one at a time. Metabase has no "add one card" AP
 - **2,000 rows per query.** Metabase's API returns at most 2,000 rows for a query that isn't aggregated, and this integration returns at most `max_rows` (max 2,000) of them. For large tables, aggregate in SQL or add a `LIMIT`. `truncated` shows when rows were cut off.
 - **Query timeout.** Queries are given 120 seconds and are never retried automatically, so a slow query is not run twice. Slower queries return an error. Creates and dashboard updates are also sent only once. If Metabase saves a create but the response times out, the error tells the agent to check whether it exists before trying again.
 - **Deployment: Lambda timeout.** Set the integration's Lambda timeout to about 150 seconds. With the 30 second default, Lambda stops a slow query or saved question before Metabase answers, and the agent gets a generic error instead of the timeout message above.
-- **No deletes.** The integration never deletes or archives Metabase content, and only sends SQL that starts with a read keyword (see `run_sql_query`).
+- **No deletes.** The integration never deletes or archives Metabase content, and refuses common SQL writes (see `run_sql_query`).
 - **Not covered in this version:** alerts and subscriptions, building queries with Metabase's GUI query builder (MBQL), exporting results, and editing existing questions.
 
 ## Alternative: Metabase MCP server
