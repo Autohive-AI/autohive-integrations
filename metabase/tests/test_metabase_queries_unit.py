@@ -249,6 +249,15 @@ class TestRunSqlQuery:
 
 class TestCreateQuestion:
     @pytest.mark.asyncio
+    async def test_timeout_says_search_before_retrying(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action(
+            "create_question", {"name": "New", "database_id": 3, "sql": "select 1"}, mock_context
+        )
+        assert "may still have saved" in result.result.message
+        assert "Check with search" in result.result.message
+
+    @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
         mock_context.fetch.return_value = _ok({**SAMPLE_CARD, "id": 77, "name": "New"})
         result = await metabase.execute_action(

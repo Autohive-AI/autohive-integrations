@@ -102,6 +102,19 @@ class TestRetries:
         assert result.type == ResultType.ACTION_ERROR
         assert "did not respond in time" in result.result.message
 
+    @pytest.mark.asyncio
+    async def test_create_timeout_says_check_before_retrying(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action("create_collection", {"name": "X"}, mock_context)
+        assert "may still have saved" in result.result.message
+        assert "list_collections" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_read_timeout_has_no_saved_hint(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action("list_collections", {}, mock_context)
+        assert "may still have saved" not in result.result.message
+
 
 class TestListDatabases:
     @pytest.mark.asyncio
@@ -214,6 +227,44 @@ class TestGetDatabaseSchema:
             "get_database_schema", {"database_id": 3, "schema": "core", "table_name_contains": "Order"}, mock_context
         )
         assert [t["id"] for t in result.result.data["tables"]] == [10]
+
+    @pytest.mark.asyncio
+    async def test_default_page(self, mock_context):
+        tables = [{"id": i, "schema": "core", "name": f"t{i}"} for i in range(120)]
+        mock_context.fetch.return_value = _ok({"id": 3, "name": "Warehouse", "tables": tables})
+        result = await metabase.execute_action("get_database_schema", {"database_id": 3}, mock_context)
+        data = result.result.data
+        assert data["count"] == 50
+        assert data["total"] == 120
+        assert (data["limit"], data["offset"]) == (50, 0)
+        assert data["tables"][0]["id"] == 0
+
+    @pytest.mark.asyncio
+    async def test_limit_and_offset(self, mock_context):
+        tables = [{"id": i, "schema": "core", "name": f"t{i}"} for i in range(120)]
+        mock_context.fetch.return_value = _ok({"id": 3, "name": "Warehouse", "tables": tables})
+        result = await metabase.execute_action(
+            "get_database_schema", {"database_id": 3, "limit": 30, "offset": 100}, mock_context
+        )
+        data = result.result.data
+        assert [t["id"] for t in data["tables"]] == list(range(100, 120))
+        assert data["count"] == 20
+        assert data["total"] == 120
+
+    @pytest.mark.asyncio
+    async def test_limit_over_max_rejected(self, mock_context):
+        result = await metabase.execute_action("get_database_schema", {"database_id": 3, "limit": 5000}, mock_context)
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_total_counts_filtered_tables(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_METADATA)
+        result = await metabase.execute_action(
+            "get_database_schema", {"database_id": 3, "schema": "core", "limit": 1}, mock_context
+        )
+        assert result.result.data["count"] == 1
+        assert result.result.data["total"] == 2
 
     @pytest.mark.asyncio
     async def test_missing_database_id(self, mock_context):

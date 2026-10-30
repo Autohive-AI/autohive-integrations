@@ -133,80 +133,37 @@ def _run_parameter(param: Any) -> Any:
 
 
 READ_ONLY_SQL_KEYWORDS = ("select", "with", "explain", "show", "describe", "desc", "values")
-# Databases disagree on quoting and comments (backslash escapes, $$ quotes, [brackets], # and --1 in MySQL,
-# /*! */ code), so every check below reads the raw SQL. A semicolon or write word inside a quoted value or a
-# comment is refused too; that only refuses more, never less.
-# Words that start a statement which changes data, schema, settings, sessions or the server. SQL Server runs a
-# second statement without a semicolon (SELECT 1 SHUTDOWN), so these are refused anywhere, not just first.
-STATEMENT_WORDS = (
-    # Standard SQL and PostgreSQL/MySQL writes
-    "insert update delete merge upsert drop create alter truncate rename grant revoke deny"
-    " copy unload lock into vacuum reindex refresh optimize purge flush"
-    # Procedures, sessions and transactions
-    " exec execute call do set use declare begin commit rollback savepoint prepare discard notify listen unlisten"
-    # SQL Server statements (Transact-SQL statement reference)
-    " shutdown kill backup restore dbcc reconfigure checkpoint waitfor setuser revert enable disable"
-    " updatetext writetext bulk raiserror openquery openrowset opendatasource"
-    # SQLite, ClickHouse, Spark/Databricks, Oracle
-    " attach detach pragma system msck uncache"
-).split()
-# Read-only PostgreSQL pg_ functions analysts use (sizes, types, definitions, visibility, server status).
-PG_READ_FUNCTIONS = (
-    r"(?:size_pretty|size_bytes|\w*_size|typeof|get_\w+|has_role|\w+_is_visible|encoding_to_char|client_encoding"
-    r"|postmaster_start_time|conf_load_time|backend_pid|is_in_recovery|last_xact_replay_timestamp|jit_available"
-    r"|input_is_valid|input_error_info|column_compression|describe_object|identify_object\w*|blocking_pids"
-    r"|tablespace_location|options_to_table|current_snapshot|snapshot_\w+|visible_in_snapshot|xact_status"
-    r"|current_xact_id_if_assigned|stat_get_\w+|index_column_has_property|index_has_property"
-    r"|indexam_has_property|collation_is_visible|char_to_encoding|safe_snapshot_blocking_pids|trigger_depth"
-    r"|my_temp_schema|is_other_temp_schema|listening_channels|notification_queue_usage)\b"
-)
-WRITE_KEYWORD = re.compile(
-    r"\b(?:" + "|".join(STATEMENT_WORDS) + r")\b"
-    # SQL Server stored procedures, Oracle packages, SQL Server Service Broker and key statements
-    r"|\b(?:sp|xp|dbms|utl)_\w+|\bload\s+data\b|\bcache\s+(?:lazy\s+)?table\b"
-    r"|\b(?:end|move|get)\s+conversation\b|\bsend\s+on\s+conversation\b|\breceive\s+(?:top\b|\*|\w+\s+from\b)"
-    r"|\b(?:open|close)\s+(?:master|symmetric|all\s+symmetric)\s+keys?\b|\badd\s+(?:counter\s+)?signature\b"
-    # Functions with side effects: sequences, sessions, locks, sleeps, server files, replication, remote
-    # databases and URLs, and commands (ClickHouse executable, Spark reflect). The name may be quoted or bracketed
-    # ("nextval", [nextval]) and followed by spaces or comments (setval/**/(...)) before its arguments.
-    # PostgreSQL admin functions all start pg_, so every pg_ function is refused except common read-only ones.
-    r"|\b(?:pg_(?!" + PG_READ_FUNCTIONS + r")\w+"
-    r"|setval|nextval|set_config|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvwrite|file_write"
-    r"|link_schema|sleep|benchmark"
-    r"|load_file|file_read|url|urlcluster|s3|s3cluster|gcs|file|remote|remotesecure|hdfs|azureblobstorage\w*"
-    r"|deltalake|iceberg\w*|hudi|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect"
-    r"|java_method|httpuritype)[\"`\]]?(?:\s|/\*(?:[^*]|\*(?!/))*\*/|--[^\r\n]*|#[^\r\n]*)*+\("
-    # PostgreSQL U&"..." names can spell any word in hex escapes (U&"\0073etval").
-    r"|\bu&[\"']",
-    re.IGNORECASE,
-)
-# EXPLAIN ANALYZE runs the statement it explains.
-EXPLAIN_ANALYZE = re.compile(r"\bexplain\s*(?:\([^)]*)?\banaly[sz]e\b", re.IGNORECASE)
+# EXPLAIN ANALYZE runs the statement it explains. A comment can sit between the two words, so both are looked for
+# anywhere.
+EXPLAIN = re.compile(r"\bexplain\b", re.IGNORECASE)
+ANALYZE = re.compile(r"\banaly[sz]e\b", re.IGNORECASE)
 # PostgreSQL nests block comments, so /* a /* b */ c */ could hide the real first word.
 NESTED_BLOCK_COMMENT = re.compile(r"/\*(?:(?!\*/).)*?/\*", re.DOTALL)
+# MySQL and MariaDB run the SQL inside /*! ... */ and /*M! ... */ comments.
+EXECUTABLE_COMMENT = re.compile(r"/\*M?!", re.IGNORECASE)
 LEADING_COMMENT = re.compile(r"\s*(?:--[^\r\n]*|#[^\r\n]*|/\*.*?\*/|\()", re.DOTALL)
 
 
 def _ensure_read_only_sql(sql: str) -> str:
-    """Refuse SQL that is not a single read statement. A keyword check, not a parser: a read-only database user in
-    Metabase is what fully blocks writes."""
+    """Refuse SQL that is not a single statement starting with a read keyword. This only stops obvious writes; a
+    read-only database user in Metabase is what blocks writes such as a data-modifying CTE or SELECT INTO."""
     text = sql
     while match := LEADING_COMMENT.match(text):
         text = text[match.end() :]
     first_word = re.match(r"\s*([A-Za-z]*)", text).group(1).lower()
-    # A second statement after a semicolon could be anything, so only one statement is allowed.
+    # A second statement after a semicolon could be anything, so only one statement is allowed. Databases disagree
+    # on quoting, so a semicolon inside quotes or a comment is refused too.
     if (
         first_word not in READ_ONLY_SQL_KEYWORDS
         or ";" in sql.strip().rstrip(";")
-        or WRITE_KEYWORD.search(sql)
-        or EXPLAIN_ANALYZE.search(sql)
+        or (EXPLAIN.search(sql) and ANALYZE.search(sql))
         or NESTED_BLOCK_COMMENT.search(sql)
+        or EXECUTABLE_COMMENT.search(sql)
     ):
         raise ValueError(
-            "Only a single read-only SQL statement is allowed (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES). "
-            "Semicolons and words such as INSERT, UPDATE, DELETE, INTO or CREATE are refused anywhere, even inside "
-            "quotes or comments, so rephrase the query without them. "
-            "Use a read-only database user in Metabase to fully block writes."
+            "Only a single read-only SQL statement is allowed. It must start with SELECT, WITH, EXPLAIN, SHOW, "
+            "DESCRIBE or VALUES, and can't contain a semicolon before the end (even inside quotes or comments), "
+            "EXPLAIN ANALYZE, nested /* */ comments or MySQL /*! */ comments."
         )
     return sql
 
@@ -221,7 +178,8 @@ def _with_optional(body: Dict[str, Any], **values: Any) -> Dict[str, Any]:
     return body
 
 
-def _error_message(error: Exception) -> str:
+def _error_message(error: Exception, saved_check: Optional[str] = None) -> str:
+    """saved_check names how to look for a create that may have been saved before the response timed out."""
     if isinstance(error, HTTPError):
         data = error.response_data
         detail = None
@@ -230,6 +188,11 @@ def _error_message(error: Exception) -> str:
         message = f"Metabase returned HTTP {error.status}: {detail or error.message}"
         return message[:MAX_ERROR_LENGTH]
     if isinstance(error, asyncio.TimeoutError):
+        if saved_check:
+            return (
+                "Metabase did not respond in time, but it may still have saved the change. "
+                f"Check with {saved_check} before trying again, so it isn't created twice."
+            )
         return "Metabase did not respond in time. For queries, aggregate or add a LIMIT and try again."
     return str(error)
 
@@ -498,6 +461,7 @@ class GetDatabaseSchemaAction(ActionHandler):
             include_fields = bool(inputs.get("include_fields", False))
             schema = str(inputs.get("schema") or "").strip().lower()
             name_contains = str(inputs.get("table_name_contains") or "").strip().lower()
+            page = _page(inputs)
 
             skip_fields = "false" if include_fields else "true"
             data = await _api(
@@ -511,13 +475,17 @@ class GetDatabaseSchemaAction(ActionHandler):
                 if name_contains and name_contains not in str(table.get("name") or "").lower():
                     continue
                 tables.append(_table_summary(table, include_fields))
+            # Metabase sends every table at once, so a large warehouse is paged here.
+            returned = tables[page["offset"] : page["offset"] + page["limit"]]
             return ActionResult(
                 data={
                     "database_id": database.get("id"),
                     "database_name": database.get("name"),
                     "engine": database.get("engine"),
-                    "tables": tables,
-                    "count": len(tables),
+                    "tables": returned,
+                    "count": len(returned),
+                    "total": len(tables),
+                    **page,
                 },
                 cost_usd=0.0,
             )
@@ -653,7 +621,7 @@ class CreateCollectionAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, saved_check="list_collections"))
 
 
 # ---- Questions and queries ----
@@ -733,7 +701,7 @@ class CreateQuestionAction(ActionHandler):
                 raise ValueError("Metabase did not return a question id")
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, saved_check="search"))
 
 
 # ---- Dashboards ----
@@ -790,7 +758,7 @@ class CreateDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, saved_check="search"))
 
 
 @metabase.action("add_question_to_dashboard")
@@ -870,4 +838,4 @@ class AddQuestionToDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, saved_check="get_dashboard"))

@@ -137,7 +137,7 @@
         },
         "get_database_schema": {
             "display_name": "Get Database Schema",
-            "description": "List the tables in a database, optionally with their fields. Filter by schema or table name on large warehouses.",
+            "description": "List the tables in a database, optionally with their fields, 50 per page by default. Filter by schema or table name on large warehouses, or page with limit and offset.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -156,6 +156,17 @@
                     "include_fields": {
                         "type": "boolean",
                         "description": "Include each table's fields (default false; can be large)."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Tables per page (default 50, max 200). Use total to see how many matched.",
+                        "minimum": 1,
+                        "maximum": 200
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Number of tables to skip, for paging.",
+                        "minimum": 0
                     }
                 },
                 "required": [
@@ -272,7 +283,19 @@
                     },
                     "count": {
                         "type": "integer",
-                        "description": "Number of tables returned."
+                        "description": "Tables in this page."
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Total matching tables."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Page size used."
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Offset used."
                     }
                 },
                 "required": [
@@ -984,7 +1007,7 @@
         },
         "run_sql_query": {
             "display_name": "Run SQL Query",
-            "description": "Run a single read-only statement (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES) in the database's own SQL dialect and return its rows. Other statements, a ; before the end, and write words such as INSERT, UPDATE, DELETE, INTO or CREATE anywhere in the SQL (even in quotes or comments) are refused before reaching Metabase. Metabase returns at most 2,000 rows; aggregate or add LIMIT for large tables. Metabase permissions apply.",
+            "description": "Run a single read-only statement (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES) in the database's own SQL dialect and return its rows. SQL starting with any other word, a ; before the end (even in quotes or comments) and EXPLAIN ANALYZE are refused before reaching Metabase. Writes are only fully blocked when the database is connected with a read-only user. Metabase returns at most 2,000 rows; aggregate or add LIMIT for large tables. Metabase permissions apply.",
             "input_schema": {
                 "type": "object",
                 "properties": {

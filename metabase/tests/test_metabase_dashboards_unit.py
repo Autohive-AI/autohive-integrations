@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from autohive_integrations_sdk import HTTPError, ResultType
 
@@ -133,6 +135,12 @@ class TestCreateDashboard:
         result = await metabase.execute_action("create_dashboard", {"name": ""}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_timeout_says_search_before_retrying(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action("create_dashboard", {"name": "X"}, mock_context)
+        assert "Check with search" in result.result.message
 
     @pytest.mark.asyncio
     async def test_no_id_returned(self, mock_context):
@@ -300,6 +308,16 @@ class TestAddQuestionToDashboard:
         get_call, put_call = mock_context.fetch.call_args_list
         assert "retry_count" not in get_call.kwargs
         assert put_call.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_put_timeout_says_check_dashboard(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), asyncio.TimeoutError()]
+        result = await metabase.execute_action(
+            "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "may still have saved" in result.result.message
+        assert "get_dashboard" in result.result.message
 
     @pytest.mark.asyncio
     async def test_dashboard_not_found_skips_put(self, mock_context):

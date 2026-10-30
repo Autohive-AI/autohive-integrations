@@ -57,6 +57,9 @@ Lists the tables in a database.
 | `schema` | string | No | Only tables in this schema (case-insensitive) |
 | `table_name_contains` | string | No | Only tables whose name contains this text |
 | `include_fields` | boolean | No (default `false`) | Include each table's fields. On a large warehouse this can be a lot of data, so filter first. |
+| `limit` / `offset` | integer | No | Paging (default 50, max 200) |
+
+Returns `tables` plus `total`, `limit` and `offset` for paging.
 
 ### `get_table`
 
@@ -111,7 +114,7 @@ Runs SQL in the database's own dialect and returns its rows.
 | `sql` | string | Yes | SQL to run |
 | `max_rows` | integer | No (default 100, max 2000) | Rows to return |
 
-Only a single read-only statement is sent: SQL must start with `SELECT`, `WITH`, `EXPLAIN`, `SHOW`, `DESCRIBE` or `VALUES` (after any comments). A `;` before the end and words that write, such as `INSERT`, `UPDATE`, `DELETE`, `INTO`, `CREATE`, `DROP` or `EXPLAIN ANALYZE`, are refused anywhere in the SQL, even inside quotes or comments, because databases disagree on what counts as a quote or a comment. `create_question` applies the same rule. Well-known functions with side effects are refused too, such as `nextval`, `load_file` or ClickHouse `url()` and `executable()`, and every PostgreSQL `pg_` function except common read-only ones like `pg_size_pretty`, `pg_relation_size`, `pg_typeof` and `pg_get_viewdef`. This is a keyword check, not a SQL parser, so it can't catch everything (for example a less common function with side effects). To fully block writes, connect the database in Metabase with a read-only database user. The API key's group also needs permission to write native queries against that database. A query that fails, for example because of a syntax error or a missing table, returns an error with Metabase's message.
+Only a single statement that starts with `SELECT`, `WITH`, `EXPLAIN`, `SHOW`, `DESCRIBE` or `VALUES` (after any comments) is sent. A `;` before the end is refused anywhere in the SQL, even inside quotes or comments, because databases disagree on what counts as a quote or a comment. `EXPLAIN ANALYZE`, nested `/* */` comments and MySQL `/*! */` comments are refused too. `create_question` applies the same rule. This check only stops SQL that is obviously not a read. It doesn't stop a write inside a read statement, such as a PostgreSQL `WITH ... DELETE`, `SELECT ... INTO`, `nextval()` or a second SQL Server statement without a semicolon. Column names such as `system` or `lock`, and values such as `'delete'`, are fine. **Connect the database in Metabase with a read-only database user**; that is what blocks writes. The API key's group also needs permission to write native queries against that database. A query that fails, for example because of a syntax error or a missing table, returns an error with Metabase's message.
 
 #### Query results
 
@@ -144,8 +147,9 @@ Add cards to the same dashboard one at a time. Metabase has no "add one card" AP
 ## Limits
 
 - **2,000 rows per query.** Metabase's API returns at most 2,000 rows for a query that isn't aggregated, and this integration returns at most `max_rows` (max 2,000) of them. For large tables, aggregate in SQL or add a `LIMIT`. `truncated` shows when rows were cut off.
-- **Query timeout.** Queries are given 120 seconds and are never retried automatically, so a slow query is not run twice. Slower queries return an error. Creates and dashboard updates are also sent only once.
-- **No deletes.** The integration never deletes or archives Metabase content, and only sends read-only SQL.
+- **Query timeout.** Queries are given 120 seconds and are never retried automatically, so a slow query is not run twice. Slower queries return an error. Creates and dashboard updates are also sent only once. If Metabase saves a create but the response times out, the error tells the agent to check whether it exists before trying again.
+- **Deployment: Lambda timeout.** Set the integration's Lambda timeout to about 150 seconds. With the 30 second default, Lambda stops a slow query or saved question before Metabase answers, and the agent gets a generic error instead of the timeout message above.
+- **No deletes.** The integration never deletes or archives Metabase content, and only sends SQL that starts with a read keyword (see `run_sql_query`).
 - **Not covered in this version:** alerts and subscriptions, building queries with Metabase's GUI query builder (MBQL), exporting results, and editing existing questions.
 
 ## Alternative: Metabase MCP server
@@ -177,7 +181,7 @@ The read-only tests need a key that can see at least one SQL database, saved que
 uv run --with-requirements requirements-test.txt --with-requirements metabase/requirements.txt \
   pytest metabase/tests/test_metabase_integration.py -m "integration and not destructive"
 
-# Include destructive tests (creates a collection, question and dashboard, then moves them to the trash)
+# Include destructive tests (creates collections, questions and dashboards, then moves them to the trash)
 uv run --with-requirements requirements-test.txt --with-requirements metabase/requirements.txt \
   pytest metabase/tests/test_metabase_integration.py -m "integration and destructive"
 ```
