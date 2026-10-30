@@ -12,6 +12,9 @@ import sys
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote, urlencode, urlparse
 
+import sqlglot
+from sqlglot import exp
+
 metabase = Integration.load()
 
 # Metabase caps unaggregated API query results at 2,000 rows (MB_UNAGGREGATED_QUERY_ROW_LIMIT).
@@ -132,16 +135,39 @@ def _run_parameter(param: Any) -> Any:
     return param
 
 
-READ_ONLY_SQL_KEYWORDS = ("select", "with", "explain", "show", "describe", "desc", "values")
-# EXPLAIN ANALYZE runs the statement it explains. A comment can sit between the two words, so both are looked for
-# anywhere.
-EXPLAIN = re.compile(r"\bexplain\b", re.IGNORECASE)
-ANALYZE = re.compile(r"\banaly[sz]e\b", re.IGNORECASE)
-# PostgreSQL nests block comments, so /* a /* b */ c */ could hide the real first word.
-NESTED_BLOCK_COMMENT = re.compile(r"/\*(?:(?!\*/).)*?/\*", re.DOTALL)
-# MySQL and MariaDB run the SQL inside /*! ... */ and /*M! ... */ comments.
-EXECUTABLE_COMMENT = re.compile(r"/\*M?!", re.IGNORECASE)
-LEADING_COMMENT = re.compile(r"\s*(?:--[^\r\n]*|#[^\r\n]*|/\*.*?\*/|\()", re.DOTALL)
+# Metabase database engine -> sqlglot dialect, so quotes, comments and brackets are read the way that database
+# reads them. Other engines are read as generic SQL.
+SQL_DIALECTS = {
+    "postgres": "postgres",
+    "redshift": "redshift",
+    "mysql": "mysql",
+    "sqlserver": "tsql",
+    "bigquery-cloud-sdk": "bigquery",
+    "snowflake": "snowflake",
+    "oracle": "oracle",
+    "sqlite": "sqlite",
+    "clickhouse": "clickhouse",
+    "sparksql": "spark",
+    "databricks": "databricks",
+    "presto-jdbc": "presto",
+    "athena": "athena",
+    "starburst": "trino",
+    "teradata": "teradata",
+    "druid-jdbc": "druid",
+    "duckdb": "duckdb",
+}
+READ_STATEMENTS = (exp.Select, exp.SetOperation, exp.Values, exp.Describe, exp.Show, exp.Subquery)
+# Writes that can sit inside a read statement: WITH x AS (DELETE ...) and SELECT ... INTO.
+WRITE_NODES = (exp.DML, exp.DDL, exp.Into, exp.Command)
+# EXPLAIN options before the statement it explains (EXPLAIN ANALYZE runs it, so that statement is checked too).
+EXPLAIN_OPTIONS = re.compile(r"\s*(?:\([^)]*\)|analy[sz]e\b|verbose\b|format\s*=\s*\w+)", re.IGNORECASE)
+# SQL Server runs a second statement without a semicolon (SELECT 1 SHUTDOWN), which sqlglot reads as a column alias.
+# These words are reserved in SQL Server, so they are never real unquoted names there.
+TSQL_STATEMENT_WORDS = frozenset(
+    "backup begin bulk checkpoint close commit create dbcc deallocate declare delete deny drop end exec execute fetch"
+    " grant insert kill merge open print raiserror readtext reconfigure restore revert revoke rollback save set"
+    " setuser shutdown truncate update updatetext use waitfor while writetext".split()
+)
 # Read-only PostgreSQL pg_ functions analysts use (sizes, types, definitions, visibility, server status).
 PG_READ_FUNCTIONS = (
     r"(?:size_pretty|size_bytes|\w*_size|typeof|get_\w+|has_role|\w+_is_visible|encoding_to_char|client_encoding"
@@ -150,66 +176,74 @@ PG_READ_FUNCTIONS = (
     r"|tablespace_location|options_to_table|current_snapshot|snapshot_\w+|visible_in_snapshot|xact_status"
     r"|current_xact_id_if_assigned|stat_get_\w+|index_column_has_property|index_has_property"
     r"|indexam_has_property|collation_is_visible|char_to_encoding|safe_snapshot_blocking_pids|trigger_depth"
-    r"|my_temp_schema|is_other_temp_schema|listening_channels|notification_queue_usage)\b"
+    r"|my_temp_schema|is_other_temp_schema|listening_channels|notification_queue_usage)"
 )
-# Space or comments between two words (delete/**/from).
-_GAP = r"(?:\s|/\*(?:[^*]|\*(?!/))*\*/|--[^\r\n]*|#[^\r\n]*)++"
-_NAME = r"[\w.\[\]\"`]+"
-# Writes and admin statements that can sit inside a read: a data-modifying CTE (WITH x AS (DELETE FROM ...)),
-# SELECT INTO, or a second SQL Server statement with no semicolon (SELECT 1 SHUTDOWN). These are matched as
-# phrases, not single words, so columns such as system, lock or copy and values such as 'delete' still run.
-WRITE_PHRASE = re.compile(
-    rf"\bdelete{_GAP}(?:from|top)\b|\bdelete{_GAP}{_NAME}{_GAP}(?:from|where)\b"
-    rf"|\bupdate{_GAP}\S+(?:{_GAP}\S+){{0,4}}?{_GAP}set\b"
-    rf"|\binsert{_GAP}(?:into|overwrite|ignore)\b|\binsert{_GAP}{_NAME}(?:{_GAP})?(?:\(|values\b|select\b|default\b)"
-    rf"|\bmerge{_GAP}\S+(?:{_GAP}\S+){{0,2}}?{_GAP}using\b|\bbulk{_GAP}insert\b"
-    rf"|\b(?:backup|restore){_GAP}(?:database|log)\b|\bkill{_GAP}\d"
-    r"|\b(?:into|drop|truncate|alter|create|grant|revoke|deny|exec|execute|shutdown|dbcc|reconfigure|waitfor"
-    r"|updatetext|writetext)\b"
-    # SQL Server trigger, Service Broker, key and signature statements, and error-log writes.
-    rf"|\b(?:disable|enable){_GAP}trigger\b|\b(?:end|move|get){_GAP}conversation\b|\bsend{_GAP}on{_GAP}conversation\b"
-    rf"|\breceive{_GAP}(?:top\b|\*)|\braiserror\b"
-    rf"|\b(?:open|close){_GAP}(?:master|symmetric|all{_GAP}symmetric){_GAP}keys?\b|\badd{_GAP}(?:counter{_GAP})?signature\b"
-    # Functions with side effects: sequences, sessions, locks, sleeps, server files, remote databases and URLs,
-    # and commands (ClickHouse executable, Spark reflect). Every PostgreSQL pg_ function is refused except common
-    # read-only ones. Only a name followed by "(" counts, so columns such as url or file still run. The name may be
-    # quoted or bracketed and followed by comments before its "(".
-    r"|\b(?:pg_(?!" + PG_READ_FUNCTIONS + r")\w+|(?:sp|xp|dbms|utl)_\w+(?:\.\w+)?"
+# Functions with side effects: sequences, settings, sessions, locks, sleeps, server files, remote databases and
+# URLs, and commands (ClickHouse executable, Spark reflect). Every PostgreSQL pg_ function is refused except common
+# read-only ones, and every Oracle dbms_ or utl_ package.
+SIDE_EFFECT_FUNCTION = re.compile(
+    r"pg_(?!" + PG_READ_FUNCTIONS + r"$)\w+|(?:dbms|utl)_\w+"
     r"|setval|nextval|set_config|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvwrite|file_write"
     r"|link_schema|sleep|benchmark|load_file|file_read|openquery|openrowset|opendatasource"
     r"|url|urlcluster|s3|s3cluster|gcs|file|remote|remotesecure|hdfs|azureblobstorage\w*|deltalake|iceberg\w*|hudi"
-    r"|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect|java_method|httpuritype)"
-    rf"[\"`\]]?(?:{_GAP})?\("
-    # PostgreSQL U&"..." names can spell any word in hex escapes (U&"\0073etval").
-    r"|\bu&[\"']",
+    r"|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect|java_method|httpuritype",
     re.IGNORECASE,
 )
+# sqlglot skips MySQL /*! ... */ comments, which MySQL runs, and doesn't decode PostgreSQL U&"..." names, which can
+# spell any function in escapes (U&"\0073etval").
+UNREAD_SQL = re.compile(r"/\*M?!|\bu&[\"']", re.IGNORECASE)
 
 
-def _ensure_read_only_sql(sql: str) -> str:
-    """Refuse SQL that is not a single read statement or that contains a common write. A pattern check, not a
-    parser: only a read-only database user in Metabase blocks every write."""
-    text = sql
-    while match := LEADING_COMMENT.match(text):
-        text = text[match.end() :]
-    first_word = re.match(r"\s*([A-Za-z]*)", text).group(1).lower()
-    # A second statement after a semicolon could be anything, so only one statement is allowed. Databases disagree
-    # on quoting, so a semicolon inside quotes or a comment is refused too.
-    if (
-        first_word not in READ_ONLY_SQL_KEYWORDS
-        or ";" in sql.strip().rstrip(";")
-        or (EXPLAIN.search(sql) and ANALYZE.search(sql))
-        or NESTED_BLOCK_COMMENT.search(sql)
-        or EXECUTABLE_COMMENT.search(sql)
-        or WRITE_PHRASE.search(sql)
-    ):
-        raise ValueError(
-            "Only a single read statement is allowed. It must start with SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or "
-            "VALUES. A semicolon before the end, writes such as DELETE FROM, UPDATE ... SET, INSERT INTO, INTO, DROP, "
-            "CREATE or SHUTDOWN, functions such as nextval(), EXPLAIN ANALYZE, nested /* */ comments and MySQL /*! */ "
-            "comments are refused anywhere, even inside quotes or comments."
-        )
+def _refuse_sql(reason: str) -> ValueError:
+    return ValueError(
+        f"Only a single read statement (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES) is allowed: {reason}. "
+        "This blocks common writes; only a read-only database user in Metabase blocks every write."
+    )
+
+
+def _ensure_read_only_sql(sql: str, engine: Optional[str] = None) -> str:
+    """Refuse SQL that isn't a single read statement, or that writes or calls a function with side effects. SQL is
+    parsed for the database's dialect, so names, quoted text and comments are never mistaken for writes."""
+    dialect = SQL_DIALECTS.get(str(engine or ""))
+    if UNREAD_SQL.search(sql):
+        raise _refuse_sql("MySQL /*! */ comments and PostgreSQL U& names are refused")
+    try:
+        statements = [s for s in sqlglot.parse(sql, read=dialect) if s is not None]
+    except sqlglot.errors.SqlglotError:
+        raise _refuse_sql(f"the SQL couldn't be read as {dialect or 'standard'} SQL") from None
+    if len(statements) != 1:
+        raise _refuse_sql("send exactly one statement")
+    statement = statements[0]
+    if isinstance(statement, exp.Command) and statement.name.upper() == "EXPLAIN":
+        explained = statement.expression.name
+        while match := EXPLAIN_OPTIONS.match(explained):
+            explained = explained[match.end() :]
+        _ensure_read_only_sql(explained, engine)
+        return sql
+    if isinstance(statement, exp.Command) and statement.name.upper() == "SHOW":
+        return sql
+    if not isinstance(statement, READ_STATEMENTS):
+        raise _refuse_sql(f"{statement.key.upper()} statements are refused")
+    for node in statement.walk():
+        if isinstance(node, WRITE_NODES):
+            raise _refuse_sql(f"{node.key.upper()} is refused, even inside a read")
+        if isinstance(node, exp.Func):
+            name = node.name if isinstance(node, exp.Anonymous) else node.sql_name()
+            if SIDE_EFFECT_FUNCTION.fullmatch(name):
+                raise _refuse_sql(f"{name}() has side effects")
+        if isinstance(node, exp.Identifier):
+            if dialect == "tsql" and not node.quoted and node.name.lower() in TSQL_STATEMENT_WORDS:
+                raise _refuse_sql(f"{node.name.upper()} starts a second SQL Server statement")
+            if re.fullmatch(r"(?:dbms|utl)_\w+", node.name, re.IGNORECASE):
+                raise _refuse_sql(f"Oracle package {node.name} is refused")
     return sql
+
+
+async def _read_only_sql(context: ExecutionContext, database_id: Any, sql: Any) -> str:
+    """Check SQL in the dialect of the database it will run on."""
+    sql = _required_text(sql, "sql")
+    database = await _api(context, "GET", f"/database/{_path_id(database_id)}") or {}
+    return _ensure_read_only_sql(sql, database.get("engine"))
 
 
 def _native_query(database_id: Any, sql: str) -> Dict[str, Any]:
@@ -708,7 +742,7 @@ class RunSqlQueryAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            sql = _ensure_read_only_sql(_required_text(inputs["sql"], "sql"))
+            sql = await _read_only_sql(context, inputs["database_id"], inputs["sql"])
             max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
 
             data = await _api(
@@ -730,7 +764,7 @@ class CreateQuestionAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             name = _required_text(inputs["name"], "name")
-            sql = _ensure_read_only_sql(_required_text(inputs["sql"], "sql"))
+            sql = await _read_only_sql(context, inputs["database_id"], inputs["sql"])
             body: Dict[str, Any] = {
                 "name": name,
                 "type": "question",

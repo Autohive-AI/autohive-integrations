@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from autohive_integrations_sdk import ExecutionContext, HTTPError, ResultType
@@ -8,6 +8,10 @@ from metabase.metabase import NO_RETRY, metabase
 from metabase.tests.conftest import BASE, ok as _ok
 
 pytestmark = pytest.mark.unit
+
+
+def _database(engine="postgres"):
+    return _ok({"id": 3, "name": "Warehouse", "engine": engine})
 
 
 def _dataset(rows, cols=("a",), status="completed"):
@@ -148,19 +152,22 @@ class TestRunQuestion:
 class TestRunSqlQuery:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = _ok(
-            {
-                "status": "completed",
-                "data": {
-                    "cols": [
-                        {"name": "a", "display_name": "a", "base_type": "type/Integer"},
-                        {"name": "b", "display_name": "b", "base_type": "type/Text"},
-                    ],
-                    "rows": [[1, "x"]],
+        mock_context.fetch.side_effect = [
+            _database(),
+            _ok(
+                {
+                    "status": "completed",
+                    "data": {
+                        "cols": [
+                            {"name": "a", "display_name": "a", "base_type": "type/Integer"},
+                            {"name": "b", "display_name": "b", "base_type": "type/Text"},
+                        ],
+                        "rows": [[1, "x"]],
+                    },
                 },
-            },
-            status=202,
-        )
+                status=202,
+            ),
+        ]
         result = await metabase.execute_action(
             "run_sql_query", {"database_id": 3, "sql": "select 1 as a, 'x' as b"}, mock_context
         )
@@ -170,9 +177,12 @@ class TestRunSqlQuery:
 
     @pytest.mark.asyncio
     async def test_request(self, mock_context):
-        mock_context.fetch.return_value = _ok(_dataset([]), status=202)
+        mock_context.fetch.side_effect = [_database(), _ok(_dataset([]), status=202)]
         await metabase.execute_action("run_sql_query", {"database_id": 3, "sql": "  select 1  "}, mock_context)
-        call = mock_context.fetch.call_args
+        lookup, call = mock_context.fetch.call_args_list
+        # The database's engine picks the SQL dialect the check reads the query in.
+        assert lookup.args[0] == f"{BASE}/api/database/3"
+        assert lookup.kwargs["method"] == "GET"
         assert call.args[0] == f"{BASE}/api/dataset"
         assert call.kwargs["method"] == "POST"
         assert call.kwargs["headers"]["x-api-key"] == "mb_test_api_key"
@@ -185,9 +195,10 @@ class TestRunSqlQuery:
 
     @pytest.mark.asyncio
     async def test_failed_query_http_400(self, mock_context):
-        mock_context.fetch.side_effect = HTTPError(
-            400, "raw", {"status": "failed", "error": 'ERROR: relation "nope" does not exist'}
-        )
+        mock_context.fetch.side_effect = [
+            _database(),
+            HTTPError(400, "raw", {"status": "failed", "error": 'ERROR: relation "nope" does not exist'}),
+        ]
         result = await metabase.execute_action(
             "run_sql_query", {"database_id": 3, "sql": "select * from nope"}, mock_context
         )
@@ -196,12 +207,13 @@ class TestRunSqlQuery:
 
     @pytest.mark.asyncio
     async def test_write_sql_never_sent(self, mock_context):
+        mock_context.fetch.side_effect = [_database()]
         result = await metabase.execute_action(
             "run_sql_query", {"database_id": 3, "sql": "delete from users"}, mock_context
         )
         assert result.type == ResultType.ACTION_ERROR
         assert "Only a single read statement" in result.result.message
-        mock_context.fetch.assert_not_called()
+        assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -210,20 +222,42 @@ class TestRunSqlQuery:
             "WITH removed AS (DELETE FROM users RETURNING *) SELECT * FROM removed",
             "SELECT * INTO backup FROM users",
             "select 1 SHUTDOWN",
+            "SELECT 1 DELETE t",
         ],
     )
     async def test_write_inside_a_read_never_sent(self, mock_context, sql):
+        mock_context.fetch.side_effect = [_database("sqlserver")]
         result = await metabase.execute_action("run_sql_query", {"database_id": 3, "sql": sql}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
-        mock_context.fetch.assert_not_called()
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_sql_read_in_the_database_dialect(self, mock_context):
+        # MySQL reads a backslash before a quote as an escape, so this is one statement there; PostgreSQL sees two.
+        sql = "select 'a\\'; drop table t; --' as x"
+        mock_context.fetch.side_effect = [_database("mysql"), _ok(_dataset([["x"]], cols=("x",)), status=202)]
+        mysql = await metabase.execute_action("run_sql_query", {"database_id": 3, "sql": sql}, mock_context)
+        assert mysql.type == ResultType.ACTION
+        mock_context.fetch.side_effect = [_database("postgres")]
+        postgres = await metabase.execute_action("run_sql_query", {"database_id": 3, "sql": sql}, mock_context)
+        assert postgres.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_database_lookup_error(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "Not found.", "Not found.")
+        result = await metabase.execute_action("run_sql_query", {"database_id": 99, "sql": "select 1"}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 404" in result.result.message
+        assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
     async def test_create_question_rejects_write_sql(self, mock_context):
+        mock_context.fetch.side_effect = [_database()]
         result = await metabase.execute_action(
             "create_question", {"name": "N", "database_id": 3, "sql": "drop table users"}, mock_context
         )
         assert result.type == ResultType.ACTION_ERROR
-        mock_context.fetch.assert_not_called()
+        assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
     async def test_blank_sql(self, mock_context):
@@ -233,7 +267,7 @@ class TestRunSqlQuery:
 
     @pytest.mark.asyncio
     async def test_max_rows_capped_at_2000(self, mock_context):
-        mock_context.fetch.return_value = _ok(_dataset([[i] for i in range(2000)]), status=202)
+        mock_context.fetch.side_effect = [_database(), _ok(_dataset([[i] for i in range(2000)]), status=202)]
         result = await metabase.execute_action(
             "run_sql_query", {"database_id": 3, "sql": "select 1", "max_rows": 2000}, mock_context
         )
@@ -249,7 +283,7 @@ class TestRunSqlQuery:
 
     @pytest.mark.asyncio
     async def test_duplicate_column_names(self, mock_context):
-        mock_context.fetch.return_value = _ok(_dataset([[1, 2]], cols=("id", "id")), status=202)
+        mock_context.fetch.side_effect = [_database(), _ok(_dataset([[1, 2]], cols=("id", "id")), status=202)]
         result = await metabase.execute_action(
             "run_sql_query", {"database_id": 3, "sql": "select 1 id, 2 id"}, mock_context
         )
@@ -264,7 +298,7 @@ class TestRunSqlQuery:
 class TestCreateQuestion:
     @pytest.mark.asyncio
     async def test_timeout_says_search_before_retrying(self, mock_context):
-        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        mock_context.fetch.side_effect = [_database(), asyncio.TimeoutError()]
         result = await metabase.execute_action(
             "create_question", {"name": "New", "database_id": 3, "sql": "select 1"}, mock_context
         )
@@ -273,7 +307,7 @@ class TestCreateQuestion:
 
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
-        mock_context.fetch.return_value = _ok({**SAMPLE_CARD, "id": 77, "name": "New"})
+        mock_context.fetch.side_effect = [_database(), _ok({**SAMPLE_CARD, "id": 77, "name": "New"})]
         result = await metabase.execute_action(
             "create_question",
             {
@@ -302,7 +336,7 @@ class TestCreateQuestion:
 
     @pytest.mark.asyncio
     async def test_defaults(self, mock_context):
-        mock_context.fetch.return_value = _ok({"id": 78, "name": "N"})
+        mock_context.fetch.side_effect = [_database(), _ok({"id": 78, "name": "N"})]
         await metabase.execute_action(
             "create_question", {"name": "N", "database_id": 3, "sql": "select 1"}, mock_context
         )
@@ -330,7 +364,10 @@ class TestCreateQuestion:
 
     @pytest.mark.asyncio
     async def test_permission_error(self, mock_context):
-        mock_context.fetch.side_effect = HTTPError(403, "x", {"message": "You don't have permissions to do that."})
+        mock_context.fetch.side_effect = [
+            _database(),
+            HTTPError(403, "x", {"message": "You don't have permissions to do that."}),
+        ]
         result = await metabase.execute_action(
             "create_question", {"name": "N", "database_id": 3, "sql": "select 1"}, mock_context
         )
@@ -339,7 +376,7 @@ class TestCreateQuestion:
 
     @pytest.mark.asyncio
     async def test_no_id_returned(self, mock_context):
-        mock_context.fetch.return_value = _ok({"name": "N"})
+        mock_context.fetch.side_effect = [_database(), _ok({"name": "N"})]
         result = await metabase.execute_action(
             "create_question", {"name": "N", "database_id": 3, "sql": "select 1"}, mock_context
         )
@@ -348,7 +385,7 @@ class TestCreateQuestion:
 
     @pytest.mark.asyncio
     async def test_empty_description_omitted(self, mock_context):
-        mock_context.fetch.return_value = _ok({"id": 79, "name": "N"})
+        mock_context.fetch.side_effect = [_database(), _ok({"id": 79, "name": "N"})]
         await metabase.execute_action(
             "create_question", {"name": "N", "database_id": 3, "sql": "select 1", "description": ""}, mock_context
         )
@@ -356,14 +393,17 @@ class TestCreateQuestion:
 
     @pytest.mark.asyncio
     async def test_mbql5_response_sql_returned(self, mock_context):
-        mock_context.fetch.return_value = _ok(
-            {
-                "id": 80,
-                "name": "N",
-                "database_id": 3,
-                "dataset_query": {"database": 3, "stages": [{"native": "select 1"}]},
-            }
-        )
+        mock_context.fetch.side_effect = [
+            _database(),
+            _ok(
+                {
+                    "id": 80,
+                    "name": "N",
+                    "database_id": 3,
+                    "dataset_query": {"database": 3, "stages": [{"native": "select 1"}]},
+                }
+            ),
+        ]
         result = await metabase.execute_action(
             "create_question", {"name": "N", "database_id": 3, "sql": "select 1"}, mock_context
         )
@@ -386,7 +426,7 @@ class TestQueriesSentOnce:
 
     @pytest.mark.asyncio
     async def test_create_question_not_retried(self, mock_context):
-        mock_context.fetch.return_value = _ok({"id": 1, "name": "N"})
+        mock_context.fetch.side_effect = [_database(), _ok({"id": 1, "name": "N"})]
         await metabase.execute_action(
             "create_question", {"name": "N", "database_id": 3, "sql": "select 1"}, mock_context
         )
@@ -397,7 +437,9 @@ class TestQueriesSentOnce:
         context = ExecutionContext(auth=mock_context.auth)
         context._session = MagicMock()
         context._session.request.side_effect = asyncio.TimeoutError
-        with patch("asyncio.sleep") as sleep:
+        # The engine lookup is a GET; this test is about the query POST.
+        engine = AsyncMock(return_value="select 1")
+        with patch("asyncio.sleep") as sleep, patch("metabase.metabase._read_only_sql", engine):
             result = await metabase.execute_action("run_sql_query", {"database_id": 3, "sql": "select 1"}, context)
         assert result.type == ResultType.ACTION_ERROR
         assert context._session.request.call_count == 1

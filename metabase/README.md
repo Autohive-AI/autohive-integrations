@@ -114,16 +114,15 @@ Runs SQL in the database's own dialect and returns its rows.
 | `sql` | string | Yes | SQL to run |
 | `max_rows` | integer | No (default 100, max 2000) | Rows to return |
 
-Only a single statement that starts with `SELECT`, `WITH`, `EXPLAIN`, `SHOW`, `DESCRIBE` or `VALUES` (after any comments) is sent. Common writes are refused anywhere in the SQL, including inside a read statement:
+Before sending SQL, the integration parses it with [sqlglot](https://github.com/tobymao/sqlglot) in the dialect of the database it will run on (PostgreSQL, MySQL, SQL Server, BigQuery, Snowflake, ClickHouse and others; other databases are read as standard SQL). It looks up the database's engine first, with one extra read request. It sends the SQL only if it is:
 
-- write phrases: `DELETE FROM`, `UPDATE ... SET`, `INSERT INTO`, `MERGE ... USING`, `INTO` (so `SELECT ... INTO` and `WITH x AS (DELETE ...)` are refused)
-- schema, permission and server statements: `DROP`, `TRUNCATE`, `ALTER`, `CREATE`, `GRANT`, `REVOKE`, `EXEC`, `SHUTDOWN`, `DBCC` and similar. SQL Server runs a second statement without a semicolon (`SELECT 1 SHUTDOWN`), so these are refused anywhere.
-- functions with side effects, such as `nextval()`, `pg_terminate_backend()`, `dblink()`, `load_file()` or ClickHouse `url()`, and every PostgreSQL `pg_` function except common read-only ones like `pg_size_pretty` or `pg_get_viewdef`
-- a `;` before the end, `EXPLAIN ANALYZE`, nested `/* */` comments and MySQL `/*! */` comments
+- a single `SELECT`, `WITH`, `EXPLAIN`, `SHOW`, `DESCRIBE` or `VALUES` statement
+- with no write anywhere inside it, so `WITH x AS (DELETE ...)`, `SELECT ... INTO` and a second SQL Server statement added without a semicolon (`SELECT 1 SHUTDOWN`, `SELECT 1 DELETE t`) are refused. `EXPLAIN` checks the statement it explains, so `EXPLAIN ANALYZE DELETE` is refused.
+- with no function that has side effects, such as `nextval()`, `pg_terminate_backend()`, `dblink()`, `load_file()`, ClickHouse `url()` or Oracle `dbms_` packages. Every PostgreSQL `pg_` function is refused except common read-only ones like `pg_size_pretty` or `pg_get_viewdef`.
 
-Databases disagree on what counts as a quote or a comment, so these are refused even inside quotes or comments: a value like `'delete from the queue'` is refused. Single words that are often column names are fine, for example `system`, `lock`, `use`, `copy`, `url` or the value `'delete'`. `create_question` applies the same rule.
+Because the SQL is parsed, column names, quoted text and comments are not mistaken for writes: `system`, `lock`, `use`, `copy`, `url` or `'delete from the queue'` are fine. SQL the parser can't read for that database is refused, as are MySQL `/*! */` comments (MySQL runs them) and PostgreSQL `U&"..."` names. `create_question` applies the same rule.
 
-**This blocks common writes, not every write.** It is a pattern check, not a SQL parser. Connect the database in Metabase with a read-only database user to block all writes. The API key's group also needs permission to write native queries against that database. A query that fails, for example because of a syntax error or a missing table, returns an error with Metabase's message.
+**This blocks common writes, not every write.** Connect the database in Metabase with a read-only database user to block all writes. The API key's group also needs permission to write native queries against that database. A query that fails, for example because of a syntax error or a missing table, returns an error with Metabase's message.
 
 #### Query results
 
@@ -168,6 +167,7 @@ Metabase 0.60+ includes its own MCP server (Admin → AI → MCP). An Autohive p
 ## Requirements
 
 - `autohive-integrations-sdk`
+- `sqlglot` (pinned, used to parse SQL before it is sent)
 
 ## Testing
 

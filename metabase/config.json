@@ -1007,7 +1007,7 @@
         },
         "run_sql_query": {
             "display_name": "Run SQL Query",
-            "description": "Run a single read statement (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES) in the database's own SQL dialect and return its rows. Common writes are refused before reaching Metabase, even inside a read (WITH ... DELETE, SELECT ... INTO), as are a ; before the end and write phrases inside quotes or comments. This blocks common writes, not every write: only a read-only database user in Metabase blocks them all. Metabase returns at most 2,000 rows; aggregate or add LIMIT for large tables. Metabase permissions apply.",
+            "description": "Run a single read statement (SELECT, WITH, EXPLAIN, SHOW, DESCRIBE or VALUES) in the database's own SQL dialect and return its rows. The SQL is parsed in the database's dialect first: more than one statement, any write inside it (WITH ... DELETE, SELECT ... INTO) and functions with side effects such as nextval() are refused before reaching Metabase. Column names and quoted text are not mistaken for writes. This blocks common writes, not every write: only a read-only database user in Metabase blocks them all. Metabase returns at most 2,000 rows; aggregate or add LIMIT for large tables. Metabase permissions apply.",
             "input_schema": {
                 "type": "object",
                 "properties": {
