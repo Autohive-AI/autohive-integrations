@@ -165,12 +165,12 @@ files = [{"name": "input.png", "content": "<base64-encoded-png>", "contentType":
 
 ## Requirements
 
-Python 3.13+ is required by the SDK. Direct dependencies were checked against PyPI on 2026-10-28:
+Python 3.13+ is required by the SDK. Direct dependencies were checked against PyPI on 2026-10-28; pypdf was updated to its patched release on 2026-11-02:
 
 - `autohive-integrations-sdk~=2.0.1`
 - `numpy==2.5.4`
 - `Pillow==13.0.0`
-- `pypdf==6.21.3`
+- `pypdf==6.21.4`
 - `python-docx==1.2.0`
 - `reportlab==5.1.0`
 - `openpyxl==3.1.5`
