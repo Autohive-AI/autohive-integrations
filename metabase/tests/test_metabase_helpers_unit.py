@@ -514,6 +514,8 @@ class TestReadOnlySql:
             ("postgres", "select $$hello$$ as greeting, $1"),
             ("mysql", "select * from t where code like '%\\_%' and note = 'it''s'"),
             ("postgres", "SELECT t.nextval FROM (SELECT 1 AS nextval) AS t"),
+            ("mysql", "select replace(path, '\\\\', '/'), \"note\" from t where code like '%\\_%'"),
+            ("postgres", "select * from t where code ~ '\\d+' and name like '%\\_%' and note = E'a\\nb'"),
             ("mysql", 'select `order` from t where a = "x"'),
             ("sqlserver", "select [order id], [delete] from t"),
             ("sqlserver", "SELECT TOP (5) [a b], N'x' FROM dbo.t WITH (NOLOCK)"),
@@ -602,6 +604,8 @@ class TestReadOnlySql:
             ("oracle", "SELECT orders_seq.NEXTVAL FROM dual"),
             ("mysql", "select 'a\\'; drop table t; --' as x"),
             ("mysql", "WITH x AS (SELECT 'a\\' AS b) DELETE FROM users # ') SELECT 1"),
+            ("postgres", "select 'a\\' as b, ';delete from t;--' as c"),
+            ("mysql", "SELECT \"\\\" AS q, '\\'' AS a ; DELETE FROM t ; -- ' AS b -- \""),
             ("snowflake", "select my_db.public.orders_seq.nextval"),
             ("snowflake", "SELECT * FROM TABLE(GETNEXTVAL(orders_seq))"),
             ("postgres", "SELECT query_to_xml('select nextval(''s'')', true, false, '')"),
@@ -648,7 +652,7 @@ class TestReadOnlySql:
             _ensure_read_only_sql("SELECT query_to_xml('select 1', true, false, '')", "postgres")
         with pytest.raises(ValueError, match="table hint TABLOCKX locks the table"):
             _ensure_read_only_sql("SELECT * FROM dbo.orders WITH (TABLOCKX)", "sqlserver")
-        with pytest.raises(ValueError, match="write a quote inside text as '' instead of"):
+        with pytest.raises(ValueError, match="double a quote inside text instead of escaping it"):
             _ensure_read_only_sql("select 'it\\'s' as x", "mysql")
         with pytest.raises(ValueError, match="DELETE statements are refused"):
             _ensure_read_only_sql("delete from t where a = '\\n'", "mysql")

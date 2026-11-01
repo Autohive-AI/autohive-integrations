@@ -15,6 +15,7 @@ from urllib.parse import quote, urlencode, urlparse
 import sqlglot
 from sqlglot import exp
 from sqlglot.dialects.mysql import MySQL
+from sqlglot.dialects.postgres import Postgres
 
 metabase = Integration.load()
 
@@ -166,6 +167,36 @@ class MySQLNoBackslashEscapes(MySQL):
         STRING_ESCAPES = ["'", '"']
 
 
+class MySQLAnsiQuotes(MySQL):
+    """MySQL on a server with ANSI_QUOTES, where "..." is a name, so a backslash inside it is an ordinary character."""
+
+    class Tokenizer(MySQL.Tokenizer):
+        QUOTES = ["'"]
+        IDENTIFIERS = ["`", '"']
+        STRING_ESCAPES = ["'", "\\"]
+
+
+class MySQLAnsiQuotesNoBackslashEscapes(MySQLAnsiQuotes):
+    """MySQL on a server with both ANSI_QUOTES and NO_BACKSLASH_ESCAPES."""
+
+    class Tokenizer(MySQLAnsiQuotes.Tokenizer):
+        STRING_ESCAPES = ["'"]
+
+
+class PostgresBackslashEscapes(Postgres):
+    """PostgreSQL on a server with standard_conforming_strings off, where a backslash in quotes escapes."""
+
+    class Tokenizer(Postgres.Tokenizer):
+        STRING_ESCAPES = ["'", "\\"]
+
+
+# A server can be set to read a backslash in quotes differently from its default, which moves where text ends.
+# Metabase can't say how a server is set, so SQL with a backslash must also be safe under every other reading.
+OTHER_BACKSLASH_READINGS = {
+    "mysql": (MySQLNoBackslashEscapes, MySQLAnsiQuotes, MySQLAnsiQuotesNoBackslashEscapes),
+    "postgres": (PostgresBackslashEscapes,),
+}
+
 READ_STATEMENTS = (exp.Select, exp.SetOperation, exp.Values, exp.Describe, exp.Show, exp.Subquery)
 # Writes that can sit inside a read statement: WITH x AS (DELETE ...), SELECT ... INTO, SQL Server's
 # NEXT VALUE FOR (advances a sequence), Spark's SELECT TRANSFORM(...) USING 'command' (runs a shell command), and
@@ -228,16 +259,15 @@ def _ensure_read_only_sql(sql: str, engine: Optional[str] = None) -> str:
     parsed for the database's dialect, so names, quoted text and comments are never mistaken for writes."""
     dialect = SQL_DIALECTS.get(str(engine or ""))
     _check_read_only(sql, dialect)
-    # A MySQL server running with NO_BACKSLASH_ESCAPES ends 'a\' at the backslash, and Metabase can't say which mode
-    # the server runs in, so SQL with a backslash must also be safe read that way.
-    if dialect == "mysql" and "\\" in sql:
-        try:
-            _check_read_only(sql, MySQLNoBackslashEscapes)
-        except ValueError:
-            raise _refuse_sql(
-                "on MySQL a backslash in quotes is checked as if the server ignores it, so write a quote inside text "
-                "as '' instead of \\'"
-            ) from None
+    if "\\" in sql:
+        for reading in OTHER_BACKSLASH_READINGS.get(dialect, ()):
+            try:
+                _check_read_only(sql, reading)
+            except ValueError:
+                raise _refuse_sql(
+                    "a backslash in quotes is checked for every way the server can be set to read it, so double a "
+                    "quote inside text instead of escaping it, and don't end text with a backslash"
+                ) from None
     return sql
 
 
