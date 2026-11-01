@@ -158,8 +158,11 @@ SQL_DIALECTS = {
 }
 READ_STATEMENTS = (exp.Select, exp.SetOperation, exp.Values, exp.Describe, exp.Show, exp.Subquery)
 # Writes that can sit inside a read statement: WITH x AS (DELETE ...), SELECT ... INTO, SQL Server's
-# NEXT VALUE FOR (advances a sequence), and Spark's SELECT TRANSFORM(...) USING 'command' (runs a shell command).
-WRITE_NODES = (exp.DML, exp.DDL, exp.Into, exp.Command, exp.NextValueFor, exp.QueryTransform)
+# NEXT VALUE FOR (advances a sequence), Spark's SELECT TRANSFORM(...) USING 'command' (runs a shell command), and
+# FOR UPDATE / FOR SHARE (locks rows so other users can't change them).
+WRITE_NODES = (exp.DML, exp.DDL, exp.Into, exp.Command, exp.NextValueFor, exp.QueryTransform, exp.Lock)
+# SQL Server table hints that lock a table against writers for the length of the query (NOLOCK is fine).
+TSQL_LOCK_HINTS = frozenset("holdlock repeatableread serializable tablock tablockx updlock xlock".split())
 # EXPLAIN options before the statement it explains (EXPLAIN ANALYZE runs it, so that statement is checked too).
 EXPLAIN_OPTIONS = re.compile(r"\s*(?:\([^)]*\)|analy[sz]e\b|verbose\b|format\s*=\s*\w+)", re.IGNORECASE)
 # SQL Server runs a second statement without a semicolon (SELECT 1 SHUTDOWN), which sqlglot reads as a column alias.
@@ -179,12 +182,17 @@ PG_READ_FUNCTIONS = (
     r"|indexam_has_property|collation_is_visible|char_to_encoding|safe_snapshot_blocking_pids|trigger_depth"
     r"|my_temp_schema|is_other_temp_schema|listening_channels|notification_queue_usage)"
 )
+# Read-only Snowflake SYSTEM$ functions analysts use (types, clustering, plans, tags, pipe and stream status).
+SNOWFLAKE_READ_FUNCTIONS = (
+    r"(?:typeof|clustering_\w+|explain_\w+|get_\w+|\w+_status|stream_has_data|last_change_commit_time"
+    r"|allowlist\w*|whitelist\w*|estimate_\w+)"
+)
 # Functions with side effects: sequences, settings, sessions, locks, sleeps, server files, remote databases and
 # URLs, commands (ClickHouse executable, Spark reflect), and SQL run from a string (PostgreSQL query_to_xml, DuckDB
-# and Trino query). Every PostgreSQL pg_ function is refused except common read-only ones, and every Oracle dbms_ or
-# utl_ package.
+# and Trino query). Every PostgreSQL pg_ and Snowflake SYSTEM$ function is refused except common read-only ones,
+# and every Oracle dbms_ or utl_ package.
 SIDE_EFFECT_FUNCTION = re.compile(
-    r"pg_(?!" + PG_READ_FUNCTIONS + r"$)\w+|(?:dbms|utl)_\w+"
+    r"pg_(?!" + PG_READ_FUNCTIONS + r"$)\w+|system\$(?!" + SNOWFLAKE_READ_FUNCTIONS + r"$)\w+|(?:dbms|utl)_\w+"
     r"|setval|nextval|getnextval|set_config|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvwrite"
     r"|file_write|link_schema|sleep|sleepeachrow|benchmark|load_file|file_read|read_\w+|bfilename|load_extension"
     r"|openquery|openrowset|opendatasource|query|query_to_xml\w*|ts_stat|ts_rewrite"
@@ -238,6 +246,10 @@ def _ensure_read_only_sql(sql: str, engine: Optional[str] = None) -> str:
         # Oracle, Snowflake and H2 advance a sequence when a query reads seq.NEXTVAL.
         if isinstance(node, exp.Column) and node.table and node.name.lower() == "nextval":
             raise _refuse_sql("NEXTVAL advances a sequence")
+        if isinstance(node, exp.WithTableHint):
+            for hint in node.expressions:
+                if hint.name.lower() in TSQL_LOCK_HINTS:
+                    raise _refuse_sql(f"table hint {hint.name.upper()} locks the table")
         if isinstance(node, exp.Identifier):
             if dialect == "tsql" and not node.quoted and node.name.lower() in TSQL_STATEMENT_WORDS:
                 raise _refuse_sql(f"{node.name.upper()} starts a second SQL Server statement")

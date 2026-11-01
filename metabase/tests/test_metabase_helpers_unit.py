@@ -516,6 +516,8 @@ class TestReadOnlySql:
             ("mysql", 'select `order` from t where a = "x"'),
             ("sqlserver", "select [order id], [delete] from t"),
             ("sqlserver", "SELECT TOP (5) [a b], N'x' FROM dbo.t WITH (NOLOCK)"),
+            ("sqlserver", "SELECT * FROM dbo.t WITH (NOLOCK, INDEX(ix_t_date))"),
+            ("snowflake", "SELECT SYSTEM$TYPEOF(a), SYSTEM$CLUSTERING_INFORMATION('t'), SYSTEM$PIPE_STATUS('p')"),
             ("bigquery-cloud-sdk", "select `p.d.t`.x from `p.d.t`"),
             ("clickhouse", "select url, file from t"),
             ("postgres", "select query, read_count, file_cluster from pg_stat_activity"),
@@ -616,6 +618,14 @@ class TestReadOnlySql:
             ("clickhouse", "SELECT * FROM arrowflight('h:1', 'd')"),
             ("oracle", "select bfilename('D', 'f') from dual"),
             ("sqlite", "select load_extension('/tmp/x.so')"),
+            ("sqlserver", "SELECT * FROM dbo.orders WITH (TABLOCKX, HOLDLOCK)"),
+            ("sqlserver", "SELECT * FROM dbo.orders WITH (NOLOCK, UPDLOCK)"),
+            ("mysql", "SELECT * FROM orders FOR UPDATE"),
+            ("postgres", "SELECT * FROM orders FOR SHARE"),
+            ("snowflake", "SELECT SYSTEM$CANCEL_QUERY('01a2b3c4')"),
+            ("snowflake", "SELECT SYSTEM$ABORT_SESSION(1234)"),
+            ("snowflake", "SELECT SYSTEM$WAIT(60)"),
+            ("snowflake", "SELECT SYSTEM$SEND_EMAIL('i', 'a@b.c', 's', 'b')"),
             ("h2", "select orders_seq.nextval"),
             (None, "delete from t"),
         ],
@@ -633,3 +643,5 @@ class TestReadOnlySql:
             _ensure_read_only_sql("SELECT orders_seq.NEXTVAL FROM dual", "oracle")
         with pytest.raises(ValueError, match="query_to_xml\\(\\) has side effects"):
             _ensure_read_only_sql("SELECT query_to_xml('select 1', true, false, '')", "postgres")
+        with pytest.raises(ValueError, match="table hint TABLOCKX locks the table"):
+            _ensure_read_only_sql("SELECT * FROM dbo.orders WITH (TABLOCKX)", "sqlserver")
