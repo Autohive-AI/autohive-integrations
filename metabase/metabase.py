@@ -157,8 +157,9 @@ SQL_DIALECTS = {
     "duckdb": "duckdb",
 }
 READ_STATEMENTS = (exp.Select, exp.SetOperation, exp.Values, exp.Describe, exp.Show, exp.Subquery)
-# Writes that can sit inside a read statement: WITH x AS (DELETE ...) and SELECT ... INTO.
-WRITE_NODES = (exp.DML, exp.DDL, exp.Into, exp.Command)
+# Writes that can sit inside a read statement: WITH x AS (DELETE ...), SELECT ... INTO, SQL Server's
+# NEXT VALUE FOR (advances a sequence), and Spark's SELECT TRANSFORM(...) USING 'command' (runs a shell command).
+WRITE_NODES = (exp.DML, exp.DDL, exp.Into, exp.Command, exp.NextValueFor, exp.QueryTransform)
 # EXPLAIN options before the statement it explains (EXPLAIN ANALYZE runs it, so that statement is checked too).
 EXPLAIN_OPTIONS = re.compile(r"\s*(?:\([^)]*\)|analy[sz]e\b|verbose\b|format\s*=\s*\w+)", re.IGNORECASE)
 # SQL Server runs a second statement without a semicolon (SELECT 1 SHUTDOWN), which sqlglot reads as a column alias.
@@ -179,14 +180,17 @@ PG_READ_FUNCTIONS = (
     r"|my_temp_schema|is_other_temp_schema|listening_channels|notification_queue_usage)"
 )
 # Functions with side effects: sequences, settings, sessions, locks, sleeps, server files, remote databases and
-# URLs, and commands (ClickHouse executable, Spark reflect). Every PostgreSQL pg_ function is refused except common
-# read-only ones, and every Oracle dbms_ or utl_ package.
+# URLs, commands (ClickHouse executable, Spark reflect), and SQL run from a string (PostgreSQL query_to_xml, DuckDB
+# and Trino query). Every PostgreSQL pg_ function is refused except common read-only ones, and every Oracle dbms_ or
+# utl_ package.
 SIDE_EFFECT_FUNCTION = re.compile(
     r"pg_(?!" + PG_READ_FUNCTIONS + r"$)\w+|(?:dbms|utl)_\w+"
-    r"|setval|nextval|set_config|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvwrite|file_write"
-    r"|link_schema|sleep|benchmark|load_file|file_read|openquery|openrowset|opendatasource"
-    r"|url|urlcluster|s3|s3cluster|gcs|file|remote|remotesecure|hdfs|azureblobstorage\w*|deltalake|iceberg\w*|hudi"
-    r"|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect|java_method|httpuritype",
+    r"|setval|nextval|getnextval|set_config|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvwrite"
+    r"|file_write|link_schema|sleep|sleepeachrow|benchmark|load_file|file_read|read_\w+|bfilename|load_extension"
+    r"|openquery|openrowset|opendatasource|query|query_to_xml\w*|ts_stat|ts_rewrite"
+    r"|(?:url|s3|gcs|file|hdfs|deltalake|hudi)(?:cluster)?|remote|remotesecure|azureblobstorage\w*|iceberg\w*"
+    r"|arrowflight|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect|try_reflect|java_method"
+    r"|httpuritype",
     re.IGNORECASE,
 )
 # sqlglot skips MySQL /*! ... */ comments, which MySQL runs, and doesn't decode PostgreSQL U&"..." names, which can
@@ -231,6 +235,9 @@ def _ensure_read_only_sql(sql: str, engine: Optional[str] = None) -> str:
             name = node.name if isinstance(node, exp.Anonymous) else node.sql_name()
             if SIDE_EFFECT_FUNCTION.fullmatch(name):
                 raise _refuse_sql(f"{name}() has side effects")
+        # Oracle, Snowflake and H2 advance a sequence when a query reads seq.NEXTVAL.
+        if isinstance(node, exp.Column) and node.table and node.name.lower() == "nextval":
+            raise _refuse_sql("NEXTVAL advances a sequence")
         if isinstance(node, exp.Identifier):
             if dialect == "tsql" and not node.quoted and node.name.lower() in TSQL_STATEMENT_WORDS:
                 raise _refuse_sql(f"{node.name.upper()} starts a second SQL Server statement")

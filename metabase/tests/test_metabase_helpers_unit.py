@@ -518,6 +518,9 @@ class TestReadOnlySql:
             ("sqlserver", "SELECT TOP (5) [a b], N'x' FROM dbo.t WITH (NOLOCK)"),
             ("bigquery-cloud-sdk", "select `p.d.t`.x from `p.d.t`"),
             ("clickhouse", "select url, file from t"),
+            ("postgres", "select query, read_count, file_cluster from pg_stat_activity"),
+            ("sparksql", "select transform(scores, x -> x + 1) from t"),
+            ("oracle", "select nextval, nextval_date from t where nextval = 1"),
             ("h2", "select 1"),
             (None, "select 1"),
         ],
@@ -585,11 +588,35 @@ class TestReadOnlySql:
             ("sqlserver", "select 1 USE master"),
             ("sqlserver", "SELECT 1\nEND CONVERSATION 'x' WITH CLEANUP"),
             ("sqlserver", "select * from openquery(remote, 'select 1')"),
+            ("sqlserver", "SELECT NEXT VALUE FOR dbo.orders_seq"),
+            ("sparksql", "SELECT TRANSFORM(id) USING '/usr/bin/touch /tmp/x' AS (out STRING) FROM orders"),
+            ("databricks", "SELECT TRANSFORM(id) USING 'cat' AS (out STRING) FROM orders"),
             ("clickhouse", "SELECT * FROM url('http://x', 'CSV', 'a String')"),
             ("clickhouse", "SELECT * FROM s3('https://b/k')"),
             ("clickhouse", "SELECT * FROM executable('cmd', 'CSV', 'a String')"),
             ("oracle", "select dbms_lock.sleep(1) from dual"),
             ("oracle", "select utl_http.request('http://x') from dual"),
+            ("oracle", "SELECT orders_seq.NEXTVAL FROM dual"),
+            ("snowflake", "select my_db.public.orders_seq.nextval"),
+            ("snowflake", "SELECT * FROM TABLE(GETNEXTVAL(orders_seq))"),
+            ("postgres", "SELECT query_to_xml('select nextval(''s'')', true, false, '')"),
+            ("postgres", "SELECT * FROM ts_stat('select to_tsvector(nextval(''s'')::text)')"),
+            ("postgres", "SELECT ts_rewrite('a & b'::tsquery, 'select pg_advisory_lock(1)')"),
+            ("duckdb", "SELECT * FROM read_text('/etc/hosts')"),
+            ("duckdb", "SELECT * FROM read_csv('/etc/passwd')"),
+            ("duckdb", "SELECT * FROM query('select nextval(''s'')')"),
+            ("starburst", "SELECT * FROM TABLE(pg.system.query(query => 'delete from t'))"),
+            ("sparksql", "SELECT try_reflect('java.lang.Thread', 'sleep', 100000L)"),
+            ("databricks", "SELECT * FROM read_files('s3://b/k')"),
+            ("clickhouse", "SELECT * FROM fileCluster('c', '/etc/passwd')"),
+            ("clickhouse", "SELECT * FROM deltaLakeCluster('c', 's3://x')"),
+            ("clickhouse", "SELECT * FROM urlCluster('c', 'http://x', 'CSV', 'a String')"),
+            ("clickhouse", "SELECT * FROM s3Cluster('c', 'https://b/k')"),
+            ("clickhouse", "SELECT sleepEachRow(1) FROM numbers(5)"),
+            ("clickhouse", "SELECT * FROM arrowflight('h:1', 'd')"),
+            ("oracle", "select bfilename('D', 'f') from dual"),
+            ("sqlite", "select load_extension('/tmp/x.so')"),
+            ("h2", "select orders_seq.nextval"),
             (None, "delete from t"),
         ],
     )
@@ -602,3 +629,7 @@ class TestReadOnlySql:
             _ensure_read_only_sql("WITH removed AS (DELETE FROM users RETURNING *) SELECT 1", "postgres")
         with pytest.raises(ValueError, match="nextval\\(\\) has side effects"):
             _ensure_read_only_sql("select nextval('s')", "postgres")
+        with pytest.raises(ValueError, match="NEXTVAL advances a sequence"):
+            _ensure_read_only_sql("SELECT orders_seq.NEXTVAL FROM dual", "oracle")
+        with pytest.raises(ValueError, match="query_to_xml\\(\\) has side effects"):
+            _ensure_read_only_sql("SELECT query_to_xml('select 1', true, false, '')", "postgres")
