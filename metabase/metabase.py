@@ -14,6 +14,7 @@ from urllib.parse import quote, urlencode, urlparse
 
 import sqlglot
 from sqlglot import exp
+from sqlglot.dialects.mysql import MySQL
 
 metabase = Integration.load()
 
@@ -156,6 +157,17 @@ SQL_DIALECTS = {
     "druid-jdbc": "druid",
     "duckdb": "duckdb",
 }
+
+
+class MySQLNoBackslashEscapes(MySQL):
+    """MySQL on a server with NO_BACKSLASH_ESCAPES, where a backslash in quotes is an ordinary character."""
+
+    class Tokenizer(MySQL.Tokenizer):
+        STRING_ESCAPES = ["'", '"']
+
+
+# Metabase can't say which mode a MySQL server runs in, so SQL with a backslash is checked both ways.
+SQL_DIALECTS["mysql/no-backslash-escapes"] = MySQLNoBackslashEscapes
 READ_STATEMENTS = (exp.Select, exp.SetOperation, exp.Values, exp.Describe, exp.Show, exp.Subquery)
 # Writes that can sit inside a read statement: WITH x AS (DELETE ...), SELECT ... INTO, SQL Server's
 # NEXT VALUE FOR (advances a sequence), Spark's SELECT TRANSFORM(...) USING 'command' (runs a shell command), and
@@ -217,6 +229,8 @@ def _ensure_read_only_sql(sql: str, engine: Optional[str] = None) -> str:
     """Refuse SQL that isn't a single read statement, or that writes or calls a function with side effects. SQL is
     parsed for the database's dialect, so names, quoted text and comments are never mistaken for writes."""
     dialect = SQL_DIALECTS.get(str(engine or ""))
+    if dialect == "mysql" and "\\" in sql:
+        _ensure_read_only_sql(sql, "mysql/no-backslash-escapes")
     if UNREAD_SQL.search(sql):
         raise _refuse_sql("MySQL /*! */ comments and PostgreSQL U& names are refused")
     try:
@@ -243,8 +257,13 @@ def _ensure_read_only_sql(sql: str, engine: Optional[str] = None) -> str:
             name = node.name if isinstance(node, exp.Anonymous) else node.sql_name()
             if SIDE_EFFECT_FUNCTION.fullmatch(name):
                 raise _refuse_sql(f"{name}() has side effects")
-        # Oracle, Snowflake and H2 advance a sequence when a query reads seq.NEXTVAL.
-        if isinstance(node, exp.Column) and node.table and node.name.lower() == "nextval":
+        # Oracle, Snowflake and engines read as generic SQL (H2, DB2, Vertica) advance a sequence on seq.NEXTVAL.
+        if (
+            dialect in (None, "oracle", "snowflake")
+            and isinstance(node, exp.Column)
+            and node.table
+            and node.name.lower() == "nextval"
+        ):
             raise _refuse_sql("NEXTVAL advances a sequence")
         if isinstance(node, exp.WithTableHint):
             for hint in node.expressions:

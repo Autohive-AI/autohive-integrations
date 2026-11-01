@@ -233,8 +233,8 @@ class TestRunSqlQuery:
 
     @pytest.mark.asyncio
     async def test_sql_read_in_the_database_dialect(self, mock_context):
-        # MySQL reads a backslash before a quote as an escape, so this is one statement there; PostgreSQL sees two.
-        sql = "select 'a\\'; drop table t; --' as x"
+        # MySQL quotes names with backticks, so this is one statement there; PostgreSQL can't read it.
+        sql = "select `a; drop table t` from t"
         mock_context.fetch.side_effect = [_database("mysql"), _ok(_dataset([["x"]], cols=("x",)), status=202)]
         mysql = await metabase.execute_action("run_sql_query", {"database_id": 3, "sql": sql}, mock_context)
         assert mysql.type == ResultType.ACTION
