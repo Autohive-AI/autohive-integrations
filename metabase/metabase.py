@@ -166,8 +166,6 @@ class MySQLNoBackslashEscapes(MySQL):
         STRING_ESCAPES = ["'", '"']
 
 
-# Metabase can't say which mode a MySQL server runs in, so SQL with a backslash is checked both ways.
-SQL_DIALECTS["mysql/no-backslash-escapes"] = MySQLNoBackslashEscapes
 READ_STATEMENTS = (exp.Select, exp.SetOperation, exp.Values, exp.Describe, exp.Show, exp.Subquery)
 # Writes that can sit inside a read statement: WITH x AS (DELETE ...), SELECT ... INTO, SQL Server's
 # NEXT VALUE FOR (advances a sequence), Spark's SELECT TRANSFORM(...) USING 'command' (runs a shell command), and
@@ -229,8 +227,21 @@ def _ensure_read_only_sql(sql: str, engine: Optional[str] = None) -> str:
     """Refuse SQL that isn't a single read statement, or that writes or calls a function with side effects. SQL is
     parsed for the database's dialect, so names, quoted text and comments are never mistaken for writes."""
     dialect = SQL_DIALECTS.get(str(engine or ""))
+    _check_read_only(sql, dialect)
+    # A MySQL server running with NO_BACKSLASH_ESCAPES ends 'a\' at the backslash, and Metabase can't say which mode
+    # the server runs in, so SQL with a backslash must also be safe read that way.
     if dialect == "mysql" and "\\" in sql:
-        _ensure_read_only_sql(sql, "mysql/no-backslash-escapes")
+        try:
+            _check_read_only(sql, MySQLNoBackslashEscapes)
+        except ValueError:
+            raise _refuse_sql(
+                "on MySQL a backslash in quotes is checked as if the server ignores it, so write a quote inside text "
+                "as '' instead of \\'"
+            ) from None
+    return sql
+
+
+def _check_read_only(sql: str, dialect: Any) -> None:
     if UNREAD_SQL.search(sql):
         raise _refuse_sql("MySQL /*! */ comments and PostgreSQL U& names are refused")
     try:
@@ -244,10 +255,10 @@ def _ensure_read_only_sql(sql: str, engine: Optional[str] = None) -> str:
         explained = statement.expression.name
         while match := EXPLAIN_OPTIONS.match(explained):
             explained = explained[match.end() :]
-        _ensure_read_only_sql(explained, engine)
-        return sql
+        _check_read_only(explained, dialect)
+        return
     if isinstance(statement, exp.Command) and statement.name.upper() == "SHOW":
-        return sql
+        return
     if not isinstance(statement, READ_STATEMENTS):
         raise _refuse_sql(f"{statement.key.upper()} statements are refused")
     for node in statement.walk():
@@ -274,7 +285,6 @@ def _ensure_read_only_sql(sql: str, engine: Optional[str] = None) -> str:
                 raise _refuse_sql(f"{node.name.upper()} starts a second SQL Server statement")
             if re.fullmatch(r"(?:dbms|utl)_\w+", node.name, re.IGNORECASE):
                 raise _refuse_sql(f"Oracle package {node.name} is refused")
-    return sql
 
 
 async def _read_only_sql(context: ExecutionContext, database_id: Any, sql: Any) -> str:

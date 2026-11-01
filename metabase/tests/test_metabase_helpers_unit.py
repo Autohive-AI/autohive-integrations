@@ -648,3 +648,7 @@ class TestReadOnlySql:
             _ensure_read_only_sql("SELECT query_to_xml('select 1', true, false, '')", "postgres")
         with pytest.raises(ValueError, match="table hint TABLOCKX locks the table"):
             _ensure_read_only_sql("SELECT * FROM dbo.orders WITH (TABLOCKX)", "sqlserver")
+        with pytest.raises(ValueError, match="write a quote inside text as '' instead of"):
+            _ensure_read_only_sql("select 'it\\'s' as x", "mysql")
+        with pytest.raises(ValueError, match="DELETE statements are refused"):
+            _ensure_read_only_sql("delete from t where a = '\\n'", "mysql")
