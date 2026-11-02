@@ -288,6 +288,9 @@ def _check_read_only(sql: str, dialect: Any) -> None:
         _check_read_only(explained, dialect)
         return
     if isinstance(statement, exp.Command) and statement.name.upper() == "SHOW":
+        # SHOW forms the parser can't read (MySQL SHOW EXTENDED FULL ... WHERE ...) can't be checked for functions.
+        if "(" in sql:
+            raise _refuse_sql("this SHOW can't be checked when it calls a function")
         return
     if not isinstance(statement, READ_STATEMENTS):
         raise _refuse_sql(f"{statement.key.upper()} statements are refused")
@@ -310,11 +313,18 @@ def _check_read_only(sql: str, dialect: Any) -> None:
             for hint in node.expressions:
                 if hint.name.lower() in TSQL_LOCK_HINTS:
                     raise _refuse_sql(f"table hint {hint.name.upper()} locks the table")
+        # Oracle packages are called as package.function, with or without brackets; a plain dbms_version is a name.
+        qualifiers: Any = ()
+        if isinstance(node, exp.Column):
+            qualifiers = node.parts[:-1]
+        elif isinstance(node, exp.Dot) and isinstance(node.expression, exp.Func):
+            qualifiers = node.this.find_all(exp.Identifier)
+        for part in qualifiers:
+            if re.fullmatch(r"(?:dbms|utl)_\w+", part.name, re.IGNORECASE):
+                raise _refuse_sql(f"Oracle package {part.name} is refused")
         if isinstance(node, exp.Identifier):
             if dialect == "tsql" and not node.quoted and node.name.lower() in TSQL_STATEMENT_WORDS:
                 raise _refuse_sql(f"{node.name.upper()} starts a second SQL Server statement")
-            if re.fullmatch(r"(?:dbms|utl)_\w+", node.name, re.IGNORECASE):
-                raise _refuse_sql(f"Oracle package {node.name} is refused")
 
 
 async def _read_only_sql(context: ExecutionContext, database_id: Any, sql: Any) -> str:
