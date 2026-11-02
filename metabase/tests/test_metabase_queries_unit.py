@@ -304,6 +304,7 @@ class TestRunQuestion:
         [
             [{"$match": {"status": "open"}}, {"$limit": 5}],
             '[{"$group": {"_id": "$region", "n": {"$sum": 1}}}]',
+            '[{"$group": {"_id": null, "n": {"$sum": "$out"}}}]',
         ],
     )
     async def test_mongodb_pipeline_runs(self, mock_context, query):
@@ -314,7 +315,14 @@ class TestRunQuestion:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "query",
-        [[{"$match": {}}, {"$out": "orders_copy"}], '[{"$merge": {"into": "orders"}}]', "[{$out: 'x'}]"],
+        [
+            [{"$match": {}}, {"$out": "orders_copy"}],
+            '[{"$merge": {"into": "orders"}}]',
+            "[{$out: 'x'}]",
+            '[{"$\\u006fut": "backup"}]',
+            '[{"\\u0024out": "orders_copy"}]',
+            "[{'\\u0024out': 'x'}]",
+        ],
     )
     async def test_mongodb_pipeline_that_writes_is_not_run(self, mock_context, query):
         _route(mock_context, engine="mongo", compiled={"query": query, "collection": "orders"})

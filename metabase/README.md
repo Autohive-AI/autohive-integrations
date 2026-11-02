@@ -72,7 +72,7 @@ Searches Metabase content.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | No | Text to search for. Leave empty to list items of the chosen types. |
-| `models` | string[] | No | Item types: `card` (saved question), `dataset` (model), `metric`, `dashboard`, `collection`, `table`, `database`, `document`. On Metabase older than 0.51 (`metric`) or 0.57 (`document`), those types are left out and the result has a `note` saying so. |
+| `models` | string[] | No | Item types: `card` (saved question), `dataset` (model), `metric`, `dashboard`, `collection`, `table`, `database`, `document`. If this Metabase rejects `metric` (before 0.51) or `document` (before 0.57, and some open-source releases), those types are left out and the result has a `note` saying so. |
 | `archived` | boolean | No | Search trashed items instead |
 | `limit` / `offset` | integer | No | Paging (default 50, max 200) |
 

@@ -420,13 +420,33 @@ async def _checked_parameters(context: ExecutionContext, card_id: str, parameter
 
 
 # MongoDB aggregation stages that write: $out replaces a collection, $merge writes into one.
-MONGO_WRITE_STAGE = re.compile(r"\$(?:out|merge)\b")
+MONGO_WRITE_STAGES = ("$out", "$merge")
 
 
 def _ensure_read_only_mongo(query: Any) -> None:
-    text = query if isinstance(query, str) else json.dumps(query)
-    if MONGO_WRITE_STAGE.search(text):
+    """Refuse a MongoDB pipeline with a write stage, read by its decoded keys so escapes like "$\\u006fut" count."""
+    if isinstance(query, str):
+        try:
+            query = json.loads(query)
+        except ValueError:
+            # Metabase also accepts relaxed JSON (unquoted keys, ObjectId(...)); that is checked as text, so escapes
+            # that could hide a stage name are refused.
+            if "\\" in query or re.search(r"\$(?:out|merge)\b", query):
+                raise ValueError(
+                    "MongoDB $out and $merge stages write to a collection, so they are refused, and so are pipelines "
+                    "that aren't plain JSON and contain backslashes."
+                ) from None
+            return
+    if _mongo_keys(query) & set(MONGO_WRITE_STAGES):
         raise ValueError("MongoDB $out and $merge stages write to a collection, so they are refused.")
+
+
+def _mongo_keys(value: Any) -> set:
+    if isinstance(value, dict):
+        return set(value) | set().union(*(_mongo_keys(v) for v in value.values()))
+    if isinstance(value, list):
+        return set().union(*(_mongo_keys(v) for v in value))
+    return set()
 
 
 def _saved_query_as_run(card_id: str, dataset_query: Dict[str, Any]) -> Optional[str]:
@@ -475,28 +495,31 @@ def _error_message(error: Exception, saved_check: Optional[str] = None) -> str:
     return str(error)
 
 
-# Item types older Metabase versions reject outright (HTTP 400 for the whole request): minimum 0.x minor version.
-MODELS_SINCE = {"metric": 51, "document": 57}
+# Item types some Metabase versions and editions reject outright (HTTP 400 for the whole request): metric before
+# 0.51, document before 0.57 and on some open-source releases after it.
+NEWER_MODELS = ("metric", "document")
 
 
-async def _supported_models(context: ExecutionContext, models: Any) -> tuple:
-    """Drop item types this Metabase is too old for, and say which were dropped."""
+async def _get_with_models(
+    context: ExecutionContext, path: str, before: List[tuple], models: Any, after: List[tuple]
+) -> tuple:
+    """GET a list filtered by item types, leaving out newer types this Metabase rejects. Returns (data, dropped)."""
     models = list(models or [])
-    if not any(m in MODELS_SINCE for m in models):
-        return models, []
-    properties = await _api(context, "GET", "/session/properties") or {}
-    tag = str((properties.get("version") or {}).get("tag") or "")
-    match = re.match(r"v?\d+\.(\d+)", tag)
-    if not match:
-        return models, []
-    minor = int(match.group(1))
-    dropped = [m for m in models if minor < MODELS_SINCE.get(m, 0)]
-    return [m for m in models if m not in dropped], dropped
+    try:
+        return await _api(context, "GET", _with_query(path, before + [("models", m) for m in models] + after)), []
+    except HTTPError as e:
+        dropped = [m for m in models if m in NEWER_MODELS]
+        if e.status != 400 or not dropped:
+            raise
+    kept = [m for m in models if m not in dropped]
+    if not kept:
+        return [], dropped
+    return await _api(context, "GET", _with_query(path, before + [("models", m) for m in kept] + after)), dropped
 
 
 def _note_dropped(result: Dict[str, Any], dropped: List[str]) -> Dict[str, Any]:
     if dropped:
-        result["note"] = f"This Metabase version doesn't support {', '.join(dropped)}, so they were left out."
+        result["note"] = f"This Metabase doesn't support {', '.join(dropped)}, so they were left out."
     return result
 
 
@@ -814,15 +837,11 @@ class SearchAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             page = _page(inputs)
-            models, dropped = await _supported_models(context, inputs.get("models"))
-            params: List[tuple] = [("q", str(inputs.get("query") or "").strip() or None)]
-            params += [("models", m) for m in models]
-            if inputs.get("archived"):
-                params.append(("archived", "true"))
-            params += list(page.items())
-
-            # Every asked-for type is too new for this Metabase: nothing to search for.
-            data = await _api(context, "GET", _with_query("/search", params)) if models or not dropped else []
+            query: List[tuple] = [("q", str(inputs.get("query") or "").strip() or None)]
+            archived = [("archived", "true")] if inputs.get("archived") else []
+            data, dropped = await _get_with_models(
+                context, "/search", query, inputs.get("models"), archived + list(page.items())
+            )
             results = [
                 {
                     "model": item.get("model"),
@@ -877,12 +896,8 @@ class ListCollectionItemsAction(ActionHandler):
         try:
             collection_id = _path_id(inputs.get("collection_id") or "root")
             page = _page(inputs)
-            models, dropped = await _supported_models(context, inputs.get("models"))
-            params: List[tuple] = [("models", m) for m in models]
-            params += list(page.items())
-
-            path = _with_query(f"/collection/{collection_id}/items", params)
-            data = await _api(context, "GET", path) if models or not dropped else []
+            path = f"/collection/{collection_id}/items"
+            data, dropped = await _get_with_models(context, path, [], inputs.get("models"), list(page.items()))
             items = [
                 {
                     "model": item.get("model"),

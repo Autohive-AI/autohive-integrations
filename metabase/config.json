@@ -443,7 +443,7 @@
                                 "document"
                             ]
                         },
-                        "description": "Limit results to these item types: card (saved question), dataset (model), metric, dashboard, collection, table, database, document. metric needs Metabase 0.51+ and document needs 0.57+; on older versions they are left out and the result has a note."
+                        "description": "Limit results to these item types: card (saved question), dataset (model), metric, dashboard, collection, table, database, document. metric needs Metabase 0.51+ and document needs 0.57+ (and isn't in every open-source release); if this Metabase rejects them they are left out and the result has a note."
                     },
                     "archived": {
                         "type": "boolean",
@@ -564,7 +564,7 @@
                     },
                     "note": {
                         "type": "string",
-                        "description": "Item types left out because this Metabase version doesn't support them."
+                        "description": "Item types left out because this Metabase doesn't support them."
                     }
                 },
                 "required": [
@@ -678,7 +678,7 @@
                                 "document"
                             ]
                         },
-                        "description": "Only return these item types. metric needs Metabase 0.51+ and document needs 0.57+; on older versions they are left out and the result has a note."
+                        "description": "Only return these item types. metric needs Metabase 0.51+ and document needs 0.57+ (and isn't in every open-source release); if this Metabase rejects them they are left out and the result has a note."
                     },
                     "limit": {
                         "type": "integer",
@@ -755,7 +755,7 @@
                     },
                     "note": {
                         "type": "string",
-                        "description": "Item types left out because this Metabase version doesn't support them."
+                        "description": "Item types left out because this Metabase doesn't support them."
                     }
                 },
                 "required": [
