@@ -19,7 +19,7 @@ from uuid import uuid4
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, ResultType
-from metabase.metabase import get_base_url, metabase
+from metabase.metabase import _read_only_sql, get_base_url, metabase
 
 pytestmark = pytest.mark.integration
 
@@ -80,6 +80,17 @@ async def _first_search_hit(live_context, model):
     if not data["results"]:
         pytest.skip(f"No {model} visible to this API key")
     return data["results"][0]
+
+
+async def _safe_to_run(live_context, question):
+    """Query-builder questions can't write; saved SQL must pass the check run_sql_query uses."""
+    if question["query_type"] != "native":
+        return True
+    try:
+        await _read_only_sql(live_context, question["database_id"], question["native_sql"])
+    except ValueError:
+        return False
+    return True
 
 
 async def _raw(live_context, method, path, body=None):
@@ -207,7 +218,8 @@ class TestReadOnly:
                     await metabase.execute_action("get_question", {"question_id": hit["id"]}, live_context)
                 )
                 assert candidate["id"] == hit["id"]
-                if not candidate["parameters"]:
+                # A saved SQL question could write data, so it runs only if it passes the SQL check.
+                if not candidate["parameters"] and await _safe_to_run(live_context, candidate):
                     question = candidate
                     break
             if question or len(page["results"]) < 50:
@@ -215,7 +227,7 @@ class TestReadOnly:
         if not seen:
             pytest.skip("No card visible to this API key")
         if question is None:
-            pytest.skip(f"All {seen} questions checked need parameters")
+            pytest.skip(f"None of the {seen} questions checked runs without parameters and passes the SQL check")
         data = _assert_ok(
             await metabase.execute_action("run_question", {"question_id": question["id"], "max_rows": 5}, live_context)
         )
