@@ -625,6 +625,7 @@ class TestReadOnlySql:
             ("clickhouse", "SELECT * FROM arrowflight('h:1', 'd')"),
             ("oracle", "select bfilename('D', 'f') from dual"),
             ("sqlite", "select load_extension('/tmp/x.so')"),
+            ("h2", "SELECT * FROM CSVREAD('/etc/passwd', 'line')"),
             ("sqlserver", "SELECT * FROM dbo.orders WITH (TABLOCKX, HOLDLOCK)"),
             ("sqlserver", "SELECT * FROM dbo.orders WITH (NOLOCK, UPDLOCK)"),
             ("mysql", "SELECT * FROM orders FOR UPDATE"),

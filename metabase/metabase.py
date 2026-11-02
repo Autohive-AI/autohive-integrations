@@ -234,7 +234,7 @@ SNOWFLAKE_READ_FUNCTIONS = (
 # and every Oracle dbms_ or utl_ package.
 SIDE_EFFECT_FUNCTION = re.compile(
     r"pg_(?!" + PG_READ_FUNCTIONS + r"$)\w+|system\$(?!" + SNOWFLAKE_READ_FUNCTIONS + r"$)\w+|(?:dbms|utl)_\w+"
-    r"|setval|nextval|getnextval|set_config|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvwrite"
+    r"|setval|nextval|getnextval|set_config|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvread|csvwrite"
     r"|file_write|link_schema|sleep|sleepeachrow|benchmark|load_file|file_read|read_\w+|bfilename|load_extension"
     r"|openquery|openrowset|opendatasource|query|query_to_xml\w*|ts_stat|ts_rewrite"
     r"|(?:url|s3|gcs|file|hdfs|deltalake|hudi)(?:cluster)?|remote|remotesecure|azureblobstorage\w*|iceberg\w*"
