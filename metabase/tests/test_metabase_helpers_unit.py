@@ -641,6 +641,7 @@ class TestReadOnlySql:
             ("duckdb", "SELECT * FROM postgres_query('pg', 'select 1')"),
             ("duckdb", "SELECT * FROM sqlite_scan('/tmp/x.db', 't')"),
             ("duckdb", "SELECT * FROM st_read('/etc/x.shp')"),
+            ("duckdb", "SELECT * FROM query_table('/path/private.csv')"),
             ("duckdb", "SELECT * FROM 's3://bucket/key'"),
             ("duckdb", "SELECT * FROM glob('/etc/*')"),
             ("duckdb", "SELECT * FROM parquet_scan('/tmp/x.parquet')"),

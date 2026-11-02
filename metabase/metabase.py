@@ -7,6 +7,7 @@ from autohive_integrations_sdk import (
     HTTPError,
 )
 import asyncio
+import json
 import re
 import sys
 from typing import Any, Dict, List, Optional
@@ -239,7 +240,7 @@ SIDE_EFFECT_FUNCTION = re.compile(
     r"|openquery|openrowset|opendatasource|query|query_to_xml\w*|ts_stat|ts_rewrite"
     r"|(?:url|s3|gcs|file|hdfs|deltalake|hudi)(?:cluster)?|remote|remotesecure|azureblobstorage\w*|iceberg\w*"
     r"|arrowflight|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect|try_reflect|java_method"
-    r"|httpuritype|glob|parquet_\w+|sniff_csv|delta_scan|(?:sqlite|postgres|mysql)_(?:scan|query|execute|attach)\w*|st_read\w*",
+    r"|httpuritype|query_table|glob|parquet_\w+|sniff_csv|delta_scan|(?:sqlite|postgres|mysql)_(?:scan|query|execute|attach)\w*|st_read\w*",
     re.IGNORECASE,
 )
 # sqlglot skips MySQL /*! ... */ comments, which MySQL runs, and doesn't decode PostgreSQL U&"..." names, which can
@@ -392,18 +393,57 @@ async def _checked_parameters(context: ExecutionContext, card_id: str, parameter
         and not {str(p["id"]), str(p["target"])} & supplied
     ]
     parameters = parameters + defaults
-    compiled = await _api(
-        context, "POST", "/dataset/native", json={**dataset_query, "parameters": parameters, "pretty": False}
-    )
-    sql = compiled.get("query") if isinstance(compiled, dict) else None
-    if not isinstance(sql, str):
-        raise ValueError(f"Saved question {card_id} wasn't run: Metabase didn't return SQL for it to check.")
     engine = await _database_engine(context, card.get("database_id") or dataset_query.get("database"))
     try:
-        _ensure_read_only_sql(sql, engine)
+        compiled = await _api(
+            context, "POST", "/dataset/native", json={**dataset_query, "parameters": parameters, "pretty": False}
+        )
+        query = compiled.get("query") if isinstance(compiled, dict) else None
+        if query is None:
+            raise ValueError(f"Saved question {card_id} wasn't run: Metabase didn't return SQL for it to check.")
+    except HTTPError as e:
+        # Metabase only expands questions for groups allowed to write native queries; groups that can only run saved
+        # questions get a 403, so the question is checked as saved when that is enough to know what will run.
+        if e.status != 403:
+            raise
+        query = _saved_query_as_run(card_id, dataset_query)
+    try:
+        if query is not None and engine == "mongo":
+            _ensure_read_only_mongo(query)
+        elif isinstance(query, str):
+            _ensure_read_only_sql(query, engine)
+        elif query is not None:
+            raise ValueError("Metabase didn't return SQL for it to check.")
     except ValueError as e:
         raise ValueError(f"Saved question {card_id} wasn't run. {e}") from None
     return parameters
+
+
+# MongoDB aggregation stages that write: $out replaces a collection, $merge writes into one.
+MONGO_WRITE_STAGE = re.compile(r"\$(?:out|merge)\b")
+
+
+def _ensure_read_only_mongo(query: Any) -> None:
+    text = query if isinstance(query, str) else json.dumps(query)
+    if MONGO_WRITE_STAGE.search(text):
+        raise ValueError("MongoDB $out and $merge stages write to a collection, so they are refused.")
+
+
+def _saved_query_as_run(card_id: str, dataset_query: Dict[str, Any]) -> Optional[str]:
+    """What a saved question runs when it can be known without Metabase expanding it: SQL with no filters, snippets
+    or references runs as saved, and a point-and-click question that isn't built on other questions or SQL only
+    reads (None). Anything else can't be checked without native query permission."""
+    sql, _ = _saved_native(dataset_query)
+    if sql is None:
+        uses_other_questions = re.search(r'card__\d|"source[-_]card"|"native"', json.dumps(dataset_query))
+        if not uses_other_questions:
+            return None
+    elif "{{" not in sql and "[[" not in sql:
+        return sql
+    raise ValueError(
+        f"Saved question {card_id} wasn't run: its SQL can only be checked when the API key's group can write native "
+        "queries on its database in Metabase."
+    )
 
 
 def _native_query(database_id: Any, sql: str) -> Dict[str, Any]:

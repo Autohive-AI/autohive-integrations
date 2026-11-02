@@ -71,6 +71,9 @@ SAVED_NATIVE = {
 }
 
 
+NO_NATIVE_PERMISSION = HTTPError(403, "Forbidden", "You don't have permissions to do that.")
+
+
 def _route(mock_context, card=None, sql="select 1", engine="postgres", result=None, compiled=None):
     """Answer run_question's requests: the question, Metabase's expanded SQL, the database, then the run."""
 
@@ -161,11 +164,11 @@ class TestRunQuestion:
         calls = [(c.args[0], c.kwargs.get("method")) for c in mock_context.fetch.call_args_list]
         assert calls == [
             (f"{BASE}/api/card/42", "GET"),
-            (f"{BASE}/api/dataset/native", "POST"),
             (f"{BASE}/api/database/3", "GET"),
+            (f"{BASE}/api/dataset/native", "POST"),
             (f"{BASE}/api/card/42/query", "POST"),
         ]
-        compile_body = mock_context.fetch.call_args_list[1].kwargs["json"]
+        compile_body = mock_context.fetch.call_args_list[2].kwargs["json"]
         assert compile_body == {**SAVED_NATIVE["dataset_query"], "parameters": params, "pretty": False}
 
     @pytest.mark.asyncio
@@ -200,7 +203,7 @@ class TestRunQuestion:
         _route(mock_context, card=card)
         await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
         expected = [{"id": "p1", "type": "category", "target": target, "value": "EU"}]
-        assert mock_context.fetch.call_args_list[1].kwargs["json"]["parameters"] == expected
+        assert mock_context.fetch.call_args_list[2].kwargs["json"]["parameters"] == expected
         assert mock_context.fetch.call_args.kwargs["json"] == {"parameters": expected}
 
     @pytest.mark.asyncio
@@ -231,21 +234,101 @@ class TestRunQuestion:
         _route(mock_context, card=gui, sql='SELECT "t"."a" FROM "t" LIMIT 2000')
         result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
         assert result.result.data["rows"] == [{"a": 1}]
-        assert mock_context.fetch.call_args_list[1].kwargs["json"]["query"] == {"source-table": 5}
+        assert mock_context.fetch.call_args_list[2].kwargs["json"]["query"] == {"source-table": 5}
 
     @pytest.mark.asyncio
     async def test_no_sql_back_is_not_run(self, mock_context):
         _route(mock_context, compiled={"query": {"collection": "orders", "query": []}})
         result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
         assert "didn't return SQL" in result.result.message
-        assert mock_context.fetch.call_count == 2
+        assert mock_context.fetch.call_count == 3
 
     @pytest.mark.asyncio
     async def test_expansion_error_is_not_run(self, mock_context):
         _route(mock_context, compiled=HTTPError(400, "Bad Request", response_data={"message": "missing required"}))
         result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
-        assert mock_context.fetch.call_count == 2
+        assert mock_context.fetch.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_expansion_without_a_query_is_not_run(self, mock_context):
+        _route(mock_context, compiled={"params": None})
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "didn't return SQL" in result.result.message
+        assert mock_context.fetch.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_without_native_permission_plain_saved_sql_is_checked_as_saved(self, mock_context):
+        # Groups that can run saved questions but not write SQL can't expand them, so plain SQL is checked as saved.
+        sql = "select * from orders"
+        card = {**SAVED_NATIVE, "dataset_query": {"database": 3, "type": "native", "native": {"query": sql}}}
+        _route(mock_context, card=card, compiled=NO_NATIVE_PERMISSION)
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+
+    @pytest.mark.asyncio
+    async def test_without_native_permission_saved_sql_that_writes_is_not_run(self, mock_context):
+        card = {**SAVED_NATIVE, "dataset_query": {"database": 3, "type": "native", "native": {"query": "drop table t"}}}
+        _route(mock_context, card=card, compiled=NO_NATIVE_PERMISSION)
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "Saved question 42 wasn't run" in result.result.message
+        assert not any(c.args[0].endswith("/card/42/query") for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "dataset_query",
+        [
+            {"database": 3, "type": "native", "native": {"query": "select * from t where {{region}}"}},
+            {"database": 3, "type": "native", "native": {"query": "select 1 [[and {{x}}]]"}},
+            {"database": 3, "type": "query", "query": {"source-table": "card__7"}},
+            {"database": 3, "stages": [{"lib/type": "mbql.stage/mbql", "source-card": 7}]},
+            {"database": 3, "type": "query", "query": {"source-query": {"native": "delete from t"}}},
+        ],
+    )
+    async def test_without_native_permission_unknown_sql_is_not_run(self, mock_context, dataset_query):
+        _route(mock_context, card={**SAVED_NATIVE, "dataset_query": dataset_query}, compiled=NO_NATIVE_PERMISSION)
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "can write native queries" in result.result.message
+        assert not any(c.args[0].endswith("/card/42/query") for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_without_native_permission_point_and_click_question_runs(self, mock_context):
+        gui = {**SAVED_NATIVE, "dataset_query": {"database": 3, "type": "query", "query": {"source-table": 5}}}
+        _route(mock_context, card=gui, compiled=NO_NATIVE_PERMISSION)
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "query",
+        [
+            [{"$match": {"status": "open"}}, {"$limit": 5}],
+            '[{"$group": {"_id": "$region", "n": {"$sum": 1}}}]',
+        ],
+    )
+    async def test_mongodb_pipeline_runs(self, mock_context, query):
+        _route(mock_context, engine="mongo", compiled={"query": query, "collection": "orders"})
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "query",
+        [[{"$match": {}}, {"$out": "orders_copy"}], '[{"$merge": {"into": "orders"}}]', "[{$out: 'x'}]"],
+    )
+    async def test_mongodb_pipeline_that_writes_is_not_run(self, mock_context, query):
+        _route(mock_context, engine="mongo", compiled={"query": query, "collection": "orders"})
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "$out and $merge" in result.result.message
+        assert not any(c.args[0].endswith("/card/42/query") for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_mongodb_saved_without_native_permission_is_checked_as_saved(self, mock_context):
+        native = {"query": '[{"$out": "x"}]', "collection": "orders"}
+        card = {**SAVED_NATIVE, "dataset_query": {"database": 3, "type": "native", "native": native}}
+        _route(mock_context, card=card, engine="mongo", compiled=NO_NATIVE_PERMISSION)
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "$out and $merge" in result.result.message
 
     @pytest.mark.asyncio
     async def test_max_rows(self, mock_context):
@@ -540,8 +623,13 @@ class TestQueriesSentOnce:
     )
     @pytest.mark.asyncio
     async def test_query_not_retried(self, mock_context, action, inputs):
-        mock_context.fetch.return_value = _ok(_dataset([[1]]), status=202)
-        await metabase.execute_action(action, inputs, mock_context)
+        if action == "run_question":
+            _route(mock_context)
+        else:
+            mock_context.fetch.side_effect = [_database(), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action(action, inputs, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+        assert mock_context.fetch.call_args.args[0].endswith("/query") or action == "run_sql_query"
         assert mock_context.fetch.call_args.kwargs["retry_count"] == NO_RETRY
 
     @pytest.mark.asyncio
