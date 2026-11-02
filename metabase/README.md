@@ -98,6 +98,8 @@ Returns a saved question: name, type, visualization, database, collection, `nati
 
 Runs a saved question and returns its rows.
 
+The question's SQL runs as saved and is not checked the way `run_sql_query` checks SQL. The agent can't edit a saved question's SQL, and `create_question` checks new SQL, so only a person in Metabase can save a question that writes. A read-only database user blocks those writes too.
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `question_id` | integer | Yes | Question id |
