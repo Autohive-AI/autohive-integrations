@@ -50,7 +50,7 @@ CASES = [
         {"id": 40},
     ),
     ("recycle_rfi", {**PROJECT, "rfi_id": 40}, "/rest/v1.0/projects/20/rfis/40/recycle", "PATCH", None),
-    ("restore_rfi", {**PROJECT, "rfi_id": 40}, "/rest/v1.0/projects/20/rfis/40/retrieve", "PATCH", {"id": 40}),
+    ("restore_rfi", {**PROJECT, "rfi_id": 40}, "/rest/v1.0/projects/20/rfis/40/retrieve", "PATCH", None),
     (
         "list_submittals",
         PROJECT,
@@ -144,6 +144,23 @@ async def test_documented_action_requests(context, name, inputs, path, method, d
     assert "Authorization" not in call.kwargs["headers"]  # SDK owns OAuth injection.
     if "company_id" in inputs:
         assert call.kwargs["headers"]["Procore-Company-Id"] == "10"
+    expected_params = {
+        "list_projects": {"page": 1, "per_page": 100, "company_id": 10},
+        "get_project": {"company_id": 10},
+        "list_rfis": {"page": 1, "per_page": 100},
+        "list_submittals": {"page": 1, "per_page": 100},
+        "list_project_users": {"page": 1, "per_page": 100},
+        "list_project_vendors": {"page": 1, "per_page": 100},
+        "list_locations": {"page": 1, "per_page": 100},
+        "list_submittal_statuses": {"page": 1, "per_page": 100},
+        "get_document_root": {"project_id": 20},
+        "get_folder": {"project_id": 20},
+        "get_file": {"project_id": 20},
+        "create_folder": {"project_id": 20},
+        "create_submittal": {},
+        "update_submittal": {},
+    }.get(name)
+    assert call.kwargs["params"] == expected_params
     if isinstance(data, list):
         assert result.result.data["items"] == data
     else:
@@ -275,7 +292,7 @@ async def test_invalid_inputs_do_not_fetch(context, name, inputs):
 
 
 @pytest.mark.parametrize("status", [400, 401, 403, 404, 422, 429, 500])
-async def test_http_errors_not_swallowed_or_retried(context, status):
+async def test_wrapper_propagates_http_errors_without_repeating_fetch(context, status):
     context.fetch.side_effect = HTTPError(status, "Provider rejected request")
     with pytest.raises(HTTPError):
         await api_request(
@@ -288,3 +305,51 @@ async def test_reject_environment_direct(context):
     with pytest.raises(ValueError):
         await api_request(context, "https://other.example", "/rest/v1.0/companies")
     context.fetch.assert_not_called()
+
+
+@pytest.mark.parametrize("name", [case[0] for case in CASES])
+async def test_each_action_uses_explicit_sandbox_host(context, name):
+    _, inputs, path, _, data = next(case for case in CASES if case[0] == name)
+    context.fetch.return_value = response(data)
+    result = await procore.execute_action(name, {**inputs, "environment": "sandbox"}, context)
+    assert result.type == ResultType.ACTION
+    assert context.fetch.call_args.args == ("https://sandbox.procore.com" + path,)
+
+
+async def test_rfi_status_and_pagination_mapping(context):
+    context.fetch.return_value = response([])
+    await procore.execute_action("list_rfis", {**PROJECT, "status": "open", "page": 3, "per_page": 7}, context)
+    assert context.fetch.call_args.kwargs["params"] == {"page": 3, "per_page": 7, "filters[status]": "open"}
+
+
+async def test_create_submittal_explicit_notification_setting(context):
+    context.fetch.return_value = response({"id": 50})
+    await procore.execute_action(
+        "create_submittal", {**PROJECT, "submittal": {"number": "1"}, "send_emails": False}, context
+    )
+    assert context.fetch.call_args.kwargs["params"] == {"send_emails": False}
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 422, 429, 500])
+async def test_sdk_injects_auth_and_does_not_retry_http_rejections(monkeypatch, status):
+    from autohive_integrations_sdk import ExecutionContext
+
+    provider_response = MagicMock()
+    provider_response.status = status
+    provider_response.ok = False
+    provider_response.headers = {"Content-Type": "application/json", "Retry-After": "1"}
+    provider_response.json = AsyncMock(return_value={"errors": "Rejected test request"})
+    provider_response.text = AsyncMock(return_value="Rejected test request")
+    request_context = MagicMock()
+    request_context.__aenter__ = AsyncMock(return_value=provider_response)
+    request_context.__aexit__ = AsyncMock(return_value=False)
+    request = MagicMock(return_value=request_context)
+    monkeypatch.setattr("aiohttp.ClientSession.request", request)
+    auth = {"auth_type": "PlatformOauth2", "credentials": {"access_token": "test-access"}}  # nosec B105
+    async with ExecutionContext(auth=auth) as context:
+        with pytest.raises(HTTPError) as error:
+            await procore.execute_action("list_companies", {"environment": "sandbox"}, context)
+    assert error.value.status == status
+    request.assert_called_once()
+    assert request.call_args.kwargs["headers"]["Authorization"] == "Bearer test-access"
+    assert request.call_args.kwargs["url"] == "https://sandbox.procore.com/rest/v1.0/companies"

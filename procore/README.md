@@ -84,15 +84,23 @@ This integration intentionally covers the workflows above rather than mirroring 
 
 ## Testing
 
-Run `hiveup validate procore` and `hiveup test procore`. Every action has a mocked request/response test. Authentication injection and API availability still require live verification. A read-only developer-sandbox smoke test is provided:
+Run `hiveup validate procore` and `hiveup test procore`. Every action has a mocked request/response test. Authentication injection and API availability still require live verification. Read checks and an opt-in full sandbox workflow are committed:
 
 ```bash
 export PROCORE_ACCESS_TOKEN=...
 export PROCORE_COMPANY_ID=...
-pytest procore/tests/test_procore_integration.py -m integration
+export PROCORE_PROJECT_ID=...  # existing disposable sandbox project with a user, vendor, and document file
+pytest procore/tests/test_procore_integration.py -m "integration and not destructive"
+
+# All 29 actions, including writes on uniquely named test records:
+PROCORE_RUN_WRITE_TESTS=1 pytest procore/tests/test_procore_integration.py -m destructive
+
+# Check a real HiveUp package using only bundled dependencies:
+hiveup package procore -o /tmp/procore.zip
+PROCORE_PACKAGE_PATH=/tmp/procore.zip pytest procore/tests/test_procore_package_integration.py -m integration
 ```
 
-On 2026-11-02, all 29 actions were exercised successfully against a developer sandbox, including create/update project, draft RFI recycle/restore, folder creation, and submittal create/update/delete. Write tests used disposable test records; the created project was deactivated. A nested document folder supplied the file metadata fixture. The automated live smoke test remains read-only and skips without credentials; live write tests do not run automatically. The 61 mocked unit tests also passed. Production access and production API calls remain unverified.
+On 2026-11-02, all 29 actions were exercised successfully against a developer sandbox, including create/update project, draft RFI recycle/restore, folder creation, and submittal create/update/delete. Write tests used disposable test records; the created project was deactivated. A nested document folder supplied the file metadata fixture. The committed read checks skip without credentials. The full workflow requires explicit write opt-in, checks coverage against every configured action, and cleans up in `finally` blocks: it deactivates the created project, recycles the draft RFI, and deletes the submittal. It leaves one uniquely named empty folder because folder deletion is not an integration action. It never updates or deletes pre-existing records. The unit suite now includes HTTP-boundary SDK auth/error checks as well as mocked handler checks. Production access and production API calls remain unverified.
 
 Build upload packages with `hiveup package procore -o procore.zip`. This bundles the SDK and its dependencies for Lambda; a ZIP containing source files alone fails at startup. The packaged integration was deployed and `list_companies` verified through Lambda against the sandbox.
 
@@ -117,3 +125,5 @@ Request fields and methods were checked against the OpenAPI data served by Proco
 - [submittal-types API reference](https://developers.procore.com/reference/rest/submittal-types?version=latest)
 - [submittal-statuses API reference](https://developers.procore.com/reference/rest/submittal-statuses?version=latest)
 - [project-folders-and-files API reference](https://developers.procore.com/reference/rest/project-folders-and-files?version=latest)
+
+OAuth token exchange and refresh are owned by the Autohive platform, not this integration. Python tests do not claim to verify refresh. The backend’s `IntegrationAuthorizationServiceTests.GetCredentialsForBindingAsync_ExpiredExactBinding_RefreshesAndPersistsCredentials` covers refreshing and persisting expired connection credentials. The package test verifies bundled imports, not platform-generated `main.py` or the entire deployment pipeline; the deployed Lambda sandbox smoke check is separate.
