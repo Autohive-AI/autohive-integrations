@@ -4,7 +4,7 @@ from typing import Any
 from urllib.parse import urlencode, urlparse
 
 import aiohttp
-from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, Integration
+from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, HTTPError, Integration
 
 
 jobadder = Integration.load()
@@ -88,6 +88,18 @@ def _json_headers(inputs: dict[str, Any]) -> dict[str, str]:
     if inputs.get("allow_duplicates"):
         headers["X-Allow-Duplicates"] = inputs["allow_duplicates"]
     return headers
+
+
+def _update_action_error(exc: Exception) -> ActionError:
+    """Expose JobAdder's duplicate override code from update conflicts."""
+    if isinstance(exc, HTTPError) and exc.status == 409:
+        override_code = next(
+            (value for name, value in exc.headers.items() if name.lower() == "x-allow-duplicates"),
+            None,
+        )
+        if override_code:
+            return ActionError(message=f"{exc}. Retry with allow_duplicates={override_code} if intended.")
+    return ActionError(message=str(exc))
 
 
 def _date_range(start: str | None, end: str | None) -> list[str] | None:
@@ -399,7 +411,7 @@ class UpdateCandidateAction(ActionHandler):
             )
             return ActionResult(data={"updated": True, "candidate_id": inputs["candidate_id"]})
         except Exception as exc:
-            return ActionError(message=str(exc))
+            return _update_action_error(exc)
 
 
 @jobadder.action("list_candidate_statuses")
@@ -545,7 +557,7 @@ class UpdateContactAction(ActionHandler):
             )
             return ActionResult(data={"updated": True, "contact_id": inputs["contact_id"]})
         except Exception as exc:
-            return ActionError(message=str(exc))
+            return _update_action_error(exc)
 
 
 @jobadder.action("list_contact_statuses")

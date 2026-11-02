@@ -1,5 +1,5 @@
 import pytest
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from jobadder.jobadder import jobadder
@@ -83,6 +83,20 @@ class TestUpdateCandidate:
         assert result.type == ResultType.ACTION_ERROR
         assert "candidate update failed" in result.result.message
 
+    async def test_duplicate_conflict_exposes_override_code(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(
+            409,
+            "duplicate candidate email",
+            headers={"X-Allow-Duplicates": "candidate-override-code"},
+        )
+
+        result = await jobadder.execute_action(
+            "update_candidate", {"candidate_id": 21, "email": "duplicate@example.com"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "allow_duplicates=candidate-override-code" in result.result.message
+
 
 class TestUpdateContact:
     async def test_maps_supplied_fields_and_returns_contact_id(self, mock_context):
@@ -148,6 +162,20 @@ class TestUpdateContact:
 
         assert result.type == ResultType.ACTION_ERROR
         assert "contact update failed" in result.result.message
+
+    async def test_duplicate_conflict_exposes_override_code_case_insensitively(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(
+            409,
+            "duplicate contact email",
+            headers={"x-allow-duplicates": "contact-override-code"},
+        )
+
+        result = await jobadder.execute_action(
+            "update_contact", {"contact_id": 51, "email": "duplicate@example.com"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "allow_duplicates=contact-override-code" in result.result.message
 
 
 @pytest.mark.parametrize(
