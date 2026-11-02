@@ -503,23 +503,27 @@ NEWER_MODELS = ("metric", "document")
 async def _get_with_models(
     context: ExecutionContext, path: str, before: List[tuple], models: Any, after: List[tuple]
 ) -> tuple:
-    """GET a list filtered by item types, leaving out newer types this Metabase rejects. Returns (data, dropped)."""
-    models = list(models or [])
-    try:
-        return await _api(context, "GET", _with_query(path, before + [("models", m) for m in models] + after)), []
-    except HTTPError as e:
-        dropped = [m for m in models if m in NEWER_MODELS]
-        if e.status != 400 or not dropped:
-            raise
-    kept = [m for m in models if m not in dropped]
-    if not kept:
-        return [], dropped
-    return await _api(context, "GET", _with_query(path, before + [("models", m) for m in kept] + after)), dropped
+    """GET a list filtered by item types, leaving out newer types this Metabase rejects, newest first, so a
+    supported metric isn't dropped along with an unsupported document. Returns (data, dropped)."""
+    kept = list(models or [])
+    dropped: List[str] = []
+    while True:
+        try:
+            if models and not kept:
+                return [], dropped
+            data = await _api(context, "GET", _with_query(path, before + [("models", m) for m in kept] + after))
+            return data, dropped
+        except HTTPError as e:
+            newest = next((m for m in reversed(NEWER_MODELS) if m in kept), None)
+            if e.status != 400 or newest is None:
+                raise
+            kept = [m for m in kept if m != newest]
+            dropped.insert(0, newest)
 
 
 def _note_dropped(result: Dict[str, Any], dropped: List[str]) -> Dict[str, Any]:
     if dropped:
-        result["note"] = f"This Metabase doesn't support {', '.join(dropped)}, so they were left out."
+        result["note"] = f"Left out item types this Metabase doesn't support: {', '.join(dropped)}."
     return result
 
 
