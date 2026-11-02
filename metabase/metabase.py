@@ -317,6 +317,9 @@ def _check_read_only(sql: str, dialect: Any) -> None:
         qualifiers: Any = ()
         if isinstance(node, exp.Column):
             qualifiers = node.parts[:-1]
+        elif isinstance(node, exp.Table) and isinstance(node.this, exp.Func):
+            # FROM dbms_cloud.list_files(...) keeps the package on the table, not the function.
+            qualifiers = [p for p in (node.args.get("catalog"), node.args.get("db")) if p is not None]
         elif isinstance(node, exp.Dot) and isinstance(node.expression, exp.Func):
             qualifiers = node.this.find_all(exp.Identifier)
         for part in qualifiers:
