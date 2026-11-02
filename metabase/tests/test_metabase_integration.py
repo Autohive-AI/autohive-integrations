@@ -70,6 +70,11 @@ async def _first_database(live_context):
     return sql_dbs[0]
 
 
+def _select(db, columns):
+    """A SELECT without a table, which Oracle before 23ai only accepts with FROM DUAL."""
+    return f"select {columns}" + (" from dual" if db["engine"] == "oracle" else "")
+
+
 async def _first_search_hit(live_context, model):
     data = _assert_ok(await metabase.execute_action("search", {"models": [model], "limit": 1}, live_context))
     if not data["results"]:
@@ -154,7 +159,7 @@ class TestReadOnly:
         db = await _first_database(live_context)
         data = _assert_ok(
             await metabase.execute_action(
-                "run_sql_query", {"database_id": db["id"], "sql": "select 1 as one", "max_rows": 5}, live_context
+                "run_sql_query", {"database_id": db["id"], "sql": _select(db, "1 as one"), "max_rows": 5}, live_context
             )
         )
         assert data["row_count"] == 1
@@ -169,7 +174,9 @@ class TestReadOnly:
             live_context,
         )
         assert result.type == ResultType.ACTION_ERROR
-        assert "autohive_itest_missing_table" in result.result.message
+        # Most databases name the missing table (Snowflake in upper case); Oracle only gives its error code.
+        message = result.result.message.lower()
+        assert "autohive_itest_missing_table" in message or "ora-00942" in message
 
     @pytest.mark.asyncio
     async def test_search_paging(self, live_context):
@@ -231,6 +238,7 @@ class TestBuildLifecycle:
         collection_id = question_id = dashboard_id = None
         try:
             db = await _first_database(live_context)
+            sql = _select(db, "1 as one")
             collection = _assert_ok(
                 await metabase.execute_action("create_collection", {"name": f"Autohive itest {run_id}"}, live_context)
             )
@@ -242,7 +250,7 @@ class TestBuildLifecycle:
                     {
                         "name": f"Autohive itest question {run_id}",
                         "database_id": db["id"],
-                        "sql": "select 1 as one",
+                        "sql": sql,
                         "display": "scalar",
                         "collection_id": collection_id,
                     },
@@ -250,7 +258,7 @@ class TestBuildLifecycle:
                 )
             )
             question_id = question["id"]
-            assert question["native_sql"] == "select 1 as one"
+            assert question["native_sql"] == sql
 
             run = _assert_ok(await metabase.execute_action("run_question", {"question_id": question_id}, live_context))
             assert run["row_count"] == 1
@@ -333,7 +341,7 @@ class TestAddToExistingDashboard:
                         "database": db["id"],
                         "type": "native",
                         "native": {
-                            "query": "select 1 as x, {{n}} as y",
+                            "query": _select(db, "1 as x, {{n}} as y"),
                             "template-tags": {
                                 "n": {"id": tag_id, "name": "n", "display-name": "N", "type": "number", "default": "2"}
                             },
@@ -359,7 +367,7 @@ class TestAddToExistingDashboard:
                         {
                             "name": f"Autohive itest {name} {run_id}",
                             "database_id": db["id"],
-                            "sql": "select 1 as x, 3 as y",
+                            "sql": _select(db, "1 as x, 3 as y"),
                             "display": "line",
                             "collection_id": collection_id,
                         },
