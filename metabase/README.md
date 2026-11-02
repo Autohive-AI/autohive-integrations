@@ -72,7 +72,7 @@ Searches Metabase content.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | No | Text to search for. Leave empty to list items of the chosen types. |
-| `models` | string[] | No | Item types: `card` (saved question), `dataset` (model), `metric`, `dashboard`, `collection`, `table`, `database`, `document` |
+| `models` | string[] | No | Item types: `card` (saved question), `dataset` (model), `metric`, `dashboard`, `collection`, `table`, `database`, `document`. On Metabase older than 0.51 (`metric`) or 0.57 (`document`), those types are left out and the result has a `note` saying so. |
 | `archived` | boolean | No | Search trashed items instead |
 | `limit` / `offset` | integer | No | Paging (default 50, max 200) |
 
@@ -98,7 +98,7 @@ Returns a saved question: name, type, visualization, database, collection, `nati
 
 Runs a saved question and returns its rows.
 
-The question's SQL runs as saved and is not checked the way `run_sql_query` checks SQL. The agent can't edit a saved question's SQL, and `create_question` checks new SQL, so only a person in Metabase can save a question that writes. A read-only database user blocks those writes too.
+Before running, the integration reads the question and checks its SQL the same way `run_sql_query` does, and refuses to run it if the check fails. Filters (`{{tag}}` and `[[ ... ]]`) are checked as plain values, because Metabase sends filter values as values, never as SQL. Snippets and saved questions the SQL uses (`{{snippet: name}}`, `{{#12}}`) are fetched and checked too, as are SQL questions a point-and-click question is built on. Point-and-click questions are otherwise run without a check, since Metabase only builds reads from them. This costs one to three extra read requests per run.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -124,7 +124,7 @@ Before sending SQL, the integration parses it with [sqlglot](https://github.com/
 
 Because the SQL is parsed, column names, quoted text and comments are not mistaken for writes: `system`, `lock`, `use`, `copy`, `url` or `'delete from the queue'` are fine. SQL the parser can't read for that database is refused, as are MySQL `/*! */` comments (MySQL runs them) and PostgreSQL `U&"..."` names. On MySQL and PostgreSQL, SQL with a backslash must also be safe however the server is set to read quoted text (MySQL `NO_BACKSLASH_ESCAPES` or `ANSI_QUOTES`, PostgreSQL `standard_conforming_strings` off), so double a quote inside text instead of escaping it, and don't end text with a backslash. `create_question` applies the same rule.
 
-**This blocks common writes, not every write.** Connect the database in Metabase with a read-only database user to block all writes. For DuckDB, also set `enable_external_access` to `false`: DuckDB can read server files and URLs written as a table name (`SELECT * FROM '/path/file.csv'`), which the check can't tell apart from a quoted table name. The API key's group also needs permission to write native queries against that database. A query that fails, for example because of a syntax error or a missing table, returns an error with Metabase's message.
+**This blocks common writes, not every write.** Connect the database in Metabase with a read-only database user to block all writes. On DuckDB, table names that look like a file, glob or URL (`FROM '/path/file.csv'`, `FROM 'data/*.parquet'`, `FROM 'https://...'`) are refused, as are `glob()`, `parquet_scan()` and the other file-reading functions. Setting `enable_external_access` to `false` is still recommended. The API key's group also needs permission to write native queries against that database. A query that fails, for example because of a syntax error or a missing table, returns an error with Metabase's message.
 
 #### Query results
 

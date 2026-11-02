@@ -239,12 +239,21 @@ SIDE_EFFECT_FUNCTION = re.compile(
     r"|openquery|openrowset|opendatasource|query|query_to_xml\w*|ts_stat|ts_rewrite"
     r"|(?:url|s3|gcs|file|hdfs|deltalake|hudi)(?:cluster)?|remote|remotesecure|azureblobstorage\w*|iceberg\w*"
     r"|arrowflight|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect|try_reflect|java_method"
-    r"|httpuritype",
+    r"|httpuritype|glob|parquet_\w+|sniff_csv|delta_scan",
     re.IGNORECASE,
 )
 # sqlglot skips MySQL /*! ... */ comments, which MySQL runs, and doesn't decode PostgreSQL U&"..." names, which can
 # spell any function in escapes (U&"\0073etval").
 UNREAD_SQL = re.compile(r"/\*M?!|\bu&[\"']", re.IGNORECASE)
+# DuckDB reads a table name that looks like a file, glob or URL ('/etc/passwd', "data/*.csv", 'https://...') as
+# that file, so such names are refused there.
+DUCKDB_FILE_NAME = re.compile(r"[/\\:*?~]|\.\w+$")
+# Template tags in saved SQL: {{name}} and optional [[ ... ]] clauses. Metabase passes filter values as values,
+# never as SQL, so a tag is checked as a stand-in of the same kind.
+TEMPLATE_TAG = re.compile(r"\{\{\s*(.*?)\s*\}\}", re.DOTALL)
+TAG_STAND_INS = {"dimension": "1 = 1", "table": "metabase_table", "card": "(SELECT 1)"}
+# Saved questions can be built on other saved questions; how deep to follow them before refusing.
+MAX_SAVED_QUESTION_DEPTH = 5
 
 
 def _refuse_sql(reason: str) -> ValueError:
@@ -325,6 +334,9 @@ def _check_read_only(sql: str, dialect: Any) -> None:
         for part in qualifiers:
             if re.fullmatch(r"(?:dbms|utl)_\w+", part.name, re.IGNORECASE):
                 raise _refuse_sql(f"Oracle package {part.name} is refused")
+        if dialect == "duckdb" and isinstance(node, exp.Table) and isinstance(node.this, exp.Identifier):
+            if DUCKDB_FILE_NAME.search(node.name):
+                raise _refuse_sql(f"DuckDB reads '{node.name}' as a file or URL")
         if isinstance(node, exp.Identifier):
             if dialect == "tsql" and not node.quoted and node.name.lower() in TSQL_STATEMENT_WORDS:
                 raise _refuse_sql(f"{node.name.upper()} starts a second SQL Server statement")
@@ -335,6 +347,87 @@ async def _read_only_sql(context: ExecutionContext, database_id: Any, sql: Any) 
     sql = _required_text(sql, "sql")
     database = await _api(context, "GET", f"/database/{_path_id(database_id)}") or {}
     return _ensure_read_only_sql(sql, database.get("engine"))
+
+
+def _saved_native(dataset_query: Dict[str, Any]) -> tuple:
+    """A saved question's SQL and template tags (legacy native, or MBQL 5 stages[0] on Metabase 0.57+)."""
+    native = dataset_query.get("native") or {}
+    sql, tags = native.get("query"), native.get("template-tags")
+    stages = dataset_query.get("stages") or []
+    if sql is None and stages and isinstance(stages[0], dict) and isinstance(stages[0].get("native"), str):
+        sql, tags = stages[0]["native"], stages[0].get("template-tags")
+    if isinstance(tags, list):
+        tags = {t.get("name"): t for t in tags if isinstance(t, dict)}
+    return sql, tags or {}
+
+
+def _source_cards(value: Any) -> List[Any]:
+    """Saved questions a point-and-click question is built on (source-table "card__12" or MBQL 5 source-card)."""
+    found: List[Any] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in ("source-card", "source_card") and item is not None:
+                found.append(item)
+            found += _source_cards(item)
+    elif isinstance(value, list):
+        for item in value:
+            found += _source_cards(item)
+    elif isinstance(value, str) and (match := re.fullmatch(r"card__(\d+)", value)):
+        found.append(int(match.group(1)))
+    return found
+
+
+async def _check_saved_question(context: ExecutionContext, card_id: Any, depth: int = 0) -> None:
+    """Refuse to run a saved question whose SQL, or the SQL of anything it is built on, writes. Saved SQL is checked
+    the way run_sql_query checks SQL, with each template tag replaced by a stand-in."""
+    if depth > MAX_SAVED_QUESTION_DEPTH:
+        raise ValueError("This saved question is built on too many other saved questions to check, so it wasn't run.")
+    card = await _api(context, "GET", f"/card/{_path_id(card_id)}") or {}
+    dataset_query = card.get("dataset_query") or {}
+    sql, tags = _saved_native(dataset_query)
+    if sql is None:
+        for source in _source_cards(dataset_query):
+            await _check_saved_question(context, source, depth + 1)
+        return
+    expanded = await _expand_template_tags(context, sql, tags, depth)
+    database = (
+        await _api(context, "GET", f"/database/{_path_id(card.get('database_id') or dataset_query.get('database'))}")
+        or {}
+    )
+    try:
+        _ensure_read_only_sql(expanded, database.get("engine"))
+    except ValueError as e:
+        raise ValueError(f"Saved question {card.get('id', card_id)} wasn't run. {e}") from None
+
+
+async def _expand_template_tags(context: ExecutionContext, sql: str, tags: Dict[str, Any], depth: int) -> str:
+    sql = sql.replace("[[", " ").replace("]]", " ")
+    pieces: List[str] = []
+    end = 0
+    for match in TEMPLATE_TAG.finditer(sql):
+        name = match.group(1)
+        tag = tags.get(name) or {}
+        kind = tag.get("type")
+        if kind == "snippet" or name.lower().startswith("snippet:"):
+            snippet_id = tag.get("snippet-id")
+            if snippet_id is None:
+                raise ValueError(f"Snippet {name} in a saved question can't be checked, so the question wasn't run.")
+            snippet = await _api(context, "GET", f"/native-query-snippet/{_path_id(snippet_id)}") or {}
+            if TEMPLATE_TAG.search(snippet.get("content") or ""):
+                raise ValueError(f"Snippet {name} uses filters, so the saved question can't be checked and wasn't run.")
+            stand_in = snippet.get("content") or ""
+        elif kind == "card" or name.startswith("#"):
+            reference = re.match(r"#(\d+)", name)
+            card_id = tag.get("card-id") or (reference and reference.group(1))
+            if card_id is None:
+                raise ValueError(f"{name} in a saved question can't be checked, so the question wasn't run.")
+            await _check_saved_question(context, card_id, depth + 1)
+            stand_in = TAG_STAND_INS["card"]
+        else:
+            stand_in = TAG_STAND_INS.get(kind, "NULL")
+        pieces += [sql[end : match.start()], stand_in]
+        end = match.end()
+    return "".join(pieces) + sql[end:]
 
 
 def _native_query(database_id: Any, sql: str) -> Dict[str, Any]:
@@ -364,6 +457,31 @@ def _error_message(error: Exception, saved_check: Optional[str] = None) -> str:
             )
         return "Metabase did not respond in time. For queries, aggregate or add a LIMIT and try again."
     return str(error)
+
+
+# Item types older Metabase versions reject outright (HTTP 400 for the whole request): minimum 0.x minor version.
+MODELS_SINCE = {"metric": 51, "document": 57}
+
+
+async def _supported_models(context: ExecutionContext, models: Any) -> tuple:
+    """Drop item types this Metabase is too old for, and say which were dropped."""
+    models = list(models or [])
+    if not any(m in MODELS_SINCE for m in models):
+        return models, []
+    properties = await _api(context, "GET", "/session/properties") or {}
+    tag = str((properties.get("version") or {}).get("tag") or "")
+    match = re.match(r"v?\d+\.(\d+)", tag)
+    if not match:
+        return models, []
+    minor = int(match.group(1))
+    dropped = [m for m in models if minor < MODELS_SINCE.get(m, 0)]
+    return [m for m in models if m not in dropped], dropped
+
+
+def _note_dropped(result: Dict[str, Any], dropped: List[str]) -> Dict[str, Any]:
+    if dropped:
+        result["note"] = f"This Metabase version doesn't support {', '.join(dropped)}, so they were left out."
+    return result
 
 
 def _clamp(value: Any, default: int, maximum: int) -> int:
@@ -513,14 +631,7 @@ def _merge_parameters(explicit: List[Dict[str, Any]], from_tags: List[Dict[str, 
 
 def _card_summary(card: Dict[str, Any]) -> Dict[str, Any]:
     dataset_query = card.get("dataset_query") or {}
-    native = dataset_query.get("native") or {}
-    sql = native.get("query")
-    tags = native.get("template-tags")
-    # MBQL 5 (Metabase 0.57+) stores native SQL and its template tags under stages[0].
-    stages = dataset_query.get("stages") or []
-    if sql is None and stages and isinstance(stages[0], dict) and isinstance(stages[0].get("native"), str):
-        sql = stages[0]["native"]
-        tags = stages[0].get("template-tags")
+    sql, tags = _saved_native(dataset_query)
     return {
         "id": card.get("id"),
         "name": card.get("name"),
@@ -687,8 +798,11 @@ class SearchAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
             page = _page(inputs)
+            models, dropped = await _supported_models(context, inputs.get("models"))
+            if dropped and not models:
+                return ActionResult(data=_note_dropped(_paged("results", [], [], page), dropped), cost_usd=0.0)
             params: List[tuple] = [("q", str(inputs.get("query") or "").strip() or None)]
-            params += [("models", m) for m in inputs.get("models") or []]
+            params += [("models", m) for m in models]
             if inputs.get("archived"):
                 params.append(("archived", "true"))
             params += list(page.items())
@@ -708,7 +822,7 @@ class SearchAction(ActionHandler):
                 }
                 for item in _list_data(data)
             ]
-            return ActionResult(data=_paged("results", results, data, page), cost_usd=0.0)
+            return ActionResult(data=_note_dropped(_paged("results", results, data, page), dropped), cost_usd=0.0)
         except Exception as e:
             return ActionError(message=_error_message(e))
 
@@ -748,7 +862,10 @@ class ListCollectionItemsAction(ActionHandler):
         try:
             collection_id = _path_id(inputs.get("collection_id") or "root")
             page = _page(inputs)
-            params: List[tuple] = [("models", m) for m in inputs.get("models") or []]
+            models, dropped = await _supported_models(context, inputs.get("models"))
+            if dropped and not models:
+                return ActionResult(data=_note_dropped(_paged("items", [], [], page), dropped), cost_usd=0.0)
+            params: List[tuple] = [("models", m) for m in models]
             params += list(page.items())
 
             data = await _api(context, "GET", _with_query(f"/collection/{collection_id}/items", params))
@@ -762,7 +879,7 @@ class ListCollectionItemsAction(ActionHandler):
                 }
                 for item in _list_data(data)
             ]
-            return ActionResult(data=_paged("items", items, data, page), cost_usd=0.0)
+            return ActionResult(data=_note_dropped(_paged("items", items, data, page), dropped), cost_usd=0.0)
         except Exception as e:
             return ActionError(message=_error_message(e))
 
@@ -820,6 +937,7 @@ class RunQuestionAction(ActionHandler):
             body: Dict[str, Any] = {}
             if inputs.get("parameters"):
                 body["parameters"] = [_run_parameter(p) for p in inputs["parameters"]]
+            await _check_saved_question(context, card_id)
 
             data = await _api(context, "POST", f"/card/{card_id}/query", json=body, timeout=QUERY_TIMEOUT_SECONDS)
             return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)

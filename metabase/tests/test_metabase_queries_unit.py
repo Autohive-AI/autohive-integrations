@@ -128,6 +128,105 @@ class TestRunQuestion:
         assert mock_context.fetch.call_args.kwargs["json"] == {}
 
     @pytest.mark.asyncio
+    async def test_saved_sql_checked_before_running(self, mock_context):
+        card = {
+            "id": 42,
+            "database_id": 3,
+            "dataset_query": {"database": 3, "type": "native", "native": {"query": "select 1"}},
+        }
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+        urls = [c.args[0] for c in mock_context.fetch.call_args_list]
+        assert urls == [f"{BASE}/api/card/42", f"{BASE}/api/database/3", f"{BASE}/api/card/42/query"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "sql",
+        ["delete from orders", "with x as (delete from orders returning *) select * from x", "select nextval('s')"],
+    )
+    async def test_saved_sql_that_writes_is_not_run(self, mock_context, sql):
+        card = {
+            "id": 42,
+            "database_id": 3,
+            "dataset_query": {"database": 3, "type": "native", "native": {"query": sql}},
+        }
+        mock_context.fetch.side_effect = [_ok(card), _database()]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42 wasn't run" in result.result.message
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_mbql5_saved_sql_with_template_tags_runs(self, mock_context):
+        sql = "select * from orders where 1=1 [[and {{region}}]] [[and status = {{status}}]] limit {{n}}"
+        tags = [
+            {"name": "region", "type": "dimension"},
+            {"name": "status", "type": "text"},
+            {"name": "n", "type": "number"},
+        ]
+        card = {
+            "id": 42,
+            "database_id": 3,
+            "dataset_query": {"database": 3, "stages": [{"native": sql, "template-tags": tags}]},
+        }
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.type != ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_referenced_question_and_snippet_checked(self, mock_context):
+        sql = "select * from {{#7-base}} b where {{snippet: active}}"
+        tags = {
+            "#7-base": {"name": "#7-base", "type": "card", "card-id": 7},
+            "snippet: active": {"name": "snippet: active", "type": "snippet", "snippet-id": 9},
+        }
+        card = {
+            "id": 42,
+            "database_id": 3,
+            "dataset_query": {"database": 3, "native": {"query": sql, "template-tags": tags}},
+        }
+        base = {"id": 7, "database_id": 3, "dataset_query": {"database": 3, "native": {"query": "delete from t"}}}
+        mock_context.fetch.side_effect = [_ok(card), _ok(base), _database()]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "Saved question 7 wasn't run" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_snippet_that_writes_is_not_run(self, mock_context):
+        tags = {"snippet: x": {"name": "snippet: x", "type": "snippet", "snippet-id": 9}}
+        card = {
+            "id": 42,
+            "database_id": 3,
+            "dataset_query": {"database": 3, "native": {"query": "select 1; {{snippet: x}}", "template-tags": tags}},
+        }
+        mock_context.fetch.side_effect = [_ok(card), _ok({"content": "delete from t"}), _database()]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_args_list[1].args[0] == f"{BASE}/api/native-query-snippet/9"
+
+    @pytest.mark.asyncio
+    async def test_gui_question_on_saved_sql_is_checked(self, mock_context):
+        gui = {"id": 42, "dataset_query": {"database": 3, "type": "query", "query": {"source-table": "card__7"}}}
+        base = {"id": 7, "database_id": 3, "dataset_query": {"database": 3, "native": {"query": "drop table t"}}}
+        mock_context.fetch.side_effect = [_ok(gui), _ok(base), _database()]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "Saved question 7 wasn't run" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_gui_question_runs_without_database_lookup(self, mock_context):
+        gui = {"id": 42, "dataset_query": {"lib/type": "mbql/query", "stages": [{"source-table": 5}]}}
+        mock_context.fetch.side_effect = [_ok(gui), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+
+    @pytest.mark.asyncio
+    async def test_self_referencing_questions_stop(self, mock_context):
+        loop = {"id": 42, "dataset_query": {"database": 3, "stages": [{"source-card": 42}]}}
+        mock_context.fetch.return_value = _ok(loop)
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "too many other saved questions" in result.result.message
+
+    @pytest.mark.asyncio
     async def test_max_rows(self, mock_context):
         mock_context.fetch.return_value = _ok(_dataset([[i] for i in range(10)]), status=202)
         result = await metabase.execute_action("run_question", {"question_id": 42, "max_rows": 3}, mock_context)

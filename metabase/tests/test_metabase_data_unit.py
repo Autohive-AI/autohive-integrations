@@ -383,6 +383,50 @@ SAMPLE_COLLECTIONS = [
 ]
 
 
+class TestOldVersionItemTypes:
+    @pytest.mark.asyncio
+    async def test_search_drops_types_older_metabase_rejects(self, mock_context):
+        mock_context.fetch.side_effect = [_ok({"version": {"tag": "v0.49.3"}}), _ok({"data": [], "total": 0})]
+        result = await metabase.execute_action("search", {"models": ["card", "metric", "document"]}, mock_context)
+        url = mock_context.fetch.call_args.args[0]
+        assert "models=card" in url and "metric" not in url and "document" not in url
+        assert "metric, document" in result.result.data["note"]
+
+    @pytest.mark.asyncio
+    async def test_new_metabase_keeps_types(self, mock_context):
+        mock_context.fetch.side_effect = [_ok({"version": {"tag": "v1.57.2"}}), _ok({"data": [], "total": 0})]
+        result = await metabase.execute_action("search", {"models": ["metric", "document"]}, mock_context)
+        url = mock_context.fetch.call_args.args[0]
+        assert "models=metric" in url and "models=document" in url
+        assert "note" not in result.result.data
+
+    @pytest.mark.asyncio
+    async def test_0_51_keeps_metric_only(self, mock_context):
+        mock_context.fetch.side_effect = [_ok({"version": {"tag": "v0.51.0"}}), _ok({"data": []})]
+        await metabase.execute_action("list_collection_items", {"models": ["metric", "document"]}, mock_context)
+        url = mock_context.fetch.call_args.args[0]
+        assert "models=metric" in url and "document" not in url
+
+    @pytest.mark.asyncio
+    async def test_only_unsupported_types_returns_nothing(self, mock_context):
+        mock_context.fetch.side_effect = [_ok({"version": {"tag": "v0.49.0"}})]
+        result = await metabase.execute_action("list_collection_items", {"models": ["document"]}, mock_context)
+        assert result.result.data["items"] == [] and result.result.data["total"] == 0
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_no_version_lookup_without_new_types(self, mock_context):
+        mock_context.fetch.return_value = _ok({"data": [], "total": 0})
+        await metabase.execute_action("search", {"models": ["card"]}, mock_context)
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_unknown_version_keeps_types(self, mock_context):
+        mock_context.fetch.side_effect = [_ok({}), _ok({"data": []})]
+        await metabase.execute_action("search", {"models": ["metric"]}, mock_context)
+        assert "models=metric" in mock_context.fetch.call_args.args[0]
+
+
 class TestListCollections:
     @pytest.mark.asyncio
     async def test_excludes_personal_by_default(self, mock_context):
