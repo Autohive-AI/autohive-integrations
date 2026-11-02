@@ -250,14 +250,6 @@ UNREAD_SQL = re.compile(r"/\*M?!|\bu&[\"']", re.IGNORECASE)
 DUCKDB_FILE_NAME = re.compile(
     r"[/\\:*?~\[\]{}]|\.(?:csv|tsv|txt|json|jsonl|ndjson|parquet|arrow|xlsx|db|duckdb|sqlite|gz|zst)$", re.IGNORECASE
 )
-# Template tags in saved SQL: {{name}} and optional [[ ... ]] clauses, which Metabase drops when their filter is
-# empty, so SQL is checked with them kept and with them dropped. Metabase passes filter values as values, never as
-# SQL, so a tag is checked as a stand-in of the same kind.
-TEMPLATE_TAG = re.compile(r"\{\{\s*(.*?)\s*\}\}", re.DOTALL)
-OPTIONAL_CLAUSE = re.compile(r"\[\[(.*?)\]\]", re.DOTALL)
-TAG_STAND_INS = {"dimension": "1 = 1", "table": "metabase_table", "card": "(SELECT 1)", "number": "1"}
-# Saved questions can be built on other saved questions; how deep to follow them before refusing.
-MAX_SAVED_QUESTION_DEPTH = 5
 
 
 def _refuse_sql(reason: str) -> ValueError:
@@ -381,128 +373,37 @@ def _saved_native(dataset_query: Dict[str, Any]) -> tuple:
     return _native_sql(dataset_query) or _native_sql(first_stage) or (None, {})
 
 
-def _query_sources(dataset_query: Any) -> tuple:
-    """What a question is built on, including its joins: saved questions (source-table "card__12" or MBQL 5
-    source-card) and SQL written into it (top-level or as a source-query)."""
-    cards: List[Any] = []
-    statements: List[tuple] = []
+async def _checked_parameters(context: ExecutionContext, card_id: str, parameters: List[Any]) -> List[Any]:
+    """Refuse to run a saved question whose SQL can write, and return the filters to run it with.
 
-    def walk(value: Any) -> None:
-        if isinstance(value, list):
-            for item in value:
-                walk(item)
-        if not isinstance(value, dict):
-            return
-        if found := _native_sql(value):
-            statements.append(found)
-        for key, item in value.items():
-            if key in ("source-card", "source_card") and item is not None:
-                cards.append(item)
-            elif key in ("source-table", "source_table") and isinstance(item, str):
-                if match := re.fullmatch(r"card__(\d+)", item):
-                    cards.append(int(match.group(1)))
-            elif key != "native":
-                walk(item)
-
-    walk(dataset_query)
-    return cards, statements
-
-
-def _sql_variants(sql: str) -> List[str]:
-    """Saved SQL as it runs with every optional [[ ... ]] clause kept, and with every one dropped."""
-    return list(dict.fromkeys([OPTIONAL_CLAUSE.sub(r"\1", sql), OPTIONAL_CLAUSE.sub("", sql)]))
-
-
-class _SavedQuestionCheck:
-    """Refuses to run a saved question whose SQL, or the SQL of anything it is built on, writes. Saved SQL is checked
-    the way run_sql_query checks SQL, with each template tag replaced by a stand-in. Each question, database and
-    snippet is fetched once per run."""
-
-    def __init__(self, context: ExecutionContext):
-        self.context = context
-        self.checked: set = set()
-        self.engines: Dict[str, Optional[str]] = {}
-        self.snippets_by_id: Dict[str, Dict[str, Any]] = {}
-        self.snippets_by_name: Optional[Dict[str, Dict[str, Any]]] = None
-
-    async def check(self, card_id: Any, depth: int = 0) -> None:
-        key = str(card_id)
-        if key in self.checked:
-            return
-        if depth > MAX_SAVED_QUESTION_DEPTH:
-            raise ValueError(
-                "This saved question is built on too many other saved questions to check, so it wasn't run."
-            )
-        # Marked before its sources are checked, so questions built on each other are each fetched once.
-        self.checked.add(key)
-        card = await _api(self.context, "GET", f"/card/{_path_id(card_id)}") or {}
-        dataset_query = card.get("dataset_query") or {}
-        sources, statements = _query_sources(dataset_query)
-        for source in sources:
-            await self.check(source, depth + 1)
-        if statements:
-            engine = await self._engine(card.get("database_id") or dataset_query.get("database"))
-            for sql, tags in statements:
-                for variant in _sql_variants(sql):
-                    expanded = await self._expand(variant, tags, depth)
-                    try:
-                        _ensure_read_only_sql(expanded, engine)
-                    except ValueError as e:
-                        raise ValueError(f"Saved question {card.get('id', card_id)} wasn't run. {e}") from None
-
-    async def _engine(self, database_id: Any) -> Optional[str]:
-        key = str(database_id)
-        if key not in self.engines:
-            self.engines[key] = await _database_engine(self.context, database_id)
-        return self.engines[key]
-
-    async def _snippet(self, name: str, tag: Dict[str, Any]) -> str:
-        """A snippet's SQL, found by its id or, when the tag stores only a name, by its name."""
-        snippet_id = tag.get("snippet-id")
-        if snippet_id is not None:
-            key = str(snippet_id)
-            if key not in self.snippets_by_id:
-                path = f"/native-query-snippet/{_path_id(snippet_id)}"
-                self.snippets_by_id[key] = await _api(self.context, "GET", path) or {}
-            snippet = self.snippets_by_id[key]
-        else:
-            if self.snippets_by_name is None:
-                # Archived snippets still run in the questions that use them.
-                listed = _list_data(await _api(self.context, "GET", "/native-query-snippet"))
-                listed += _list_data(await _api(self.context, "GET", "/native-query-snippet?archived=true"))
-                self.snippets_by_name = {item.get("name"): item for item in listed}
-            snippet = self.snippets_by_name.get(tag.get("snippet-name") or name.split(":", 1)[-1].strip())
-            if snippet is None:
-                raise ValueError(f"Snippet {name} in a saved question can't be found, so the question wasn't run.")
-        content = snippet.get("content") or ""
-        if TEMPLATE_TAG.search(content) or "[[" in content:
-            raise ValueError(f"Snippet {name} uses filters, so the saved question can't be checked and wasn't run.")
-        return content
-
-    async def _expand(self, sql: str, tags: Dict[str, Any], depth: int) -> str:
-        pieces: List[str] = []
-        end = 0
-        for match in TEMPLATE_TAG.finditer(sql):
-            name = match.group(1)
-            tag = tags.get(name) or {}
-            kind = tag.get("type")
-            if kind == "snippet" or name.lower().startswith("snippet:"):
-                stand_in = await self._snippet(name, tag)
-            elif kind == "card" or name.startswith("#"):
-                reference = re.match(r"#(\d+)", name)
-                card_id = tag.get("card-id") or (reference and reference.group(1))
-                if card_id is None:
-                    raise ValueError(f"{name} in a saved question can't be checked, so the question wasn't run.")
-                await self.check(card_id, depth + 1)
-                stand_in = TAG_STAND_INS["card"]
-            elif name in tags:
-                stand_in = TAG_STAND_INS.get(kind, "NULL")
-            else:
-                # Not a filter the question defines, so where Metabase's {{ }} starts and ends can't be trusted.
-                raise ValueError(f"{{{{{name[:40]}}}}} isn't one of the saved question's filters, so it wasn't run.")
-            pieces += [sql[end : match.start()], stand_in]
-            end = match.end()
-        return "".join(pieces) + sql[end:]
+    Metabase expands the question into the exact SQL it will run (filter values, optional [[ ]] clauses, snippets,
+    and the questions it is built on), and that SQL is checked the way run_sql_query checks SQL. Card filter defaults
+    are sent explicitly, so the checked SQL and the run use the same values."""
+    card = await _api(context, "GET", f"/card/{card_id}") or {}
+    dataset_query = card.get("dataset_query") or {}
+    # A filter can be sent by id or by target; either one overrides the saved default.
+    supplied = {str(p.get(key)) for p in parameters if isinstance(p, dict) for key in ("id", "target") if p.get(key)}
+    defaults = [
+        {"id": p["id"], "type": p.get("type"), "target": p["target"], "value": p["default"]}
+        for p in card.get("parameters") or []
+        if p.get("default") is not None
+        and p.get("target")
+        and p.get("id")
+        and not {str(p["id"]), str(p["target"])} & supplied
+    ]
+    parameters = parameters + defaults
+    compiled = await _api(
+        context, "POST", "/dataset/native", json={**dataset_query, "parameters": parameters, "pretty": False}
+    )
+    sql = compiled.get("query") if isinstance(compiled, dict) else None
+    if not isinstance(sql, str):
+        raise ValueError(f"Saved question {card_id} wasn't run: Metabase didn't return SQL for it to check.")
+    engine = await _database_engine(context, card.get("database_id") or dataset_query.get("database"))
+    try:
+        _ensure_read_only_sql(sql, engine)
+    except ValueError as e:
+        raise ValueError(f"Saved question {card_id} wasn't run. {e}") from None
+    return parameters
 
 
 def _native_query(database_id: Any, sql: str) -> Dict[str, Any]:
@@ -1007,10 +908,9 @@ class RunQuestionAction(ActionHandler):
         try:
             card_id = _path_id(inputs["question_id"])
             max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
-            body: Dict[str, Any] = {}
-            if inputs.get("parameters"):
-                body["parameters"] = [_run_parameter(p) for p in inputs["parameters"]]
-            await _SavedQuestionCheck(context).check(card_id)
+            parameters = [_run_parameter(p) for p in inputs.get("parameters") or []]
+            parameters = await _checked_parameters(context, card_id, parameters)
+            body: Dict[str, Any] = {"parameters": parameters} if parameters else {}
 
             data = await _api(context, "POST", f"/card/{card_id}/query", json=body, timeout=QUERY_TIMEOUT_SECONDS)
             return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)
