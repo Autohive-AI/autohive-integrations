@@ -631,6 +631,8 @@ class TestReadOnlySql:
             ("duckdb", "SELECT * FROM 'https://example.com/x.parquet' t"),
             ("duckdb", "SELECT * FROM 'orders.csv'"),
             ("duckdb", "SELECT * FROM 'data/*.parquet'"),
+            ("duckdb", "SELECT * FROM 'secrets[.]csv'"),
+            ("duckdb", "SELECT * FROM 'secrets{,}'"),
             ("duckdb", "SELECT * FROM 's3://bucket/key'"),
             ("duckdb", "SELECT * FROM glob('/etc/*')"),
             ("duckdb", "SELECT * FROM parquet_scan('/tmp/x.parquet')"),

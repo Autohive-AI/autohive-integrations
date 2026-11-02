@@ -247,10 +247,12 @@ SIDE_EFFECT_FUNCTION = re.compile(
 UNREAD_SQL = re.compile(r"/\*M?!|\bu&[\"']", re.IGNORECASE)
 # DuckDB reads a table name that looks like a file, glob or URL ('/etc/passwd', "data/*.csv", 'https://...') as
 # that file, so such names are refused there.
-DUCKDB_FILE_NAME = re.compile(r"[/\\:*?~]|\.\w+$")
-# Template tags in saved SQL: {{name}} and optional [[ ... ]] clauses. Metabase passes filter values as values,
-# never as SQL, so a tag is checked as a stand-in of the same kind.
+DUCKDB_FILE_NAME = re.compile(r"[/\\:*?~\[\]{}]|\.\w+$")
+# Template tags in saved SQL: {{name}} and optional [[ ... ]] clauses, which Metabase drops when their filter is
+# empty, so SQL is checked with them kept and with them dropped. Metabase passes filter values as values, never as
+# SQL, so a tag is checked as a stand-in of the same kind.
 TEMPLATE_TAG = re.compile(r"\{\{\s*(.*?)\s*\}\}", re.DOTALL)
+OPTIONAL_CLAUSE = re.compile(r"\[\[(.*?)\]\]", re.DOTALL)
 TAG_STAND_INS = {"dimension": "1 = 1", "table": "metabase_table", "card": "(SELECT 1)"}
 # Saved questions can be built on other saved questions; how deep to follow them before refusing.
 MAX_SAVED_QUESTION_DEPTH = 5
@@ -356,52 +358,101 @@ def _saved_native(dataset_query: Dict[str, Any]) -> tuple:
     stages = dataset_query.get("stages") or []
     if sql is None and stages and isinstance(stages[0], dict) and isinstance(stages[0].get("native"), str):
         sql, tags = stages[0]["native"], stages[0].get("template-tags")
-    if isinstance(tags, list):
-        tags = {t.get("name"): t for t in tags if isinstance(t, dict)}
-    return sql, tags or {}
+    return sql, _tags_by_name(tags)
 
 
-def _source_cards(value: Any) -> List[Any]:
-    """Saved questions a point-and-click question is built on (source-table "card__12" or MBQL 5 source-card)."""
-    found: List[Any] = []
+def _query_sources(value: Any) -> tuple:
+    """What a point-and-click question is built on, including its joins: saved questions (source-table "card__12" or
+    MBQL 5 source-card) and SQL written straight into it (source-query native)."""
+    cards: List[Any] = []
+    sql: List[tuple] = []
     if isinstance(value, dict):
+        if isinstance(value.get("native"), str):
+            sql.append((value["native"], value.get("template-tags")))
+        elif isinstance(value.get("native"), dict) and isinstance(value["native"].get("query"), str):
+            sql.append((value["native"]["query"], value["native"].get("template-tags")))
         for key, item in value.items():
             if key in ("source-card", "source_card") and item is not None:
-                found.append(item)
-            found += _source_cards(item)
+                cards.append(item)
+            elif key in ("source-table", "source_table") and isinstance(item, str):
+                if match := re.fullmatch(r"card__(\d+)", item):
+                    cards.append(int(match.group(1)))
+            elif key != "native":
+                more_cards, more_sql = _query_sources(item)
+                cards += more_cards
+                sql += more_sql
     elif isinstance(value, list):
         for item in value:
-            found += _source_cards(item)
-    elif isinstance(value, str) and (match := re.fullmatch(r"card__(\d+)", value)):
-        found.append(int(match.group(1)))
-    return found
+            more_cards, more_sql = _query_sources(item)
+            cards += more_cards
+            sql += more_sql
+    return cards, sql
 
 
-async def _check_saved_question(context: ExecutionContext, card_id: Any, depth: int = 0) -> None:
+def _tags_by_name(tags: Any) -> Dict[str, Any]:
+    if isinstance(tags, list):
+        return {t.get("name"): t for t in tags if isinstance(t, dict)}
+    return tags if isinstance(tags, dict) else {}
+
+
+async def _check_saved_question(
+    context: ExecutionContext, card_id: Any, depth: int = 0, checked: Optional[set] = None
+) -> None:
     """Refuse to run a saved question whose SQL, or the SQL of anything it is built on, writes. Saved SQL is checked
-    the way run_sql_query checks SQL, with each template tag replaced by a stand-in."""
+    the way run_sql_query checks SQL, with each template tag replaced by a stand-in. Each question is checked once."""
+    checked = set() if checked is None else checked
+    if str(card_id) in checked:
+        return
     if depth > MAX_SAVED_QUESTION_DEPTH:
         raise ValueError("This saved question is built on too many other saved questions to check, so it wasn't run.")
     card = await _api(context, "GET", f"/card/{_path_id(card_id)}") or {}
     dataset_query = card.get("dataset_query") or {}
+    database_id = card.get("database_id") or dataset_query.get("database")
     sql, tags = _saved_native(dataset_query)
     if sql is None:
-        for source in _source_cards(dataset_query):
-            await _check_saved_question(context, source, depth + 1)
-        return
-    expanded = await _expand_template_tags(context, sql, tags, depth)
-    database = (
-        await _api(context, "GET", f"/database/{_path_id(card.get('database_id') or dataset_query.get('database'))}")
-        or {}
-    )
-    try:
-        _ensure_read_only_sql(expanded, database.get("engine"))
-    except ValueError as e:
-        raise ValueError(f"Saved question {card.get('id', card_id)} wasn't run. {e}") from None
+        sources, inline_sql = _query_sources(dataset_query)
+        for source in sources:
+            await _check_saved_question(context, source, depth + 1, checked)
+        statements = [(text, _tags_by_name(found_tags)) for text, found_tags in inline_sql]
+    else:
+        statements = [(sql, tags)]
+    if statements:
+        engine = (await _api(context, "GET", f"/database/{_path_id(database_id)}") or {}).get("engine")
+        snippets: Dict[str, Any] = {}
+        for text, found_tags in statements:
+            for variant in (OPTIONAL_CLAUSE.sub(r"\1", text), OPTIONAL_CLAUSE.sub(" ", text)):
+                expanded = await _expand_template_tags(context, variant, found_tags, depth, checked, snippets)
+                try:
+                    _ensure_read_only_sql(expanded, engine)
+                except ValueError as e:
+                    raise ValueError(f"Saved question {card.get('id', card_id)} wasn't run. {e}") from None
+    checked.add(str(card_id))
 
 
-async def _expand_template_tags(context: ExecutionContext, sql: str, tags: Dict[str, Any], depth: int) -> str:
-    sql = sql.replace("[[", " ").replace("]]", " ")
+async def _snippet(context: ExecutionContext, name: str, tag: Dict[str, Any], snippets: Dict[str, Any]) -> str:
+    """A snippet's SQL, found by its id or, when the tag stores only a name, by its name."""
+    snippet_id = tag.get("snippet-id")
+    if snippet_id is not None:
+        if snippet_id not in snippets:
+            snippets[snippet_id] = await _api(context, "GET", f"/native-query-snippet/{_path_id(snippet_id)}") or {}
+        snippet = snippets[snippet_id]
+    else:
+        if "by name" not in snippets:
+            listed = await _api(context, "GET", "/native-query-snippet") or []
+            snippets["by name"] = {item.get("name"): item for item in listed}
+        snippet_name = tag.get("snippet-name") or name.split(":", 1)[-1].strip()
+        snippet = snippets["by name"].get(snippet_name)
+        if snippet is None:
+            raise ValueError(f"Snippet {name} in a saved question can't be found, so the question wasn't run.")
+    content = snippet.get("content") or ""
+    if TEMPLATE_TAG.search(content) or "[[" in content:
+        raise ValueError(f"Snippet {name} uses filters, so the saved question can't be checked and wasn't run.")
+    return content
+
+
+async def _expand_template_tags(
+    context: ExecutionContext, sql: str, tags: Dict[str, Any], depth: int, checked: set, snippets: Dict[str, Any]
+) -> str:
     pieces: List[str] = []
     end = 0
     for match in TEMPLATE_TAG.finditer(sql):
@@ -409,19 +460,13 @@ async def _expand_template_tags(context: ExecutionContext, sql: str, tags: Dict[
         tag = tags.get(name) or {}
         kind = tag.get("type")
         if kind == "snippet" or name.lower().startswith("snippet:"):
-            snippet_id = tag.get("snippet-id")
-            if snippet_id is None:
-                raise ValueError(f"Snippet {name} in a saved question can't be checked, so the question wasn't run.")
-            snippet = await _api(context, "GET", f"/native-query-snippet/{_path_id(snippet_id)}") or {}
-            if TEMPLATE_TAG.search(snippet.get("content") or ""):
-                raise ValueError(f"Snippet {name} uses filters, so the saved question can't be checked and wasn't run.")
-            stand_in = snippet.get("content") or ""
+            stand_in = await _snippet(context, name, tag, snippets)
         elif kind == "card" or name.startswith("#"):
             reference = re.match(r"#(\d+)", name)
             card_id = tag.get("card-id") or (reference and reference.group(1))
             if card_id is None:
                 raise ValueError(f"{name} in a saved question can't be checked, so the question wasn't run.")
-            await _check_saved_question(context, card_id, depth + 1)
+            await _check_saved_question(context, card_id, depth + 1, checked)
             stand_in = TAG_STAND_INS["card"]
         else:
             stand_in = TAG_STAND_INS.get(kind, "NULL")

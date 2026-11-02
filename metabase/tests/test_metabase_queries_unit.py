@@ -187,7 +187,7 @@ class TestRunQuestion:
             "dataset_query": {"database": 3, "native": {"query": sql, "template-tags": tags}},
         }
         base = {"id": 7, "database_id": 3, "dataset_query": {"database": 3, "native": {"query": "delete from t"}}}
-        mock_context.fetch.side_effect = [_ok(card), _ok(base), _database()]
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok(base), _database()]
         result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
         assert "Saved question 7 wasn't run" in result.result.message
 
@@ -199,10 +199,78 @@ class TestRunQuestion:
             "database_id": 3,
             "dataset_query": {"database": 3, "native": {"query": "select 1; {{snippet: x}}", "template-tags": tags}},
         }
-        mock_context.fetch.side_effect = [_ok(card), _ok({"content": "delete from t"}), _database()]
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok({"content": "delete from t"})]
         result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
-        assert mock_context.fetch.call_args_list[1].args[0] == f"{BASE}/api/native-query-snippet/9"
+        assert mock_context.fetch.call_args_list[2].args[0] == f"{BASE}/api/native-query-snippet/9"
+
+    @pytest.mark.asyncio
+    async def test_snippet_found_by_name(self, mock_context):
+        tags = {"snippet: active": {"name": "snippet: active", "type": "snippet", "snippet-name": "active"}}
+        native = {"query": "select * from t where {{snippet: active}}", "template-tags": tags}
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
+        snippets = [{"id": 1, "name": "other", "content": "1 = 1"}, {"id": 9, "name": "active", "content": "x > 0"}]
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok(snippets), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+        assert mock_context.fetch.call_args_list[2].args[0] == f"{BASE}/api/native-query-snippet"
+
+    @pytest.mark.asyncio
+    async def test_snippet_name_that_writes_is_not_run(self, mock_context):
+        tags = {"snippet: x": {"name": "snippet: x", "type": "snippet", "snippet-name": "x"}}
+        native = {"query": "select 1 where {{snippet: x}}", "template-tags": tags}
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
+        mock_context.fetch.side_effect = [
+            _ok(card),
+            _database(),
+            _ok([{"id": 9, "name": "x", "content": "nextval('s') > 0"}]),
+        ]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_sql_hidden_after_an_empty_optional_clause_is_not_run(self, mock_context):
+        # With no value for n Metabase drops the whole [[...]], so the -- no longer hides nextval.
+        native = {"query": "SELECT [[{{n}} --]] nextval('orders_id_seq')", "template-tags": {"n": {"type": "number"}}}
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
+        mock_context.fetch.side_effect = [_ok(card), _database()]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "nextval() has side effects" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_inline_sql_source_is_checked(self, mock_context):
+        source = {"native": "SELECT nextval('orders_id_seq')"}
+        gui = {"id": 42, "dataset_query": {"database": 3, "type": "query", "query": {"source-query": source}}}
+        mock_context.fetch.side_effect = [_ok(gui), _database()]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "nextval() has side effects" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_inline_sql_in_a_join_is_checked(self, mock_context):
+        join = {"source-query": {"native": "delete from t"}, "alias": "j"}
+        gui = {"id": 42, "dataset_query": {"database": 3, "query": {"source-table": 5, "joins": [join]}}}
+        mock_context.fetch.side_effect = [_ok(gui), _database()]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_card_spelling_in_a_filter_value_is_not_a_source(self, mock_context):
+        query = {"source-table": 5, "filter": ["=", ["field", 9, None], "card__7"]}
+        gui = {"id": 42, "dataset_query": {"database": 3, "type": "query", "query": query}}
+        mock_context.fetch.side_effect = [_ok(gui), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+
+    @pytest.mark.asyncio
+    async def test_shared_source_checked_once(self, mock_context):
+        # 42 is built on 7 and joins 7 twice more; 7 is fetched once.
+        joins = [{"source-table": "card__7"}, {"source-table": "card__7"}]
+        gui = {"id": 42, "dataset_query": {"database": 3, "query": {"source-table": "card__7", "joins": joins}}}
+        base = {"id": 7, "dataset_query": {"database": 3, "query": {"source-table": 5}}}
+        mock_context.fetch.side_effect = [_ok(gui), _ok(base), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+        assert mock_context.fetch.call_count == 3
 
     @pytest.mark.asyncio
     async def test_gui_question_on_saved_sql_is_checked(self, mock_context):
