@@ -210,7 +210,13 @@ class TestRunQuestion:
         native = {"query": "select * from t where {{snippet: active}}", "template-tags": tags}
         card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
         snippets = [{"id": 1, "name": "other", "content": "1 = 1"}, {"id": 9, "name": "active", "content": "x > 0"}]
-        mock_context.fetch.side_effect = [_ok(card), _database(), _ok(snippets), _ok(_dataset([[1]]), status=202)]
+        mock_context.fetch.side_effect = [
+            _ok(card),
+            _database(),
+            _ok(snippets),
+            _ok([]),
+            _ok(_dataset([[1]]), status=202),
+        ]
         result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
         assert result.result.data["rows"] == [{"a": 1}]
         assert mock_context.fetch.call_args_list[2].args[0] == f"{BASE}/api/native-query-snippet"
@@ -223,10 +229,13 @@ class TestRunQuestion:
         mock_context.fetch.side_effect = [
             _ok(card),
             _database(),
-            _ok([{"id": 9, "name": "x", "content": "nextval('s') > 0"}]),
+            _ok([]),
+            _ok([{"id": 9, "name": "x", "content": "nextval('s') > 0", "archived": True}]),
         ]
         result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
-        assert result.type == ResultType.ACTION_ERROR
+        # Archived snippets still run in the questions that use them, so they are checked too.
+        assert "nextval() has side effects" in result.result.message
+        assert mock_context.fetch.call_args_list[3].args[0] == f"{BASE}/api/native-query-snippet?archived=true"
 
     @pytest.mark.asyncio
     async def test_sql_hidden_after_an_empty_optional_clause_is_not_run(self, mock_context):
@@ -260,7 +269,7 @@ class TestRunQuestion:
         tags = {"snippet: gone": {"name": "snippet: gone", "type": "snippet", "snippet-name": "gone"}}
         native = {"query": "select 1 where {{snippet: gone}}", "template-tags": tags}
         card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
-        mock_context.fetch.side_effect = [_ok(card), _database(), _ok({"data": [{"id": 1, "name": "other"}]})]
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok({"data": [{"id": 1, "name": "other"}]}), _ok([])]
         result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
         assert "can't be found" in result.result.message
 
@@ -283,6 +292,14 @@ class TestRunQuestion:
             "dataset_query": {"database": 3, "native": {"query": sql, "template-tags": tags}},
         }
         mock_context.fetch.side_effect = [_ok(card), _database(), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+
+    @pytest.mark.asyncio
+    async def test_number_filter_in_sql_server_top_runs(self, mock_context):
+        native = {"query": "SELECT TOP {{n}} * FROM dbo.orders", "template-tags": {"n": {"type": "number"}}}
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
+        mock_context.fetch.side_effect = [_ok(card), _database("sqlserver"), _ok(_dataset([[1]]), status=202)]
         result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
         assert result.result.data["rows"] == [{"a": 1}]
 

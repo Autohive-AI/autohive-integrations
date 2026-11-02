@@ -255,7 +255,7 @@ DUCKDB_FILE_NAME = re.compile(
 # SQL, so a tag is checked as a stand-in of the same kind.
 TEMPLATE_TAG = re.compile(r"\{\{\s*(.*?)\s*\}\}", re.DOTALL)
 OPTIONAL_CLAUSE = re.compile(r"\[\[(.*?)\]\]", re.DOTALL)
-TAG_STAND_INS = {"dimension": "1 = 1", "table": "metabase_table", "card": "(SELECT 1)"}
+TAG_STAND_INS = {"dimension": "1 = 1", "table": "metabase_table", "card": "(SELECT 1)", "number": "1"}
 # Saved questions can be built on other saved questions; how deep to follow them before refusing.
 MAX_SAVED_QUESTION_DEPTH = 5
 
@@ -467,7 +467,9 @@ class _SavedQuestionCheck:
             snippet = self.snippets_by_id[key]
         else:
             if self.snippets_by_name is None:
+                # Archived snippets still run in the questions that use them.
                 listed = _list_data(await _api(self.context, "GET", "/native-query-snippet"))
+                listed += _list_data(await _api(self.context, "GET", "/native-query-snippet?archived=true"))
                 self.snippets_by_name = {item.get("name"): item for item in listed}
             snippet = self.snippets_by_name.get(tag.get("snippet-name") or name.split(":", 1)[-1].strip())
             if snippet is None:
