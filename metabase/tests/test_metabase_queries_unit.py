@@ -238,6 +238,87 @@ class TestRunQuestion:
         assert "nextval() has side effects" in result.result.message
 
     @pytest.mark.asyncio
+    async def test_dropped_optional_clause_leaves_nothing_behind(self, mock_context):
+        # Metabase removes an empty [[...]] without a space, so "*[[...]]/" closes the comment and DELETE runs.
+        native = {"query": "SELECT 1 /* *[[{{a}}]]/ ; DELETE FROM t; -- */", "template-tags": {"a": {"type": "text"}}}
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
+        mock_context.fetch.side_effect = [_ok(card), _database()]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_braces_that_are_not_a_filter_are_not_run(self, mock_context):
+        native = {"query": "SELECT '{{' ; DELETE FROM t; SELECT '}}'", "template-tags": {}}
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
+        mock_context.fetch.side_effect = [_ok(card), _database()]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "isn't one of the saved question's filters" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_missing_snippet_is_not_run(self, mock_context):
+        tags = {"snippet: gone": {"name": "snippet: gone", "type": "snippet", "snippet-name": "gone"}}
+        native = {"query": "select 1 where {{snippet: gone}}", "template-tags": tags}
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok({"data": [{"id": 1, "name": "other"}]})]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "can't be found" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_snippet_with_filters_is_not_run(self, mock_context):
+        tags = {"snippet: s": {"name": "snippet: s", "type": "snippet", "snippet-id": 9}}
+        native = {"query": "select 1 where {{snippet: s}}", "template-tags": tags}
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok({"content": "a = {{x}}"})]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "uses filters" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_field_filter_and_table_tags_run(self, mock_context):
+        tags = {"region": {"type": "dimension"}, "t": {"type": "table"}, "unit": {"type": "temporal-unit"}}
+        sql = "select {{unit}}, count(*) from {{t}} where {{region}} group by 1"
+        card = {
+            "id": 42,
+            "database_id": 3,
+            "dataset_query": {"database": 3, "native": {"query": sql, "template-tags": tags}},
+        }
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+
+    @pytest.mark.asyncio
+    async def test_card_tag_without_id_is_not_run(self, mock_context):
+        native = {"query": "select * from {{#base}}", "template-tags": {"#base": {"type": "card"}}}
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
+        mock_context.fetch.side_effect = [_ok(card), _database()]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert "can't be checked" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_same_question_as_text_and_number_fetched_once(self, mock_context):
+        native = {"query": "select * from {{#7-base}}", "template-tags": {"#7-base": {"type": "card", "card-id": 7}}}
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": native}}
+        gui = {
+            "id": 42,
+            "dataset_query": {"database": 3, "query": {"source-table": "card__7", "joins": [{"source-card": 7}]}},
+        }
+        base = {"id": 7, "dataset_query": {"database": 3, "query": {"source-table": 5}}}
+        mock_context.fetch.side_effect = [_ok(gui), _ok(base), _ok(_dataset([[1]]), status=202)]
+        await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert mock_context.fetch.call_count == 3
+        mock_context.fetch.reset_mock()
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok(base), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+
+    @pytest.mark.asyncio
+    async def test_failed_check_never_runs_the_question(self, mock_context):
+        card = {"id": 42, "database_id": 3, "dataset_query": {"database": 3, "native": {"query": "drop table t"}}}
+        mock_context.fetch.side_effect = [_ok(card), _database()]
+        await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
+        assert all(c.kwargs.get("method", "GET") == "GET" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
     async def test_inline_sql_source_is_checked(self, mock_context):
         source = {"native": "SELECT nextval('orders_id_seq')"}
         gui = {"id": 42, "dataset_query": {"database": 3, "type": "query", "query": {"source-query": source}}}
@@ -288,9 +369,20 @@ class TestRunQuestion:
         assert result.result.data["rows"] == [{"a": 1}]
 
     @pytest.mark.asyncio
-    async def test_self_referencing_questions_stop(self, mock_context):
-        loop = {"id": 42, "dataset_query": {"database": 3, "stages": [{"source-card": 42}]}}
-        mock_context.fetch.return_value = _ok(loop)
+    async def test_questions_built_on_each_other_fetched_once(self, mock_context):
+        one = {"id": 1, "dataset_query": {"database": 3, "query": {"source-table": "card__2"}}}
+        two = {"id": 2, "dataset_query": {"database": 3, "query": {"source-table": "card__1"}}}
+        mock_context.fetch.side_effect = [_ok(one), _ok(two), _ok(_dataset([[1]]), status=202)]
+        result = await metabase.execute_action("run_question", {"question_id": 1}, mock_context)
+        assert result.result.data["rows"] == [{"a": 1}]
+        assert mock_context.fetch.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_long_chain_of_questions_stops(self, mock_context):
+        chain = [
+            _ok({"id": n, "dataset_query": {"database": 3, "stages": [{"source-card": n + 1}]}}) for n in range(10)
+        ]
+        mock_context.fetch.side_effect = chain
         result = await metabase.execute_action("run_question", {"question_id": 42}, mock_context)
         assert "too many other saved questions" in result.result.message
 
