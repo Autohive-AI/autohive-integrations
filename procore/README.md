@@ -22,7 +22,7 @@ User-level access follows the authorized user’s company/project/tool permissio
 
 ## Actions
 
-All actions accept `environment` (`production` by default, or `sandbox`). IDs are positive integers. Lists expose one page at a time when pagination is supported.
+All actions accept `environment` (`production` by default, or `sandbox`). For sandbox connections, explicitly pass `"environment": "sandbox"` on every call, including `list_companies`. Procore can report an expired-token 401 when a valid sandbox token is sent to the production API; refreshing cannot fix an environment mismatch. IDs are positive integers. Lists expose one page at a time when pagination is supported.
 
 | Action | Required inputs | Optional inputs |
 | --- | --- | --- |
@@ -92,7 +92,11 @@ export PROCORE_COMPANY_ID=...
 pytest procore/tests/test_procore_integration.py -m integration
 ```
 
-No live credentials were available during development. Tests skip without them; no live write tests run automatically.
+On 2026-11-02, all 29 actions were exercised successfully against a developer sandbox, including create/update project, draft RFI recycle/restore, folder creation, and submittal create/update/delete. Write tests used disposable test records; the created project was deactivated. A nested document folder supplied the file metadata fixture. The automated live smoke test remains read-only and skips without credentials; live write tests do not run automatically. The 61 mocked unit tests also passed. Production access and production API calls remain unverified.
+
+Build upload packages with `hiveup package procore -o procore.zip`. This bundles the SDK and its dependencies for Lambda; a ZIP containing source files alone fails at startup. The packaged integration was deployed and `list_companies` verified through Lambda against the sandbox.
+
+The icon is sourced from [Procore’s official website](https://www.procore.com/images/apple-touch-icon-180x180.png), centered with padding on a 512×512 canvas.
 
 ## API evidence and MCP review
 
