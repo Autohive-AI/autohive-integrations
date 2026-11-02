@@ -44,6 +44,7 @@ class TestConfig:
             "read_candidate",
             "write_candidate",
             "read_contact",
+            "write_contact",
             "read_company",
             "read_note",
             "read_contact_note",
