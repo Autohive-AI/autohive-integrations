@@ -81,11 +81,11 @@ Search for specific events in a webcal feed based on keywords.
 ### Example 1: Fetch Upcoming Events
 
 ```python
-result = await webcal.execute_action("fetch_events", {
-    "webcal_url": "webcal://calendar.example.com/feed.ics",
-    "timezone": "Pacific/Auckland",
-    "look_ahead_days": 14
-}, context)
+result = await webcal.execute_action(
+    "fetch_events",
+    {"webcal_url": "webcal://calendar.example.com/feed.ics", "timezone": "Pacific/Auckland", "look_ahead_days": 14},
+    context,
+)
 
 for event in result.data["events"]:
     print(f"{event['summary']}: {event['start_time']} - {event['end_time']}")
@@ -94,13 +94,17 @@ for event in result.data["events"]:
 ### Example 2: Search for Meetings
 
 ```python
-result = await webcal.execute_action("search_events", {
-    "webcal_url": "https://calendar.google.com/calendar/ical/xxx/basic.ics",
-    "search_term": "standup",
-    "timezone": "America/New_York",
-    "look_ahead_days": 30,
-    "case_sensitive": False
-}, context)
+result = await webcal.execute_action(
+    "search_events",
+    {
+        "webcal_url": "https://calendar.google.com/calendar/ical/xxx/basic.ics",
+        "search_term": "standup",
+        "timezone": "America/New_York",
+        "look_ahead_days": 30,
+        "case_sensitive": False,
+    },
+    context,
+)
 
 print(f"Found {len(result.data['events'])} events matching 'standup'")
 for event in result.data["events"]:
