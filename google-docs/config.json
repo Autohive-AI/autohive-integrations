@@ -1,7 +1,7 @@
 {
   "name": "Google Docs",
   "display_name": "Google Docs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "entry_point": "google_docs.py",
   "description": "Create, read, and edit Google Docs with support for text insertion, paragraph styling, and tab management.",
   "auth": {
