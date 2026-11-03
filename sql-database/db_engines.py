@@ -112,6 +112,8 @@ POSTGRES_ALLOWED_PARAMS = {
 
 MYSQL_SSL_MODES = {"DISABLED", "PREFERRED", "REQUIRED", "VERIFY_CA", "VERIFY_IDENTITY"}
 
+# These values name the driver's password parameter; they are not credentials.
+_SQLSERVER_PASSWORD_KEYS = {"password": "password", "pwd": "password"}  # nosec B105
 # ADO.NET / ODBC keywords, lower-cased with spaces removed.
 SQLSERVER_KEYS = {
     "server": "server",
@@ -125,9 +127,7 @@ SQLSERVER_KEYS = {
     "uid": "user",
     "user": "user",
     "username": "user",
-    # These values name a driver parameter; they are not credentials.
-    "password": "password",  # nosec B105
-    "pwd": "password",  # nosec B105
+    **_SQLSERVER_PASSWORD_KEYS,
     "encrypt": "encrypt",
     "trustservercertificate": "trust_server_certificate",
     "connectiontimeout": "connect_timeout",

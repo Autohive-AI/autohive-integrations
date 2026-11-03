@@ -10,6 +10,7 @@ point them at disposable databases. tests/docker-compose.yml starts one of each:
 Each engine is skipped unless its SQL_DATABASE_TEST_* variable is set (see .env.example).
 """
 
+import contextlib
 import json
 import os
 import time
@@ -20,7 +21,6 @@ import pytest
 from autohive_integrations_sdk import ResultType
 
 import db_engines
-from db_engines import mysql_connect_params, postgres_connect_params
 from sql_database import sql_database
 from sql_guard import SqlRejectedError, check_read_only_query
 
@@ -37,18 +37,24 @@ ENGINES = {
 SETUP = {
     "sqlserver": [
         "IF OBJECT_ID('autohive_sqldb_test') IS NOT NULL DROP TABLE autohive_sqldb_test",
-        "CREATE TABLE autohive_sqldb_test "
-        "(id INT PRIMARY KEY, name NVARCHAR(50), amount DECIMAL(10, 2), created_at DATETIME2)",
+        (
+            "CREATE TABLE autohive_sqldb_test "
+            "(id INT PRIMARY KEY, name NVARCHAR(50), amount DECIMAL(10, 2), created_at DATETIME2)"
+        ),
     ],
     "postgresql": [
         "DROP TABLE IF EXISTS autohive_sqldb_test",
-        "CREATE TABLE autohive_sqldb_test "
-        "(id INT PRIMARY KEY, name VARCHAR(50), amount DECIMAL(10, 2), created_at TIMESTAMP)",
+        (
+            "CREATE TABLE autohive_sqldb_test "
+            "(id INT PRIMARY KEY, name VARCHAR(50), amount DECIMAL(10, 2), created_at TIMESTAMP)"
+        ),
     ],
     "mysql": [
         "DROP TABLE IF EXISTS autohive_sqldb_test",
-        "CREATE TABLE autohive_sqldb_test "
-        "(id INT PRIMARY KEY, name VARCHAR(50), amount DECIMAL(10, 2), created_at DATETIME)",
+        (
+            "CREATE TABLE autohive_sqldb_test "
+            "(id INT PRIMARY KEY, name VARCHAR(50), amount DECIMAL(10, 2), created_at DATETIME)"
+        ),
     ],
 }
 SEED = (
@@ -69,12 +75,12 @@ SLOW_QUERY = {
 def _admin(database_type: str, connection_string: str, statements):
     """Run setup SQL directly through the driver (the execute action does not allow DDL)."""
     if database_type == "postgresql":
-        with psycopg.connect(**postgres_connect_params(connection_string), autocommit=True) as conn:
+        with psycopg.connect(**db_engines.postgres_connect_params(connection_string), autocommit=True) as conn:
             for sql in statements:
                 conn.execute(sql)
         return
     if database_type == "mysql":
-        conn = pymysql.connect(**mysql_connect_params(connection_string), autocommit=True)
+        conn = pymysql.connect(**db_engines.mysql_connect_params(connection_string), autocommit=True)
     else:
         conn = db_engines._sqlserver_connect(connection_string, 30)
         conn.autocommit(True)
@@ -450,8 +456,9 @@ def test_sqlserver_reader_permissions_hold_when_static_checks_are_bypassed(db, m
             with pytest.raises(db_engines.DATABASE_ERRORS):
                 db_engines.run_query(database_type, connection_string, "DELETE FROM autohive_sqldb_test", None, 10, 30)
             # A later permission error in a multi-result batch may not surface
-            # until nextset(); the protection is that the data remains unchanged.
-            try:
+            # until nextset(), so either outcome is fine; the protection is that
+            # the data remains unchanged.
+            with contextlib.suppress(db_engines.DATABASE_ERRORS):
                 db_engines.run_query(
                     database_type,
                     connection_string,
@@ -460,8 +467,6 @@ def test_sqlserver_reader_permissions_hold_when_static_checks_are_bypassed(db, m
                     10,
                     30,
                 )
-            except db_engines.DATABASE_ERRORS:
-                pass
         assert _count(database_type, connection_string) == 3
     finally:
         _admin(database_type, connection_string, ["DROP USER autohive_sqldb_test_reader"])
@@ -486,18 +491,12 @@ async def test_execute_rejects_a_hidden_second_write(db):
 
 async def test_execute_insert_update_delete(db):
     database_type, connection_string, context = db
-    returning = {"sqlserver": " OUTPUT inserted.id", "postgresql": "", "mysql": ""}[database_type]
-    suffix = " RETURNING id" if database_type == "postgresql" else ""
-
-    # returning and suffix are fixed dialect fragments, never external input.
-    insert = await sql_database.execute_action(
-        "execute",
-        {
-            "sql": f"INSERT INTO autohive_sqldb_test (id, name, amount){returning} VALUES (%s, %s, %s){suffix}",  # nosec B608
-            "parameters": [4, "delta", 4.5],
-        },
-        context,
-    )
+    insert_sql = {
+        "sqlserver": "INSERT INTO autohive_sqldb_test (id, name, amount) OUTPUT inserted.id VALUES (%s, %s, %s)",
+        "postgresql": "INSERT INTO autohive_sqldb_test (id, name, amount) VALUES (%s, %s, %s) RETURNING id",
+        "mysql": "INSERT INTO autohive_sqldb_test (id, name, amount) VALUES (%s, %s, %s)",
+    }[database_type]
+    insert = await sql_database.execute_action("execute", {"sql": insert_sql, "parameters": [4, "delta", 4.5]}, context)
     assert insert.type == ResultType.ACTION, insert.result
     assert insert.result.data["statement_type"] == "INSERT"
     assert insert.result.data["rows_affected"] == 1
@@ -560,7 +559,7 @@ async def test_execute_is_disabled_on_read_only_connections(db, sql_context):
 
 
 def _running_statements(connection_string: str, marker: str) -> int:
-    conn = pymysql.connect(**mysql_connect_params(connection_string), autocommit=True)
+    conn = pymysql.connect(**db_engines.mysql_connect_params(connection_string), autocommit=True)
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -576,7 +575,7 @@ async def test_mysql_lock_waits_end_at_the_timeout(db):
     database_type, connection_string, context = db
     if database_type != "mysql":
         pytest.skip("MySQL/MariaDB lock waits")
-    holder = pymysql.connect(**mysql_connect_params(connection_string), autocommit=False)
+    holder = pymysql.connect(**db_engines.mysql_connect_params(connection_string), autocommit=False)
     try:
         holder.cursor().execute("SELECT * FROM autohive_sqldb_test WHERE id = 1 FOR UPDATE")
         started = time.monotonic()
