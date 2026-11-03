@@ -665,6 +665,7 @@ class TestReadOnlySql:
             ("snowflake", "SELECT SYSTEM$CANCEL_QUERY('01a2b3c4')"),
             ("snowflake", "SELECT SYSTEM$ABORT_SESSION(1234)"),
             ("snowflake", "SELECT SYSTEM$WAIT(60)"),
+            ("snowflake", "SELECT * FROM TABLE(TO_QUERY('SELECT orders_seq.NEXTVAL AS n'))"),
             ("snowflake", "SELECT SYSTEM$SEND_EMAIL('i', 'a@b.c', 's', 'b')"),
             ("h2", "select orders_seq.nextval"),
             (None, "delete from t"),

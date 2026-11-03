@@ -237,7 +237,7 @@ SIDE_EFFECT_FUNCTION = re.compile(
     r"pg_(?!" + PG_READ_FUNCTIONS + r"$)\w+|system\$(?!" + SNOWFLAKE_READ_FUNCTIONS + r"$)\w+|(?:dbms|utl)_\w+"
     r"|setval|nextval|getnextval|set_config|lo_\w+|dblink\w*|get_lock|release_lock|release_all_locks|csvread|csvwrite"
     r"|file_write|link_schema|sleep|sleepeachrow|benchmark|load_file|file_read|read_\w+|bfilename|load_extension"
-    r"|openquery|openrowset|opendatasource|query|query_to_xml\w*|ts_stat|ts_rewrite"
+    r"|openquery|openrowset|opendatasource|query|to_query|query_to_xml\w*|ts_stat|ts_rewrite"
     r"|(?:url|s3|gcs|file|hdfs|deltalake|hudi)(?:cluster)?|remote|remotesecure|azureblobstorage\w*|iceberg\w*"
     r"|arrowflight|input|jdbc|odbc|mysql|postgresql|mongodb|redis|sqlite|executable|reflect|try_reflect|java_method"
     r"|httpuritype|query_table|glob|parquet_\w+|sniff_csv|delta_scan|(?:sqlite|postgres|mysql)_(?:scan|query|execute|attach)\w*|st_read\w*",
@@ -437,16 +437,11 @@ def _ensure_read_only_mongo(query: Any) -> None:
                     "that aren't plain JSON and contain backslashes."
                 ) from None
             return
-    if _mongo_keys(query) & set(MONGO_WRITE_STAGES):
+    # MongoDB only allows $out and $merge as top-level pipeline stages, so stage names are all that need checking
+    # ("$out" inside $literal or a field value is data).
+    stages = query if isinstance(query, list) else [query]
+    if any(isinstance(stage, dict) and set(stage) & set(MONGO_WRITE_STAGES) for stage in stages):
         raise ValueError("MongoDB $out and $merge stages write to a collection, so they are refused.")
-
-
-def _mongo_keys(value: Any) -> set:
-    if isinstance(value, dict):
-        return set(value) | set().union(*(_mongo_keys(v) for v in value.values()))
-    if isinstance(value, list):
-        return set().union(*(_mongo_keys(v) for v in value))
-    return set()
 
 
 def _saved_query_as_run(card_id: str, dataset_query: Dict[str, Any]) -> Optional[str]:

@@ -305,6 +305,7 @@ class TestRunQuestion:
             [{"$match": {"status": "open"}}, {"$limit": 5}],
             '[{"$group": {"_id": "$region", "n": {"$sum": 1}}}]',
             '[{"$group": {"_id": null, "n": {"$sum": "$out"}}}]',
+            '[{"$project": {"example": {"$literal": {"$out": "orders_copy"}}}}]',
         ],
     )
     async def test_mongodb_pipeline_runs(self, mock_context, query):
