@@ -115,12 +115,14 @@ class TestReadInbox:
 
     @pytest.mark.asyncio
     async def test_next_page_token_chained(self, live_context):
-        first = await gmail.execute_action("read_inbox", {"user_id": "me", "scope": "all"}, live_context)
+        first = await gmail.execute_action(
+            "read_inbox", {"user_id": "me", "scope": "all", "maxResults": 1}, live_context
+        )
+        assert first.type == ResultType.ACTION, first.result
         token = first.result.data.get("nextPageToken")
-        if not token:
-            pytest.skip("Inbox fits in one page — pagination chain not exercised")
+        assert token, "The Gmail test inbox needs at least two messages to exercise pagination"
         second = await gmail.execute_action(
-            "read_inbox", {"user_id": "me", "scope": "all", "pageToken": token}, live_context
+            "read_inbox", {"user_id": "me", "scope": "all", "pageToken": token, "maxResults": 1}, live_context
         )
         assert second.type == ResultType.ACTION
 

@@ -180,7 +180,26 @@ To run both unit and integration tests together:
 pytest perplexity/tests/test_perplexity_unit.py perplexity/tests/test_perplexity_integration.py -m "unit or integration"
 ```
 
-Integration tests will `pytest.skip()` if the required environment variables are missing.
+Selected read-only integration tests must run. The root pytest hook turns skips
+(including missing credentials, missing fixture IDs, and empty fixture data) into
+failures while preserving the reason in the JUnit report. Unit-test skips and
+tests marked `destructive` are unaffected. Keep write tests excluded with
+`-m "integration and not destructive"`; do not create remote data just to make a
+read-only suite pass.
+
+The read-only live suites require these existing resources:
+
+| Suite | Required test data |
+| --- | --- |
+| Gmail pagination | At least two messages in the test inbox; the test requests one per page. |
+| Google Forms | `GOOGLE_FORMS_TEST_FORM_ID` accessible to the connected account. |
+| Google Search Console | A verified site visible to the connected account with a submitted sitemap; `GOOGLE_SEARCH_CONSOLE_TEST_SITE_URL` can select the site. |
+| Substack | A public publication with posts and a publication-search query that returns results. Empty search results cannot verify publication fields. |
+| Windcave | `WINDCAVE_TEST_TRANSACTION_ID` and `WINDCAVE_TEST_SESSION_ID` accessible to the configured account. The session must contain card data for the redaction check. |
+| YouTube replies | `YOUTUBE_TEST_COMMENT_ID`, or a top-level comment on `YOUTUBE_TEST_VIDEO_ID` that the test can discover through a read-only request. |
+
+Run the reporting-policy regression test with
+`pytest tests/test_live_test_policy_unit.py`.
 
 ### Coverage
 

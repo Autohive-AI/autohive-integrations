@@ -52,6 +52,25 @@ def _patched_load(cls, config_path: Union[str, Path, None] = None) -> "Integrati
 Integration.load = _patched_load  # type: ignore[assignment]
 
 
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    """Selected read-only live tests must execute, or report a blocking failure."""
+    report = yield
+    if (
+        report.skipped
+        and item.get_closest_marker("integration") is not None
+        and item.get_closest_marker("destructive") is None
+    ):
+        reason = report.longrepr
+        if isinstance(reason, tuple):
+            reason = reason[2]
+        report.outcome = "failed"
+        report.longrepr = f"Read-only live test did not run: {reason}"
+        if hasattr(report, "wasxfail"):
+            del report.wasxfail
+    return report
+
+
 # ---------------------------------------------------------------------------
 # .env file loading (stdlib-only, no third-party dependency)
 # ---------------------------------------------------------------------------
