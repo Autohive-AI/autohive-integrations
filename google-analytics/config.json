@@ -1,7 +1,7 @@
 {
     "name": "Google Analytics",
     "display_name": "Google Analytics",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Access and analyze Google Analytics 4 data with reports, metrics, and real-time insights.",
     "entry_point": "google_analytics.py",
     "auth": {

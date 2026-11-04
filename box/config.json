@@ -1,6 +1,6 @@
 {
     "name": "Box",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Box integration for managing files and folders",
     "entry_point": "box.py",
     "auth": {
