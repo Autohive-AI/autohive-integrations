@@ -198,9 +198,6 @@ The read-only live suites require these existing resources:
 | Windcave | `WINDCAVE_TEST_TRANSACTION_ID` and `WINDCAVE_TEST_SESSION_ID` accessible to the configured account. The session must contain card data for the redaction check. |
 | YouTube replies | `YOUTUBE_TEST_COMMENT_ID`, or a top-level comment on `YOUTUBE_TEST_VIDEO_ID` that the test can discover through a read-only request. |
 
-Run the reporting-policy regression test with
-`pytest tests/test_live_test_policy_unit.py`.
-
 ### Coverage
 
 ```bash

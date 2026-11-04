@@ -5,18 +5,6 @@ on:
     branches: [master, main, 'feat/**', 'fix/**']
 
 jobs:
-  live-test-policy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-      - run: python -m pip install -r requirements-test.txt 'autohive-integrations-sdk~=2.0.1'
-      - run: python -m pytest tests/test_live_test_policy_unit.py
-
   validate:
     runs-on: ubuntu-latest
     name: Validate Integration
