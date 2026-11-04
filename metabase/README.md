@@ -37,6 +37,28 @@ Only `https://` URLs are accepted, because the API key is sent on every request.
 | `base_url` | Metabase URL (https required, sub-path allowed) | All actions |
 | `api_key` | Metabase API key | All actions, sent as the `x-api-key` header |
 
+### Optional gateway header
+
+For a reverse proxy that requires a secret header before Metabase authentication, set
+**Gateway Header Name** (for example, `X-Gateway-Secret`) and **Gateway Header Secret**.
+Leave both empty for normal Metabase connections. The integration sends this header
+alongside `x-api-key` on every request, including queries and creates.
+
+Both gateway fields must be supplied together. The name must be an HTTP header token;
+it cannot replace `x-api-key`, `Host`, content headers or transport-control headers.
+The secret must be printable ASCII without line breaks. `Authorization` is allowed
+if your gateway requires it; include its scheme (for example `Bearer ...`) in the value.
+
+The value uses a password field in the same connection credentials as the API key.
+This integration does not implement credential storage or encryption; those protections
+are provided by Autohive's connection service and must be verified there.
+With a gateway header configured, requests never follow redirects or retry automatically.
+Use the final HTTPS URL. HTTP errors report status without upstream response bodies,
+transport errors use fixed messages, and action errors redact literal credential values.
+The integration does not log these headers; customer proxy/server logging is outside its control.
+A gateway returning a Google sign-in page still fails: the gateway must actually accept
+the supplied secret for machine access.
+
 ## Actions
 
 ### `get_current_user`
@@ -170,6 +192,7 @@ Metabase 0.60+ includes its own MCP server (Admin → AI → MCP). An Autohive p
 
 - `autohive-integrations-sdk`
 - `sqlglot` (pinned, used to parse SQL before it is sent)
+- `aiohttp` (also used by the SDK; sends gateway requests without redirects or error-body logging)
 
 ## Testing
 
@@ -197,6 +220,36 @@ uv run --with-requirements requirements-test.txt --with-requirements metabase/re
   pytest metabase/tests/test_metabase_integration.py -m "integration and destructive"
 ```
 
+### Testing a gateway connection
+
+Local unit tests need **no credentials**. They include a loopback fake gateway that
+checks GET/POST/PUT headers and JSON bodies, refused redirects, safe errors and no retries.
+
+For a live smoke test, put these values in the ignored repository-root `.env` file
+(or export them in your shell); never commit or paste actual secrets:
+
+```dotenv
+METABASE_BASE_URL=https://metabase.example.com
+METABASE_API_KEY=<Metabase API key>
+METABASE_GATEWAY_HEADER_NAME=X-Gateway-Secret
+METABASE_GATEWAY_HEADER_VALUE=<gateway secret>
+```
+
+Run only the two read-only connection checks (no database, question or dashboard fixtures needed):
+
+```bash
+uv run --with-requirements requirements-test.txt --with-requirements metabase/requirements.txt \
+  pytest metabase/tests/test_metabase_integration.py -m integration \
+  -k "test_get_current_user or test_list_databases"
+```
+
+Both should pass with valid credentials. Then repeat with a deliberately wrong gateway secret:
+the checks should fail with a safe HTTP error (or a refused redirect). Restore the secret,
+use an invalid API key, and confirm Metabase rejects it too. Restore valid credentials afterwards.
+Check returned errors and integration logs do not contain either real secret.
+For TeamCity using a gateway connection, add the two optional mappings shown in
+`tests/teamcity.env`; leave them commented for connections without gateway credentials.
+
 ## API Reference
 
 - [Metabase API docs](https://www.metabase.com/docs/latest/api) (your instance also serves its own at `/api/docs`)
@@ -206,5 +259,7 @@ uv run --with-requirements requirements-test.txt --with-requirements metabase/re
 - Rate limits: none built in. Self-hosted instances are limited only by their own capacity.
 
 ## Version History
+
+- **1.1.0**: Optional secret gateway header for self-hosted instances, validation, redirect refusal and safe gateway error handling.
 
 - **1.0.0**: Initial release with 15 actions: `get_current_user`, `list_databases`, `get_database_schema`, `get_table`, `search`, `list_collections`, `list_collection_items`, `create_collection`, `get_question`, `run_question`, `run_sql_query`, `create_question`, `get_dashboard`, `create_dashboard`, `add_question_to_dashboard`. HTTPS-only base URL (sub-paths allowed); works with Metabase Cloud and self-hosted 0.49+.
