@@ -1,6 +1,6 @@
 {
   "name": "GUIDEcx",
-  "version": "1.2.1",
+  "version": "1.2.0",
   "display_name": "GUIDEcx",
   "description": "Customer onboarding and project management platform. Track onboarding projects, milestones and tasks, update task progress and post updates to project or task message channels.",
   "entry_point": "guidecx.py",
