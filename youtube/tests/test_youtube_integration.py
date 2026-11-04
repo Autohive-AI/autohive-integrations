@@ -261,7 +261,8 @@ class TestListCommentReplies:
                 params={"part": "snippet", "videoId": TEST_VIDEO_ID, "maxResults": 1},
             )
             threads = response.data.get("items", [])
-            assert threads, "Set YOUTUBE_TEST_COMMENT_ID or use a test video with a top-level comment"
+            if not threads:
+                pytest.skip("Set YOUTUBE_TEST_COMMENT_ID or use a test video with a top-level comment")
             comment_id = threads[0]["snippet"]["topLevelComment"]["id"]
         result = await youtube.execute_action(
             "list_comment_replies",

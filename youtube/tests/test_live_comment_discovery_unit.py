@@ -39,11 +39,11 @@ async def test_reply_test_uses_top_level_comment_id(configured_id, monkeypatch):
     assert context.fetch.await_count == (0 if configured_id else 1)
 
 
-async def test_missing_comment_is_a_failure(monkeypatch):
+async def test_missing_comment_is_skipped(monkeypatch):
     module = runpy.run_path(str(Path(__file__).with_name("test_youtube_integration.py")))
     test = module["TestListCommentReplies"]().test_returns_replies
     monkeypatch.setitem(test.__func__.__globals__, "TEST_COMMENT_ID", "")
     context = MagicMock()
     context.fetch = AsyncMock(return_value=FetchResponse(status=200, headers={}, data={"items": []}))
-    with pytest.raises(AssertionError, match="Set YOUTUBE_TEST_COMMENT_ID"):
+    with pytest.raises(pytest.skip.Exception, match="Set YOUTUBE_TEST_COMMENT_ID"):
         await test(context)
