@@ -1979,9 +1979,14 @@ async def _save_segment(context: ExecutionContext, method: str, path: str, body:
     try:
         return await _api(context, method, path, json={**body, "definition": definition["query"]}) or {}
     except HTTPError as e:
-        # Only the "needs a full query" refusal; any other 400 on an older Metabase would save the shape it can't read.
-        if e.status != 400 or ":type" not in json.dumps([e.message, e.response_data], default=str):
+        # Only the "needs a full query" refusal; any other 400 on 0.49 would save the shape it can't read. Through a
+        # gateway the refusal's text is hidden, so a 400 from a Metabase past 0.50 is taken as that refusal.
+        if e.status != 400:
             raise
+        if ":type" not in json.dumps([e.message, e.response_data], default=str):
+            release = await _metabase_release(context)
+            if release is None or release < 51:
+                raise
         return await _api(context, method, path, json=body) or {}
 
 
@@ -2416,20 +2421,24 @@ class RunDashboardAction(ActionHandler):
                 if seconds_left < MIN_DASHBOARD_CARD_SECONDS or chars_left <= 0:
                     break
                 summary = {"dashcard_id": dc.get("id"), "card_id": card_id, "card_name": card_name}
-                try:
+
+                async def run(dc=dc, card_id=card_id) -> Any:
                     card_params = _card_parameters_for(dc, values, card_id)
                     # A dashboard run applies a SQL filter's own default but not the question's saved filter
                     # defaults, so the question is also checked without those.
                     await _checked_parameters(context, _path_id(card_id), card_params)
                     used = [values[p] for p in dict.fromkeys(p["id"] for p in card_params)]
-                    data = await _api(
+                    return await _api(
                         context,
                         "POST",
                         f"/dashboard/{_path_id(dashboard.get('id'))}/dashcard/{_path_id(dc['id'])}/card/{_path_id(card_id)}/query",
                         json={"parameters": used},
                         timeout=min(QUERY_TIMEOUT_SECONDS, int(deadline - loop.time())),
                     )
-                    summary.update(_query_result(data, max_rows))
+
+                try:
+                    # The check's requests count against the time left too, not just the query.
+                    summary.update(_query_result(await asyncio.wait_for(run(), seconds_left), max_rows))
                 except Exception as e:
                     summary["error"] = _error_message(e, context=context)
                 chars_left -= _fit_rows(summary, chars_left)
@@ -2522,13 +2531,26 @@ class RevertToRevisionAction(ActionHandler):
             entity = await _revision_entity(context, inputs["item_type"])
             body = {"entity": entity, "id": inputs["item_id"], "revision_id": inputs["revision_id"]}
             current = None
-            if entity == "card":
+            subscribed = entity == "dashboard" and bool(
+                _list_data(
+                    await _api(
+                        context,
+                        "GET",
+                        _with_query("/pulse", [("dashboard_id", inputs["item_id"]), ("archived", "false")]),
+                    )
+                )
+            )
+            if entity == "card" or subscribed:
                 history = _list_data(await _revisions(context, entity, inputs["item_id"]))
                 current = next((r.get("id") for r in history if r.get("most_recent")), None)
             revision = await _revert(context, body)
-            if entity == "card":
+            if entity == "card" or subscribed:
                 try:
-                    await _checked_parameters(context, _path_id(inputs["item_id"]), [], saving=True)
+                    if entity == "card":
+                        await _checked_parameters(context, _path_id(inputs["item_id"]), [], saving=True)
+                    else:
+                        # Its subscriptions send the questions with the old version's filter defaults and connections.
+                        await _check_dashboard_questions(context, await _get_dashboard(context, inputs["item_id"]))
                 except Exception as e:
                     # A question put back to SQL that writes would run it for anyone (or any alert) that runs it, and
                     # one that couldn't be checked isn't known to be safe, so either way it is put back.
@@ -2536,7 +2558,7 @@ class RevertToRevisionAction(ActionHandler):
                         await _revert(context, {**body, "revision_id": current})
                     reason = "is refused" if isinstance(e, ValueError) else "couldn't be checked"
                     raise ValueError(
-                        f"Not reverted: that version's SQL {reason}, so the question was put back. "
+                        f"Not reverted: that version's SQL {reason}, so the {inputs['item_type']} was put back. "
                         f"{_error_message(e, context=context)}"
                     ) from None
             return ActionResult(

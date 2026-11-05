@@ -327,13 +327,41 @@ class TestCreateSegment:
         assert second == {"database": 3, "type": "query", "query": {"source-table": 31, "filter": ACTIVE_FILTER}}
 
     @pytest.mark.asyncio
-    async def test_other_400_not_retried(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(SAMPLE_TABLE), HTTPError(400, "Bad", {"errors": {"name": "too long"}})]
+    async def test_other_400_not_retried_on_old_metabase(self, mock_context):
+        # 0.50 and earlier save a full query they can't read, so only the full-query refusal is retried.
+        bad = HTTPError(400, "Bad", {"errors": {"name": "too long"}})
+        mock_context.fetch.side_effect = [_ok(SAMPLE_TABLE), bad, _ok(OLD_METABASE)]
         result = await metabase.execute_action(
             "create_segment", {"name": "Big orders", "table_id": 31, "filter": ACTIVE_FILTER}, mock_context
         )
         assert result.type == ResultType.ACTION_ERROR
-        assert mock_context.fetch.call_count == 2
+        assert [c.args[0] for c in mock_context.fetch.call_args_list].count(f"{BASE}/api/segment") == 1
+
+    @pytest.mark.asyncio
+    async def test_hidden_400_on_newer_metabase_sends_full_query(self, mock_context):
+        # A gateway hides Metabase's reason, so on 0.51+ any 400 is taken as the full-query refusal.
+        hidden = HTTPError(400, "Request failed. Check gateway and Metabase access.", {})
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_TABLE),
+            hidden,
+            _ok({"version": {"tag": "v0.65.2"}}),
+            _ok({**SAMPLE_SEGMENT, "id": 11}),
+        ]
+        result = await metabase.execute_action(
+            "create_segment", {"name": "Big orders", "table_id": 31, "filter": ACTIVE_FILTER}, mock_context
+        )
+        assert result.result.data["id"] == 11
+        assert mock_context.fetch.call_args.kwargs["json"]["definition"]["type"] == "query"
+
+    @pytest.mark.asyncio
+    async def test_hidden_400_with_unknown_version_not_retried(self, mock_context):
+        hidden = HTTPError(400, "Request failed. Check gateway and Metabase access.", {})
+        mock_context.fetch.side_effect = [_ok(SAMPLE_TABLE), hidden, _ok({})]
+        result = await metabase.execute_action(
+            "create_segment", {"name": "Big orders", "table_id": 31, "filter": ACTIVE_FILTER}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 3
 
     @pytest.mark.asyncio
     async def test_description_optional(self, mock_context):
@@ -401,7 +429,11 @@ class TestCreateSegment:
 
     @pytest.mark.asyncio
     async def test_error(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(SAMPLE_TABLE), HTTPError(400, "Bad", {"errors": {"definition": "bad"}})]
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_TABLE),
+            HTTPError(400, "Bad", {"errors": {"definition": "bad"}}),
+            _ok(OLD_METABASE),
+        ]
         result = await metabase.execute_action(
             "create_segment", {"name": "Big orders", "table_id": 31, "filter": ACTIVE_FILTER}, mock_context
         )

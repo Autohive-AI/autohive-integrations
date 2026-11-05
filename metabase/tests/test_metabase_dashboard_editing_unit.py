@@ -1552,6 +1552,25 @@ class TestRunDashboard:
         assert _calls_to(mock_context, "/api/card/43") == []
 
     @pytest.mark.asyncio
+    async def test_slow_check_stopped_at_the_deadline(self, mock_context, monkeypatch):
+        monkeypatch.setattr(sys.modules["metabase.metabase"], "DASHBOARD_RUN_SECONDS", 0.2)
+        monkeypatch.setattr(sys.modules["metabase.metabase"], "MIN_DASHBOARD_CARD_SECONDS", 0.05)
+        responses = iter([_ok(RUN_DASHBOARD)])
+
+        async def fetch(url, **kwargs):
+            if "/api/card/" in url:
+                await asyncio.sleep(10)  # Metabase hangs on the check's first request.
+            return next(responses)
+
+        mock_context.fetch.side_effect = fetch
+        result = await asyncio.wait_for(
+            metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context), timeout=2
+        )
+        data = result.result.data
+        assert "error" in data["cards"][0]
+        assert data["skipped_card_count"] == 1
+
+    @pytest.mark.asyncio
     async def test_query_timeout_shrinks_to_time_left(self, mock_context, monkeypatch):
         loop = asyncio.get_running_loop()
         clock = [1000.0]

@@ -244,7 +244,7 @@ Runs a saved question and returns its results as CSV text (`content`), JSON `row
 
 #### `get_revision_history` and `revert_to_revision`
 
-List the saved versions of a question, model, metric, dashboard or segment, and put one back to an earlier `revision_id`. The revert is saved as a new version, so it can be undone too. If a question's earlier version has SQL that writes (or can't be checked), it is put straight back and an error is returned.
+List the saved versions of a question, model, metric, dashboard or segment, and put one back to an earlier `revision_id`. The revert is saved as a new version, so it can be undone too. If a question's earlier version has SQL that writes (or can't be checked), it is put straight back and an error is returned. A dashboard with a subscription is checked the same way after a revert, with the old version's filter defaults and connections, because its scheduled emails run with them.
 
 ### Segments
 

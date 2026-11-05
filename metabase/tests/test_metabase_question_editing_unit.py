@@ -1880,10 +1880,62 @@ class TestRevertToRevision:
             "revert_to_revision", {"item_type": "dashboard", "item_id": 5, "revision_id": 8}, mock_context
         )
         assert result.type != ResultType.ACTION_ERROR
-        assert mock_context.fetch.call_count == 1
+        # No subscriptions, so nothing is checked.
+        assert [c.args[0] for c in mock_context.fetch.call_args_list] == [
+            f"{BASE}/api/pulse?dashboard_id=5&archived=false",
+            f"{BASE}/api/revision/revert",
+        ]
         call = mock_context.fetch.call_args
         assert call.args[0] == f"{BASE}/api/revision/revert"
         assert call.kwargs["json"] == {"entity": "dashboard", "id": 5, "revision_id": 8}
+
+    @staticmethod
+    def _subscribed_dashboard(mock_context, sql):
+        async def fetch(url, **kwargs):
+            if "/api/pulse" in url:
+                return _ok([{"id": 15}])
+            if "/api/revision?" in url:
+                return _ok([{"id": 20, "most_recent": True}, {"id": 8}])
+            if url.endswith("/api/dashboard/5"):
+                return _ok({"id": 5, "parameters": [], "dashcards": [{"id": 1, "card_id": 42, "card": {"id": 42}}]})
+            if url.endswith("/api/card/42"):
+                return _ok({"id": 42, "dataset_query": {"database": 1, "type": "native", "native": {"query": sql}}})
+            if url.endswith("/api/database/1"):
+                return _ok({"id": 1, "engine": "postgres"})
+            if url.endswith("/api/dataset/native"):
+                return _ok({"query": sql})
+            return _ok({"id": 5})
+
+        mock_context.fetch.side_effect = fetch
+
+    @pytest.mark.asyncio
+    async def test_subscribed_dashboard_checked_after_revert(self, mock_context):
+        self._subscribed_dashboard(mock_context, "select 1")
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "dashboard", "item_id": 5, "revision_id": 8}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        reverts = [
+            c.kwargs["json"] for c in mock_context.fetch.call_args_list if c.args[0].endswith("/revision/revert")
+        ]
+        assert reverts == [{"entity": "dashboard", "id": 5, "revision_id": 8}]
+        assert any(c.args[0].endswith("/api/dataset/native") for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_subscribed_dashboard_put_back_when_old_version_writes(self, mock_context):
+        self._subscribed_dashboard(mock_context, "select nextval('audit_seq')")
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "dashboard", "item_id": 5, "revision_id": 8}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "so the dashboard was put back" in result.result.message
+        reverts = [
+            c.kwargs["json"] for c in mock_context.fetch.call_args_list if c.args[0].endswith("/revision/revert")
+        ]
+        assert reverts == [
+            {"entity": "dashboard", "id": 5, "revision_id": 8},
+            {"entity": "dashboard", "id": 5, "revision_id": 20},
+        ]
 
     @pytest.mark.asyncio
     async def test_segment_makes_no_check_calls(self, mock_context):
