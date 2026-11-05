@@ -349,10 +349,6 @@ class UploadThumbnail(ActionHandler):
 
             image_url = inputs.get("image_url")
             file_obj = inputs.get("file")
-            files_arr = inputs.get("files")
-
-            if not file_obj and isinstance(files_arr, list) and files_arr:
-                file_obj = files_arr[0]
 
             image_data = None
 
@@ -373,7 +369,7 @@ class UploadThumbnail(ActionHandler):
                 else:
                     image_data = str(body).encode()
             else:
-                return ActionError(message="Either image_url, file, or files must be provided")
+                return ActionError(message="Either image_url or file must be provided")
 
             original_size = len(image_data)
             image_data, mimetype = self._compress_image(image_data, max_size_mb=2.0)
