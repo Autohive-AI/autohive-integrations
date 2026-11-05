@@ -124,6 +124,8 @@ async def _gateway_request(url: str, method: str, headers: Dict[str, str], **kwa
     kwargs.pop("retry_count", None)
     try:
         async with aiohttp.ClientSession(timeout=timeout) as session:
+            # aiohttp retries PUT on disconnect, but creating a Metabase dashcard is not idempotent.
+            session._retry_connection = False
             async with session.request(method, url, headers=headers, allow_redirects=False, **kwargs) as response:
                 if 300 <= response.status < 400:
                     raise ValueError("Metabase redirected the request. Use the final HTTPS Metabase URL.")

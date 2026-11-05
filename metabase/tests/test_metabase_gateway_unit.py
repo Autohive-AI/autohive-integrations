@@ -196,3 +196,20 @@ async def test_gateway_still_requires_https(mock_context):
     with pytest.raises(ValueError, match="https"):
         await _api(mock_context, "GET", "/user/current")
     mock_context.fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_committed_put_is_not_replayed_after_disconnect(mock_context):
+    committed = []
+
+    async def handler(request):
+        committed.append(await request.json())
+        # Simulate a committed dashboard update whose response is lost.
+        request.transport.close()
+        return web.Response()
+
+    body = {"dashcards": [{"id": -1, "card_id": 7}]}
+    async with server(handler) as base:
+        with pytest.raises(ValueError, match="Could not connect"):
+            await _gateway_request(base, "PUT", get_auth_headers(configure(mock_context)), json=body)
+    assert committed == [body]
