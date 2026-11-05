@@ -13,6 +13,7 @@ import sys
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote, urlencode, urlparse
 
+import aiohttp
 import sqlglot
 from sqlglot import exp
 from sqlglot.dialects.mysql import MySQL
@@ -85,7 +86,57 @@ def get_base_url(context: ExecutionContext) -> str:
 
 
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
-    return {"x-api-key": get_api_key(context), "Content-Type": "application/json"}
+    headers = {"x-api-key": get_api_key(context), "Content-Type": "application/json"}
+    credentials = _credentials(context)
+    name = credentials.get("gateway_header_name")
+    value = credentials.get("gateway_header_value")
+    if name in (None, "") and value in (None, ""):
+        return headers
+    if not isinstance(name, str) or not isinstance(value, str) or not name or not value:
+        raise ValueError("Supply both gateway_header_name and gateway_header_value, or leave both empty.")
+    if not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name):
+        raise ValueError("gateway_header_name must be a valid HTTP header name.")
+    if name.lower() in {
+        "x-api-key",
+        "host",
+        "content-type",
+        "content-length",
+        "transfer-encoding",
+        "connection",
+        "keep-alive",
+        "te",
+        "trailer",
+        "upgrade",
+        "proxy-authorization",
+        "proxy-authenticate",
+        "accept-encoding",
+    }:
+        raise ValueError("gateway_header_name must not override an API or transport header.")
+    if not value.strip() or any(ord(char) < 32 or ord(char) > 126 for char in value):
+        raise ValueError("gateway_header_value must contain printable ASCII without control characters.")
+    headers[name] = value
+    return headers
+
+
+async def _gateway_request(url: str, method: str, headers: Dict[str, str], **kwargs: Any) -> Any:
+    # SDK fetch follows redirects and logs error bodies; neither is safe for a gateway secret.
+    timeout = aiohttp.ClientTimeout(total=kwargs.pop("timeout", 30))
+    kwargs.pop("retry_count", None)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            # aiohttp retries PUT on disconnect, but creating a Metabase dashcard is not idempotent.
+            session._retry_connection = False
+            async with session.request(method, url, headers=headers, allow_redirects=False, **kwargs) as response:
+                if 300 <= response.status < 400:
+                    raise ValueError("Metabase redirected the request. Use the final HTTPS Metabase URL.")
+                if response.status >= 400:
+                    raise HTTPError(response.status, "Request failed. Check gateway and Metabase access.", {})
+                try:
+                    return await response.json(content_type=None)
+                except (ValueError, UnicodeError):
+                    raise ValueError("Metabase returned a response that isn't JSON. Check the Metabase URL.") from None
+    except aiohttp.ClientError:
+        raise ValueError("Could not connect to Metabase. Check the URL, TLS certificate and gateway access.") from None
 
 
 def _path_id(value: Any) -> str:
@@ -95,17 +146,18 @@ def _path_id(value: Any) -> str:
 async def _api(context: ExecutionContext, method: str, path: str, **kwargs: Any) -> Any:
     if method != "GET":
         kwargs.setdefault("retry_count", NO_RETRY)
-    response = await context.fetch(
-        f"{get_base_url(context)}/api{path}",
-        method=method,
-        headers=get_auth_headers(context),
-        **kwargs,
-    )
+    url = f"{get_base_url(context)}/api{path}"
+    headers = get_auth_headers(context)
+    if _credentials(context).get("gateway_header_name"):
+        data = await _gateway_request(url, method, headers, **kwargs)
+    else:
+        response = await context.fetch(url, method=method, headers=headers, **kwargs)
+        data = response.data
     # Metabase always answers with JSON; HTML or an empty body means the URL points somewhere else, such as a
     # login proxy or the wrong path.
-    if not isinstance(response.data, (dict, list)):
+    if not isinstance(data, (dict, list)):
         raise ValueError("Metabase returned a response that isn't JSON. Check the Metabase URL.")
-    return response.data
+    return data
 
 
 def _required_text(value: Any, key: str) -> str:
@@ -471,7 +523,18 @@ def _with_optional(body: Dict[str, Any], **values: Any) -> Dict[str, Any]:
     return body
 
 
-def _error_message(error: Exception, saved_check: Optional[str] = None) -> str:
+def _error_message(
+    error: Exception, saved_check: Optional[str] = None, context: Optional[ExecutionContext] = None
+) -> str:
+    message = _format_error_message(error, saved_check)
+    if context is not None and _credentials(context).get("gateway_header_name"):
+        secrets = [_credentials(context).get(key) for key in ("api_key", "gateway_header_value")]
+        for secret in sorted((s for s in secrets if isinstance(s, str) and s), key=len, reverse=True):
+            message = message.replace(secret, "[REDACTED]")
+    return message[:MAX_ERROR_LENGTH]
+
+
+def _format_error_message(error: Exception, saved_check: Optional[str] = None) -> str:
     """saved_check names how to look for a create that may have been saved before the response timed out."""
     if isinstance(error, HTTPError):
         data = error.response_data
@@ -479,7 +542,7 @@ def _error_message(error: Exception, saved_check: Optional[str] = None) -> str:
         if isinstance(data, dict):
             detail = data.get("error") or data.get("message") or data.get("errors")
         message = f"Metabase returned HTTP {error.status}: {detail or error.message}"
-        return message[:MAX_ERROR_LENGTH]
+        return message
     if isinstance(error, asyncio.TimeoutError):
         if saved_check:
             return (
@@ -741,7 +804,7 @@ class GetCurrentUserAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 # ---- Data model ----
@@ -766,7 +829,7 @@ class ListDatabasesAction(ActionHandler):
             ]
             return ActionResult(data={"databases": databases, "count": len(databases)}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("get_database_schema")
@@ -808,7 +871,7 @@ class GetDatabaseSchemaAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("get_table")
@@ -823,7 +886,7 @@ class GetTableAction(ActionHandler):
             summary["database_id"] = table.get("db_id")
             return ActionResult(data=summary, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 # ---- Search and collections ----
@@ -857,7 +920,7 @@ class SearchAction(ActionHandler):
             ]
             return ActionResult(data=_note_dropped(_paged("results", results, data, page), dropped), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("list_collections")
@@ -884,7 +947,7 @@ class ListCollectionsAction(ActionHandler):
             ]
             return ActionResult(data={"collections": collections, "count": len(collections)}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("list_collection_items")
@@ -909,7 +972,7 @@ class ListCollectionItemsAction(ActionHandler):
             ]
             return ActionResult(data=_note_dropped(_paged("items", items, data, page), dropped), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("create_collection")
@@ -935,7 +998,7 @@ class CreateCollectionAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_collections"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_collections"))
 
 
 # ---- Questions and queries ----
@@ -951,7 +1014,7 @@ class GetQuestionAction(ActionHandler):
             data = await _api(context, "GET", f"/card/{card_id}")
             return ActionResult(data=_card_summary(data or {}), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("run_question")
@@ -969,7 +1032,7 @@ class RunQuestionAction(ActionHandler):
             data = await _api(context, "POST", f"/card/{card_id}/query", json=body, timeout=QUERY_TIMEOUT_SECONDS)
             return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("run_sql_query")
@@ -990,7 +1053,7 @@ class RunSqlQueryAction(ActionHandler):
             )
             return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("create_question")
@@ -1015,7 +1078,7 @@ class CreateQuestionAction(ActionHandler):
                 raise ValueError("Metabase did not return a question id")
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="search"))
+            return ActionError(message=_error_message(e, context=context, saved_check="search"))
 
 
 # ---- Dashboards ----
@@ -1046,7 +1109,7 @@ class GetDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("create_dashboard")
@@ -1072,7 +1135,7 @@ class CreateDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="search"))
+            return ActionError(message=_error_message(e, context=context, saved_check="search"))
 
 
 @metabase.action("add_question_to_dashboard")
@@ -1152,4 +1215,4 @@ class AddQuestionToDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="get_dashboard"))
+            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))

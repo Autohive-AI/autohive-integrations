@@ -1,7 +1,7 @@
 {
     "name": "Metabase",
     "display_name": "Metabase",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Search, query and build in Metabase (Cloud or self-hosted): explore databases and tables, run SQL and saved questions, and create questions, collections and dashboards.",
     "entry_point": "metabase.py",
     "auth": {
@@ -21,6 +21,18 @@
                     "format": "password",
                     "label": "API Key",
                     "help_text": "Create one in Metabase under Admin → Settings → Authentication → API keys (Metabase 0.49+). The key acts with the permissions of the group you assign it, so pick a group that can see only the data and collections the agent should use."
+                },
+                "gateway_header_name": {
+                    "type": "string",
+                    "format": "text",
+                    "label": "Gateway Header Name (optional)",
+                    "help_text": "Custom header required by your reverse proxy, e.g. X-Gateway-Secret. Supply both gateway fields or leave both empty."
+                },
+                "gateway_header_value": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Gateway Header Secret (optional)",
+                    "help_text": "Secret value for the gateway header. Stored in the connection credentials alongside the API key. Use printable ASCII without line breaks."
                 }
             },
             "required": [
