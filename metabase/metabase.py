@@ -130,7 +130,15 @@ async def _gateway_request(url: str, method: str, headers: Dict[str, str], **kwa
                 if 300 <= response.status < 400:
                     raise ValueError("Metabase redirected the request. Use the final HTTPS Metabase URL.")
                 if response.status >= 400:
-                    raise HTTPError(response.status, "Request failed. Check gateway and Metabase access.", {})
+                    # Keep only Metabase's reason fields; action errors redact credentials before showing them.
+                    try:
+                        body = await response.json(content_type=None)
+                    except (ValueError, UnicodeError):
+                        body = {}
+                    if not isinstance(body, dict):
+                        body = {}
+                    detail = {k: body[k] for k in ("error", "message", "errors") if k in body}
+                    raise HTTPError(response.status, "Request failed. Check gateway and Metabase access.", detail)
                 try:
                     return await response.json(content_type=None)
                 except (ValueError, UnicodeError):

@@ -53,7 +53,7 @@ The value uses a password field in the same connection credentials as the API ke
 This integration does not implement credential storage or encryption; those protections
 are provided by Autohive's connection service and must be verified there.
 With a gateway header configured, requests never follow redirects or retry automatically.
-Use the final HTTPS URL. HTTP errors report status without upstream response bodies,
+Use the final HTTPS URL. HTTP errors report status plus only Metabase's `error`/`message`/`errors` fields,
 transport errors use fixed messages, and action errors redact literal credential values.
 The integration does not log these headers; customer proxy/server logging is outside its control.
 A gateway returning a Google sign-in page still fails: the gateway must actually accept
