@@ -91,7 +91,62 @@ def get_base_url(context: ExecutionContext) -> str:
 
 
 def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
-    return {"x-api-key": get_api_key(context), "Content-Type": "application/json"}
+    headers = {"x-api-key": get_api_key(context), "Content-Type": "application/json"}
+    credentials = _credentials(context)
+    name = credentials.get("gateway_header_name")
+    value = credentials.get("gateway_header_value")
+    if name in (None, "") and value in (None, ""):
+        return headers
+    if not isinstance(name, str) or not isinstance(value, str) or not name or not value:
+        raise ValueError("Supply both gateway_header_name and gateway_header_value, or leave both empty.")
+    if not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", name):
+        raise ValueError("gateway_header_name must be a valid HTTP header name.")
+    if name.lower() in {
+        "x-api-key",
+        "host",
+        "content-type",
+        "content-length",
+        "transfer-encoding",
+        "connection",
+        "keep-alive",
+        "te",
+        "trailer",
+        "upgrade",
+        "proxy-authorization",
+        "proxy-authenticate",
+        "accept-encoding",
+    }:
+        raise ValueError("gateway_header_name must not override an API or transport header.")
+    if not value.strip() or any(ord(char) < 32 or ord(char) > 126 for char in value):
+        raise ValueError("gateway_header_value must contain printable ASCII without control characters.")
+    headers[name] = value
+    return headers
+
+
+async def _gateway_request(
+    url: str, method: str, headers: Dict[str, str], allow_text: bool = False, **kwargs: Any
+) -> Any:
+    # SDK fetch follows redirects and logs error bodies; neither is safe for a gateway secret.
+    timeout = aiohttp.ClientTimeout(total=kwargs.pop("timeout", 30))
+    kwargs.pop("retry_count", None)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            # aiohttp retries PUT on disconnect, but creating a Metabase dashcard is not idempotent.
+            session._retry_connection = False
+            async with session.request(method, url, headers=headers, allow_redirects=False, **kwargs) as response:
+                if 300 <= response.status < 400:
+                    raise ValueError("Metabase redirected the request. Use the final HTTPS Metabase URL.")
+                if response.status >= 400:
+                    raise HTTPError(response.status, "Request failed. Check gateway and Metabase access.", {})
+                try:
+                    return await response.json(content_type=None)
+                except (ValueError, UnicodeError):
+                    # CSV exports are text; anything else that isn't JSON means the URL is wrong.
+                    if allow_text:
+                        return await response.text(errors="replace")
+                    raise ValueError("Metabase returned a response that isn't JSON. Check the Metabase URL.") from None
+    except aiohttp.ClientError:
+        raise ValueError("Could not connect to Metabase. Check the URL, TLS certificate and gateway access.") from None
 
 
 def _path_id(value: Any) -> str:
@@ -102,18 +157,26 @@ async def _api(context: ExecutionContext, method: str, path: str, allow_text: bo
     """Call the Metabase API. allow_text accepts a text body (CSV exports); other calls must answer with JSON."""
     if method != "GET":
         kwargs.setdefault("retry_count", NO_RETRY)
+    url = f"{get_base_url(context)}/api{path}"
     headers = get_auth_headers(context)
     if "content_type" in kwargs:
         # Headers win over content_type in the SDK, so a form body must not carry the JSON header.
         del headers["Content-Type"]
-    response = await context.fetch(f"{get_base_url(context)}/api{path}", method=method, headers=headers, **kwargs)
-    if allow_text and isinstance(response.data, str) and not re.match(r"\s*<(?:!doctype|html)", response.data, re.I):
-        return response.data
+    if _credentials(context).get("gateway_header_name"):
+        content_type = kwargs.pop("content_type", None)
+        if content_type:
+            headers["Content-Type"] = content_type
+        data = await _gateway_request(url, method, headers, allow_text=allow_text, **kwargs)
+    else:
+        response = await context.fetch(url, method=method, headers=headers, **kwargs)
+        data = response.data
+    if allow_text and isinstance(data, str) and not re.match(r"\s*<(?:!doctype|html)", data, re.I):
+        return data
     # Metabase always answers with JSON; HTML or an empty body means the URL points somewhere else, such as a
     # login proxy or the wrong path.
-    if not isinstance(response.data, (dict, list)):
+    if not isinstance(data, (dict, list)):
         raise ValueError("Metabase returned a response that isn't JSON. Check the Metabase URL.")
-    return response.data
+    return data
 
 
 def _required_text(value: Any, key: str) -> str:
@@ -489,7 +552,18 @@ def _with_optional(body: Dict[str, Any], **values: Any) -> Dict[str, Any]:
     return body
 
 
-def _error_message(error: Exception, saved_check: Optional[str] = None) -> str:
+def _error_message(
+    error: Exception, saved_check: Optional[str] = None, context: Optional[ExecutionContext] = None
+) -> str:
+    message = _format_error_message(error, saved_check)
+    if context is not None and _credentials(context).get("gateway_header_name"):
+        secrets = [_credentials(context).get(key) for key in ("api_key", "gateway_header_value")]
+        for secret in sorted((s for s in secrets if isinstance(s, str) and s), key=len, reverse=True):
+            message = message.replace(secret, "[REDACTED]")
+    return message[:MAX_ERROR_LENGTH]
+
+
+def _format_error_message(error: Exception, saved_check: Optional[str] = None) -> str:
     """saved_check names how to look for a create that may have been saved before the response timed out."""
     if isinstance(error, HTTPError):
         data = error.response_data
@@ -497,7 +571,7 @@ def _error_message(error: Exception, saved_check: Optional[str] = None) -> str:
         if isinstance(data, dict):
             detail = data.get("error") or data.get("message") or data.get("errors")
         message = f"Metabase returned HTTP {error.status}: {detail or error.message}"
-        return message[:MAX_ERROR_LENGTH]
+        return message
     if isinstance(error, asyncio.TimeoutError):
         if saved_check:
             return (
@@ -775,7 +849,7 @@ class GetCurrentUserAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 # ---- Data model ----
@@ -800,7 +874,7 @@ class ListDatabasesAction(ActionHandler):
             ]
             return ActionResult(data={"databases": databases, "count": len(databases)}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("get_database_schema")
@@ -842,7 +916,7 @@ class GetDatabaseSchemaAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("get_table")
@@ -857,7 +931,7 @@ class GetTableAction(ActionHandler):
             summary["database_id"] = table.get("db_id")
             return ActionResult(data=summary, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 # ---- Search and collections ----
@@ -891,7 +965,7 @@ class SearchAction(ActionHandler):
             ]
             return ActionResult(data=_note_dropped(_paged("results", results, data, page), dropped), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("list_collections")
@@ -918,7 +992,7 @@ class ListCollectionsAction(ActionHandler):
             ]
             return ActionResult(data={"collections": collections, "count": len(collections)}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("list_collection_items")
@@ -943,7 +1017,7 @@ class ListCollectionItemsAction(ActionHandler):
             ]
             return ActionResult(data=_note_dropped(_paged("items", items, data, page), dropped), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("create_collection")
@@ -969,7 +1043,7 @@ class CreateCollectionAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_collections"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_collections"))
 
 
 # ---- Questions and queries ----
@@ -985,7 +1059,7 @@ class GetQuestionAction(ActionHandler):
             data = await _api(context, "GET", f"/card/{card_id}")
             return ActionResult(data=_card_summary(data or {}), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("run_question")
@@ -1003,7 +1077,7 @@ class RunQuestionAction(ActionHandler):
             data = await _api(context, "POST", f"/card/{card_id}/query", json=body, timeout=QUERY_TIMEOUT_SECONDS)
             return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("run_sql_query")
@@ -1024,7 +1098,7 @@ class RunSqlQueryAction(ActionHandler):
             )
             return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("create_question")
@@ -1053,7 +1127,7 @@ class CreateQuestionAction(ActionHandler):
                 raise ValueError("Metabase did not return a question id")
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="search"))
+            return ActionError(message=_error_message(e, context=context, saved_check="search"))
 
 
 # ---- Dashboards ----
@@ -1084,7 +1158,7 @@ class GetDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("create_dashboard")
@@ -1110,7 +1184,7 @@ class CreateDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="search"))
+            return ActionError(message=_error_message(e, context=context, saved_check="search"))
 
 
 @metabase.action("add_question_to_dashboard")
@@ -1180,7 +1254,7 @@ class AddQuestionToDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="get_dashboard"))
+            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
 
 
 # ---- Editing helpers ----
@@ -1601,32 +1675,40 @@ async def _download(context: ExecutionContext, path: str, form: Dict[str, str]) 
     """POST a form and return the binary body (Excel exports). The SDK's fetch reads every body as text, which breaks
     binary files, so this one request is made directly. Redirects aren't followed, so the API key only goes to the
     Metabase URL."""
+    headers = get_auth_headers(context)
+    del headers["Content-Type"]
+    gateway = bool(_credentials(context).get("gateway_header_name"))
     timeout = aiohttp.ClientTimeout(total=QUERY_TIMEOUT_SECONDS)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(
-            f"{get_base_url(context)}/api{path}",
-            data=form,
-            headers={"x-api-key": get_api_key(context)},
-            allow_redirects=False,
-        ) as response:
-            if response.status >= 300:
-                text = (await response.text(errors="replace"))[:MAX_ERROR_LENGTH]
-                try:
-                    data: Any = json.loads(text)
-                except ValueError:
-                    data = text
-                raise HTTPError(response.status, text, data)
-            if "spreadsheetml" not in response.headers.get("Content-Type", ""):
-                # Metabase reports a failed query as JSON instead of the file.
-                text = (await response.text(errors="replace"))[:MAX_ERROR_LENGTH]
-                raise ValueError(f"Query failed: {text}")
-            content = bytearray()
-            async for chunk in response.content.iter_chunked(64 * 1024):
-                content += chunk
-                if len(content) > MAX_XLSX_BYTES:
-                    raise ValueError(
-                        "The Excel file is over 3.5 MB, too big to return. Filter the question or export as csv."
-                    )
+    content = bytearray()
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            # aiohttp retries a request on disconnect; an export reruns the question, so it is sent once.
+            session._retry_connection = False
+            async with session.post(
+                f"{get_base_url(context)}/api{path}", data=form, headers=headers, allow_redirects=False
+            ) as response:
+                if response.status >= 300:
+                    if gateway:
+                        # As in _gateway_request, a gateway's error body isn't passed on.
+                        raise HTTPError(response.status, "Request failed. Check gateway and Metabase access.", {})
+                    text = (await response.text(errors="replace"))[:MAX_ERROR_LENGTH]
+                    try:
+                        data: Any = json.loads(text)
+                    except ValueError:
+                        data = text
+                    raise HTTPError(response.status, text, data)
+                if "spreadsheetml" not in response.headers.get("Content-Type", ""):
+                    # Metabase reports a failed query as JSON instead of the file.
+                    text = (await response.text(errors="replace"))[:MAX_ERROR_LENGTH]
+                    raise ValueError(f"Query failed: {text}")
+                async for chunk in response.content.iter_chunked(64 * 1024):
+                    content += chunk
+                    if len(content) > MAX_XLSX_BYTES:
+                        raise ValueError(
+                            "The Excel file is over 3.5 MB, too big to return. Filter the question or export as csv."
+                        )
+    except aiohttp.ClientError:
+        raise ValueError("Could not connect to Metabase. Check the URL, TLS certificate and gateway access.") from None
     return bytes(content)
 
 
@@ -1657,7 +1739,9 @@ async def _create_legacy_metric(
     """Save a metric the way Metabase before 0.51 keeps them: on a table, at /api/metric."""
     table_id = query.get("source-table")
     if not _int_or_none(table_id):
-        raise ValueError(f"{_error_message(error)} Before Metabase 0.51, a metric must be built on a table.")
+        raise ValueError(
+            f"{_error_message(error, context=context)} Before Metabase 0.51, a metric must be built on a table."
+        )
     body = _with_optional(
         {
             "name": _required_text(inputs["name"], "name"),
@@ -1670,7 +1754,7 @@ async def _create_legacy_metric(
         metric = await _api(context, "POST", "/metric", json=body) or {}
     except HTTPError as e:
         if e.status == 404:
-            raise ValueError(_error_message(error)) from None
+            raise ValueError(_error_message(error, context=context)) from None
         raise
     if metric.get("id") is None:
         raise ValueError("Metabase did not return a metric id")
@@ -1754,7 +1838,7 @@ class UpdateDashboardAction(ActionHandler):
             dashboard = await _api(context, "PUT", f"/dashboard/{dashboard_id}", json=body) or {}
             return ActionResult(data=_dashboard_summary(dashboard), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="get_dashboard"))
+            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
 
 
 @metabase.action("update_dashboard_cards")
@@ -1798,7 +1882,7 @@ class UpdateDashboardCardsAction(ActionHandler):
             updated = await _put_dashboard_layout(context, inputs["dashboard_id"], dashcards, _tabs_for_put(tabs))
             return ActionResult(data=_dashboard_summary(updated), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="get_dashboard"))
+            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
 
 
 @metabase.action("add_text_to_dashboard")
@@ -1872,7 +1956,7 @@ class AddTextToDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="get_dashboard"))
+            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
 
 
 @metabase.action("update_dashboard_tabs")
@@ -1920,7 +2004,14 @@ class UpdateDashboardTabsAction(ActionHandler):
             try:
                 updated = await _api(context, "PUT", path, json={"dashcards": dashcards, "tabs": tabs}) or {}
             except HTTPError as e:
-                if tabs or not old_tabs or e.status != 400 or "every card has a tab" not in str(e.response_data):
+                # Through a gateway the error body is hidden, so any 400 to this request counts.
+                hidden = not e.response_data
+                if (
+                    tabs
+                    or not old_tabs
+                    or e.status != 400
+                    or not (hidden or "every card has a tab" in str(e.response_data))
+                ):
                     raise
                 # Metabase 0.49 can't remove a dashboard's last tab. One tab looks the same (Metabase shows no tab
                 # bar for a single tab), so the cards' tab is kept and the others removed.
@@ -1936,7 +2027,7 @@ class UpdateDashboardTabsAction(ActionHandler):
                 return ActionResult(data=summary, cost_usd=0.0)
             return ActionResult(data=_dashboard_summary(updated), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="get_dashboard"))
+            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
 
 
 @metabase.action("update_dashboard_filters")
@@ -2018,7 +2109,7 @@ class UpdateDashboardFiltersAction(ActionHandler):
             )
             return ActionResult(data=_dashboard_summary(updated), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="get_dashboard"))
+            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
 
 
 @metabase.action("copy_dashboard")
@@ -2046,7 +2137,7 @@ class CopyDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="search"))
+            return ActionError(message=_error_message(e, context=context, saved_check="search"))
 
 
 @metabase.action("run_dashboard")
@@ -2110,7 +2201,7 @@ class RunDashboardAction(ActionHandler):
                     )
                     summary.update(_query_result(data, max_rows))
                 except Exception as e:
-                    summary["error"] = _error_message(e)
+                    summary["error"] = _error_message(e, context=context)
                 results.append(summary)
             return ActionResult(
                 data={
@@ -2122,7 +2213,7 @@ class RunDashboardAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 # ---- History ----
@@ -2152,7 +2243,7 @@ class GetRevisionHistoryAction(ActionHandler):
             ]
             return ActionResult(data={"revisions": revisions, "count": len(revisions)}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("revert_to_revision")
@@ -2192,7 +2283,7 @@ class RevertToRevisionAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="get_revision_history"))
+            return ActionError(message=_error_message(e, context=context, saved_check="get_revision_history"))
 
 
 # ---- Editing questions, models and metrics ----
@@ -2238,7 +2329,7 @@ class UpdateQuestionAction(ActionHandler):
             card = await _api(context, "PUT", f"/card/{card_id}", json=body) or {}
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="get_question"))
+            return ActionError(message=_error_message(e, context=context, saved_check="get_question"))
 
 
 @metabase.action("copy_question")
@@ -2257,11 +2348,11 @@ class CopyQuestionAction(ActionHandler):
                 except Exception as e:
                     raise ValueError(
                         f"The copy was made as question {card['id']} but couldn't be renamed or moved: "
-                        f"{_error_message(e)}. Change it with update_question instead of copying again."
+                        f"{_error_message(e, context=context)}. Change it with update_question, don't copy again."
                     ) from None
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="search"))
+            return ActionError(message=_error_message(e, context=context, saved_check="search"))
 
 
 @metabase.action("create_query_builder_question")
@@ -2275,7 +2366,7 @@ class CreateQueryBuilderQuestionAction(ActionHandler):
             card = await _create_card(context, inputs, "question", _mbql_dataset_query(inputs["database_id"], query))
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="search"))
+            return ActionError(message=_error_message(e, context=context, saved_check="search"))
 
 
 @metabase.action("create_model")
@@ -2298,7 +2389,7 @@ class CreateModelAction(ActionHandler):
             card = await _create_card(context, inputs, "model", dataset_query)
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="search"))
+            return ActionError(message=_error_message(e, context=context, saved_check="search"))
 
 
 @metabase.action("create_metric")
@@ -2323,7 +2414,7 @@ class CreateMetricAction(ActionHandler):
                 return ActionResult(data=legacy, cost_usd=0.0)
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="search"))
+            return ActionError(message=_error_message(e, context=context, saved_check="search"))
 
 
 @metabase.action("export_question_results")
@@ -2381,7 +2472,7 @@ class ExportQuestionResultsAction(ActionHandler):
                 raise ValueError(f"Query failed: {data.get('error') or data.get('message') or 'unknown error'}")
             return ActionResult(data=_csv_export(data if isinstance(data, str) else "", max_rows), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 # ---- Segments ----
@@ -2401,7 +2492,7 @@ class ListSegmentsAction(ActionHandler):
             ]
             return ActionResult(data={"segments": segments, "count": len(segments)}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("create_segment")
@@ -2423,7 +2514,7 @@ class CreateSegmentAction(ActionHandler):
                 raise ValueError("Metabase did not return a segment id")
             return ActionResult(data=_segment_summary(segment), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_segments"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_segments"))
 
 
 @metabase.action("update_segment")
@@ -2443,7 +2534,7 @@ class UpdateSegmentAction(ActionHandler):
             segment = await _api(context, "PUT", f"/segment/{segment_id}", json=body) or {}
             return ActionResult(data=_segment_summary(segment), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_segments"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_segments"))
 
 
 # ---- Organising content ----
@@ -2479,7 +2570,7 @@ class UpdateCollectionAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_collections"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_collections"))
 
 
 @metabase.action("move_items")
@@ -2510,14 +2601,14 @@ class MoveItemsAction(ActionHandler):
                     await _api(context, "PUT", f"/{path}/{_path_id(item['id'])}", json={key: target})
                     result["moved"] = True
                 except Exception as e:
-                    result.update(moved=False, error=_error_message(e))
+                    result.update(moved=False, error=_error_message(e, context=context))
                 results.append(result)
             moved = sum(1 for r in results if r["moved"])
             return ActionResult(
                 data={"items": results, "moved_count": moved, "failed_count": len(results) - moved}, cost_usd=0.0
             )
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 async def _set_archived(context: ExecutionContext, inputs: Dict[str, Any], archived: bool) -> Dict[str, Any]:
@@ -2543,7 +2634,7 @@ class ArchiveItemAction(ActionHandler):
         try:
             return ActionResult(data=await _set_archived(context, inputs, True), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("restore_item")
@@ -2554,7 +2645,7 @@ class RestoreItemAction(ActionHandler):
         try:
             return ActionResult(data=await _set_archived(context, inputs, False), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 # ---- Alerts and subscriptions ----
@@ -2587,7 +2678,7 @@ class ListAlertsAction(ActionHandler):
             alerts = [a for a in alerts if question_id is None or a["question_id"] == question_id]
             return ActionResult(data={"alerts": alerts, "count": len(alerts)}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("create_alert")
@@ -2641,7 +2732,7 @@ class CreateAlertAction(ActionHandler):
                 raise ValueError("Metabase did not return an alert id")
             return ActionResult(data=_alert_summary(alert), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_alerts"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_alerts"))
 
 
 @metabase.action("list_subscriptions")
@@ -2659,7 +2750,7 @@ class ListSubscriptionsAction(ActionHandler):
             ]
             return ActionResult(data={"subscriptions": subscriptions, "count": len(subscriptions)}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("create_subscription")
@@ -2693,7 +2784,7 @@ class CreateSubscriptionAction(ActionHandler):
                 raise ValueError("Metabase did not return a subscription id")
             return ActionResult(data=_subscription_summary(pulse), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_subscriptions"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_subscriptions"))
 
 
 @metabase.action("update_subscription")
@@ -2751,7 +2842,7 @@ class UpdateSubscriptionAction(ActionHandler):
             pulse = await _api(context, "PUT", path, json=body) or {}
             return ActionResult(data=_subscription_summary(pulse), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_subscriptions"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_subscriptions"))
 
 
 @metabase.action("list_users")
@@ -2774,7 +2865,7 @@ class ListUsersAction(ActionHandler):
             ]
             return ActionResult(data=_paged("users", users, data, page), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 # ---- Data descriptions ----
@@ -2792,7 +2883,7 @@ class UpdateTableAction(ActionHandler):
             table = await _api(context, "PUT", f"/table/{_path_id(inputs['table_id'])}", json=body) or {}
             return ActionResult(data=_table_summary(table, include_fields=False), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("update_field")
@@ -2812,7 +2903,7 @@ class UpdateFieldAction(ActionHandler):
             field = await _api(context, "PUT", f"/field/{_path_id(inputs['field_id'])}", json=body) or {}
             return ActionResult(data=_field_summary(field), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("sync_database")
@@ -2824,7 +2915,7 @@ class SyncDatabaseAction(ActionHandler):
             await _api(context, "POST", f"/database/{_path_id(inputs['database_id'])}/sync_schema")
             return ActionResult(data={"database_id": inputs["database_id"], "started": True}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("rescan_field_values")
@@ -2836,7 +2927,7 @@ class RescanFieldValuesAction(ActionHandler):
             await _api(context, "POST", f"/database/{_path_id(inputs['database_id'])}/rescan_values")
             return ActionResult(data={"database_id": inputs["database_id"], "started": True}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 # ---- Timelines ----
@@ -2869,7 +2960,7 @@ class ListTimelinesAction(ActionHandler):
             ]
             return ActionResult(data={"timelines": result, "count": len(result)}, cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e))
+            return ActionError(message=_error_message(e, context=context))
 
 
 @metabase.action("create_timeline")
@@ -2895,7 +2986,7 @@ class CreateTimelineAction(ActionHandler):
                 cost_usd=0.0,
             )
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_timelines"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_timelines"))
 
 
 @metabase.action("create_timeline_event")
@@ -2920,7 +3011,7 @@ class CreateTimelineEventAction(ActionHandler):
                 raise ValueError("Metabase did not return an event id")
             return ActionResult(data=_timeline_event_summary(event), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_timelines"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_timelines"))
 
 
 @metabase.action("update_timeline_event")
@@ -2942,4 +3033,4 @@ class UpdateTimelineEventAction(ActionHandler):
             event = await _api(context, "PUT", f"/timeline-event/{_path_id(inputs['event_id'])}", json=body) or {}
             return ActionResult(data=_timeline_event_summary(event), cost_usd=0.0)
         except Exception as e:
-            return ActionError(message=_error_message(e, saved_check="list_timelines"))
+            return ActionError(message=_error_message(e, context=context, saved_check="list_timelines"))

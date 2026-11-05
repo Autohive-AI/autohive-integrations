@@ -21,7 +21,7 @@ from uuid import uuid4
 import aiohttp
 import pytest
 from autohive_integrations_sdk import FetchResponse, HTTPError, ResultType
-from metabase.metabase import _read_only_sql, get_base_url, metabase
+from metabase.metabase import _api, _read_only_sql, metabase
 
 pytestmark = pytest.mark.integration
 
@@ -59,7 +59,17 @@ def live_context(make_context):
                     raise HTTPError(resp.status, str(data), data)
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
-    ctx = make_context(auth={"auth_type": "Custom", "credentials": {"base_url": BASE_URL, "api_key": API_KEY}})
+    ctx = make_context(
+        auth={
+            "auth_type": "Custom",
+            "credentials": {
+                "base_url": BASE_URL,
+                "api_key": API_KEY,
+                "gateway_header_name": os.getenv("METABASE_GATEWAY_HEADER_NAME", ""),
+                "gateway_header_value": os.getenv("METABASE_GATEWAY_HEADER_VALUE", ""),
+            },
+        }
+    )
     ctx.fetch.side_effect = real_fetch
     return ctx
 
@@ -101,13 +111,7 @@ async def _safe_to_run(live_context, question):
 
 
 async def _raw(live_context, method, path, body=None):
-    response = await live_context.fetch(
-        f"{get_base_url(live_context)}/api{path}",
-        method=method,
-        headers={"x-api-key": API_KEY, "Content-Type": "application/json"},
-        json=body,
-    )
-    return response.data
+    return await _api(live_context, method, path, json=body)
 
 
 async def _is_archived(live_context, path):
@@ -136,10 +140,10 @@ async def _archive(live_context, path, item_id, failures):
     if item_id is None:
         return
     try:
-        await live_context.fetch(
-            f"{get_base_url(live_context)}/api/{path}/{quote(str(item_id), safe='')}",
-            method="PUT",
-            headers={"x-api-key": API_KEY, "Content-Type": "application/json"},
+        await _api(
+            live_context,
+            "PUT",
+            f"/{path}/{quote(str(item_id), safe='')}",
             json={"archived": True},
         )
     except Exception as exc:
