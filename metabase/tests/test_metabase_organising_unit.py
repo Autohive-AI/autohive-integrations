@@ -293,7 +293,8 @@ class TestCreateSegment:
         assert result.result.data["id"] == 11
 
     @pytest.mark.asyncio
-    async def test_request_sends_full_query(self, mock_context):
+    async def test_request_sends_inner_query_first(self, mock_context):
+        # Metabase 0.49 saves a full query too, but then the segment matches no rows.
         mock_context.fetch.side_effect = [_ok(SAMPLE_TABLE), _ok({**SAMPLE_SEGMENT, "id": 11})]
         await metabase.execute_action(
             "create_segment",
@@ -309,9 +310,30 @@ class TestCreateSegment:
         assert post.kwargs["json"] == {
             "name": "Big orders",
             "table_id": 31,
-            "definition": {"database": 3, "type": "query", "query": {"source-table": 31, "filter": ACTIVE_FILTER}},
+            "definition": {"source-table": 31, "filter": ACTIVE_FILTER},
             "description": "Orders over $100",
         }
+
+    @pytest.mark.asyncio
+    async def test_full_query_sent_when_metabase_needs_it(self, mock_context):
+        needs_type = HTTPError(400, "Query must include :lib/type or :type", "Query must include :lib/type or :type")
+        mock_context.fetch.side_effect = [_ok(SAMPLE_TABLE), needs_type, _ok({**SAMPLE_SEGMENT, "id": 11})]
+        result = await metabase.execute_action(
+            "create_segment", {"name": "Big orders", "table_id": 31, "filter": ACTIVE_FILTER}, mock_context
+        )
+        assert result.result.data["id"] == 11
+        first, second = [c.kwargs["json"]["definition"] for c in mock_context.fetch.call_args_list[1:]]
+        assert first == {"source-table": 31, "filter": ACTIVE_FILTER}
+        assert second == {"database": 3, "type": "query", "query": {"source-table": 31, "filter": ACTIVE_FILTER}}
+
+    @pytest.mark.asyncio
+    async def test_other_400_not_retried(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_TABLE), HTTPError(400, "Bad", {"errors": {"name": "too long"}})]
+        result = await metabase.execute_action(
+            "create_segment", {"name": "Big orders", "table_id": 31, "filter": ACTIVE_FILTER}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 2
 
     @pytest.mark.asyncio
     async def test_description_optional(self, mock_context):
@@ -346,7 +368,7 @@ class TestCreateSegment:
             "create_segment", {"name": "Big active", "table_id": 31, "filter": compound}, mock_context
         )
         assert result.type == ResultType.ACTION
-        assert mock_context.fetch.call_args.kwargs["json"]["definition"]["query"]["filter"] == compound
+        assert mock_context.fetch.call_args.kwargs["json"]["definition"]["filter"] == compound
 
     @pytest.mark.asyncio
     async def test_list_of_clauses_refused(self, mock_context):
@@ -438,9 +460,20 @@ class TestUpdateSegment:
         assert seg_get.kwargs["method"] == "GET"
         assert table_get.args[0] == f"{BASE}/api/table/31"
         assert put.kwargs["json"] == {
-            "definition": {"database": 3, "type": "query", "query": {"source-table": 31, "filter": new_filter}},
+            "definition": {"source-table": 31, "filter": new_filter},
             "revision_message": SEGMENT_REVISION_MESSAGE,
         }
+
+    @pytest.mark.asyncio
+    async def test_filter_full_query_when_metabase_needs_it(self, mock_context):
+        new_filter = [">", ["field", 120, None], 500]
+        needs_type = HTTPError(400, "Query must include :lib/type or :type")
+        mock_context.fetch.side_effect = [_ok(SAMPLE_SEGMENT), _ok(SAMPLE_TABLE), needs_type, _ok(SAMPLE_SEGMENT)]
+        result = await metabase.execute_action("update_segment", {"segment_id": 7, "filter": new_filter}, mock_context)
+        assert result.type == ResultType.ACTION
+        put = mock_context.fetch.call_args
+        assert put.kwargs["method"] == "PUT"
+        assert put.kwargs["json"]["definition"]["type"] == "query"
 
     @pytest.mark.asyncio
     async def test_description_and_name(self, mock_context):

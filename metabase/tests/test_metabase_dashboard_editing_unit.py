@@ -721,11 +721,95 @@ COMBINED_DASHBOARD = {**SAMPLE_DASHBOARD, "dashcards": [COMBINED_SQL_DASHCARD, T
 
 
 class TestUpdateDashboardFilters:
-    async def _run(self, mock_context, filters, dashboard=SAMPLE_DASHBOARD):
-        mock_context.fetch.side_effect = [_ok(dashboard), _ok(dashboard)]
+    async def _run(self, mock_context, filters, dashboard=SAMPLE_DASHBOARD, pulses=(), sql="select region from orders"):
+        async def fetch(url, **kwargs):
+            if "/api/pulse" in url:
+                return _ok(list(pulses))
+            if "/api/card/" in url:
+                return _ok({"id": int(url.rsplit("/", 1)[1]), "dataset_query": SQL_DATASET_QUERY})
+            if url.endswith("/api/database/1"):
+                return _ok(SAMPLE_DATABASE)
+            if url.endswith("/api/dataset/native"):
+                return _ok({"query": sql})
+            return _ok(dashboard)
+
+        mock_context.fetch.side_effect = fetch
         return await metabase.execute_action(
             "update_dashboard_filters", {"dashboard_id": 9, "filters": filters}, mock_context
         )
+
+    @pytest.mark.asyncio
+    async def test_unchanged_defaults_skip_subscription_lookup(self, mock_context):
+        await self._run(mock_context, [REGION_FILTER, CATEGORY_FILTER])
+        assert not any("/api/pulse" in c.args[0] for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_new_default_without_subscriptions_runs_no_check(self, mock_context):
+        result = await self._run(mock_context, [{**REGION_FILTER, "default": ["East"]}, CATEGORY_FILTER])
+        assert result.type == ResultType.ACTION
+        assert f"{BASE}/api/pulse?dashboard_id=9&archived=false" in [
+            c.args[0] for c in mock_context.fetch.call_args_list
+        ]
+        assert _calls_to(mock_context, "/dataset/native") == []
+
+    @pytest.mark.asyncio
+    async def test_new_default_checked_for_subscriptions(self, mock_context):
+        result = await self._run(
+            mock_context, [{**REGION_FILTER, "default": ["East"]}, CATEGORY_FILTER], pulses=[{"id": 15}]
+        )
+        assert result.type == ResultType.ACTION
+        native = _calls_to(mock_context, "/dataset/native")
+        assert native
+        assert {
+            "id": "p1",
+            "type": "string/=",
+            "target": ["variable", ["template-tag", "region"]],
+            "value": ["East"],
+        } in (native[0].kwargs["json"]["parameters"])
+        assert mock_context.fetch.call_args.kwargs["method"] == "PUT"
+
+    @pytest.mark.asyncio
+    async def test_default_that_turns_on_a_write_is_refused(self, mock_context):
+        result = await self._run(
+            mock_context,
+            [{**REGION_FILTER, "default": ["East"]}, CATEGORY_FILTER],
+            pulses=[{"id": 15}],
+            sql="select 1, nextval('audit_seq')",
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42" in result.result.message
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_new_connections_checked_for_subscriptions(self, mock_context):
+        await self._run(
+            mock_context,
+            [{**REGION_FILTER, "connections": [{"dashcard_id": 501, "template_tag": "region"}]}],
+            pulses=[{"id": 15}],
+        )
+        assert _calls_to(mock_context, "/dataset/native")
+
+    @pytest.mark.asyncio
+    async def test_removed_linked_filter_dropped_from_links(self, mock_context):
+        linked = {
+            **SAMPLE_DASHBOARD,
+            "parameters": [SAMPLE_PARAMETERS[0], {**SAMPLE_PARAMETERS[1], "filteringParameters": ["p1"]}],
+        }
+        result = await self._run(mock_context, [CATEGORY_FILTER], dashboard=linked)
+        assert result.type == ResultType.ACTION
+        assert _put_body(mock_context)["parameters"][0]["filteringParameters"] == []
+
+    @pytest.mark.asyncio
+    async def test_link_to_unknown_filter_refused(self, mock_context):
+        result = await self._run(mock_context, [{**CATEGORY_FILTER, "linked_filter_ids": ["p1"]}])
+        assert result.type == ResultType.ACTION_ERROR
+        assert "linked to p1" in result.result.message
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_link_to_kept_filter_kept(self, mock_context):
+        await self._run(mock_context, [REGION_FILTER, {**CATEGORY_FILTER, "linked_filter_ids": ["p1"]}])
+        assert _put_body(mock_context)["parameters"][1]["filteringParameters"] == ["p1"]
 
     @pytest.mark.asyncio
     async def test_kept_filters_keep_mappings(self, mock_context):

@@ -197,6 +197,10 @@ class TestTagStandIns:
             "value": value,
         }
 
+    def test_time_grouping_filter_gets_a_unit(self):
+        (stand_in,) = _tag_stand_ins({"u": {"type": "temporal-unit", "name": "u"}})
+        assert stand_in == {"type": "temporal-unit", "target": ["dimension", ["template-tag", "u"]], "value": "month"}
+
 
 class TestUniqueNamesCollision:
     def test_generated_suffix_never_reuses_a_real_name(self):

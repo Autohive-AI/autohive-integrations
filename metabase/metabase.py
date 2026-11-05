@@ -524,6 +524,9 @@ def _tag_stand_ins(tags: Dict[str, Any]) -> List[Dict[str, Any]]:
             else:
                 value = ["x"]
             params.append({"type": widget, "target": ["dimension", ["template-tag", name]], "value": value})
+        elif kind == "temporal-unit":
+            # A time grouping filter (Metabase 0.50+) is a dimension target too.
+            params.append({"type": "temporal-unit", "target": ["dimension", ["template-tag", name]], "value": "month"})
     return params
 
 
@@ -1945,7 +1948,8 @@ def _segment_summary(segment: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def _segment_definition(context: ExecutionContext, table_id: Any, filter_clause: Any) -> Dict[str, Any]:
-    """A segment's definition as a full query, which Metabase 0.65 requires and 0.49 also accepts."""
+    """A segment's definition as a full query, which Metabase 0.65 requires. 0.49 saves it too but then matches no
+    rows, so _save_segment sends the inner query first."""
     # One clause starting with its operator. The newer form Metabase 0.57+ shows in list_segments (a list of clauses
     # with {"lib/uuid": ...} options) is stored as a filter that matches every row, so it is refused.
     if (
@@ -1964,6 +1968,21 @@ async def _segment_definition(context: ExecutionContext, table_id: Any, filter_c
         "type": "query",
         "query": {"source-table": table_id, "filter": filter_clause},
     }
+
+
+async def _save_segment(context: ExecutionContext, method: str, path: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    """Save a segment with the definition shape this Metabase reads: the inner query (source-table + filter) on older
+    versions, the full query on newer ones, which refuse the inner form with a 400 before saving anything."""
+    definition = body.get("definition")
+    if definition is None:
+        return await _api(context, method, path, json=body) or {}
+    try:
+        return await _api(context, method, path, json={**body, "definition": definition["query"]}) or {}
+    except HTTPError as e:
+        # Only the "needs a full query" refusal; any other 400 on an older Metabase would save the shape it can't read.
+        if e.status != 400 or ":type" not in json.dumps([e.message, e.response_data], default=str):
+            raise
+        return await _api(context, method, path, json=body) or {}
 
 
 def _timeline_event_summary(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -2244,6 +2263,17 @@ class UpdateDashboardFiltersAction(ActionHandler):
             if len(set(slugs)) != len(slugs):
                 raise ValueError("Two filters would have the same name; give each filter a different name.")
             kept = {p["id"] for p in parameters}
+            for p in parameters:
+                links = p.get("filteringParameters") or []
+                given = next((f for f in inputs["filters"] if isinstance(f, dict) and f.get("id") == p["id"]), {})
+                unknown = [i for i in links if i not in kept]
+                if unknown and "linked_filter_ids" in given:
+                    raise ValueError(
+                        f"Filter {p['name']} is linked to {', '.join(map(str, unknown))}, which isn't kept."
+                    )
+                if links:
+                    # A removed filter is dropped from the filters linked to it.
+                    p["filteringParameters"] = [i for i in links if i in kept]
             dashcards = _dashcards_for_put(existing)
             for dc in dashcards:
                 # Connections of removed filters go; filters given new connections replace their old ones.
@@ -2277,6 +2307,13 @@ class UpdateDashboardFiltersAction(ActionHandler):
                         }
                     )
 
+            if connections or any(p.get("default") != old_params.get(p["id"], {}).get("default") for p in parameters):
+                # Subscriptions run the questions with the filter defaults and connections, so new ones are checked.
+                params = [("dashboard_id", dashboard.get("id")), ("archived", "false")]
+                if _list_data(await _api(context, "GET", _with_query("/pulse", params))):
+                    await _check_dashboard_questions(
+                        context, {**dashboard, "parameters": parameters, "dashcards": dashcards}
+                    )
             updated = await _put_dashboard_layout(
                 context,
                 inputs["dashboard_id"],
@@ -2749,7 +2786,7 @@ class CreateSegmentAction(ActionHandler):
                 },
                 description=inputs.get("description"),
             )
-            segment = await _api(context, "POST", "/segment", json=body) or {}
+            segment = await _save_segment(context, "POST", "/segment", body)
             if segment.get("id") is None:
                 raise ValueError("Metabase did not return a segment id")
             return ActionResult(data=_segment_summary(segment), cost_usd=0.0)
@@ -2771,7 +2808,7 @@ class UpdateSegmentAction(ActionHandler):
             if not body:
                 raise ValueError("Give at least one of name, description or filter.")
             body["revision_message"] = SEGMENT_REVISION_MESSAGE
-            segment = await _api(context, "PUT", f"/segment/{segment_id}", json=body) or {}
+            segment = await _save_segment(context, "PUT", f"/segment/{segment_id}", body)
             return ActionResult(data=_segment_summary(segment), cost_usd=0.0)
         except Exception as e:
             return ActionError(message=_error_message(e, context=context, saved_check="list_segments"))
