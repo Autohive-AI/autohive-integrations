@@ -1992,6 +1992,28 @@ class TestUpdateSubscription:
         assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True, "skip_if_empty": False, "name": "Old"}
 
     @pytest.mark.asyncio
+    async def test_schedule_change_on_slack_only_subscription(self, mock_context):
+        slack_only = {**SAMPLE_PULSE, "channels": [SLACK_CHANNEL]}
+        mock_context.fetch.side_effect = [_ok(slack_only), _ok(slack_only)]
+        result = await metabase.execute_action("update_subscription", {"subscription_id": 15, "hour": 9}, mock_context)
+        assert result.type == ResultType.ACTION
+        channels = mock_context.fetch.call_args.kwargs["json"]["channels"]
+        assert channels == [{**SLACK_CHANNEL, "schedule_hour": 9, "schedule_day": None, "schedule_frame": None}]
+
+    @pytest.mark.asyncio
+    async def test_recipients_on_slack_only_subscription_add_email(self, mock_context):
+        slack_only = {**SAMPLE_PULSE, "channels": [SLACK_CHANNEL]}
+        mock_context.fetch.side_effect = [_ok(slack_only), _ok(slack_only)]
+        await metabase.execute_action(
+            "update_subscription", {"subscription_id": 15, "recipient_user_ids": [5]}, mock_context
+        )
+        channels = mock_context.fetch.call_args.kwargs["json"]["channels"]
+        assert channels[0] == SLACK_CHANNEL
+        assert channels[1]["channel_type"] == "email"
+        assert channels[1]["recipients"] == [{"id": 5}]
+        assert channels[1]["schedule_hour"] == 8
+
+    @pytest.mark.asyncio
     async def test_skip_if_empty_false_sent(self, mock_context):
         mock_context.fetch.side_effect = [_ok(SAMPLE_PULSE), _ok(SAMPLE_PULSE)]
         await metabase.execute_action(

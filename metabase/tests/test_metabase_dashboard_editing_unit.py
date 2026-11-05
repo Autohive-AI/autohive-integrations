@@ -192,6 +192,18 @@ class TestUpdateDashboard:
 
 class TestUpdateDashboardCards:
     @pytest.mark.asyncio
+    async def test_same_card_twice_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD)]
+        result = await metabase.execute_action(
+            "update_dashboard_cards",
+            {"dashboard_id": 9, "cards": [{"dashcard_id": 501, "row": 0}, {"dashcard_id": 501, "remove": True}]},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "listed once" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
     async def test_move_and_resize(self, mock_context):
         mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok(SAMPLE_DASHBOARD)]
         result = await metabase.execute_action(
@@ -737,6 +749,41 @@ class TestUpdateDashboardFilters:
         return await metabase.execute_action(
             "update_dashboard_filters", {"dashboard_id": 9, "filters": filters}, mock_context
         )
+
+    @pytest.mark.asyncio
+    async def test_same_filter_twice_refused(self, mock_context):
+        result = await self._run(mock_context, [REGION_FILTER, {**REGION_FILTER, "name": "Area"}])
+        assert result.type == ResultType.ACTION_ERROR
+        assert "p1 is listed twice" in result.result.message
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_type_change_drops_old_value_settings(self, mock_context):
+        listed = {
+            **SAMPLE_PARAMETERS[0],
+            "values_source_type": "static-list",
+            "values_source_config": {"values": ["West", "East"]},
+            "temporal_units": ["month"],
+        }
+        dashboard = {**SAMPLE_DASHBOARD, "parameters": [listed, SAMPLE_PARAMETERS[1]]}
+        await self._run(mock_context, [{**REGION_FILTER, "type": "date/single"}, CATEGORY_FILTER], dashboard=dashboard)
+        param = _put_body(mock_context)["parameters"][0]
+        for key in ("default", "values_source_type", "values_source_config", "temporal_units"):
+            assert key not in param
+        assert param["values_query_type"] == "list"
+
+    @pytest.mark.asyncio
+    async def test_same_type_keeps_value_settings(self, mock_context):
+        listed = {
+            **SAMPLE_PARAMETERS[0],
+            "values_source_type": "static-list",
+            "values_source_config": {"values": ["W"]},
+        }
+        dashboard = {**SAMPLE_DASHBOARD, "parameters": [listed, SAMPLE_PARAMETERS[1]]}
+        await self._run(mock_context, [{**REGION_FILTER, "name": "Area"}, CATEGORY_FILTER], dashboard=dashboard)
+        param = _put_body(mock_context)["parameters"][0]
+        assert param["values_source_type"] == "static-list"
+        assert param["default"] == ["West"]
 
     @pytest.mark.asyncio
     async def test_unchanged_defaults_skip_subscription_lookup(self, mock_context):
@@ -1587,6 +1634,22 @@ class TestRunDashboard:
         assert [c.kwargs["timeout"] for c in _calls_to(mock_context, "/query")] == [120, 75]
 
     @pytest.mark.asyncio
+    async def test_query_timeout_never_rounds_to_zero(self, mock_context, monkeypatch):
+        loop = asyncio.get_running_loop()
+        clock = [1000.0]
+        monkeypatch.setattr(loop, "time", lambda: clock[0])
+        responses = iter([_ok(RUN_DASHBOARD), *_card_run(42), *_card_run(43)])
+
+        async def fetch(url, **kwargs):
+            if url.endswith("/dataset/native"):
+                clock[0] += 134.6  # The check left under a second for the query.
+            return next(responses)
+
+        mock_context.fetch.side_effect = fetch
+        await metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context)
+        assert _calls_to(mock_context, "/query")[0].kwargs["timeout"] == 1
+
+    @pytest.mark.asyncio
     async def test_rows_cut_to_the_response_size_limit(self, mock_context, monkeypatch):
         monkeypatch.setattr(sys.modules["metabase.metabase"], "MAX_DASHBOARD_RESULT_CHARS", 900)
         wide = {
@@ -1672,6 +1735,7 @@ class TestRunDashboard:
         assert result.result.data["skipped_card_count"] == 1
         assert _calls_to(mock_context, "/api/card/125") == []
         assert mock_context.fetch.call_count == 101
+        assert result.result.data["skipped_reason"].startswith("Only 25 cards are run at a time")
 
     @pytest.mark.asyncio
     async def test_max_rows_trims(self, mock_context):

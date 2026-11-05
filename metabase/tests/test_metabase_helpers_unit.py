@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 from unittest.mock import MagicMock
@@ -7,6 +8,8 @@ from autohive_integrations_sdk import HTTPError
 from metabase.metabase import (
     _card_summary,
     _clamp,
+    _fit_rows,
+    _pulse_flags,
     _ensure_read_only_sql,
     _error_message,
     _page,
@@ -174,6 +177,39 @@ class TestQueryResult:
             "X",
             "column_4",
         ]
+
+
+class TestFitRows:
+    def test_fits_returns_what_is_left(self):
+        summary = {"rows": [{"a": 1}], "row_count": 1}
+        assert _fit_rows(summary, 1000) == 1000 - len(json.dumps(summary))
+        assert summary["row_count"] == 1
+
+    def test_cut_keeps_leading_rows_and_returns_zero(self):
+        summary = {"rows": [{"a": "x" * 50} for _ in range(10)], "row_count": 10, "truncated": False}
+        assert _fit_rows(summary, 200) == 0
+        assert 0 < summary["row_count"] < 10
+        assert summary["rows"] == [{"a": "x" * 50}] * summary["row_count"]
+        assert summary["truncated"] is True
+        assert len(json.dumps(summary)) <= 200
+
+    def test_error_card_without_rows_is_never_cut(self):
+        summary = {"error": "x" * 300}
+        assert _fit_rows(summary, 100) < 0
+        assert summary == {"error": "x" * 300}
+
+
+class TestPulseFlags:
+    @pytest.mark.parametrize(
+        "pulse,flags",
+        [
+            ({"archived": True, "skip_if_empty": True}, {"archived": True, "skip_if_empty": True}),
+            ({}, {"archived": False, "skip_if_empty": False}),
+            ({"archived": None, "skip_if_empty": 0}, {"archived": False, "skip_if_empty": False}),
+        ],
+    )
+    def test_flags_always_sent(self, pulse, flags):
+        assert _pulse_flags(pulse) == flags
 
 
 class TestTagStandIns:

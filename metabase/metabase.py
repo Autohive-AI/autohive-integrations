@@ -1276,6 +1276,9 @@ class AddQuestionToDashboardAction(ActionHandler):
             if tab_id is not None:
                 new_card["dashboard_tab_id"] = tab_id
             dashcards.append(new_card)
+            if await _has_subscriptions(context, dashboard.get("id")):
+                # Metabase adds the question to the dashboard's subscriptions, which then run it with nobody watching.
+                await _checked_parameters(context, _path_id(inputs["question_id"]), [])
 
             updated = await _put_dashboard_layout(context, inputs["dashboard_id"], dashcards, _tabs_for_put(tabs))
             known_ids = {dc.get("id") for dc in existing}
@@ -1463,6 +1466,16 @@ def _default_values(dashboard: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         for p in dashboard.get("parameters") or []
         if p.get("default") is not None
     }
+
+
+async def _has_subscriptions(context: ExecutionContext, dashboard_id: Any) -> bool:
+    params = [("dashboard_id", dashboard_id), ("archived", "false")]
+    return bool(_list_data(await _api(context, "GET", _with_query("/pulse", params))))
+
+
+def _pulse_flags(pulse: Dict[str, Any]) -> Dict[str, bool]:
+    """Metabase resets archived and skip_if_empty when a subscription update leaves them out, so both are sent."""
+    return {"archived": bool(pulse.get("archived")), "skip_if_empty": bool(pulse.get("skip_if_empty"))}
 
 
 async def _check_dashboard_questions(
@@ -1974,20 +1987,19 @@ async def _save_segment(context: ExecutionContext, method: str, path: str, body:
     """Save a segment with the definition shape this Metabase reads: the inner query (source-table + filter) on older
     versions, the full query on newer ones, which refuse the inner form with a 400 before saving anything."""
     definition = body.get("definition")
-    if definition is None:
-        return await _api(context, method, path, json=body) or {}
-    try:
-        return await _api(context, method, path, json={**body, "definition": definition["query"]}) or {}
-    except HTTPError as e:
-        # Only the "needs a full query" refusal; any other 400 on 0.49 would save the shape it can't read. Through a
-        # gateway the refusal's text is hidden, so a 400 from a Metabase past 0.50 is taken as that refusal.
-        if e.status != 400:
-            raise
-        if ":type" not in json.dumps([e.message, e.response_data], default=str):
-            release = await _metabase_release(context)
-            if release is None or release < 51:
+    if definition is not None:
+        try:
+            return await _api(context, method, path, json={**body, "definition": definition["query"]}) or {}
+        except HTTPError as e:
+            # Only the "needs a full query" refusal; any other 400 on 0.49 would save the shape it can't read. Through
+            # a gateway the refusal's text is hidden, so a 400 from a Metabase past 0.50 is taken as that refusal.
+            if e.status != 400:
                 raise
-        return await _api(context, method, path, json=body) or {}
+            if ":type" not in json.dumps([e.message, e.response_data], default=str):
+                release = await _metabase_release(context)
+                if release is None or release < 51:
+                    raise
+    return await _api(context, method, path, json=body) or {}
 
 
 def _timeline_event_summary(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -2038,7 +2050,10 @@ class UpdateDashboardCardsAction(ActionHandler):
             dashboard = await _get_dashboard(context, inputs["dashboard_id"])
             existing = dashboard.get("dashcards") or []
             tabs = dashboard.get("tabs") or []
-            changes = {c.get("dashcard_id"): c for c in inputs["cards"] if isinstance(c, dict)}
+            given = [c for c in inputs["cards"] if isinstance(c, dict)]
+            changes = {c.get("dashcard_id"): c for c in given}
+            if len(changes) != len(given):
+                raise ValueError("Each card can be listed once; put all of a card's changes in one entry.")
             unknown = set(changes) - {dc.get("id") for dc in existing}
             if unknown:
                 raise ValueError(f"Not cards on dashboard {inputs['dashboard_id']}: {sorted(unknown, key=str)}")
@@ -2231,12 +2246,15 @@ class UpdateDashboardFiltersAction(ActionHandler):
 
             parameters = []
             connections: Dict[str, List[Dict[str, Any]]] = {}
+            linked_given = set()
             for f in inputs["filters"]:
                 if not isinstance(f, dict):
                     continue
                 name = _required_text(f.get("name"), "filter name")
                 filter_type = _required_text(f.get("type"), "filter type")
                 filter_id = f.get("id") or secrets.token_hex(4)
+                if any(p["id"] == f.get("id") for p in parameters):
+                    raise ValueError(f"Filter {f['id']} is listed twice; put all of its changes in one entry.")
                 if f.get("id") and f["id"] not in old_params:
                     raise ValueError(
                         f"Filter {f['id']} is not on dashboard {inputs['dashboard_id']}; leave id out for a new filter."
@@ -2250,8 +2268,9 @@ class UpdateDashboardFiltersAction(ActionHandler):
                     "sectionId": filter_type.split("/")[0],
                 }
                 if filter_id in old_params and old_params[filter_id].get("type") != filter_type:
-                    # A default for the old type (text for a date filter, say) would break the new one.
-                    param.pop("default", None)
+                    # Settings for the old type (a text default or value list on a date filter) would break the new one.
+                    for key in ("default", "values_source_type", "values_source_config", "temporal_units"):
+                        param.pop(key, None)
                 if "default" in f:
                     param["default"] = f["default"]
                 if "required" in f:
@@ -2260,6 +2279,7 @@ class UpdateDashboardFiltersAction(ActionHandler):
                     raise ValueError(f"Filter {name} is required, so it needs a default value.")
                 if "linked_filter_ids" in f:
                     param["filteringParameters"] = list(f["linked_filter_ids"] or [])
+                    linked_given.add(filter_id)
                 parameters.append(param)
                 if "connections" in f:
                     connections[filter_id] = list(f["connections"] or [])
@@ -2269,14 +2289,13 @@ class UpdateDashboardFiltersAction(ActionHandler):
                 raise ValueError("Two filters would have the same name; give each filter a different name.")
             kept = {p["id"] for p in parameters}
             for p in parameters:
-                links = p.get("filteringParameters") or []
-                given = next((f for f in inputs["filters"] if isinstance(f, dict) and f.get("id") == p["id"]), {})
-                unknown = [i for i in links if i not in kept]
-                if unknown and "linked_filter_ids" in given:
+                links = p.get("filteringParameters")
+                unknown = [i for i in links or [] if i not in kept]
+                if unknown and p["id"] in linked_given:
                     raise ValueError(
                         f"Filter {p['name']} is linked to {', '.join(map(str, unknown))}, which isn't kept."
                     )
-                if links:
+                if unknown:
                     # A removed filter is dropped from the filters linked to it.
                     p["filteringParameters"] = [i for i in links if i in kept]
             dashcards = _dashcards_for_put(existing)
@@ -2314,8 +2333,7 @@ class UpdateDashboardFiltersAction(ActionHandler):
 
             if connections or any(p.get("default") != old_params.get(p["id"], {}).get("default") for p in parameters):
                 # Subscriptions run the questions with the filter defaults and connections, so new ones are checked.
-                params = [("dashboard_id", dashboard.get("id")), ("archived", "false")]
-                if _list_data(await _api(context, "GET", _with_query("/pulse", params))):
+                if await _has_subscriptions(context, dashboard.get("id")):
                     await _check_dashboard_questions(
                         context, {**dashboard, "parameters": parameters, "dashcards": dashcards}
                     )
@@ -2366,13 +2384,13 @@ class CopyDashboardAction(ActionHandler):
 
 
 def _fit_rows(summary: Dict[str, Any], chars_left: int) -> int:
-    """Drop a card's last rows until its result fits in chars_left; returns the characters it takes, or all of
-    chars_left once rows are cut, so no more questions run."""
+    """Drop a card's last rows until its result fits in chars_left; returns the characters left after it, 0 once rows
+    are cut, so no more questions run."""
     size = len(json.dumps(summary, default=str))
     rows = summary.get("rows")
     if size <= chars_left or not rows:
-        return size
-    budget = chars_left - (size - len(json.dumps(rows, default=str)))
+        return chars_left - size
+    budget = chars_left - len(json.dumps({**summary, "rows": []}, default=str))
     kept = 0
     for row in rows:
         budget -= len(json.dumps(row, default=str)) + 2
@@ -2380,7 +2398,7 @@ def _fit_rows(summary: Dict[str, Any], chars_left: int) -> int:
             break
         kept += 1
     summary.update(rows=rows[:kept], row_count=kept, truncated=True)
-    return chars_left
+    return 0
 
 
 @metabase.action("run_dashboard")
@@ -2422,7 +2440,7 @@ class RunDashboardAction(ActionHandler):
                     break
                 summary = {"dashcard_id": dc.get("id"), "card_id": card_id, "card_name": card_name}
 
-                async def run(dc=dc, card_id=card_id) -> Any:
+                async def run() -> Any:
                     card_params = _card_parameters_for(dc, values, card_id)
                     # A dashboard run applies a SQL filter's own default but not the question's saved filter
                     # defaults, so the question is also checked without those.
@@ -2433,7 +2451,7 @@ class RunDashboardAction(ActionHandler):
                         "POST",
                         f"/dashboard/{_path_id(dashboard.get('id'))}/dashcard/{_path_id(dc['id'])}/card/{_path_id(card_id)}/query",
                         json={"parameters": used},
-                        timeout=min(QUERY_TIMEOUT_SECONDS, int(deadline - loop.time())),
+                        timeout=min(QUERY_TIMEOUT_SECONDS, max(1, int(deadline - loop.time()))),
                     )
 
                 try:
@@ -2441,7 +2459,7 @@ class RunDashboardAction(ActionHandler):
                     summary.update(_query_result(await asyncio.wait_for(run(), seconds_left), max_rows))
                 except Exception as e:
                     summary["error"] = _error_message(e, context=context)
-                chars_left -= _fit_rows(summary, chars_left)
+                chars_left = _fit_rows(summary, chars_left)
                 results.append(summary)
             skipped = len(questions) - len(results)
             return ActionResult(
@@ -2452,10 +2470,15 @@ class RunDashboardAction(ActionHandler):
                     "skipped_card_count": skipped,
                     **(
                         {
-                            "skipped_reason": "Stopped early to stay within the time or size limit; run the skipped "
-                            "questions with run_question, or this action with tab_id or a lower max_rows."
+                            "skipped_reason": (
+                                "Stopped early to stay within the time or size limit"
+                                if skipped > max(len(questions) - MAX_DASHBOARD_CARDS_RUN, 0)
+                                else f"Only {MAX_DASHBOARD_CARDS_RUN} cards are run at a time"
+                            )
+                            + "; run the skipped questions with run_question, or this action with tab_id or a lower "
+                            "max_rows."
                         }
-                        if skipped > max(len(questions) - MAX_DASHBOARD_CARDS_RUN, 0)
+                        if skipped
                         else {}
                     ),
                 },
@@ -2530,27 +2553,20 @@ class RevertToRevisionAction(ActionHandler):
         try:
             entity = await _revision_entity(context, inputs["item_type"])
             body = {"entity": entity, "id": inputs["item_id"], "revision_id": inputs["revision_id"]}
+            item_id = inputs["item_id"]
+            checked = entity == "card" or (entity == "dashboard" and await _has_subscriptions(context, item_id))
             current = None
-            subscribed = entity == "dashboard" and bool(
-                _list_data(
-                    await _api(
-                        context,
-                        "GET",
-                        _with_query("/pulse", [("dashboard_id", inputs["item_id"]), ("archived", "false")]),
-                    )
-                )
-            )
-            if entity == "card" or subscribed:
-                history = _list_data(await _revisions(context, entity, inputs["item_id"]))
+            if checked:
+                history = _list_data(await _revisions(context, entity, item_id))
                 current = next((r.get("id") for r in history if r.get("most_recent")), None)
             revision = await _revert(context, body)
-            if entity == "card" or subscribed:
+            if checked:
                 try:
                     if entity == "card":
-                        await _checked_parameters(context, _path_id(inputs["item_id"]), [], saving=True)
+                        await _checked_parameters(context, _path_id(item_id), [], saving=True)
                     else:
                         # Its subscriptions send the questions with the old version's filter defaults and connections.
-                        await _check_dashboard_questions(context, await _get_dashboard(context, inputs["item_id"]))
+                        await _check_dashboard_questions(context, await _get_dashboard(context, item_id))
                 except Exception as e:
                     # A question put back to SQL that writes would run it for anyone (or any alert) that runs it, and
                     # one that couldn't be checked isn't known to be safe, so either way it is put back.
@@ -2929,9 +2945,7 @@ async def _set_archived(context: ExecutionContext, inputs: Dict[str, Any], archi
             # Turned back on, it runs every question on the dashboard on its schedule, so they're checked as when
             # it was created; the SQL may have changed while it was off.
             await _check_dashboard_questions(context, await _get_dashboard(context, pulse.get("dashboard_id")))
-        # Metabase resets skip_if_empty when an update leaves it out.
-        body = {"archived": archived, "skip_if_empty": bool(pulse.get("skip_if_empty"))}
-        await _api(context, "PUT", path, json=body)
+        await _api(context, "PUT", path, json={**_pulse_flags(pulse), "archived": archived})
     else:
         path = ARCHIVE_PATHS.get(item_type)
         if path is None:
@@ -3111,22 +3125,18 @@ class UpdateSubscriptionAction(ActionHandler):
         try:
             path = f"/pulse/{_path_id(inputs['subscription_id'])}"
             body = _with_optional({}, name=inputs.get("name"), skip_if_empty=inputs.get("skip_if_empty"))
-            schedule = {
-                "frequency": inputs.get("frequency"),
-                "hour": inputs.get("hour"),
-                "day_of_week": inputs.get("day_of_week"),
-            }
-            schedule = {k: v for k, v in schedule.items() if v is not None}
-            recipients = {
-                "recipient_user_ids": inputs.get("recipient_user_ids"),
-                "recipient_emails": inputs.get("recipient_emails"),
-            }
-            recipients = {k: v for k, v in recipients.items() if v is not None}
+            schedule = _with_optional(
+                {}, frequency=inputs.get("frequency"), hour=inputs.get("hour"), day_of_week=inputs.get("day_of_week")
+            )
+            recipients = _with_optional(
+                {},
+                recipient_user_ids=inputs.get("recipient_user_ids"),
+                recipient_emails=inputs.get("recipient_emails"),
+            )
             if not body and not schedule and not recipients:
                 raise ValueError("Give at least one change.")
             pulse = await _api(context, "GET", path) or {}
-            # Metabase resets archived and skip_if_empty when an update leaves them out, so both are always sent.
-            body = {"archived": bool(pulse.get("archived")), "skip_if_empty": bool(pulse.get("skip_if_empty")), **body}
+            body = {**_pulse_flags(pulse), **body}
             if schedule or recipients:
                 channel = next((c for c in pulse.get("channels") or [] if c.get("channel_type") == "email"), {})
                 updated = dict(channel)
@@ -3157,7 +3167,11 @@ class UpdateSubscriptionAction(ActionHandler):
                         {"recipient_user_ids": old_users, "recipient_emails": old_emails, **recipients}
                     )
                     updated["recipients"] = _pulse_recipients(user_ids, emails)
-                if not channel:
+                if not channel and not recipients:
+                    # No email channel and no one to email: the schedule change goes to the channels it has (Slack).
+                    others = [{**c, **updated} for c in others]
+                    updated = None
+                elif not channel:
                     # Schedule changes are already in updated; otherwise the other channel's schedule is copied.
                     schedule_fields = {
                         k: source[k]
@@ -3165,7 +3179,7 @@ class UpdateSubscriptionAction(ActionHandler):
                         if k in source
                     }
                     updated = {**_pulse_channel(*_schedule({}), *_recipients(recipients)), **schedule_fields, **updated}
-                body["channels"] = others + [updated]
+                body["channels"] = others + ([updated] if updated else [])
             pulse = await _api(context, "PUT", path, json=body) or {}
             return ActionResult(data=_subscription_summary(pulse), cost_usd=0.0)
         except Exception as e:
