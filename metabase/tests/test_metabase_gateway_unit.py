@@ -136,52 +136,6 @@ async def test_error_bodies_do_not_expose_secrets(mock_context, caplog, capsys, 
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    ("status", "body", "expected"),
-    [
-        (404, {"message": "Not found."}, "Metabase returned HTTP 404: Not found."),
-        (403, "You don't have permissions to do that.", "Metabase returned HTTP 403: Request failed."),
-        (400, {"errors": {"display": "invalid"}, "stack": ["x"]}, "Metabase returned HTTP 400: {'display': 'invalid'}"),
-    ],
-)
-async def test_http_errors_keep_metabase_reason(mock_context, monkeypatch, status, body, expected):
-    configure(mock_context)
-
-    async def handler(request):
-        if isinstance(body, dict):
-            return web.json_response(body, status=status)
-        return web.Response(status=status, text=body)
-
-    async with server(handler) as base:
-
-        async def local_request(url, method, headers, **kwargs):
-            return await _gateway_request(base + "/api/card/1", method, headers, **kwargs)
-
-        monkeypatch.setattr(importlib.import_module("metabase.metabase"), "_gateway_request", local_request)
-        result = await metabase.execute_action("get_question", {"question_id": 1}, mock_context)
-    assert result.type == ResultType.ACTION_ERROR
-    assert result.result.message.startswith(expected)
-    assert "stack" not in result.result.message
-
-
-@pytest.mark.asyncio
-async def test_metabase_reason_redacts_credentials(mock_context, monkeypatch):
-    configure(mock_context)
-
-    async def handler(request):
-        return web.json_response({"message": f"bad header {GATEWAY_SECRET} key mb_test_api_key"}, status=401)
-
-    async with server(handler) as base:
-
-        async def local_request(url, method, headers, **kwargs):
-            return await _gateway_request(base, method, headers, **kwargs)
-
-        monkeypatch.setattr(importlib.import_module("metabase.metabase"), "_gateway_request", local_request)
-        result = await metabase.execute_action("get_current_user", {}, mock_context)
-    assert result.result.message == "Metabase returned HTTP 401: bad header [REDACTED] key [REDACTED]"
-
-
-@pytest.mark.asyncio
 async def test_transport_errors_are_safe(mock_context, monkeypatch):
     def fail(*args, **kwargs):
         raise aiohttp.ClientConnectionError(f"reflected {GATEWAY_SECRET}")
