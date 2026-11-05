@@ -13,15 +13,18 @@ This integration provides access to the Shopify Storefront API (GraphQL), allowi
 
 ## Setup & Authentication
 
-This integration uses **Platform Authentication** with Shopify.
+This integration uses **custom authentication** with a Storefront API token from the store's Headless channel.
 
-**Scopes Required:**
-- `unauthenticated_read_product_listings`
-- `unauthenticated_read_product_inventory`
-- `unauthenticated_read_checkouts`
-- `unauthenticated_write_checkouts`
-- `unauthenticated_read_customers`
-- `unauthenticated_write_customers`
+1. In Shopify admin, install the [Headless](https://apps.shopify.com/headless) sales channel and create a storefront.
+2. Open **Sales channels > Headless > your storefront > Manage API access**, then click **Manage** for the Storefront API.
+3. Enable the Storefront API permissions this integration needs:
+   - Products, collections and inventory (read)
+   - Carts/checkouts (read and write)
+   - Customers (read and write)
+4. In Autohive, add the Shopify Storefront integration and enter:
+   - **Shop domain** — the store's permanent domain, such as `your-store.myshopify.com`
+   - **Public access token**, or a **Private access token** for server-side use (the private token is used when both are set)
+   - **Buyer IP** (optional) — only sent with private-token requests
 
 ## Actions
 
@@ -110,7 +113,7 @@ Get collection details with products.
 Create a new shopping cart, optionally with initial items.
 
 **Inputs:**
-- `lines` (array, optional): Initial cart items `[{merchandiseId, quantity}]`
+- `lines` (array, optional): Initial cart items `[{merchandiseId, quantity}]`; `quantity` is optional and defaults to 1
 - `buyer_identity` (object, optional): Buyer info `{email, countryCode}`
 
 **Outputs:**
@@ -136,7 +139,7 @@ Add items to an existing cart.
 
 **Inputs:**
 - `cart_id` (string, required): Cart GraphQL ID
-- `lines` (array, required): Items to add `[{merchandiseId, quantity}]`
+- `lines` (array, required): Items to add `[{merchandiseId, quantity}]`; `quantity` is optional and defaults to 1
 
 **Outputs:**
 - `cart` (object): Updated cart details
@@ -149,7 +152,7 @@ Update quantity of items in cart.
 
 **Inputs:**
 - `cart_id` (string, required): Cart GraphQL ID
-- `lines` (array, required): Lines to update `[{id, quantity}]`
+- `lines` (array, required): Lines to update `[{id, quantity}]`; only `id` is required
 
 **Outputs:**
 - `cart` (object): Updated cart details
@@ -267,10 +270,9 @@ Update customer profile using access token.
 
 ### Example 1: Search Products
 ```python
-result = await shopify_storefront.execute_action("storefront_search_products", {
-    "query": "t-shirt",
-    "first": 5
-}, context)
+result = await shopify_storefront.execute_action(
+    "storefront_search_products", {"query": "t-shirt", "first": 5}, context
+)
 
 for product in result.data["products"]:
     print(f"Found: {product['title']} - {product['id']}")
@@ -286,31 +288,22 @@ cart_id = cart_result.data["cart"]["id"]
 # Assuming you have a product variant ID
 variant_id = "gid://shopify/ProductVariant/1234567890"
 
-await shopify_storefront.execute_action("storefront_add_to_cart", {
-    "cart_id": cart_id,
-    "lines": [
-        {
-            "merchandiseId": variant_id,
-            "quantity": 1
-        }
-    ]
-}, context)
+await shopify_storefront.execute_action(
+    "storefront_add_to_cart", {"cart_id": cart_id, "lines": [{"merchandiseId": variant_id, "quantity": 1}]}, context
+)
 ```
 
 ### Example 3: Customer Login and Profile
 ```python
 # 1. Login
-login_result = await shopify_storefront.execute_action("storefront_customer_login", {
-    "email": "customer@example.com",
-    "password": "securepassword123"
-}, context)
+login_result = await shopify_storefront.execute_action(
+    "storefront_customer_login", {"email": "customer@example.com", "password": "securepassword123"}, context
+)
 
 token = login_result.data["customer_access_token"]
 
 # 2. Get Profile
-profile = await shopify_storefront.execute_action("storefront_get_customer", {
-    "customer_access_token": token
-}, context)
+profile = await shopify_storefront.execute_action("storefront_get_customer", {"customer_access_token": token}, context)
 
 print(f"Logged in as: {profile.data['customer']['firstName']}")
 ```

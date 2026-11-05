@@ -1,20 +1,54 @@
 {
     "name": "ShopifyStorefront",
     "display_name": "Shopify Storefront API",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Shopify Storefront API integration for customer-facing e-commerce operations - products, collections, cart, and customer accounts",
     "entry_point": "shopify_storefront.py",
     "auth": {
-        "type": "platform",
-        "provider": "ShopifyStorefront",
-        "scopes": [
-            "unauthenticated_read_product_listings",
-            "unauthenticated_read_product_inventory",
-            "unauthenticated_read_checkouts",
-            "unauthenticated_write_checkouts",
-            "unauthenticated_read_customers",
-            "unauthenticated_write_customers"
-        ]
+        "type": "custom",
+        "title": "Shopify Storefront Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "shop_url": {
+                    "type": "string",
+                    "label": "Shop domain",
+                    "help_text": "Your permanent Shopify domain, for example your-store.myshopify.com."
+                },
+                "public_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Public access token",
+                    "help_text": "From Sales channels > Headless > your storefront > Storefront API. Leave blank if you use a private access token."
+                },
+                "private_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Private access token",
+                    "help_text": "Optional. Server-side Storefront API token from the same Headless page. Used instead of the public token when set."
+                },
+                "buyer_ip": {
+                    "type": "string",
+                    "label": "Buyer IP",
+                    "help_text": "Optional. Sent with private-token requests as Shopify-Storefront-Buyer-IP."
+                }
+            },
+            "required": [
+                "shop_url"
+            ],
+            "anyOf": [
+                {
+                    "required": [
+                        "public_token"
+                    ]
+                },
+                {
+                    "required": [
+                        "private_token"
+                    ]
+                }
+            ]
+        }
     },
     "actions": {
         "storefront_list_products": {
@@ -36,7 +70,7 @@
                     "products": {"type": "array"},
                     "count": {"type": "integer"},
                     "has_next_page": {"type": "boolean"},
-                    "end_cursor": {"type": "string"},
+                    "end_cursor": {"type": ["string", "null"]},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -104,7 +138,7 @@
                     "collections": {"type": "array"},
                     "count": {"type": "integer"},
                     "has_next_page": {"type": "boolean"},
-                    "end_cursor": {"type": "string"},
+                    "end_cursor": {"type": ["string", "null"]},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -138,7 +172,7 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "lines": {"type": "array", "description": "Initial cart items [{merchandiseId, quantity}]", "label": "Line Items"},
+                    "lines": {"type": "array", "items": {"type": "object", "properties": {"merchandiseId": {"type": "string"}, "quantity": {"type": "integer"}}, "required": ["merchandiseId"], "additionalProperties": true}, "description": "Initial cart items [{merchandiseId, quantity}]", "label": "Line Items"},
                     "buyer_identity": {"type": "object", "description": "Buyer info {email, countryCode}", "label": "Buyer Identity"}
                 },
                 "required": []
@@ -180,7 +214,7 @@
                 "type": "object",
                 "properties": {
                     "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
-                    "lines": {"type": "array", "description": "Items to add [{merchandiseId, quantity}]", "label": "Line Items"}
+                    "lines": {"type": "array", "items": {"type": "object", "properties": {"merchandiseId": {"type": "string"}, "quantity": {"type": "integer"}}, "required": ["merchandiseId"], "additionalProperties": true}, "description": "Items to add [{merchandiseId, quantity}]", "label": "Line Items"}
                 },
                 "required": ["cart_id", "lines"]
             },
@@ -201,7 +235,7 @@
                 "type": "object",
                 "properties": {
                     "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
-                    "lines": {"type": "array", "description": "Lines to update [{id, quantity}]", "label": "Line Updates"}
+                    "lines": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "quantity": {"type": "integer"}}, "required": ["id"], "additionalProperties": true}, "description": "Lines to update [{id, quantity}]", "label": "Line Updates"}
                 },
                 "required": ["cart_id", "lines"]
             },
@@ -364,8 +398,8 @@
                 "properties": {
                     "success": {"type": "boolean"},
                     "customer": {"type": "object"},
-                    "customer_access_token": {"type": "string"},
-                    "expires_at": {"type": "string"},
+                    "customer_access_token": {"type": ["string", "null"]},
+                    "expires_at": {"type": ["string", "null"]},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
