@@ -260,6 +260,6 @@ For TeamCity using a gateway connection, add the two optional mappings shown in
 
 ## Version History
 
-- **1.1.0**: Optional secret gateway header for self-hosted instances, validation, redirect refusal and safe gateway error handling.
+- **2.0.0**: Optional secret gateway header for self-hosted instances, validation, redirect refusal and safe gateway error handling.
 
 - **1.0.0**: Initial release with 15 actions: `get_current_user`, `list_databases`, `get_database_schema`, `get_table`, `search`, `list_collections`, `list_collection_items`, `create_collection`, `get_question`, `run_question`, `run_sql_query`, `create_question`, `get_dashboard`, `create_dashboard`, `add_question_to_dashboard`. HTTPS-only base URL (sub-paths allowed); works with Metabase Cloud and self-hosted 0.49+.
