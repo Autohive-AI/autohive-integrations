@@ -214,7 +214,7 @@ Copies a dashboard under a new `name`, into `collection_id` or else the original
 
 #### `run_dashboard`
 
-Runs every question on the dashboard (or one `tab_id`) and returns each card's rows (`max_rows` per card, default 20). `filters` sets values by filter id or slug, for example `[{"filter": "date", "value": "past30days"}]`; filters not given use their defaults. Each question's SQL is checked as in `run_question` before it runs. A card that fails, or is refused, reports `error` without stopping the others. At most 25 cards are run.
+Runs every question on the dashboard (or one `tab_id`) and returns each card's rows (`max_rows` per card, default 20). `filters` sets values by filter id or slug, for example `[{"filter": "date", "value": "past30days"}]`; filters not given use their defaults. Each question's SQL is checked as in `run_question` before it runs. A card that fails, or is refused, reports `error` without stopping the others. At most 25 cards are run. Questions run one after another, so it stops starting new ones after about two minutes, or once about 4 MB of rows is collected (the last card's rows are cut to fit); the rest are counted in `skipped_card_count` with a `skipped_reason`.
 
 ### Editing questions, models and metrics
 

@@ -516,7 +516,13 @@ def _tag_stand_ins(tags: Dict[str, Any]) -> List[Dict[str, Any]]:
             params.append({"type": widget, "target": ["variable", ["template-tag", name]], "value": value})
         elif kind == "dimension":
             widget = str(tag.get("widget-type") or "category")
-            value = "2020-01-01" if widget.startswith("date") else [1] if widget.startswith("number") else ["x"]
+            if widget.startswith("date"):
+                value: Any = "2020-01-01"
+            elif widget.startswith("number"):
+                # A range filter needs both ends; Metabase 0.49 refuses one.
+                value = [1, 2] if widget == "number/between" else [1]
+            else:
+                value = ["x"]
             params.append({"type": widget, "target": ["dimension", ["template-tag", name]], "value": value})
     return params
 
@@ -1301,6 +1307,11 @@ TEXT_CARD_KINDS = ("text", "heading", "link")
 DEFAULT_TEXT_CARD_HEIGHT = {"text": 3, "heading": 1, "link": 1}
 DEFAULT_DASHBOARD_RUN_ROWS = 20
 MAX_DASHBOARD_CARDS_RUN = 25
+# run_dashboard runs its questions one after another; it stops starting new ones in time to answer within the
+# ~150 second Lambda timeout, and keeps the rows it returns well under the 6 MB Lambda response limit.
+DASHBOARD_RUN_SECONDS = 135
+MIN_DASHBOARD_CARD_SECONDS = 10
+MAX_DASHBOARD_RESULT_CHARS = 4_000_000
 DEFAULT_EXPORT_ROWS = 1000
 MAX_EXPORT_ROWS = 10_000
 MAX_EXPORT_CHARS = 1_000_000
@@ -1580,6 +1591,10 @@ async def _set_alert_active(context: ExecutionContext, alert_id: Any, active: bo
         if e.status != 404:
             raise
         try:
+            if active:
+                # Turned back on, the question runs unattended again; it may have changed while the alert was off.
+                alert = await _api(context, "GET", f"/alert/{_path_id(alert_id)}") or {}
+                await _checked_parameters(context, _path_id((alert.get("card") or {}).get("id")), [])
             return await _api(context, "PUT", f"/alert/{_path_id(alert_id)}", json={"archived": not active}) or {}
         except HTTPError as legacy_error:
             if legacy_error.status == 404:
@@ -1587,6 +1602,8 @@ async def _set_alert_active(context: ExecutionContext, alert_id: Any, active: bo
             raise
     if notification.get("payload_type") != "notification/card":
         raise ValueError(f"Notification {alert_id} isn't a question alert.")
+    if active:
+        await _checked_parameters(context, _path_id((notification.get("payload") or {}).get("card_id")), [])
     # The update takes the whole notification; ids and timestamps Metabase sets itself are left out.
     body = {k: notification[k] for k in ("payload_type", "payload", "handlers", "subscriptions") if k in notification}
     body["active"] = active
@@ -2306,6 +2323,24 @@ class CopyDashboardAction(ActionHandler):
             return ActionError(message=_error_message(e, context=context, saved_check="search"))
 
 
+def _fit_rows(summary: Dict[str, Any], chars_left: int) -> int:
+    """Drop a card's last rows until its result fits in chars_left; returns the characters it takes, or all of
+    chars_left once rows are cut, so no more questions run."""
+    size = len(json.dumps(summary, default=str))
+    rows = summary.get("rows")
+    if size <= chars_left or not rows:
+        return size
+    budget = chars_left - (size - len(json.dumps(rows, default=str)))
+    kept = 0
+    for row in rows:
+        budget -= len(json.dumps(row, default=str)) + 2
+        if budget < 0:
+            break
+        kept += 1
+    summary.update(rows=rows[:kept], row_count=kept, truncated=True)
+    return chars_left
+
+
 @metabase.action("run_dashboard")
 class RunDashboardAction(ActionHandler):
     """Run every question on a dashboard (or one tab) with filter values, and return each card's rows."""
@@ -2336,7 +2371,13 @@ class RunDashboardAction(ActionHandler):
             ]
             questions = _dashboard_questions(dashcards)
             results = []
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + DASHBOARD_RUN_SECONDS
+            chars_left = MAX_DASHBOARD_RESULT_CHARS
             for dc, card_id, card_name in questions[:MAX_DASHBOARD_CARDS_RUN]:
+                seconds_left = deadline - loop.time()
+                if seconds_left < MIN_DASHBOARD_CARD_SECONDS or chars_left <= 0:
+                    break
                 summary = {"dashcard_id": dc.get("id"), "card_id": card_id, "card_name": card_name}
                 try:
                     card_params = _card_parameters_for(dc, values, card_id)
@@ -2349,18 +2390,28 @@ class RunDashboardAction(ActionHandler):
                         "POST",
                         f"/dashboard/{_path_id(dashboard.get('id'))}/dashcard/{_path_id(dc['id'])}/card/{_path_id(card_id)}/query",
                         json={"parameters": used},
-                        timeout=QUERY_TIMEOUT_SECONDS,
+                        timeout=min(QUERY_TIMEOUT_SECONDS, int(deadline - loop.time())),
                     )
                     summary.update(_query_result(data, max_rows))
                 except Exception as e:
                     summary["error"] = _error_message(e, context=context)
+                chars_left -= _fit_rows(summary, chars_left)
                 results.append(summary)
+            skipped = len(questions) - len(results)
             return ActionResult(
                 data={
                     "dashboard_id": dashboard.get("id"),
                     "cards": results,
                     "card_count": len(results),
-                    "skipped_card_count": max(len(questions) - MAX_DASHBOARD_CARDS_RUN, 0),
+                    "skipped_card_count": skipped,
+                    **(
+                        {
+                            "skipped_reason": "Stopped early to stay within the time or size limit; run the skipped "
+                            "questions with run_question, or this action with tab_id or a lower max_rows."
+                        }
+                        if skipped > max(len(questions) - MAX_DASHBOARD_CARDS_RUN, 0)
+                        else {}
+                    ),
                 },
                 cost_usd=0.0,
             )
@@ -2812,6 +2863,16 @@ async def _set_archived(context: ExecutionContext, inputs: Dict[str, Any], archi
     item_type = inputs["item_type"]
     if item_type == "alert":
         await _set_alert_active(context, inputs["item_id"], not archived)
+    elif item_type == "subscription":
+        path = f"/pulse/{_path_id(inputs['item_id'])}"
+        pulse = await _api(context, "GET", path) or {}
+        if not archived:
+            # Turned back on, it runs every question on the dashboard on its schedule, so they're checked as when
+            # it was created; the SQL may have changed while it was off.
+            await _check_dashboard_questions(context, await _get_dashboard(context, pulse.get("dashboard_id")))
+        # Metabase resets skip_if_empty when an update leaves it out.
+        body = {"archived": archived, "skip_if_empty": bool(pulse.get("skip_if_empty"))}
+        await _api(context, "PUT", path, json=body)
     else:
         path = ARCHIVE_PATHS.get(item_type)
         if path is None:
@@ -3002,8 +3063,12 @@ class UpdateSubscriptionAction(ActionHandler):
                 "recipient_emails": inputs.get("recipient_emails"),
             }
             recipients = {k: v for k, v in recipients.items() if v is not None}
+            if not body and not schedule and not recipients:
+                raise ValueError("Give at least one change.")
+            pulse = await _api(context, "GET", path) or {}
+            # Metabase resets archived and skip_if_empty when an update leaves them out, so both are always sent.
+            body = {"archived": bool(pulse.get("archived")), "skip_if_empty": bool(pulse.get("skip_if_empty")), **body}
             if schedule or recipients:
-                pulse = await _api(context, "GET", path) or {}
                 channel = next((c for c in pulse.get("channels") or [] if c.get("channel_type") == "email"), {})
                 updated = dict(channel)
                 others = [c for c in pulse.get("channels") or [] if c.get("channel_type") != "email"]
@@ -3042,8 +3107,6 @@ class UpdateSubscriptionAction(ActionHandler):
                     }
                     updated = {**_pulse_channel(*_schedule({}), *_recipients(recipients)), **schedule_fields, **updated}
                 body["channels"] = others + [updated]
-            if not body:
-                raise ValueError("Give at least one change.")
             pulse = await _api(context, "PUT", path, json=body) or {}
             return ActionResult(data=_subscription_summary(pulse), cost_usd=0.0)
         except Exception as e:

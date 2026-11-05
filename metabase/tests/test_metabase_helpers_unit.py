@@ -11,6 +11,7 @@ from metabase.metabase import (
     _error_message,
     _page,
     _query_result,
+    _tag_stand_ins,
     _unique_names,
     _with_query,
     get_auth_headers,
@@ -173,6 +174,28 @@ class TestQueryResult:
             "X",
             "column_4",
         ]
+
+
+class TestTagStandIns:
+    @pytest.mark.parametrize(
+        "widget,value",
+        [
+            ("number/between", [1, 2]),  # Metabase 0.49 refuses a range with one end.
+            ("number/=", [1]),
+            ("number/>=", [1]),
+            ("date/range", "2020-01-01"),
+            ("string/contains", ["x"]),
+            (None, ["x"]),
+        ],
+    )
+    def test_field_filter_value_per_widget(self, widget, value):
+        tag = {"type": "dimension", "name": "f", **({"widget-type": widget} if widget else {})}
+        (stand_in,) = _tag_stand_ins({"f": tag})
+        assert stand_in == {
+            "type": widget or "category",
+            "target": ["dimension", ["template-tag", "f"]],
+            "value": value,
+        }
 
 
 class TestUniqueNamesCollision:

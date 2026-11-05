@@ -765,7 +765,6 @@ class TestArchiveItem:
             ("metric", "card"),
             ("dashboard", "dashboard"),
             ("collection", "collection"),
-            ("subscription", "pulse"),
             ("timeline", "timeline"),
             ("timeline_event", "timeline-event"),
         ],
@@ -779,6 +778,32 @@ class TestArchiveItem:
         assert call.kwargs["method"] == "PUT"
         assert call.kwargs["retry_count"] == NO_RETRY
         assert call.kwargs["json"] == {"archived": True}
+
+    @pytest.mark.asyncio
+    async def test_subscription_keeps_skip_if_empty(self, mock_context):
+        # Metabase resets skip_if_empty when an update leaves it out.
+        mock_context.fetch.side_effect = [_ok(SAMPLE_PULSE), _ok({**SAMPLE_PULSE, "archived": True})]
+        result = await metabase.execute_action(
+            "archive_item", {"item_type": "subscription", "item_id": 15}, mock_context
+        )
+        assert result.result.data == {"item_type": "subscription", "item_id": 15, "archived": True}
+        assert _urls(mock_context) == [("GET", f"{BASE}/api/pulse/15"), ("PUT", f"{BASE}/api/pulse/15")]
+        put = mock_context.fetch.call_args
+        assert put.kwargs["retry_count"] == NO_RETRY
+        assert put.kwargs["json"] == {"archived": True, "skip_if_empty": True}
+
+    @pytest.mark.asyncio
+    async def test_subscription_archive_runs_no_check(self, mock_context):
+        mock_context.fetch.side_effect = [_ok({**SAMPLE_PULSE, "skip_if_empty": False}), _ok(SAMPLE_PULSE)]
+        await metabase.execute_action("archive_item", {"item_type": "subscription", "item_id": 15}, mock_context)
+        assert mock_context.fetch.call_count == 2
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True, "skip_if_empty": False}
+
+    @pytest.mark.asyncio
+    async def test_alert_archive_runs_no_check(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(NEW_ALERT), _ok(NEW_ALERT)]
+        await metabase.execute_action("archive_item", {"item_type": "alert", "item_id": 40}, mock_context)
+        assert _urls(mock_context) == [("GET", f"{BASE}/api/notification/40"), ("PUT", f"{BASE}/api/notification/40")]
 
     @pytest.mark.asyncio
     async def test_segment_adds_revision_message(self, mock_context):
@@ -912,10 +937,42 @@ class TestRestoreItem:
         assert call.kwargs["json"] == {"archived": False}
 
     @pytest.mark.asyncio
-    async def test_subscription_uses_pulse(self, mock_context):
-        mock_context.fetch.return_value = _ok({"id": 15})
-        await metabase.execute_action("restore_item", {"item_type": "subscription", "item_id": 15}, mock_context)
-        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/pulse/15"
+    async def test_subscription_checks_every_question_then_restores(self, mock_context):
+        archived = {**SAMPLE_PULSE, "archived": True}
+        mock_context.fetch.side_effect = [
+            _ok(archived),
+            _ok(SUB_DASHBOARD),
+            *_checks(),
+            *_checks(CHURN_CARD),
+            _ok(SAMPLE_PULSE),
+        ]
+        result = await metabase.execute_action(
+            "restore_item", {"item_type": "subscription", "item_id": 15}, mock_context
+        )
+        assert result.result.data == {"item_type": "subscription", "item_id": 15, "archived": False}
+        assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/pulse/15"),
+            ("GET", f"{BASE}/api/dashboard/9"),
+            *_check_calls(42),
+            *_check_calls(43),
+            ("PUT", f"{BASE}/api/pulse/15"),
+        ]
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False, "skip_if_empty": True}
+
+    @pytest.mark.asyncio
+    async def test_subscription_with_write_sql_stays_off(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok({**SAMPLE_PULSE, "archived": True}),
+            _ok(SUB_DASHBOARD),
+            *_checks(),
+            *_checks(CHURN_CARD, sql="select nextval('audit_seq')"),
+        ]
+        result = await metabase.execute_action(
+            "restore_item", {"item_type": "subscription", "item_id": 15}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 43" in result.result.message
+        assert ("PUT", f"{BASE}/api/pulse/15") not in _urls(mock_context)
 
     @pytest.mark.asyncio
     async def test_timeline_event_path(self, mock_context):
@@ -966,9 +1023,14 @@ class TestRestoreItem:
     @pytest.mark.asyncio
     async def test_alert_new_metabase_turns_notification_on(self, mock_context):
         inactive = {**NEW_ALERT, "active": False}
-        mock_context.fetch.side_effect = [_ok(inactive), _ok(NEW_ALERT)]
+        mock_context.fetch.side_effect = [_ok(inactive), *_checks(), _ok(NEW_ALERT)]
         await metabase.execute_action("restore_item", {"item_type": "alert", "item_id": 40}, mock_context)
-        put = mock_context.fetch.call_args_list[1]
+        assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/notification/40"),
+            *_check_calls(42),
+            ("PUT", f"{BASE}/api/notification/40"),
+        ]
+        put = mock_context.fetch.call_args
         assert put.kwargs["json"]["active"] is True
         assert "id" not in put.kwargs["json"]
         assert "created_at" not in put.kwargs["json"]
@@ -976,11 +1038,32 @@ class TestRestoreItem:
 
     @pytest.mark.asyncio
     async def test_alert_legacy_metabase(self, mock_context):
-        mock_context.fetch.side_effect = [_not_found(), _ok(LEGACY_ALERT)]
+        mock_context.fetch.side_effect = [_not_found(), _ok(LEGACY_ALERT), *_checks(), _ok(LEGACY_ALERT)]
         await metabase.execute_action("restore_item", {"item_type": "alert", "item_id": 12}, mock_context)
-        put = mock_context.fetch.call_args_list[1]
-        assert put.args[0] == f"{BASE}/api/alert/12"
-        assert put.kwargs["json"] == {"archived": False}
+        assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/notification/12"),
+            ("GET", f"{BASE}/api/alert/12"),
+            *_check_calls(42),
+            ("PUT", f"{BASE}/api/alert/12"),
+        ]
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False}
+
+    @pytest.mark.asyncio
+    async def test_alert_with_write_sql_stays_off(self, mock_context):
+        inactive = {**NEW_ALERT, "active": False}
+        mock_context.fetch.side_effect = [_ok(inactive), *_checks(sql="select nextval('audit_seq')")]
+        result = await metabase.execute_action("restore_item", {"item_type": "alert", "item_id": 40}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42" in result.result.message
+        assert ("PUT", f"{BASE}/api/notification/40") not in _urls(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_legacy_alert_with_write_sql_stays_off(self, mock_context):
+        mock_context.fetch.side_effect = [_not_found(), _ok(LEGACY_ALERT), *_checks(sql="delete from t")]
+        result = await metabase.execute_action("restore_item", {"item_type": "alert", "item_id": 12}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42" in result.result.message
+        assert ("PUT", f"{BASE}/api/alert/12") not in _urls(mock_context)
 
     @pytest.mark.asyncio
     async def test_unknown_item_type_rejected_by_schema(self, mock_context):
@@ -1824,27 +1907,39 @@ class TestCreateSubscription:
 
 class TestUpdateSubscription:
     @pytest.mark.asyncio
-    async def test_name_only_no_get(self, mock_context):
-        mock_context.fetch.return_value = _ok({**SAMPLE_PULSE, "name": "Growth (Fri)"})
+    async def test_name_only_keeps_flags(self, mock_context):
+        # Metabase resets archived and skip_if_empty when an update leaves them out.
+        mock_context.fetch.side_effect = [_ok(SAMPLE_PULSE), _ok({**SAMPLE_PULSE, "name": "Growth (Fri)"})]
         result = await metabase.execute_action(
             "update_subscription", {"subscription_id": 15, "name": "Growth (Fri)"}, mock_context
         )
         assert result.result.data["name"] == "Growth (Fri)"
-        assert mock_context.fetch.call_count == 1
+        assert _urls(mock_context) == [("GET", f"{BASE}/api/pulse/15"), ("PUT", f"{BASE}/api/pulse/15")]
         call = mock_context.fetch.call_args
-        assert call.args[0] == f"{BASE}/api/pulse/15"
-        assert call.kwargs["method"] == "PUT"
         assert call.kwargs["retry_count"] == NO_RETRY
-        assert call.kwargs["json"] == {"name": "Growth (Fri)"}
+        assert call.kwargs["json"] == {"archived": False, "skip_if_empty": True, "name": "Growth (Fri)"}
+
+    @pytest.mark.asyncio
+    async def test_rename_archived_stays_archived(self, mock_context):
+        archived = {**SAMPLE_PULSE, "archived": True, "skip_if_empty": False}
+        mock_context.fetch.side_effect = [_ok(archived), _ok(archived)]
+        await metabase.execute_action("update_subscription", {"subscription_id": 15, "name": "Old"}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True, "skip_if_empty": False, "name": "Old"}
 
     @pytest.mark.asyncio
     async def test_skip_if_empty_false_sent(self, mock_context):
-        mock_context.fetch.return_value = _ok(SAMPLE_PULSE)
+        mock_context.fetch.side_effect = [_ok(SAMPLE_PULSE), _ok(SAMPLE_PULSE)]
         await metabase.execute_action(
             "update_subscription", {"subscription_id": 15, "skip_if_empty": False}, mock_context
         )
-        assert mock_context.fetch.call_args.kwargs["json"] == {"skip_if_empty": False}
-        assert mock_context.fetch.call_count == 1
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False, "skip_if_empty": False}
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_no_change_refused_without_calls(self, mock_context):
+        result = await metabase.execute_action("update_subscription", {"subscription_id": 15}, mock_context)
+        assert "at least one change" in result.result.message
+        mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_hour_merges_with_existing_channel(self, mock_context):

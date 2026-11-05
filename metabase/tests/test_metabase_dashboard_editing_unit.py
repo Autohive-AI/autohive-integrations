@@ -1,5 +1,7 @@
 import asyncio
+import json
 import re
+import sys
 
 import pytest
 from autohive_integrations_sdk import HTTPError, ResultType
@@ -1444,6 +1446,69 @@ class TestRunDashboard:
         assert _calls_to(mock_context, "/dashcard/602/card/None/query") == []
         assert _calls_to(mock_context, "/api/card/45") == []
         assert mock_context.fetch.call_count == 9
+
+    @pytest.mark.asyncio
+    async def test_stops_starting_questions_near_the_lambda_timeout(self, mock_context, monkeypatch):
+        loop = asyncio.get_running_loop()
+        clock = [1000.0]
+        monkeypatch.setattr(loop, "time", lambda: clock[0])
+        responses = iter([_ok(RUN_DASHBOARD), *_card_run(42)])
+
+        async def fetch(url, **kwargs):
+            if url.endswith("/query"):
+                clock[0] += 130  # The first question took 130 of the 135 seconds.
+            return next(responses)
+
+        mock_context.fetch.side_effect = fetch
+        result = await metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context)
+        data = result.result.data
+        assert [c["card_id"] for c in data["cards"]] == [42]
+        assert data["skipped_card_count"] == 1
+        assert "run_question" in data["skipped_reason"]
+        assert _calls_to(mock_context, "/api/card/43") == []
+
+    @pytest.mark.asyncio
+    async def test_query_timeout_shrinks_to_time_left(self, mock_context, monkeypatch):
+        loop = asyncio.get_running_loop()
+        clock = [1000.0]
+        monkeypatch.setattr(loop, "time", lambda: clock[0])
+        responses = iter([_ok(RUN_DASHBOARD), *_card_run(42), *_card_run(43)])
+
+        async def fetch(url, **kwargs):
+            if url.endswith("/query"):
+                clock[0] += 60
+            return next(responses)
+
+        mock_context.fetch.side_effect = fetch
+        await metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context)
+        assert [c.kwargs["timeout"] for c in _calls_to(mock_context, "/query")] == [120, 75]
+
+    @pytest.mark.asyncio
+    async def test_rows_cut_to_the_response_size_limit(self, mock_context, monkeypatch):
+        monkeypatch.setattr(sys.modules["metabase.metabase"], "MAX_DASHBOARD_RESULT_CHARS", 900)
+        wide = {
+            **SAMPLE_QUERY_RESULT,
+            "data": {**SAMPLE_QUERY_RESULT["data"], "rows": [["x" * 100, n] for n in range(9)]},
+        }
+        mock_context.fetch.side_effect = [_ok(RUN_DASHBOARD), *_card_run(42, result=wide)]
+        result = await metabase.execute_action("run_dashboard", {"dashboard_id": 9, "max_rows": 9}, mock_context)
+        data = result.result.data
+        card = data["cards"][0]
+        assert 0 < card["row_count"] < 9
+        assert card["row_count"] == len(card["rows"])
+        assert card["truncated"] is True
+        assert card["total_row_count"] == 9
+        assert len(json.dumps(card)) <= 900
+        # The size limit is used up, so the next question isn't run.
+        assert data["card_count"] == 1
+        assert data["skipped_card_count"] == 1
+        assert "skipped_reason" in data
+
+    @pytest.mark.asyncio
+    async def test_no_skipped_reason_when_everything_ran(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(RUN_DASHBOARD), *_card_run(42), *_card_run(43)]
+        result = await metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context)
+        assert "skipped_reason" not in result.result.data
 
     @pytest.mark.asyncio
     async def test_one_tab(self, mock_context):

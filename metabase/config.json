@@ -2341,7 +2341,7 @@
         },
         "run_dashboard": {
             "display_name": "Run Dashboard",
-            "description": "Run every question on a dashboard (or one tab) with filter values, and return each card's rows. Filters not given use their defaults. Each question is checked the same way as run_question before it runs. At most 25 cards are run; a card that fails reports its error without stopping the rest.",
+            "description": "Run every question on a dashboard (or one tab) with filter values, and return each card's rows. Filters not given use their defaults. Each question is checked the same way as run_question before it runs. At most 25 cards are run, and it stops early (reporting the rest as skipped) to answer within about two minutes and a few MB of rows; a card that fails reports its error without stopping the rest.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -2412,7 +2412,11 @@
                     },
                     "skipped_card_count": {
                         "type": "integer",
-                        "description": "Cards left out over the 25-card limit."
+                        "description": "Cards not run: over the 25-card limit, or after stopping early."
+                    },
+                    "skipped_reason": {
+                        "type": "string",
+                        "description": "Set when it stopped early for time or size, with how to get the rest."
                     }
                 },
                 "required": [
