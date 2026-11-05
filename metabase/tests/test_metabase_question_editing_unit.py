@@ -1875,14 +1875,15 @@ class TestRevertToRevision:
 
     @pytest.mark.asyncio
     async def test_dashboard_entity(self, mock_context):
-        mock_context.fetch.return_value = _ok({"id": 9})
+        mock_context.fetch.side_effect = [_ok([]), _ok({"id": 1, "is_superuser": True}), _ok({"id": 9})]
         result = await metabase.execute_action(
             "revert_to_revision", {"item_type": "dashboard", "item_id": 5, "revision_id": 8}, mock_context
         )
         assert result.type != ResultType.ACTION_ERROR
-        # No subscriptions, so nothing is checked.
+        # No subscriptions (an admin key sees them all), so nothing is checked.
         assert [c.args[0] for c in mock_context.fetch.call_args_list] == [
             f"{BASE}/api/pulse?dashboard_id=5&archived=false",
+            f"{BASE}/api/user/current",
             f"{BASE}/api/revision/revert",
         ]
         call = mock_context.fetch.call_args

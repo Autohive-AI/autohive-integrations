@@ -180,7 +180,7 @@ Creates an empty dashboard. Inputs: `name` (required), `description` and `collec
 
 ### `add_question_to_dashboard`
 
-Adds a saved question to a dashboard, placed below the existing cards (on the first tab, or on `tab_id`). Existing cards and their settings, including filter connections, are sent back unchanged. Optional `width` (1–24, default 12) and `height` (default 6) are in Metabase grid units; the grid is 24 wide. Returns the new dashboard card id and its position. If the dashboard has a subscription, the question is checked like `run_question` first, because Metabase adds it to the scheduled emails.
+Adds a saved question to a dashboard, placed below the existing cards (on the first tab, or on `tab_id`). Existing cards and their settings, including filter connections, are sent back unchanged. Optional `width` (1–24, default 12) and `height` (default 6) are in Metabase grid units; the grid is 24 wide. Returns the new dashboard card id and its position. If the dashboard has a subscription, the question is checked like `run_question` first, because Metabase adds it to the scheduled emails. Metabase only shows other people's subscriptions to admins, so with a non-admin API key every dashboard is treated as having one.
 
 Add cards to the same dashboard one at a time. Metabase has no "add one card" API, so each update replaces the whole card list; two additions running in parallel can overwrite each other.
 
@@ -206,7 +206,7 @@ Takes the full list of `tabs` in order. Tabs with an `id` are kept and renamed, 
 
 #### `update_dashboard_filters`
 
-Takes the full list of `filters`. Each has `name` and `type` (for example `date/all-options`, `category`, `string/=`, `number/between`; `temporal-unit` needs Metabase 0.50+), plus optional `id` (to keep an existing filter), `default`, `required` (needs a default), `linked_filter_ids` (filters that narrow this one's choices) and `connections`. Each connection names a `dashcard_id` and either a `field_id` (a column, from `get_table`, for query-builder questions) or a `template_tag` (a SQL question's `{{variable}}`); on a combined chart, `question_id` picks which of its questions the connection drives. Filters left out are removed along with their connections. A kept filter without `connections` keeps its existing ones; given `connections` replace all of them, so list every question it should still drive. Changing a filter's `type` clears its old default and value list. Each filter can be listed once. A removed filter is also dropped from other filters' `linked_filter_ids`; linking to a filter not in the list is refused. If the dashboard has a subscription, a changed default or connection is checked first, as `create_subscription` checks it, because the scheduled emails run with it.
+Takes the full list of `filters`. Each has `name` and `type` (for example `date/all-options`, `category`, `string/=`, `number/between`; `temporal-unit` needs Metabase 0.50+), plus optional `id` (to keep an existing filter), `default`, `required` (needs a default), `linked_filter_ids` (filters that narrow this one's choices) and `connections`. Each connection names a `dashcard_id` and either a `field_id` (a column, from `get_table`, for query-builder questions) or a `template_tag` (a SQL question's `{{variable}}`); on a combined chart, `question_id` picks which of its questions the connection drives. Filters left out are removed along with their connections. A kept filter without `connections` keeps its existing ones; given `connections` replace all of them, so list every question it should still drive. Changing a filter's `type` clears its old default and value list. Each filter can be listed once. A removed filter is also dropped from other filters' `linked_filter_ids`; linking to a filter not in the list is refused. If the dashboard has a subscription, a changed default or connection, or a removed filter, is checked first, as `create_subscription` checks it, because the scheduled emails run with it.
 
 #### `copy_dashboard`
 
@@ -262,7 +262,7 @@ Moves `items` (each an `item_type` of `question`, `model`, `metric`, `dashboard`
 
 #### `archive_item` and `restore_item`
 
-Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash and back, or turn an alert off and on. Archiving a collection archives everything inside it. Nothing is deleted. Before Metabase 0.51, `metric` ids are the table metric ids `create_metric` returned.
+Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash and back, or turn an alert off and on. Archiving a collection archives everything inside it. Nothing is deleted, with one exception: Metabase deletes a question's alerts when the question (or model or metric) is archived, and restoring it doesn't bring them back, so check `list_alerts` first. Before Metabase 0.51, `metric` ids are the table metric ids `create_metric` returned.
 
 ### Alerts and subscriptions
 

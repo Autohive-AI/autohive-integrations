@@ -867,6 +867,8 @@ def _dashcard_summary(dashcard: Dict[str, Any]) -> Dict[str, Any]:
         "size_x": dashcard.get("size_x"),
         "size_y": dashcard.get("size_y"),
         "dashboard_tab_id": dashcard.get("dashboard_tab_id"),
+        # A combined chart's other questions; filter connections take their id as question_id.
+        "series": [{"id": sr.get("id"), "name": sr.get("name")} for sr in dashcard.get("series") or []],
     }
 
 
@@ -1469,8 +1471,12 @@ def _default_values(dashboard: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
 
 
 async def _has_subscriptions(context: ExecutionContext, dashboard_id: Any) -> bool:
+    """Whether a dashboard may have subscriptions. Metabase only lists other people's subscriptions to admins, so for
+    any other API key an empty list proves nothing and the dashboard is treated as having one."""
     params = [("dashboard_id", dashboard_id), ("archived", "false")]
-    return bool(_list_data(await _api(context, "GET", _with_query("/pulse", params))))
+    if _list_data(await _api(context, "GET", _with_query("/pulse", params))):
+        return True
+    return not (await _api(context, "GET", "/user/current") or {}).get("is_superuser")
 
 
 def _pulse_flags(pulse: Dict[str, Any]) -> Dict[str, bool]:
@@ -2331,8 +2337,14 @@ class UpdateDashboardFiltersAction(ActionHandler):
                         }
                     )
 
-            if connections or any(p.get("default") != old_params.get(p["id"], {}).get("default") for p in parameters):
-                # Subscriptions run the questions with the filter defaults and connections, so new ones are checked.
+            removed = set(old_params) - kept
+            if (
+                connections
+                or removed
+                or any(p.get("default") != old_params.get(p["id"], {}).get("default") for p in parameters)
+            ):
+                # Subscriptions run the questions with the filter defaults and connections, so new ones are checked;
+                # a removed filter changes what they run too.
                 if await _has_subscriptions(context, dashboard.get("id")):
                     await _check_dashboard_questions(
                         context, {**dashboard, "parameters": parameters, "dashcards": dashcards}

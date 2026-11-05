@@ -1471,6 +1471,14 @@
                                         "null"
                                     ],
                                     "description": "Tab id."
+                                },
+                                "series": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": true
+                                    },
+                                    "description": "A combined chart's other questions (id, name); use id as question_id in update_dashboard_filters connections."
                                 }
                             }
                         },
@@ -3864,7 +3872,7 @@
         },
         "archive_item": {
             "display_name": "Archive Item",
-            "description": "Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash, or turn an alert off. Nothing is deleted: restore_item brings it back, as does Metabase's trash. Archiving a collection also archives what is inside it.",
+            "description": "Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash, or turn an alert off. restore_item brings it back, as does Metabase's trash. Archiving a collection also archives what is inside it. Metabase deletes a question's alerts when the question is archived, and restoring it doesn't bring them back.",
             "input_schema": {
                 "type": "object",
                 "properties": {

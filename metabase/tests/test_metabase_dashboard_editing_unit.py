@@ -733,10 +733,14 @@ COMBINED_DASHBOARD = {**SAMPLE_DASHBOARD, "dashcards": [COMBINED_SQL_DASHCARD, T
 
 
 class TestUpdateDashboardFilters:
-    async def _run(self, mock_context, filters, dashboard=SAMPLE_DASHBOARD, pulses=(), sql="select region from orders"):
+    async def _run(
+        self, mock_context, filters, dashboard=SAMPLE_DASHBOARD, pulses=(), sql="select region from orders", admin=True
+    ):
         async def fetch(url, **kwargs):
             if "/api/pulse" in url:
                 return _ok(list(pulses))
+            if url.endswith("/api/user/current"):
+                return _ok({"id": 1, "is_superuser": admin})
             if "/api/card/" in url:
                 return _ok({"id": int(url.rsplit("/", 1)[1]), "dataset_query": SQL_DATASET_QUERY})
             if url.endswith("/api/database/1"):
@@ -798,6 +802,27 @@ class TestUpdateDashboardFilters:
             c.args[0] for c in mock_context.fetch.call_args_list
         ]
         assert _calls_to(mock_context, "/dataset/native") == []
+
+    @pytest.mark.asyncio
+    async def test_new_default_checked_with_non_admin_key(self, mock_context):
+        # A non-admin key only sees its own subscriptions, so an empty list still gets the check.
+        result = await self._run(
+            mock_context,
+            [{**REGION_FILTER, "default": ["East"]}, CATEGORY_FILTER],
+            admin=False,
+            sql="select 1, nextval('audit_seq')",
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_removed_filter_checked_for_subscriptions(self, mock_context):
+        result = await self._run(
+            mock_context, [CATEGORY_FILTER], pulses=[{"id": 15}], sql="select 1, nextval('audit_seq')"
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42" in result.result.message
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
 
     @pytest.mark.asyncio
     async def test_new_default_checked_for_subscriptions(self, mock_context):
