@@ -1,8 +1,8 @@
 {
     "name": "Metabase",
     "display_name": "Metabase",
-    "version": "1.0.0",
-    "description": "Search, query and build in Metabase (Cloud or self-hosted): explore databases and tables, run SQL and saved questions, and create questions, collections and dashboards.",
+    "version": "1.1.0",
+    "description": "Search, query, build and edit in Metabase (Cloud or self-hosted): explore databases and tables, run SQL, saved questions and dashboards, create and edit questions, models, metrics, collections and dashboards, and manage alerts, subscriptions, segments and timelines.",
     "entry_point": "metabase.py",
     "auth": {
         "type": "custom",
@@ -1097,7 +1097,7 @@
         },
         "create_question": {
             "display_name": "Create Question",
-            "description": "Save a SQL query as a question in Metabase.",
+            "description": "Save a SQL query as a question in Metabase. SQL with {{ }} filters needs each filter defined in filters; it is then checked as Metabase expands it. Optional [[ ]] clauses are refused.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1139,6 +1139,58 @@
                     "collection_id": {
                         "type": "integer",
                         "description": "Collection to save into. Omit for the top level."
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Defines each {{name}} the SQL uses (snippets {{snippet: name}} and saved questions {{#12}} are found automatically).",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name used in the SQL, e.g. region for {{region}}."
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "text",
+                                        "number",
+                                        "date",
+                                        "field"
+                                    ],
+                                    "description": "text, number or date for a value put into the SQL; field for a field filter that filters a column (needs field_id)."
+                                },
+                                "display_name": {
+                                    "type": "string",
+                                    "description": "Label shown on the filter (default: the name)."
+                                },
+                                "default": {
+                                    "type": [
+                                        "string",
+                                        "number",
+                                        "array",
+                                        "null"
+                                    ],
+                                    "items": {},
+                                    "description": "Default value."
+                                },
+                                "required": {
+                                    "type": "boolean",
+                                    "description": "Whether a value is always needed (needs a default)."
+                                },
+                                "field_id": {
+                                    "type": "integer",
+                                    "description": "For type field: the column it filters (from get_table)."
+                                },
+                                "widget_type": {
+                                    "type": "string",
+                                    "description": "For type field: the filter widget, e.g. category, string/=, number/between, date/all-options (default category)."
+                                }
+                            },
+                            "required": [
+                                "name"
+                            ]
+                        }
                     }
                 },
                 "required": [
@@ -1546,6 +1598,3425 @@
                 "required": [
                     "dashboard_id",
                     "card_id"
+                ]
+            }
+        },
+        "update_dashboard": {
+            "display_name": "Update Dashboard",
+            "description": "Change a dashboard's name, description, collection (moves it), width, or whether filter changes apply straight away. Only the fields given change.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New name."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "New description (an empty string clears it)."
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection to move the dashboard into."
+                    },
+                    "width": {
+                        "type": "string",
+                        "description": "fixed (default Metabase layout) or full (full browser width).",
+                        "enum": [
+                            "fixed",
+                            "full"
+                        ]
+                    },
+                    "auto_apply_filters": {
+                        "type": "boolean",
+                        "description": "true applies filter changes straight away; false shows an Apply button."
+                    }
+                },
+                "required": [
+                    "dashboard_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Dashboard name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "width": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "fixed or full."
+                    },
+                    "auto_apply_filters": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "Whether filter changes apply straight away."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the dashboard is in the trash."
+                    },
+                    "tabs": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Tabs (id, name), in order."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filters (id, name, slug, type)."
+                    },
+                    "cards": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Cards with position, size and tab."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "update_dashboard_cards": {
+            "display_name": "Update Dashboard Cards",
+            "description": "Move, resize, retitle, move to another tab, or remove cards on a dashboard. Only the cards listed change; the rest are sent back as they are. Get card ids (dashcard_id) and positions from get_dashboard. The grid is 24 columns wide. Change one dashboard at a time: Metabase replaces the whole card list on each update, so parallel changes can overwrite each other.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "cards": {
+                        "type": "array",
+                        "description": "Changes, one per card.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "dashcard_id": {
+                                    "type": "integer",
+                                    "description": "Dashboard card id (from get_dashboard, not the question id)."
+                                },
+                                "row": {
+                                    "type": "integer",
+                                    "description": "New row (0 = top).",
+                                    "minimum": 0
+                                },
+                                "col": {
+                                    "type": "integer",
+                                    "description": "New column (0-23).",
+                                    "minimum": 0,
+                                    "maximum": 23
+                                },
+                                "width": {
+                                    "type": "integer",
+                                    "description": "New width in grid units (1-24).",
+                                    "minimum": 1,
+                                    "maximum": 24
+                                },
+                                "height": {
+                                    "type": "integer",
+                                    "description": "New height in grid units.",
+                                    "minimum": 1,
+                                    "maximum": 50
+                                },
+                                "tab_id": {
+                                    "type": "integer",
+                                    "description": "Tab to move the card to."
+                                },
+                                "title": {
+                                    "type": "string",
+                                    "description": "Title shown on this dashboard (the saved question keeps its own name)."
+                                },
+                                "remove": {
+                                    "type": "boolean",
+                                    "description": "true removes the card from the dashboard (the question itself is kept)."
+                                }
+                            },
+                            "required": [
+                                "dashcard_id"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "dashboard_id",
+                    "cards"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Dashboard name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "width": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "fixed or full."
+                    },
+                    "auto_apply_filters": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "Whether filter changes apply straight away."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the dashboard is in the trash."
+                    },
+                    "tabs": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Tabs (id, name), in order."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filters (id, name, slug, type)."
+                    },
+                    "cards": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Cards with position, size and tab."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "add_text_to_dashboard": {
+            "display_name": "Add Text to Dashboard",
+            "description": "Add a text card (Markdown), a heading, or a link card to a dashboard. Placed below the existing cards unless row is given. Add cards to one dashboard one at a time.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "description": "text (Markdown), heading or link.",
+                        "enum": [
+                            "text",
+                            "heading",
+                            "link"
+                        ]
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "Markdown for a text card, or the heading text. Required for text and heading."
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "Address for a link card. Required for link."
+                    },
+                    "tab_id": {
+                        "type": "integer",
+                        "description": "Tab to add the card to. Defaults to the first tab."
+                    },
+                    "row": {
+                        "type": "integer",
+                        "description": "Row to place the card at (default: below the existing cards).",
+                        "minimum": 0
+                    },
+                    "col": {
+                        "type": "integer",
+                        "description": "Column (default 0).",
+                        "minimum": 0,
+                        "maximum": 23
+                    },
+                    "width": {
+                        "type": "integer",
+                        "description": "Width in grid units (default 24, or 8 for links).",
+                        "minimum": 1,
+                        "maximum": 24
+                    },
+                    "height": {
+                        "type": "integer",
+                        "description": "Height in grid units (default 3 for text, 1 for headings and links).",
+                        "minimum": 1,
+                        "maximum": 50
+                    }
+                },
+                "required": [
+                    "dashboard_id",
+                    "kind"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "dashcard_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Id of the new card."
+                    },
+                    "kind": {
+                        "type": "string",
+                        "description": "text, heading or link."
+                    },
+                    "row": {
+                        "type": "integer",
+                        "description": "Grid row."
+                    },
+                    "col": {
+                        "type": "integer",
+                        "description": "Grid column."
+                    },
+                    "size_x": {
+                        "type": "integer",
+                        "description": "Width."
+                    },
+                    "size_y": {
+                        "type": "integer",
+                        "description": "Height."
+                    }
+                },
+                "required": [
+                    "dashboard_id",
+                    "kind"
+                ]
+            }
+        },
+        "update_dashboard_tabs": {
+            "display_name": "Update Dashboard Tabs",
+            "description": "Set a dashboard's tabs: give the full list in the order wanted. Tabs with an id are kept (and renamed); tabs without an id are created; tabs left out are removed. A tab can only be removed once its cards are moved or removed with update_dashboard_cards. An empty list removes every tab when all cards are on one tab (Metabase 0.49 can't remove the last tab, so there one tab is kept; Metabase shows no tab bar for a single tab). When a dashboard gets its first tabs, its cards go on the first one.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "tabs": {
+                        "type": "array",
+                        "description": "Every tab the dashboard should have, in order.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Existing tab id (leave out for a new tab)."
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Tab name."
+                                }
+                            },
+                            "required": [
+                                "name"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "dashboard_id",
+                    "tabs"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Dashboard name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "width": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "fixed or full."
+                    },
+                    "auto_apply_filters": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "Whether filter changes apply straight away."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the dashboard is in the trash."
+                    },
+                    "tabs": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Tabs (id, name), in order."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filters (id, name, slug, type)."
+                    },
+                    "cards": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Cards with position, size and tab."
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "Set when Metabase kept one tab."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "update_dashboard_filters": {
+            "display_name": "Update Dashboard Filters",
+            "description": "Set a dashboard's filters: give the full list. Filters with an id are kept and changed; filters without an id are created; filters left out are removed, along with their card connections. Give connections to say which column (field_id, from get_table) or SQL filter (template_tag, from get_question) each card's filter drives; when connections is left out, a kept filter keeps its existing connections.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Every filter the dashboard should have, in order.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string",
+                                    "description": "Existing filter id (leave out for a new filter)."
+                                },
+                                "name": {
+                                    "type": "string",
+                                    "description": "Label shown on the filter."
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "description": "Filter type. temporal-unit (time grouping) needs Metabase 0.50+.",
+                                    "enum": [
+                                        "date/all-options",
+                                        "date/single",
+                                        "date/range",
+                                        "date/relative",
+                                        "date/month-year",
+                                        "date/quarter-year",
+                                        "category",
+                                        "id",
+                                        "string/=",
+                                        "string/!=",
+                                        "string/contains",
+                                        "string/does-not-contain",
+                                        "string/starts-with",
+                                        "string/ends-with",
+                                        "number/=",
+                                        "number/!=",
+                                        "number/between",
+                                        "number/>=",
+                                        "number/<=",
+                                        "location/city",
+                                        "location/state",
+                                        "location/zip_code",
+                                        "location/country",
+                                        "temporal-unit"
+                                    ]
+                                },
+                                "default": {
+                                    "type": [
+                                        "array",
+                                        "string",
+                                        "number",
+                                        "null"
+                                    ],
+                                    "items": {},
+                                    "description": "Default value(s), e.g. [\"Gizmo\"] or \"past30days\". null clears it."
+                                },
+                                "required": {
+                                    "type": "boolean",
+                                    "description": "Whether a value is always needed (needs a default)."
+                                },
+                                "linked_filter_ids": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "Ids of other filters that narrow this filter's choices."
+                                },
+                                "connections": {
+                                    "type": "array",
+                                    "description": "Cards this filter drives. Each needs dashcard_id and exactly one of field_id or template_tag.",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "dashcard_id": {
+                                                "type": "integer",
+                                                "description": "Dashboard card id (from get_dashboard)."
+                                            },
+                                            "field_id": {
+                                                "type": "integer",
+                                                "description": "Column the filter applies to, for query-builder questions."
+                                            },
+                                            "template_tag": {
+                                                "type": "string",
+                                                "description": "Name of the SQL question's filter variable, e.g. category for {{category}}."
+                                            }
+                                        },
+                                        "required": [
+                                            "dashcard_id"
+                                        ]
+                                    }
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "type"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "dashboard_id",
+                    "filters"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Dashboard name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "width": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "fixed or full."
+                    },
+                    "auto_apply_filters": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "Whether filter changes apply straight away."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the dashboard is in the trash."
+                    },
+                    "tabs": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Tabs (id, name), in order."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filters (id, name, slug, type)."
+                    },
+                    "cards": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Cards with position, size and tab."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "copy_dashboard": {
+            "display_name": "Copy Dashboard",
+            "description": "Copy a dashboard. By default the copy shows the same questions; copy_questions also makes copies of each question.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard to copy."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the copy."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description of the copy."
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection to put the copy in (default: the original's collection)."
+                    },
+                    "copy_questions": {
+                        "type": "boolean",
+                        "description": "true also copies every question on the dashboard (default false)."
+                    }
+                },
+                "required": [
+                    "dashboard_id",
+                    "name"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "New dashboard id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Name."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "run_dashboard": {
+            "display_name": "Run Dashboard",
+            "description": "Run every question on a dashboard (or one tab) with filter values, and return each card's rows. Filters not given use their defaults. Each question is checked the same way as run_question before it runs. At most 25 cards are run; a card that fails reports its error without stopping the rest.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "tab_id": {
+                        "type": "integer",
+                        "description": "Only run the cards on this tab."
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Filter values. filter is the filter's id or slug (from get_dashboard).",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "filter": {
+                                    "type": "string",
+                                    "description": "Filter id or slug."
+                                },
+                                "value": {
+                                    "type": [
+                                        "array",
+                                        "string",
+                                        "number",
+                                        "boolean",
+                                        "null"
+                                    ],
+                                    "items": {},
+                                    "description": "Value(s), e.g. [\"Gizmo\"]."
+                                }
+                            },
+                            "required": [
+                                "filter"
+                            ]
+                        }
+                    },
+                    "max_rows": {
+                        "type": "integer",
+                        "description": "Rows to return per card (default 20, max 2000).",
+                        "minimum": 1,
+                        "maximum": 2000
+                    }
+                },
+                "required": [
+                    "dashboard_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard id."
+                    },
+                    "cards": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "One result per card: dashcard_id, card_id, card_name, then columns/rows/row_count/truncated, or error."
+                    },
+                    "card_count": {
+                        "type": "integer",
+                        "description": "Cards run."
+                    },
+                    "skipped_card_count": {
+                        "type": "integer",
+                        "description": "Cards left out over the 25-card limit."
+                    }
+                },
+                "required": [
+                    "cards",
+                    "card_count"
+                ]
+            }
+        },
+        "get_revision_history": {
+            "display_name": "Get Revision History",
+            "description": "List the saved versions of a question, model, metric, dashboard or segment, newest first. Use a revision_id with revert_to_revision.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "item_type": {
+                        "type": "string",
+                        "description": "Kind of item.",
+                        "enum": [
+                            "question",
+                            "model",
+                            "metric",
+                            "dashboard",
+                            "segment"
+                        ]
+                    },
+                    "item_id": {
+                        "type": "integer",
+                        "description": "Item id."
+                    }
+                },
+                "required": [
+                    "item_type",
+                    "item_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "revisions": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Versions: revision_id, description, timestamp, user, is_creation, is_reversion, most_recent."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of versions."
+                    }
+                },
+                "required": [
+                    "revisions",
+                    "count"
+                ]
+            }
+        },
+        "revert_to_revision": {
+            "display_name": "Revert to Revision",
+            "description": "Put a question, model, metric, dashboard or segment back to an earlier saved version. The revert is itself saved as a new version, so it can be undone. A question whose earlier version has SQL that writes is put straight back and an error is returned.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "item_type": {
+                        "type": "string",
+                        "description": "Kind of item.",
+                        "enum": [
+                            "question",
+                            "model",
+                            "metric",
+                            "dashboard",
+                            "segment"
+                        ]
+                    },
+                    "item_id": {
+                        "type": "integer",
+                        "description": "Item id."
+                    },
+                    "revision_id": {
+                        "type": "integer",
+                        "description": "Version to go back to (from get_revision_history)."
+                    }
+                },
+                "required": [
+                    "item_type",
+                    "item_id",
+                    "revision_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "item_type": {
+                        "type": "string",
+                        "description": "Kind of item."
+                    },
+                    "item_id": {
+                        "type": "integer",
+                        "description": "Item id."
+                    },
+                    "new_revision_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Id of the version the revert saved."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "What changed."
+                    }
+                },
+                "required": [
+                    "item_type",
+                    "item_id"
+                ]
+            }
+        },
+        "update_question": {
+            "display_name": "Update Question",
+            "description": "Change a saved question, model or metric: name, description, SQL, chart type, chart settings or collection. Only the fields given change. New SQL is checked the same way as create_question, and replaces the question's query. Its {{ }} filters and snippets are kept when the new SQL still uses them (new ones are defined in filters), and SQL using them is checked as Metabase expands it. Optional [[ ]] clauses are refused. Chart settings given are merged into the saved ones; a setting set to null is removed.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "question_id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New name."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "New description."
+                    },
+                    "sql": {
+                        "type": "string",
+                        "description": "New SQL, a single read statement in the database's own dialect."
+                    },
+                    "display": {
+                        "type": "string",
+                        "description": "New visualization type.",
+                        "enum": [
+                            "table",
+                            "bar",
+                            "line",
+                            "area",
+                            "row",
+                            "pie",
+                            "scalar",
+                            "combo",
+                            "scatter",
+                            "funnel",
+                            "progress",
+                            "gauge",
+                            "map"
+                        ]
+                    },
+                    "visualization_settings": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Chart settings to change, e.g. {\"graph.dimensions\": [\"month\"], \"graph.metrics\": [\"total\"], \"card.title\": \"Revenue\"}."
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection to move the question into."
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "New {{ }} filters the new SQL uses (with sql only). Filters the question already has are kept without listing them; listing one replaces its definition.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name used in the SQL, e.g. region for {{region}}."
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "text",
+                                        "number",
+                                        "date",
+                                        "field"
+                                    ],
+                                    "description": "text, number or date for a value put into the SQL; field for a field filter that filters a column (needs field_id)."
+                                },
+                                "display_name": {
+                                    "type": "string",
+                                    "description": "Label shown on the filter (default: the name)."
+                                },
+                                "default": {
+                                    "type": [
+                                        "string",
+                                        "number",
+                                        "array",
+                                        "null"
+                                    ],
+                                    "items": {},
+                                    "description": "Default value."
+                                },
+                                "required": {
+                                    "type": "boolean",
+                                    "description": "Whether a value is always needed (needs a default)."
+                                },
+                                "field_id": {
+                                    "type": "integer",
+                                    "description": "For type field: the column it filters (from get_table)."
+                                },
+                                "widget_type": {
+                                    "type": "string",
+                                    "description": "For type field: the filter widget, e.g. category, string/=, number/between, date/all-options (default category)."
+                                }
+                            },
+                            "required": [
+                                "name"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "question_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Question name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "question, model or metric."
+                    },
+                    "display": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Visualization type, e.g. table, bar, line."
+                    },
+                    "database_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Database the question queries."
+                    },
+                    "query_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "native (SQL) or query (GUI builder)."
+                    },
+                    "native_sql": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The SQL text when the question is a native query."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "collection": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Collection the item lives in.",
+                        "properties": {
+                            "id": {
+                                "type": [
+                                    "integer",
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "name": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        }
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the question is in the trash."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filter parameters the question accepts (id, slug, type, ...)."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ]
+            }
+        },
+        "copy_question": {
+            "display_name": "Copy Question",
+            "description": "Copy a saved question, model or metric. The copy is named 'Copy of …' unless name is given.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "question_id": {
+                        "type": "integer",
+                        "description": "Question (card) to copy."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the copy."
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection to put the copy in."
+                    }
+                },
+                "required": [
+                    "question_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Question name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "question, model or metric."
+                    },
+                    "display": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Visualization type, e.g. table, bar, line."
+                    },
+                    "database_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Database the question queries."
+                    },
+                    "query_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "native (SQL) or query (GUI builder)."
+                    },
+                    "native_sql": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The SQL text when the question is a native query."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "collection": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Collection the item lives in.",
+                        "properties": {
+                            "id": {
+                                "type": [
+                                    "integer",
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "name": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        }
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the question is in the trash."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filter parameters the question accepts (id, slug, type, ...)."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ]
+            }
+        },
+        "create_query_builder_question": {
+            "display_name": "Create Query Builder Question",
+            "description": "Save a point-and-click (query-builder) question. People can open and change it in Metabase's editor without SQL.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Question name."
+                    },
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id."
+                    },
+                    "query": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Query-builder (MBQL) query, e.g. {\"source-table\": 12, \"aggregation\": [[\"count\"]], \"breakout\": [[\"field\", 34, {\"temporal-unit\": \"month\"}]], \"filter\": [\">\", [\"field\", 56, null], 100]}. Field ids come from get_table. source-table can be a table id or \"card__<question id>\". SQL is not allowed here."
+                    },
+                    "display": {
+                        "type": "string",
+                        "description": "Visualization type (default table).",
+                        "enum": [
+                            "table",
+                            "bar",
+                            "line",
+                            "area",
+                            "row",
+                            "pie",
+                            "scalar",
+                            "combo",
+                            "scatter",
+                            "funnel",
+                            "progress",
+                            "gauge",
+                            "map"
+                        ]
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description."
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection to save into (default: root)."
+                    }
+                },
+                "required": [
+                    "name",
+                    "database_id",
+                    "query"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Question name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "question, model or metric."
+                    },
+                    "display": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Visualization type, e.g. table, bar, line."
+                    },
+                    "database_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Database the question queries."
+                    },
+                    "query_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "native (SQL) or query (GUI builder)."
+                    },
+                    "native_sql": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The SQL text when the question is a native query."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "collection": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Collection the item lives in.",
+                        "properties": {
+                            "id": {
+                                "type": [
+                                    "integer",
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "name": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        }
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the question is in the trash."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filter parameters the question accepts (id, slug, type, ...)."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ]
+            }
+        },
+        "create_model": {
+            "display_name": "Create Model",
+            "description": "Save a model: a curated table, built from SQL or a query-builder query, that others explore with the query builder. Give exactly one of sql or query. SQL is checked the same way as create_question.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Model name."
+                    },
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id."
+                    },
+                    "sql": {
+                        "type": "string",
+                        "description": "SQL for the model, a single read statement."
+                    },
+                    "query": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Query-builder (MBQL) query, e.g. {\"source-table\": 12, \"aggregation\": [[\"count\"]], \"breakout\": [[\"field\", 34, {\"temporal-unit\": \"month\"}]], \"filter\": [\">\", [\"field\", 56, null], 100]}. Field ids come from get_table. source-table can be a table id or \"card__<question id>\". SQL is not allowed here."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description."
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection to save into (default: root)."
+                    },
+                    "display": {
+                        "type": "string",
+                        "description": "Visualization type (default table).",
+                        "enum": [
+                            "table",
+                            "bar",
+                            "line",
+                            "area",
+                            "row",
+                            "pie",
+                            "scalar",
+                            "combo",
+                            "scatter",
+                            "funnel",
+                            "progress",
+                            "gauge",
+                            "map"
+                        ]
+                    }
+                },
+                "required": [
+                    "name",
+                    "database_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Question name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "question, model or metric."
+                    },
+                    "display": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Visualization type, e.g. table, bar, line."
+                    },
+                    "database_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Database the question queries."
+                    },
+                    "query_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "native (SQL) or query (GUI builder)."
+                    },
+                    "native_sql": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The SQL text when the question is a native query."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "collection": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Collection the item lives in.",
+                        "properties": {
+                            "id": {
+                                "type": [
+                                    "integer",
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "name": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        }
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the question is in the trash."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filter parameters the question accepts (id, slug, type, ...)."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ]
+            }
+        },
+        "create_metric": {
+            "display_name": "Create Metric",
+            "description": "Save a metric: an official, reusable calculation (such as revenue or active users) defined by a query-builder query with exactly one aggregation. On Metabase before 0.51 it is saved as a table metric instead, which must be built on a table (not a saved question).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Metric name."
+                    },
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id."
+                    },
+                    "query": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Query-builder (MBQL) query, e.g. {\"source-table\": 12, \"aggregation\": [[\"count\"]], \"breakout\": [[\"field\", 34, {\"temporal-unit\": \"month\"}]], \"filter\": [\">\", [\"field\", 56, null], 100]}. Field ids come from get_table. source-table can be a table id or \"card__<question id>\". SQL is not allowed here. Needs exactly one aggregation."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description."
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection to save into (default: root)."
+                    },
+                    "display": {
+                        "type": "string",
+                        "description": "Visualization type (default scalar).",
+                        "enum": [
+                            "table",
+                            "bar",
+                            "line",
+                            "area",
+                            "row",
+                            "pie",
+                            "scalar",
+                            "combo",
+                            "scatter",
+                            "funnel",
+                            "progress",
+                            "gauge",
+                            "map"
+                        ]
+                    }
+                },
+                "required": [
+                    "name",
+                    "database_id",
+                    "query"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Question name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "question, model or metric."
+                    },
+                    "display": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Visualization type, e.g. table, bar, line."
+                    },
+                    "database_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Database the question queries."
+                    },
+                    "query_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "native (SQL) or query (GUI builder)."
+                    },
+                    "native_sql": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The SQL text when the question is a native query."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id (null = root)."
+                    },
+                    "collection": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Collection the item lives in.",
+                        "properties": {
+                            "id": {
+                                "type": [
+                                    "integer",
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "name": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        }
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the question is in the trash."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filter parameters the question accepts (id, slug, type, ...)."
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "Set when the metric was saved as a table metric (Metabase before 0.51)."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name"
+                ]
+            }
+        },
+        "export_question_results": {
+            "display_name": "Export Question Results",
+            "description": "Run a saved question and return its results as CSV text, JSON rows or an Excel file, for more rows than run_question's 2,000 (up to 10,000, and at most 1,000,000 characters of CSV). The question is checked the same way as run_question. Excel files return every row and must be under 3.5 MB.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "question_id": {
+                        "type": "integer",
+                        "description": "Question (card) id."
+                    },
+                    "format": {
+                        "type": "string",
+                        "description": "csv (default), json, or xlsx for an Excel file.",
+                        "enum": [
+                            "csv",
+                            "json",
+                            "xlsx"
+                        ]
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Filter values, as for run_question."
+                    },
+                    "max_rows": {
+                        "type": "integer",
+                        "description": "Rows to return (default 1000, max 10000).",
+                        "minimum": 1,
+                        "maximum": 10000
+                    }
+                },
+                "required": [
+                    "question_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "format": {
+                        "type": "string",
+                        "description": "csv or json."
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "CSV text with a header row (csv)."
+                    },
+                    "rows": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Rows (json)."
+                    },
+                    "row_count": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Rows returned (null for xlsx)."
+                    },
+                    "truncated": {
+                        "type": "boolean",
+                        "description": "Whether rows were cut off."
+                    },
+                    "file": {
+                        "type": "object",
+                        "description": "The Excel file (xlsx).",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "File name."
+                            },
+                            "contentType": {
+                                "type": "string",
+                                "description": "MIME type."
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "The file content encoded as base64."
+                            }
+                        },
+                        "required": [
+                            "name",
+                            "contentType",
+                            "content"
+                        ]
+                    }
+                },
+                "required": [
+                    "format",
+                    "row_count",
+                    "truncated"
+                ]
+            }
+        },
+        "list_segments": {
+            "display_name": "List Segments",
+            "description": "List saved segments: named filters on a table, such as 'Active customers', usable in the query builder.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "table_id": {
+                        "type": "integer",
+                        "description": "Only segments on this table."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "segments": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Segment id."
+                                },
+                                "name": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Segment name."
+                                },
+                                "description": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Description."
+                                },
+                                "table_id": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Table the segment filters."
+                                },
+                                "archived": {
+                                    "type": "boolean",
+                                    "description": "Whether the segment is in the trash."
+                                },
+                                "filter": {
+                                    "type": [
+                                        "array",
+                                        "null"
+                                    ],
+                                    "items": {},
+                                    "description": "The query-builder filter clause."
+                                }
+                            },
+                            "required": [
+                                "id"
+                            ]
+                        },
+                        "description": "Segments."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of segments."
+                    }
+                },
+                "required": [
+                    "segments",
+                    "count"
+                ]
+            }
+        },
+        "create_segment": {
+            "display_name": "Create Segment",
+            "description": "Save a segment: a named filter on a table that anyone can pick in the query builder.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Segment name."
+                    },
+                    "table_id": {
+                        "type": "integer",
+                        "description": "Table the segment filters."
+                    },
+                    "filter": {
+                        "type": "array",
+                        "items": {},
+                        "description": "Query-builder filter clause, e.g. [\"and\", [\">\", [\"field\", 12, null], 100], [\"=\", [\"field\", 13, null], \"active\"]]."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description."
+                    }
+                },
+                "required": [
+                    "name",
+                    "table_id",
+                    "filter"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Segment id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Segment name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "table_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Table the segment filters."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the segment is in the trash."
+                    },
+                    "filter": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {},
+                        "description": "The query-builder filter clause."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "update_segment": {
+            "display_name": "Update Segment",
+            "description": "Change a segment's name, description or filter.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "segment_id": {
+                        "type": "integer",
+                        "description": "Segment id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New name."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "New description."
+                    },
+                    "filter": {
+                        "type": "array",
+                        "items": {},
+                        "description": "New query-builder filter clause."
+                    }
+                },
+                "required": [
+                    "segment_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Segment id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Segment name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "table_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Table the segment filters."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the segment is in the trash."
+                    },
+                    "filter": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "items": {},
+                        "description": "The query-builder filter clause."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "update_collection": {
+            "display_name": "Update Collection",
+            "description": "Rename a collection, change its description, or move it into another collection (or to the top level with move_to_root).",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New name."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "New description."
+                    },
+                    "parent_collection_id": {
+                        "type": "integer",
+                        "description": "Collection to move this one into."
+                    },
+                    "move_to_root": {
+                        "type": "boolean",
+                        "description": "true moves the collection to the top level."
+                    }
+                },
+                "required": [
+                    "collection_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Collection id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "parent_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Parent collection id (null = top level)."
+                    },
+                    "location": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Path of parent collection ids, e.g. /28/31/."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "move_items": {
+            "display_name": "Move Items",
+            "description": "Move questions, models, metrics, dashboards or collections into a collection, or to the top level with move_to_root. Each item is moved separately and reports its own result.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "description": "Items to move.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "item_type": {
+                                    "type": "string",
+                                    "description": "Kind of item.",
+                                    "enum": [
+                                        "question",
+                                        "model",
+                                        "metric",
+                                        "dashboard",
+                                        "collection"
+                                    ]
+                                },
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Item id."
+                                }
+                            },
+                            "required": [
+                                "item_type",
+                                "id"
+                            ]
+                        }
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection to move the items into."
+                    },
+                    "move_to_root": {
+                        "type": "boolean",
+                        "description": "true moves the items to the top level."
+                    }
+                },
+                "required": [
+                    "items"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "One result per item: item_type, id, moved, and error when it failed."
+                    },
+                    "moved_count": {
+                        "type": "integer",
+                        "description": "Items moved."
+                    },
+                    "failed_count": {
+                        "type": "integer",
+                        "description": "Items that failed."
+                    }
+                },
+                "required": [
+                    "items",
+                    "moved_count",
+                    "failed_count"
+                ]
+            }
+        },
+        "archive_item": {
+            "display_name": "Archive Item",
+            "description": "Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash, or turn an alert off. Nothing is deleted: restore_item brings it back, as does Metabase's trash. Archiving a collection also archives what is inside it.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "item_type": {
+                        "type": "string",
+                        "description": "Kind of item.",
+                        "enum": [
+                            "question",
+                            "model",
+                            "metric",
+                            "dashboard",
+                            "collection",
+                            "segment",
+                            "subscription",
+                            "alert",
+                            "timeline",
+                            "timeline_event"
+                        ]
+                    },
+                    "item_id": {
+                        "type": "integer",
+                        "description": "Item id."
+                    }
+                },
+                "required": [
+                    "item_type",
+                    "item_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "item_type": {
+                        "type": "string",
+                        "description": "Item type."
+                    },
+                    "item_id": {
+                        "type": "integer",
+                        "description": "Item id."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the item is now in the trash (or the alert off)."
+                    }
+                },
+                "required": [
+                    "item_type",
+                    "item_id",
+                    "archived"
+                ]
+            }
+        },
+        "restore_item": {
+            "display_name": "Restore Item",
+            "description": "Bring a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event back from Metabase's trash, or turn an alert back on.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "item_type": {
+                        "type": "string",
+                        "description": "Kind of item.",
+                        "enum": [
+                            "question",
+                            "model",
+                            "metric",
+                            "dashboard",
+                            "collection",
+                            "segment",
+                            "subscription",
+                            "alert",
+                            "timeline",
+                            "timeline_event"
+                        ]
+                    },
+                    "item_id": {
+                        "type": "integer",
+                        "description": "Item id."
+                    }
+                },
+                "required": [
+                    "item_type",
+                    "item_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "item_type": {
+                        "type": "string",
+                        "description": "Item type."
+                    },
+                    "item_id": {
+                        "type": "integer",
+                        "description": "Item id."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the item is now in the trash (or the alert off)."
+                    }
+                },
+                "required": [
+                    "item_type",
+                    "item_id",
+                    "archived"
+                ]
+            }
+        },
+        "list_alerts": {
+            "display_name": "List Alerts",
+            "description": "List question alerts, optionally for one question.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "question_id": {
+                        "type": "integer",
+                        "description": "Only alerts on this question."
+                    },
+                    "include_inactive": {
+                        "type": "boolean",
+                        "description": "Also list alerts that are turned off."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "alerts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Alert id."
+                                },
+                                "question_id": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Question the alert watches."
+                                },
+                                "condition": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "has_result, goal_above or goal_below."
+                                },
+                                "send_once": {
+                                    "type": "boolean",
+                                    "description": "Whether the alert stops after its first send."
+                                },
+                                "active": {
+                                    "type": "boolean",
+                                    "description": "Whether the alert is on."
+                                },
+                                "schedule": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "When the alert checks (cron on Metabase 0.54+, frequency and hour before)."
+                                },
+                                "recipients": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": [
+                                            "string",
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "description": "Recipient emails (or user ids)."
+                                }
+                            },
+                            "required": [
+                                "id"
+                            ]
+                        },
+                        "description": "Alerts."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of alerts."
+                    }
+                },
+                "required": [
+                    "alerts",
+                    "count"
+                ]
+            }
+        },
+        "create_alert": {
+            "display_name": "Create Alert",
+            "description": "Email people when a saved question has results (has_result), or when a line, bar or progress chart's value goes above (goal_above) or below (goal_below) its goal line. Needs email set up in Metabase to send. The question is checked the same way as run_question first.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "question_id": {
+                        "type": "integer",
+                        "description": "Question (card) to watch."
+                    },
+                    "condition": {
+                        "type": "string",
+                        "description": "has_result (default), goal_above or goal_below. Goal conditions need a goal set on the chart.",
+                        "enum": [
+                            "has_result",
+                            "goal_above",
+                            "goal_below"
+                        ]
+                    },
+                    "send_once": {
+                        "type": "boolean",
+                        "description": "true stops the alert after its first send (default false)."
+                    },
+                    "frequency": {
+                        "type": "string",
+                        "description": "How often: hourly, daily (default) or weekly.",
+                        "enum": [
+                            "hourly",
+                            "daily",
+                            "weekly"
+                        ]
+                    },
+                    "hour": {
+                        "type": "integer",
+                        "description": "Hour of the day to send, 0-23 in the Metabase report timezone (default 8). Ignored for hourly.",
+                        "minimum": 0,
+                        "maximum": 23
+                    },
+                    "day_of_week": {
+                        "type": "string",
+                        "description": "Day for weekly sends (default mon).",
+                        "enum": [
+                            "mon",
+                            "tue",
+                            "wed",
+                            "thu",
+                            "fri",
+                            "sat",
+                            "sun"
+                        ]
+                    },
+                    "recipient_user_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Metabase user ids to email (see list_users)."
+                    },
+                    "recipient_emails": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Email addresses to send to (people without a Metabase login)."
+                    }
+                },
+                "required": [
+                    "question_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Alert id."
+                    },
+                    "question_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Question the alert watches."
+                    },
+                    "condition": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "has_result, goal_above or goal_below."
+                    },
+                    "send_once": {
+                        "type": "boolean",
+                        "description": "Whether the alert stops after its first send."
+                    },
+                    "active": {
+                        "type": "boolean",
+                        "description": "Whether the alert is on."
+                    },
+                    "schedule": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "When the alert checks (cron on Metabase 0.54+, frequency and hour before)."
+                    },
+                    "recipients": {
+                        "type": "array",
+                        "items": {
+                            "type": [
+                                "string",
+                                "integer",
+                                "null"
+                            ]
+                        },
+                        "description": "Recipient emails (or user ids)."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "list_subscriptions": {
+            "display_name": "List Subscriptions",
+            "description": "List dashboard subscriptions (scheduled emails of a dashboard), optionally for one dashboard.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Only subscriptions to this dashboard."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "List turned-off (archived) subscriptions instead."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "subscriptions": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer",
+                                    "description": "Subscription id."
+                                },
+                                "name": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Subscription name."
+                                },
+                                "dashboard_id": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Dashboard sent."
+                                },
+                                "archived": {
+                                    "type": "boolean",
+                                    "description": "Whether the subscription is turned off (in the trash)."
+                                },
+                                "skip_if_empty": {
+                                    "type": "boolean",
+                                    "description": "Whether sends are skipped when every question is empty."
+                                },
+                                "frequency": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "hourly, daily or weekly."
+                                },
+                                "hour": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "description": "Hour of the day."
+                                },
+                                "day_of_week": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "description": "Day for weekly sends."
+                                },
+                                "recipients": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": [
+                                            "string",
+                                            "integer"
+                                        ]
+                                    },
+                                    "description": "Recipient emails (or user ids)."
+                                }
+                            },
+                            "required": [
+                                "id"
+                            ]
+                        },
+                        "description": "Subscriptions."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of subscriptions."
+                    }
+                },
+                "required": [
+                    "subscriptions",
+                    "count"
+                ]
+            }
+        },
+        "create_subscription": {
+            "display_name": "Create Subscription",
+            "description": "Email a dashboard (every question on it) to people on a schedule. Needs email set up in Metabase to send. Each question on it is checked the same way as run_question first.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "dashboard_id": {
+                        "type": "integer",
+                        "description": "Dashboard to send."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Subscription name (default: the dashboard name)."
+                    },
+                    "skip_if_empty": {
+                        "type": "boolean",
+                        "description": "true skips a send when every question is empty (default false)."
+                    },
+                    "frequency": {
+                        "type": "string",
+                        "description": "How often: hourly, daily (default) or weekly.",
+                        "enum": [
+                            "hourly",
+                            "daily",
+                            "weekly"
+                        ]
+                    },
+                    "hour": {
+                        "type": "integer",
+                        "description": "Hour of the day to send, 0-23 in the Metabase report timezone (default 8). Ignored for hourly.",
+                        "minimum": 0,
+                        "maximum": 23
+                    },
+                    "day_of_week": {
+                        "type": "string",
+                        "description": "Day for weekly sends (default mon).",
+                        "enum": [
+                            "mon",
+                            "tue",
+                            "wed",
+                            "thu",
+                            "fri",
+                            "sat",
+                            "sun"
+                        ]
+                    },
+                    "recipient_user_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Metabase user ids to email (see list_users)."
+                    },
+                    "recipient_emails": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Email addresses to send to (people without a Metabase login)."
+                    }
+                },
+                "required": [
+                    "dashboard_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Subscription id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Subscription name."
+                    },
+                    "dashboard_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Dashboard sent."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the subscription is turned off (in the trash)."
+                    },
+                    "skip_if_empty": {
+                        "type": "boolean",
+                        "description": "Whether sends are skipped when every question is empty."
+                    },
+                    "frequency": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "hourly, daily or weekly."
+                    },
+                    "hour": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Hour of the day."
+                    },
+                    "day_of_week": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Day for weekly sends."
+                    },
+                    "recipients": {
+                        "type": "array",
+                        "items": {
+                            "type": [
+                                "string",
+                                "integer"
+                            ]
+                        },
+                        "description": "Recipient emails (or user ids)."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "update_subscription": {
+            "display_name": "Update Subscription",
+            "description": "Change a dashboard subscription's schedule, recipients, name or skip-if-empty setting. Only the fields given change; recipient lists given replace the old ones. Turn a subscription off with archive_item.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "subscription_id": {
+                        "type": "integer",
+                        "description": "Subscription id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New name."
+                    },
+                    "skip_if_empty": {
+                        "type": "boolean",
+                        "description": "true skips a send when every question is empty."
+                    },
+                    "frequency": {
+                        "type": "string",
+                        "description": "How often: hourly, daily (default) or weekly.",
+                        "enum": [
+                            "hourly",
+                            "daily",
+                            "weekly"
+                        ]
+                    },
+                    "hour": {
+                        "type": "integer",
+                        "description": "Hour of the day to send, 0-23 in the Metabase report timezone (default 8). Ignored for hourly.",
+                        "minimum": 0,
+                        "maximum": 23
+                    },
+                    "day_of_week": {
+                        "type": "string",
+                        "description": "Day for weekly sends (default mon).",
+                        "enum": [
+                            "mon",
+                            "tue",
+                            "wed",
+                            "thu",
+                            "fri",
+                            "sat",
+                            "sun"
+                        ]
+                    },
+                    "recipient_user_ids": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "description": "Metabase user ids to email (see list_users)."
+                    },
+                    "recipient_emails": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Email addresses to send to (people without a Metabase login)."
+                    }
+                },
+                "required": [
+                    "subscription_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Subscription id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Subscription name."
+                    },
+                    "dashboard_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Dashboard sent."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the subscription is turned off (in the trash)."
+                    },
+                    "skip_if_empty": {
+                        "type": "boolean",
+                        "description": "Whether sends are skipped when every question is empty."
+                    },
+                    "frequency": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "hourly, daily or weekly."
+                    },
+                    "hour": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Hour of the day."
+                    },
+                    "day_of_week": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Day for weekly sends."
+                    },
+                    "recipients": {
+                        "type": "array",
+                        "items": {
+                            "type": [
+                                "string",
+                                "integer"
+                            ]
+                        },
+                        "description": "Recipient emails (or user ids)."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "list_users": {
+            "display_name": "List Users",
+            "description": "List Metabase users, to pick alert and subscription recipients. Usually needs an API key in the Administrators group.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Only users whose name or email contains this text."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Users per page (default 50, max 200).",
+                        "minimum": 1,
+                        "maximum": 200
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Users to skip, for paging.",
+                        "minimum": 0
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "users": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Users: id, name, email, is_active."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Users returned."
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Users matching."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Page size."
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "description": "Offset."
+                    }
+                },
+                "required": [
+                    "users",
+                    "count"
+                ]
+            }
+        },
+        "update_table": {
+            "display_name": "Update Table",
+            "description": "Change the name or description Metabase shows for a table. The database itself is not changed. Needs a data-model admin API key.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "table_id": {
+                        "type": "integer",
+                        "description": "Table id."
+                    },
+                    "display_name": {
+                        "type": "string",
+                        "description": "Name shown in Metabase."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description shown in Metabase."
+                    }
+                },
+                "required": [
+                    "table_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Table id."
+                    },
+                    "schema": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Schema."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Table name."
+                    },
+                    "display_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Display name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "update_field": {
+            "display_name": "Update Field",
+            "description": "Change the name, description or semantic type Metabase shows for a column. The database itself is not changed. Needs a data-model admin API key.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "field_id": {
+                        "type": "integer",
+                        "description": "Field (column) id, from get_table."
+                    },
+                    "display_name": {
+                        "type": "string",
+                        "description": "Name shown in Metabase."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description shown in Metabase."
+                    },
+                    "semantic_type": {
+                        "type": "string",
+                        "description": "What the column means to Metabase, e.g. type/Email, type/Currency, type/Category, type/FK, type/PK, type/City."
+                    }
+                },
+                "required": [
+                    "field_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Field id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Column name."
+                    },
+                    "display_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Display name."
+                    },
+                    "base_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Data type."
+                    },
+                    "semantic_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Semantic type."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "foreign_key_target_field_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Field this column points to, when it is a foreign key."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "sync_database": {
+            "display_name": "Sync Database",
+            "description": "Ask Metabase to pick up new or changed tables and columns in a database, for example after a new table is created. Runs in the background. Needs an admin API key.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id."
+                    }
+                },
+                "required": [
+                    "database_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id."
+                    },
+                    "started": {
+                        "type": "boolean",
+                        "description": "Whether Metabase accepted the request."
+                    }
+                },
+                "required": [
+                    "database_id",
+                    "started"
+                ]
+            }
+        },
+        "rescan_field_values": {
+            "display_name": "Rescan Field Values",
+            "description": "Ask Metabase to refresh the values it lists in filter dropdowns for a database's columns. Runs in the background. Needs an admin API key.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id."
+                    }
+                },
+                "required": [
+                    "database_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "database_id": {
+                        "type": "integer",
+                        "description": "Database id."
+                    },
+                    "started": {
+                        "type": "boolean",
+                        "description": "Whether Metabase accepted the request."
+                    }
+                },
+                "required": [
+                    "database_id",
+                    "started"
+                ]
+            }
+        },
+        "list_timelines": {
+            "display_name": "List Timelines",
+            "description": "List event timelines with their events. Events show as markers on time-series charts in the same collection.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Only timelines in this collection."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "List archived timelines instead."
+                    }
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "timelines": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        },
+                        "description": "Timelines: id, name, description, collection_id, archived, events."
+                    },
+                    "count": {
+                        "type": "integer",
+                        "description": "Number of timelines."
+                    }
+                },
+                "required": [
+                    "timelines",
+                    "count"
+                ]
+            }
+        },
+        "create_timeline": {
+            "display_name": "Create Timeline",
+            "description": "Create an event timeline in a collection, for markers such as releases or campaigns on that collection's time-series charts.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Timeline name."
+                    },
+                    "collection_id": {
+                        "type": "integer",
+                        "description": "Collection the timeline belongs to (default: root)."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description."
+                    },
+                    "icon": {
+                        "type": "string",
+                        "description": "Icon (default star).",
+                        "enum": [
+                            "star",
+                            "balloons",
+                            "mail",
+                            "warning",
+                            "bell",
+                            "cloud"
+                        ]
+                    }
+                },
+                "required": [
+                    "name"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Timeline id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Name."
+                    },
+                    "collection_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Collection id."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "create_timeline_event": {
+            "display_name": "Create Timeline Event",
+            "description": "Add an event, such as a release, campaign or incident, to a timeline. It shows as a marker on time-series charts.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "timeline_id": {
+                        "type": "integer",
+                        "description": "Timeline id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Event name."
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "description": "When it happened, ISO 8601, e.g. 2026-11-01 or 2026-11-01T09:30:00Z."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description (Markdown)."
+                    },
+                    "time_matters": {
+                        "type": "boolean",
+                        "description": "true shows the time of day, not just the date (default false)."
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "Timezone of the timestamp (default UTC)."
+                    },
+                    "icon": {
+                        "type": "string",
+                        "description": "Icon (default star).",
+                        "enum": [
+                            "star",
+                            "balloons",
+                            "mail",
+                            "warning",
+                            "bell",
+                            "cloud"
+                        ]
+                    }
+                },
+                "required": [
+                    "timeline_id",
+                    "name",
+                    "timestamp"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Event id."
+                    },
+                    "timeline_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Timeline id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Event name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "timestamp": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "When the event happened (ISO 8601)."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the event is in the trash."
+                    }
+                },
+                "required": [
+                    "id"
+                ]
+            }
+        },
+        "update_timeline_event": {
+            "display_name": "Update Timeline Event",
+            "description": "Change a timeline event's name, description, date or time.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "event_id": {
+                        "type": "integer",
+                        "description": "Event id."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New name."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "New description."
+                    },
+                    "timestamp": {
+                        "type": "string",
+                        "description": "New date or time, ISO 8601."
+                    },
+                    "time_matters": {
+                        "type": "boolean",
+                        "description": "true shows the time of day."
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "Timezone of the timestamp."
+                    }
+                },
+                "required": [
+                    "event_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "Event id."
+                    },
+                    "timeline_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Timeline id."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Event name."
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Description."
+                    },
+                    "timestamp": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "When the event happened (ISO 8601)."
+                    },
+                    "archived": {
+                        "type": "boolean",
+                        "description": "Whether the event is in the trash."
+                    }
+                },
+                "required": [
+                    "id"
                 ]
             }
         }

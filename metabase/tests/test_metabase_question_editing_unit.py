@@ -1,0 +1,1693 @@
+import asyncio
+import base64
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from autohive_integrations_sdk import HTTPError, ResultType
+
+from metabase.metabase import NO_RETRY, XLSX_CONTENT_TYPE, _download, metabase
+from metabase.tests.conftest import BASE, ok as _ok
+
+pytestmark = pytest.mark.unit
+
+
+def _database(engine="postgres"):
+    return _ok({"id": 3, "name": "Warehouse", "engine": engine})
+
+
+SAMPLE_CARD = {
+    "id": 42,
+    "name": "Weekly signups",
+    "description": "Signups per week",
+    "type": "question",
+    "display": "line",
+    "database_id": 3,
+    "query_type": "native",
+    "collection_id": 4,
+    "collection": {"id": 4, "name": "Growth", "slug": "growth"},
+    "archived": False,
+    "parameters": [],
+    "visualization_settings": {"graph.dimensions": ["week"], "graph.metrics": ["signups"], "card.title": "Signups"},
+    "dataset_query": {
+        "database": 3,
+        "type": "native",
+        "native": {"query": "select week, count(*) as signups from signups group by week", "template-tags": {}},
+    },
+}
+
+SAMPLE_COPY = {**SAMPLE_CARD, "id": 77, "name": "Weekly signups - Duplicate"}
+
+SAMPLE_MBQL = {
+    "source-table": 12,
+    "aggregation": [["count"]],
+    "breakout": [["field", 34, {"temporal-unit": "month"}]],
+    "filter": [">", ["field", 56, None], 100],
+}
+
+SAMPLE_MBQL_CARD = {
+    "id": 90,
+    "name": "Orders by month",
+    "type": "question",
+    "display": "table",
+    "database_id": 3,
+    "query_type": "query",
+    "collection_id": None,
+    "dataset_query": {"database": 3, "type": "query", "query": SAMPLE_MBQL},
+}
+
+SAMPLE_REVISIONS = [
+    {
+        "id": 501,
+        "description": 'renamed this Card from "Signups" to "Weekly signups".',
+        "timestamp": "2026-10-30T02:11:09.123Z",
+        "user": {"id": 1, "common_name": "Risheet Peri"},
+        "is_creation": False,
+        "is_reversion": False,
+        "most_recent": True,
+    },
+    {
+        "id": 498,
+        "description": "created this.",
+        "timestamp": "2026-10-01T22:04:51.000Z",
+        "user": {"id": 1, "common_name": "Risheet Peri"},
+        "is_creation": True,
+        "is_reversion": False,
+        "most_recent": False,
+    },
+]
+
+SAVED_EXPORT_CARD = {
+    "id": 42,
+    "database_id": 3,
+    "parameters": [],
+    "dataset_query": {"database": 3, "type": "native", "native": {"query": "select id, email from users"}},
+}
+
+SAMPLE_FILTERED_CARD = {
+    "id": 42,
+    "name": "Signups by region",
+    "database_id": 3,
+    "dataset_query": {
+        "database": 3,
+        "type": "native",
+        "native": {
+            "query": "select * from signups where region = {{region}}",
+            "template-tags": {"region": {"id": "t1", "name": "region", "display-name": "Region", "type": "text"}},
+        },
+    },
+}
+XLSX_BYTES = b"PK\x03\x04 spreadsheet bytes"
+
+SAMPLE_CSV = "id,email\n1,ana@example.com\n2,ben@example.com\n3,cy@example.com\n"
+
+
+def _export_calls(response, compiled="select id, email from users", card=None):
+    """The saved-question check (card, database, expanded SQL) and then the export."""
+    return [
+        _ok(card or SAVED_EXPORT_CARD),
+        _database(),
+        _ok({"query": compiled, "params": None}),
+        _ok(response),
+    ]
+
+
+def _compiled(sql):
+    return _ok({"query": sql, "params": None})
+
+
+def _source_check_calls(compiled="select id, email from users", card=None):
+    """The check of a saved question a query or revert relies on: the card, its database, its expanded SQL."""
+    return _export_calls(None, compiled=compiled, card=card)[:3]
+
+
+SAMPLE_MBQL5_CARD = {
+    "id": 42,
+    "name": "Signups by region",
+    "database_id": 3,
+    "dataset_query": {
+        "lib/type": "mbql/query",
+        "database": 3,
+        "stages": [
+            {
+                "lib/type": "mbql.stage/native",
+                "native": "select * from signups where region = {{region}}",
+                "template-tags": [{"id": "t1", "name": "region", "display-name": "Region", "type": "text"}],
+            }
+        ],
+    },
+}
+
+SNIPPET_TAG = {"id": "s1", "name": "snippet: totals", "type": "snippet", "snippet-name": "totals", "snippet-id": 7}
+
+SAMPLE_SNIPPET_CARD = {
+    "id": 42,
+    "name": "Order totals",
+    "database_id": 3,
+    "dataset_query": {
+        "database": 3,
+        "type": "native",
+        "native": {
+            "query": "select * from orders where {{snippet: totals}}",
+            "template-tags": {"snippet: totals": SNIPPET_TAG},
+        },
+    },
+}
+
+CARD_HISTORY = [{"id": 510, "most_recent": True}, {"id": 498, "most_recent": False}]
+
+
+class TestUpdateQuestion:
+    @pytest.mark.asyncio
+    async def test_rename_only_sends_name(self, mock_context):
+        mock_context.fetch.return_value = _ok({**SAMPLE_CARD, "name": "Signups by week"})
+        result = await metabase.execute_action(
+            "update_question", {"question_id": 42, "name": "Signups by week"}, mock_context
+        )
+        assert result.result.data["name"] == "Signups by week"
+        assert mock_context.fetch.call_count == 1
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{BASE}/api/card/42"
+        assert call.kwargs["method"] == "PUT"
+        assert call.kwargs["json"] == {"name": "Signups by week"}
+        assert call.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_only_given_fields_sent(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_CARD)
+        inputs = {"question_id": 42, "description": "Weekly", "display": "bar", "collection_id": 9}
+        await metabase.execute_action("update_question", inputs, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "description": "Weekly",
+            "display": "bar",
+            "collection_id": 9,
+        }
+
+    @pytest.mark.asyncio
+    async def test_sql_checked_in_card_dialect(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD), _database("mysql"), _ok(SAMPLE_CARD)]
+        sql = "select week, count(*) from signups where region = 'EU' group by week"
+        result = await metabase.execute_action("update_question", {"question_id": 42, "sql": sql}, mock_context)
+        assert result.type != ResultType.ACTION_ERROR
+        urls = [c.args[0] for c in mock_context.fetch.call_args_list]
+        assert urls == [f"{BASE}/api/card/42", f"{BASE}/api/database/3", f"{BASE}/api/card/42"]
+        put = mock_context.fetch.call_args
+        assert put.kwargs["method"] == "PUT"
+        assert put.kwargs["json"] == {
+            "dataset_query": {"database": 3, "type": "native", "native": {"query": sql, "template-tags": {}}}
+        }
+
+    @pytest.mark.asyncio
+    async def test_database_from_dataset_query_when_card_has_no_database_id(self, mock_context):
+        card = {**SAMPLE_CARD, "database_id": None}
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok(SAMPLE_CARD)]
+        await metabase.execute_action("update_question", {"question_id": 42, "sql": "select 1"}, mock_context)
+        assert mock_context.fetch.call_args_list[1].args[0] == f"{BASE}/api/database/3"
+        assert mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["database"] == 3
+
+    @pytest.mark.asyncio
+    async def test_write_sql_refused_without_put(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD), _database()]
+        result = await metabase.execute_action(
+            "update_question", {"question_id": 42, "sql": "delete from signups"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Only a single read statement" in result.result.message
+        assert all(c.kwargs["method"] == "GET" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_two_statements_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD), _database()]
+        result = await metabase.execute_action(
+            "update_question", {"question_id": 42, "sql": "select 1; drop table signups"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_blank_sql_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD)]
+        result = await metabase.execute_action("update_question", {"question_id": 42, "sql": "  "}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "sql is required" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_visualization_settings_merged_and_null_removes(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD), _ok(SAMPLE_CARD)]
+        settings = {"graph.metrics": ["signups", "churned"], "card.title": None, "graph.show_values": True}
+        await metabase.execute_action(
+            "update_question", {"question_id": 42, "visualization_settings": settings}, mock_context
+        )
+        assert mock_context.fetch.call_args_list[0].kwargs["method"] == "GET"
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "visualization_settings": {
+                "graph.dimensions": ["week"],
+                "graph.metrics": ["signups", "churned"],
+                "graph.show_values": True,
+            }
+        }
+
+    @pytest.mark.asyncio
+    async def test_visualization_settings_on_card_without_saved_settings(self, mock_context):
+        card = {k: v for k, v in SAMPLE_CARD.items() if k != "visualization_settings"}
+        mock_context.fetch.side_effect = [_ok(card), _ok(card)]
+        await metabase.execute_action(
+            "update_question", {"question_id": 42, "visualization_settings": {"card.title": "Signups"}}, mock_context
+        )
+        assert mock_context.fetch.call_args.kwargs["json"] == {"visualization_settings": {"card.title": "Signups"}}
+
+    @pytest.mark.asyncio
+    async def test_sql_and_settings_share_one_get(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD), _database(), _ok(SAMPLE_CARD)]
+        inputs = {"question_id": 42, "name": "Signups", "sql": "select 1", "visualization_settings": {}}
+        await metabase.execute_action("update_question", inputs, mock_context)
+        assert mock_context.fetch.call_count == 3
+        assert set(mock_context.fetch.call_args.kwargs["json"]) == {"name", "dataset_query", "visualization_settings"}
+
+    @pytest.mark.asyncio
+    async def test_no_changes_is_error(self, mock_context):
+        result = await metabase.execute_action("update_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Give a change" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_name_is_not_a_change(self, mock_context):
+        result = await metabase.execute_action("update_question", {"question_id": 42, "name": ""}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_summary_output(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_CARD)
+        result = await metabase.execute_action("update_question", {"question_id": 42, "display": "bar"}, mock_context)
+        data = result.result.data
+        assert data["id"] == 42
+        assert data["native_sql"] == SAMPLE_CARD["dataset_query"]["native"]["query"]
+        assert data["collection"] == {"id": 4, "name": "Growth"}
+
+    @pytest.mark.asyncio
+    async def test_http_error(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "Not found.", "Not found.")
+        result = await metabase.execute_action("update_question", {"question_id": 404, "name": "X"}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 404" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_timeout_says_check_before_retrying(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action("update_question", {"question_id": 42, "name": "X"}, mock_context)
+        assert "Check with get_question" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_string_id_rejected(self, mock_context):
+        result = await metabase.execute_action("update_question", {"question_id": "42", "name": "X"}, mock_context)
+        assert result.type == ResultType.VALIDATION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_sql_update_keeps_saved_template_tags(self, mock_context):
+        tag = {"id": "t1", "name": "region", "display-name": "Region", "type": "text"}
+        card = {
+            **SAMPLE_CARD,
+            "dataset_query": {
+                "database": 3,
+                "type": "native",
+                "native": {
+                    "query": "select * from signups where region = {{region}}",
+                    "template-tags": {"region": tag},
+                },
+            },
+        }
+        mock_context.fetch.side_effect = [
+            _ok(card),
+            _database(),
+            _compiled("select week from signups where region = 'EU'"),
+            _ok(card),
+        ]
+        sql = "select week from signups where region = {{region}}"
+        await metabase.execute_action("update_question", {"question_id": 42, "sql": sql}, mock_context)
+        native = mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["native"]
+        assert native["template-tags"] == {"region": tag}
+
+    @pytest.mark.asyncio
+    async def test_filter_sql_checked_after_metabase_expands_it(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_FILTERED_CARD),
+            _database(),
+            _compiled("select week from signups where region = 'EU'"),
+            _ok(SAMPLE_FILTERED_CARD),
+        ]
+        sql = "select week from signups where region = {{region}}"
+        await metabase.execute_action("update_question", {"question_id": 42, "sql": sql}, mock_context)
+        calls = mock_context.fetch.call_args_list
+        assert [(c.args[0], c.kwargs["method"]) for c in calls] == [
+            (f"{BASE}/api/card/42", "GET"),
+            (f"{BASE}/api/database/3", "GET"),
+            (f"{BASE}/api/dataset/native", "POST"),
+            (f"{BASE}/api/card/42", "PUT"),
+        ]
+        new_query = calls[3].kwargs["json"]["dataset_query"]
+        # The region filter has no default, so it is expanded with a stand-in value for the check.
+        stand_in = {"type": "category", "target": ["variable", ["template-tag", "region"]], "value": "x"}
+        assert calls[2].kwargs["json"] == {**new_query, "parameters": [stand_in], "pretty": False}
+
+    @pytest.mark.asyncio
+    async def test_expanded_write_refused_without_put(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_FILTERED_CARD),
+            _database(),
+            _compiled("select 1; delete from t"),
+        ]
+        sql = "select * from signups where region = {{region}}"
+        result = await metabase.execute_action("update_question", {"question_id": 42, "sql": sql}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Only a single read statement" in result.result.message
+        assert mock_context.fetch.call_count == 3
+        assert all(c.kwargs["method"] != "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_optional_clause_refused_without_put(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_FILTERED_CARD)]
+        sql = "select * from signups where 1 = 1 [[and region = {{region}}]]"
+        result = await metabase.execute_action("update_question", {"question_id": 42, "sql": sql}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "optional [[ ]] clauses can't be saved" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_mbql5_update_keeps_stages_and_list_tags(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_MBQL5_CARD),
+            _database(),
+            _compiled("select week, count(*) from signups where region = 'EU' group by week"),
+            _ok(SAMPLE_MBQL5_CARD),
+        ]
+        sql = "select week, count(*) from signups where region = {{region}} group by week"
+        await metabase.execute_action("update_question", {"question_id": 42, "sql": sql}, mock_context)
+        saved = SAMPLE_MBQL5_CARD["dataset_query"]
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "dataset_query": {
+                "lib/type": "mbql/query",
+                "database": 3,
+                "stages": [
+                    {
+                        "lib/type": "mbql.stage/native",
+                        "native": sql,
+                        "template-tags": saved["stages"][0]["template-tags"],
+                    }
+                ],
+            }
+        }
+
+    @pytest.mark.asyncio
+    async def test_mbql5_update_drops_unused_tag(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_MBQL5_CARD), _database(), _ok(SAMPLE_MBQL5_CARD)]
+        await metabase.execute_action("update_question", {"question_id": 42, "sql": "select 1"}, mock_context)
+        stage = mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["stages"][0]
+        assert stage["template-tags"] == []
+        assert stage["native"] == "select 1"
+
+    @pytest.mark.asyncio
+    async def test_snippet_tag_kept(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_SNIPPET_CARD),
+            _database(),
+            _compiled("select id, total from orders where total > 0"),
+            _ok(SAMPLE_SNIPPET_CARD),
+        ]
+        sql = "select id, total from orders where {{ snippet: totals }}"
+        result = await metabase.execute_action("update_question", {"question_id": 42, "sql": sql}, mock_context)
+        assert result.type != ResultType.ACTION_ERROR
+        native = mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["native"]
+        assert native == {"query": sql, "template-tags": {"snippet: totals": SNIPPET_TAG}}
+
+    @pytest.mark.asyncio
+    async def test_new_snippet_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_SNIPPET_CARD), _ok([{"id": 7, "name": "totals"}])]
+        result = await metabase.execute_action(
+            "update_question", {"question_id": 42, "sql": "select * from orders where {{snippet:other}}"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "no snippet named other" in result.result.message
+        calls = mock_context.fetch.call_args_list
+        assert [c.args[0] for c in calls] == [f"{BASE}/api/card/42", f"{BASE}/api/native-query-snippet"]
+        assert all(c.kwargs["method"] == "GET" for c in calls)
+
+    @pytest.mark.asyncio
+    async def test_new_filter_added_with_sql(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_FILTERED_CARD),
+            _database(),
+            _compiled("select * from signups where region = 'x' and country = 'NZ'"),
+            _ok(SAMPLE_FILTERED_CARD),
+        ]
+        sql = "select * from signups where region = {{region}} and country = {{country}}"
+        filters = [{"name": "country", "type": "text", "default": "NZ"}]
+        result = await metabase.execute_action(
+            "update_question", {"question_id": 42, "sql": sql, "filters": filters}, mock_context
+        )
+        assert result.type != ResultType.ACTION_ERROR
+        tags = mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["native"]["template-tags"]
+        assert tags["region"] == SAMPLE_FILTERED_CARD["dataset_query"]["native"]["template-tags"]["region"]
+        country = dict(tags["country"])
+        assert isinstance(country.pop("id"), str)
+        assert country == {
+            "name": "country",
+            "display-name": "Country",
+            "type": "text",
+            "required": False,
+            "default": "NZ",
+        }
+        # Only the filter without a default gets a stand-in value.
+        params = mock_context.fetch.call_args_list[2].kwargs["json"]["parameters"]
+        assert [p["target"][1][1] for p in params] == ["region"]
+
+    @pytest.mark.asyncio
+    async def test_listed_existing_filter_keeps_its_id(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_FILTERED_CARD),
+            _database(),
+            _compiled("select * from signups where region = 'EU'"),
+            _ok(SAMPLE_FILTERED_CARD),
+        ]
+        filters = [{"name": "region", "type": "text", "display_name": "Sales region", "default": "EU"}]
+        await metabase.execute_action(
+            "update_question",
+            {"question_id": 42, "sql": "select * from signups where region = {{region}}", "filters": filters},
+            mock_context,
+        )
+        tag = mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["native"]["template-tags"]["region"]
+        assert tag["id"] == "t1"
+        assert tag["display-name"] == "Sales region"
+        assert tag["default"] == "EU"
+
+    @pytest.mark.asyncio
+    async def test_undefined_filter_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD)]
+        result = await metabase.execute_action(
+            "update_question", {"question_id": 42, "sql": "select * from signups where c = {{country}}"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "define it in filters" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_unused_filter_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD)]
+        result = await metabase.execute_action(
+            "update_question",
+            {"question_id": 42, "sql": "select 1", "filters": [{"name": "country", "type": "text"}]},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "isn't used in the SQL" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_required_filter_without_default_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD)]
+        result = await metabase.execute_action(
+            "update_question",
+            {
+                "question_id": 42,
+                "sql": "select * from signups where c = {{country}}",
+                "filters": [{"name": "country", "required": True}],
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "needs a default" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_field_filter_without_field_id_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD)]
+        result = await metabase.execute_action(
+            "update_question",
+            {
+                "question_id": 42,
+                "sql": "select * from signups where {{country}}",
+                "filters": [{"name": "country", "type": "field"}],
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "needs field_id" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_expanded_write_message_says_not_saved(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_FILTERED_CARD), _database(), _compiled("delete from signups")]
+        sql = "select * from signups where region = {{region}}"
+        result = await metabase.execute_action("update_question", {"question_id": 42, "sql": sql}, mock_context)
+        assert result.result.message.startswith("Not saved.")
+
+    @pytest.mark.asyncio
+    async def test_filters_without_sql_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_CARD)]
+        result = await metabase.execute_action(
+            "update_question",
+            {"question_id": 42, "visualization_settings": {"card.title": "X"}, "filters": [{"name": "country"}]},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "filters can only be given together with sql" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_filters_without_sql_refused_on_rename(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_CARD)
+        result = await metabase.execute_action(
+            "update_question", {"question_id": 42, "name": "Signups", "filters": [{"name": "country"}]}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert all(c.kwargs["method"] != "PUT" for c in mock_context.fetch.call_args_list)
+
+
+class TestCopyQuestion:
+    @pytest.mark.asyncio
+    async def test_copy_without_changes_is_one_call(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_COPY)
+        result = await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
+        assert result.result.data["id"] == 77
+        assert mock_context.fetch.call_count == 1
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{BASE}/api/card/42/copy"
+        assert call.kwargs["method"] == "POST"
+        assert call.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_rename_and_move_copy(self, mock_context):
+        renamed = {**SAMPLE_COPY, "name": "Signups (EU)", "collection_id": 9}
+        mock_context.fetch.side_effect = [_ok(SAMPLE_COPY), _ok(renamed)]
+        result = await metabase.execute_action(
+            "copy_question", {"question_id": 42, "name": "Signups (EU)", "collection_id": 9}, mock_context
+        )
+        put = mock_context.fetch.call_args
+        assert put.args[0] == f"{BASE}/api/card/77"
+        assert put.kwargs["method"] == "PUT"
+        assert put.kwargs["json"] == {"name": "Signups (EU)", "collection_id": 9}
+        assert put.kwargs["retry_count"] == NO_RETRY
+        assert result.result.data["name"] == "Signups (EU)"
+        assert result.result.data["collection_id"] == 9
+
+    @pytest.mark.asyncio
+    async def test_only_collection_given(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_COPY), _ok({**SAMPLE_COPY, "collection_id": 9})]
+        await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"] == {"collection_id": 9}
+
+    @pytest.mark.asyncio
+    async def test_empty_name_skips_put(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_COPY)
+        await metabase.execute_action("copy_question", {"question_id": 42, "name": ""}, mock_context)
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_empty_put_response_keeps_copy(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_COPY), _ok({})]
+        result = await metabase.execute_action("copy_question", {"question_id": 42, "name": "X"}, mock_context)
+        assert result.result.data["id"] == 77
+
+    @pytest.mark.asyncio
+    async def test_no_id_returned(self, mock_context):
+        mock_context.fetch.return_value = _ok({"name": "Weekly signups - Duplicate"})
+        result = await metabase.execute_action("copy_question", {"question_id": 42, "name": "X"}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_http_error(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "Not found.", "Not found.")
+        result = await metabase.execute_action("copy_question", {"question_id": 404}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 404" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_timeout_says_search_before_retrying(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
+        assert "Check with search" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_rename_failure_reported(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_COPY), HTTPError(403, "Forbidden", "You don't have permissions.")]
+        result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        message = result.result.message
+        assert "HTTP 403" in message
+        assert "question 77" in message
+        assert "update_question" in message
+        assert mock_context.fetch.call_count == 2
+
+
+class TestCreateQueryBuilderQuestion:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_MBQL_CARD)
+        result = await metabase.execute_action(
+            "create_query_builder_question",
+            {"name": "Orders by month", "database_id": 3, "query": SAMPLE_MBQL},
+            mock_context,
+        )
+        data = result.result.data
+        assert data["id"] == 90
+        assert data["native_sql"] is None
+        assert data["query_type"] == "query"
+
+    @pytest.mark.asyncio
+    async def test_request(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_MBQL_CARD)
+        await metabase.execute_action(
+            "create_query_builder_question",
+            {"name": "Orders by month", "database_id": 3, "query": SAMPLE_MBQL, "collection_id": 4},
+            mock_context,
+        )
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{BASE}/api/card"
+        assert call.kwargs["method"] == "POST"
+        assert call.kwargs["retry_count"] == NO_RETRY
+        assert call.kwargs["json"] == {
+            "name": "Orders by month",
+            "type": "question",
+            "display": "table",
+            "visualization_settings": {},
+            "dataset_query": {"database": 3, "type": "query", "query": SAMPLE_MBQL},
+            "collection_id": 4,
+        }
+
+    @pytest.mark.asyncio
+    async def test_display_and_description(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_MBQL_CARD)
+        inputs = {"name": "Orders", "database_id": 3, "query": SAMPLE_MBQL, "display": "bar", "description": "Monthly"}
+        await metabase.execute_action("create_query_builder_question", inputs, mock_context)
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["display"] == "bar"
+        assert body["description"] == "Monthly"
+
+    @pytest.mark.asyncio
+    async def test_saved_question_source(self, mock_context):
+        mock_context.fetch.side_effect = [*_source_check_calls(), _ok(SAMPLE_MBQL_CARD)]
+        query = {"source-table": "card__42", "aggregation": [["count"]]}
+        result = await metabase.execute_action(
+            "create_query_builder_question", {"name": "Count", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type != ResultType.ACTION_ERROR
+        assert [(c.args[0], c.kwargs["method"]) for c in mock_context.fetch.call_args_list] == [
+            (f"{BASE}/api/card/42", "GET"),
+            (f"{BASE}/api/database/3", "GET"),
+            (f"{BASE}/api/dataset/native", "POST"),
+            (f"{BASE}/api/card", "POST"),
+        ]
+        assert mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["query"] == query
+
+    @pytest.mark.asyncio
+    async def test_writing_saved_question_source_refused(self, mock_context):
+        mock_context.fetch.side_effect = _source_check_calls(compiled="delete from t")
+        query = {"source-table": "card__42", "aggregation": [["count"]]}
+        result = await metabase.execute_action(
+            "create_query_builder_question", {"name": "Count", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42 wasn't run" in result.result.message
+        assert f"{BASE}/api/card" not in [c.args[0] for c in mock_context.fetch.call_args_list]
+
+    @pytest.mark.asyncio
+    async def test_embedded_native_refused(self, mock_context):
+        query = {"source-table": 12, "joins": [{"source-query": {"native": "delete from orders"}}]}
+        result = await metabase.execute_action(
+            "create_query_builder_question", {"name": "Sneaky", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "can't contain SQL" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_missing_source_table_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_query_builder_question",
+            {"name": "Orders", "database_id": 3, "query": {"aggregation": [["count"]]}},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "source-table" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_blank_name_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_query_builder_question", {"name": " ", "database_id": 3, "query": SAMPLE_MBQL}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "name is required" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_id_returned(self, mock_context):
+        mock_context.fetch.return_value = _ok({"name": "Orders"})
+        result = await metabase.execute_action(
+            "create_query_builder_question", {"name": "Orders", "database_id": 3, "query": SAMPLE_MBQL}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_http_error(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(400, "Bad Request", {"message": "Table 12 does not exist"})
+        result = await metabase.execute_action(
+            "create_query_builder_question", {"name": "Orders", "database_id": 3, "query": SAMPLE_MBQL}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Table 12 does not exist" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_timeout_says_search_before_retrying(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action(
+            "create_query_builder_question", {"name": "Orders", "database_id": 3, "query": SAMPLE_MBQL}, mock_context
+        )
+        assert "Check with search" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_query_required(self, mock_context):
+        result = await metabase.execute_action(
+            "create_query_builder_question", {"name": "Orders", "database_id": 3}, mock_context
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_filter_value_native_allowed(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_MBQL_CARD)
+        query = {"source-table": 12, "filter": ["=", ["field", 56, None], "native"]}
+        result = await metabase.execute_action(
+            "create_query_builder_question",
+            {"name": "Native app signups", "database_id": 3, "query": query},
+            mock_context,
+        )
+        assert result.type != ResultType.ACTION_ERROR
+
+
+class TestCreateModel:
+    @pytest.mark.asyncio
+    async def test_sql_model(self, mock_context):
+        model = {**SAMPLE_CARD, "id": 91, "type": "model", "display": "table"}
+        mock_context.fetch.side_effect = [_database(), _ok(model)]
+        sql = "select id, email, created_at from users"
+        result = await metabase.execute_action(
+            "create_model", {"name": "Users", "database_id": 3, "sql": sql}, mock_context
+        )
+        assert result.result.data["type"] == "model"
+        get, post = mock_context.fetch.call_args_list
+        assert get.args[0] == f"{BASE}/api/database/3"
+        assert post.args[0] == f"{BASE}/api/card"
+        assert post.kwargs["retry_count"] == NO_RETRY
+        assert post.kwargs["json"] == {
+            "name": "Users",
+            "type": "model",
+            "display": "table",
+            "visualization_settings": {},
+            "dataset_query": {"database": 3, "type": "native", "native": {"query": sql, "template-tags": {}}},
+        }
+
+    @pytest.mark.asyncio
+    async def test_query_builder_model(self, mock_context):
+        mock_context.fetch.return_value = _ok({**SAMPLE_MBQL_CARD, "type": "model"})
+        await metabase.execute_action(
+            "create_model", {"name": "Orders", "database_id": 3, "query": SAMPLE_MBQL}, mock_context
+        )
+        assert mock_context.fetch.call_count == 1
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["type"] == "model"
+        assert body["dataset_query"] == {"database": 3, "type": "query", "query": SAMPLE_MBQL}
+
+    @pytest.mark.asyncio
+    async def test_writing_saved_question_source_refused(self, mock_context):
+        mock_context.fetch.side_effect = _source_check_calls(compiled="delete from t")
+        query = {"source-table": "card__42", "breakout": [["field", "region", {"base-type": "type/Text"}]]}
+        result = await metabase.execute_action(
+            "create_model", {"name": "Regions", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42 wasn't run" in result.result.message
+        assert mock_context.fetch.call_count == 3
+        assert f"{BASE}/api/card" not in [c.args[0] for c in mock_context.fetch.call_args_list]
+
+    @pytest.mark.asyncio
+    async def test_joined_saved_question_checked(self, mock_context):
+        mock_context.fetch.side_effect = [*_source_check_calls(), _ok({**SAMPLE_MBQL_CARD, "type": "model"})]
+        query = {"source-table": 12, "joins": [{"source-table": "card__42", "alias": "Users"}]}
+        result = await metabase.execute_action(
+            "create_model", {"name": "Orders with users", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type != ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_args_list[0].args[0] == f"{BASE}/api/card/42"
+
+    @pytest.mark.asyncio
+    async def test_both_sql_and_query_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_model", {"name": "X", "database_id": 3, "sql": "select 1", "query": SAMPLE_MBQL}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "exactly one of sql or query" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_neither_sql_nor_query_refused(self, mock_context):
+        result = await metabase.execute_action("create_model", {"name": "X", "database_id": 3}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "exactly one of sql or query" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_write_sql_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_database()]
+        result = await metabase.execute_action(
+            "create_model", {"name": "X", "database_id": 3, "sql": "update users set email = null"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Only a single read statement" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_sql_checked_in_database_dialect(self, mock_context):
+        # Backticks name a column in MySQL; in standard SQL they don't parse.
+        mock_context.fetch.side_effect = [_database("mysql"), _ok({**SAMPLE_CARD, "type": "model"})]
+        result = await metabase.execute_action(
+            "create_model", {"name": "X", "database_id": 3, "sql": "select `id` from `users`"}, mock_context
+        )
+        assert result.type != ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_mbql_with_native_refused(self, mock_context):
+        query = {"source-table": 12, "source-query": {"native": {"query": "drop table orders"}}}
+        result = await metabase.execute_action(
+            "create_model", {"name": "X", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_mbql_without_source_table_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_model", {"name": "X", "database_id": 3, "query": {"aggregation": [["count"]]}}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "source-table" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_http_error(self, mock_context):
+        mock_context.fetch.side_effect = [_database(), HTTPError(403, "Forbidden", "You don't have permissions.")]
+        result = await metabase.execute_action(
+            "create_model", {"name": "X", "database_id": 3, "sql": "select 1"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 403" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_timeout_says_search_before_retrying(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action(
+            "create_model", {"name": "X", "database_id": 3, "query": SAMPLE_MBQL}, mock_context
+        )
+        assert "Check with search" in result.result.message
+
+
+METRIC_QUERY = {"source-table": 12, "aggregation": [["sum", ["field", 78, None]]]}
+
+# Metabase before 0.51 has no metric card type and refuses it with HTTP 400.
+CARD_TYPE_REFUSED = HTTPError(400, "Bad Request", {"message": "invalid card type"})
+
+
+class TestCreateMetric:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        metric = {**SAMPLE_MBQL_CARD, "id": 95, "type": "metric", "display": "scalar"}
+        mock_context.fetch.return_value = _ok(metric)
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY}, mock_context
+        )
+        assert result.result.data["type"] == "metric"
+        assert result.result.data["id"] == 95
+
+    @pytest.mark.asyncio
+    async def test_request(self, mock_context):
+        mock_context.fetch.return_value = _ok({**SAMPLE_MBQL_CARD, "type": "metric"})
+        await metabase.execute_action(
+            "create_metric",
+            {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY, "description": "Sum of order totals"},
+            mock_context,
+        )
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{BASE}/api/card"
+        assert call.kwargs["method"] == "POST"
+        assert call.kwargs["retry_count"] == NO_RETRY
+        assert call.kwargs["json"] == {
+            "name": "Revenue",
+            "type": "metric",
+            "display": "scalar",
+            "visualization_settings": {},
+            "dataset_query": {"database": 3, "type": "query", "query": METRIC_QUERY},
+            "description": "Sum of order totals",
+        }
+
+    @pytest.mark.asyncio
+    async def test_display_override(self, mock_context):
+        mock_context.fetch.return_value = _ok({**SAMPLE_MBQL_CARD, "type": "metric"})
+        await metabase.execute_action(
+            "create_metric",
+            {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY, "display": "line"},
+            mock_context,
+        )
+        assert mock_context.fetch.call_args.kwargs["json"]["display"] == "line"
+
+    @pytest.mark.asyncio
+    async def test_two_aggregations_refused(self, mock_context):
+        query = {"source-table": 12, "aggregation": [["count"], ["sum", ["field", 78, None]]]}
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "exactly one aggregation" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_aggregation_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": {"source-table": 12}}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "exactly one aggregation" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_aggregation_not_a_list_refused(self, mock_context):
+        query = {"source-table": 12, "aggregation": "count"}
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_native_refused(self, mock_context):
+        query = {**METRIC_QUERY, "source-query": {"native": "select 1"}}
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "can't contain SQL" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_missing_source_table_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": {"aggregation": [["count"]]}}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "source-table" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_writing_saved_question_source_refused(self, mock_context):
+        mock_context.fetch.side_effect = _source_check_calls(compiled="delete from t")
+        query = {"source-table": "card__42", "aggregation": [["count"]]}
+        result = await metabase.execute_action(
+            "create_metric", {"name": "User count", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42 wasn't run" in result.result.message
+        assert mock_context.fetch.call_count == 3
+        assert f"{BASE}/api/card" not in [c.args[0] for c in mock_context.fetch.call_args_list]
+
+    @pytest.mark.asyncio
+    async def test_400_saves_legacy_table_metric(self, mock_context):
+        mock_context.fetch.side_effect = [
+            CARD_TYPE_REFUSED,
+            _ok({"id": 7, "name": "Revenue", "description": "Sum of order totals", "archived": False}),
+        ]
+        query = {**METRIC_QUERY, "filter": [">", ["field", 56, None], 0], "breakout": [["field", 34, None]]}
+        result = await metabase.execute_action(
+            "create_metric",
+            {"name": "Revenue", "database_id": 3, "query": query, "description": "Sum of order totals"},
+            mock_context,
+        )
+        assert result.type != ResultType.ACTION_ERROR
+        data = result.result.data
+        assert data["id"] == 7
+        assert data["type"] == "legacy_metric"
+        assert data["database_id"] == 3
+        assert "metric id, not a question id" in data["note"]
+        legacy = mock_context.fetch.call_args
+        assert legacy.args[0] == f"{BASE}/api/metric"
+        assert legacy.kwargs["method"] == "POST"
+        assert legacy.kwargs["retry_count"] == NO_RETRY
+        assert legacy.kwargs["json"] == {
+            "name": "Revenue",
+            "table_id": 12,
+            "definition": {
+                "source-table": 12,
+                "aggregation": METRIC_QUERY["aggregation"],
+                "filter": [">", ["field", 56, None], 0],
+            },
+            "description": "Sum of order totals",
+        }
+
+    @pytest.mark.asyncio
+    async def test_400_on_saved_question_source_needs_a_table(self, mock_context):
+        mock_context.fetch.side_effect = [*_source_check_calls(), CARD_TYPE_REFUSED]
+        query = {"source-table": "card__42", "aggregation": [["count"]]}
+        result = await metabase.execute_action(
+            "create_metric", {"name": "User count", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 400" in result.result.message
+        assert "built on a table" in result.result.message
+        assert f"{BASE}/api/metric" not in [c.args[0] for c in mock_context.fetch.call_args_list]
+
+    @pytest.mark.asyncio
+    async def test_legacy_metric_404_reports_original_error(self, mock_context):
+        mock_context.fetch.side_effect = [
+            CARD_TYPE_REFUSED,
+            HTTPError(404, "Not found", "API endpoint does not exist."),
+        ]
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Metabase returned HTTP 400: invalid card type"
+
+    @pytest.mark.asyncio
+    async def test_legacy_metric_other_error_surfaces(self, mock_context):
+        mock_context.fetch.side_effect = [
+            CARD_TYPE_REFUSED,
+            HTTPError(403, "Forbidden", {"message": "You don't have permissions to do that."}),
+        ]
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 403" in result.result.message
+        assert "You don't have permissions" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_legacy_metric_without_id(self, mock_context):
+        mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _ok({"name": "Revenue"})]
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "did not return a metric id" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_other_http_error_has_no_version_hint(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(403, "Forbidden", "You don't have permissions.")
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY}, mock_context
+        )
+        assert "HTTP 403" in result.result.message
+        assert "0.51" not in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_timeout_says_search_before_retrying(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY}, mock_context
+        )
+        assert "Check with search" in result.result.message
+
+
+class TestExportQuestionResults:
+    @pytest.mark.asyncio
+    async def test_csv_happy_path(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls(SAMPLE_CSV)
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        data = result.result.data
+        assert data["format"] == "csv"
+        assert data["content"] == SAMPLE_CSV.rstrip("\n")
+        assert data["row_count"] == 3
+        assert data["truncated"] is False
+
+    @pytest.mark.asyncio
+    async def test_saved_question_checked_before_export(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls(SAMPLE_CSV)
+        await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        calls = mock_context.fetch.call_args_list
+        assert [(c.args[0], c.kwargs["method"]) for c in calls] == [
+            (f"{BASE}/api/card/42", "GET"),
+            (f"{BASE}/api/database/3", "GET"),
+            (f"{BASE}/api/dataset/native", "POST"),
+            (f"{BASE}/api/card/42/query/csv", "POST"),
+        ]
+        assert calls[2].kwargs["json"] == {**SAVED_EXPORT_CARD["dataset_query"], "parameters": [], "pretty": False}
+
+    @pytest.mark.asyncio
+    async def test_export_request_is_a_form(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls(SAMPLE_CSV)
+        params = [{"type": "category", "target": ["variable", ["template-tag", "region"]], "value": "EU"}]
+        await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "parameters": params}, mock_context
+        )
+        call = mock_context.fetch.call_args
+        assert call.kwargs["data"] == {"parameters": json.dumps(params), "format_rows": "false"}
+        assert call.kwargs["content_type"] == "application/x-www-form-urlencoded"
+        assert call.kwargs["headers"] == {"x-api-key": "mb_test_api_key"}  # nosec B105
+        assert "json" not in call.kwargs
+        assert call.kwargs["retry_count"] == NO_RETRY
+        assert call.kwargs["timeout"] == 120
+
+    @pytest.mark.asyncio
+    async def test_check_calls_keep_json_header(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls(SAMPLE_CSV)
+        await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        compile_call = mock_context.fetch.call_args_list[2]
+        assert compile_call.kwargs["headers"]["Content-Type"] == "application/json"
+
+    @pytest.mark.asyncio
+    async def test_saved_filter_defaults_sent(self, mock_context):
+        target = ["variable", ["template-tag", "region"]]
+        card = {
+            **SAVED_EXPORT_CARD,
+            "parameters": [{"id": "p1", "type": "category", "target": target, "default": "EU"}],
+        }
+        mock_context.fetch.side_effect = _export_calls(SAMPLE_CSV, card=card)
+        await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        sent = json.loads(mock_context.fetch.call_args.kwargs["data"]["parameters"])
+        assert sent == [{"id": "p1", "type": "category", "target": target, "value": "EU"}]
+
+    @pytest.mark.asyncio
+    async def test_csv_bom_stripped(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls("﻿" + SAMPLE_CSV)
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.result.data["content"].startswith("id,email")
+
+    @pytest.mark.asyncio
+    async def test_csv_max_rows_truncates(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls(SAMPLE_CSV)
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "max_rows": 2}, mock_context
+        )
+        data = result.result.data
+        assert data["content"] == "id,email\n1,ana@example.com\n2,ben@example.com"
+        assert data["row_count"] == 2
+        assert data["truncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_csv_exactly_max_rows_not_truncated(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls(SAMPLE_CSV)
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "max_rows": 3}, mock_context
+        )
+        assert result.result.data["row_count"] == 3
+        assert result.result.data["truncated"] is False
+
+    @pytest.mark.asyncio
+    async def test_csv_header_only(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls("id,email\n")
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.result.data["row_count"] == 0
+        assert result.result.data["content"] == "id,email"
+
+    @pytest.mark.asyncio
+    async def test_csv_windows_line_endings(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls("id,email\r\n1,ana@example.com\r\n")
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.result.data["content"] == "id,email\n1,ana@example.com"
+        assert result.result.data["row_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_csv_long_content_cut_and_truncated(self, mock_context):
+        big = "id,note\n" + "".join(f"{i},{'x' * 2000}\n" for i in range(600))
+        mock_context.fetch.side_effect = _export_calls(big)
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        content = result.result.data["content"]
+        # Only whole rows are kept, so the content stops at the last row that fits in 1,000,000 characters.
+        assert 1_000_000 - 2010 < len(content) <= 1_000_000
+        assert content.splitlines()[-1].endswith("x")
+        assert result.result.data["row_count"] == len(content.splitlines()) - 1
+        assert result.result.data["truncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_json_rows(self, mock_context):
+        rows = [{"id": i, "email": f"user{i}@example.com"} for i in range(5)]
+        mock_context.fetch.side_effect = _export_calls(rows)
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "format": "json", "max_rows": 3}, mock_context
+        )
+        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/card/42/query/json"
+        data = result.result.data
+        assert data == {"format": "json", "rows": rows[:3], "row_count": 3, "truncated": True}
+
+    @pytest.mark.asyncio
+    async def test_json_all_rows(self, mock_context):
+        rows = [{"id": 1, "email": "ana@example.com"}]
+        mock_context.fetch.side_effect = _export_calls(rows)
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "format": "json"}, mock_context
+        )
+        assert result.result.data["rows"] == rows
+        assert result.result.data["truncated"] is False
+
+    @pytest.mark.asyncio
+    async def test_default_max_rows_is_1000(self, mock_context):
+        rows = [{"id": i} for i in range(1500)]
+        mock_context.fetch.side_effect = _export_calls(rows)
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "format": "json"}, mock_context
+        )
+        assert result.result.data["row_count"] == 1000
+        assert result.result.data["truncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_writing_saved_question_refused_before_export(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls(SAMPLE_CSV, compiled="delete from users")
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42 wasn't run" in result.result.message
+        assert mock_context.fetch.call_count == 3
+        assert all("/query/" not in c.args[0] for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_html_response_rejected(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls("<!DOCTYPE html><html><body>Sign in</body></html>")
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "isn't JSON" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_html_tag_response_rejected(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls("\n  <html><head><title>Login</title></head></html>")
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_csv_header_starting_with_angle_bracket_accepted(self, mock_context):
+        csv_text = "<30 days,accounts\n12,40\n"
+        mock_context.fetch.side_effect = _export_calls(csv_text)
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["content"] == "<30 days,accounts\n12,40"
+        assert result.result.data["row_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_invalid_format_rejected(self, mock_context):
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "format": "parquet"}, mock_context
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_xlsx_file(self, mock_context):
+        mock_context.fetch.side_effect = _source_check_calls()
+        download = AsyncMock(return_value=XLSX_BYTES)
+        with patch("metabase.metabase._download", download):
+            result = await metabase.execute_action(
+                "export_question_results", {"question_id": 42, "format": "xlsx"}, mock_context
+            )
+        assert result.result.data == {
+            "format": "xlsx",
+            "file": {
+                "name": "question-42.xlsx",
+                "contentType": XLSX_CONTENT_TYPE,
+                "content": base64.b64encode(XLSX_BYTES).decode("ascii"),
+            },
+            "row_count": None,
+            "truncated": False,
+        }
+        download.assert_awaited_once_with(
+            mock_context, "/card/42/query/xlsx", {"parameters": "[]", "format_rows": "false"}
+        )
+
+    @pytest.mark.asyncio
+    async def test_xlsx_saved_question_checked_first(self, mock_context):
+        mock_context.fetch.side_effect = _source_check_calls()
+        with patch("metabase.metabase._download", AsyncMock(return_value=XLSX_BYTES)):
+            await metabase.execute_action(
+                "export_question_results", {"question_id": 42, "format": "xlsx"}, mock_context
+            )
+        assert [c.args[0] for c in mock_context.fetch.call_args_list] == [
+            f"{BASE}/api/card/42",
+            f"{BASE}/api/database/3",
+            f"{BASE}/api/dataset/native",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_xlsx_refused_question_not_downloaded(self, mock_context):
+        mock_context.fetch.side_effect = _source_check_calls(compiled="delete from users")
+        download = AsyncMock(return_value=XLSX_BYTES)
+        with patch("metabase.metabase._download", download):
+            result = await metabase.execute_action(
+                "export_question_results", {"question_id": 42, "format": "xlsx"}, mock_context
+            )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42 wasn't run" in result.result.message
+        download.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_xlsx_download_error(self, mock_context):
+        mock_context.fetch.side_effect = _source_check_calls()
+        too_big = AsyncMock(side_effect=ValueError("The Excel file is over 3.5 MB, too big to return."))
+        with patch("metabase.metabase._download", too_big):
+            result = await metabase.execute_action(
+                "export_question_results", {"question_id": 42, "format": "xlsx"}, mock_context
+            )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "over 3.5 MB" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_http_error(self, mock_context):
+        mock_context.fetch.side_effect = [
+            *_export_calls(SAMPLE_CSV)[:3],
+            HTTPError(500, "Server Error", {"message": "Query timed out"}),
+        ]
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 500" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_timeout(self, mock_context):
+        mock_context.fetch.side_effect = [*_export_calls(SAMPLE_CSV)[:3], asyncio.TimeoutError()]
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "did not respond in time" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_csv_multiline_value_counts_as_one_row(self, mock_context):
+        csv_text = 'id,note\n1,"Called twice\nleft voicemail"\n2,ok\n'
+        mock_context.fetch.side_effect = _export_calls(csv_text)
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.result.data["row_count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_csv_row_count_matches_cut_content(self, mock_context):
+        big = "id,note\n" + "".join(f"{i},{'x' * 2000}\n" for i in range(600))
+        mock_context.fetch.side_effect = _export_calls(big)
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        data = result.result.data
+        assert data["row_count"] == len(data["content"].splitlines()) - 1
+
+
+class TestGetRevisionHistory:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_REVISIONS)
+        result = await metabase.execute_action(
+            "get_revision_history", {"item_type": "question", "item_id": 42}, mock_context
+        )
+        data = result.result.data
+        assert data["count"] == 2
+        assert data["revisions"][0] == {
+            "revision_id": 501,
+            "description": SAMPLE_REVISIONS[0]["description"],
+            "timestamp": "2026-10-30T02:11:09.123Z",
+            "user": "Risheet Peri",
+            "is_creation": False,
+            "is_reversion": False,
+            "most_recent": True,
+        }
+        assert data["revisions"][1]["is_creation"] is True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "item_type,entity",
+        [
+            ("question", "card"),
+            ("model", "card"),
+            ("metric", "card"),
+            ("dashboard", "dashboard"),
+            ("segment", "segment"),
+        ],
+    )
+    async def test_request_entity(self, mock_context, item_type, entity):
+        mock_context.fetch.return_value = _ok([])
+        await metabase.execute_action("get_revision_history", {"item_type": item_type, "item_id": 7}, mock_context)
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{BASE}/api/revision?entity={entity}&id=7"
+        assert call.kwargs["method"] == "GET"
+
+    @pytest.mark.asyncio
+    async def test_wrapped_data_and_missing_user(self, mock_context):
+        mock_context.fetch.return_value = _ok({"data": [{"id": 3, "description": "edited", "user": None}]})
+        result = await metabase.execute_action(
+            "get_revision_history", {"item_type": "dashboard", "item_id": 5}, mock_context
+        )
+        revision = result.result.data["revisions"][0]
+        assert revision["revision_id"] == 3
+        assert revision["user"] is None
+        assert revision["most_recent"] is False
+
+    @pytest.mark.asyncio
+    async def test_empty(self, mock_context):
+        mock_context.fetch.return_value = _ok([])
+        result = await metabase.execute_action(
+            "get_revision_history", {"item_type": "segment", "item_id": 5}, mock_context
+        )
+        assert result.result.data == {"revisions": [], "count": 0}
+
+    @pytest.mark.asyncio
+    async def test_unknown_item_type_rejected(self, mock_context):
+        result = await metabase.execute_action(
+            "get_revision_history", {"item_type": "collection", "item_id": 5}, mock_context
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_http_error(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "Not found.", "Not found.")
+        result = await metabase.execute_action(
+            "get_revision_history", {"item_type": "question", "item_id": 404}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 404" in result.result.message
+
+
+class TestRevertToRevision:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(CARD_HISTORY),
+            _ok({"id": 502, "description": "reverted to an earlier version."}),
+            *_source_check_calls(),
+        ]
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "model", "item_id": 42, "revision_id": 498}, mock_context
+        )
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data == {
+            "item_type": "model",
+            "item_id": 42,
+            "new_revision_id": 502,
+            "description": "reverted to an earlier version.",
+        }
+
+    @pytest.mark.asyncio
+    async def test_request(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(CARD_HISTORY), _ok({"id": 502}), *_source_check_calls()]
+        await metabase.execute_action(
+            "revert_to_revision", {"item_type": "metric", "item_id": 42, "revision_id": 498}, mock_context
+        )
+        calls = mock_context.fetch.call_args_list
+        assert [(c.args[0], c.kwargs["method"]) for c in calls] == [
+            (f"{BASE}/api/revision?entity=card&id=42", "GET"),
+            (f"{BASE}/api/revision/revert", "POST"),
+            (f"{BASE}/api/card/42", "GET"),
+            (f"{BASE}/api/database/3", "GET"),
+            (f"{BASE}/api/dataset/native", "POST"),
+        ]
+        revert = calls[1]
+        assert revert.kwargs["json"] == {"entity": "card", "id": 42, "revision_id": 498}
+        assert revert.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_revert_to_write_sql_is_undone(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(CARD_HISTORY),
+            _ok({"id": 511}),
+            *_source_check_calls(compiled="delete from t"),
+            _ok({"id": 512}),
+        ]
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "question", "item_id": 42, "revision_id": 498}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message.startswith("Not reverted")
+        undo = mock_context.fetch.call_args
+        assert undo.args[0] == f"{BASE}/api/revision/revert"
+        assert undo.kwargs["method"] == "POST"
+        assert undo.kwargs["json"] == {"entity": "card", "id": 42, "revision_id": 510}
+        assert mock_context.fetch.call_count == 6
+
+    @pytest.mark.asyncio
+    async def test_dashboard_entity(self, mock_context):
+        mock_context.fetch.return_value = _ok({"id": 9})
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "dashboard", "item_id": 5, "revision_id": 8}, mock_context
+        )
+        assert result.type != ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 1
+        call = mock_context.fetch.call_args
+        assert call.args[0] == f"{BASE}/api/revision/revert"
+        assert call.kwargs["json"] == {"entity": "dashboard", "id": 5, "revision_id": 8}
+
+    @pytest.mark.asyncio
+    async def test_segment_makes_no_check_calls(self, mock_context):
+        mock_context.fetch.return_value = _ok({"id": 4})
+        await metabase.execute_action(
+            "revert_to_revision", {"item_type": "segment", "item_id": 3, "revision_id": 2}, mock_context
+        )
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_unknown_item_type_rejected(self, mock_context):
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "pulse", "item_id": 5, "revision_id": 8}, mock_context
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_revision_id_required(self, mock_context):
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "question", "item_id": 5}, mock_context
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_http_error(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "Not found.", {"message": "Revision 1 not found"})
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "question", "item_id": 42, "revision_id": 1}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Revision 1 not found" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_timeout_says_check_history_before_retrying(self, mock_context):
+        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "question", "item_id": 42, "revision_id": 498}, mock_context
+        )
+        assert "Check with get_revision_history" in result.result.message
+
+
+class TestQuestionEditingFixes:
+    @pytest.mark.asyncio
+    async def test_update_question_refuses_a_new_filter(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SAMPLE_FILTERED_CARD), _ok({"id": 3, "engine": "postgres"})]
+        result = await metabase.execute_action(
+            "update_question", {"question_id": 42, "sql": "select * from t where c = {{country}}"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "{{country}}" in result.result.message
+        assert all(c.kwargs["method"] == "GET" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_csv_quoted_line_break_kept_whole_when_cut(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls('id,note\n1,"a\nb"\n2,ok\n3,x\n')
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "max_rows": 1}, mock_context
+        )
+        assert result.result.data["content"] == 'id,note\n1,"a\nb"'
+        assert result.result.data["row_count"] == 1
+        assert result.result.data["truncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_export_error_object_is_an_error(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls({"status": "failed", "error": "Table not found"})
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Table not found" in result.result.message
+
+
+class _FakeResponse:
+    def __init__(self, status=200, content_type=XLSX_CONTENT_TYPE, chunks=(XLSX_BYTES,), text=""):
+        self.status = status
+        self.headers = {"Content-Type": content_type}
+        self._chunks = chunks
+        self._text = text
+        self.content = MagicMock()
+        self.content.iter_chunked = self._iter_chunked
+
+    async def _iter_chunked(self, size):
+        for chunk in self._chunks:
+            yield chunk
+
+    async def text(self, errors="strict"):
+        return self._text
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+class _FakeSession:
+    def __init__(self, response):
+        self.response = response
+        self.posts = []
+
+    def post(self, url, **kwargs):
+        self.posts.append((url, kwargs))
+        return self.response
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def _fake_aiohttp(response):
+    session = _FakeSession(response)
+    return session, patch("metabase.metabase.aiohttp.ClientSession", MagicMock(return_value=session))
+
+
+FORM = {"parameters": "[]", "format_rows": "false"}
+
+
+class TestDownload:
+    @pytest.mark.asyncio
+    async def test_returns_bytes(self, mock_context):
+        session, patched = _fake_aiohttp(_FakeResponse(chunks=(b"PK\x03\x04", b"rest")))
+        with patched:
+            content = await _download(mock_context, "/card/42/query/xlsx", FORM)
+        assert content == b"PK\x03\x04rest"
+
+    @pytest.mark.asyncio
+    async def test_request(self, mock_context):
+        session, patched = _fake_aiohttp(_FakeResponse())
+        with patched:
+            await _download(mock_context, "/card/42/query/xlsx", FORM)
+        url, kwargs = session.posts[0]
+        assert url == f"{BASE}/api/card/42/query/xlsx"
+        assert kwargs["data"] == FORM
+        assert kwargs["headers"] == {"x-api-key": "mb_test_api_key"}  # nosec B105
+        assert kwargs["allow_redirects"] is False
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_over_size_limit(self, mock_context):
+        chunk = b"x" * 1_000_000
+        session, patched = _fake_aiohttp(_FakeResponse(chunks=(chunk, chunk, chunk, chunk)))
+        with patched, pytest.raises(ValueError, match="over 3.5 MB"):
+            await _download(mock_context, "/card/42/query/xlsx", FORM)
+
+    @pytest.mark.asyncio
+    async def test_json_body_is_a_failed_query(self, mock_context):
+        response = _FakeResponse(content_type="application/json", text='{"error": "Table not found"}')
+        session, patched = _fake_aiohttp(response)
+        with patched, pytest.raises(ValueError, match="Query failed: .*Table not found"):
+            await _download(mock_context, "/card/42/query/xlsx", FORM)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", [302, 403, 500])
+    async def test_error_status(self, mock_context, status):
+        session, patched = _fake_aiohttp(_FakeResponse(status=status, text='{"message": "Denied"}'))
+        with patched, pytest.raises(HTTPError) as caught:
+            await _download(mock_context, "/card/42/query/xlsx", FORM)
+        assert caught.value.status == status
+        assert caught.value.response_data == {"message": "Denied"}
+
+    @pytest.mark.asyncio
+    async def test_error_status_with_text_body(self, mock_context):
+        session, patched = _fake_aiohttp(_FakeResponse(status=502, text="Bad gateway"))
+        with patched, pytest.raises(HTTPError) as caught:
+            await _download(mock_context, "/card/42/query/xlsx", FORM)
+        assert caught.value.response_data == "Bad gateway"

@@ -621,6 +621,220 @@ class TestCreateQuestion:
         )
         assert result.result.data["native_sql"] == "select 1"
 
+    @pytest.mark.asyncio
+    async def test_filters_saved_as_template_tags(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _database(),
+            _ok({"query": "select * from orders where region = 'x'", "params": None}),
+            _ok({"id": 81, "name": "Orders by region"}),
+        ]
+        sql = "select * from orders where region = {{region}}"
+        filters = [{"name": "region", "type": "text", "display_name": "Sales region", "default": "EU"}]
+        result = await metabase.execute_action(
+            "create_question",
+            {"name": "Orders by region", "database_id": 3, "sql": sql, "filters": filters},
+            mock_context,
+        )
+        assert result.type != ResultType.ACTION_ERROR
+        calls = mock_context.fetch.call_args_list
+        assert [(c.args[0], c.kwargs["method"]) for c in calls] == [
+            (f"{BASE}/api/database/3", "GET"),
+            (f"{BASE}/api/dataset/native", "POST"),
+            (f"{BASE}/api/card", "POST"),
+        ]
+        tags = calls[2].kwargs["json"]["dataset_query"]["native"]["template-tags"]
+        tag = tags["region"]
+        assert isinstance(tag.pop("id"), str)
+        assert tag == {
+            "name": "region",
+            "display-name": "Sales region",
+            "type": "text",
+            "required": False,
+            "default": "EU",
+        }
+        # A filter with a default runs with it, so no stand-in is sent.
+        assert calls[1].kwargs["json"]["parameters"] == []
+        assert calls[1].kwargs["json"]["native"]["template-tags"] == tags
+
+    @pytest.mark.asyncio
+    async def test_stand_ins_for_filters_without_defaults(self, mock_context):
+        mock_context.fetch.side_effect = [_database(), _ok({"query": "select 1", "params": None}), _ok({"id": 82})]
+        sql = "select * from orders where region = {{region}} and total > {{min_total}} and created_at > {{since}}"
+        filters = [
+            {"name": "region", "type": "text"},
+            {"name": "min_total", "type": "number"},
+            {"name": "since", "type": "date"},
+        ]
+        await metabase.execute_action(
+            "create_question", {"name": "Big orders", "database_id": 3, "sql": sql, "filters": filters}, mock_context
+        )
+        assert mock_context.fetch.call_args_list[1].kwargs["json"]["parameters"] == [
+            {"type": "category", "target": ["variable", ["template-tag", "region"]], "value": "x"},
+            {"type": "number/=", "target": ["variable", ["template-tag", "min_total"]], "value": 1},
+            {"type": "date/single", "target": ["variable", ["template-tag", "since"]], "value": "2020-01-01"},
+        ]
+        tags = mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["native"]["template-tags"]
+        assert [t["type"] for t in tags.values()] == ["text", "number", "date"]
+        assert tags["min_total"]["display-name"] == "Min Total"
+
+    @pytest.mark.asyncio
+    async def test_field_filter(self, mock_context):
+        mock_context.fetch.side_effect = [_database(), _ok({"query": "select 1", "params": None}), _ok({"id": 83})]
+        filters = [{"name": "state", "type": "field", "field_id": 56, "widget_type": "string/="}]
+        await metabase.execute_action(
+            "create_question",
+            {"name": "Orders", "database_id": 3, "sql": "select * from orders where {{state}}", "filters": filters},
+            mock_context,
+        )
+        # A field filter isn't a value in the SQL, so it gets no stand-in.
+        assert mock_context.fetch.call_args_list[1].kwargs["json"]["parameters"] == []
+        tag = mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["native"]["template-tags"]["state"]
+        assert tag["type"] == "dimension"
+        assert tag["dimension"] == ["field", 56, None]
+        assert tag["widget-type"] == "string/="
+
+    @pytest.mark.asyncio
+    async def test_field_filter_needs_field_id(self, mock_context):
+        result = await metabase.execute_action(
+            "create_question",
+            {
+                "name": "Orders",
+                "database_id": 3,
+                "sql": "select * from orders where {{state}}",
+                "filters": [{"name": "state", "type": "field"}],
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "needs field_id" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_required_filter_needs_default(self, mock_context):
+        result = await metabase.execute_action(
+            "create_question",
+            {
+                "name": "Orders",
+                "database_id": 3,
+                "sql": "select * from orders where region = {{region}}",
+                "filters": [{"name": "region", "required": True}],
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "needs a default" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unused_filter_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_question",
+            {"name": "Orders", "database_id": 3, "sql": "select 1", "filters": [{"name": "region"}]},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "isn't used in the SQL" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_undefined_filter_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_question",
+            {"name": "Orders", "database_id": 3, "sql": "select * from orders where region = {{region}}"},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "define it in filters" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unknown_filter_type_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_question",
+            {
+                "name": "Orders",
+                "database_id": 3,
+                "sql": "select * from orders where region = {{region}}",
+                "filters": [{"name": "region", "type": "boolean"}],
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.VALIDATION_ERROR
+
+    @pytest.mark.asyncio
+    async def test_snippets_looked_up_once(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok([{"id": 7, "name": "totals"}, {"id": 8, "name": "active orders"}]),
+            _database(),
+            _ok({"query": "select 1", "params": None}),
+            _ok({"id": 84}),
+        ]
+        sql = "select {{snippet: totals}} from orders where {{snippet:active orders}}"
+        result = await metabase.execute_action(
+            "create_question", {"name": "Totals", "database_id": 3, "sql": sql}, mock_context
+        )
+        assert result.type != ResultType.ACTION_ERROR
+        calls = mock_context.fetch.call_args_list
+        assert calls[0].args[0] == f"{BASE}/api/native-query-snippet"
+        assert sum(c.args[0].endswith("/native-query-snippet") for c in calls) == 1
+        tags = calls[3].kwargs["json"]["dataset_query"]["native"]["template-tags"]
+        assert tags["snippet: totals"]["type"] == "snippet"
+        assert tags["snippet: totals"]["snippet-id"] == 7
+        assert tags["snippet:active orders"]["snippet-name"] == "active orders"
+
+    @pytest.mark.asyncio
+    async def test_unknown_snippet_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_ok([{"id": 7, "name": "totals"}])]
+        result = await metabase.execute_action(
+            "create_question",
+            {"name": "Totals", "database_id": 3, "sql": "select * from orders where {{snippet: other}}"},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "no snippet named other" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("ref", ["#12", "#12-active-users"])
+    async def test_saved_question_reference(self, mock_context, ref):
+        mock_context.fetch.side_effect = [_database(), _ok({"query": "select 1", "params": None}), _ok({"id": 85})]
+        await metabase.execute_action(
+            "create_question",
+            {"name": "Active", "database_id": 3, "sql": f"select * from {{{{{ref}}}}} as u"},  # nosec B608 - test SQL
+            mock_context,
+        )
+        tag = mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["native"]["template-tags"][ref]
+        assert tag["type"] == "card"
+        assert tag["card-id"] == 12
+
+    @pytest.mark.asyncio
+    async def test_expanded_write_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_database(), _ok({"query": "select 1; delete from orders", "params": None})]
+        result = await metabase.execute_action(
+            "create_question",
+            {"name": "Active", "database_id": 3, "sql": "select * from {{#12}} as u"},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message.startswith("Not saved.")
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_optional_clause_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_question",
+            {
+                "name": "Orders",
+                "database_id": 3,
+                "sql": "select * from orders where 1 = 1 [[and region = {{region}}]]",
+                "filters": [{"name": "region"}],
+            },
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "optional [[ ]] clauses" in result.result.message
+        mock_context.fetch.assert_not_called()
+
 
 class TestQueriesSentOnce:
     @pytest.mark.parametrize(
