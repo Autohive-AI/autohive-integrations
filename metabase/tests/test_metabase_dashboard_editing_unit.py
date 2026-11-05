@@ -702,9 +702,25 @@ REGION_FILTER = {"id": "p1", "name": "Region", "type": "string/="}
 CATEGORY_FILTER = {"id": "p2", "name": "Category", "type": "category"}
 
 
+RETURNS_DATASET_QUERY = {
+    "database": 1,
+    "type": "native",
+    "native": {
+        "query": "select region, count(*) from returns where {{return_region}} group by 1",
+        "template-tags": {"return_region": {"name": "return_region", "type": "text"}},
+    },
+}
+COMBINED_SQL_DASHCARD = {
+    **SQL_DASHCARD,
+    "series": [{"id": 47, "name": "Returns by region", "display": "bar", "dataset_query": RETURNS_DATASET_QUERY}],
+    "inline_parameters": ["p1", "p2"],
+}
+COMBINED_DASHBOARD = {**SAMPLE_DASHBOARD, "dashcards": [COMBINED_SQL_DASHCARD, TEXT_DASHCARD, MBQL_DASHCARD]}
+
+
 class TestUpdateDashboardFilters:
-    async def _run(self, mock_context, filters):
-        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok(SAMPLE_DASHBOARD)]
+    async def _run(self, mock_context, filters, dashboard=SAMPLE_DASHBOARD):
+        mock_context.fetch.side_effect = [_ok(dashboard), _ok(dashboard)]
         return await metabase.execute_action(
             "update_dashboard_filters", {"dashboard_id": 9, "filters": filters}, mock_context
         )
@@ -881,6 +897,113 @@ class TestUpdateDashboardFilters:
         assert [p["slug"] for p in _put_body(mock_context)["parameters"]] == ["sales_region", "category"]
 
     @pytest.mark.asyncio
+    async def test_series_question_connected_by_template_tag(self, mock_context):
+        await self._run(
+            mock_context,
+            [
+                {
+                    **REGION_FILTER,
+                    "connections": [
+                        {"dashcard_id": 501, "template_tag": "region"},
+                        {"dashcard_id": 501, "question_id": 47, "template_tag": "return_region"},
+                    ],
+                }
+            ],
+            COMBINED_DASHBOARD,
+        )
+        assert _put_dashcard(mock_context, 501)["parameter_mappings"] == [
+            {"parameter_id": "p1", "card_id": 42, "target": ["variable", ["template-tag", "region"]]},
+            {"parameter_id": "p1", "card_id": 47, "target": ["variable", ["template-tag", "return_region"]]},
+        ]
+
+    @pytest.mark.asyncio
+    async def test_series_question_connected_by_field(self, mock_context):
+        await self._run(
+            mock_context,
+            [CATEGORY_FILTER | {"connections": [{"dashcard_id": 503, "question_id": 44, "field_id": 21}]}],
+        )
+        assert _put_dashcard(mock_context, 503)["parameter_mappings"] == [
+            {"parameter_id": "p2", "card_id": 44, "target": ["dimension", ["field", 21, None]]}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_own_question_id_accepted(self, mock_context):
+        await self._run(
+            mock_context,
+            [{**REGION_FILTER, "connections": [{"dashcard_id": 501, "question_id": 42, "template_tag": "region"}]}],
+            COMBINED_DASHBOARD,
+        )
+        assert _put_dashcard(mock_context, 501)["parameter_mappings"][0]["card_id"] == 42
+
+    @pytest.mark.asyncio
+    async def test_series_tag_looked_up_in_series_query(self, mock_context):
+        result = await self._run(
+            mock_context,
+            [{**REGION_FILTER, "connections": [{"dashcard_id": 501, "question_id": 47, "template_tag": "region"}]}],
+            COMBINED_DASHBOARD,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "no SQL filter named region" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_question_not_on_card_refused(self, mock_context):
+        result = await self._run(
+            mock_context,
+            [{**REGION_FILTER, "connections": [{"dashcard_id": 501, "question_id": 43, "field_id": 7}]}],
+            COMBINED_DASHBOARD,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Question 43 isn't shown on card 501" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_type_change_drops_old_default(self, mock_context):
+        await self._run(mock_context, [{**REGION_FILTER, "type": "string/contains"}])
+        param = _put_body(mock_context)["parameters"][0]
+        assert param["type"] == "string/contains"
+        assert "default" not in param
+        assert param["values_query_type"] == "list"
+
+    @pytest.mark.asyncio
+    async def test_type_change_with_new_default(self, mock_context):
+        await self._run(mock_context, [{**REGION_FILTER, "type": "string/contains", "default": ["We"]}])
+        assert _put_body(mock_context)["parameters"][0]["default"] == ["We"]
+
+    @pytest.mark.asyncio
+    async def test_type_change_of_required_filter_needs_default(self, mock_context):
+        required = {**SAMPLE_DASHBOARD, "parameters": [{**SAMPLE_PARAMETERS[0], "required": True}]}
+        result = await self._run(mock_context, [{**REGION_FILTER, "type": "string/contains"}], required)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "needs a default value" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_non_latin_names_get_distinct_slugs(self, mock_context):
+        result = await self._run(
+            mock_context, [{"name": "日付", "type": "date/single"}, {"name": "地域", "type": "string/="}]
+        )
+        assert result.type == ResultType.ACTION
+        assert [p["slug"] for p in _put_body(mock_context)["parameters"]] == ["日付", "地域"]
+
+    @pytest.mark.asyncio
+    async def test_accented_name_not_folded_into_unaccented(self, mock_context):
+        result = await self._run(
+            mock_context, [{"name": "Région", "type": "string/="}, {"name": "R gion", "type": "string/="}]
+        )
+        assert result.type == ResultType.ACTION
+        assert [p["slug"] for p in _put_body(mock_context)["parameters"]] == ["région", "r_gion"]
+
+    @pytest.mark.asyncio
+    async def test_removed_filter_leaves_inline_parameters(self, mock_context):
+        await self._run(mock_context, [CATEGORY_FILTER], COMBINED_DASHBOARD)
+        assert _put_dashcard(mock_context, 501)["inline_parameters"] == ["p2"]
+
+    @pytest.mark.asyncio
+    async def test_kept_filters_keep_inline_parameters(self, mock_context):
+        await self._run(mock_context, [REGION_FILTER, CATEGORY_FILTER], COMBINED_DASHBOARD)
+        assert _put_dashcard(mock_context, 501)["inline_parameters"] == ["p1", "p2"]
+
+    @pytest.mark.asyncio
     async def test_timeout_says_check_before_retrying(self, mock_context):
         mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), asyncio.TimeoutError()]
         result = await metabase.execute_action(
@@ -926,17 +1049,11 @@ class TestCopyDashboard:
         assert mock_context.fetch.call_args.kwargs["json"] == {"is_deep_copy": False, "name": "Sales (copy)"}
 
     @pytest.mark.asyncio
-    async def test_deep_copy_into_collection_skips_get(self, mock_context):
+    async def test_copy_into_collection_skips_get(self, mock_context):
         mock_context.fetch.side_effect = [_ok({"id": 71, "name": "Sales 2027", "collection_id": 8})]
         await metabase.execute_action(
             "copy_dashboard",
-            {
-                "dashboard_id": 9,
-                "name": "Sales 2027",
-                "description": "Next year",
-                "collection_id": 8,
-                "copy_questions": True,
-            },
+            {"dashboard_id": 9, "name": "Sales 2027", "description": "Next year", "collection_id": 8},
             mock_context,
         )
         assert mock_context.fetch.call_count == 1
@@ -944,11 +1061,154 @@ class TestCopyDashboard:
         assert call.args[0] == f"{BASE}/api/dashboard/9/copy"
         assert call.kwargs["method"] == "POST"
         assert call.kwargs["json"] == {
-            "is_deep_copy": True,
+            "is_deep_copy": False,
             "name": "Sales 2027",
             "description": "Next year",
             "collection_id": 8,
         }
+
+    @pytest.mark.asyncio
+    async def test_deep_copy_checks_every_question_first(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SERIES_DASHBOARD),
+            *_copy_check(42),
+            *_copy_check(46),
+            *_copy_check(43),
+            _ok({"id": 71, "name": "Sales 2027", "collection_id": 8}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard",
+            {"dashboard_id": 9, "name": "Sales 2027", "collection_id": 8, "copy_questions": True},
+            mock_context,
+        )
+        assert result.result.data == {"id": 71, "name": "Sales 2027", "collection_id": 8}
+        urls = [c.args[0] for c in mock_context.fetch.call_args_list]
+        assert urls[0] == f"{BASE}/api/dashboard/9"
+        assert [u for u in urls if "/api/card/" in u] == [
+            f"{BASE}/api/card/42",
+            f"{BASE}/api/card/46",
+            f"{BASE}/api/card/43",
+        ]
+        assert len(_calls_to(mock_context, "/dataset/native")) == 6
+        post = mock_context.fetch.call_args
+        assert post.args[0] == f"{BASE}/api/dashboard/9/copy"
+        assert post.kwargs["json"] == {"is_deep_copy": True, "name": "Sales 2027", "collection_id": 8}
+        assert post.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_deep_copy_checks_every_filter_then_dashboard_defaults(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SERIES_DASHBOARD),
+            *_copy_check(42),
+            *_copy_check(46),
+            *_copy_check(43),
+            _ok({"id": 71, "name": "Sales (copy)", "collection_id": 4}),
+        ]
+        await metabase.execute_action(
+            "copy_dashboard", {"dashboard_id": 9, "name": "Sales (copy)", "copy_questions": True}, mock_context
+        )
+        natives = [c.kwargs["json"]["parameters"] for c in _calls_to(mock_context, "/dataset/native")]
+        region_west = {"id": "p1", "type": "string/=", "target": REGION_TARGET, "value": ["West"]}
+        # Question 42: every filter set (Region from the dashboard default, a stand-in for Category), then the default.
+        assert natives[0] == [region_west, CATEGORY_STAND_IN]
+        assert natives[1] == [region_west]
+        # Series 46 is connected to Category, which has no default: stand-ins for both, then no filters.
+        assert natives[2] == [REGION_STAND_IN, CATEGORY_STAND_IN]
+        assert natives[3] == []
+        assert mock_context.fetch.call_args.kwargs["json"]["collection_id"] == 4
+
+    @pytest.mark.asyncio
+    async def test_deep_copy_checks_repeated_question_once(self, mock_context):
+        repeated = {**SERIES_DASHBOARD, "dashcards": [SERIES_DASHBOARD["dashcards"][0]] * 2}
+        mock_context.fetch.side_effect = [
+            _ok(repeated),
+            *_copy_check(42),
+            *_copy_check(46),
+            _ok({"id": 71, "name": "Sales (copy)"}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard",
+            {"dashboard_id": 9, "name": "Sales (copy)", "collection_id": 8, "copy_questions": True},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION
+        assert len(_calls_to(mock_context, "/api/card/42")) == 1
+        assert len(_calls_to(mock_context, "/api/card/46")) == 1
+
+    @pytest.mark.asyncio
+    async def test_deep_copy_refused_for_write_series(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SERIES_DASHBOARD),
+            *_copy_check(42),
+            _ok(_card(46)),
+            _ok(SAMPLE_DATABASE),
+            _ok({"query": "delete from returns"}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard",
+            {"dashboard_id": 9, "name": "Sales (copy)", "collection_id": 8, "copy_questions": True},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 46 wasn't run" in result.result.message
+        assert _calls_to(mock_context, "/copy") == []
+        assert mock_context.fetch.call_count == 8
+
+    @pytest.mark.asyncio
+    async def test_deep_copy_refused_when_write_only_in_optional_clause(self, mock_context):
+        # Only the expansion with every filter set reaches the write; the plain check sees a select.
+        mock_context.fetch.side_effect = [
+            _ok(ONE_QUESTION_DASHBOARD),
+            _ok(_card(43)),
+            _ok(SAMPLE_DATABASE),
+            _ok({"query": "select 1; update orders set status = 'void'"}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard",
+            {"dashboard_id": 9, "name": "Sales (copy)", "collection_id": 8, "copy_questions": True},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 43 wasn't run" in result.result.message
+        assert _calls_to(mock_context, "/copy") == []
+
+    @pytest.mark.asyncio
+    async def test_deep_copy_not_blocked_by_required_filter_without_default(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(ONE_QUESTION_DASHBOARD),
+            _ok(_card(43)),
+            _ok(SAMPLE_DATABASE),
+            _ok(SELECT_SQL),
+            HTTPError(
+                400, "Bad Request", {"message": "You'll need to pick a value for 'Category' before this query can run."}
+            ),
+            _ok({"id": 71, "name": "Sales (copy)", "collection_id": 8}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard",
+            {"dashboard_id": 9, "name": "Sales (copy)", "collection_id": 8, "copy_questions": True},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["id"] == 71
+        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/dashboard/9/copy"
+
+    @pytest.mark.asyncio
+    async def test_deep_copy_stand_in_expansion_error_blocks_copy(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(ONE_QUESTION_DASHBOARD),
+            _ok(_card(43)),
+            _ok(SAMPLE_DATABASE),
+            HTTPError(400, "Bad Request", {"message": "Invalid parameter value"}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard",
+            {"dashboard_id": 9, "name": "Sales (copy)", "collection_id": 8, "copy_questions": True},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 400" in result.result.message
+        assert _calls_to(mock_context, "/copy") == []
 
     @pytest.mark.asyncio
     async def test_blank_name(self, mock_context):
@@ -1043,6 +1303,32 @@ SAMPLE_QUERY_RESULT = {
 }
 
 
+SERIES_TARGET = ["dimension", ["field", 15, None]]
+SERIES_DASHBOARD = {
+    "id": 9,
+    "name": "Sales",
+    "collection_id": 4,
+    "tabs": SAMPLE_TABS,
+    "parameters": SAMPLE_PARAMETERS,
+    "dashcards": [
+        {
+            "id": 801,
+            "card_id": 42,
+            "card": {"id": 42, "name": "Orders by region"},
+            "series": [{"id": 46, "name": "Returns by region", "display": "bar"}],
+            "dashboard_tab_id": 11,
+            "parameter_mappings": [
+                {"parameter_id": "p1", "card_id": 42, "target": REGION_TARGET},
+                {"parameter_id": "p2", "card_id": 46, "target": SERIES_TARGET},
+            ],
+        },
+        {"id": 802, "card_id": 43, "card": {"id": 43, "name": "Order count"}, "dashboard_tab_id": 11},
+        {"id": 803, "card_id": None, "card": None, "dashboard_tab_id": 11, "parameter_mappings": []},
+        {"id": 804, "card_id": 45, "action_id": 5, "card": {"id": 45, "name": "Refund order"}},
+    ],
+}
+
+
 def _card(card_id):
     return {"id": card_id, "database_id": 1, "dataset_query": SQL_DATASET_QUERY, "parameters": []}
 
@@ -1050,6 +1336,17 @@ def _card(card_id):
 def _card_run(card_id, compiled=SELECT_SQL, result=SAMPLE_QUERY_RESULT):
     """Responses for one question: GET card, GET database, POST /dataset/native, POST dashcard query."""
     return [_ok(_card(card_id)), _ok(SAMPLE_DATABASE), _ok(compiled), _ok(result)]
+
+
+def _copy_check(card_id, compiled=SELECT_SQL):
+    """Responses for checking one question before a deep copy: GET card, GET database, POST /dataset/native with
+    every filter set, POST /dataset/native with the dashboard defaults."""
+    return [_ok(_card(card_id)), _ok(SAMPLE_DATABASE), _ok(compiled), _ok(compiled)]
+
+
+REGION_STAND_IN = {"type": "category", "target": ["variable", ["template-tag", "region"]], "value": "x"}
+CATEGORY_STAND_IN = {"type": "category", "target": ["dimension", ["template-tag", "category"]], "value": ["x"]}
+ONE_QUESTION_DASHBOARD = {**SERIES_DASHBOARD, "dashcards": [SERIES_DASHBOARD["dashcards"][1]]}
 
 
 def _calls_to(mock_context, suffix):
@@ -1221,29 +1518,104 @@ class TestRunDashboard:
         assert card["truncated"] is True
 
     @pytest.mark.asyncio
-    async def test_series_mappings_not_checked_against_main_card(self, mock_context):
-        combined = {
-            "id": 9,
-            "parameters": SAMPLE_PARAMETERS,
+    async def test_series_run_with_their_own_mappings(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SERIES_DASHBOARD), *_card_run(42), *_card_run(46), *_card_run(43)]
+        result = await metabase.execute_action(
+            "run_dashboard", {"dashboard_id": 9, "filters": [{"filter": "category", "value": ["Gizmo"]}]}, mock_context
+        )
+        cards = result.result.data["cards"]
+        assert [(c["dashcard_id"], c["card_id"], c["card_name"]) for c in cards] == [
+            (801, 42, "Orders by region"),
+            (801, 46, "Returns by region"),
+            (802, 43, "Order count"),
+        ]
+        assert all("error" not in c for c in cards)
+        native_42, native_46, _ = _calls_to(mock_context, "/dataset/native")
+        assert native_42.kwargs["json"]["parameters"] == [
+            {"id": "p1", "type": "string/=", "target": REGION_TARGET, "value": ["West"]}
+        ]
+        assert native_46.kwargs["json"]["parameters"] == [
+            {"id": "p2", "type": "category", "target": SERIES_TARGET, "value": ["Gizmo"]}
+        ]
+        query_42, query_46, query_43 = _calls_to(mock_context, "/query")
+        assert query_46.args[0] == f"{BASE}/api/dashboard/9/dashcard/801/card/46/query"
+        assert query_46.kwargs["retry_count"] == NO_RETRY
+        assert query_42.kwargs["json"] == {"parameters": [{"id": "p1", "type": "string/=", "value": ["West"]}]}
+        assert query_46.kwargs["json"] == {"parameters": [{"id": "p2", "type": "category", "value": ["Gizmo"]}]}
+        assert query_43.kwargs["json"] == {"parameters": []}
+
+    @pytest.mark.asyncio
+    async def test_mapping_without_card_id_belongs_to_own_question(self, mock_context):
+        unlabelled = {
+            **SERIES_DASHBOARD,
             "dashcards": [
                 {
-                    "id": 603,
-                    "card_id": 43,
-                    "card": {"id": 43, "name": "Order count"},
-                    "series": [{"id": 44, "name": "Refund count"}],
-                    "parameter_mappings": [
-                        {"parameter_id": "p1", "card_id": 43, "target": ["dimension", ["field", 8, None]]},
-                        {"parameter_id": "p1", "card_id": 44, "target": ["dimension", ["field", 9, None]]},
-                    ],
+                    **SERIES_DASHBOARD["dashcards"][0],
+                    "parameter_mappings": [{"parameter_id": "p1", "target": REGION_TARGET}],
                 }
             ],
         }
-        mock_context.fetch.side_effect = [_ok(combined), *_card_run(43)]
+        mock_context.fetch.side_effect = [_ok(unlabelled), *_card_run(42), *_card_run(46)]
         await metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context)
-        native = _calls_to(mock_context, "/dataset/native")[0]
-        assert native.kwargs["json"]["parameters"] == [
-            {"id": "p1", "type": "string/=", "target": ["dimension", ["field", 8, None]], "value": ["West"]}
+        query_42, query_46 = _calls_to(mock_context, "/query")
+        assert query_42.kwargs["json"] == {"parameters": [{"id": "p1", "type": "string/=", "value": ["West"]}]}
+        assert query_46.kwargs["json"] == {"parameters": []}
+
+    @pytest.mark.asyncio
+    async def test_series_write_refused_and_others_run(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SERIES_DASHBOARD),
+            *_card_run(42),
+            _ok(_card(46)),
+            _ok(SAMPLE_DATABASE),
+            _ok({"query": "delete from returns where region = 'West'"}),
+            *_card_run(43),
         ]
+        result = await metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION
+        main, series, other = result.result.data["cards"]
+        assert main["row_count"] == 3
+        assert series["card_id"] == 46
+        assert "Saved question 46 wasn't run" in series["error"]
+        assert other["row_count"] == 3
+        assert _calls_to(mock_context, "/card/46/query") == []
+
+    @pytest.mark.asyncio
+    async def test_series_count_toward_limit(self, mock_context):
+        combined = {
+            "id": 9,
+            "parameters": [],
+            "dashcards": [
+                {
+                    "id": 900 + i,
+                    "card_id": 200 + i,
+                    "card": {"name": f"Q{i}"},
+                    "series": [{"id": 300 + i, "name": f"S{i}"}],
+                    "parameter_mappings": [],
+                }
+                for i in range(13)
+            ],
+        }
+        responses = [_ok(combined)]
+        for i in range(12):
+            responses.extend(_card_run(200 + i) + _card_run(300 + i))
+        responses.extend(_card_run(212))
+        mock_context.fetch.side_effect = responses
+        result = await metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context)
+        data = result.result.data
+        assert data["card_count"] == 25
+        assert data["skipped_card_count"] == 1
+        assert data["cards"][-1]["card_id"] == 212
+        assert _calls_to(mock_context, "/api/card/312") == []
+        assert mock_context.fetch.call_count == 101
+
+    @pytest.mark.asyncio
+    async def test_unknown_tab(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(RUN_DASHBOARD)]
+        result = await metabase.execute_action("run_dashboard", {"dashboard_id": 9, "tab_id": 99}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "tab_id 99" in result.result.message
+        assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
     async def test_dashboard_not_found(self, mock_context):

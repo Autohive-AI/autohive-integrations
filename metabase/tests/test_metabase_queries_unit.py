@@ -644,7 +644,8 @@ class TestCreateQuestion:
         ]
         tags = calls[2].kwargs["json"]["dataset_query"]["native"]["template-tags"]
         tag = tags["region"]
-        assert isinstance(tag.pop("id"), str)
+        tag_id = tag.pop("id")
+        assert isinstance(tag_id, str)
         assert tag == {
             "name": "region",
             "display-name": "Sales region",

@@ -116,6 +116,12 @@ def _compiled(sql):
     return _ok({"query": sql, "params": None})
 
 
+def _saving_check_calls(compiled="select id, email from users", card=None):
+    """The check before saving a question's SQL somewhere new (copy, revert, a question built on it): the card, its
+    database, then Metabase expands it twice, once with every filter set and once as it runs."""
+    return [*_export_calls(None, compiled=compiled, card=card)[:3], _compiled(compiled)]
+
+
 def _source_check_calls(compiled="select id, email from users", card=None):
     """The check of a saved question a query or revert relies on: the card, its database, its expanded SQL."""
     return _export_calls(None, compiled=compiled, card=card)[:3]
@@ -409,6 +415,20 @@ class TestUpdateQuestion:
         assert stage["native"] == "select 1"
 
     @pytest.mark.asyncio
+    async def test_mbql5_update_keeps_later_stages(self, mock_context):
+        summarize = {"lib/type": "mbql.stage/mbql", "aggregation": [["count", {}]], "breakout": [["field", {}, "week"]]}
+        saved = SAMPLE_MBQL5_CARD["dataset_query"]
+        card = {**SAMPLE_MBQL5_CARD, "dataset_query": {**saved, "stages": [*saved["stages"], summarize]}}
+        mock_context.fetch.side_effect = [_ok(card), _database(), _ok(card)]
+        await metabase.execute_action(
+            "update_question", {"question_id": 42, "sql": "select week from signups"}, mock_context
+        )
+        stages = mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["stages"]
+        assert len(stages) == 2
+        assert stages[0]["native"] == "select week from signups"
+        assert stages[1] == summarize
+
+    @pytest.mark.asyncio
     async def test_snippet_tag_kept(self, mock_context):
         mock_context.fetch.side_effect = [
             _ok(SAMPLE_SNIPPET_CARD),
@@ -451,7 +471,8 @@ class TestUpdateQuestion:
         tags = mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["native"]["template-tags"]
         assert tags["region"] == SAMPLE_FILTERED_CARD["dataset_query"]["native"]["template-tags"]["region"]
         country = dict(tags["country"])
-        assert isinstance(country.pop("id"), str)
+        country_id = country.pop("id")
+        assert isinstance(country_id, str)
         assert country == {
             "name": "country",
             "display-name": "Country",
@@ -565,20 +586,84 @@ class TestUpdateQuestion:
 
 class TestCopyQuestion:
     @pytest.mark.asyncio
-    async def test_copy_without_changes_is_one_call(self, mock_context):
-        mock_context.fetch.return_value = _ok(SAMPLE_COPY)
+    async def test_copy_without_changes(self, mock_context):
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(SAMPLE_COPY)]
         result = await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
         assert result.result.data["id"] == 77
-        assert mock_context.fetch.call_count == 1
+        assert mock_context.fetch.call_count == 5
         call = mock_context.fetch.call_args
         assert call.args[0] == f"{BASE}/api/card/42/copy"
         assert call.kwargs["method"] == "POST"
         assert call.kwargs["retry_count"] == NO_RETRY
 
     @pytest.mark.asyncio
+    async def test_question_checked_before_copy(self, mock_context):
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(SAMPLE_COPY)]
+        await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
+        assert [(c.args[0], c.kwargs["method"]) for c in mock_context.fetch.call_args_list] == [
+            (f"{BASE}/api/card/42", "GET"),
+            (f"{BASE}/api/database/3", "GET"),
+            (f"{BASE}/api/dataset/native", "POST"),
+            (f"{BASE}/api/dataset/native", "POST"),
+            (f"{BASE}/api/card/42/copy", "POST"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_writing_question_not_copied(self, mock_context):
+        mock_context.fetch.side_effect = _source_check_calls(compiled="delete from users")
+        result = await metabase.execute_action("copy_question", {"question_id": 42, "name": "Copy"}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42 wasn't run" in result.result.message
+        assert mock_context.fetch.call_count == 3
+        assert all("/copy" not in c.args[0] for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_defaults_checked_with_and_without(self, mock_context):
+        target = ["variable", ["template-tag", "region"]]
+        card = {
+            **SAVED_EXPORT_CARD,
+            "parameters": [{"id": "p1", "type": "category", "target": target, "default": "EU"}],
+        }
+        mock_context.fetch.side_effect = [
+            _ok(card),
+            _database(),
+            _compiled("select id, email from users"),
+            _compiled("select id, email from users where region = 'EU'"),
+            _compiled("select id, email from users"),
+            _ok(SAMPLE_COPY),
+        ]
+        await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
+        compiles = [c for c in mock_context.fetch.call_args_list if c.args[0].endswith("/dataset/native")]
+        # Every filter set (this SQL has no tags), then with the default, then without it.
+        assert [c.kwargs["json"]["parameters"] for c in compiles] == [
+            [],
+            [{"id": "p1", "type": "category", "target": target, "value": "EU"}],
+            [],
+        ]
+
+    @pytest.mark.asyncio
+    async def test_write_without_default_not_copied(self, mock_context):
+        target = ["variable", ["template-tag", "region"]]
+        card = {
+            **SAVED_EXPORT_CARD,
+            "parameters": [{"id": "p1", "type": "category", "target": target, "default": "EU"}],
+        }
+        mock_context.fetch.side_effect = [
+            _ok(card),
+            _database(),
+            _compiled("select id, email from users"),
+            _compiled("select id, email from users where region = 'EU'"),
+            _compiled("select 1; delete from users"),
+        ]
+        result = await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 5
+        assert all("/copy" not in c.args[0] for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
     async def test_rename_and_move_copy(self, mock_context):
         renamed = {**SAMPLE_COPY, "name": "Signups (EU)", "collection_id": 9}
-        mock_context.fetch.side_effect = [_ok(SAMPLE_COPY), _ok(renamed)]
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(SAMPLE_COPY), _ok(renamed)]
         result = await metabase.execute_action(
             "copy_question", {"question_id": 42, "name": "Signups (EU)", "collection_id": 9}, mock_context
         )
@@ -592,28 +677,33 @@ class TestCopyQuestion:
 
     @pytest.mark.asyncio
     async def test_only_collection_given(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(SAMPLE_COPY), _ok({**SAMPLE_COPY, "collection_id": 9})]
+        mock_context.fetch.side_effect = [
+            *_saving_check_calls(),
+            _ok(SAMPLE_COPY),
+            _ok({**SAMPLE_COPY, "collection_id": 9}),
+        ]
         await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
         assert mock_context.fetch.call_args.kwargs["json"] == {"collection_id": 9}
 
     @pytest.mark.asyncio
     async def test_empty_name_skips_put(self, mock_context):
-        mock_context.fetch.return_value = _ok(SAMPLE_COPY)
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(SAMPLE_COPY)]
         await metabase.execute_action("copy_question", {"question_id": 42, "name": ""}, mock_context)
-        assert mock_context.fetch.call_count == 1
+        assert mock_context.fetch.call_count == 5
+        assert all(c.kwargs["method"] != "PUT" for c in mock_context.fetch.call_args_list)
 
     @pytest.mark.asyncio
     async def test_empty_put_response_keeps_copy(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(SAMPLE_COPY), _ok({})]
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(SAMPLE_COPY), _ok({})]
         result = await metabase.execute_action("copy_question", {"question_id": 42, "name": "X"}, mock_context)
         assert result.result.data["id"] == 77
 
     @pytest.mark.asyncio
     async def test_no_id_returned(self, mock_context):
-        mock_context.fetch.return_value = _ok({"name": "Weekly signups - Duplicate"})
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok({"name": "Weekly signups - Duplicate"})]
         result = await metabase.execute_action("copy_question", {"question_id": 42, "name": "X"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
-        assert mock_context.fetch.call_count == 1
+        assert mock_context.fetch.call_count == 5
 
     @pytest.mark.asyncio
     async def test_http_error(self, mock_context):
@@ -624,20 +714,24 @@ class TestCopyQuestion:
 
     @pytest.mark.asyncio
     async def test_timeout_says_search_before_retrying(self, mock_context):
-        mock_context.fetch.side_effect = asyncio.TimeoutError()
+        mock_context.fetch.side_effect = [*_saving_check_calls(), asyncio.TimeoutError()]
         result = await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
         assert "Check with search" in result.result.message
 
     @pytest.mark.asyncio
     async def test_rename_failure_reported(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(SAMPLE_COPY), HTTPError(403, "Forbidden", "You don't have permissions.")]
+        mock_context.fetch.side_effect = [
+            *_saving_check_calls(),
+            _ok(SAMPLE_COPY),
+            HTTPError(403, "Forbidden", "You don't have permissions."),
+        ]
         result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         message = result.result.message
         assert "HTTP 403" in message
         assert "question 77" in message
         assert "update_question" in message
-        assert mock_context.fetch.call_count == 2
+        assert mock_context.fetch.call_count == 6
 
 
 class TestCreateQueryBuilderQuestion:
@@ -686,7 +780,7 @@ class TestCreateQueryBuilderQuestion:
 
     @pytest.mark.asyncio
     async def test_saved_question_source(self, mock_context):
-        mock_context.fetch.side_effect = [*_source_check_calls(), _ok(SAMPLE_MBQL_CARD)]
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(SAMPLE_MBQL_CARD)]
         query = {"source-table": "card__42", "aggregation": [["count"]]}
         result = await metabase.execute_action(
             "create_query_builder_question", {"name": "Count", "database_id": 3, "query": query}, mock_context
@@ -695,6 +789,7 @@ class TestCreateQueryBuilderQuestion:
         assert [(c.args[0], c.kwargs["method"]) for c in mock_context.fetch.call_args_list] == [
             (f"{BASE}/api/card/42", "GET"),
             (f"{BASE}/api/database/3", "GET"),
+            (f"{BASE}/api/dataset/native", "POST"),
             (f"{BASE}/api/dataset/native", "POST"),
             (f"{BASE}/api/card", "POST"),
         ]
@@ -832,7 +927,7 @@ class TestCreateModel:
 
     @pytest.mark.asyncio
     async def test_joined_saved_question_checked(self, mock_context):
-        mock_context.fetch.side_effect = [*_source_check_calls(), _ok({**SAMPLE_MBQL_CARD, "type": "model"})]
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok({**SAMPLE_MBQL_CARD, "type": "model"})]
         query = {"source-table": 12, "joins": [{"source-table": "card__42", "alias": "Users"}]}
         result = await metabase.execute_action(
             "create_model", {"name": "Orders with users", "database_id": 3, "query": query}, mock_context
@@ -914,6 +1009,11 @@ METRIC_QUERY = {"source-table": 12, "aggregation": [["sum", ["field", 78, None]]
 
 # Metabase before 0.51 has no metric card type and refuses it with HTTP 400.
 CARD_TYPE_REFUSED = HTTPError(400, "Bad Request", {"message": "invalid card type"})
+
+
+def _version(tag):
+    """GET /session/properties, which names the Metabase version."""
+    return _ok({"version": {"tag": tag}} if tag else {})
 
 
 class TestCreateMetric:
@@ -1018,9 +1118,10 @@ class TestCreateMetric:
     async def test_400_saves_legacy_table_metric(self, mock_context):
         mock_context.fetch.side_effect = [
             CARD_TYPE_REFUSED,
+            _version("v0.49.12"),
             _ok({"id": 7, "name": "Revenue", "description": "Sum of order totals", "archived": False}),
         ]
-        query = {**METRIC_QUERY, "filter": [">", ["field", 56, None], 0], "breakout": [["field", 34, None]]}
+        query = {**METRIC_QUERY, "filter": [">", ["field", 56, None], 0]}
         result = await metabase.execute_action(
             "create_metric",
             {"name": "Revenue", "database_id": 3, "query": query, "description": "Sum of order totals"},
@@ -1032,24 +1133,55 @@ class TestCreateMetric:
         assert data["type"] == "legacy_metric"
         assert data["database_id"] == 3
         assert "metric id, not a question id" in data["note"]
-        legacy = mock_context.fetch.call_args
+        calls = mock_context.fetch.call_args_list
+        assert calls[1].args[0] == f"{BASE}/api/session/properties"
+        assert calls[1].kwargs["method"] == "GET"
+        legacy = calls[2]
         assert legacy.args[0] == f"{BASE}/api/metric"
         assert legacy.kwargs["method"] == "POST"
         assert legacy.kwargs["retry_count"] == NO_RETRY
         assert legacy.kwargs["json"] == {
             "name": "Revenue",
             "table_id": 12,
-            "definition": {
-                "source-table": 12,
-                "aggregation": METRIC_QUERY["aggregation"],
-                "filter": [">", ["field", 56, None], 0],
-            },
+            "definition": query,
             "description": "Sum of order totals",
         }
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("tag", ["v1.49.3", "v0.50.20", "1.50.1"])
+    async def test_legacy_fallback_on_old_releases(self, mock_context, tag):
+        mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _version(tag), _ok({"id": 8, "name": "Revenue"})]
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY}, mock_context
+        )
+        assert result.result.data["type"] == "legacy_metric"
+        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/metric"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("tag", ["v0.51.0", "v0.56.3", "v1.52.1", "v1.51.0", None])
+    async def test_400_on_newer_or_unknown_version_reports_original_error(self, mock_context, tag):
+        mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _version(tag)]
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Metabase returned HTTP 400: invalid card type"
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_legacy_metric_refuses_extra_query_parts(self, mock_context):
+        mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _version("v0.50.4")]
+        query = {**METRIC_QUERY, "joins": [{"source-table": 13, "alias": "Users"}], "breakout": [["field", 34, None]]}
+        result = await metabase.execute_action(
+            "create_metric", {"name": "Revenue", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "not breakout, joins" in result.result.message
+        assert mock_context.fetch.call_count == 2
+
+    @pytest.mark.asyncio
     async def test_400_on_saved_question_source_needs_a_table(self, mock_context):
-        mock_context.fetch.side_effect = [*_source_check_calls(), CARD_TYPE_REFUSED]
+        mock_context.fetch.side_effect = [*_saving_check_calls(), CARD_TYPE_REFUSED, _version("v0.50.4")]
         query = {"source-table": "card__42", "aggregation": [["count"]]}
         result = await metabase.execute_action(
             "create_metric", {"name": "User count", "database_id": 3, "query": query}, mock_context
@@ -1063,6 +1195,7 @@ class TestCreateMetric:
     async def test_legacy_metric_404_reports_original_error(self, mock_context):
         mock_context.fetch.side_effect = [
             CARD_TYPE_REFUSED,
+            _version("v0.50.4"),
             HTTPError(404, "Not found", "API endpoint does not exist."),
         ]
         result = await metabase.execute_action(
@@ -1075,6 +1208,7 @@ class TestCreateMetric:
     async def test_legacy_metric_other_error_surfaces(self, mock_context):
         mock_context.fetch.side_effect = [
             CARD_TYPE_REFUSED,
+            _version("v0.50.4"),
             HTTPError(403, "Forbidden", {"message": "You don't have permissions to do that."}),
         ]
         result = await metabase.execute_action(
@@ -1083,10 +1217,11 @@ class TestCreateMetric:
         assert result.type == ResultType.ACTION_ERROR
         assert "HTTP 403" in result.result.message
         assert "You don't have permissions" in result.result.message
+        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/metric"
 
     @pytest.mark.asyncio
     async def test_legacy_metric_without_id(self, mock_context):
-        mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _ok({"name": "Revenue"})]
+        mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _version("v0.50.4"), _ok({"name": "Revenue"})]
         result = await metabase.execute_action(
             "create_metric", {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY}, mock_context
         )
@@ -1170,6 +1305,31 @@ class TestExportQuestionResults:
         assert sent == [{"id": "p1", "type": "category", "target": target, "value": "EU"}]
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "body",
+        ['{"status": "failed", "error": "Table not found"}', ' {"error": "Table not found", "row_count": 0}'],
+    )
+    async def test_csv_body_with_json_error(self, mock_context, body):
+        # Metabase 0.49 answers a failed CSV export with HTTP 200 and the error as JSON text.
+        mock_context.fetch.side_effect = _export_calls(body)
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Query failed: Table not found"
+
+    @pytest.mark.asyncio
+    async def test_csv_body_failed_without_error_text(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls('{"status": "failed"}')
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.result.message == "Query failed: unknown error"
+
+    @pytest.mark.asyncio
+    async def test_csv_starting_with_brace_is_still_csv(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls("{tag},count\nnew,4\n")
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["content"] == "{tag},count\nnew,4"
+
+    @pytest.mark.asyncio
     async def test_csv_bom_stripped(self, mock_context):
         mock_context.fetch.side_effect = _export_calls("﻿" + SAMPLE_CSV)
         result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
@@ -1231,6 +1391,51 @@ class TestExportQuestionResults:
         assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/card/42/query/json"
         data = result.result.data
         assert data == {"format": "json", "rows": rows[:3], "row_count": 3, "truncated": True}
+
+    @pytest.mark.asyncio
+    async def test_json_whole_rows_within_size_budget(self, mock_context):
+        # Each row is 400,000+ characters as JSON, so only two fit in the 1,000,000-character budget.
+        rows = [{"id": i, "note": "x" * 400_000} for i in range(4)]
+        mock_context.fetch.side_effect = _export_calls(rows)
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "format": "json"}, mock_context
+        )
+        data = result.result.data
+        assert data["rows"] == rows[:2]
+        assert data["row_count"] == 2
+        assert data["truncated"] is True
+
+    @pytest.mark.asyncio
+    async def test_json_row_exactly_at_budget_kept(self, mock_context):
+        padding = 1_000_000 - 1 - len(json.dumps({"note": ""}))
+        rows = [{"note": "x" * padding}]
+        mock_context.fetch.side_effect = _export_calls(rows)
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "format": "json"}, mock_context
+        )
+        assert result.result.data["row_count"] == 1
+        assert result.result.data["truncated"] is False
+
+    @pytest.mark.asyncio
+    async def test_json_row_one_over_budget_dropped(self, mock_context):
+        padding = 1_000_000 - len(json.dumps({"note": ""}))
+        rows = [{"note": "x" * padding}]
+        mock_context.fetch.side_effect = _export_calls(rows)
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "format": "json"}, mock_context
+        )
+        assert result.result.data == {"format": "json", "rows": [], "row_count": 0, "truncated": True}
+
+    @pytest.mark.asyncio
+    async def test_csv_large_cell_parsed(self, mock_context):
+        cell = "y" * 200_000
+        mock_context.fetch.side_effect = _export_calls(f'id,payload\n1,"{cell}"\n2,small\n')
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type != ResultType.ACTION_ERROR
+        data = result.result.data
+        assert data["row_count"] == 2
+        assert data["content"] == f"id,payload\n1,{cell}\n2,small"
+        assert data["truncated"] is False
 
     @pytest.mark.asyncio
     async def test_json_all_rows(self, mock_context):
@@ -1384,6 +1589,66 @@ class TestExportQuestionResults:
 
 class TestGetRevisionHistory:
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("tag", ["v0.50.2", "v1.49.3"])
+    async def test_legacy_metric_history_refused(self, mock_context, tag):
+        mock_context.fetch.side_effect = [_version(tag)]
+        result = await metabase.execute_action(
+            "get_revision_history", {"item_type": "metric", "item_id": 7}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message.startswith("Before Metabase 0.51 a metric's history")
+        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/session/properties"
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_metric_history_on_newer_release(self, mock_context):
+        mock_context.fetch.side_effect = [_version("v1.53.4"), _ok(SAMPLE_REVISIONS)]
+        result = await metabase.execute_action(
+            "get_revision_history", {"item_type": "metric", "item_id": 7}, mock_context
+        )
+        assert result.result.data["count"] == 2
+        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/revision?entity=card&id=7"
+
+    @pytest.mark.asyncio
+    async def test_question_history_skips_version_check(self, mock_context):
+        mock_context.fetch.return_value = _ok(SAMPLE_REVISIONS)
+        await metabase.execute_action("get_revision_history", {"item_type": "question", "item_id": 7}, mock_context)
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_segment_falls_back_on_400(self, mock_context):
+        mock_context.fetch.side_effect = [
+            HTTPError(400, "Bad Request", {"errors": {"entity": "value must be card or dashboard"}}),
+            _ok(SAMPLE_REVISIONS),
+        ]
+        result = await metabase.execute_action(
+            "get_revision_history", {"item_type": "segment", "item_id": 3}, mock_context
+        )
+        assert result.result.data["count"] == 2
+        fallback = mock_context.fetch.call_args
+        assert fallback.args[0] == f"{BASE}/api/segment/3/revisions"
+        assert fallback.kwargs["method"] == "GET"
+
+    @pytest.mark.asyncio
+    async def test_segment_other_status_not_retried(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(500, "Server Error", "boom")
+        result = await metabase.execute_action(
+            "get_revision_history", {"item_type": "segment", "item_id": 3}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("item_type", ["question", "dashboard"])
+    async def test_card_and_dashboard_400_not_retried(self, mock_context, item_type):
+        mock_context.fetch.side_effect = HTTPError(400, "Bad Request", {"message": "Invalid id"})
+        result = await metabase.execute_action(
+            "get_revision_history", {"item_type": item_type, "item_id": 3}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
         mock_context.fetch.return_value = _ok(SAMPLE_REVISIONS)
         result = await metabase.execute_action(
@@ -1459,11 +1724,21 @@ class TestGetRevisionHistory:
 
 class TestRevertToRevision:
     @pytest.mark.asyncio
+    async def test_legacy_metric_revert_refused(self, mock_context):
+        mock_context.fetch.side_effect = [_version("v0.50.2")]
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "metric", "item_id": 7, "revision_id": 3}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message.startswith("Before Metabase 0.51 a metric's history")
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):
         mock_context.fetch.side_effect = [
             _ok(CARD_HISTORY),
             _ok({"id": 502, "description": "reverted to an earlier version."}),
-            *_source_check_calls(),
+            *_saving_check_calls(),
         ]
         result = await metabase.execute_action(
             "revert_to_revision", {"item_type": "model", "item_id": 42, "revision_id": 498}, mock_context
@@ -1478,19 +1753,26 @@ class TestRevertToRevision:
 
     @pytest.mark.asyncio
     async def test_request(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(CARD_HISTORY), _ok({"id": 502}), *_source_check_calls()]
+        mock_context.fetch.side_effect = [
+            _version("v0.52.3"),
+            _ok(CARD_HISTORY),
+            _ok({"id": 502}),
+            *_saving_check_calls(),
+        ]
         await metabase.execute_action(
             "revert_to_revision", {"item_type": "metric", "item_id": 42, "revision_id": 498}, mock_context
         )
         calls = mock_context.fetch.call_args_list
         assert [(c.args[0], c.kwargs["method"]) for c in calls] == [
+            (f"{BASE}/api/session/properties", "GET"),
             (f"{BASE}/api/revision?entity=card&id=42", "GET"),
             (f"{BASE}/api/revision/revert", "POST"),
             (f"{BASE}/api/card/42", "GET"),
             (f"{BASE}/api/database/3", "GET"),
             (f"{BASE}/api/dataset/native", "POST"),
+            (f"{BASE}/api/dataset/native", "POST"),
         ]
-        revert = calls[1]
+        revert = calls[2]
         assert revert.kwargs["json"] == {"entity": "card", "id": 42, "revision_id": 498}
         assert revert.kwargs["retry_count"] == NO_RETRY
 
@@ -1512,6 +1794,84 @@ class TestRevertToRevision:
         assert undo.kwargs["method"] == "POST"
         assert undo.kwargs["json"] == {"entity": "card", "id": 42, "revision_id": 510}
         assert mock_context.fetch.call_count == 6
+        assert "SQL is refused" in result.result.message
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "failure, detail",
+        [
+            (HTTPError(500, "Server Error", {"message": "Unknown column"}), "HTTP 500: Unknown column"),
+            (asyncio.TimeoutError(), "did not respond in time"),
+        ],
+    )
+    async def test_check_failure_undoes_revert(self, mock_context, failure, detail):
+        mock_context.fetch.side_effect = [
+            _ok(CARD_HISTORY),
+            _ok({"id": 511}),
+            _ok(SAVED_EXPORT_CARD),
+            _database(),
+            failure,
+            _ok({"id": 512}),
+        ]
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "question", "item_id": 42, "revision_id": 498}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message.startswith("Not reverted: that version's SQL couldn't be checked")
+        assert detail in result.result.message
+        undo = mock_context.fetch.call_args
+        assert undo.args[0] == f"{BASE}/api/revision/revert"
+        assert undo.kwargs["json"] == {"entity": "card", "id": 42, "revision_id": 510}
+
+    @pytest.mark.asyncio
+    async def test_check_failure_without_current_revision_not_undone(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok([{"id": 498, "most_recent": False}]),
+            _ok({"id": 511}),
+            *_source_check_calls(compiled="delete from t"),
+        ]
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "question", "item_id": 42, "revision_id": 498}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 5
+        reverts = [c for c in mock_context.fetch.call_args_list if c.args[0].endswith("/revision/revert")]
+        assert len(reverts) == 1
+
+    @pytest.mark.asyncio
+    async def test_segment_falls_back_on_400(self, mock_context):
+        mock_context.fetch.side_effect = [
+            HTTPError(400, "Bad Request", {"errors": {"entity": "value must be card or dashboard"}}),
+            _ok({"id": 31, "description": "reverted"}),
+        ]
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "segment", "item_id": 3, "revision_id": 2}, mock_context
+        )
+        assert result.result.data["new_revision_id"] == 31
+        fallback = mock_context.fetch.call_args
+        assert fallback.args[0] == f"{BASE}/api/segment/3/revert"
+        assert fallback.kwargs["method"] == "POST"
+        assert fallback.kwargs["json"] == {"revision_id": 2}
+        assert fallback.kwargs["retry_count"] == NO_RETRY
+
+    @pytest.mark.asyncio
+    async def test_segment_other_status_not_retried(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(404, "Not found.", "Not found.")
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "segment", "item_id": 3, "revision_id": 2}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_dashboard_400_not_retried(self, mock_context):
+        mock_context.fetch.side_effect = HTTPError(400, "Bad Request", {"message": "Invalid revision"})
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "dashboard", "item_id": 5, "revision_id": 8}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Invalid revision" in result.result.message
+        assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
     async def test_dashboard_entity(self, mock_context):
@@ -1596,13 +1956,14 @@ class TestQuestionEditingFixes:
 
 
 class _FakeResponse:
-    def __init__(self, status=200, content_type=XLSX_CONTENT_TYPE, chunks=(XLSX_BYTES,), text=""):
+    def __init__(self, status=200, content_type=XLSX_CONTENT_TYPE, chunks=(XLSX_BYTES,), text="", rest=b""):
         self.status = status
         self.headers = {"Content-Type": content_type}
         self._chunks = chunks
         self._text = text
         self.content = MagicMock()
         self.content.iter_chunked = self._iter_chunked
+        self.content.read = AsyncMock(return_value=rest)
 
     async def _iter_chunked(self, size):
         for chunk in self._chunks:
@@ -1677,7 +2038,7 @@ class TestDownload:
             await _download(mock_context, "/card/42/query/xlsx", FORM)
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("status", [302, 403, 500])
+    @pytest.mark.parametrize("status", [403, 500])
     async def test_error_status(self, mock_context, status):
         session, patched = _fake_aiohttp(_FakeResponse(status=status, text='{"message": "Denied"}'))
         with patched, pytest.raises(HTTPError) as caught:
@@ -1686,8 +2047,175 @@ class TestDownload:
         assert caught.value.response_data == {"message": "Denied"}
 
     @pytest.mark.asyncio
+    async def test_redirect_refused(self, mock_context):
+        session, patched = _fake_aiohttp(_FakeResponse(status=302, text=""))
+        with patched, pytest.raises(ValueError, match="Metabase redirected"):
+            await _download(mock_context, "/card/42/query/xlsx", FORM)
+
+    @pytest.mark.asyncio
+    async def test_long_error_body_parsed_in_full(self, mock_context):
+        body = json.dumps({"message": "Denied", "stacktrace": ["frame"] * 300})
+        session, patched = _fake_aiohttp(_FakeResponse(status=500, text=body))
+        with patched, pytest.raises(HTTPError) as caught:
+            await _download(mock_context, "/card/42/query/xlsx", FORM)
+        assert caught.value.response_data["message"] == "Denied"
+        assert len(caught.value.message) <= 500
+
+    @pytest.mark.asyncio
+    async def test_json_error_under_spreadsheet_type(self, mock_context):
+        # Metabase 0.49 sends a failed export's error as JSON with the spreadsheet content type.
+        response = _FakeResponse(chunks=(b'{"error": "Table ',), rest=b'not found", "status": "failed"}')
+        session, patched = _fake_aiohttp(response)
+        with patched, pytest.raises(ValueError, match="Query failed: Table not found"):
+            await _download(mock_context, "/card/42/query/xlsx", FORM)
+
+    @pytest.mark.asyncio
     async def test_error_status_with_text_body(self, mock_context):
         session, patched = _fake_aiohttp(_FakeResponse(status=502, text="Bad gateway"))
         with patched, pytest.raises(HTTPError) as caught:
             await _download(mock_context, "/card/42/query/xlsx", FORM)
         assert caught.value.response_data == "Bad gateway"
+
+
+P_TARGET = ["variable", ["template-tag", "p"]]
+
+# A question whose write only appears when its optional clause is filled in.
+OPTIONAL_WRITE_CARD = {
+    "id": 42,
+    "name": "Cleanup",
+    "database_id": 3,
+    "parameters": [],
+    "dataset_query": {
+        "database": 3,
+        "type": "native",
+        "native": {
+            "query": "select 1 [[; delete from t where x = {{p}}]]",
+            "template-tags": {"p": {"id": "t1", "name": "p", "display-name": "P", "type": "text"}},
+        },
+    },
+}
+
+
+def _route(mock_context, when_set, when_unset="select 1", card=OPTIONAL_WRITE_CARD):
+    """Answer like Metabase: the expanded SQL depends on whether filter p is set (by its real target)."""
+
+    async def fetch(url, method="GET", **kwargs):
+        if url.endswith("/dataset/native"):
+            is_set = any(isinstance(p, dict) and p.get("target") == P_TARGET for p in kwargs["json"]["parameters"])
+            answer = when_set if is_set else when_unset
+            if isinstance(answer, Exception):
+                raise answer
+            return _compiled(answer)
+        if "/query/" in url:
+            return _ok("x\n1\n")
+        if "/revision?" in url:
+            return _ok(CARD_HISTORY)
+        if url.endswith("/revision/revert"):
+            return _ok({"id": 600})
+        if url.endswith("/copy"):
+            return _ok(SAMPLE_COPY)
+        if "/card/" in url:
+            return _ok(card)
+        if "/database/" in url:
+            return _database()
+        raise AssertionError(url)
+
+    mock_context.fetch.side_effect = fetch
+
+
+def _compile_calls(mock_context):
+    return [c for c in mock_context.fetch.call_args_list if c.args[0].endswith("/dataset/native")]
+
+
+class TestSavedQuestionCheck:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "param",
+        [
+            {"id": "t1", "type": "category", "value": "EU"},
+            {"id": "t1", "type": "category", "target": ["variable", ["template-tag", "decoy"]], "value": "EU"},
+        ],
+    )
+    async def test_run_by_id_checked_with_real_target(self, mock_context, param):
+        _route(mock_context, when_set="select 1; delete from t where x = 'EU'")
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "parameters": [param]}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42 wasn't run" in result.result.message
+        assert _compile_calls(mock_context)[0].kwargs["json"]["parameters"][0]["target"] == P_TARGET
+        assert all("/query/" not in c.args[0] for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_run_by_id_sends_real_target(self, mock_context):
+        _route(mock_context, when_set="select 1 where x = 'EU'")
+        decoy = {"id": "t1", "type": "category", "target": ["variable", ["template-tag", "decoy"]], "value": "EU"}
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "parameters": [decoy]}, mock_context
+        )
+        assert result.type != ResultType.ACTION_ERROR
+        sent = json.loads(mock_context.fetch.call_args.kwargs["data"]["parameters"])
+        assert sent == [{**decoy, "target": P_TARGET}]
+
+    @pytest.mark.asyncio
+    async def test_copy_refused_when_optional_clause_writes(self, mock_context):
+        _route(mock_context, when_set="select 1; delete from t where x = 'x'")
+        result = await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42 wasn't run" in result.result.message
+        assert all("/copy" not in c.args[0] for c in mock_context.fetch.call_args_list)
+        stand_in = _compile_calls(mock_context)[0].kwargs["json"]["parameters"]
+        assert stand_in == [{"type": "category", "target": P_TARGET, "value": "x"}]
+
+    @pytest.mark.asyncio
+    async def test_revert_undone_when_optional_clause_writes(self, mock_context):
+        _route(mock_context, when_set="select 1; delete from t where x = 'x'")
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "question", "item_id": 42, "revision_id": 498}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "SQL is refused" in result.result.message
+        reverts = [c for c in mock_context.fetch.call_args_list if c.args[0].endswith("/revision/revert")]
+        assert [c.kwargs["json"]["revision_id"] for c in reverts] == [498, 510]
+
+    @pytest.mark.asyncio
+    async def test_create_on_question_with_optional_write_refused(self, mock_context):
+        _route(mock_context, when_set="select 1; delete from t where x = 'x'")
+        query = {"source-table": "card__42", "aggregation": [["count"]]}
+        result = await metabase.execute_action(
+            "create_model", {"name": "Counts", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert f"{BASE}/api/card" not in [c.args[0] for c in mock_context.fetch.call_args_list]
+
+    @pytest.mark.asyncio
+    async def test_copy_required_filter_without_default(self, mock_context):
+        # Metabase can't expand a question whose required filter has no value, so the plain expansion fails.
+        card = {
+            **OPTIONAL_WRITE_CARD,
+            "dataset_query": {
+                "database": 3,
+                "type": "native",
+                "native": {
+                    "query": "select * from t where x = {{p}}",
+                    "template-tags": {"p": {"id": "t1", "name": "p", "type": "text", "required": True}},
+                },
+            },
+        }
+        _route(
+            mock_context,
+            when_set="select * from t where x = 'x'",
+            when_unset=HTTPError(500, "Server Error", {"message": "missing required parameter"}),
+            card=card,
+        )
+        result = await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
+        assert result.type != ResultType.ACTION_ERROR
+        assert result.result.data["id"] == 77
+        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/card/42/copy"
+
+    @pytest.mark.asyncio
+    async def test_run_does_not_ignore_expansion_error(self, mock_context):
+        _route(mock_context, when_set="select 1", when_unset=HTTPError(500, "Server Error", {"message": "boom"}))
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 500" in result.result.message

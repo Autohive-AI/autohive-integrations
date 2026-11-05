@@ -138,10 +138,12 @@ async def _gateway_request(
                     raise ValueError("Metabase redirected the request. Use the final HTTPS Metabase URL.")
                 if response.status >= 400:
                     raise HTTPError(response.status, "Request failed. Check gateway and Metabase access.", {})
+                # CSV exports are text, even when the CSV happens to read as JSON (a lone "2024" header).
+                if allow_text and "json" not in response.headers.get("Content-Type", ""):
+                    return await response.text(errors="replace")
                 try:
                     return await response.json(content_type=None)
                 except (ValueError, UnicodeError):
-                    # CSV exports are text; anything else that isn't JSON means the URL is wrong.
                     if allow_text:
                         return await response.text(errors="replace")
                     raise ValueError("Metabase returned a response that isn't JSON. Check the Metabase URL.") from None
@@ -446,16 +448,37 @@ def _saved_native(dataset_query: Dict[str, Any]) -> tuple:
 
 
 async def _checked_parameters(
-    context: ExecutionContext, card_id: str, parameters: List[Any], also_without_defaults: bool = False
+    context: ExecutionContext,
+    card_id: str,
+    parameters: List[Any],
+    also_without_defaults: bool = True,
+    saving: bool = False,
 ) -> List[Any]:
     """Refuse to run a saved question whose SQL can write, and return the filters to run it with.
 
     Metabase expands the question into the exact SQL it will run (filter values, optional [[ ]] clauses, snippets,
     and the questions it is built on), and that SQL is checked the way run_sql_query checks SQL. Card filter defaults
-    are sent explicitly, so the checked SQL and the run use the same values. also_without_defaults also checks the
-    SQL without those defaults, for runs (dashboard cards) where Metabase doesn't apply them."""
+    are sent explicitly, so the checked SQL and the run use the same values. Unless also_without_defaults is turned off
+    (for runs that send those defaults themselves), the SQL is also checked without them, because Metabase leaves
+    them out when it runs the question on a dashboard or a schedule.
+
+    saving is for actions that save the question's SQL somewhere new (copies, reverts, questions built on it) without
+    running it: the SQL is also checked with every filter set, so no optional clause goes unchecked, and a question
+    that can't be expanded without filter values isn't refused for that."""
     card = await _api(context, "GET", f"/card/{card_id}") or {}
     dataset_query = card.get("dataset_query") or {}
+    _, tags = _saved_native(dataset_query)
+    # Metabase runs a filter given by id against that filter's own target, whatever target the caller sent, so the
+    # target is taken from the question; otherwise the check could expand different SQL from the run.
+    targets = {
+        str(p["id"]): p["target"]
+        for p in _merge_parameters(card.get("parameters") or [], _template_tag_parameters(tags))
+        if p.get("id") and p.get("target")
+    }
+    parameters = [
+        {**p, "target": targets[str(p["id"])]} if isinstance(p, dict) and str(p.get("id")) in targets else p
+        for p in parameters
+    ]
     # A filter can be sent by id or by target; either one overrides the saved default.
     supplied = {str(p.get(key)) for p in parameters if isinstance(p, dict) for key in ("id", "target") if p.get(key)}
     defaults = [
@@ -468,26 +491,64 @@ async def _checked_parameters(
     ]
     variants = [parameters + defaults] + ([parameters] if also_without_defaults and defaults else [])
     engine = await _database_engine(context, card.get("database_id") or dataset_query.get("database"))
+    if saving:
+        covered = {json.dumps(p.get("target")) for p in parameters if isinstance(p, dict)}
+        every_filter = parameters + [p for p in _tag_stand_ins(tags) if json.dumps(p["target"]) not in covered]
+        await _check_compiled(context, card_id, dataset_query, every_filter, engine)
     for variant in variants:
-        await _check_compiled(context, card_id, dataset_query, variant, engine)
+        try:
+            await _check_compiled(context, card_id, dataset_query, variant, engine)
+        except HTTPError:
+            # Nothing runs when saving, and a question Metabase can't expand without filter values can't run
+            # without them either; the check with every filter set above has covered its SQL.
+            if not saving:
+                raise
     return variants[0]
 
 
+def _tag_stand_ins(tags: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """A value for every filter in a question's SQL, so expanding it includes every optional [[ ]] clause."""
+    params = []
+    for name, tag in tags.items():
+        kind = tag.get("type")
+        if kind in FILTER_STAND_INS:
+            widget, value = FILTER_STAND_INS[kind]
+            params.append({"type": widget, "target": ["variable", ["template-tag", name]], "value": value})
+        elif kind == "dimension":
+            widget = str(tag.get("widget-type") or "category")
+            value = "2020-01-01" if widget.startswith("date") else [1] if widget.startswith("number") else ["x"]
+            params.append({"type": widget, "target": ["dimension", ["template-tag", name]], "value": value})
+    return params
+
+
 async def _check_compiled(
-    context: ExecutionContext, card_id: str, dataset_query: Dict[str, Any], parameters: List[Any], engine: Any
+    context: ExecutionContext,
+    card_id: str,
+    dataset_query: Dict[str, Any],
+    parameters: List[Any],
+    engine: Any,
+    refusal: Optional[str] = None,
 ) -> None:
+    """Expand a query with Metabase and check the SQL it would run. refusal starts the error (default: the saved
+    question wasn't run); SQL not yet saved has nothing saved to fall back on, so it needs the expansion."""
+    refusal = refusal or f"Saved question {card_id} wasn't run."
     try:
         compiled = await _api(
             context, "POST", "/dataset/native", json={**dataset_query, "parameters": parameters, "pretty": False}
         )
         query = compiled.get("query") if isinstance(compiled, dict) else None
         if query is None:
-            raise ValueError(f"Saved question {card_id} wasn't run: Metabase didn't return SQL for it to check.")
+            raise ValueError(f"{refusal} Metabase didn't return SQL for it to check.")
     except HTTPError as e:
         # Metabase only expands questions for groups allowed to write native queries; groups that can only run saved
         # questions get a 403, so the question is checked as saved when that is enough to know what will run.
         if e.status != 403:
             raise
+        if card_id is None:
+            raise ValueError(
+                f"{refusal} SQL with {{{{ }}}} can only be checked when the API key's group can write native queries "
+                "on its database in Metabase."
+            ) from None
         query = _saved_query_as_run(card_id, dataset_query)
     try:
         if query is not None and engine == "mongo":
@@ -497,7 +558,7 @@ async def _check_compiled(
         elif query is not None:
             raise ValueError("Metabase didn't return SQL for it to check.")
     except ValueError as e:
-        raise ValueError(f"Saved question {card_id} wasn't run. {e}") from None
+        raise ValueError(f"{refusal} {e}") from None
 
 
 # MongoDB aggregation stages that write: $out replaces a collection, $merge writes into one.
@@ -1071,7 +1132,8 @@ class RunQuestionAction(ActionHandler):
             card_id = _path_id(inputs["question_id"])
             max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
             parameters = [_run_parameter(p) for p in inputs.get("parameters") or []]
-            parameters = await _checked_parameters(context, card_id, parameters)
+            # The run sends the saved defaults itself, so the SQL is only checked with them.
+            parameters = await _checked_parameters(context, card_id, parameters, also_without_defaults=False)
             body: Dict[str, Any] = {"parameters": parameters} if parameters else {}
 
             data = await _api(context, "POST", f"/card/{card_id}/query", json=body, timeout=QUERY_TIMEOUT_SECONDS)
@@ -1107,24 +1169,11 @@ class CreateQuestionAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            name = _required_text(inputs["name"], "name")
-            sql = _required_text(inputs["sql"], "sql")
-            dataset_query = _native_query(inputs["database_id"], sql)
-            tags = await _template_tags(context, sql, inputs.get("filters"), {})
-            dataset_query["native"]["template-tags"] = tags
-            await _check_new_sql(context, inputs["database_id"], sql, dataset_query, tags)
-            body: Dict[str, Any] = {
-                "name": name,
-                "type": "question",
-                "display": inputs.get("display") or "table",
-                "visualization_settings": {},
-                "dataset_query": dataset_query,
-            }
-            _with_optional(body, description=inputs.get("description"), collection_id=inputs.get("collection_id"))
-
-            card = await _api(context, "POST", "/card", json=body) or {}
-            if card.get("id") is None:
-                raise ValueError("Metabase did not return a question id")
+            _required_text(inputs["name"], "name")
+            dataset_query = await _new_native_query(
+                context, inputs["database_id"], inputs["sql"], inputs.get("filters")
+            )
+            card = await _create_card(context, inputs, "question", dataset_query)
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
         except Exception as e:
             return ActionError(message=_error_message(e, context=context, saved_check="search"))
@@ -1193,22 +1242,15 @@ class AddQuestionToDashboardAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            dashboard_id = _path_id(inputs["dashboard_id"])
             size_x = _clamp(inputs.get("width"), DEFAULT_CARD_WIDTH, DASHBOARD_GRID_WIDTH)
             size_y = _clamp(inputs.get("height"), DEFAULT_CARD_HEIGHT, MAX_CARD_HEIGHT)
 
-            dashboard = await _api(context, "GET", f"/dashboard/{dashboard_id}") or {}
+            dashboard = await _get_dashboard(context, inputs["dashboard_id"])
             existing = dashboard.get("dashcards") or []
             tabs = dashboard.get("tabs") or []
-            tab_id = inputs.get("tab_id")
-            if tab_id is None and tabs:
-                tab_id = tabs[0].get("id")
-            elif tab_id is not None and tab_id not in [t.get("id") for t in tabs]:
-                raise ValueError(f"tab_id {tab_id} is not a tab on dashboard {inputs['dashboard_id']}")
-
+            tab_id = _check_tab(inputs.get("tab_id"), tabs, inputs["dashboard_id"])
             dashcards = _dashcards_for_put(existing)
-            same_tab = [dc for dc in existing if tab_id is None or dc.get("dashboard_tab_id") == tab_id]
-            next_row = max((int(dc.get("row") or 0) + int(dc.get("size_y") or 0) for dc in same_tab), default=0)
+            next_row = _bottom_row(existing, tab_id)
 
             # Negative ids mark new dashcards for Metabase to create.
             new_card = {
@@ -1226,11 +1268,7 @@ class AddQuestionToDashboardAction(ActionHandler):
                 new_card["dashboard_tab_id"] = tab_id
             dashcards.append(new_card)
 
-            body: Dict[str, Any] = {"dashcards": dashcards}
-            if tabs:
-                body["tabs"] = [{"id": t.get("id"), "name": t.get("name")} for t in tabs]
-
-            updated = await _api(context, "PUT", f"/dashboard/{dashboard_id}", json=body) or {}
+            updated = await _put_dashboard_layout(context, inputs["dashboard_id"], dashcards, _tabs_for_put(tabs))
             known_ids = {dc.get("id") for dc in existing}
             added = next(
                 (
@@ -1259,8 +1297,6 @@ class AddQuestionToDashboardAction(ActionHandler):
 
 # ---- Editing helpers ----
 
-# Metabase filter widget types a dashboard filter can have. temporal-unit (time grouping) needs Metabase 0.50+.
-FILTER_SECTIONS = {"date": "date", "string": "string", "number": "number", "location": "location"}
 TEXT_CARD_KINDS = ("text", "heading", "link")
 DEFAULT_TEXT_CARD_HEIGHT = {"text": 3, "heading": 1, "link": 1}
 DEFAULT_DASHBOARD_RUN_ROWS = 20
@@ -1353,30 +1389,36 @@ def _bottom_row(dashcards: List[Dict[str, Any]], tab_id: Any) -> int:
 
 
 def _slug(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "filter"
+    # Letters in any script are kept, so "日付" and "地域" (or "Région" and "R gion") get different slugs.
+    return re.sub(r"\W+", "_", name.lower()).strip("_") or "filter"
 
 
-def _filter_target(dashcard: Dict[str, Any], connection: Dict[str, Any]) -> List[Any]:
-    """Metabase target for connecting a dashboard filter to one card: a column, or a SQL question's filter tag."""
+def _filter_target(dashcard: Dict[str, Any], question: Dict[str, Any], connection: Dict[str, Any]) -> List[Any]:
+    """Metabase target for connecting a dashboard filter to one question on a card: a column, or a SQL question's
+    filter tag."""
     field_id = _int_or_none(connection.get("field_id"))
     tag = str(connection.get("template_tag") or "").strip()
     if bool(field_id) == bool(tag):
         raise ValueError("Each filter connection needs exactly one of field_id or template_tag.")
     if field_id:
         return ["dimension", ["field", field_id, None]]
-    _, tags = _saved_native((dashcard.get("card") or {}).get("dataset_query") or {})
+    _, tags = _saved_native(question.get("dataset_query") or {})
     if tag not in tags:
         raise ValueError(f"Card {dashcard.get('id')} has no SQL filter named {tag}.")
     kind = "dimension" if tags[tag].get("type") in ("dimension", "temporal-unit") else "variable"
     return [kind, ["template-tag", tag]]
 
 
-def _card_parameters_for(dashcard: Dict[str, Any], values: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Dashboard filter values as the parameters of one card, through the card's filter connections."""
+def _card_parameters_for(
+    dashcard: Dict[str, Any], values: Dict[str, Dict[str, Any]], card_id: Any = None
+) -> List[Dict[str, Any]]:
+    """Dashboard filter values as the parameters of one question on a card (the card's own question, or one of a
+    combined chart's extra series), through that question's filter connections."""
+    card_id = dashcard.get("card_id") if card_id is None else card_id
     params = []
     for mapping in dashcard.get("parameter_mappings") or []:
-        # Connections of a combined card's extra series belong to those questions, not this one.
-        if mapping.get("card_id") not in (None, dashcard.get("card_id")):
+        # Each question on a combined chart has its own connections; one without a card id is the card's own.
+        if (mapping.get("card_id") or dashcard.get("card_id")) != card_id:
             continue
         value = values.get(mapping.get("parameter_id"))
         if value is not None and mapping.get("target"):
@@ -1384,6 +1426,44 @@ def _card_parameters_for(dashcard: Dict[str, Any], values: Dict[str, Dict[str, A
                 {"id": value["id"], "type": value.get("type"), "target": mapping["target"], "value": value["value"]}
             )
     return params
+
+
+def _dashboard_questions(dashcards: List[Dict[str, Any]]) -> List[tuple]:
+    """(dashcard, question id, name) for every question shown: each card's own question and a combined chart's extra
+    series, which Metabase runs too."""
+    questions = []
+    for dc in dashcards:
+        if not dc.get("card_id") or dc.get("action_id"):
+            continue
+        questions.append((dc, dc["card_id"], (dc.get("card") or {}).get("name")))
+        questions.extend(
+            (dc, series["id"], series.get("name")) for series in dc.get("series") or [] if series.get("id")
+        )
+    return questions
+
+
+def _default_values(dashboard: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """The dashboard's filter defaults, which scheduled sends and runs without filter values use."""
+    return {
+        p["id"]: {"id": p["id"], "type": p.get("type"), "value": p["default"]}
+        for p in dashboard.get("parameters") or []
+        if p.get("default") is not None
+    }
+
+
+async def _check_dashboard_questions(
+    context: ExecutionContext, dashboard: Dict[str, Any], saving: bool = False
+) -> None:
+    """Check every question on a dashboard with the dashboard's filter defaults, as a scheduled send runs them.
+    saving checks them as questions about to be copied (see _checked_parameters)."""
+    values = _default_values(dashboard)
+    checked = set()
+    for dc, card_id, _ in _dashboard_questions(dashboard.get("dashcards") or []):
+        params = _card_parameters_for(dc, values, card_id)
+        key = (card_id, json.dumps(params, sort_keys=True))
+        if key not in checked:
+            checked.add(key)
+            await _checked_parameters(context, _path_id(card_id), params, saving=saving)
 
 
 def _cron(frequency: str, hour: int, day: str) -> str:
@@ -1399,8 +1479,8 @@ def _schedule(inputs: Dict[str, Any]) -> tuple:
     frequency = inputs.get("frequency") or "daily"
     if frequency not in ("hourly", "daily", "weekly"):
         raise ValueError("frequency must be hourly, daily or weekly")
-    hour = inputs.get("hour")
-    hour = hour if isinstance(hour, int) and not isinstance(hour, bool) and 0 <= hour <= 23 else 8
+    hour = _int_or_none(inputs.get("hour"))
+    hour = hour if hour is not None and 0 <= hour <= 23 else 8
     day = str(inputs.get("day_of_week") or "mon").lower()
     if day not in WEEKDAYS:
         raise ValueError("day_of_week must be one of mon, tue, wed, thu, fri, sat or sun")
@@ -1415,16 +1495,26 @@ def _recipients(inputs: Dict[str, Any]) -> tuple:
     return user_ids, emails
 
 
+def _pulse_schedule(frequency: str, hour: int, day: str) -> Dict[str, Any]:
+    return {
+        "schedule_type": frequency,
+        "schedule_hour": None if frequency == "hourly" else hour,
+        "schedule_day": day if frequency == "weekly" else None,
+        "schedule_frame": None,
+    }
+
+
+def _pulse_recipients(user_ids: List[int], emails: List[str]) -> List[Dict[str, Any]]:
+    return [{"id": u} for u in user_ids] + [{"email": e} for e in emails]
+
+
 def _pulse_channel(frequency: str, hour: int, day: str, user_ids: List[int], emails: List[str]) -> Dict[str, Any]:
     """Email channel of a dashboard subscription or old-style (/api/alert) alert."""
     return {
         "enabled": True,
         "channel_type": "email",
-        "schedule_type": frequency,
-        "schedule_hour": None if frequency == "hourly" else hour,
-        "schedule_day": day if frequency == "weekly" else None,
-        "schedule_frame": None,
-        "recipients": [{"id": u} for u in user_ids] + [{"email": e} for e in emails],
+        **_pulse_schedule(frequency, hour, day),
+        "recipients": _pulse_recipients(user_ids, emails),
     }
 
 
@@ -1489,7 +1579,14 @@ async def _set_alert_active(context: ExecutionContext, alert_id: Any, active: bo
     except HTTPError as e:
         if e.status != 404:
             raise
-        return await _api(context, "PUT", f"/alert/{_path_id(alert_id)}", json={"archived": not active}) or {}
+        try:
+            return await _api(context, "PUT", f"/alert/{_path_id(alert_id)}", json={"archived": not active}) or {}
+        except HTTPError as legacy_error:
+            if legacy_error.status == 404:
+                raise ValueError(f"There's no alert {alert_id}.") from None
+            raise
+    if notification.get("payload_type") != "notification/card":
+        raise ValueError(f"Notification {alert_id} isn't a question alert.")
     # The update takes the whole notification; ids and timestamps Metabase sets itself are left out.
     body = {k: notification[k] for k in ("payload_type", "payload", "handlers", "subscriptions") if k in notification}
     body["active"] = active
@@ -1510,7 +1607,8 @@ def _updated_native_query(card: Dict[str, Any], database_id: Any, sql: str, tags
         saved_tags = stages[0].get("template-tags")
         stage["native"] = sql
         stage["template-tags"] = list(tags.values()) if isinstance(saved_tags, list) else tags
-        return {**dataset_query, "stages": [stage]}
+        # Steps after the SQL (summarize, filter) are kept.
+        return {**dataset_query, "stages": [stage, *stages[1:]]}
     query = _native_query(database_id, sql)
     query["native"]["template-tags"] = tags
     return query
@@ -1604,6 +1702,16 @@ def _stand_in_parameters(tags: Dict[str, Any]) -> List[Dict[str, Any]]:
     return params
 
 
+async def _new_native_query(context: ExecutionContext, database_id: Any, sql: Any, filters: Any) -> Dict[str, Any]:
+    """A new SQL question or model's query, with its {{ }} filters defined and its SQL checked."""
+    sql = _required_text(sql, "sql")
+    dataset_query = _native_query(database_id, sql)
+    tags = await _template_tags(context, sql, filters, {})
+    dataset_query["native"]["template-tags"] = tags
+    await _check_new_sql(context, database_id, sql, dataset_query, tags)
+    return dataset_query
+
+
 async def _check_new_sql(
     context: ExecutionContext, database_id: Any, sql: str, dataset_query: Dict[str, Any], tags: Dict[str, Any]
 ) -> None:
@@ -1615,10 +1723,7 @@ async def _check_new_sql(
     if "[[" in sql:
         raise ValueError("SQL with optional [[ ]] clauses can't be saved through this integration.")
     engine = await _database_engine(context, database_id)
-    try:
-        await _check_compiled(context, "being saved", dataset_query, _stand_in_parameters(tags), engine)
-    except ValueError as e:
-        raise ValueError(str(e).replace("Saved question being saved wasn't run.", "Not saved.")) from None
+    await _check_compiled(context, None, dataset_query, _stand_in_parameters(tags), engine, refusal="Not saved.")
 
 
 def _has_key(value: Any, key: str) -> bool:
@@ -1646,7 +1751,7 @@ def _mbql_dataset_query(database_id: Any, query: Dict[str, Any]) -> Dict[str, An
 async def _check_source_questions(context: ExecutionContext, query: Dict[str, Any]) -> None:
     """A query-builder query built on saved questions (source-table "card__12") runs their SQL, so it is checked."""
     for card_id in sorted(set(re.findall(r'"card__(\d+)"', json.dumps(query)))):
-        await _checked_parameters(context, card_id, [], also_without_defaults=True)
+        await _checked_parameters(context, card_id, [], saving=True)
 
 
 async def _create_card(
@@ -1691,18 +1796,25 @@ async def _download(context: ExecutionContext, path: str, form: Dict[str, str]) 
                     if gateway:
                         # As in _gateway_request, a gateway's error body isn't passed on.
                         raise HTTPError(response.status, "Request failed. Check gateway and Metabase access.", {})
-                    text = (await response.text(errors="replace"))[:MAX_ERROR_LENGTH]
+                    if 300 <= response.status < 400:
+                        raise ValueError("Metabase redirected the request. Use the final HTTPS Metabase URL.")
+                    text = await response.text(errors="replace")
                     try:
                         data: Any = json.loads(text)
                     except ValueError:
-                        data = text
-                    raise HTTPError(response.status, text, data)
+                        data = text[:MAX_ERROR_LENGTH]
+                    raise HTTPError(response.status, text[:MAX_ERROR_LENGTH], data)
                 if "spreadsheetml" not in response.headers.get("Content-Type", ""):
                     # Metabase reports a failed query as JSON instead of the file.
                     text = (await response.text(errors="replace"))[:MAX_ERROR_LENGTH]
                     raise ValueError(f"Query failed: {text}")
                 async for chunk in response.content.iter_chunked(64 * 1024):
                     content += chunk
+                    if content[:1] == b"{":
+                        # Metabase 0.49 sends a failed export's error as JSON under the spreadsheet content type.
+                        content += await response.content.read()
+                        failure = json.loads(content.decode("utf-8", "replace"))
+                        raise ValueError(f"Query failed: {failure.get('error') or 'unknown error'}")
                     if len(content) > MAX_XLSX_BYTES:
                         raise ValueError(
                             "The Excel file is over 3.5 MB, too big to return. Filter the question or export as csv."
@@ -1715,29 +1827,54 @@ async def _download(context: ExecutionContext, path: str, form: Dict[str, str]) 
 def _csv_export(text: str, max_rows: int) -> Dict[str, Any]:
     """Keep the header and up to max_rows CSV records, whole records only, within MAX_EXPORT_CHARS. Records are read
     with the csv module, so a value with a line break in quotes counts as one row."""
-    records = list(csv.reader(io.StringIO(text.lstrip("\ufeff"))))
+    # A single cell may be as big as the whole export budget (csv's default limit is 131,072 characters).
+    csv.field_size_limit(max(csv.field_size_limit(), MAX_EXPORT_CHARS + 1))
     out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
     rows = 0
     truncated = False
-    for i, record in enumerate(records):
+    for i, record in enumerate(csv.reader(io.StringIO(text.lstrip("\ufeff")))):
         if i > max_rows:
             truncated = True
             break
-        line = io.StringIO()
-        csv.writer(line, lineterminator="\n").writerow(record)
-        if out.tell() + len(line.getvalue()) > MAX_EXPORT_CHARS:
+        before = out.tell()
+        writer.writerow(record)
+        if out.tell() > MAX_EXPORT_CHARS:
+            out.seek(before)
+            out.truncate()
             truncated = True
             break
-        out.write(line.getvalue())
-        rows += 1 if i else 0
+        rows = i
     return {"format": "csv", "content": out.getvalue().rstrip("\n"), "row_count": rows, "truncated": truncated}
+
+
+async def _metabase_release(context: ExecutionContext) -> Optional[int]:
+    """Metabase's release number, 49 for v0.49.25 and v1.49.25 alike (open source and paid share it)."""
+    tag = str(((await _api(context, "GET", "/session/properties")) or {}).get("version", {}).get("tag") or "")
+    match = re.match(r"v?\d+\.(\d+)", tag)
+    return int(match.group(1)) if match else None
+
+
+async def _has_legacy_metrics(context: ExecutionContext) -> bool:
+    """Metabase before 0.51 keeps metrics as table metrics at /api/metric, with their own ids."""
+    release = await _metabase_release(context)
+    return release is not None and release < 51
 
 
 async def _create_legacy_metric(
     context: ExecutionContext, inputs: Dict[str, Any], query: Dict[str, Any], error: HTTPError
 ) -> Dict[str, Any]:
     """Save a metric the way Metabase before 0.51 keeps them: on a table, at /api/metric."""
+    if not await _has_legacy_metrics(context):
+        # A newer Metabase rejected the metric for another reason; that reason is the answer.
+        raise ValueError(_error_message(error, context=context)) from None
     table_id = query.get("source-table")
+    unsupported = sorted(set(query) - {"source-table", "aggregation", "filter"})
+    if unsupported:
+        raise ValueError(
+            "Before Metabase 0.51 a metric can only have a table, one aggregation and a filter, "
+            f"not {', '.join(unsupported)}."
+        )
     if not _int_or_none(table_id):
         raise ValueError(
             f"{_error_message(error, context=context)} Before Metabase 0.51, a metric must be built on a table."
@@ -1746,7 +1883,7 @@ async def _create_legacy_metric(
         {
             "name": _required_text(inputs["name"], "name"),
             "table_id": table_id,
-            "definition": {k: v for k, v in query.items() if k in ("source-table", "aggregation", "filter")},
+            "definition": query,
         },
         description=inputs.get("description"),
     )
@@ -1792,8 +1929,18 @@ def _segment_summary(segment: Dict[str, Any]) -> Dict[str, Any]:
 
 async def _segment_definition(context: ExecutionContext, table_id: Any, filter_clause: Any) -> Dict[str, Any]:
     """A segment's definition as a full query, which Metabase 0.65 requires and 0.49 also accepts."""
-    if not isinstance(filter_clause, list) or not filter_clause:
-        raise ValueError('filter must be a query-builder filter clause, e.g. [">", ["field", 12, null], 100]')
+    # One clause starting with its operator. The newer form Metabase 0.57+ shows in list_segments (a list of clauses
+    # with {"lib/uuid": ...} options) is stored as a filter that matches every row, so it is refused.
+    if (
+        not isinstance(filter_clause, list)
+        or not filter_clause
+        or not isinstance(filter_clause[0], str)
+        or '"lib/uuid"' in json.dumps(filter_clause)
+    ):
+        raise ValueError(
+            'filter must be one query-builder filter clause, e.g. [">", ["field", 12, null], 100] or '
+            '["and", [...], [...]]; the form list_segments shows on Metabase 0.57+ can\'t be sent back.'
+        )
     table = await _api(context, "GET", f"/table/{_path_id(table_id)}") or {}
     return {
         "database": table.get("db_id"),
@@ -2059,8 +2206,11 @@ class UpdateDashboardFiltersAction(ActionHandler):
                     "name": name,
                     "slug": _slug(name),
                     "type": filter_type,
-                    "sectionId": FILTER_SECTIONS.get(filter_type.split("/")[0], filter_type.split("/")[0]),
+                    "sectionId": filter_type.split("/")[0],
                 }
+                if filter_id in old_params and old_params[filter_id].get("type") != filter_type:
+                    # A default for the old type (text for a date filter, say) would break the new one.
+                    param.pop("default", None)
                 if "default" in f:
                     param["default"] = f["default"]
                 if "required" in f:
@@ -2086,17 +2236,27 @@ class UpdateDashboardFiltersAction(ActionHandler):
                     if m.get("parameter_id") in kept and m.get("parameter_id") not in connections
                 ]
                 dc["parameter_mappings"] = mappings
+                if dc.get("inline_parameters"):
+                    # Filters shown on the card itself (Metabase 0.55+) go when the filter is removed.
+                    dc["inline_parameters"] = [p for p in dc["inline_parameters"] if p in kept]
             for filter_id, conns in connections.items():
                 for conn in conns:
                     original = by_dashcard.get(conn.get("dashcard_id"))
                     if not original or not original.get("card_id"):
                         raise ValueError(f"Card {conn.get('dashcard_id')} is not a question card on this dashboard.")
+                    # A combined chart's other questions are connected by giving their question_id.
+                    questions = {original["card_id"]: original.get("card") or {}} | {
+                        sr.get("id"): sr for sr in original.get("series") or []
+                    }
+                    question_id = conn.get("question_id") or original["card_id"]
+                    if question_id not in questions:
+                        raise ValueError(f"Question {question_id} isn't shown on card {original['id']}.")
                     dc = next(d for d in dashcards if d.get("id") == original["id"])
                     dc["parameter_mappings"].append(
                         {
                             "parameter_id": filter_id,
-                            "card_id": original["card_id"],
-                            "target": _filter_target(original, conn),
+                            "card_id": question_id,
+                            "target": _filter_target(original, questions[question_id], conn),
                         }
                     )
 
@@ -2121,11 +2281,17 @@ class CopyDashboardAction(ActionHandler):
             dashboard_id = _path_id(inputs["dashboard_id"])
             name = _required_text(inputs["name"], "name")
             collection_id = inputs.get("collection_id")
-            if collection_id is None:
-                # Metabase puts a copy at the top level unless told otherwise; keep it next to the original.
-                collection_id = (await _get_dashboard(context, inputs["dashboard_id"])).get("collection_id")
+            copy_questions = bool(inputs.get("copy_questions", False))
+            if collection_id is None or copy_questions:
+                original = await _get_dashboard(context, inputs["dashboard_id"])
+                if collection_id is None:
+                    # Metabase puts a copy at the top level unless told otherwise; keep it next to the original.
+                    collection_id = original.get("collection_id")
+                if copy_questions:
+                    # Copies of the questions are new saved SQL, so they are checked like any question saved here.
+                    await _check_dashboard_questions(context, original, saving=True)
             body = _with_optional(
-                {"is_deep_copy": bool(inputs.get("copy_questions", False)), "name": name},
+                {"is_deep_copy": copy_questions, "name": name},
                 description=inputs.get("description"),
                 collection_id=collection_id,
             )
@@ -2156,10 +2322,7 @@ class RunDashboardAction(ActionHandler):
 
             # Filter values: the ones given (by id or slug), else each filter's default, sent explicitly so the
             # checked SQL and the run use the same values.
-            values: Dict[str, Dict[str, Any]] = {}
-            for p in params:
-                if p.get("default") is not None:
-                    values[p["id"]] = {"id": p["id"], "type": p.get("type"), "value": p["default"]}
+            values = _default_values(dashboard)
             for given in inputs.get("filters") or []:
                 param = by_key.get(given.get("filter")) if isinstance(given, dict) else None
                 if param is None:
@@ -2169,33 +2332,22 @@ class RunDashboardAction(ActionHandler):
                 values[param["id"]] = {"id": param["id"], "type": param.get("type"), "value": given.get("value")}
 
             dashcards = [
-                dc
-                for dc in dashboard.get("dashcards") or []
-                if dc.get("card_id")
-                and not dc.get("action_id")
-                and (tab_id is None or dc.get("dashboard_tab_id") == tab_id)
+                dc for dc in dashboard.get("dashcards") or [] if tab_id is None or dc.get("dashboard_tab_id") == tab_id
             ]
+            questions = _dashboard_questions(dashcards)
             results = []
-            for dc in dashcards[:MAX_DASHBOARD_CARDS_RUN]:
-                summary = {
-                    "dashcard_id": dc.get("id"),
-                    "card_id": dc.get("card_id"),
-                    "card_name": (dc.get("card") or {}).get("name"),
-                }
+            for dc, card_id, card_name in questions[:MAX_DASHBOARD_CARDS_RUN]:
+                summary = {"dashcard_id": dc.get("id"), "card_id": card_id, "card_name": card_name}
                 try:
-                    card_params = _card_parameters_for(dc, values)
+                    card_params = _card_parameters_for(dc, values, card_id)
                     # A dashboard run applies a SQL filter's own default but not the question's saved filter
                     # defaults, so the question is also checked without those.
-                    await _checked_parameters(context, _path_id(dc["card_id"]), card_params, also_without_defaults=True)
-                    used = [
-                        values[m]
-                        for m in {m.get("parameter_id") for m in dc.get("parameter_mappings") or []}
-                        if m in values
-                    ]
+                    await _checked_parameters(context, _path_id(card_id), card_params)
+                    used = [values[p] for p in dict.fromkeys(p["id"] for p in card_params)]
                     data = await _api(
                         context,
                         "POST",
-                        f"/dashboard/{_path_id(dashboard.get('id'))}/dashcard/{_path_id(dc['id'])}/card/{_path_id(dc['card_id'])}/query",
+                        f"/dashboard/{_path_id(dashboard.get('id'))}/dashcard/{_path_id(dc['id'])}/card/{_path_id(card_id)}/query",
                         json={"parameters": used},
                         timeout=QUERY_TIMEOUT_SECONDS,
                     )
@@ -2208,7 +2360,7 @@ class RunDashboardAction(ActionHandler):
                     "dashboard_id": dashboard.get("id"),
                     "cards": results,
                     "card_count": len(results),
-                    "skipped_card_count": max(len(dashcards) - MAX_DASHBOARD_CARDS_RUN, 0),
+                    "skipped_card_count": max(len(questions) - MAX_DASHBOARD_CARDS_RUN, 0),
                 },
                 cost_usd=0.0,
             )
@@ -2219,16 +2371,43 @@ class RunDashboardAction(ActionHandler):
 # ---- History ----
 
 
+async def _revision_entity(context: ExecutionContext, item_type: Any) -> str:
+    entity = REVISION_ENTITIES.get(item_type)
+    if entity is None:
+        raise ValueError(f"item_type must be one of {', '.join(REVISION_ENTITIES)}")
+    if item_type == "metric" and await _has_legacy_metrics(context):
+        raise ValueError("Before Metabase 0.51 a metric's history is under Admin → Table Metadata, not here.")
+    return entity
+
+
+async def _revisions(context: ExecutionContext, entity: str, item_id: Any) -> Any:
+    try:
+        return await _api(context, "GET", _with_query("/revision", [("entity", entity), ("id", item_id)]))
+    except HTTPError as e:
+        # Metabase 0.49 keeps segment history at /segment/:id/revisions; its /revision only takes cards and dashboards.
+        if entity != "segment" or e.status != 400:
+            raise
+        return await _api(context, "GET", f"/segment/{_path_id(item_id)}/revisions")
+
+
+async def _revert(context: ExecutionContext, body: Dict[str, Any]) -> Dict[str, Any]:
+    try:
+        return await _api(context, "POST", "/revision/revert", json=body) or {}
+    except HTTPError as e:
+        if body["entity"] != "segment" or e.status != 400:
+            raise
+        path = f"/segment/{_path_id(body['id'])}/revert"
+        return await _api(context, "POST", path, json={"revision_id": body["revision_id"]}) or {}
+
+
 @metabase.action("get_revision_history")
 class GetRevisionHistoryAction(ActionHandler):
     """List the saved versions of a question, model, metric, dashboard or segment."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            entity = REVISION_ENTITIES.get(inputs["item_type"])
-            if entity is None:
-                raise ValueError(f"item_type must be one of {', '.join(REVISION_ENTITIES)}")
-            data = await _api(context, "GET", _with_query("/revision", [("entity", entity), ("id", inputs["item_id"])]))
+            entity = await _revision_entity(context, inputs["item_type"])
+            data = await _revisions(context, entity, inputs["item_id"])
             revisions = [
                 {
                     "revision_id": r.get("id"),
@@ -2252,27 +2431,26 @@ class RevertToRevisionAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
-            entity = REVISION_ENTITIES.get(inputs["item_type"])
-            if entity is None:
-                raise ValueError(f"item_type must be one of {', '.join(REVISION_ENTITIES)}")
+            entity = await _revision_entity(context, inputs["item_type"])
             body = {"entity": entity, "id": inputs["item_id"], "revision_id": inputs["revision_id"]}
             current = None
             if entity == "card":
-                history = _list_data(
-                    await _api(
-                        context, "GET", _with_query("/revision", [("entity", entity), ("id", inputs["item_id"])])
-                    )
-                )
+                history = _list_data(await _revisions(context, entity, inputs["item_id"]))
                 current = next((r.get("id") for r in history if r.get("most_recent")), None)
-            revision = await _api(context, "POST", "/revision/revert", json=body) or {}
+            revision = await _revert(context, body)
             if entity == "card":
                 try:
-                    await _checked_parameters(context, _path_id(inputs["item_id"]), [], also_without_defaults=True)
-                except ValueError as e:
-                    # A question put back to SQL that writes would run it for anyone (or any alert) that runs it.
+                    await _checked_parameters(context, _path_id(inputs["item_id"]), [], saving=True)
+                except Exception as e:
+                    # A question put back to SQL that writes would run it for anyone (or any alert) that runs it, and
+                    # one that couldn't be checked isn't known to be safe, so either way it is put back.
                     if current is not None:
-                        await _api(context, "POST", "/revision/revert", json={**body, "revision_id": current})
-                    raise ValueError(f"Not reverted: that version's SQL is refused, so the question was put back. {e}")
+                        await _revert(context, {**body, "revision_id": current})
+                    reason = "is refused" if isinstance(e, ValueError) else "couldn't be checked"
+                    raise ValueError(
+                        f"Not reverted: that version's SQL {reason}, so the question was put back. "
+                        f"{_error_message(e, context=context)}"
+                    ) from None
             return ActionResult(
                 data={
                     "item_type": inputs["item_type"],
@@ -2338,6 +2516,8 @@ class CopyQuestionAction(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         try:
+            # The copy is new saved SQL, so the question is checked like any question saved here.
+            await _checked_parameters(context, _path_id(inputs["question_id"]), [], saving=True)
             card = await _api(context, "POST", f"/card/{_path_id(inputs['question_id'])}/copy") or {}
             if card.get("id") is None:
                 raise ValueError("Metabase did not return a question id")
@@ -2379,9 +2559,7 @@ class CreateModelAction(ActionHandler):
             if (sql is None) == (query is None):
                 raise ValueError("Give exactly one of sql or query.")
             if sql is not None:
-                dataset_query = _native_query(
-                    inputs["database_id"], await _read_only_sql(context, inputs["database_id"], sql)
-                )
+                dataset_query = await _new_native_query(context, inputs["database_id"], sql, inputs.get("filters"))
             else:
                 query = _mbql_query(query)
                 await _check_source_questions(context, query)
@@ -2429,7 +2607,7 @@ class ExportQuestionResultsAction(ActionHandler):
                 raise ValueError("format must be csv, json or xlsx")
             max_rows = _clamp(inputs.get("max_rows"), DEFAULT_EXPORT_ROWS, MAX_EXPORT_ROWS)
             parameters = [_run_parameter(p) for p in inputs.get("parameters") or []]
-            parameters = await _checked_parameters(context, card_id, parameters)
+            parameters = await _checked_parameters(context, card_id, parameters, also_without_defaults=False)
             # Export endpoints read their options from a form, as Metabase's own download button sends them.
             form = {"parameters": json.dumps(parameters), "format_rows": "false"}
             if export_format == "xlsx":
@@ -2458,19 +2636,30 @@ class ExportQuestionResultsAction(ActionHandler):
             )
             if export_format == "json" and not isinstance(data, dict):
                 rows = data if isinstance(data, list) else []
+                # Whole rows only, within the same size budget as CSV, so the result fits the response limit.
+                kept, size = [], 0
+                for row in rows[:max_rows]:
+                    size += len(json.dumps(row, default=str)) + 1
+                    if size > MAX_EXPORT_CHARS:
+                        break
+                    kept.append(row)
                 return ActionResult(
-                    data={
-                        "format": "json",
-                        "rows": rows[:max_rows],
-                        "row_count": min(len(rows), max_rows),
-                        "truncated": len(rows) > max_rows,
-                    },
+                    data={"format": "json", "rows": kept, "row_count": len(kept), "truncated": len(rows) > len(kept)},
                     cost_usd=0.0,
                 )
             if isinstance(data, dict):
                 # Metabase reports a failed query as a JSON object instead of the file.
                 raise ValueError(f"Query failed: {data.get('error') or data.get('message') or 'unknown error'}")
-            return ActionResult(data=_csv_export(data if isinstance(data, str) else "", max_rows), cost_usd=0.0)
+            data = data if isinstance(data, str) else ""
+            if data.lstrip().startswith("{"):
+                # Metabase 0.49 answers a failed CSV export with HTTP 200 and the error as JSON.
+                try:
+                    failure = json.loads(data)
+                except ValueError:
+                    failure = None
+                if isinstance(failure, dict) and (failure.get("error") or failure.get("status") == "failed"):
+                    raise ValueError(f"Query failed: {failure.get('error') or 'unknown error'}")
+            return ActionResult(data=_csv_export(data, max_rows), cost_usd=0.0)
         except Exception as e:
             return ActionError(message=_error_message(e, context=context))
 
@@ -2597,8 +2786,16 @@ class MoveItemsAction(ActionHandler):
                 try:
                     if path is None:
                         raise ValueError("item_type must be question, model, metric, dashboard or collection")
+                    if item_type == "metric" and await _has_legacy_metrics(context):
+                        raise ValueError("Before Metabase 0.51 metrics belong to a table, not a collection.")
                     key = "parent_id" if item_type == "collection" else "collection_id"
-                    await _api(context, "PUT", f"/{path}/{_path_id(item['id'])}", json={key: target})
+                    body: Dict[str, Any] = {key: target}
+                    if path == "card":
+                        # A question saved inside a dashboard (Metabase 0.53+) has to leave it to move.
+                        card = await _api(context, "GET", f"/card/{_path_id(item['id'])}") or {}
+                        if card.get("dashboard_id") is not None:
+                            body["dashboard_id"] = None
+                    await _api(context, "PUT", f"/{path}/{_path_id(item['id'])}", json=body)
                     result["moved"] = True
                 except Exception as e:
                     result.update(moved=False, error=_error_message(e, context=context))
@@ -2620,7 +2817,10 @@ async def _set_archived(context: ExecutionContext, inputs: Dict[str, Any], archi
         if path is None:
             raise ValueError(f"item_type must be one of {', '.join([*ARCHIVE_PATHS, 'alert'])}")
         body: Dict[str, Any] = {"archived": archived}
-        if item_type == "segment":
+        if item_type == "metric" and await _has_legacy_metrics(context):
+            # create_metric returned a table metric id here, not a question id.
+            path = "metric"
+        if path in ("segment", "metric"):
             body["revision_message"] = SEGMENT_REVISION_MESSAGE
         await _api(context, "PUT", f"/{path}/{_path_id(inputs['item_id'])}", json=body)
     return {"item_type": item_type, "item_id": inputs["item_id"], "archived": archived}
@@ -2695,7 +2895,7 @@ class CreateAlertAction(ActionHandler):
             user_ids, emails = _recipients(inputs)
             send_once = bool(inputs.get("send_once", False))
             # Metabase runs the question on the schedule with nobody watching, so it is checked like run_question.
-            await _checked_parameters(context, _path_id(question_id), [], also_without_defaults=True)
+            await _checked_parameters(context, _path_id(question_id), [])
             notification = {
                 "payload_type": "notification/card",
                 "payload": {"card_id": question_id, "send_condition": condition, "send_once": send_once},
@@ -2719,11 +2919,7 @@ class CreateAlertAction(ActionHandler):
                 legacy = {
                     "card": {"id": question_id, "include_csv": False, "include_xls": False},
                     "alert_condition": "rows" if condition == "has_result" else "goal",
-                    "alert_above_goal": True
-                    if condition == "goal_above"
-                    else False
-                    if condition == "goal_below"
-                    else None,
+                    "alert_above_goal": {"goal_above": True, "goal_below": False}.get(condition),
                     "alert_first_only": send_once,
                     "channels": [_pulse_channel(frequency, hour, day, user_ids, emails)],
                 }
@@ -2765,13 +2961,13 @@ class CreateSubscriptionAction(ActionHandler):
             cards = [
                 {"id": dc["card_id"], "dashboard_card_id": dc["id"], "include_csv": False, "include_xls": False}
                 for dc in dashboard.get("dashcards") or []
-                if dc.get("card_id")
+                if dc.get("card_id") and not dc.get("action_id")
             ]
             if not cards:
                 raise ValueError("The dashboard has no questions to send.")
-            # Metabase runs every question on the schedule with nobody watching, so each is checked first.
-            for card_id in dict.fromkeys(c["id"] for c in cards):
-                await _checked_parameters(context, _path_id(card_id), [], also_without_defaults=True)
+            # Metabase runs every question (combined charts' series too) on the schedule with the dashboard's filter
+            # defaults and nobody watching, so each is checked that way first.
+            await _check_dashboard_questions(context, dashboard)
             body = {
                 "name": inputs.get("name") or dashboard.get("name"),
                 "dashboard_id": dashboard.get("id"),
@@ -2810,19 +3006,23 @@ class UpdateSubscriptionAction(ActionHandler):
                 pulse = await _api(context, "GET", path) or {}
                 channel = next((c for c in pulse.get("channels") or [] if c.get("channel_type") == "email"), {})
                 updated = dict(channel)
-                if schedule:
-                    current = {
-                        "frequency": channel.get("schedule_type"),
-                        "hour": channel.get("schedule_hour"),
-                        "day_of_week": channel.get("schedule_day"),
-                    }
-                    frequency, hour, day = _schedule({**current, **schedule})
+                others = [c for c in pulse.get("channels") or [] if c.get("channel_type") != "email"]
+                # A subscription with no email channel yet gets one on its other channel's schedule.
+                source = channel or (others[0] if others else {})
+                current = {
+                    "frequency": source.get("schedule_type"),
+                    "hour": source.get("schedule_hour"),
+                    "day_of_week": source.get("schedule_day"),
+                }
+                if schedule and current["frequency"] == "monthly" and "frequency" not in schedule:
+                    # A monthly schedule (set in Metabase) keeps its week of the month; only the hour or day change.
+                    _, hour, day = _schedule({**current, "frequency": "weekly", **schedule})
                     updated.update(
-                        schedule_type=frequency,
-                        schedule_hour=None if frequency == "hourly" else hour,
-                        schedule_day=day if frequency == "weekly" else None,
-                        schedule_frame=None,
+                        schedule_hour=hour if "hour" in schedule else updated.get("schedule_hour"),
+                        schedule_day=day if "day_of_week" in schedule else updated.get("schedule_day"),
                     )
+                elif schedule:
+                    updated.update(_pulse_schedule(*_schedule({**current, **schedule})))
                 # A schedule left alone (monthly ones included) is kept exactly as it is.
                 if recipients:
                     old_users = [r["id"] for r in channel.get("recipients") or [] if r.get("id")]
@@ -2832,10 +3032,15 @@ class UpdateSubscriptionAction(ActionHandler):
                     user_ids, emails = _recipients(
                         {"recipient_user_ids": old_users, "recipient_emails": old_emails, **recipients}
                     )
-                    updated["recipients"] = [{"id": u} for u in user_ids] + [{"email": e} for e in emails]
+                    updated["recipients"] = _pulse_recipients(user_ids, emails)
                 if not channel:
-                    updated = {**_pulse_channel(*_schedule(schedule), *_recipients(recipients)), **updated}
-                others = [c for c in pulse.get("channels") or [] if c.get("channel_type") != "email"]
+                    # Schedule changes are already in updated; otherwise the other channel's schedule is copied.
+                    schedule_fields = {
+                        k: source[k]
+                        for k in ("schedule_type", "schedule_hour", "schedule_day", "schedule_frame")
+                        if k in source
+                    }
+                    updated = {**_pulse_channel(*_schedule({}), *_recipients(recipients)), **schedule_fields, **updated}
                 body["channels"] = others + [updated]
             if not body:
                 raise ValueError("Give at least one change.")

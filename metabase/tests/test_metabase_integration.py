@@ -1001,6 +1001,12 @@ class TestDataDescriptions:
             )
             assert changed["description"] == f"Autohive itest {run_id}"
         finally:
-            # Put the original descriptions back (an empty one is stored as null).
-            await _raw(live_context, "PUT", f"/table/{table['id']}", {"description": table["description"]})
-            await _raw(live_context, "PUT", f"/field/{field['id']}", {"description": field["description"]})
+            # Put the original descriptions back (an empty one is stored as null), trying both even if one fails.
+            failures: list = []
+            for path, original in ((f"/table/{table['id']}", table), (f"/field/{field['id']}", field)):
+                try:
+                    await _raw(live_context, "PUT", path, {"description": original["description"]})
+                except Exception as exc:
+                    failures.append(f"{path}: {exc}")
+            if failures:
+                raise AssertionError("Restoring descriptions failed: " + "; ".join(failures))

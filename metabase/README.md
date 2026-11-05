@@ -206,7 +206,7 @@ Takes the full list of `tabs` in order. Tabs with an `id` are kept and renamed, 
 
 #### `update_dashboard_filters`
 
-Takes the full list of `filters`. Each has `name` and `type` (for example `date/all-options`, `category`, `string/=`, `number/between`; `temporal-unit` needs Metabase 0.50+), plus optional `id` (to keep an existing filter), `default`, `required` (needs a default), `linked_filter_ids` (filters that narrow this one's choices) and `connections`. Each connection names a `dashcard_id` and either a `field_id` (a column, from `get_table`, for query-builder questions) or a `template_tag` (a SQL question's `{{variable}}`). Filters left out are removed along with their connections. A kept filter without `connections` keeps its existing ones; given `connections` replace them.
+Takes the full list of `filters`. Each has `name` and `type` (for example `date/all-options`, `category`, `string/=`, `number/between`; `temporal-unit` needs Metabase 0.50+), plus optional `id` (to keep an existing filter), `default`, `required` (needs a default), `linked_filter_ids` (filters that narrow this one's choices) and `connections`. Each connection names a `dashcard_id` and either a `field_id` (a column, from `get_table`, for query-builder questions) or a `template_tag` (a SQL question's `{{variable}}`); on a combined chart, `question_id` picks which of its questions the connection drives. Filters left out are removed along with their connections. A kept filter without `connections` keeps its existing ones; given `connections` replace all of them, so list every question it should still drive. Changing a filter's `type` clears its old default.
 
 #### `copy_dashboard`
 
@@ -232,7 +232,7 @@ Saves a point-and-click question from a query-builder (MBQL) `query`, which peop
 
 #### `create_model`
 
-Saves a model, a curated table others explore with the query builder, from either `sql` (checked as in `create_question`) or a query-builder `query`.
+Saves a model, a curated table others explore with the query builder, from either `sql` (checked, with `{{ }}` filters defined in `filters`, as in `create_question`) or a query-builder `query`.
 
 #### `create_metric`
 
@@ -244,7 +244,7 @@ Runs a saved question and returns its results as CSV text (`content`), JSON `row
 
 #### `get_revision_history` and `revert_to_revision`
 
-List the saved versions of a question, model, metric, dashboard or segment, and put one back to an earlier `revision_id`. The revert is saved as a new version, so it can be undone too. If a question's earlier version has SQL that writes, it is put straight back and an error is returned.
+List the saved versions of a question, model, metric, dashboard or segment, and put one back to an earlier `revision_id`. The revert is saved as a new version, so it can be undone too. If a question's earlier version has SQL that writes (or can't be checked), it is put straight back and an error is returned.
 
 ### Segments
 
@@ -258,11 +258,11 @@ Renames a collection, changes its description, or moves it into `parent_collecti
 
 #### `move_items`
 
-Moves `items` (each an `item_type` of `question`, `model`, `metric`, `dashboard` or `collection`, and an `id`) into `collection_id`, or to the top level with `move_to_root`. Each item reports its own result, so one failure doesn't stop the rest.
+Moves `items` (each an `item_type` of `question`, `model`, `metric`, `dashboard` or `collection`, and an `id`) into `collection_id`, or to the top level with `move_to_root`. A question saved inside a dashboard (Metabase 0.53+) is moved out of it. Each item reports its own result, so one failure doesn't stop the rest.
 
 #### `archive_item` and `restore_item`
 
-Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash and back, or turn an alert off and on. Archiving a collection archives everything inside it. Nothing is deleted.
+Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash and back, or turn an alert off and on. Archiving a collection archives everything inside it. Nothing is deleted. Before Metabase 0.51, `metric` ids are the table metric ids `create_metric` returned.
 
 ### Alerts and subscriptions
 
@@ -274,7 +274,7 @@ An alert watches a saved question and emails people when it has results (`has_re
 
 #### `list_subscriptions`, `create_subscription` and `update_subscription`
 
-A subscription emails a whole dashboard on a schedule. `skip_if_empty` skips a send when every question is empty. `update_subscription` changes only the fields given; recipient lists given replace the old ones. Turn a subscription off with `archive_item`.
+A subscription emails a whole dashboard on a schedule. `skip_if_empty` skips a send when every question is empty. `update_subscription` changes only the fields given; recipient lists given replace the old ones. A monthly schedule set in Metabase keeps its week of the month when only `hour` or `day_of_week` change. Turn a subscription off with `archive_item`.
 
 #### `list_users`
 

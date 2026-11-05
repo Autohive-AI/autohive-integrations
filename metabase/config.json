@@ -2090,7 +2090,7 @@
         },
         "update_dashboard_filters": {
             "display_name": "Update Dashboard Filters",
-            "description": "Set a dashboard's filters: give the full list. Filters with an id are kept and changed; filters without an id are created; filters left out are removed, along with their card connections. Give connections to say which column (field_id, from get_table) or SQL filter (template_tag, from get_question) each card's filter drives; when connections is left out, a kept filter keeps its existing connections.",
+            "description": "Set a dashboard's filters: give the full list. Filters with an id are kept and changed (changing a filter's type clears its old default); filters without an id are created; filters left out are removed, along with their card connections. Give connections to say which column (field_id, from get_table) or SQL filter (template_tag, from get_question) each card's filter drives; when connections is left out, a kept filter keeps its existing connections.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -2165,7 +2165,7 @@
                                 },
                                 "connections": {
                                     "type": "array",
-                                    "description": "Cards this filter drives. Each needs dashcard_id and exactly one of field_id or template_tag.",
+                                    "description": "Cards this filter drives, replacing its earlier connections (list each question of a combined chart you want kept). Each needs dashcard_id and exactly one of field_id or template_tag.",
                                     "items": {
                                         "type": "object",
                                         "properties": {
@@ -2180,6 +2180,10 @@
                                             "template_tag": {
                                                 "type": "string",
                                                 "description": "Name of the SQL question's filter variable, e.g. category for {{category}}."
+                                            },
+                                            "question_id": {
+                                                "type": "integer",
+                                                "description": "For a combined chart: which of its questions (from get_dashboard's series) this connection drives (default: the card's own question)."
                                             }
                                         },
                                         "required": [
@@ -3018,7 +3022,7 @@
         },
         "create_model": {
             "display_name": "Create Model",
-            "description": "Save a model: a curated table, built from SQL or a query-builder query, that others explore with the query builder. Give exactly one of sql or query. SQL is checked the same way as create_question.",
+            "description": "Save a model: a curated table, built from SQL or a query-builder query, that others explore with the query builder. Give exactly one of sql or query. SQL is checked, and its {{ }} filters defined, the same way as create_question.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -3065,6 +3069,58 @@
                             "gauge",
                             "map"
                         ]
+                    },
+                    "filters": {
+                        "type": "array",
+                        "description": "Defines each {{name}} the SQL uses (snippets {{snippet: name}} and saved questions {{#12}} are found automatically).",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "Name used in the SQL, e.g. region for {{region}}."
+                                },
+                                "type": {
+                                    "type": "string",
+                                    "enum": [
+                                        "text",
+                                        "number",
+                                        "date",
+                                        "field"
+                                    ],
+                                    "description": "text, number or date for a value put into the SQL; field for a field filter that filters a column (needs field_id)."
+                                },
+                                "display_name": {
+                                    "type": "string",
+                                    "description": "Label shown on the filter (default: the name)."
+                                },
+                                "default": {
+                                    "type": [
+                                        "string",
+                                        "number",
+                                        "array",
+                                        "null"
+                                    ],
+                                    "items": {},
+                                    "description": "Default value."
+                                },
+                                "required": {
+                                    "type": "boolean",
+                                    "description": "Whether a value is always needed (needs a default)."
+                                },
+                                "field_id": {
+                                    "type": "integer",
+                                    "description": "For type field: the column it filters (from get_table)."
+                                },
+                                "widget_type": {
+                                    "type": "string",
+                                    "description": "For type field: the filter widget, e.g. category, string/=, number/between, date/all-options (default category)."
+                                }
+                            },
+                            "required": [
+                                "name"
+                            ]
+                        }
                     }
                 },
                 "required": [

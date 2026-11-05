@@ -70,11 +70,25 @@ REGION_CARD = {
     ],
 }
 SAMPLE_DATABASE = {"id": 3, "engine": "postgres"}
+OLD_METABASE = {"version": {"tag": "v0.50.20"}}
+NEW_METABASE = {"version": {"tag": "v0.56.3"}}
+UPGRADES_CARD = {**SAMPLE_CARD, "id": 44, "name": "Upgrades"}
+PLAN_FILTER = {"id": "f1", "name": "Plan", "slug": "plan", "type": "string/=", "default": "pro"}
+PLAN_TAG_TARGET = ["variable", ["template-tag", "plan"]]
+PLAN_FIELD_TARGET = ["dimension", ["field", 88, None]]
 
 
 def _checks(card=SAMPLE_CARD, sql=SIGNUPS_SQL):
     """Responses for the read-only check of one saved question: GET card, GET database, POST /dataset/native."""
     return [_ok(card), _ok(SAMPLE_DATABASE), _ok({"query": sql})]
+
+
+def _compiled_parameters(mock_context):
+    return [
+        c.kwargs["json"]["parameters"]
+        for c in mock_context.fetch.call_args_list
+        if c.args[0] == f"{BASE}/api/dataset/native"
+    ]
 
 
 def _urls(mock_context):
@@ -325,6 +339,37 @@ class TestCreateSegment:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_compound_filter_accepted(self, mock_context):
+        compound = ["and", ACTIVE_FILTER, ["=", ["field", 13, None], "active"]]
+        mock_context.fetch.side_effect = [_ok(SAMPLE_TABLE), _ok({**SAMPLE_SEGMENT, "id": 11})]
+        result = await metabase.execute_action(
+            "create_segment", {"name": "Big active", "table_id": 31, "filter": compound}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"]["definition"]["query"]["filter"] == compound
+
+    @pytest.mark.asyncio
+    async def test_list_of_clauses_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_segment",
+            {"name": "Big orders", "table_id": 31, "filter": [ACTIVE_FILTER, ["=", ["field", 13, None], "active"]]},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "one query-builder filter clause" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_mbql5_filter_from_list_segments_refused(self, mock_context):
+        mbql5 = ["=", {"lib/uuid": "6f1c"}, ["field", {"lib/uuid": "9a2e"}, 121], "refunded"]
+        result = await metabase.execute_action(
+            "create_segment", {"name": "Refunded", "table_id": 31, "filter": mbql5}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "0.57+" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_non_list_filter_rejected(self, mock_context):
         result = await metabase.execute_action(
             "create_segment", {"name": "Big orders", "table_id": 31, "filter": "total > 100"}, mock_context
@@ -438,6 +483,17 @@ class TestUpdateSegment:
         assert all(c.kwargs["method"] == "GET" for c in mock_context.fetch.call_args_list)
 
     @pytest.mark.asyncio
+    async def test_mbql5_filter_refused_before_table_read(self, mock_context):
+        mock_context.fetch.return_value = _ok(MBQL5_SEGMENT)
+        result = await metabase.execute_action(
+            "update_segment",
+            {"segment_id": 9, "filter": MBQL5_SEGMENT["definition"]["stages"][0]["filters"]},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert _urls(mock_context) == [("GET", f"{BASE}/api/segment/9")]
+
+    @pytest.mark.asyncio
     async def test_not_found(self, mock_context):
         mock_context.fetch.side_effect = _not_found()
         result = await metabase.execute_action("update_segment", {"segment_id": 999, "name": "X"}, mock_context)
@@ -520,7 +576,17 @@ class TestUpdateCollection:
 class TestMoveItems:
     @pytest.mark.asyncio
     async def test_moves_each_item(self, mock_context):
-        mock_context.fetch.return_value = _ok({"id": 1})
+        mock_context.fetch.side_effect = [
+            _ok({"id": 42, "dashboard_id": None}),
+            _ok({"id": 42}),
+            _ok({"id": 43}),
+            _ok({"id": 43}),
+            _ok(NEW_METABASE),
+            _ok({"id": 44}),
+            _ok({"id": 44}),
+            _ok({"id": 9}),
+            _ok({"id": 31}),
+        ]
         items = [
             {"item_type": "question", "id": 42},
             {"item_type": "model", "id": 43},
@@ -533,28 +599,83 @@ class TestMoveItems:
         assert data["moved_count"] == 5
         assert data["failed_count"] == 0
         assert data["items"][0] == {"item_type": "question", "id": 42, "moved": True}
-        calls = mock_context.fetch.call_args_list
-        assert [c.args[0] for c in calls] == [
-            f"{BASE}/api/card/42",
-            f"{BASE}/api/card/43",
-            f"{BASE}/api/card/44",
-            f"{BASE}/api/dashboard/9",
-            f"{BASE}/api/collection/31",
+        assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/card/42"),
+            ("PUT", f"{BASE}/api/card/42"),
+            ("GET", f"{BASE}/api/card/43"),
+            ("PUT", f"{BASE}/api/card/43"),
+            ("GET", f"{BASE}/api/session/properties"),
+            ("GET", f"{BASE}/api/card/44"),
+            ("PUT", f"{BASE}/api/card/44"),
+            ("PUT", f"{BASE}/api/dashboard/9"),
+            ("PUT", f"{BASE}/api/collection/31"),
         ]
-        assert [c.kwargs["json"] for c in calls] == [
+        puts = [c for c in mock_context.fetch.call_args_list if c.kwargs["method"] == "PUT"]
+        assert [c.kwargs["json"] for c in puts] == [
             {"collection_id": 12},
             {"collection_id": 12},
             {"collection_id": 12},
             {"collection_id": 12},
             {"parent_id": 12},
         ]
-        assert all(c.kwargs["method"] == "PUT" for c in calls)
-        assert all(c.kwargs["retry_count"] == NO_RETRY for c in calls)
+        assert all(c.kwargs["retry_count"] == NO_RETRY for c in puts)
+
+    @pytest.mark.asyncio
+    async def test_question_saved_in_dashboard_leaves_it(self, mock_context):
+        mock_context.fetch.side_effect = [_ok({"id": 42, "dashboard_id": 9}), _ok({"id": 42})]
+        result = await metabase.execute_action(
+            "move_items", {"items": [{"item_type": "question", "id": 42}], "collection_id": 12}, mock_context
+        )
+        assert result.result.data["moved_count"] == 1
+        assert mock_context.fetch.call_args.kwargs["json"] == {"collection_id": 12, "dashboard_id": None}
+
+    @pytest.mark.asyncio
+    async def test_dashboard_question_moved_to_root(self, mock_context):
+        mock_context.fetch.side_effect = [_ok({"id": 42, "dashboard_id": 9}), _ok({"id": 42})]
+        await metabase.execute_action(
+            "move_items", {"items": [{"item_type": "question", "id": 42}], "move_to_root": True}, mock_context
+        )
+        assert mock_context.fetch.call_args.kwargs["json"] == {"collection_id": None, "dashboard_id": None}
+
+    @pytest.mark.asyncio
+    async def test_dashboards_and_collections_not_read_first(self, mock_context):
+        mock_context.fetch.return_value = _ok({"id": 1})
+        items = [{"item_type": "dashboard", "id": 9}, {"item_type": "collection", "id": 31}]
+        await metabase.execute_action("move_items", {"items": items, "collection_id": 12}, mock_context)
+        assert [method for method, _ in _urls(mock_context)] == ["PUT", "PUT"]
+
+    @pytest.mark.asyncio
+    async def test_legacy_metric_refused_others_move(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(OLD_METABASE), _ok({"id": 9})]
+        items = [{"item_type": "metric", "id": 3}, {"item_type": "dashboard", "id": 9}]
+        result = await metabase.execute_action("move_items", {"items": items, "collection_id": 12}, mock_context)
+        data = result.result.data
+        assert data["moved_count"] == 1
+        assert data["failed_count"] == 1
+        assert data["items"][0]["moved"] is False
+        assert "belong to a table" in data["items"][0]["error"]
+        assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/session/properties"),
+            ("PUT", f"{BASE}/api/dashboard/9"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_card_read_failure_reported_per_item(self, mock_context):
+        mock_context.fetch.side_effect = [_not_found(), _ok({"id": 9})]
+        items = [{"item_type": "question", "id": 999}, {"item_type": "dashboard", "id": 9}]
+        result = await metabase.execute_action("move_items", {"items": items, "collection_id": 12}, mock_context)
+        data = result.result.data
+        assert data["items"][0]["moved"] is False
+        assert "HTTP 404" in data["items"][0]["error"]
+        assert data["items"][1]["moved"] is True
+        assert [method for method, _ in _urls(mock_context)] == ["GET", "PUT"]
 
     @pytest.mark.asyncio
     async def test_one_failure_others_still_move(self, mock_context):
         mock_context.fetch.side_effect = [
             _ok({"id": 42}),
+            _ok({"id": 42}),
+            _ok({"id": 50}),
             HTTPError(403, "Forbidden", {"message": "You don't have permissions."}),
             _ok({"id": 9}),
         ]
@@ -571,7 +692,7 @@ class TestMoveItems:
         assert data["items"][1]["moved"] is False
         assert "HTTP 403" in data["items"][1]["error"]
         assert data["items"][2]["moved"] is True
-        assert mock_context.fetch.call_count == 3
+        assert mock_context.fetch.call_count == 5
 
     @pytest.mark.asyncio
     async def test_move_to_root_sends_null(self, mock_context):
@@ -668,6 +789,60 @@ class TestArchiveItem:
         assert call.kwargs["json"] == {"archived": True, "revision_message": SEGMENT_REVISION_MESSAGE}
 
     @pytest.mark.asyncio
+    async def test_metric_on_old_metabase_uses_metric_path(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(OLD_METABASE), _ok({"id": 3, "archived": True})]
+        result = await metabase.execute_action("archive_item", {"item_type": "metric", "item_id": 3}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert _urls(mock_context) == [("GET", f"{BASE}/api/session/properties"), ("PUT", f"{BASE}/api/metric/3")]
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "archived": True,
+            "revision_message": SEGMENT_REVISION_MESSAGE,
+        }
+
+    @pytest.mark.asyncio
+    async def test_metric_on_new_metabase_uses_card(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(NEW_METABASE), _ok({"id": 44, "archived": True})]
+        await metabase.execute_action("archive_item", {"item_type": "metric", "item_id": 44}, mock_context)
+        assert _urls(mock_context)[-1] == ("PUT", f"{BASE}/api/card/44")
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True}
+
+    @pytest.mark.asyncio
+    async def test_metric_with_unknown_version_uses_card(self, mock_context):
+        mock_context.fetch.side_effect = [_ok({}), _ok({"id": 44, "archived": True})]
+        await metabase.execute_action("archive_item", {"item_type": "metric", "item_id": 44}, mock_context)
+        assert _urls(mock_context)[-1] == ("PUT", f"{BASE}/api/card/44")
+
+    @pytest.mark.asyncio
+    async def test_question_does_not_read_version(self, mock_context):
+        mock_context.fetch.return_value = _ok({"id": 42, "archived": True})
+        await metabase.execute_action("archive_item", {"item_type": "question", "item_id": 42}, mock_context)
+        assert _urls(mock_context) == [("PUT", f"{BASE}/api/card/42")]
+
+    @pytest.mark.asyncio
+    async def test_dashboard_subscription_notification_refused(self, mock_context):
+        not_card = {**NEW_ALERT, "payload_type": "notification/dashboard"}
+        mock_context.fetch.return_value = _ok(not_card)
+        result = await metabase.execute_action("archive_item", {"item_type": "alert", "item_id": 40}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "isn't a question alert" in result.result.message
+        assert _urls(mock_context) == [("GET", f"{BASE}/api/notification/40")]
+
+    @pytest.mark.asyncio
+    async def test_missing_alert_on_both_apis(self, mock_context):
+        mock_context.fetch.side_effect = [_not_found(), _not_found()]
+        result = await metabase.execute_action("archive_item", {"item_type": "alert", "item_id": 77}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "There's no alert 77." in result.result.message
+        assert _urls(mock_context) == [("GET", f"{BASE}/api/notification/77"), ("PUT", f"{BASE}/api/alert/77")]
+
+    @pytest.mark.asyncio
+    async def test_legacy_alert_other_error_surfaces(self, mock_context):
+        mock_context.fetch.side_effect = [_not_found(), HTTPError(403, "Forbidden", {"message": "No access."})]
+        result = await metabase.execute_action("archive_item", {"item_type": "alert", "item_id": 12}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 403" in result.result.message
+
+    @pytest.mark.asyncio
     async def test_alert_new_metabase_turns_notification_off(self, mock_context):
         mock_context.fetch.side_effect = [_ok(NEW_ALERT), _ok({**NEW_ALERT, "active": False})]
         result = await metabase.execute_action("archive_item", {"item_type": "alert", "item_id": 40}, mock_context)
@@ -756,6 +931,37 @@ class TestRestoreItem:
             "archived": False,
             "revision_message": SEGMENT_REVISION_MESSAGE,
         }
+
+    @pytest.mark.asyncio
+    async def test_metric_on_old_metabase_uses_metric_path(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(OLD_METABASE), _ok({"id": 3, "archived": False})]
+        await metabase.execute_action("restore_item", {"item_type": "metric", "item_id": 3}, mock_context)
+        assert _urls(mock_context)[-1] == ("PUT", f"{BASE}/api/metric/3")
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "archived": False,
+            "revision_message": SEGMENT_REVISION_MESSAGE,
+        }
+
+    @pytest.mark.asyncio
+    async def test_metric_on_new_metabase_uses_card(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(NEW_METABASE), _ok({"id": 44})]
+        await metabase.execute_action("restore_item", {"item_type": "metric", "item_id": 44}, mock_context)
+        assert _urls(mock_context)[-1] == ("PUT", f"{BASE}/api/card/44")
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False}
+
+    @pytest.mark.asyncio
+    async def test_non_question_notification_refused(self, mock_context):
+        mock_context.fetch.return_value = _ok({**NEW_ALERT, "payload_type": "notification/system-event"})
+        result = await metabase.execute_action("restore_item", {"item_type": "alert", "item_id": 40}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "isn't a question alert" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_missing_alert_on_both_apis(self, mock_context):
+        mock_context.fetch.side_effect = [_not_found(), _not_found()]
+        result = await metabase.execute_action("restore_item", {"item_type": "alert", "item_id": 77}, mock_context)
+        assert "There's no alert 77." in result.result.message
 
     @pytest.mark.asyncio
     async def test_alert_new_metabase_turns_notification_on(self, mock_context):
@@ -1358,6 +1564,212 @@ class TestCreateSubscription:
         assert compiles[1].kwargs["json"]["parameters"] == []
 
     @pytest.mark.asyncio
+    async def test_series_question_write_refused(self, mock_context):
+        combined = {
+            **SUB_DASHBOARD,
+            "dashcards": [{"id": 501, "card_id": 42, "card": {"id": 42}, "series": [{"id": 44, "name": "Upgrades"}]}],
+        }
+        mock_context.fetch.side_effect = [
+            _ok(combined),
+            *_checks(),
+            *_checks(UPGRADES_CARD, sql="delete from t"),
+        ]
+        result = await metabase.execute_action(
+            "create_subscription", {"dashboard_id": 9, "recipient_user_ids": [5]}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 44" in result.result.message
+        assert _urls(mock_context) == [("GET", f"{BASE}/api/dashboard/9"), *_check_calls(42), *_check_calls(44)]
+
+    @pytest.mark.asyncio
+    async def test_series_question_checked_but_not_sent_as_card(self, mock_context):
+        combined = {
+            **SUB_DASHBOARD,
+            "dashcards": [{"id": 501, "card_id": 42, "card": {"id": 42}, "series": [{"id": 44, "name": "Upgrades"}]}],
+        }
+        mock_context.fetch.side_effect = [_ok(combined), *_checks(), *_checks(UPGRADES_CARD), _ok(SAMPLE_PULSE)]
+        result = await metabase.execute_action(
+            "create_subscription", {"dashboard_id": 9, "recipient_user_ids": [5]}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"]["cards"] == [
+            {"id": 42, "dashboard_card_id": 501, "include_csv": False, "include_xls": False}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_dashboard_default_sent_with_check(self, mock_context):
+        # The default can switch on an optional [[ ]] clause, so the SQL checked must be compiled with it.
+        filtered = {
+            **SUB_DASHBOARD,
+            "parameters": [PLAN_FILTER],
+            "dashcards": [
+                {
+                    "id": 501,
+                    "card_id": 42,
+                    "card": {"id": 42},
+                    "parameter_mappings": [{"parameter_id": "f1", "target": PLAN_TAG_TARGET}],
+                }
+            ],
+        }
+        mock_context.fetch.side_effect = [_ok(filtered), *_checks(), _ok(SAMPLE_PULSE)]
+        result = await metabase.execute_action(
+            "create_subscription", {"dashboard_id": 9, "recipient_user_ids": [5]}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert _compiled_parameters(mock_context) == [
+            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": "pro"}]
+        ]
+
+    @pytest.mark.asyncio
+    async def test_default_that_turns_sql_into_write_refused(self, mock_context):
+        filtered = {
+            **SUB_DASHBOARD,
+            "parameters": [PLAN_FILTER],
+            "dashcards": [
+                {
+                    "id": 501,
+                    "card_id": 42,
+                    "card": {"id": 42},
+                    "parameter_mappings": [{"parameter_id": "f1", "card_id": 42, "target": PLAN_TAG_TARGET}],
+                }
+            ],
+        }
+        mock_context.fetch.side_effect = [_ok(filtered), *_checks(sql="select 1; delete from t")]
+        result = await metabase.execute_action(
+            "create_subscription", {"dashboard_id": 9, "recipient_user_ids": [5]}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert ("POST", f"{BASE}/api/pulse") not in _urls(mock_context)
+        assert _compiled_parameters(mock_context)[0][0]["value"] == "pro"
+
+    @pytest.mark.asyncio
+    async def test_filter_without_default_sends_nothing(self, mock_context):
+        no_default = {**PLAN_FILTER, "default": None}
+        filtered = {
+            **SUB_DASHBOARD,
+            "parameters": [no_default],
+            "dashcards": [
+                {
+                    "id": 501,
+                    "card_id": 42,
+                    "card": {"id": 42},
+                    "parameter_mappings": [{"parameter_id": "f1", "card_id": 42, "target": PLAN_TAG_TARGET}],
+                }
+            ],
+        }
+        mock_context.fetch.side_effect = [_ok(filtered), *_checks(), _ok(SAMPLE_PULSE)]
+        await metabase.execute_action(
+            "create_subscription", {"dashboard_id": 9, "recipient_user_ids": [5]}, mock_context
+        )
+        assert _compiled_parameters(mock_context) == [[]]
+
+    @pytest.mark.asyncio
+    async def test_series_question_uses_its_own_mappings(self, mock_context):
+        combined = {
+            **SUB_DASHBOARD,
+            "parameters": [PLAN_FILTER],
+            "dashcards": [
+                {
+                    "id": 501,
+                    "card_id": 42,
+                    "card": {"id": 42},
+                    "series": [{"id": 44, "name": "Upgrades"}],
+                    "parameter_mappings": [
+                        {"parameter_id": "f1", "card_id": 42, "target": PLAN_TAG_TARGET},
+                        {"parameter_id": "f1", "card_id": 44, "target": PLAN_FIELD_TARGET},
+                    ],
+                }
+            ],
+        }
+        mock_context.fetch.side_effect = [_ok(combined), *_checks(), *_checks(UPGRADES_CARD), _ok(SAMPLE_PULSE)]
+        result = await metabase.execute_action(
+            "create_subscription", {"dashboard_id": 9, "recipient_user_ids": [5]}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert _compiled_parameters(mock_context) == [
+            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": "pro"}],
+            [{"id": "f1", "type": "string/=", "target": PLAN_FIELD_TARGET, "value": "pro"}],
+        ]
+
+    @pytest.mark.asyncio
+    async def test_series_without_mapping_gets_no_values(self, mock_context):
+        # A mapping without card_id belongs to the card's own question, not to the extra series.
+        combined = {
+            **SUB_DASHBOARD,
+            "parameters": [PLAN_FILTER],
+            "dashcards": [
+                {
+                    "id": 501,
+                    "card_id": 42,
+                    "card": {"id": 42},
+                    "series": [{"id": 44, "name": "Upgrades"}],
+                    "parameter_mappings": [{"parameter_id": "f1", "target": PLAN_TAG_TARGET}],
+                }
+            ],
+        }
+        mock_context.fetch.side_effect = [_ok(combined), *_checks(), *_checks(UPGRADES_CARD), _ok(SAMPLE_PULSE)]
+        await metabase.execute_action(
+            "create_subscription", {"dashboard_id": 9, "recipient_user_ids": [5]}, mock_context
+        )
+        assert _compiled_parameters(mock_context) == [
+            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": "pro"}],
+            [],
+        ]
+
+    @pytest.mark.asyncio
+    async def test_same_question_and_values_checked_once(self, mock_context):
+        mapping = [{"parameter_id": "f1", "target": PLAN_TAG_TARGET}]
+        twice = {
+            **SUB_DASHBOARD,
+            "parameters": [PLAN_FILTER],
+            "dashcards": [
+                {"id": 501, "card_id": 42, "card": {"id": 42}, "parameter_mappings": mapping},
+                {"id": 504, "card_id": 42, "card": {"id": 42}, "parameter_mappings": mapping},
+                {"id": 505, "card_id": 43, "card": {"id": 43}, "series": [{"id": 42}], "parameter_mappings": []},
+            ],
+        }
+        mock_context.fetch.side_effect = [
+            _ok(twice),
+            *_checks(),
+            *_checks(CHURN_CARD),
+            *_checks(),
+            _ok(SAMPLE_PULSE),
+        ]
+        result = await metabase.execute_action(
+            "create_subscription", {"dashboard_id": 9, "recipient_user_ids": [5]}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        # 42 with the default once, 43 once, then 42 again as a series with no values: a different check.
+        assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/dashboard/9"),
+            *_check_calls(42),
+            *_check_calls(43),
+            *_check_calls(42),
+            ("POST", f"{BASE}/api/pulse"),
+        ]
+        assert _compiled_parameters(mock_context)[2] == []
+
+    @pytest.mark.asyncio
+    async def test_action_cards_not_checked(self, mock_context):
+        with_action = {
+            **SUB_DASHBOARD,
+            "dashcards": [
+                {"id": 506, "card_id": 42, "action_id": 7, "card": {"id": 42}},
+                {"id": 503, "card_id": 43, "card": {"id": 43}},
+            ],
+        }
+        mock_context.fetch.side_effect = [_ok(with_action), *_checks(CHURN_CARD), _ok(SAMPLE_PULSE)]
+        result = await metabase.execute_action(
+            "create_subscription", {"dashboard_id": 9, "recipient_user_ids": [5]}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/dashboard/9"),
+            *_check_calls(43),
+            ("POST", f"{BASE}/api/pulse"),
+        ]
+
+    @pytest.mark.asyncio
     async def test_no_question_cards(self, mock_context):
         text_only = {**SUB_DASHBOARD, "dashcards": [SUB_DASHBOARD["dashcards"][1]]}
         mock_context.fetch.return_value = _ok(text_only)
@@ -1548,6 +1960,74 @@ class TestUpdateSubscription:
         body = mock_context.fetch.call_args.kwargs["json"]
         assert body["name"] == "Monthly growth"
         assert body["channels"] == [{**monthly, "recipients": [{"id": 5}, {"id": 6}, {"email": "ops@example.com"}]}]
+
+    @pytest.mark.asyncio
+    async def test_monthly_hour_change_keeps_monthly(self, mock_context):
+        monthly = {**EMAIL_CHANNEL, "schedule_type": "monthly", "schedule_day": "mon", "schedule_frame": "first"}
+        pulse = {**SAMPLE_PULSE, "channels": [monthly]}
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(pulse)]
+        await metabase.execute_action("update_subscription", {"subscription_id": 15, "hour": 10}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"]["channels"] == [{**monthly, "schedule_hour": 10}]
+
+    @pytest.mark.asyncio
+    async def test_monthly_day_change_keeps_monthly(self, mock_context):
+        monthly = {**EMAIL_CHANNEL, "schedule_type": "monthly", "schedule_day": "mon", "schedule_frame": "first"}
+        pulse = {**SAMPLE_PULSE, "channels": [monthly]}
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(pulse)]
+        await metabase.execute_action(
+            "update_subscription", {"subscription_id": 15, "day_of_week": "wed"}, mock_context
+        )
+        assert mock_context.fetch.call_args.kwargs["json"]["channels"] == [{**monthly, "schedule_day": "wed"}]
+
+    @pytest.mark.asyncio
+    async def test_monthly_converted_when_frequency_given(self, mock_context):
+        monthly = {**EMAIL_CHANNEL, "schedule_type": "monthly", "schedule_day": "mon", "schedule_frame": "first"}
+        pulse = {**SAMPLE_PULSE, "channels": [monthly]}
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(pulse)]
+        await metabase.execute_action(
+            "update_subscription", {"subscription_id": 15, "frequency": "weekly", "day_of_week": "thu"}, mock_context
+        )
+        email = mock_context.fetch.call_args.kwargs["json"]["channels"][0]
+        assert email["schedule_type"] == "weekly"
+        assert email["schedule_day"] == "thu"
+        assert email["schedule_hour"] == 7
+        assert email["schedule_frame"] is None
+
+    @pytest.mark.asyncio
+    async def test_new_email_channel_copies_other_schedule(self, mock_context):
+        slack = {**SLACK_CHANNEL, "schedule_type": "weekly", "schedule_hour": 7, "schedule_day": "fri"}
+        pulse = {**SAMPLE_PULSE, "channels": [slack]}
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(pulse)]
+        await metabase.execute_action(
+            "update_subscription", {"subscription_id": 15, "recipient_emails": ["cfo@example.com"]}, mock_context
+        )
+        channels = mock_context.fetch.call_args.kwargs["json"]["channels"]
+        assert channels[0] == slack
+        assert channels[1] == {
+            "enabled": True,
+            "channel_type": "email",
+            "schedule_type": "weekly",
+            "schedule_hour": 7,
+            "schedule_day": "fri",
+            "schedule_frame": None,
+            "recipients": [{"email": "cfo@example.com"}],
+        }
+
+    @pytest.mark.asyncio
+    async def test_new_email_channel_uses_given_schedule(self, mock_context):
+        slack = {**SLACK_CHANNEL, "schedule_type": "weekly", "schedule_hour": 7, "schedule_day": "fri"}
+        pulse = {**SAMPLE_PULSE, "channels": [slack]}
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(pulse)]
+        await metabase.execute_action(
+            "update_subscription",
+            {"subscription_id": 15, "frequency": "daily", "hour": 6, "recipient_user_ids": [5]},
+            mock_context,
+        )
+        email = mock_context.fetch.call_args.kwargs["json"]["channels"][1]
+        assert email["schedule_type"] == "daily"
+        assert email["schedule_hour"] == 6
+        assert email["schedule_day"] is None
+        assert email["recipients"] == [{"id": 5}]
 
     @pytest.mark.asyncio
     async def test_monthly_subscription_recipients_change(self, mock_context):
