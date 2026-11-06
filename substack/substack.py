@@ -78,6 +78,7 @@ async def _archive_posts(context, inputs, *, sort, search, default_limit):
     # Preserve the action's numeric offset while following Substack's opaque cursors.
     posts = []
     seen_cursors = set()
+    seen_post_ids = set()
     while len(posts) < limit:
         needed = limit - len(posts)
         response = await context.fetch(
@@ -88,8 +89,18 @@ async def _archive_posts(context, inputs, *, sort, search, default_limit):
         )
         body = response.data
         page = body["posts"] if isinstance(body, dict) else (body or [])
-        posts.extend(_format_post(post) for post in page[skip : skip + needed])
-        skip = max(0, skip - len(page))
+        for post in page:
+            post_id = post.get("id")
+            if post_id is not None:
+                if post_id in seen_post_ids:
+                    continue
+                seen_post_ids.add(post_id)
+            if skip:
+                skip -= 1
+                continue
+            posts.append(_format_post(post))
+            if len(posts) == limit:
+                break
         cursor = body.get("nextCursor") if isinstance(body, dict) else None
         if not cursor or len(posts) == limit:
             break

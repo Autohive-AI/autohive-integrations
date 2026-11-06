@@ -124,7 +124,11 @@ class TestGetPublicationPosts:
     async def test_offset_uses_cursor_and_skips_across_pages(self, mock_context):
         mock_context.fetch.side_effect = [
             FetchResponse(status=200, headers={}, data={"posts": [MOCK_POST], "nextCursor": "second-page"}),
-            FetchResponse(status=200, headers={}, data={"posts": [MOCK_POST, {**MOCK_POST, "slug": "third"}]}),
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"posts": [{**MOCK_POST, "id": 2}, {**MOCK_POST, "id": 3, "slug": "third"}]},
+            ),
         ]
         result = await substack_integration.execute_action(
             "get_publication_posts",
@@ -409,6 +413,22 @@ class TestSearchPosts:
         )
         assert result.result.data["posts"] == []
         assert result.result.data["count"] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("offset,expected", [(0, [1, 2, 3]), (1, [2, 3])])
+async def test_search_skips_overlapping_ids_before_applying_offset(mock_context, offset, expected):
+    def page(ids, cursor=None):
+        return FetchResponse(status=200, headers={}, data={"posts": [{"id": i} for i in ids], "nextCursor": cursor})
+
+    mock_context.fetch.side_effect = [page([1, 2], "b"), page([1, 2], "c"), page([3])]
+    result = await substack_integration.execute_action(
+        "search_posts",
+        {"publication_url": "https://example.substack.com", "query": "open", "limit": len(expected), "offset": offset},
+        mock_context,
+    )
+    assert [post["id"] for post in result.result.data["posts"]] == expected
+    assert result.result.data["count"] == len(expected)
 
 
 @pytest.mark.asyncio
