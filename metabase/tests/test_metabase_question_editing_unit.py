@@ -1,5 +1,7 @@
 import asyncio
 import base64
+import csv
+import io
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1407,6 +1409,16 @@ class TestExportQuestionResults:
         result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
         assert result.type != ResultType.ACTION_ERROR
         assert result.result.data["content"] == "{tag},count\nnew,4"
+
+    @pytest.mark.asyncio
+    async def test_csv_trailing_empty_records_kept(self, mock_context):
+        # A single-column NULL is a blank line in Metabase's CSV; it is a row, not the end of the file.
+        mock_context.fetch.side_effect = _export_calls("name\nAlice\n\n\n")
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        data = result.result.data
+        assert data["row_count"] == 3
+        assert list(csv.reader(io.StringIO(data["content"]))) == [["name"], ["Alice"], [""], [""]]
+        assert data["truncated"] is False
 
     @pytest.mark.asyncio
     async def test_csv_bom_stripped(self, mock_context):

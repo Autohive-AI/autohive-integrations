@@ -233,6 +233,11 @@ class TestTagStandIns:
             "value": value,
         }
 
+    def test_boolean_filter_gets_a_value(self):
+        # Metabase 0.57+ has boolean SQL filters; without a value a required one can't be expanded for the check.
+        (stand_in,) = _tag_stand_ins({"b": {"type": "boolean", "name": "b", "required": True}})
+        assert stand_in == {"type": "boolean/=", "target": ["variable", ["template-tag", "b"]], "value": [True]}
+
     def test_time_grouping_filter_gets_a_unit(self):
         (stand_in,) = _tag_stand_ins({"u": {"type": "temporal-unit", "name": "u"}})
         assert stand_in == {"type": "temporal-unit", "target": ["dimension", ["template-tag", "u"]], "value": "month"}

@@ -1651,7 +1651,12 @@ def _updated_native_query(card: Dict[str, Any], database_id: Any, sql: str, tags
 FILTER_TAG_TYPES = {"text": "text", "number": "number", "date": "date", "field": "dimension"}
 # Stand-in values for filters without a default, so the SQL can be expanded and checked. Metabase quotes every
 # value, so the stand-in doesn't change what the SQL does.
-FILTER_STAND_INS = {"text": ("category", "x"), "number": ("number/=", 1), "date": ("date/single", "2020-01-01")}
+FILTER_STAND_INS = {
+    "text": ("category", "x"),
+    "number": ("number/=", 1),
+    "date": ("date/single", "2020-01-01"),
+    "boolean": ("boolean/=", [True]),
+}
 
 
 async def _template_tags(context: ExecutionContext, sql: str, filters: Any, existing: Dict[str, Any]) -> Dict[str, Any]:
@@ -1873,7 +1878,8 @@ def _csv_export(text: str, max_rows: int) -> Dict[str, Any]:
             truncated = True
             break
         before = out.tell()
-        writer.writerow(record)
+        # A blank line is a record with one empty value (a single-column NULL), not nothing.
+        writer.writerow(record or [""])
         if out.tell() > MAX_EXPORT_CHARS:
             out.seek(before)
             out.truncate()
