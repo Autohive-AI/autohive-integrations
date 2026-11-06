@@ -1,0 +1,227 @@
+{
+    "name": "SQL Database",
+    "display_name": "SQL Database",
+    "version": "1.0.0",
+    "description": "Run read-only SQL queries and insert, update or delete statements against Microsoft SQL Server (including Azure SQL), PostgreSQL and MySQL/MariaDB databases.",
+    "entry_point": "sql_database.py",
+    "auth": {
+        "type": "custom",
+        "title": "Database Connection",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "database_type": {
+                    "type": "string",
+                    "format": "text",
+                    "label": "Database Type",
+                    "help_text": "sqlserver, postgresql or mysql (not case-sensitive). Use sqlserver for Azure SQL and mysql for MariaDB.",
+                    "default": "sqlserver"
+                },
+                "connection_string": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Connection String",
+                    "help_text": "SQL Server: Server=tcp:host,1433;Database=db;User ID=user;Password=pass. PostgreSQL: postgresql://user:pass@host:5432/db. MySQL: mysql://user:pass@host:3306/db. Connections are encrypted by default. Use a read-only database login if this connection only needs to run queries.",
+                    "minLength": 1,
+                    "pattern": "\\S"
+                },
+                "access_mode": {
+                    "type": "string",
+                    "format": "text",
+                    "label": "Access Mode",
+                    "help_text": "read-only (default) or read-write. Read-only connections can only run the query action; set read-write to allow the execute action to insert, update or delete data.",
+                    "default": "read-only"
+                },
+                "ca_certificate": {
+                    "type": "string",
+                    "format": "text",
+                    "label": "CA Certificate (optional)",
+                    "help_text": "PEM text of the certificate authority that signed the database server's certificate, e.g. the Amazon RDS CA bundle. When set, the server certificate is always verified against it instead of public certificate authorities, even with sslmode=require, ssl-mode=REQUIRED or TrustServerCertificate=True (which then skip only the host name check)."
+                }
+            },
+            "required": [
+                "database_type",
+                "connection_string"
+            ]
+        }
+    },
+    "actions": {
+        "query": {
+            "display_name": "Run Read-Only Query",
+            "description": "Run one SELECT statement and return the rows. WITH (CTEs), JOINs, subqueries and UNION/INTERSECT/EXCEPT are allowed. To discover tables and columns, query information_schema.tables and information_schema.columns (all databases) or sys.tables and sys.columns (SQL Server). The integration rejects write statements, DDL, SELECT ... INTO, row-locking clauses, known side-effecting functions, procedure calls and multiple statements. Queries also run in a transaction that is never committed. Use database credentials with only SELECT permissions when writes must be impossible, especially on SQL Server.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "sql": {
+                        "type": "string",
+                        "description": "A single SELECT statement in the database's own SQL dialect, e.g. SELECT TOP 10 * FROM dbo.Orders (SQL Server) or SELECT * FROM orders LIMIT 10 (PostgreSQL/MySQL). Use %s placeholders for values that come from user input or earlier steps."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": [
+                                "string",
+                                "number",
+                                "boolean",
+                                "null"
+                            ]
+                        },
+                        "description": "Values for the %s placeholders in sql, in order. Use placeholders as standalone values, without quotes, outside strings, identifiers and comments. The driver binds or escapes values. When parameters are supplied, write a literal percent sign as %%."
+                    },
+                    "max_rows": {
+                        "type": "integer",
+                        "description": "Maximum number of rows to return (default 100, up to 10000). Results are also capped at about 4 MB; truncation_reason says which limit was reached.",
+                        "default": 100,
+                        "minimum": 1,
+                        "maximum": 10000
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "description": "Cancel the query if it runs longer than this many seconds (default 30).",
+                        "default": 30,
+                        "minimum": 1,
+                        "maximum": 300
+                    }
+                },
+                "required": [
+                    "sql"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "columns": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Column names in result order. Unnamed columns are called column_N and duplicate names get a suffix (id, id_2)."
+                    },
+                    "rows": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "One object per row, keyed by column name. Dates and times are ISO 8601 strings, durations are ISO 8601 (PostgreSQL) or [-]HH:MM:SS (MySQL), decimals are strings (to keep precision) and binary values are base64. Text and binary values longer than 65,536 characters are cut (see values_truncated)."
+                    },
+                    "row_count": {
+                        "type": "integer",
+                        "description": "Number of rows returned."
+                    },
+                    "truncated": {
+                        "type": "boolean",
+                        "description": "True when the query produced more rows than were returned."
+                    },
+                    "truncation_reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "max_rows",
+                            "max_bytes",
+                            null
+                        ],
+                        "description": "max_rows when the max_rows limit was reached, max_bytes when the result reached the ~4 MB size limit (select fewer or shorter columns), or null when nothing was truncated."
+                    },
+                    "values_truncated": {
+                        "type": "boolean",
+                        "description": "True when at least one text or binary value was longer than 65,536 characters and was cut."
+                    }
+                },
+                "required": [
+                    "columns",
+                    "rows",
+                    "row_count",
+                    "truncated",
+                    "truncation_reason",
+                    "values_truncated"
+                ]
+            }
+        },
+        "execute": {
+            "display_name": "Execute Write Statement",
+            "description": "Run one INSERT, UPDATE, DELETE or MERGE statement and commit it. Only available when the connection's Access Mode is read-write. Use this to change data; use the query action to read it. Schema changes (CREATE/ALTER/DROP/TRUNCATE), stored procedure calls, transaction control and multiple statements are rejected. UPDATE and DELETE must have a WHERE clause unless allow_all_rows is true.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "sql": {
+                        "type": "string",
+                        "description": "A single INSERT, UPDATE, DELETE or MERGE statement in the database's own SQL dialect. Use RETURNING on PostgreSQL or OUTPUT on SQL Server to get changed rows back. MariaDB RETURNING support depends on the statement and server version; MariaDB 11 supports INSERT/DELETE but not UPDATE RETURNING. Use %s placeholders for values that come from user input or earlier steps."
+                    },
+                    "parameters": {
+                        "type": "array",
+                        "items": {
+                            "type": [
+                                "string",
+                                "number",
+                                "boolean",
+                                "null"
+                            ]
+                        },
+                        "description": "Values for the %s placeholders in sql, in order. Use placeholders as standalone values, without quotes, outside strings, identifiers and comments. The driver binds or escapes values. When parameters are supplied, write a literal percent sign as %%."
+                    },
+                    "allow_all_rows": {
+                        "type": "boolean",
+                        "description": "Set to true to run an UPDATE or DELETE that has no WHERE clause and therefore changes every row in the table (default false).",
+                        "default": false
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "description": "Cancel the statement if it runs longer than this many seconds (default 30).",
+                        "default": 30,
+                        "minimum": 1,
+                        "maximum": 300
+                    }
+                },
+                "required": [
+                    "sql"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "statement_type": {
+                        "type": "string",
+                        "enum": [
+                            "INSERT",
+                            "UPDATE",
+                            "DELETE",
+                            "MERGE"
+                        ],
+                        "description": "The kind of statement that ran."
+                    },
+                    "rows_affected": {
+                        "type": "integer",
+                        "description": "Number of rows inserted, updated, deleted or matched by the statement, as reported by the database (-1 if unknown). An UPDATE that matches a row counts it even if the values did not change."
+                    },
+                    "columns": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Column names of returned_rows. Empty unless the statement used RETURNING or OUTPUT."
+                    },
+                    "returned_rows": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        },
+                        "description": "Rows produced by a RETURNING or OUTPUT clause, keyed by column name (at most 1000)."
+                    },
+                    "returned_rows_truncated": {
+                        "type": "boolean",
+                        "description": "True when RETURNING/OUTPUT produced more than 1000 rows or about 4 MB, or a value was cut."
+                    }
+                },
+                "required": [
+                    "statement_type",
+                    "rows_affected",
+                    "columns",
+                    "returned_rows",
+                    "returned_rows_truncated"
+                ]
+            }
+        }
+    }
+}
