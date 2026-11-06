@@ -3048,9 +3048,11 @@ class UpdateSubscriptionAction(ActionHandler):
         pulse = await _api(context, "GET", path) or {}
         body = {**_pulse_flags(pulse), **body}
         if schedule or recipients:
-            channel = next((c for c in pulse.get("channels") or [] if c.get("channel_type") == "email"), {})
+            channels = pulse.get("channels") or []
+            channel = next((c for c in channels if c.get("channel_type") == "email"), {})
             updated = dict(channel)
-            others = [c for c in pulse.get("channels") or [] if c.get("channel_type") != "email"]
+            # Every channel but the one edited is sent back as it is; Metabase deletes the ones left out.
+            others = [c for c in channels if c is not channel]
             # A subscription with no email channel yet gets one on its other channel's schedule.
             source = channel or (others[0] if others else {})
             current = {
@@ -3080,6 +3082,9 @@ class UpdateSubscriptionAction(ActionHandler):
                 others = [{**c, **updated} for c in others]
                 updated = None
             elif not channel:
+                # A new email channel starts sending, maybe for a subscription that was paused (its Slack channel
+                # turned off) while its questions changed, so they are checked as when it was created.
+                await _check_dashboard_questions(context, await _get_dashboard(context, pulse.get("dashboard_id")))
                 # Schedule changes are already in updated; otherwise the other channel's schedule is copied.
                 schedule_fields = {
                     k: source[k]

@@ -1987,15 +1987,50 @@ class TestUpdateSubscription:
     @pytest.mark.asyncio
     async def test_recipients_on_slack_only_subscription_add_email(self, mock_context):
         slack_only = {**SAMPLE_PULSE, "channels": [SLACK_CHANNEL]}
-        mock_context.fetch.side_effect = [_ok(slack_only), _ok(slack_only)]
-        await metabase.execute_action(
+        mock_context.fetch.side_effect = [
+            _ok(slack_only),
+            _ok(SUB_DASHBOARD),
+            *_checks(),
+            *_checks(CHURN_CARD),
+            _ok(slack_only),
+        ]
+        result = await metabase.execute_action(
             "update_subscription", {"subscription_id": 15, "recipient_user_ids": [5]}, mock_context
         )
+        assert result.type == ResultType.ACTION
+        # The new email channel starts sending, so every question is checked first.
+        assert _urls(mock_context)[1:8] == [("GET", f"{BASE}/api/dashboard/9"), *_check_calls(42), *_check_calls(43)]
         channels = mock_context.fetch.call_args.kwargs["json"]["channels"]
         assert channels[0] == SLACK_CHANNEL
         assert channels[1]["channel_type"] == "email"
         assert channels[1]["recipients"] == [{"id": 5}]
         assert channels[1]["schedule_hour"] == 8
+
+    @pytest.mark.asyncio
+    async def test_new_email_channel_with_writing_question_refused(self, mock_context):
+        paused = {**SAMPLE_PULSE, "channels": [{**SLACK_CHANNEL, "enabled": False}]}
+        mock_context.fetch.side_effect = [
+            _ok(paused),
+            _ok(SUB_DASHBOARD),
+            *_checks(),
+            *_checks(CHURN_CARD, sql="select nextval('audit_seq')"),
+        ]
+        result = await metabase.execute_action(
+            "update_subscription", {"subscription_id": 15, "recipient_user_ids": [5]}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 43" in result.result.message
+        assert ("PUT", f"{BASE}/api/pulse/15") not in _urls(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_every_other_channel_kept_including_extra_email(self, mock_context):
+        # Metabase deletes channels left out of the update, so a second email channel is sent back untouched.
+        second = {**EMAIL_CHANNEL, "id": 72, "recipients": [{"email": "cfo@example.com"}]}
+        pulse = {**SAMPLE_PULSE, "channels": [SLACK_CHANNEL, EMAIL_CHANNEL, second]}
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(pulse)]
+        await metabase.execute_action("update_subscription", {"subscription_id": 15, "hour": 10}, mock_context)
+        channels = mock_context.fetch.call_args.kwargs["json"]["channels"]
+        assert channels == [SLACK_CHANNEL, second, {**EMAIL_CHANNEL, "schedule_hour": 10}]
 
     @pytest.mark.asyncio
     async def test_skip_if_empty_false_sent(self, mock_context):
