@@ -67,7 +67,18 @@ class TestGetDashboard:
             "size_x": 12,
             "size_y": 6,
             "dashboard_tab_id": None,
+            "series": [],
         }
+
+    @pytest.mark.asyncio
+    async def test_combined_chart_lists_its_other_questions(self, mock_context):
+        combo = {
+            **SAMPLE_DASHBOARD["dashcards"][0],
+            "series": [{"id": 47, "name": "Weekly churn", "display": "line", "dataset_query": {}}],
+        }
+        mock_context.fetch.return_value = _ok({**SAMPLE_DASHBOARD, "dashcards": [combo]})
+        result = await metabase.execute_action("get_dashboard", {"dashboard_id": 9}, mock_context)
+        assert result.result.data["cards"][0]["series"] == [{"id": 47, "name": "Weekly churn"}]
 
     @pytest.mark.asyncio
     async def test_text_card_has_no_question(self, mock_context):
@@ -149,6 +160,9 @@ class TestCreateDashboard:
         assert result.type == ResultType.ACTION_ERROR
 
 
+ADMIN = {"id": 1, "is_superuser": True}
+
+
 class TestAddQuestionToDashboard:
     @staticmethod
     def _updated(new_card_id=77, new_dashcard_id=503):
@@ -157,12 +171,12 @@ class TestAddQuestionToDashboard:
 
     @pytest.mark.asyncio
     async def test_keeps_existing_cards_and_places_below(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok(self._updated())]
+        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok([]), _ok(ADMIN), _ok(self._updated())]
         result = await metabase.execute_action(
             "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context
         )
         assert result.type == ResultType.ACTION
-        put = mock_context.fetch.call_args_list[1]
+        put = mock_context.fetch.call_args_list[3]
         assert put.args[0] == f"{BASE}/api/dashboard/9"
         assert put.kwargs["method"] == "PUT"
         dashcards = put.kwargs["json"]["dashcards"]
@@ -188,9 +202,9 @@ class TestAddQuestionToDashboard:
     async def test_existing_series_sent_as_ids(self, mock_context):
         combo = {**EXISTING_DASHCARD, "series": [{"id": 43, "name": "Weekly churn", "display": "line"}]}
         dashboard = {**SAMPLE_DASHBOARD, "dashcards": [combo, TEXT_DASHCARD]}
-        mock_context.fetch.side_effect = [_ok(dashboard), _ok(self._updated())]
+        mock_context.fetch.side_effect = [_ok(dashboard), _ok([]), _ok(ADMIN), _ok(self._updated())]
         await metabase.execute_action("add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context)
-        dashcards = mock_context.fetch.call_args_list[1].kwargs["json"]["dashcards"]
+        dashcards = mock_context.fetch.call_args_list[3].kwargs["json"]["dashcards"]
         assert [dc["series"] for dc in dashcards] == [[{"id": 43}], [], []]
 
     @pytest.mark.asyncio
@@ -205,16 +219,16 @@ class TestAddQuestionToDashboard:
             "visualization_settings": {"link": {"entity": {"restricted": True}}},
         }
         dashboard = {**SAMPLE_DASHBOARD, "dashcards": [EXISTING_DASHCARD, link]}
-        mock_context.fetch.side_effect = [_ok(dashboard), _ok(self._updated())]
+        mock_context.fetch.side_effect = [_ok(dashboard), _ok([]), _ok(ADMIN), _ok(self._updated())]
         await metabase.execute_action("add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context)
-        dashcards = mock_context.fetch.call_args_list[1].kwargs["json"]["dashcards"]
+        dashcards = mock_context.fetch.call_args_list[3].kwargs["json"]["dashcards"]
         # Metabase hides a link the key can't read; sending that back would erase the real link.
         assert "visualization_settings" not in dashcards[1]
         assert dashcards[0]["visualization_settings"] == {"graph.dimensions": ["week"]}
 
     @pytest.mark.asyncio
     async def test_response_shape(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok(self._updated())]
+        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok([]), _ok(ADMIN), _ok(self._updated())]
         result = await metabase.execute_action(
             "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context
         )
@@ -232,11 +246,16 @@ class TestAddQuestionToDashboard:
     @pytest.mark.asyncio
     async def test_empty_dashboard_starts_at_top(self, mock_context):
         empty = {**SAMPLE_DASHBOARD, "dashcards": []}
-        mock_context.fetch.side_effect = [_ok(empty), _ok({**empty, "dashcards": [{"id": 1, "card_id": 77}]})]
+        mock_context.fetch.side_effect = [
+            _ok(empty),
+            _ok([]),
+            _ok(ADMIN),
+            _ok({**empty, "dashcards": [{"id": 1, "card_id": 77}]}),
+        ]
         result = await metabase.execute_action(
             "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77, "width": 24, "height": 4}, mock_context
         )
-        new = mock_context.fetch.call_args_list[1].kwargs["json"]["dashcards"][0]
+        new = mock_context.fetch.call_args_list[3].kwargs["json"]["dashcards"][0]
         assert (new["row"], new["size_x"], new["size_y"]) == (0, 24, 4)
         assert result.result.data["dashcard_id"] == 1
 
@@ -251,13 +270,18 @@ class TestAddQuestionToDashboard:
             ],
         }
         added = {"id": 503, "card_id": 77, "dashboard_tab_id": 11, "row": 6, "col": 0, "size_x": 12, "size_y": 6}
-        mock_context.fetch.side_effect = [_ok(tabbed), _ok({**tabbed, "dashcards": tabbed["dashcards"] + [added]})]
+        mock_context.fetch.side_effect = [
+            _ok(tabbed),
+            _ok([]),
+            _ok(ADMIN),
+            _ok({**tabbed, "dashcards": tabbed["dashcards"] + [added]}),
+        ]
         result = await metabase.execute_action(
             "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context
         )
         assert result.type == ResultType.ACTION
         assert (result.result.data["dashcard_id"], result.result.data["card_count"]) == (503, 3)
-        body = mock_context.fetch.call_args_list[1].kwargs["json"]
+        body = mock_context.fetch.call_args_list[3].kwargs["json"]
         new = body["dashcards"][-1]
         assert new["dashboard_tab_id"] == 11
         assert new["row"] == 6  # only cards on tab 11 count
@@ -271,13 +295,18 @@ class TestAddQuestionToDashboard:
             "dashcards": [{**EXISTING_DASHCARD, "dashboard_tab_id": 11}],
         }
         added = {"id": 503, "card_id": 77, "dashboard_tab_id": 12, "row": 0, "col": 0, "size_x": 12, "size_y": 6}
-        mock_context.fetch.side_effect = [_ok(tabbed), _ok({**tabbed, "dashcards": tabbed["dashcards"] + [added]})]
+        mock_context.fetch.side_effect = [
+            _ok(tabbed),
+            _ok([]),
+            _ok(ADMIN),
+            _ok({**tabbed, "dashcards": tabbed["dashcards"] + [added]}),
+        ]
         result = await metabase.execute_action(
             "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77, "tab_id": 12}, mock_context
         )
         assert result.type == ResultType.ACTION
         assert (result.result.data["dashcard_id"], result.result.data["card_count"]) == (503, 2)
-        new = mock_context.fetch.call_args_list[1].kwargs["json"]["dashcards"][-1]
+        new = mock_context.fetch.call_args_list[3].kwargs["json"]["dashcards"][-1]
         assert (new["dashboard_tab_id"], new["row"]) == (12, 0)
 
     @pytest.mark.asyncio
@@ -294,6 +323,8 @@ class TestAddQuestionToDashboard:
     async def test_same_question_twice_returns_new_dashcard(self, mock_context):
         mock_context.fetch.side_effect = [
             _ok(SAMPLE_DASHBOARD),
+            _ok([]),
+            _ok(ADMIN),
             _ok(self._updated(new_card_id=42, new_dashcard_id=600)),
         ]
         result = await metabase.execute_action(
@@ -303,15 +334,87 @@ class TestAddQuestionToDashboard:
 
     @pytest.mark.asyncio
     async def test_put_sent_once(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok(self._updated())]
+        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok([]), _ok(ADMIN), _ok(self._updated())]
         await metabase.execute_action("add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context)
-        get_call, put_call = mock_context.fetch.call_args_list
+        get_call, pulses_call, user_call, put_call = mock_context.fetch.call_args_list
+        assert user_call.args[0] == f"{BASE}/api/user/current"
+        assert pulses_call.args[0] == f"{BASE}/api/pulse?dashboard_id=9&archived=false"
         assert "retry_count" not in get_call.kwargs
         assert put_call.kwargs["retry_count"] == NO_RETRY
 
     @pytest.mark.asyncio
+    async def test_subscribed_dashboard_checks_the_question_first(self, mock_context):
+        card = {
+            "id": 77,
+            "database_id": 1,
+            "dataset_query": {"database": 1, "type": "native", "native": {"query": "x"}},
+        }
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_DASHBOARD),
+            _ok([{"id": 15}]),
+            _ok(card),
+            _ok({"id": 1, "engine": "postgres"}),
+            _ok({"query": "select 1"}),
+            _ok(self._updated()),
+        ]
+        result = await metabase.execute_action(
+            "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert [c.args[0] for c in mock_context.fetch.call_args_list][2:5] == [
+            f"{BASE}/api/card/77",
+            f"{BASE}/api/database/1",
+            f"{BASE}/api/dataset/native",
+        ]
+
+    @pytest.mark.asyncio
+    async def test_subscribed_dashboard_refuses_a_writing_question(self, mock_context):
+        # Metabase adds the question to the dashboard's subscription, which would run it on its schedule.
+        card = {
+            "id": 77,
+            "database_id": 1,
+            "dataset_query": {"database": 1, "type": "native", "native": {"query": "x"}},
+        }
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_DASHBOARD),
+            _ok([{"id": 15}]),
+            _ok(card),
+            _ok({"id": 1, "engine": "postgres"}),
+            _ok({"query": "delete from orders"}),
+        ]
+        result = await metabase.execute_action(
+            "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 77" in result.result.message
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_non_admin_key_checks_the_question_first(self, mock_context):
+        # Metabase hides other people's subscriptions from non-admins, so an empty list doesn't mean there are none.
+        card = {
+            "id": 77,
+            "database_id": 1,
+            "dataset_query": {"database": 1, "type": "native", "native": {"query": "x"}},
+        }
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_DASHBOARD),
+            _ok([]),
+            _ok({"id": 3, "is_superuser": False}),
+            _ok(card),
+            _ok({"id": 1, "engine": "postgres"}),
+            _ok({"query": "delete from orders"}),
+        ]
+        result = await metabase.execute_action(
+            "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 77" in result.result.message
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
     async def test_put_timeout_says_check_dashboard(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), asyncio.TimeoutError()]
+        mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok([]), _ok(ADMIN), asyncio.TimeoutError()]
         result = await metabase.execute_action(
             "add_question_to_dashboard", {"dashboard_id": 9, "question_id": 77}, mock_context
         )

@@ -4,7 +4,8 @@ Live tests for the Metabase integration.
 Requires METABASE_BASE_URL (https:// only) and METABASE_API_KEY (repo-root .env is loaded by
 the root conftest). Read-only tests need a key that can see at least one database; the
 question/dashboard tests also need at least one saved question and dashboard to exist.
-Destructive tests create a collection, questions and dashboards, then move them to the trash.
+Destructive tests create a collection, questions, dashboards, segments, alerts, subscriptions and timelines,
+edit them, then move them to the trash. One also edits a table and column description and puts it back.
 
 Read-only (default):
     pytest metabase/tests/test_metabase_integration.py -m "integration and not destructive"
@@ -13,6 +14,7 @@ Opt-in writes:
     pytest metabase/tests/test_metabase_integration.py -m "integration and destructive"
 """
 
+import base64
 import os
 from urllib.parse import quote, urlparse
 from uuid import uuid4
@@ -40,10 +42,15 @@ def live_context(make_context):
     if parsed.scheme != "https" or not parsed.netloc:
         pytest.skip(f"METABASE_BASE_URL must be https:// (got {BASE_URL!r})")
 
-    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, timeout=None, **kwargs):
+    async def real_fetch(
+        url, *, method="GET", json=None, data=None, content_type=None, headers=None, params=None, timeout=None, **kwargs
+    ):
         client_timeout = aiohttp.ClientTimeout(total=timeout or 30)
+        # Like the SDK, a form body (export actions) is sent with its own content type.
+        if content_type and "Content-Type" not in (headers or {}):
+            headers = {**(headers or {}), "Content-Type": content_type}
         async with aiohttp.ClientSession(timeout=client_timeout) as session:
-            async with session.request(method, url, json=json, headers=headers, params=params) as resp:
+            async with session.request(method, url, json=json, data=data, headers=headers, params=params) as resp:
                 try:
                     data = await resp.json(content_type=None)
                 except Exception:
@@ -105,6 +112,16 @@ async def _safe_to_run(live_context, question):
 
 async def _raw(live_context, method, path, body=None):
     return await _api(live_context, method, path, json=body)
+
+
+async def _is_archived(live_context, path):
+    """Metabase 0.49 answers a read of an archived dashboard with a 404 saying so; later versions return it."""
+    try:
+        return (await _raw(live_context, "GET", path))["archived"] is True
+    except HTTPError as e:
+        if e.status == 404 and "archived" in str(e.response_data):
+            return True
+        raise
 
 
 def _dashcard_state(dashcard):
@@ -497,3 +514,499 @@ class TestAddToExistingDashboard:
             await _archive(live_context, "collection", collection_id, failures)
             if failures:
                 raise AssertionError("Metabase integration-test cleanup failed: " + "; ".join(failures))
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+class TestEditDashboard:
+    @pytest.mark.asyncio
+    async def test_layout_tabs_filters_run_and_history(self, live_context):
+        run_id = uuid4().hex[:8]
+        collection_id = dashboard_id = copy_id = None
+        question_ids: list = []
+        try:
+            db = await _first_database(live_context)
+            collection_id = _assert_ok(
+                await metabase.execute_action("create_collection", {"name": f"Autohive itest {run_id}"}, live_context)
+            )["id"]
+            for name in ("a", "b"):
+                question = _assert_ok(
+                    await metabase.execute_action(
+                        "create_question",
+                        {
+                            "name": f"Autohive itest {name} {run_id}",
+                            "database_id": db["id"],
+                            "sql": _select(db, "1 as x"),
+                            "collection_id": collection_id,
+                        },
+                        live_context,
+                    )
+                )
+                question_ids.append(question["id"])
+            dashboard_id = _assert_ok(
+                await metabase.execute_action(
+                    "create_dashboard",
+                    {"name": f"Autohive itest {run_id}", "collection_id": collection_id},
+                    live_context,
+                )
+            )["id"]
+            for question_id in question_ids:
+                _assert_ok(
+                    await metabase.execute_action(
+                        "add_question_to_dashboard",
+                        {"dashboard_id": dashboard_id, "question_id": question_id},
+                        live_context,
+                    )
+                )
+            heading = _assert_ok(
+                await metabase.execute_action(
+                    "add_text_to_dashboard",
+                    {"dashboard_id": dashboard_id, "kind": "heading", "text": "Section", "row": 0},
+                    live_context,
+                )
+            )
+            assert heading["dashcard_id"]
+
+            updated = _assert_ok(
+                await metabase.execute_action(
+                    "update_dashboard",
+                    {"dashboard_id": dashboard_id, "name": f"Autohive itest edited {run_id}", "width": "full"},
+                    live_context,
+                )
+            )
+            assert updated["width"] == "full"
+
+            cards = {c["card_id"]: c for c in updated["cards"]}
+            first, second = (cards[q]["dashcard_id"] for q in question_ids)
+            moved = _assert_ok(
+                await metabase.execute_action(
+                    "update_dashboard_cards",
+                    {
+                        "dashboard_id": dashboard_id,
+                        "cards": [{"dashcard_id": first, "col": 12, "title": "Renamed"}],
+                    },
+                    live_context,
+                )
+            )
+            assert next(c for c in moved["cards"] if c["dashcard_id"] == first)["col"] == 12
+            saved = await _raw(live_context, "GET", f"/dashboard/{dashboard_id}")
+            first_saved = next(dc for dc in saved["dashcards"] if dc["id"] == first)
+            assert first_saved["visualization_settings"]["card.title"] == "Renamed"
+
+            tabbed = _assert_ok(
+                await metabase.execute_action(
+                    "update_dashboard_tabs",
+                    {"dashboard_id": dashboard_id, "tabs": [{"name": "Main"}, {"name": "More"}]},
+                    live_context,
+                )
+            )
+            main, more = (t["id"] for t in tabbed["tabs"])
+            assert {c["dashboard_tab_id"] for c in tabbed["cards"]} == {main}
+            _assert_ok(
+                await metabase.execute_action(
+                    "update_dashboard_cards",
+                    {"dashboard_id": dashboard_id, "cards": [{"dashcard_id": second, "tab_id": more}]},
+                    live_context,
+                )
+            )
+            refused = await metabase.execute_action(
+                "update_dashboard_tabs",
+                {"dashboard_id": dashboard_id, "tabs": [{"id": main, "name": "Main"}]},
+                live_context,
+            )
+            assert refused.type == ResultType.ACTION_ERROR
+
+            filtered = _assert_ok(
+                await metabase.execute_action(
+                    "update_dashboard_filters",
+                    {
+                        "dashboard_id": dashboard_id,
+                        "filters": [{"name": "Region", "type": "string/=", "default": ["NZ"]}],
+                    },
+                    live_context,
+                )
+            )
+            assert [p["slug"] for p in filtered["parameters"]] == ["region"]
+
+            ran = _assert_ok(
+                await metabase.execute_action("run_dashboard", {"dashboard_id": dashboard_id}, live_context)
+            )
+            assert ran["card_count"] == 2
+            assert all(c.get("row_count") == 1 for c in ran["cards"]), ran["cards"]
+
+            copy_id = _assert_ok(
+                await metabase.execute_action(
+                    "copy_dashboard",
+                    {
+                        "dashboard_id": dashboard_id,
+                        "name": f"Autohive itest copy {run_id}",
+                        "collection_id": collection_id,
+                    },
+                    live_context,
+                )
+            )["id"]
+
+            history = _assert_ok(
+                await metabase.execute_action(
+                    "get_revision_history", {"item_type": "dashboard", "item_id": dashboard_id}, live_context
+                )
+            )
+            assert history["count"] >= 2
+            reverted = _assert_ok(
+                await metabase.execute_action(
+                    "revert_to_revision",
+                    {
+                        "item_type": "dashboard",
+                        "item_id": dashboard_id,
+                        "revision_id": history["revisions"][-1]["revision_id"],
+                    },
+                    live_context,
+                )
+            )
+            assert reverted["new_revision_id"]
+        finally:
+            failures: list = []
+            for item in (copy_id, dashboard_id):
+                await _archive(live_context, "dashboard", item, failures)
+            for question_id in question_ids:
+                await _archive(live_context, "card", question_id, failures)
+            await _archive(live_context, "collection", collection_id, failures)
+            if failures:
+                raise AssertionError("Metabase integration-test cleanup failed: " + "; ".join(failures))
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+class TestEditQuestions:
+    @pytest.mark.asyncio
+    async def test_update_copy_export_and_query_builder(self, live_context):
+        run_id = uuid4().hex[:8]
+        collection_id = None
+        question_ids: list = []
+        try:
+            db = await _first_database(live_context)
+            collection_id = _assert_ok(
+                await metabase.execute_action("create_collection", {"name": f"Autohive itest {run_id}"}, live_context)
+            )["id"]
+            question = _assert_ok(
+                await metabase.execute_action(
+                    "create_question",
+                    {
+                        "name": f"Autohive itest {run_id}",
+                        "database_id": db["id"],
+                        "sql": _select(db, "1 as x"),
+                        "collection_id": collection_id,
+                    },
+                    live_context,
+                )
+            )
+            question_ids.append(question["id"])
+
+            edited = _assert_ok(
+                await metabase.execute_action(
+                    "update_question",
+                    {
+                        "question_id": question["id"],
+                        "sql": _select(db, "2 as x"),
+                        "display": "scalar",
+                        "visualization_settings": {"card.title": "Two"},
+                    },
+                    live_context,
+                )
+            )
+            assert edited["display"] == "scalar"
+            assert "2" in edited["native_sql"]
+            refused = await metabase.execute_action(
+                "update_question", {"question_id": question["id"], "sql": "delete from x"}, live_context
+            )
+            assert refused.type == ResultType.ACTION_ERROR
+
+            copy = _assert_ok(
+                await metabase.execute_action(
+                    "copy_question",
+                    {"question_id": question["id"], "name": f"Autohive itest copy {run_id}"},
+                    live_context,
+                )
+            )
+            question_ids.append(copy["id"])
+            assert copy["name"] == f"Autohive itest copy {run_id}"
+
+            exported = _assert_ok(
+                await metabase.execute_action(
+                    "export_question_results", {"question_id": question["id"], "format": "csv"}, live_context
+                )
+            )
+            excel = _assert_ok(
+                await metabase.execute_action(
+                    "export_question_results", {"question_id": question["id"], "format": "xlsx"}, live_context
+                )
+            )
+            assert base64.b64decode(excel["file"]["content"])[:2] == b"PK"
+
+            filtered = _assert_ok(
+                await metabase.execute_action(
+                    "create_question",
+                    {
+                        "name": f"Autohive itest filtered {run_id}",
+                        "database_id": db["id"],
+                        "sql": _select(db, "{{n}} as x"),
+                        "filters": [{"name": "n", "type": "number", "default": 5}],
+                        "collection_id": collection_id,
+                    },
+                    live_context,
+                )
+            )
+            question_ids.append(filtered["id"])
+            assert [p["slug"] for p in filtered["parameters"]] == ["n"]
+            ran = _assert_ok(
+                await metabase.execute_action("run_question", {"question_id": filtered["id"]}, live_context)
+            )
+            assert list(ran["rows"][0].values()) == [5]
+            assert exported["row_count"] == 1
+            assert exported["content"].splitlines()[1].strip() == "2"
+
+            schema = _assert_ok(
+                await metabase.execute_action(
+                    "get_database_schema", {"database_id": db["id"], "limit": 1}, live_context
+                )
+            )
+            if schema["tables"]:
+                table_id = schema["tables"][0]["id"]
+                gui = _assert_ok(
+                    await metabase.execute_action(
+                        "create_query_builder_question",
+                        {
+                            "name": f"Autohive itest gui {run_id}",
+                            "database_id": db["id"],
+                            "query": {"source-table": table_id, "aggregation": [["count"]]},
+                            "display": "scalar",
+                            "collection_id": collection_id,
+                        },
+                        live_context,
+                    )
+                )
+                question_ids.append(gui["id"])
+                assert gui["query_type"] == "query"
+                model = _assert_ok(
+                    await metabase.execute_action(
+                        "create_model",
+                        {
+                            "name": f"Autohive itest model {run_id}",
+                            "database_id": db["id"],
+                            "query": {"source-table": table_id},
+                            "collection_id": collection_id,
+                        },
+                        live_context,
+                    )
+                )
+                question_ids.append(model["id"])
+                assert model["type"] == "model"
+
+            history = _assert_ok(
+                await metabase.execute_action(
+                    "get_revision_history", {"item_type": "question", "item_id": question["id"]}, live_context
+                )
+            )
+            assert history["count"] >= 2
+        finally:
+            failures: list = []
+            for question_id in question_ids:
+                await _archive(live_context, "card", question_id, failures)
+            await _archive(live_context, "collection", collection_id, failures)
+            if failures:
+                raise AssertionError("Metabase integration-test cleanup failed: " + "; ".join(failures))
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+class TestOrganiseAndMonitor:
+    @pytest.mark.asyncio
+    async def test_move_archive_alerts_subscriptions_timelines(self, live_context):
+        run_id = uuid4().hex[:8]
+        collection_id = child_id = question_id = dashboard_id = alert_id = None
+        subscription_id = timeline_id = None
+        try:
+            db = await _first_database(live_context)
+            collection_id = _assert_ok(
+                await metabase.execute_action("create_collection", {"name": f"Autohive itest {run_id}"}, live_context)
+            )["id"]
+            child_id = _assert_ok(
+                await metabase.execute_action(
+                    "create_collection", {"name": f"Autohive itest child {run_id}"}, live_context
+                )
+            )["id"]
+            moved = _assert_ok(
+                await metabase.execute_action(
+                    "update_collection",
+                    {
+                        "collection_id": child_id,
+                        "name": f"Autohive itest moved {run_id}",
+                        "parent_collection_id": collection_id,
+                    },
+                    live_context,
+                )
+            )
+            assert moved["parent_id"] == collection_id
+
+            question_id = _assert_ok(
+                await metabase.execute_action(
+                    "create_question",
+                    {"name": f"Autohive itest {run_id}", "database_id": db["id"], "sql": _select(db, "1 as x")},
+                    live_context,
+                )
+            )["id"]
+            dashboard_id = _assert_ok(
+                await metabase.execute_action("create_dashboard", {"name": f"Autohive itest {run_id}"}, live_context)
+            )["id"]
+            _assert_ok(
+                await metabase.execute_action(
+                    "add_question_to_dashboard",
+                    {"dashboard_id": dashboard_id, "question_id": question_id},
+                    live_context,
+                )
+            )
+            result = _assert_ok(
+                await metabase.execute_action(
+                    "move_items",
+                    {
+                        "items": [
+                            {"item_type": "question", "id": question_id},
+                            {"item_type": "dashboard", "id": dashboard_id},
+                        ],
+                        "collection_id": child_id,
+                    },
+                    live_context,
+                )
+            )
+            assert result["moved_count"] == 2
+
+            _assert_ok(
+                await metabase.execute_action(
+                    "archive_item", {"item_type": "dashboard", "item_id": dashboard_id}, live_context
+                )
+            )
+            assert await _is_archived(live_context, f"/dashboard/{dashboard_id}")
+            _assert_ok(
+                await metabase.execute_action(
+                    "restore_item", {"item_type": "dashboard", "item_id": dashboard_id}, live_context
+                )
+            )
+            assert not await _is_archived(live_context, f"/dashboard/{dashboard_id}")
+
+            me = _assert_ok(await metabase.execute_action("get_current_user", {}, live_context))
+            alert = _assert_ok(
+                await metabase.execute_action(
+                    "create_alert",
+                    {"question_id": question_id, "frequency": "daily", "hour": 9, "recipient_user_ids": [me["id"]]},
+                    live_context,
+                )
+            )
+            alert_id = alert["id"]
+            listed = _assert_ok(
+                await metabase.execute_action("list_alerts", {"question_id": question_id}, live_context)
+            )
+            assert [a["id"] for a in listed["alerts"]] == [alert_id]
+
+            subscription = _assert_ok(
+                await metabase.execute_action(
+                    "create_subscription",
+                    {
+                        "dashboard_id": dashboard_id,
+                        "frequency": "weekly",
+                        "day_of_week": "fri",
+                        "recipient_user_ids": [me["id"]],
+                    },
+                    live_context,
+                )
+            )
+            subscription_id = subscription["id"]
+            changed = _assert_ok(
+                await metabase.execute_action(
+                    "update_subscription",
+                    {"subscription_id": subscription_id, "frequency": "daily", "hour": 7},
+                    live_context,
+                )
+            )
+            assert (changed["frequency"], changed["hour"]) == ("daily", 7)
+
+            timeline_id = _assert_ok(
+                await metabase.execute_action(
+                    "create_timeline",
+                    {"name": f"Autohive itest {run_id}", "collection_id": collection_id},
+                    live_context,
+                )
+            )["id"]
+            event = _assert_ok(
+                await metabase.execute_action(
+                    "create_timeline_event",
+                    {"timeline_id": timeline_id, "name": "Release", "timestamp": "2026-11-01"},
+                    live_context,
+                )
+            )
+            renamed = _assert_ok(
+                await metabase.execute_action(
+                    "update_timeline_event", {"event_id": event["id"], "name": "Release 2"}, live_context
+                )
+            )
+            assert renamed["name"] == "Release 2"
+            timelines = _assert_ok(
+                await metabase.execute_action("list_timelines", {"collection_id": collection_id}, live_context)
+            )
+            assert [t["id"] for t in timelines["timelines"]] == [timeline_id]
+        finally:
+            failures: list = []
+            if alert_id is not None:
+                archived = await metabase.execute_action(
+                    "archive_item", {"item_type": "alert", "item_id": alert_id}, live_context
+                )
+                if archived.type != ResultType.ACTION:
+                    failures.append(f"alert {alert_id}: {archived.result.message}")
+            await _archive(live_context, "pulse", subscription_id, failures)
+            await _archive(live_context, "timeline", timeline_id, failures)
+            await _archive(live_context, "dashboard", dashboard_id, failures)
+            await _archive(live_context, "card", question_id, failures)
+            await _archive(live_context, "collection", child_id, failures)
+            await _archive(live_context, "collection", collection_id, failures)
+            if failures:
+                raise AssertionError("Metabase integration-test cleanup failed: " + "; ".join(failures))
+
+
+@skip_if_no_creds
+@pytest.mark.destructive
+class TestDataDescriptions:
+    @pytest.mark.asyncio
+    async def test_update_table_and_field_then_restore(self, live_context):
+        db = await _first_database(live_context)
+        schema = _assert_ok(
+            await metabase.execute_action("get_database_schema", {"database_id": db["id"], "limit": 1}, live_context)
+        )
+        if not schema["tables"]:
+            pytest.skip("No table visible to this API key")
+        table = _assert_ok(
+            await metabase.execute_action("get_table", {"table_id": schema["tables"][0]["id"]}, live_context)
+        )
+        field = table["fields"][0]
+        run_id = uuid4().hex[:8]
+        try:
+            updated = _assert_ok(
+                await metabase.execute_action(
+                    "update_table", {"table_id": table["id"], "description": f"Autohive itest {run_id}"}, live_context
+                )
+            )
+            assert updated["description"] == f"Autohive itest {run_id}"
+            changed = _assert_ok(
+                await metabase.execute_action(
+                    "update_field", {"field_id": field["id"], "description": f"Autohive itest {run_id}"}, live_context
+                )
+            )
+            assert changed["description"] == f"Autohive itest {run_id}"
+        finally:
+            # Put the original descriptions back (an empty one is stored as null), trying both even if one fails.
+            failures: list = []
+            for path, original in ((f"/table/{table['id']}", table), (f"/field/{field['id']}", field)):
+                try:
+                    await _raw(live_context, "PUT", path, {"description": original["description"]})
+                except Exception as exc:
+                    failures.append(f"{path}: {exc}")
+            if failures:
+                raise AssertionError("Restoring descriptions failed: " + "; ".join(failures))

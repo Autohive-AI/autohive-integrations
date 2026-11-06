@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import pytest
 from unittest.mock import MagicMock
@@ -7,10 +8,13 @@ from autohive_integrations_sdk import HTTPError
 from metabase.metabase import (
     _card_summary,
     _clamp,
+    _fit_rows,
+    _pulse_flags,
     _ensure_read_only_sql,
     _error_message,
     _page,
     _query_result,
+    _tag_stand_ins,
     _unique_names,
     _with_query,
     get_auth_headers,
@@ -173,6 +177,70 @@ class TestQueryResult:
             "X",
             "column_4",
         ]
+
+
+class TestFitRows:
+    def test_fits_returns_what_is_left(self):
+        summary = {"rows": [{"a": 1}], "row_count": 1}
+        assert _fit_rows(summary, 1000) == 1000 - len(json.dumps(summary))
+        assert summary["row_count"] == 1
+
+    def test_cut_keeps_leading_rows_and_returns_zero(self):
+        summary = {"rows": [{"a": "x" * 50} for _ in range(10)], "row_count": 10, "truncated": False}
+        assert _fit_rows(summary, 200) == 0
+        assert 0 < summary["row_count"] < 10
+        assert summary["rows"] == [{"a": "x" * 50}] * summary["row_count"]
+        assert summary["truncated"] is True
+        assert len(json.dumps(summary)) <= 200
+
+    def test_error_card_without_rows_is_never_cut(self):
+        summary = {"error": "x" * 300}
+        assert _fit_rows(summary, 100) < 0
+        assert summary == {"error": "x" * 300}
+
+
+class TestPulseFlags:
+    @pytest.mark.parametrize(
+        "pulse,flags",
+        [
+            ({"archived": True, "skip_if_empty": True}, {"archived": True, "skip_if_empty": True}),
+            ({}, {"archived": False, "skip_if_empty": False}),
+            ({"archived": None, "skip_if_empty": 0}, {"archived": False, "skip_if_empty": False}),
+        ],
+    )
+    def test_flags_always_sent(self, pulse, flags):
+        assert _pulse_flags(pulse) == flags
+
+
+class TestTagStandIns:
+    @pytest.mark.parametrize(
+        "widget,value",
+        [
+            ("number/between", [1, 2]),  # Metabase 0.49 refuses a range with one end.
+            ("number/=", [1]),
+            ("number/>=", [1]),
+            ("date/range", "2020-01-01"),
+            ("string/contains", ["x"]),
+            (None, ["x"]),
+        ],
+    )
+    def test_field_filter_value_per_widget(self, widget, value):
+        tag = {"type": "dimension", "name": "f", **({"widget-type": widget} if widget else {})}
+        (stand_in,) = _tag_stand_ins({"f": tag})
+        assert stand_in == {
+            "type": widget or "category",
+            "target": ["dimension", ["template-tag", "f"]],
+            "value": value,
+        }
+
+    def test_boolean_filter_gets_a_value(self):
+        # Metabase 0.57+ has boolean SQL filters; without a value a required one can't be expanded for the check.
+        (stand_in,) = _tag_stand_ins({"b": {"type": "boolean", "name": "b", "required": True}})
+        assert stand_in == {"type": "boolean/=", "target": ["variable", ["template-tag", "b"]], "value": [True]}
+
+    def test_time_grouping_filter_gets_a_unit(self):
+        (stand_in,) = _tag_stand_ins({"u": {"type": "temporal-unit", "name": "u"}})
+        assert stand_in == {"type": "temporal-unit", "target": ["dimension", ["template-tag", "u"]], "value": "month"}
 
 
 class TestUniqueNamesCollision:
