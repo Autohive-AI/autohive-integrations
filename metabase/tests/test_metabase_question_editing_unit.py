@@ -608,6 +608,51 @@ class TestCopyQuestion:
             (f"{BASE}/api/card/42/copy", "POST"),
         ]
 
+    @staticmethod
+    def _filtered_card(sql, **tag):
+        query = {
+            "database": 3,
+            "type": "native",
+            "native": {"query": sql, "template-tags": {"p": {"name": "p", **tag}}},
+        }
+        return {**SAVED_EXPORT_CARD, "dataset_query": query, "parameters": []}
+
+    @pytest.mark.asyncio
+    async def test_failed_expansion_without_optional_filter_refuses_copy(self, mock_context):
+        # The form without the optional filter can run, so a failed check of it (a 500, say) leaves it unchecked.
+        card = self._filtered_card("select 1 [[ + {{p}} --]] , nextval('audit_seq')", type="number")
+        mock_context.fetch.side_effect = [
+            _ok(card),
+            _database(),
+            _compiled("select 1 + 1 --, nextval('audit_seq')"),
+            HTTPError(500, "Server Error", {"message": "Connection reset"}),
+        ]
+        result = await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 500" in result.result.message
+        assert all("/copy" not in c.args[0] for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "sql,tag",
+        [
+            ("select * from t where x = {{p}}", {"type": "number"}),
+            ("select * from t [[where x = {{p}}]]", {"type": "number", "required": True}),
+        ],
+    )
+    async def test_filter_the_sql_needs_doesnt_block_copy(self, mock_context, sql, tag):
+        # Without a value Metabase can't expand it at all, and it can't run either; the check with it set covers it.
+        mock_context.fetch.side_effect = [
+            _ok(self._filtered_card(sql, **tag)),
+            _database(),
+            _compiled("select * from t where x = 1"),
+            HTTPError(500, "Server Error", {"message": "You'll need to pick a value for 'p'"}),
+            _ok(SAMPLE_COPY),
+        ]
+        result = await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/card/42/copy"
+
     @pytest.mark.asyncio
     async def test_writing_question_not_copied(self, mock_context):
         mock_context.fetch.side_effect = _source_check_calls(compiled="delete from users")

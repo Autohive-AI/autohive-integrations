@@ -467,7 +467,7 @@ async def _checked_parameters(
     that can't be expanded without filter values isn't refused for that."""
     card = await _api(context, "GET", f"/card/{card_id}") or {}
     dataset_query = card.get("dataset_query") or {}
-    _, tags = _saved_native(dataset_query)
+    sql, tags = _saved_native(dataset_query)
     # Metabase runs a filter given by id against that filter's own target, whatever target the caller sent, so the
     # target is taken from the question; otherwise the check could expand different SQL from the run.
     targets = {
@@ -499,11 +499,32 @@ async def _checked_parameters(
         try:
             await _check_compiled(context, card_id, dataset_query, variant, engine)
         except HTTPError:
-            # Nothing runs when saving, and a question Metabase can't expand without filter values can't run
-            # without them either; the check with every filter set above has covered its SQL.
-            if not saving:
+            # Nothing runs when saving, and a question missing a filter value it needs can't run either; the check
+            # with every filter set above has covered its SQL. Any other failure (Metabase reports both as a 500)
+            # leaves this form unchecked, so it is refused.
+            if not (saving and _missing_needed_filter(sql, tags, variant)):
                 raise
     return variants[0]
+
+
+def _missing_needed_filter(sql: Any, tags: Dict[str, Any], parameters: List[Any]) -> bool:
+    """Whether a filter the SQL needs (used outside an optional [[ ]] clause, or marked required) has no default and
+    gets no value from these parameters, so Metabase can't expand the SQL."""
+    outside = set(TEMPLATE_TAG.findall(re.sub(r"\[\[.*?\]\]", "", str(sql or ""), flags=re.S)))
+    given = {
+        str(target[1][1])
+        for p in parameters
+        if isinstance(p, dict)
+        and isinstance(target := p.get("target"), list)
+        and len(target) > 1
+        and isinstance(target[1], list)
+        and len(target[1]) > 1
+    }
+    return any(
+        (t.get("required") or name in outside) and t.get("default") is None and name not in given
+        for name, t in tags.items()
+        if t.get("type") not in ("snippet", "card")
+    )
 
 
 def _tag_stand_ins(tags: Dict[str, Any]) -> List[Dict[str, Any]]:
