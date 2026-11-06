@@ -10,6 +10,7 @@ from urllib.parse import urlparse, urlunparse
 substack = Integration.load()
 
 SUBSTACK_BASE = "https://substack.com"
+ARCHIVE_PAGE_LIMIT = 25
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -83,7 +84,7 @@ async def _archive_posts(context, inputs, *, sort, search, default_limit):
             url,
             method="GET",
             headers=_build_headers(),
-            params={**params, "limit": min(skip + needed, 50)},
+            params={**params, "limit": min(skip + needed, ARCHIVE_PAGE_LIMIT)},
         )
         body = response.data
         page = body["posts"] if isinstance(body, dict) else (body or [])
