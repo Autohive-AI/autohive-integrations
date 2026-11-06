@@ -265,7 +265,7 @@ inputs = {
     "start_date": "2024-01-01",
     "end_date": "2024-01-31",
     "dimensions": ["query"],
-    "row_limit": 100
+    "row_limit": 100,
 }
 ```
 
@@ -276,7 +276,7 @@ inputs = {
     "start_date": "2024-01-01",
     "end_date": "2024-01-31",
     "dimensions": ["country", "device"],
-    "row_limit": 50
+    "row_limit": 50,
 }
 ```
 
@@ -287,27 +287,14 @@ inputs = {
     "start_date": "2024-01-01",
     "end_date": "2024-01-31",
     "dimensions": ["query", "page"],
-    "dimension_filter_groups": [
-        {
-            "filters": [
-                {
-                    "dimension": "country",
-                    "operator": "equals",
-                    "expression": "USA"
-                }
-            ]
-        }
-    ],
-    "row_limit": 100
+    "dimension_filter_groups": [{"filters": [{"dimension": "country", "operator": "equals", "expression": "USA"}]}],
+    "row_limit": 100,
 }
 ```
 
 ### Inspect a URL
 ```python
-inputs = {
-    "site_url": "https://example.com",
-    "inspection_url": "https://example.com/page-to-inspect"
-}
+inputs = {"site_url": "https://example.com", "inspection_url": "https://example.com/page-to-inspect"}
 ```
 
 ### List All Sites
@@ -317,9 +304,7 @@ inputs = {}
 
 ### List Sitemaps
 ```python
-inputs = {
-    "site_url": "https://example.com"
-}
+inputs = {"site_url": "https://example.com"}
 ```
 
 ## Resources

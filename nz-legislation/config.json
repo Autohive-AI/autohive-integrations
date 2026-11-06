@@ -1,6 +1,6 @@
 {
   "name": "nz-legislation",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "display_name": "New Zealand Legislation",
   "description": "Searches New Zealand legislation, retrieves version metadata, and reads official XML source documents.",
   "entry_point": "nz_legislation.py",

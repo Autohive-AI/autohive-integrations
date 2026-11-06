@@ -121,16 +121,24 @@ class TestGetPublicationPosts:
         assert result.result.data["count"] == 0
 
     @pytest.mark.asyncio
-    async def test_pagination_params_forwarded(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
-        await substack_integration.execute_action(
+    async def test_offset_uses_cursor_and_skips_across_pages(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data={"posts": [MOCK_POST], "nextCursor": "second-page"}),
+            FetchResponse(
+                status=200,
+                headers={},
+                data={"posts": [{**MOCK_POST, "id": 2}, {**MOCK_POST, "id": 3, "slug": "third"}]},
+            ),
+        ]
+        result = await substack_integration.execute_action(
             "get_publication_posts",
-            {"publication_url": "https://example.substack.com", "offset": 12, "limit": 6},
+            {"publication_url": "https://example.substack.com", "offset": 2, "limit": 1},
             mock_context,
         )
-        params = mock_context.fetch.call_args.kwargs.get("params", {})
-        assert params["offset"] == 12
-        assert params["limit"] == 6
+        assert [post["slug"] for post in result.result.data["posts"]] == ["third"]
+        first, second = mock_context.fetch.await_args_list
+        assert first.kwargs["params"] == {"sort": "new", "limit": 25}
+        assert second.kwargs["params"] == {"sort": "new", "limit": 25, "cursor": "second-page"}
 
     @pytest.mark.asyncio
     async def test_sort_param_forwarded(self, mock_context):
@@ -385,15 +393,15 @@ class TestSearchPosts:
         assert params.get("search") == "keyword"
 
     @pytest.mark.asyncio
-    async def test_offset_param_forwarded(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
-        await substack_integration.execute_action(
+    async def test_offset_beyond_search_results_returns_empty(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"posts": [MOCK_POST]})
+        result = await substack_integration.execute_action(
             "search_posts",
             {"publication_url": "https://example.substack.com", "query": "x", "offset": 10},
             mock_context,
         )
-        params = mock_context.fetch.call_args.kwargs.get("params", {})
-        assert params["offset"] == 10
+        assert result.result.data == {"posts": [], "count": 0}
+        assert "offset" not in mock_context.fetch.call_args.kwargs["params"]
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
@@ -406,17 +414,75 @@ class TestSearchPosts:
         assert result.result.data["posts"] == []
         assert result.result.data["count"] == 0
 
-    @pytest.mark.asyncio
-    async def test_max_limit_forwarded(self, mock_context):
-        """limit=50 (schema maximum) is passed through to the API."""
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
-        await substack_integration.execute_action(
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("offset,expected", [(0, [1, 2, 3]), (1, [2, 3])])
+async def test_search_skips_overlapping_ids_before_applying_offset(mock_context, offset, expected):
+    def page(ids, cursor=None):
+        return FetchResponse(status=200, headers={}, data={"posts": [{"id": i} for i in ids], "nextCursor": cursor})
+
+    mock_context.fetch.side_effect = [page([1, 2], "b"), page([1, 2], "c"), page([3])]
+    result = await substack_integration.execute_action(
+        "search_posts",
+        {"publication_url": "https://example.substack.com", "query": "open", "limit": len(expected), "offset": offset},
+        mock_context,
+    )
+    assert [post["id"] for post in result.result.data["posts"]] == expected
+    assert result.result.data["count"] == len(expected)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action,extra", [("get_publication_posts", {}), ("search_posts", {"query": "x"})])
+@pytest.mark.parametrize("offset,limit", [(30, 1), (0, 50)])
+async def test_archive_paginates_within_provider_limit(mock_context, action, extra, offset, limit):
+    posts = [{**MOCK_POST, "id": i} for i in range(50)]
+
+    async def fetch(url, *, method, headers, params):
+        page_size = params["limit"]
+        assert 1 <= page_size <= 25
+        start = 25 if "cursor" in params else 0
+        if start:
+            assert params["cursor"] == "next-page"
+        page = {"posts": posts[start : start + page_size]}
+        if start == 0:
+            page["nextCursor"] = "next-page"
+        return FetchResponse(status=200, headers={}, data=page)
+
+    mock_context.fetch.side_effect = fetch
+    result = await substack_integration.execute_action(
+        action,
+        {"publication_url": "https://example.substack.com", "limit": limit, "offset": offset, **extra},
+        mock_context,
+    )
+    assert mock_context.fetch.await_count == 2
+    assert [post["id"] for post in result.result.data["posts"]] == list(range(offset, offset + limit))
+
+
+@pytest.mark.asyncio
+async def test_search_offset_matches_slice_of_larger_result(mock_context):
+    async def fetch(url, *, method, headers, params):
+        size = params["limit"]
+        ids = list(range(25, 50)) if params.get("cursor") else list(range(25))
+        # Model the provider ranking the same page differently at different sizes.
+        if size < 25:
+            ids.reverse()
+        page = {"posts": [{"id": i} for i in ids[:size]]}
+        if "cursor" not in params:
+            page["nextCursor"] = "second"
+        return FetchResponse(status=200, headers={}, data=page)
+
+    mock_context.fetch.side_effect = fetch
+
+    async def search(limit, offset):
+        result = await substack_integration.execute_action(
             "search_posts",
-            {"publication_url": "https://example.substack.com", "query": "x", "limit": 50},
+            {"publication_url": "https://example.substack.com", "query": "open", "offset": offset, "limit": limit},
             mock_context,
         )
-        params = mock_context.fetch.call_args.kwargs.get("params", {})
-        assert params["limit"] == 50
+        return [post["id"] for post in result.result.data["posts"]]
+
+    full = await search(50, 0)
+    assert await search(1, 30) == full[30:31] == [30]
 
 
 # ============================================================

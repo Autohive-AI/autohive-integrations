@@ -7,11 +7,12 @@ token set in the YOUTUBE_ACCESS_TOKEN environment variable (via .env or export).
 Required env vars:
     YOUTUBE_ACCESS_TOKEN          OAuth2 access token with youtube + youtube.force-ssl scopes
 
-Optional env vars (override the shared test fixtures; unset fixtures skip):
+Optional env vars (override the shared test fixtures):
     YOUTUBE_TEST_VIDEO_ID         A video ID the authenticated user can read/update
     YOUTUBE_TEST_CHANNEL_ID       A public channel ID to fetch
     YOUTUBE_TEST_PLAYLIST_ID      An existing playlist ID for list_playlist_items
-    YOUTUBE_TEST_COMMENT_ID       A comment ID for list_comment_replies
+    YOUTUBE_TEST_COMMENT_ID       A comment ID for list_comment_replies; otherwise
+                                 discovered from the test video's comments
     YOUTUBE_TEST_THUMBNAIL_PATH   Local path to a JPEG/PNG used by upload_thumbnail
     YOUTUBE_TEST_OWNED_VIDEO_ID   A video the user owns (for moderate_comment ownership)
 
@@ -61,11 +62,6 @@ def require_channel_id():
 def require_playlist_id():
     if not TEST_PLAYLIST_ID:
         pytest.skip("YOUTUBE_TEST_PLAYLIST_ID not set")
-
-
-def require_comment_id():
-    if not TEST_COMMENT_ID:
-        pytest.skip("YOUTUBE_TEST_COMMENT_ID not set")
 
 
 def require_thumbnail_path():
@@ -257,12 +253,23 @@ class TestListComments:
 
 class TestListCommentReplies:
     async def test_returns_replies(self, live_context):
-        require_comment_id()
+        comment_id = TEST_COMMENT_ID
+        if not comment_id:
+            require_video_id()
+            response = await live_context.fetch(
+                "https://www.googleapis.com/youtube/v3/commentThreads",
+                params={"part": "snippet", "videoId": TEST_VIDEO_ID, "maxResults": 1},
+            )
+            threads = response.data.get("items", [])
+            if not threads:
+                pytest.skip("Set YOUTUBE_TEST_COMMENT_ID or use a test video with a top-level comment")
+            comment_id = threads[0]["snippet"]["topLevelComment"]["id"]
         result = await youtube.execute_action(
             "list_comment_replies",
-            {"parent_comment_id": TEST_COMMENT_ID, "max_results": 5},
+            {"parent_comment_id": comment_id, "max_results": 5},
             live_context,
         )
+        assert result.type == ResultType.ACTION, result.result
         data = result.result.data
         assert "replies" in data
         assert isinstance(data["replies"], list)
