@@ -137,8 +137,8 @@ class TestGetPublicationPosts:
         )
         assert [post["slug"] for post in result.result.data["posts"]] == ["third"]
         first, second = mock_context.fetch.await_args_list
-        assert first.kwargs["params"] == {"sort": "new", "limit": 3}
-        assert second.kwargs["params"] == {"sort": "new", "limit": 2, "cursor": "second-page"}
+        assert first.kwargs["params"] == {"sort": "new", "limit": 25}
+        assert second.kwargs["params"] == {"sort": "new", "limit": 25, "cursor": "second-page"}
 
     @pytest.mark.asyncio
     async def test_sort_param_forwarded(self, mock_context):
@@ -456,6 +456,33 @@ async def test_archive_paginates_within_provider_limit(mock_context, action, ext
     )
     assert mock_context.fetch.await_count == 2
     assert [post["id"] for post in result.result.data["posts"]] == list(range(offset, offset + limit))
+
+
+@pytest.mark.asyncio
+async def test_search_offset_matches_slice_of_larger_result(mock_context):
+    async def fetch(url, *, method, headers, params):
+        size = params["limit"]
+        ids = list(range(25, 50)) if params.get("cursor") else list(range(25))
+        # Model the provider ranking the same page differently at different sizes.
+        if size < 25:
+            ids.reverse()
+        page = {"posts": [{"id": i} for i in ids[:size]]}
+        if "cursor" not in params:
+            page["nextCursor"] = "second"
+        return FetchResponse(status=200, headers={}, data=page)
+
+    mock_context.fetch.side_effect = fetch
+
+    async def search(limit, offset):
+        result = await substack_integration.execute_action(
+            "search_posts",
+            {"publication_url": "https://example.substack.com", "query": "open", "offset": offset, "limit": limit},
+            mock_context,
+        )
+        return [post["id"] for post in result.result.data["posts"]]
+
+    full = await search(50, 0)
+    assert await search(1, 30) == full[30:31] == [30]
 
 
 # ============================================================

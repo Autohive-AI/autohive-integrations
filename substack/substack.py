@@ -10,7 +10,7 @@ from urllib.parse import urlparse, urlunparse
 substack = Integration.load()
 
 SUBSTACK_BASE = "https://substack.com"
-ARCHIVE_PAGE_LIMIT = 25
+ARCHIVE_PAGE_SIZE = 25
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -71,7 +71,8 @@ async def _archive_posts(context, inputs, *, sort, search, default_limit):
     url = f"{_normalise_url(inputs['publication_url'])}/api/v1/archive"
     limit = min(inputs.get("limit", default_limit), 50)
     skip = max(inputs.get("offset", 0), 0)
-    params = {"sort": sort}
+    # Substack can reorder search results when the requested page size changes.
+    params = {"sort": sort, "limit": ARCHIVE_PAGE_SIZE}
     if search:
         params["search"] = search
 
@@ -80,12 +81,11 @@ async def _archive_posts(context, inputs, *, sort, search, default_limit):
     seen_cursors = set()
     seen_post_ids = set()
     while len(posts) < limit:
-        needed = limit - len(posts)
         response = await context.fetch(
             url,
             method="GET",
             headers=_build_headers(),
-            params={**params, "limit": min(skip + needed, ARCHIVE_PAGE_LIMIT)},
+            params=params.copy(),
         )
         body = response.data
         page = body["posts"] if isinstance(body, dict) else (body or [])
