@@ -66,30 +66,45 @@ def _format_post(post: Dict[str, Any]) -> Dict[str, Any]:
     )
 
 
-# ── Action handlers ───────────────────────────────────────────────────────────
+async def _archive_posts(context, inputs, *, sort, search, default_limit):
+    url = f"{_normalise_url(inputs['publication_url'])}/api/v1/archive"
+    limit = min(inputs.get("limit", default_limit), 50)
+    skip = max(inputs.get("offset", 0), 0)
+    params = {"sort": sort}
+    if search:
+        params["search"] = search
+
+    # Preserve the action's numeric offset while following Substack's opaque cursors.
+    posts = []
+    seen_cursors = set()
+    while len(posts) < limit:
+        needed = limit - len(posts)
+        response = await context.fetch(
+            url,
+            method="GET",
+            headers=_build_headers(),
+            params={**params, "limit": min(skip + needed, 50)},
+        )
+        body = response.data
+        page = body["posts"] if isinstance(body, dict) else (body or [])
+        posts.extend(_format_post(post) for post in page[skip : skip + needed])
+        skip = max(0, skip - len(page))
+        cursor = body.get("nextCursor") if isinstance(body, dict) else None
+        if not cursor or len(posts) == limit:
+            break
+        if cursor in seen_cursors:
+            raise ValueError("Substack returned a repeated archive cursor")
+        seen_cursors.add(cursor)
+        params["cursor"] = cursor
+    return ActionResult(data={"posts": posts, "count": len(posts)}, cost_usd=0.0)
 
 
 @substack.action("get_publication_posts")
 class GetPublicationPostsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
-        base_url = _normalise_url(inputs["publication_url"])
-        headers = _build_headers()
-        params: Dict[str, Any] = {
-            "sort": inputs.get("sort", "new"),
-            "offset": inputs.get("offset", 0),
-            "limit": min(inputs.get("limit", 12), 50),
-        }
-        if inputs.get("search"):
-            params["search"] = inputs["search"]
-
-        response = await context.fetch(
-            f"{base_url}/api/v1/archive",
-            method="GET",
-            params=params,
-            headers=headers,
+        return await _archive_posts(
+            context, inputs, sort=inputs.get("sort", "new"), search=inputs.get("search"), default_limit=12
         )
-        posts = [_format_post(p) for p in (response.data or [])]
-        return ActionResult(data={"posts": posts, "count": len(posts)}, cost_usd=0.0)
 
 
 @substack.action("get_post")
@@ -168,26 +183,7 @@ class SearchPublicationsAction(ActionHandler):
 @substack.action("search_posts")
 class SearchPostsAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
-        base_url = _normalise_url(inputs["publication_url"])
-        headers = _build_headers()
-        # /api/v1/posts/search does not exist — Substack treats "search" as a slug
-        # and returns 404. The archive endpoint supports keyword search via the
-        # "search" param and is the correct way to filter posts by keyword.
-        params = {
-            "search": inputs["query"],
-            "sort": "new",
-            "offset": inputs.get("offset", 0),
-            "limit": min(inputs.get("limit", 10), 50),
-        }
-
-        response = await context.fetch(
-            f"{base_url}/api/v1/archive",
-            method="GET",
-            params=params,
-            headers=headers,
-        )
-        posts = [_format_post(p) for p in (response.data or [])]
-        return ActionResult(data={"posts": posts, "count": len(posts)}, cost_usd=0.0)
+        return await _archive_posts(context, inputs, sort="new", search=inputs["query"], default_limit=10)
 
 
 @substack.action("get_post_comments")

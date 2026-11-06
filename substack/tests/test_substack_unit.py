@@ -121,16 +121,20 @@ class TestGetPublicationPosts:
         assert result.result.data["count"] == 0
 
     @pytest.mark.asyncio
-    async def test_pagination_params_forwarded(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
-        await substack_integration.execute_action(
+    async def test_offset_uses_cursor_and_skips_across_pages(self, mock_context):
+        mock_context.fetch.side_effect = [
+            FetchResponse(status=200, headers={}, data={"posts": [MOCK_POST], "nextCursor": "second-page"}),
+            FetchResponse(status=200, headers={}, data={"posts": [MOCK_POST, {**MOCK_POST, "slug": "third"}]}),
+        ]
+        result = await substack_integration.execute_action(
             "get_publication_posts",
-            {"publication_url": "https://example.substack.com", "offset": 12, "limit": 6},
+            {"publication_url": "https://example.substack.com", "offset": 2, "limit": 1},
             mock_context,
         )
-        params = mock_context.fetch.call_args.kwargs.get("params", {})
-        assert params["offset"] == 12
-        assert params["limit"] == 6
+        assert [post["slug"] for post in result.result.data["posts"]] == ["third"]
+        first, second = mock_context.fetch.await_args_list
+        assert first.kwargs["params"] == {"sort": "new", "limit": 3}
+        assert second.kwargs["params"] == {"sort": "new", "limit": 2, "cursor": "second-page"}
 
     @pytest.mark.asyncio
     async def test_sort_param_forwarded(self, mock_context):
@@ -385,15 +389,15 @@ class TestSearchPosts:
         assert params.get("search") == "keyword"
 
     @pytest.mark.asyncio
-    async def test_offset_param_forwarded(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data=[])
-        await substack_integration.execute_action(
+    async def test_offset_beyond_search_results_returns_empty(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"posts": [MOCK_POST]})
+        result = await substack_integration.execute_action(
             "search_posts",
             {"publication_url": "https://example.substack.com", "query": "x", "offset": 10},
             mock_context,
         )
-        params = mock_context.fetch.call_args.kwargs.get("params", {})
-        assert params["offset"] == 10
+        assert result.result.data == {"posts": [], "count": 0}
+        assert "offset" not in mock_context.fetch.call_args.kwargs["params"]
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
