@@ -218,9 +218,11 @@ async def test_owner_email_is_filtered_by_hubspot(ctx):
     assert ctx.fetch.call_args_list[0].kwargs["params"]["email"] == "rep@example.com"
 
 
-async def test_company_owner_search_requires_an_identifier(ctx):
-    result = await hubspot.execute_action("search_companies_by_owner_name", {}, ctx)
-    assert result.type == ResultType.VALIDATION_ERROR
+@pytest.mark.parametrize("inputs", [{}, {"owner_name": "   "}])
+async def test_company_owner_search_requires_an_identifier(ctx, inputs):
+    result = await hubspot.execute_action("search_companies_by_owner_name", inputs, ctx)
+    assert result.type == ResultType.ACTION_ERROR
+    assert result.result.message == "Provide an owner_id, owner_email or owner_name"
     ctx.fetch.assert_not_called()
 
 
