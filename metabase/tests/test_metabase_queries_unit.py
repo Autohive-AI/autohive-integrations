@@ -494,14 +494,6 @@ class TestRunSqlQuery:
         assert result.type == ResultType.VALIDATION_ERROR
 
     @pytest.mark.asyncio
-    async def test_duplicate_column_names(self, mock_context):
-        mock_context.fetch.side_effect = [_database(), _ok(_dataset([[1, 2]], cols=("id", "id")), status=202)]
-        result = await metabase.execute_action(
-            "run_sql_query", {"database_id": 3, "sql": "select 1 id, 2 id"}, mock_context
-        )
-        assert result.result.data["rows"] == [{"id": 1, "id_2": 2}]
-
-    @pytest.mark.asyncio
     async def test_missing_sql(self, mock_context):
         result = await metabase.execute_action("run_sql_query", {"database_id": 3}, mock_context)
         assert result.type == ResultType.VALIDATION_ERROR

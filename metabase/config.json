@@ -3081,58 +3081,6 @@
                             "gauge",
                             "map"
                         ]
-                    },
-                    "filters": {
-                        "type": "array",
-                        "description": "Defines each {{name}} the SQL uses (snippets {{snippet: name}} and saved questions {{#12}} are found automatically).",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "name": {
-                                    "type": "string",
-                                    "description": "Name used in the SQL, e.g. region for {{region}}."
-                                },
-                                "type": {
-                                    "type": "string",
-                                    "enum": [
-                                        "text",
-                                        "number",
-                                        "date",
-                                        "field"
-                                    ],
-                                    "description": "text, number or date for a value put into the SQL; field for a field filter that filters a column (needs field_id)."
-                                },
-                                "display_name": {
-                                    "type": "string",
-                                    "description": "Label shown on the filter (default: the name)."
-                                },
-                                "default": {
-                                    "type": [
-                                        "string",
-                                        "number",
-                                        "array",
-                                        "null"
-                                    ],
-                                    "items": {},
-                                    "description": "Default value."
-                                },
-                                "required": {
-                                    "type": "boolean",
-                                    "description": "Whether a value is always needed (needs a default)."
-                                },
-                                "field_id": {
-                                    "type": "integer",
-                                    "description": "For type field: the column it filters (from get_table)."
-                                },
-                                "widget_type": {
-                                    "type": "string",
-                                    "description": "For type field: the filter widget, e.g. category, string/=, number/between, date/all-options (default category)."
-                                }
-                            },
-                            "required": [
-                                "name"
-                            ]
-                        }
                     }
                 },
                 "required": [

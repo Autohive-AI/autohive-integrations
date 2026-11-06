@@ -96,13 +96,6 @@ class TestRetries:
         assert mock_context.fetch.call_args.kwargs["retry_count"] == NO_RETRY
 
     @pytest.mark.asyncio
-    async def test_timeout_message(self, mock_context):
-        mock_context.fetch.side_effect = asyncio.TimeoutError()
-        result = await metabase.execute_action("create_collection", {"name": "X"}, mock_context)
-        assert result.type == ResultType.ACTION_ERROR
-        assert "did not respond in time" in result.result.message
-
-    @pytest.mark.asyncio
     async def test_create_timeout_says_check_before_retrying(self, mock_context):
         mock_context.fetch.side_effect = asyncio.TimeoutError()
         result = await metabase.execute_action("create_collection", {"name": "X"}, mock_context)

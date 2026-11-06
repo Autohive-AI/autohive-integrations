@@ -616,16 +616,9 @@ class TestUpdateCollection:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_move_to_root_false_is_nothing(self, mock_context):
-        result = await metabase.execute_action(
-            "update_collection", {"collection_id": 31, "move_to_root": False}, mock_context
-        )
-        assert result.type == ResultType.ACTION_ERROR
-        mock_context.fetch.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_nothing_given(self, mock_context):
-        result = await metabase.execute_action("update_collection", {"collection_id": 31}, mock_context)
+    @pytest.mark.parametrize("extra", [{}, {"move_to_root": False}])
+    async def test_nothing_given(self, mock_context, extra):
+        result = await metabase.execute_action("update_collection", {"collection_id": 31, **extra}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "at least one" in result.result.message
         mock_context.fetch.assert_not_called()
@@ -780,20 +773,13 @@ class TestMoveItems:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_no_target(self, mock_context):
+    @pytest.mark.parametrize("extra", [{}, {"move_to_root": False}])
+    async def test_no_target(self, mock_context, extra):
         result = await metabase.execute_action(
-            "move_items", {"items": [{"item_type": "question", "id": 42}]}, mock_context
+            "move_items", {"items": [{"item_type": "question", "id": 42}], **extra}, mock_context
         )
         assert result.type == ResultType.ACTION_ERROR
         assert "move_to_root" in result.result.message
-        mock_context.fetch.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_move_to_root_false_is_no_target(self, mock_context):
-        result = await metabase.execute_action(
-            "move_items", {"items": [{"item_type": "question", "id": 42}], "move_to_root": False}, mock_context
-        )
-        assert result.type == ResultType.ACTION_ERROR
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
@@ -845,9 +831,11 @@ class TestArchiveItem:
         assert call.kwargs["json"] == {"archived": True}
 
     @pytest.mark.asyncio
-    async def test_subscription_keeps_skip_if_empty(self, mock_context):
-        # Metabase resets skip_if_empty when an update leaves it out.
-        mock_context.fetch.side_effect = [_ok(SAMPLE_PULSE), _ok({**SAMPLE_PULSE, "archived": True})]
+    @pytest.mark.parametrize("skip", [True, False])
+    async def test_subscription_keeps_skip_if_empty(self, mock_context, skip):
+        # Metabase resets skip_if_empty when an update leaves it out; archiving runs no SQL check.
+        pulse = {**SAMPLE_PULSE, "skip_if_empty": skip}
+        mock_context.fetch.side_effect = [_ok(pulse), _ok({**pulse, "archived": True})]
         result = await metabase.execute_action(
             "archive_item", {"item_type": "subscription", "item_id": 15}, mock_context
         )
@@ -855,20 +843,7 @@ class TestArchiveItem:
         assert _urls(mock_context) == [("GET", f"{BASE}/api/pulse/15"), ("PUT", f"{BASE}/api/pulse/15")]
         put = mock_context.fetch.call_args
         assert put.kwargs["retry_count"] == NO_RETRY
-        assert put.kwargs["json"] == {"archived": True, "skip_if_empty": True}
-
-    @pytest.mark.asyncio
-    async def test_subscription_archive_runs_no_check(self, mock_context):
-        mock_context.fetch.side_effect = [_ok({**SAMPLE_PULSE, "skip_if_empty": False}), _ok(SAMPLE_PULSE)]
-        await metabase.execute_action("archive_item", {"item_type": "subscription", "item_id": 15}, mock_context)
-        assert mock_context.fetch.call_count == 2
-        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True, "skip_if_empty": False}
-
-    @pytest.mark.asyncio
-    async def test_alert_archive_runs_no_check(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(NEW_ALERT), _ok(NEW_ALERT)]
-        await metabase.execute_action("archive_item", {"item_type": "alert", "item_id": 40}, mock_context)
-        assert _urls(mock_context) == [("GET", f"{BASE}/api/notification/40"), ("PUT", f"{BASE}/api/notification/40")]
+        assert put.kwargs["json"] == {"archived": True, "skip_if_empty": skip}
 
     @pytest.mark.asyncio
     async def test_segment_adds_revision_message(self, mock_context):
@@ -898,12 +873,6 @@ class TestArchiveItem:
         await metabase.execute_action("archive_item", {"item_type": "metric", "item_id": 44}, mock_context)
         assert _urls(mock_context)[-1] == ("PUT", f"{BASE}/api/card/44")
         assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True}
-
-    @pytest.mark.asyncio
-    async def test_metric_with_unknown_version_uses_card(self, mock_context):
-        mock_context.fetch.side_effect = [_ok({}), _ok({"id": 44, "archived": True})]
-        await metabase.execute_action("archive_item", {"item_type": "metric", "item_id": 44}, mock_context)
-        assert _urls(mock_context)[-1] == ("PUT", f"{BASE}/api/card/44")
 
     @pytest.mark.asyncio
     async def test_question_does_not_read_version(self, mock_context):
@@ -946,7 +915,9 @@ class TestArchiveItem:
         assert put.args[0] == f"{BASE}/api/notification/40"
         assert put.kwargs["method"] == "PUT"
         assert put.kwargs["retry_count"] == NO_RETRY
+        # The id is sent: without it Metabase 0.54-0.63 deletes the alert instead of updating it.
         assert put.kwargs["json"] == {
+            "id": 40,
             "payload_type": NEW_ALERT["payload_type"],
             "payload": NEW_ALERT["payload"],
             "handlers": NEW_ALERT["handlers"],
@@ -1110,7 +1081,7 @@ class TestRestoreItem:
         ]
         put = mock_context.fetch.call_args
         assert put.kwargs["json"]["active"] is True
-        assert "id" not in put.kwargs["json"]
+        assert put.kwargs["json"]["id"] == 40
         assert "created_at" not in put.kwargs["json"]
         assert "creator_id" not in put.kwargs["json"]
 

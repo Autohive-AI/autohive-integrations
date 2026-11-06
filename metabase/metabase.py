@@ -633,6 +633,12 @@ def _error_message(
     return message[:MAX_ERROR_LENGTH]
 
 
+def _require_id(item: Dict[str, Any], what: str) -> None:
+    """A create that returns no id didn't save anything usable; what is e.g. "a question"."""
+    if item.get("id") is None:
+        raise ValueError(f"Metabase did not return {what} id")
+
+
 def _format_error_message(error: Exception, saved_check: Optional[str] = None) -> str:
     """saved_check names how to look for a create that may have been saved before the response timed out."""
     if isinstance(error, HTTPError):
@@ -640,8 +646,7 @@ def _format_error_message(error: Exception, saved_check: Optional[str] = None) -
         detail = None
         if isinstance(data, dict):
             detail = data.get("error") or data.get("message") or data.get("errors")
-        message = f"Metabase returned HTTP {error.status}: {detail or error.message}"
-        return message
+        return f"Metabase returned HTTP {error.status}: {detail or error.message}"
     if isinstance(error, asyncio.TimeoutError):
         if saved_check:
             return (
@@ -899,6 +904,23 @@ def _paged(key: str, items: List[Dict[str, Any]], data: Any, page: Dict[str, int
     return {key: items, "count": len(items), "total": total, **page}
 
 
+def _handled(saved_check: Optional[str] = None):
+    """Wrap an action: what it returns becomes the result, and any error becomes an ActionError message (with the
+    API key and gateway secret hidden; saved_check names the action to check whether a timed-out write saved)."""
+
+    def wrap(execute):
+        async def run(self, inputs: Dict[str, Any], context: ExecutionContext):
+            try:
+                data = await execute(self, inputs, context)
+            except Exception as e:
+                return ActionError(message=_error_message(e, context=context, saved_check=saved_check))
+            return ActionResult(data=data, cost_usd=0.0)
+
+        return run
+
+    return wrap
+
+
 # ---- Account ----
 
 
@@ -906,22 +928,17 @@ def _paged(key: str, items: List[Dict[str, Any]], data: Any, page: Dict[str, int
 class GetCurrentUserAction(ActionHandler):
     """Return the Metabase user the API key acts as (useful as a connection check)."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            user = await _api(context, "GET", "/user/current") or {}
-            return ActionResult(
-                data={
-                    "id": user.get("id"),
-                    "email": user.get("email"),
-                    "common_name": user.get("common_name"),
-                    "is_superuser": bool(user.get("is_superuser")),
-                    "group_ids": user.get("group_ids") or [],
-                    "personal_collection_id": user.get("personal_collection_id"),
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        user = await _api(context, "GET", "/user/current") or {}
+        return {
+            "id": user.get("id"),
+            "email": user.get("email"),
+            "common_name": user.get("common_name"),
+            "is_superuser": bool(user.get("is_superuser")),
+            "group_ids": user.get("group_ids") or [],
+            "personal_collection_id": user.get("personal_collection_id"),
+        }
 
 
 # ---- Data model ----
@@ -931,79 +948,70 @@ class GetCurrentUserAction(ActionHandler):
 class ListDatabasesAction(ActionHandler):
     """List the databases connected to Metabase."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            data = await _api(context, "GET", "/database")
-            databases = [
-                {
-                    "id": db.get("id"),
-                    "name": db.get("name"),
-                    "engine": db.get("engine"),
-                    "description": db.get("description"),
-                    "is_sample": bool(db.get("is_sample")),
-                }
-                for db in _list_data(data)
-            ]
-            return ActionResult(data={"databases": databases, "count": len(databases)}, cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        data = await _api(context, "GET", "/database")
+        databases = [
+            {
+                "id": db.get("id"),
+                "name": db.get("name"),
+                "engine": db.get("engine"),
+                "description": db.get("description"),
+                "is_sample": bool(db.get("is_sample")),
+            }
+            for db in _list_data(data)
+        ]
+        return {"databases": databases, "count": len(databases)}
 
 
 @metabase.action("get_database_schema")
 class GetDatabaseSchemaAction(ActionHandler):
     """List a database's tables (and optionally their fields), filtered by schema or table name."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            database_id = _path_id(inputs["database_id"])
-            include_fields = bool(inputs.get("include_fields", False))
-            schema = str(inputs.get("schema") or "").strip().lower()
-            name_contains = str(inputs.get("table_name_contains") or "").strip().lower()
-            page = _page(inputs)
+        database_id = _path_id(inputs["database_id"])
+        include_fields = bool(inputs.get("include_fields", False))
+        schema = str(inputs.get("schema") or "").strip().lower()
+        name_contains = str(inputs.get("table_name_contains") or "").strip().lower()
+        page = _page(inputs)
 
-            skip_fields = "false" if include_fields else "true"
-            data = await _api(
-                context, "GET", _with_query(f"/database/{database_id}/metadata", [("skip_fields", skip_fields)])
-            )
-            database = data or {}
-            tables = []
-            for table in database.get("tables") or []:
-                if schema and str(table.get("schema") or "").lower() != schema:
-                    continue
-                if name_contains and name_contains not in str(table.get("name") or "").lower():
-                    continue
-                tables.append(_table_summary(table, include_fields))
-            # Metabase sends every table at once, so a large warehouse is paged here.
-            returned = tables[page["offset"] : page["offset"] + page["limit"]]
-            return ActionResult(
-                data={
-                    "database_id": database.get("id"),
-                    "database_name": database.get("name"),
-                    "engine": database.get("engine"),
-                    "tables": returned,
-                    "count": len(returned),
-                    "total": len(tables),
-                    **page,
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        skip_fields = "false" if include_fields else "true"
+        data = await _api(
+            context, "GET", _with_query(f"/database/{database_id}/metadata", [("skip_fields", skip_fields)])
+        )
+        database = data or {}
+        tables = []
+        for table in database.get("tables") or []:
+            if schema and str(table.get("schema") or "").lower() != schema:
+                continue
+            if name_contains and name_contains not in str(table.get("name") or "").lower():
+                continue
+            tables.append(_table_summary(table, include_fields))
+        # Metabase sends every table at once, so a large warehouse is paged here.
+        returned = tables[page["offset"] : page["offset"] + page["limit"]]
+        return {
+            "database_id": database.get("id"),
+            "database_name": database.get("name"),
+            "engine": database.get("engine"),
+            "tables": returned,
+            "count": len(returned),
+            "total": len(tables),
+            **page,
+        }
 
 
 @metabase.action("get_table")
 class GetTableAction(ActionHandler):
     """Get a table's fields, types and foreign keys."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            table_id = _path_id(inputs["table_id"])
-            table = await _api(context, "GET", f"/table/{table_id}/query_metadata") or {}
-            summary = _table_summary(table, include_fields=True)
-            summary["database_id"] = table.get("db_id")
-            return ActionResult(data=summary, cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        table_id = _path_id(inputs["table_id"])
+        table = await _api(context, "GET", f"/table/{table_id}/query_metadata") or {}
+        summary = _table_summary(table, include_fields=True)
+        summary["database_id"] = table.get("db_id")
+        return summary
 
 
 # ---- Search and collections ----
@@ -1013,109 +1021,97 @@ class GetTableAction(ActionHandler):
 class SearchAction(ActionHandler):
     """Search questions, models, metrics, dashboards, collections, tables and databases."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            page = _page(inputs)
-            query: List[tuple] = [("q", str(inputs.get("query") or "").strip() or None)]
-            archived = [("archived", "true")] if inputs.get("archived") else []
-            data, dropped = await _get_with_models(
-                context, "/search", query, inputs.get("models"), archived + list(page.items())
-            )
-            results = [
-                {
-                    "model": item.get("model"),
-                    "id": item.get("id"),
-                    "name": item.get("name"),
-                    "description": item.get("description"),
-                    "collection": _collection_ref(item.get("collection")),
-                    "database_id": item.get("database_id"),
-                    "table_schema": item.get("table_schema"),
-                    "archived": bool(item.get("archived")),
-                    "updated_at": item.get("updated_at"),
-                }
-                for item in _list_data(data)
-            ]
-            return ActionResult(data=_note_dropped(_paged("results", results, data, page), dropped), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        page = _page(inputs)
+        query: List[tuple] = [("q", str(inputs.get("query") or "").strip() or None)]
+        archived = [("archived", "true")] if inputs.get("archived") else []
+        data, dropped = await _get_with_models(
+            context, "/search", query, inputs.get("models"), archived + list(page.items())
+        )
+        results = [
+            {
+                "model": item.get("model"),
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "description": item.get("description"),
+                "collection": _collection_ref(item.get("collection")),
+                "database_id": item.get("database_id"),
+                "table_schema": item.get("table_schema"),
+                "archived": bool(item.get("archived")),
+                "updated_at": item.get("updated_at"),
+            }
+            for item in _list_data(data)
+        ]
+        return _note_dropped(_paged("results", results, data, page), dropped)
 
 
 @metabase.action("list_collections")
 class ListCollectionsAction(ActionHandler):
     """List collections the API key can see."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            archived = "true" if inputs.get("archived") else "false"
-            data = await _api(context, "GET", _with_query("/collection", [("archived", archived)]))
-            include_personal = bool(inputs.get("include_personal", False))
-            collections = [
-                {
-                    "id": c.get("id"),
-                    "name": c.get("name"),
-                    "description": c.get("description"),
-                    "parent_id": c.get("parent_id") or _parent_from_location(c.get("location")),
-                    "location": c.get("effective_location") or c.get("location"),
-                    "is_personal": bool(c.get("is_personal")),
-                    "archived": bool(c.get("archived")),
-                }
-                for c in _list_data(data)
-                if include_personal or not c.get("is_personal")
-            ]
-            return ActionResult(data={"collections": collections, "count": len(collections)}, cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        archived = "true" if inputs.get("archived") else "false"
+        data = await _api(context, "GET", _with_query("/collection", [("archived", archived)]))
+        include_personal = bool(inputs.get("include_personal", False))
+        collections = [
+            {
+                "id": c.get("id"),
+                "name": c.get("name"),
+                "description": c.get("description"),
+                "parent_id": c.get("parent_id") or _parent_from_location(c.get("location")),
+                "location": c.get("effective_location") or c.get("location"),
+                "is_personal": bool(c.get("is_personal")),
+                "archived": bool(c.get("archived")),
+            }
+            for c in _list_data(data)
+            if include_personal or not c.get("is_personal")
+        ]
+        return {"collections": collections, "count": len(collections)}
 
 
 @metabase.action("list_collection_items")
 class ListCollectionItemsAction(ActionHandler):
     """List the questions, dashboards and sub-collections inside a collection."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            collection_id = _path_id(inputs.get("collection_id") or "root")
-            page = _page(inputs)
-            path = f"/collection/{collection_id}/items"
-            data, dropped = await _get_with_models(context, path, [], inputs.get("models"), list(page.items()))
-            items = [
-                {
-                    "model": item.get("model"),
-                    "id": item.get("id"),
-                    "name": item.get("name"),
-                    "description": item.get("description"),
-                    "display": item.get("display"),
-                }
-                for item in _list_data(data)
-            ]
-            return ActionResult(data=_note_dropped(_paged("items", items, data, page), dropped), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        collection_id = _path_id(inputs.get("collection_id") or "root")
+        page = _page(inputs)
+        path = f"/collection/{collection_id}/items"
+        data, dropped = await _get_with_models(context, path, [], inputs.get("models"), list(page.items()))
+        items = [
+            {
+                "model": item.get("model"),
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "description": item.get("description"),
+                "display": item.get("display"),
+            }
+            for item in _list_data(data)
+        ]
+        return _note_dropped(_paged("items", items, data, page), dropped)
 
 
 @metabase.action("create_collection")
 class CreateCollectionAction(ActionHandler):
     """Create a collection, optionally inside another collection."""
 
+    @_handled(saved_check="list_collections")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            name = _required_text(inputs["name"], "name")
-            body = _with_optional(
-                {"name": name}, description=inputs.get("description"), parent_id=inputs.get("parent_collection_id")
-            )
+        name = _required_text(inputs["name"], "name")
+        body = _with_optional(
+            {"name": name}, description=inputs.get("description"), parent_id=inputs.get("parent_collection_id")
+        )
 
-            collection = await _api(context, "POST", "/collection", json=body) or {}
-            if collection.get("id") is None:
-                raise ValueError("Metabase did not return a collection id")
-            return ActionResult(
-                data={
-                    "id": collection.get("id"),
-                    "name": collection.get("name") or name,
-                    "location": collection.get("location"),
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="list_collections"))
+        collection = await _api(context, "POST", "/collection", json=body) or {}
+        _require_id(collection, "a collection")
+        return {
+            "id": collection.get("id"),
+            "name": collection.get("name") or name,
+            "location": collection.get("location"),
+        }
 
 
 # ---- Questions and queries ----
@@ -1125,69 +1121,59 @@ class CreateCollectionAction(ActionHandler):
 class GetQuestionAction(ActionHandler):
     """Get a saved question (card), including its SQL when it is a native query."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            card_id = _path_id(inputs["question_id"])
-            data = await _api(context, "GET", f"/card/{card_id}")
-            return ActionResult(data=_card_summary(data or {}), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        card_id = _path_id(inputs["question_id"])
+        data = await _api(context, "GET", f"/card/{card_id}")
+        return _card_summary(data or {})
 
 
 @metabase.action("run_question")
 class RunQuestionAction(ActionHandler):
     """Run a saved question and return its rows."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            card_id = _path_id(inputs["question_id"])
-            max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
-            parameters = [_run_parameter(p) for p in inputs.get("parameters") or []]
-            # The run sends the saved defaults itself, so the SQL is only checked with them.
-            parameters = await _checked_parameters(context, card_id, parameters, also_without_defaults=False)
-            body: Dict[str, Any] = {"parameters": parameters} if parameters else {}
+        card_id = _path_id(inputs["question_id"])
+        max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
+        parameters = [_run_parameter(p) for p in inputs.get("parameters") or []]
+        # The run sends the saved defaults itself, so the SQL is only checked with them.
+        parameters = await _checked_parameters(context, card_id, parameters, also_without_defaults=False)
+        body: Dict[str, Any] = {"parameters": parameters} if parameters else {}
 
-            data = await _api(context, "POST", f"/card/{card_id}/query", json=body, timeout=QUERY_TIMEOUT_SECONDS)
-            return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        data = await _api(context, "POST", f"/card/{card_id}/query", json=body, timeout=QUERY_TIMEOUT_SECONDS)
+        return _query_result(data, max_rows)
 
 
 @metabase.action("run_sql_query")
 class RunSqlQueryAction(ActionHandler):
     """Run a native SQL query against a Metabase database and return its rows."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            sql = await _read_only_sql(context, inputs["database_id"], inputs["sql"])
-            max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
+        sql = await _read_only_sql(context, inputs["database_id"], inputs["sql"])
+        max_rows = _clamp(inputs.get("max_rows"), DEFAULT_MAX_ROWS, MAX_ROWS_LIMIT)
 
-            data = await _api(
-                context,
-                "POST",
-                "/dataset",
-                json=_native_query(inputs["database_id"], sql),
-                timeout=QUERY_TIMEOUT_SECONDS,
-            )
-            return ActionResult(data=_query_result(data, max_rows), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        data = await _api(
+            context,
+            "POST",
+            "/dataset",
+            json=_native_query(inputs["database_id"], sql),
+            timeout=QUERY_TIMEOUT_SECONDS,
+        )
+        return _query_result(data, max_rows)
 
 
 @metabase.action("create_question")
 class CreateQuestionAction(ActionHandler):
     """Save a native SQL query as a question."""
 
+    @_handled(saved_check="search")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            _required_text(inputs["name"], "name")
-            dataset_query = await _new_native_query(
-                context, inputs["database_id"], inputs["sql"], inputs.get("filters")
-            )
-            card = await _create_card(context, inputs, "question", dataset_query)
-            return ActionResult(data=_card_summary(card), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="search"))
+        _required_text(inputs["name"], "name")
+        dataset_query = await _new_native_query(context, inputs["database_id"], inputs["sql"], inputs.get("filters"))
+        card = await _create_card(context, inputs, "question", dataset_query)
+        return _card_summary(card)
 
 
 # ---- Dashboards ----
@@ -1197,116 +1183,66 @@ class CreateQuestionAction(ActionHandler):
 class GetDashboardAction(ActionHandler):
     """Get a dashboard with its cards, tabs and filters."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            dashboard_id = _path_id(inputs["dashboard_id"])
-            dashboard = await _api(context, "GET", f"/dashboard/{dashboard_id}") or {}
-            return ActionResult(
-                data={
-                    "id": dashboard.get("id"),
-                    "name": dashboard.get("name"),
-                    "description": dashboard.get("description"),
-                    "collection_id": dashboard.get("collection_id"),
-                    "archived": bool(dashboard.get("archived")),
-                    "tabs": [{"id": t.get("id"), "name": t.get("name")} for t in dashboard.get("tabs") or []],
-                    "parameters": [
-                        {"id": p.get("id"), "name": p.get("name"), "slug": p.get("slug"), "type": p.get("type")}
-                        for p in dashboard.get("parameters") or []
-                    ],
-                    "cards": [_dashcard_summary(dc) for dc in dashboard.get("dashcards") or []],
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        dashboard_id = _path_id(inputs["dashboard_id"])
+        dashboard = await _api(context, "GET", f"/dashboard/{dashboard_id}") or {}
+        summary = _dashboard_summary(dashboard)
+        return {k: v for k, v in summary.items() if k not in ("width", "auto_apply_filters")}
 
 
 @metabase.action("create_dashboard")
 class CreateDashboardAction(ActionHandler):
     """Create an empty dashboard."""
 
+    @_handled(saved_check="search")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            name = _required_text(inputs["name"], "name")
-            body = _with_optional(
-                {"name": name}, description=inputs.get("description"), collection_id=inputs.get("collection_id")
-            )
+        name = _required_text(inputs["name"], "name")
+        body = _with_optional(
+            {"name": name}, description=inputs.get("description"), collection_id=inputs.get("collection_id")
+        )
 
-            dashboard = await _api(context, "POST", "/dashboard", json=body) or {}
-            if dashboard.get("id") is None:
-                raise ValueError("Metabase did not return a dashboard id")
-            return ActionResult(
-                data={
-                    "id": dashboard.get("id"),
-                    "name": dashboard.get("name") or name,
-                    "collection_id": dashboard.get("collection_id"),
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="search"))
+        dashboard = await _api(context, "POST", "/dashboard", json=body) or {}
+        _require_id(dashboard, "a dashboard")
+        return {
+            "id": dashboard.get("id"),
+            "name": dashboard.get("name") or name,
+            "collection_id": dashboard.get("collection_id"),
+        }
 
 
 @metabase.action("add_question_to_dashboard")
 class AddQuestionToDashboardAction(ActionHandler):
     """Add a saved question to a dashboard, placed below the existing cards."""
 
+    @_handled(saved_check="get_dashboard")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            size_x = _clamp(inputs.get("width"), DEFAULT_CARD_WIDTH, DASHBOARD_GRID_WIDTH)
-            size_y = _clamp(inputs.get("height"), DEFAULT_CARD_HEIGHT, MAX_CARD_HEIGHT)
+        size_x = _clamp(inputs.get("width"), DEFAULT_CARD_WIDTH, DASHBOARD_GRID_WIDTH)
+        size_y = _clamp(inputs.get("height"), DEFAULT_CARD_HEIGHT, MAX_CARD_HEIGHT)
 
-            dashboard = await _get_dashboard(context, inputs["dashboard_id"])
-            existing = dashboard.get("dashcards") or []
-            tabs = dashboard.get("tabs") or []
-            tab_id = _check_tab(inputs.get("tab_id"), tabs, inputs["dashboard_id"])
-            dashcards = _dashcards_for_put(existing)
-            next_row = _bottom_row(existing, tab_id)
+        dashboard = await _get_dashboard(context, inputs["dashboard_id"])
+        existing = dashboard.get("dashcards") or []
+        tabs = dashboard.get("tabs") or []
+        tab_id = _check_tab(inputs.get("tab_id"), tabs, inputs["dashboard_id"])
+        dashcards = _dashcards_for_put(existing)
+        next_row = _bottom_row(existing, tab_id)
 
-            # Negative ids mark new dashcards for Metabase to create.
-            new_card = {
-                "id": -1,
-                "card_id": inputs["question_id"],
-                "row": next_row,
-                "col": 0,
-                "size_x": size_x,
-                "size_y": size_y,
-                "series": [],
-                "parameter_mappings": [],
-                "visualization_settings": {},
-            }
-            if tab_id is not None:
-                new_card["dashboard_tab_id"] = tab_id
-            dashcards.append(new_card)
-            if await _has_subscriptions(context, dashboard.get("id")):
-                # Metabase adds the question to the dashboard's subscriptions, which then run it with nobody watching.
-                await _checked_parameters(context, _path_id(inputs["question_id"]), [])
+        dashcards.append(_new_dashcard(inputs["question_id"], next_row, 0, size_x, size_y, tab_id))
+        if await _has_subscriptions(context, dashboard.get("id")):
+            # Metabase adds the question to the dashboard's subscriptions, which then run it with nobody watching.
+            await _checked_parameters(context, _path_id(inputs["question_id"]), [])
 
-            updated = await _put_dashboard_layout(context, inputs["dashboard_id"], dashcards, _tabs_for_put(tabs))
-            known_ids = {dc.get("id") for dc in existing}
-            added = next(
-                (
-                    dc
-                    for dc in updated.get("dashcards") or []
-                    if dc.get("id") not in known_ids and dc.get("card_id") == inputs["question_id"]
-                ),
-                None,
-            )
-            return ActionResult(
-                data={
-                    "dashboard_id": updated.get("id") or dashboard.get("id"),
-                    "dashcard_id": (added or {}).get("id"),
-                    "card_id": inputs["question_id"],
-                    "row": next_row,
-                    "col": 0,
-                    "size_x": size_x,
-                    "size_y": size_y,
-                    "card_count": len(updated.get("dashcards") or dashcards),
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
+        updated, added = await _put_new_dashcard(context, inputs["dashboard_id"], existing, dashcards, tabs)
+        return {
+            "dashboard_id": updated.get("id") or dashboard.get("id"),
+            "dashcard_id": added.get("id"),
+            "card_id": inputs["question_id"],
+            "row": next_row,
+            "col": 0,
+            "size_x": size_x,
+            "size_y": size_y,
+            "card_count": len(updated.get("dashcards") or dashcards),
+        }
 
 
 # ---- Editing helpers ----
@@ -1368,6 +1304,40 @@ async def _put_dashboard_layout(
     if tabs:
         body["tabs"] = tabs
     return await _api(context, "PUT", f"/dashboard/{_path_id(dashboard_id)}", json=body) or {}
+
+
+def _new_dashcard(
+    card_id: Any, row: int, col: int, size_x: int, size_y: int, tab_id: Any, settings: Optional[Dict] = None
+) -> Dict[str, Any]:
+    """A card to add to a dashboard; the negative id tells Metabase to create it."""
+    card = {
+        "id": -1,
+        "card_id": card_id,
+        "row": row,
+        "col": col,
+        "size_x": size_x,
+        "size_y": size_y,
+        "series": [],
+        "parameter_mappings": [],
+        "visualization_settings": settings or {},
+    }
+    if tab_id is not None:
+        card["dashboard_tab_id"] = tab_id
+    return card
+
+
+async def _put_new_dashcard(
+    context: ExecutionContext, dashboard_id: Any, existing: List[Dict[str, Any]], dashcards: List[Dict[str, Any]], tabs
+) -> tuple:
+    """PUT the cards with one new card (the last) and return the updated dashboard and the card Metabase created."""
+    updated = await _put_dashboard_layout(context, dashboard_id, dashcards, _tabs_for_put(tabs))
+    known_ids = {dc.get("id") for dc in existing}
+    card_id = dashcards[-1]["card_id"]
+    added = next(
+        (dc for dc in updated.get("dashcards") or [] if dc.get("id") not in known_ids and dc.get("card_id") == card_id),
+        {},
+    )
+    return updated, added
 
 
 def _dashboard_summary(dashboard: Dict[str, Any]) -> Dict[str, Any]:
@@ -1626,8 +1596,11 @@ async def _set_alert_active(context: ExecutionContext, alert_id: Any, active: bo
         raise ValueError(f"Notification {alert_id} isn't a question alert.")
     if active:
         await _checked_parameters(context, _path_id((notification.get("payload") or {}).get("card_id")), [])
-    # The update takes the whole notification; ids and timestamps Metabase sets itself are left out.
-    body = {k: notification[k] for k in ("payload_type", "payload", "handlers", "subscriptions") if k in notification}
+    # The update takes the whole notification; timestamps Metabase sets itself are left out. The id is sent:
+    # without it, Metabase 0.54-0.63 deletes the alert instead of updating it.
+    body = {
+        k: notification[k] for k in ("id", "payload_type", "payload", "handlers", "subscriptions") if k in notification
+    }
     body["active"] = active
     return await _api(context, "PUT", path, json=body) or {}
 
@@ -1808,8 +1781,7 @@ async def _create_card(
     }
     _with_optional(body, description=inputs.get("description"), collection_id=inputs.get("collection_id"))
     card = await _api(context, "POST", "/card", json=body) or {}
-    if card.get("id") is None:
-        raise ValueError("Metabase did not return a question id")
+    _require_id(card, "a question")
     return card
 
 
@@ -1936,8 +1908,7 @@ async def _create_legacy_metric(
         if e.status == 404:
             raise ValueError(_error_message(error, context=context)) from None
         raise
-    if metric.get("id") is None:
-        raise ValueError("Metabase did not return a metric id")
+    _require_id(metric, "a metric")
     return {
         "id": metric["id"],
         "name": metric.get("name"),
@@ -2030,373 +2001,336 @@ def _timeline_event_summary(event: Dict[str, Any]) -> Dict[str, Any]:
 class UpdateDashboardAction(ActionHandler):
     """Change a dashboard's name, description, collection, width or filter auto-apply setting."""
 
+    @_handled(saved_check="get_dashboard")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            dashboard_id = _path_id(inputs["dashboard_id"])
-            body = _with_optional(
-                {},
-                name=inputs.get("name"),
-                collection_id=inputs.get("collection_id"),
-                width=inputs.get("width"),
-                auto_apply_filters=inputs.get("auto_apply_filters"),
-            )
-            if inputs.get("description") is not None:
-                # An empty description clears it.
-                body["description"] = inputs["description"] or None
-            if not body:
-                raise ValueError("Give at least one of name, description, collection_id, width or auto_apply_filters.")
-            dashboard = await _api(context, "PUT", f"/dashboard/{dashboard_id}", json=body) or {}
-            return ActionResult(data=_dashboard_summary(dashboard), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
+        dashboard_id = _path_id(inputs["dashboard_id"])
+        body = _with_optional(
+            {},
+            name=inputs.get("name"),
+            collection_id=inputs.get("collection_id"),
+            width=inputs.get("width"),
+            auto_apply_filters=inputs.get("auto_apply_filters"),
+        )
+        if inputs.get("description") is not None:
+            # An empty description clears it.
+            body["description"] = inputs["description"] or None
+        if not body:
+            raise ValueError("Give at least one of name, description, collection_id, width or auto_apply_filters.")
+        dashboard = await _api(context, "PUT", f"/dashboard/{dashboard_id}", json=body) or {}
+        return _dashboard_summary(dashboard)
 
 
 @metabase.action("update_dashboard_cards")
 class UpdateDashboardCardsAction(ActionHandler):
     """Move, resize, retitle, move to another tab or remove cards on a dashboard."""
 
+    @_handled(saved_check="get_dashboard")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            dashboard = await _get_dashboard(context, inputs["dashboard_id"])
-            existing = dashboard.get("dashcards") or []
-            tabs = dashboard.get("tabs") or []
-            given = [c for c in inputs["cards"] if isinstance(c, dict)]
-            changes = {c.get("dashcard_id"): c for c in given}
-            if len(changes) != len(given):
-                raise ValueError("Each card can be listed once; put all of a card's changes in one entry.")
-            unknown = set(changes) - {dc.get("id") for dc in existing}
-            if unknown:
-                raise ValueError(f"Not cards on dashboard {inputs['dashboard_id']}: {sorted(unknown, key=str)}")
+        dashboard = await _get_dashboard(context, inputs["dashboard_id"])
+        existing = dashboard.get("dashcards") or []
+        tabs = dashboard.get("tabs") or []
+        given = [c for c in inputs["cards"] if isinstance(c, dict)]
+        changes = {c.get("dashcard_id"): c for c in given}
+        if len(changes) != len(given):
+            raise ValueError("Each card can be listed once; put all of a card's changes in one entry.")
+        unknown = set(changes) - {dc.get("id") for dc in existing}
+        if unknown:
+            raise ValueError(f"Not cards on dashboard {inputs['dashboard_id']}: {sorted(unknown, key=str)}")
 
-            dashcards = []
-            for dc, original in zip(_dashcards_for_put(existing), existing):
-                change = changes.get(dc.get("id"))
-                if change is None:
-                    dashcards.append(dc)
-                    continue
-                if change.get("remove"):
-                    continue
-                for key, field in (("row", "row"), ("col", "col"), ("width", "size_x"), ("height", "size_y")):
-                    if _int_or_none(change.get(key)) is not None:
-                        dc[field] = change[key]
-                _check_grid(int(dc.get("col") or 0), int(dc.get("size_x") or 1))
-                if change.get("tab_id") is not None:
-                    dc["dashboard_tab_id"] = _check_tab(change["tab_id"], tabs, inputs["dashboard_id"])
-                if change.get("title") is not None:
-                    if "visualization_settings" not in dc:
-                        raise ValueError(
-                            f"Card {dc['id']} links to an item the API key can't read, so it can't be retitled."
-                        )
-                    settings = dict(original.get("visualization_settings") or {})
-                    settings["card.title"] = change["title"]
-                    dc["visualization_settings"] = settings
+        dashcards = []
+        for dc, original in zip(_dashcards_for_put(existing), existing):
+            change = changes.get(dc.get("id"))
+            if change is None:
                 dashcards.append(dc)
+                continue
+            if change.get("remove"):
+                continue
+            for key, field in (("row", "row"), ("col", "col"), ("width", "size_x"), ("height", "size_y")):
+                if _int_or_none(change.get(key)) is not None:
+                    dc[field] = change[key]
+            _check_grid(int(dc.get("col") or 0), int(dc.get("size_x") or 1))
+            if change.get("tab_id") is not None:
+                dc["dashboard_tab_id"] = _check_tab(change["tab_id"], tabs, inputs["dashboard_id"])
+            if change.get("title") is not None:
+                if "visualization_settings" not in dc:
+                    raise ValueError(
+                        f"Card {dc['id']} links to an item the API key can't read, so it can't be retitled."
+                    )
+                settings = dict(original.get("visualization_settings") or {})
+                settings["card.title"] = change["title"]
+                dc["visualization_settings"] = settings
+            dashcards.append(dc)
 
-            updated = await _put_dashboard_layout(context, inputs["dashboard_id"], dashcards, _tabs_for_put(tabs))
-            return ActionResult(data=_dashboard_summary(updated), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
+        updated = await _put_dashboard_layout(context, inputs["dashboard_id"], dashcards, _tabs_for_put(tabs))
+        return _dashboard_summary(updated)
 
 
 @metabase.action("add_text_to_dashboard")
 class AddTextToDashboardAction(ActionHandler):
     """Add a text, heading or link card to a dashboard."""
 
+    @_handled(saved_check="get_dashboard")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            kind = inputs["kind"]
-            if kind not in TEXT_CARD_KINDS:
-                raise ValueError("kind must be text, heading or link")
-            text = str(inputs.get("text") or "").strip()
-            url = str(inputs.get("url") or "").strip()
-            if kind == "link" and not url:
-                raise ValueError("url is required for a link card")
-            if kind != "link" and not text:
-                raise ValueError("text is required for a text or heading card")
+        kind = inputs["kind"]
+        if kind not in TEXT_CARD_KINDS:
+            raise ValueError("kind must be text, heading or link")
+        text = str(inputs.get("text") or "").strip()
+        url = str(inputs.get("url") or "").strip()
+        if kind == "link" and not url:
+            raise ValueError("url is required for a link card")
+        if kind != "link" and not text:
+            raise ValueError("text is required for a text or heading card")
 
-            dashboard = await _get_dashboard(context, inputs["dashboard_id"])
-            existing = dashboard.get("dashcards") or []
-            tabs = dashboard.get("tabs") or []
-            tab_id = _check_tab(inputs.get("tab_id"), tabs, inputs["dashboard_id"])
-            size_x = _clamp(inputs.get("width"), DASHBOARD_GRID_WIDTH if kind != "link" else 8, DASHBOARD_GRID_WIDTH)
-            size_y = _clamp(inputs.get("height"), DEFAULT_TEXT_CARD_HEIGHT[kind], MAX_CARD_HEIGHT)
-            col = _int_or_none(inputs.get("col")) or 0
-            _check_grid(col, size_x)
-            row = _int_or_none(inputs.get("row"))
-            row = _bottom_row(existing, tab_id) if row is None else row
+        dashboard = await _get_dashboard(context, inputs["dashboard_id"])
+        existing = dashboard.get("dashcards") or []
+        tabs = dashboard.get("tabs") or []
+        tab_id = _check_tab(inputs.get("tab_id"), tabs, inputs["dashboard_id"])
+        size_x = _clamp(inputs.get("width"), DASHBOARD_GRID_WIDTH if kind != "link" else 8, DASHBOARD_GRID_WIDTH)
+        size_y = _clamp(inputs.get("height"), DEFAULT_TEXT_CARD_HEIGHT[kind], MAX_CARD_HEIGHT)
+        col = _int_or_none(inputs.get("col")) or 0
+        _check_grid(col, size_x)
+        row = _int_or_none(inputs.get("row"))
+        row = _bottom_row(existing, tab_id) if row is None else row
 
-            settings: Dict[str, Any] = {
-                "virtual_card": {
-                    "name": None,
-                    "display": kind,
-                    "visualization_settings": {},
-                    "dataset_query": {},
-                    "archived": False,
-                }
+        settings: Dict[str, Any] = {
+            "virtual_card": {
+                "name": None,
+                "display": kind,
+                "visualization_settings": {},
+                "dataset_query": {},
+                "archived": False,
             }
-            if kind == "link":
-                settings["link"] = {"url": url}
-            else:
-                settings["text"] = text
-            new_card = {
-                "id": -1,
-                "card_id": None,
-                "row": row,
-                "col": col,
-                "size_x": size_x,
-                "size_y": size_y,
-                "series": [],
-                "parameter_mappings": [],
-                "visualization_settings": settings,
-            }
-            if tab_id is not None:
-                new_card["dashboard_tab_id"] = tab_id
-
-            dashcards = _dashcards_for_put(existing) + [new_card]
-            updated = await _put_dashboard_layout(context, inputs["dashboard_id"], dashcards, _tabs_for_put(tabs))
-            known_ids = {dc.get("id") for dc in existing}
-            added = next((dc for dc in updated.get("dashcards") or [] if dc.get("id") not in known_ids), {})
-            return ActionResult(
-                data={
-                    "dashboard_id": updated.get("id") or dashboard.get("id"),
-                    "dashcard_id": added.get("id"),
-                    "kind": kind,
-                    "row": row,
-                    "col": col,
-                    "size_x": size_x,
-                    "size_y": size_y,
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
+        }
+        if kind == "link":
+            settings["link"] = {"url": url}
+        else:
+            settings["text"] = text
+        dashcards = _dashcards_for_put(existing) + [_new_dashcard(None, row, col, size_x, size_y, tab_id, settings)]
+        updated, added = await _put_new_dashcard(context, inputs["dashboard_id"], existing, dashcards, tabs)
+        return {
+            "dashboard_id": updated.get("id") or dashboard.get("id"),
+            "dashcard_id": added.get("id"),
+            "kind": kind,
+            "row": row,
+            "col": col,
+            "size_x": size_x,
+            "size_y": size_y,
+        }
 
 
 @metabase.action("update_dashboard_tabs")
 class UpdateDashboardTabsAction(ActionHandler):
     """Add, rename, reorder or remove a dashboard's tabs."""
 
+    @_handled(saved_check="get_dashboard")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            dashboard = await _get_dashboard(context, inputs["dashboard_id"])
-            existing = dashboard.get("dashcards") or []
-            old_tabs = dashboard.get("tabs") or []
-            old_ids = {t.get("id") for t in old_tabs}
-            tabs = []
-            for i, tab in enumerate(t for t in inputs["tabs"] if isinstance(t, dict)):
-                name = _required_text(tab.get("name"), "tab name")
-                tab_id = tab.get("id")
-                if tab_id is not None and tab_id not in old_ids:
-                    raise ValueError(
-                        f"Tab {tab_id} is not on dashboard {inputs['dashboard_id']}; leave id out for a new tab."
-                    )
-                # Negative ids mark new tabs for Metabase to create.
-                tabs.append({"id": tab_id if tab_id is not None else -(i + 1), "name": name})
-
-            kept = {t["id"] for t in tabs}
-            dashcards = _dashcards_for_put(existing)
-            orphaned = [
-                dc["id"]
-                for dc in dashcards
-                if dc.get("dashboard_tab_id") is not None and dc["dashboard_tab_id"] not in kept
-            ]
-            if orphaned and tabs:
+        dashboard = await _get_dashboard(context, inputs["dashboard_id"])
+        existing = dashboard.get("dashcards") or []
+        old_tabs = dashboard.get("tabs") or []
+        old_ids = {t.get("id") for t in old_tabs}
+        tabs = []
+        for i, tab in enumerate(t for t in inputs["tabs"] if isinstance(t, dict)):
+            name = _required_text(tab.get("name"), "tab name")
+            tab_id = tab.get("id")
+            if tab_id is not None and tab_id not in old_ids:
                 raise ValueError(
-                    f"Cards {orphaned} are on tabs being removed. Move or remove them (update_dashboard_cards) first."
+                    f"Tab {tab_id} is not on dashboard {inputs['dashboard_id']}; leave id out for a new tab."
                 )
-            if not tabs and len({dc.get("dashboard_tab_id") for dc in dashcards}) > 1:
-                raise ValueError("Cards are on more than one tab. Move them onto one tab before removing every tab.")
-            for dc in dashcards:
-                # A dashboard getting its first tabs puts every card on the first one; one losing its tabs keeps them.
-                if not tabs:
-                    dc["dashboard_tab_id"] = None
-                elif dc.get("dashboard_tab_id") is None:
-                    dc["dashboard_tab_id"] = tabs[0]["id"]
+            # Negative ids mark new tabs for Metabase to create.
+            tabs.append({"id": tab_id if tab_id is not None else -(i + 1), "name": name})
 
-            path = f"/dashboard/{_path_id(inputs['dashboard_id'])}"
-            try:
-                updated = await _api(context, "PUT", path, json={"dashcards": dashcards, "tabs": tabs}) or {}
-            except HTTPError as e:
-                # Through a gateway the error body is hidden, so any 400 to this request counts.
-                hidden = not e.response_data
-                if (
-                    tabs
-                    or not old_tabs
-                    or e.status != 400
-                    or not (hidden or "every card has a tab" in str(e.response_data))
-                ):
-                    raise
-                # Metabase 0.49 can't remove a dashboard's last tab. One tab looks the same (Metabase shows no tab
-                # bar for a single tab), so the cards' tab is kept and the others removed.
-                keep = next(
-                    (dc.get("dashboard_tab_id") for dc in existing if dc.get("dashboard_tab_id")), old_tabs[0]["id"]
-                )
-                kept_tab = next(t for t in old_tabs if t.get("id") == keep)
-                dashcards = [{**dc, "dashboard_tab_id": keep} for dc in dashcards]
-                tabs = [{"id": keep, "name": kept_tab.get("name")}]
-                updated = await _api(context, "PUT", path, json={"dashcards": dashcards, "tabs": tabs}) or {}
-                summary = _dashboard_summary(updated)
-                summary["note"] = "This Metabase can't remove the last tab, so one tab was kept; it shows no tab bar."
-                return ActionResult(data=summary, cost_usd=0.0)
-            return ActionResult(data=_dashboard_summary(updated), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
+        kept = {t["id"] for t in tabs}
+        dashcards = _dashcards_for_put(existing)
+        orphaned = [
+            dc["id"]
+            for dc in dashcards
+            if dc.get("dashboard_tab_id") is not None and dc["dashboard_tab_id"] not in kept
+        ]
+        if orphaned and tabs:
+            raise ValueError(
+                f"Cards {orphaned} are on tabs being removed. Move or remove them (update_dashboard_cards) first."
+            )
+        if not tabs and len({dc.get("dashboard_tab_id") for dc in dashcards}) > 1:
+            raise ValueError("Cards are on more than one tab. Move them onto one tab before removing every tab.")
+        for dc in dashcards:
+            # A dashboard getting its first tabs puts every card on the first one; one losing its tabs keeps them.
+            if not tabs:
+                dc["dashboard_tab_id"] = None
+            elif dc.get("dashboard_tab_id") is None:
+                dc["dashboard_tab_id"] = tabs[0]["id"]
+
+        path = f"/dashboard/{_path_id(inputs['dashboard_id'])}"
+        try:
+            updated = await _api(context, "PUT", path, json={"dashcards": dashcards, "tabs": tabs}) or {}
+        except HTTPError as e:
+            # Through a gateway the error body is hidden, so any 400 to this request counts.
+            hidden = not e.response_data
+            if (
+                tabs
+                or not old_tabs
+                or e.status != 400
+                or not (hidden or "every card has a tab" in str(e.response_data))
+            ):
+                raise
+            # Metabase 0.49 can't remove a dashboard's last tab. One tab looks the same (Metabase shows no tab
+            # bar for a single tab), so the cards' tab is kept and the others removed.
+            keep = next(
+                (dc.get("dashboard_tab_id") for dc in existing if dc.get("dashboard_tab_id")), old_tabs[0]["id"]
+            )
+            kept_tab = next(t for t in old_tabs if t.get("id") == keep)
+            dashcards = [{**dc, "dashboard_tab_id": keep} for dc in dashcards]
+            tabs = [{"id": keep, "name": kept_tab.get("name")}]
+            updated = await _api(context, "PUT", path, json={"dashcards": dashcards, "tabs": tabs}) or {}
+            summary = _dashboard_summary(updated)
+            summary["note"] = "This Metabase can't remove the last tab, so one tab was kept; it shows no tab bar."
+            return summary
+        return _dashboard_summary(updated)
 
 
 @metabase.action("update_dashboard_filters")
 class UpdateDashboardFiltersAction(ActionHandler):
     """Set a dashboard's filters: add, change or remove them, their defaults, linked filters and card connections."""
 
+    @_handled(saved_check="get_dashboard")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            dashboard = await _get_dashboard(context, inputs["dashboard_id"])
-            existing = dashboard.get("dashcards") or []
-            by_dashcard = {dc.get("id"): dc for dc in existing}
-            old_params = {p.get("id"): p for p in dashboard.get("parameters") or []}
+        dashboard = await _get_dashboard(context, inputs["dashboard_id"])
+        existing = dashboard.get("dashcards") or []
+        by_dashcard = {dc.get("id"): dc for dc in existing}
+        old_params = {p.get("id"): p for p in dashboard.get("parameters") or []}
 
-            parameters = []
-            connections: Dict[str, List[Dict[str, Any]]] = {}
-            linked_given = set()
-            for f in inputs["filters"]:
-                if not isinstance(f, dict):
-                    continue
-                name = _required_text(f.get("name"), "filter name")
-                filter_type = _required_text(f.get("type"), "filter type")
-                filter_id = f.get("id") or secrets.token_hex(4)
-                if any(p["id"] == f.get("id") for p in parameters):
-                    raise ValueError(f"Filter {f['id']} is listed twice; put all of its changes in one entry.")
-                if f.get("id") and f["id"] not in old_params:
-                    raise ValueError(
-                        f"Filter {f['id']} is not on dashboard {inputs['dashboard_id']}; leave id out for a new filter."
-                    )
-                param = {
-                    **old_params.get(filter_id, {}),
-                    "id": filter_id,
-                    "name": name,
-                    "slug": _slug(name),
-                    "type": filter_type,
-                    "sectionId": filter_type.split("/")[0],
+        parameters = []
+        connections: Dict[str, List[Dict[str, Any]]] = {}
+        linked_given = set()
+        for f in inputs["filters"]:
+            if not isinstance(f, dict):
+                continue
+            name = _required_text(f.get("name"), "filter name")
+            filter_type = _required_text(f.get("type"), "filter type")
+            filter_id = f.get("id") or secrets.token_hex(4)
+            if any(p["id"] == f.get("id") for p in parameters):
+                raise ValueError(f"Filter {f['id']} is listed twice; put all of its changes in one entry.")
+            if f.get("id") and f["id"] not in old_params:
+                raise ValueError(
+                    f"Filter {f['id']} is not on dashboard {inputs['dashboard_id']}; leave id out for a new filter."
+                )
+            param = {
+                **old_params.get(filter_id, {}),
+                "id": filter_id,
+                "name": name,
+                "slug": _slug(name),
+                "type": filter_type,
+                "sectionId": filter_type.split("/")[0],
+            }
+            if filter_id in old_params and old_params[filter_id].get("type") != filter_type:
+                # Settings for the old type (a text default or value list on a date filter) would break the new one.
+                for key in ("default", "values_source_type", "values_source_config", "temporal_units"):
+                    param.pop(key, None)
+            if "default" in f:
+                param["default"] = f["default"]
+            if "required" in f:
+                param["required"] = bool(f["required"])
+            if param.get("required") and param.get("default") is None:
+                raise ValueError(f"Filter {name} is required, so it needs a default value.")
+            if "linked_filter_ids" in f:
+                param["filteringParameters"] = list(f["linked_filter_ids"] or [])
+                linked_given.add(filter_id)
+            parameters.append(param)
+            if "connections" in f:
+                connections[filter_id] = list(f["connections"] or [])
+
+        slugs = [p["slug"] for p in parameters]
+        if len(set(slugs)) != len(slugs):
+            raise ValueError("Two filters would have the same name; give each filter a different name.")
+        kept = {p["id"] for p in parameters}
+        for p in parameters:
+            links = p.get("filteringParameters")
+            unknown = [i for i in links or [] if i not in kept]
+            if unknown and p["id"] in linked_given:
+                raise ValueError(f"Filter {p['name']} is linked to {', '.join(map(str, unknown))}, which isn't kept.")
+            if unknown:
+                # A removed filter is dropped from the filters linked to it.
+                p["filteringParameters"] = [i for i in links if i in kept]
+        dashcards = _dashcards_for_put(existing)
+        for dc in dashcards:
+            # Connections of removed filters go; filters given new connections replace their old ones.
+            mappings = [
+                m
+                for m in dc.get("parameter_mappings") or []
+                if m.get("parameter_id") in kept and m.get("parameter_id") not in connections
+            ]
+            dc["parameter_mappings"] = mappings
+            if dc.get("inline_parameters"):
+                # Filters shown on the card itself (Metabase 0.55+) go when the filter is removed.
+                dc["inline_parameters"] = [p for p in dc["inline_parameters"] if p in kept]
+        for filter_id, conns in connections.items():
+            for conn in conns:
+                original = by_dashcard.get(conn.get("dashcard_id"))
+                if not original or not original.get("card_id"):
+                    raise ValueError(f"Card {conn.get('dashcard_id')} is not a question card on this dashboard.")
+                # A combined chart's other questions are connected by giving their question_id.
+                questions = {original["card_id"]: original.get("card") or {}} | {
+                    sr.get("id"): sr for sr in original.get("series") or []
                 }
-                if filter_id in old_params and old_params[filter_id].get("type") != filter_type:
-                    # Settings for the old type (a text default or value list on a date filter) would break the new one.
-                    for key in ("default", "values_source_type", "values_source_config", "temporal_units"):
-                        param.pop(key, None)
-                if "default" in f:
-                    param["default"] = f["default"]
-                if "required" in f:
-                    param["required"] = bool(f["required"])
-                if param.get("required") and param.get("default") is None:
-                    raise ValueError(f"Filter {name} is required, so it needs a default value.")
-                if "linked_filter_ids" in f:
-                    param["filteringParameters"] = list(f["linked_filter_ids"] or [])
-                    linked_given.add(filter_id)
-                parameters.append(param)
-                if "connections" in f:
-                    connections[filter_id] = list(f["connections"] or [])
-
-            slugs = [p["slug"] for p in parameters]
-            if len(set(slugs)) != len(slugs):
-                raise ValueError("Two filters would have the same name; give each filter a different name.")
-            kept = {p["id"] for p in parameters}
-            for p in parameters:
-                links = p.get("filteringParameters")
-                unknown = [i for i in links or [] if i not in kept]
-                if unknown and p["id"] in linked_given:
-                    raise ValueError(
-                        f"Filter {p['name']} is linked to {', '.join(map(str, unknown))}, which isn't kept."
-                    )
-                if unknown:
-                    # A removed filter is dropped from the filters linked to it.
-                    p["filteringParameters"] = [i for i in links if i in kept]
-            dashcards = _dashcards_for_put(existing)
-            for dc in dashcards:
-                # Connections of removed filters go; filters given new connections replace their old ones.
-                mappings = [
-                    m
-                    for m in dc.get("parameter_mappings") or []
-                    if m.get("parameter_id") in kept and m.get("parameter_id") not in connections
-                ]
-                dc["parameter_mappings"] = mappings
-                if dc.get("inline_parameters"):
-                    # Filters shown on the card itself (Metabase 0.55+) go when the filter is removed.
-                    dc["inline_parameters"] = [p for p in dc["inline_parameters"] if p in kept]
-            for filter_id, conns in connections.items():
-                for conn in conns:
-                    original = by_dashcard.get(conn.get("dashcard_id"))
-                    if not original or not original.get("card_id"):
-                        raise ValueError(f"Card {conn.get('dashcard_id')} is not a question card on this dashboard.")
-                    # A combined chart's other questions are connected by giving their question_id.
-                    questions = {original["card_id"]: original.get("card") or {}} | {
-                        sr.get("id"): sr for sr in original.get("series") or []
+                question_id = conn.get("question_id") or original["card_id"]
+                if question_id not in questions:
+                    raise ValueError(f"Question {question_id} isn't shown on card {original['id']}.")
+                dc = next(d for d in dashcards if d.get("id") == original["id"])
+                dc["parameter_mappings"].append(
+                    {
+                        "parameter_id": filter_id,
+                        "card_id": question_id,
+                        "target": _filter_target(original, questions[question_id], conn),
                     }
-                    question_id = conn.get("question_id") or original["card_id"]
-                    if question_id not in questions:
-                        raise ValueError(f"Question {question_id} isn't shown on card {original['id']}.")
-                    dc = next(d for d in dashcards if d.get("id") == original["id"])
-                    dc["parameter_mappings"].append(
-                        {
-                            "parameter_id": filter_id,
-                            "card_id": question_id,
-                            "target": _filter_target(original, questions[question_id], conn),
-                        }
-                    )
+                )
 
-            removed = set(old_params) - kept
-            if (
-                connections
-                or removed
-                or any(p.get("default") != old_params.get(p["id"], {}).get("default") for p in parameters)
-            ):
-                # Subscriptions run the questions with the filter defaults and connections, so new ones are checked;
-                # a removed filter changes what they run too.
-                if await _has_subscriptions(context, dashboard.get("id")):
-                    await _check_dashboard_questions(
-                        context, {**dashboard, "parameters": parameters, "dashcards": dashcards}
-                    )
-            updated = await _put_dashboard_layout(
-                context,
-                inputs["dashboard_id"],
-                dashcards,
-                _tabs_for_put(dashboard.get("tabs") or []),
-                parameters=parameters,
-            )
-            return ActionResult(data=_dashboard_summary(updated), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="get_dashboard"))
+        removed = set(old_params) - kept
+        if (
+            connections
+            or removed
+            or any(p.get("default") != old_params.get(p["id"], {}).get("default") for p in parameters)
+        ):
+            # Subscriptions run the questions with the filter defaults and connections, so new ones are checked;
+            # a removed filter changes what they run too.
+            if await _has_subscriptions(context, dashboard.get("id")):
+                await _check_dashboard_questions(
+                    context, {**dashboard, "parameters": parameters, "dashcards": dashcards}
+                )
+        updated = await _put_dashboard_layout(
+            context,
+            inputs["dashboard_id"],
+            dashcards,
+            _tabs_for_put(dashboard.get("tabs") or []),
+            parameters=parameters,
+        )
+        return _dashboard_summary(updated)
 
 
 @metabase.action("copy_dashboard")
 class CopyDashboardAction(ActionHandler):
     """Copy a dashboard, optionally with copies of its questions."""
 
+    @_handled(saved_check="search")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            dashboard_id = _path_id(inputs["dashboard_id"])
-            name = _required_text(inputs["name"], "name")
-            collection_id = inputs.get("collection_id")
-            copy_questions = bool(inputs.get("copy_questions", False))
-            if collection_id is None or copy_questions:
-                original = await _get_dashboard(context, inputs["dashboard_id"])
-                if collection_id is None:
-                    # Metabase puts a copy at the top level unless told otherwise; keep it next to the original.
-                    collection_id = original.get("collection_id")
-                if copy_questions:
-                    # Copies of the questions are new saved SQL, so they are checked like any question saved here.
-                    await _check_dashboard_questions(context, original, saving=True)
-            body = _with_optional(
-                {"is_deep_copy": copy_questions, "name": name},
-                description=inputs.get("description"),
-                collection_id=collection_id,
-            )
-            copy = await _api(context, "POST", f"/dashboard/{dashboard_id}/copy", json=body) or {}
-            if copy.get("id") is None:
-                raise ValueError("Metabase did not return a dashboard id")
-            return ActionResult(
-                data={"id": copy.get("id"), "name": copy.get("name"), "collection_id": copy.get("collection_id")},
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="search"))
+        dashboard_id = _path_id(inputs["dashboard_id"])
+        name = _required_text(inputs["name"], "name")
+        collection_id = inputs.get("collection_id")
+        copy_questions = bool(inputs.get("copy_questions", False))
+        if collection_id is None or copy_questions:
+            original = await _get_dashboard(context, inputs["dashboard_id"])
+            if collection_id is None:
+                # Metabase puts a copy at the top level unless told otherwise; keep it next to the original.
+                collection_id = original.get("collection_id")
+            if copy_questions:
+                # Copies of the questions are new saved SQL, so they are checked like any question saved here.
+                await _check_dashboard_questions(context, original, saving=True)
+        body = _with_optional(
+            {"is_deep_copy": copy_questions, "name": name},
+            description=inputs.get("description"),
+            collection_id=collection_id,
+        )
+        copy = await _api(context, "POST", f"/dashboard/{dashboard_id}/copy", json=body) or {}
+        _require_id(copy, "a dashboard")
+        return {"id": copy.get("id"), "name": copy.get("name"), "collection_id": copy.get("collection_id")}
 
 
 def _fit_rows(summary: Dict[str, Any], chars_left: int) -> int:
@@ -2421,87 +2355,82 @@ def _fit_rows(summary: Dict[str, Any], chars_left: int) -> int:
 class RunDashboardAction(ActionHandler):
     """Run every question on a dashboard (or one tab) with filter values, and return each card's rows."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            dashboard = await _get_dashboard(context, inputs["dashboard_id"])
-            max_rows = _clamp(inputs.get("max_rows"), DEFAULT_DASHBOARD_RUN_ROWS, MAX_ROWS_LIMIT)
-            tab_id = inputs.get("tab_id")
-            if tab_id is not None:
-                _check_tab(tab_id, dashboard.get("tabs") or [], inputs["dashboard_id"])
-            params = dashboard.get("parameters") or []
-            by_key = {p.get("id"): p for p in params} | {p.get("slug"): p for p in params}
+        dashboard = await _get_dashboard(context, inputs["dashboard_id"])
+        max_rows = _clamp(inputs.get("max_rows"), DEFAULT_DASHBOARD_RUN_ROWS, MAX_ROWS_LIMIT)
+        tab_id = inputs.get("tab_id")
+        if tab_id is not None:
+            _check_tab(tab_id, dashboard.get("tabs") or [], inputs["dashboard_id"])
+        params = dashboard.get("parameters") or []
+        by_key = {p.get("id"): p for p in params} | {p.get("slug"): p for p in params}
 
-            # Filter values: the ones given (by id or slug), else each filter's default, sent explicitly so the
-            # checked SQL and the run use the same values.
-            values = _default_values(dashboard)
-            for given in inputs.get("filters") or []:
-                param = by_key.get(given.get("filter")) if isinstance(given, dict) else None
-                if param is None:
-                    raise ValueError(
-                        f"No filter {given.get('filter') if isinstance(given, dict) else given} on this dashboard."
+        # Filter values: the ones given (by id or slug), else each filter's default, sent explicitly so the
+        # checked SQL and the run use the same values.
+        values = _default_values(dashboard)
+        for given in inputs.get("filters") or []:
+            param = by_key.get(given.get("filter")) if isinstance(given, dict) else None
+            if param is None:
+                raise ValueError(
+                    f"No filter {given.get('filter') if isinstance(given, dict) else given} on this dashboard."
+                )
+            values[param["id"]] = {"id": param["id"], "type": param.get("type"), "value": given.get("value")}
+
+        dashcards = [
+            dc for dc in dashboard.get("dashcards") or [] if tab_id is None or dc.get("dashboard_tab_id") == tab_id
+        ]
+        questions = _dashboard_questions(dashcards)
+        results = []
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + DASHBOARD_RUN_SECONDS
+        chars_left = MAX_DASHBOARD_RESULT_CHARS
+        for dc, card_id, card_name in questions[:MAX_DASHBOARD_CARDS_RUN]:
+            seconds_left = deadline - loop.time()
+            if seconds_left < MIN_DASHBOARD_CARD_SECONDS or chars_left <= 0:
+                break
+            summary = {"dashcard_id": dc.get("id"), "card_id": card_id, "card_name": card_name}
+
+            async def run() -> Any:
+                card_params = _card_parameters_for(dc, values, card_id)
+                # A dashboard run applies a SQL filter's own default but not the question's saved filter
+                # defaults, so the question is also checked without those.
+                await _checked_parameters(context, _path_id(card_id), card_params)
+                used = [values[p] for p in dict.fromkeys(p["id"] for p in card_params)]
+                return await _api(
+                    context,
+                    "POST",
+                    f"/dashboard/{_path_id(dashboard.get('id'))}/dashcard/{_path_id(dc['id'])}/card/{_path_id(card_id)}/query",
+                    json={"parameters": used},
+                    timeout=min(QUERY_TIMEOUT_SECONDS, max(1, int(deadline - loop.time()))),
+                )
+
+            try:
+                # The check's requests count against the time left too, not just the query.
+                summary.update(_query_result(await asyncio.wait_for(run(), seconds_left), max_rows))
+            except Exception as e:
+                summary["error"] = _error_message(e, context=context)
+            chars_left = _fit_rows(summary, chars_left)
+            results.append(summary)
+        skipped = len(questions) - len(results)
+        return {
+            "dashboard_id": dashboard.get("id"),
+            "cards": results,
+            "card_count": len(results),
+            "skipped_card_count": skipped,
+            **(
+                {
+                    "skipped_reason": (
+                        "Stopped early to stay within the time or size limit"
+                        if skipped > max(len(questions) - MAX_DASHBOARD_CARDS_RUN, 0)
+                        else f"Only {MAX_DASHBOARD_CARDS_RUN} cards are run at a time"
                     )
-                values[param["id"]] = {"id": param["id"], "type": param.get("type"), "value": given.get("value")}
-
-            dashcards = [
-                dc for dc in dashboard.get("dashcards") or [] if tab_id is None or dc.get("dashboard_tab_id") == tab_id
-            ]
-            questions = _dashboard_questions(dashcards)
-            results = []
-            loop = asyncio.get_running_loop()
-            deadline = loop.time() + DASHBOARD_RUN_SECONDS
-            chars_left = MAX_DASHBOARD_RESULT_CHARS
-            for dc, card_id, card_name in questions[:MAX_DASHBOARD_CARDS_RUN]:
-                seconds_left = deadline - loop.time()
-                if seconds_left < MIN_DASHBOARD_CARD_SECONDS or chars_left <= 0:
-                    break
-                summary = {"dashcard_id": dc.get("id"), "card_id": card_id, "card_name": card_name}
-
-                async def run() -> Any:
-                    card_params = _card_parameters_for(dc, values, card_id)
-                    # A dashboard run applies a SQL filter's own default but not the question's saved filter
-                    # defaults, so the question is also checked without those.
-                    await _checked_parameters(context, _path_id(card_id), card_params)
-                    used = [values[p] for p in dict.fromkeys(p["id"] for p in card_params)]
-                    return await _api(
-                        context,
-                        "POST",
-                        f"/dashboard/{_path_id(dashboard.get('id'))}/dashcard/{_path_id(dc['id'])}/card/{_path_id(card_id)}/query",
-                        json={"parameters": used},
-                        timeout=min(QUERY_TIMEOUT_SECONDS, max(1, int(deadline - loop.time()))),
-                    )
-
-                try:
-                    # The check's requests count against the time left too, not just the query.
-                    summary.update(_query_result(await asyncio.wait_for(run(), seconds_left), max_rows))
-                except Exception as e:
-                    summary["error"] = _error_message(e, context=context)
-                chars_left = _fit_rows(summary, chars_left)
-                results.append(summary)
-            skipped = len(questions) - len(results)
-            return ActionResult(
-                data={
-                    "dashboard_id": dashboard.get("id"),
-                    "cards": results,
-                    "card_count": len(results),
-                    "skipped_card_count": skipped,
-                    **(
-                        {
-                            "skipped_reason": (
-                                "Stopped early to stay within the time or size limit"
-                                if skipped > max(len(questions) - MAX_DASHBOARD_CARDS_RUN, 0)
-                                else f"Only {MAX_DASHBOARD_CARDS_RUN} cards are run at a time"
-                            )
-                            + "; run the skipped questions with run_question, or this action with tab_id or a lower "
-                            "max_rows."
-                        }
-                        if skipped
-                        else {}
-                    ),
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+                    + "; run the skipped questions with run_question, or this action with tab_id or a lower "
+                    "max_rows."
+                }
+                if skipped
+                else {}
+            ),
+        }
 
 
 # ---- History ----
@@ -2540,70 +2469,63 @@ async def _revert(context: ExecutionContext, body: Dict[str, Any]) -> Dict[str, 
 class GetRevisionHistoryAction(ActionHandler):
     """List the saved versions of a question, model, metric, dashboard or segment."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            entity = await _revision_entity(context, inputs["item_type"])
-            data = await _revisions(context, entity, inputs["item_id"])
-            revisions = [
-                {
-                    "revision_id": r.get("id"),
-                    "description": r.get("description"),
-                    "timestamp": r.get("timestamp"),
-                    "user": (r.get("user") or {}).get("common_name"),
-                    "is_creation": bool(r.get("is_creation")),
-                    "is_reversion": bool(r.get("is_reversion")),
-                    "most_recent": bool(r.get("most_recent")),
-                }
-                for r in _list_data(data)
-            ]
-            return ActionResult(data={"revisions": revisions, "count": len(revisions)}, cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        entity = await _revision_entity(context, inputs["item_type"])
+        data = await _revisions(context, entity, inputs["item_id"])
+        revisions = [
+            {
+                "revision_id": r.get("id"),
+                "description": r.get("description"),
+                "timestamp": r.get("timestamp"),
+                "user": (r.get("user") or {}).get("common_name"),
+                "is_creation": bool(r.get("is_creation")),
+                "is_reversion": bool(r.get("is_reversion")),
+                "most_recent": bool(r.get("most_recent")),
+            }
+            for r in _list_data(data)
+        ]
+        return {"revisions": revisions, "count": len(revisions)}
 
 
 @metabase.action("revert_to_revision")
 class RevertToRevisionAction(ActionHandler):
     """Put a question, model, metric, dashboard or segment back to an earlier saved version."""
 
+    @_handled(saved_check="get_revision_history")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            entity = await _revision_entity(context, inputs["item_type"])
-            body = {"entity": entity, "id": inputs["item_id"], "revision_id": inputs["revision_id"]}
-            item_id = inputs["item_id"]
-            checked = entity == "card" or (entity == "dashboard" and await _has_subscriptions(context, item_id))
-            current = None
-            if checked:
-                history = _list_data(await _revisions(context, entity, item_id))
-                current = next((r.get("id") for r in history if r.get("most_recent")), None)
-            revision = await _revert(context, body)
-            if checked:
-                try:
-                    if entity == "card":
-                        await _checked_parameters(context, _path_id(item_id), [], saving=True)
-                    else:
-                        # Its subscriptions send the questions with the old version's filter defaults and connections.
-                        await _check_dashboard_questions(context, await _get_dashboard(context, item_id))
-                except Exception as e:
-                    # A question put back to SQL that writes would run it for anyone (or any alert) that runs it, and
-                    # one that couldn't be checked isn't known to be safe, so either way it is put back.
-                    if current is not None:
-                        await _revert(context, {**body, "revision_id": current})
-                    reason = "is refused" if isinstance(e, ValueError) else "couldn't be checked"
-                    raise ValueError(
-                        f"Not reverted: that version's SQL {reason}, so the {inputs['item_type']} was put back. "
-                        f"{_error_message(e, context=context)}"
-                    ) from None
-            return ActionResult(
-                data={
-                    "item_type": inputs["item_type"],
-                    "item_id": inputs["item_id"],
-                    "new_revision_id": revision.get("id"),
-                    "description": revision.get("description"),
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="get_revision_history"))
+        entity = await _revision_entity(context, inputs["item_type"])
+        body = {"entity": entity, "id": inputs["item_id"], "revision_id": inputs["revision_id"]}
+        item_id = inputs["item_id"]
+        checked = entity == "card" or (entity == "dashboard" and await _has_subscriptions(context, item_id))
+        current = None
+        if checked:
+            history = _list_data(await _revisions(context, entity, item_id))
+            current = next((r.get("id") for r in history if r.get("most_recent")), None)
+        revision = await _revert(context, body)
+        if checked:
+            try:
+                if entity == "card":
+                    await _checked_parameters(context, _path_id(item_id), [], saving=True)
+                else:
+                    # Its subscriptions send the questions with the old version's filter defaults and connections.
+                    await _check_dashboard_questions(context, await _get_dashboard(context, item_id))
+            except Exception as e:
+                # A question put back to SQL that writes would run it for anyone (or any alert) that runs it, and
+                # one that couldn't be checked isn't known to be safe, so either way it is put back.
+                if current is not None:
+                    await _revert(context, {**body, "revision_id": current})
+                reason = "is refused" if isinstance(e, ValueError) else "couldn't be checked"
+                raise ValueError(
+                    f"Not reverted: that version's SQL {reason}, so the {inputs['item_type']} was put back. "
+                    f"{_error_message(e, context=context)}"
+                ) from None
+        return {
+            "item_type": inputs["item_type"],
+            "item_id": inputs["item_id"],
+            "new_revision_id": revision.get("id"),
+            "description": revision.get("description"),
+        }
 
 
 # ---- Editing questions, models and metrics ----
@@ -2613,197 +2535,180 @@ class RevertToRevisionAction(ActionHandler):
 class UpdateQuestionAction(ActionHandler):
     """Change a saved question, model or metric: name, description, SQL, chart type, chart settings or collection."""
 
+    @_handled(saved_check="get_question")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            card_id = _path_id(inputs["question_id"])
-            body = _with_optional(
-                {},
-                name=inputs.get("name"),
-                description=inputs.get("description"),
-                display=inputs.get("display"),
-                collection_id=inputs.get("collection_id"),
-            )
-            settings = inputs.get("visualization_settings")
-            if inputs.get("filters") and inputs.get("sql") is None:
-                raise ValueError("filters can only be given together with sql.")
-            if inputs.get("sql") is not None or settings is not None:
-                card = await _api(context, "GET", f"/card/{card_id}") or {}
-                if inputs.get("sql") is not None:
-                    database_id = card.get("database_id") or (card.get("dataset_query") or {}).get("database")
-                    sql = _required_text(inputs["sql"], "sql")
-                    _, existing = _saved_native(card.get("dataset_query") or {})
-                    tags = await _template_tags(context, sql, inputs.get("filters"), existing)
-                    body["dataset_query"] = _updated_native_query(card, database_id, sql, tags)
-                    await _check_new_sql(context, database_id, sql, body["dataset_query"], tags)
+        card_id = _path_id(inputs["question_id"])
+        body = _with_optional(
+            {},
+            name=inputs.get("name"),
+            description=inputs.get("description"),
+            display=inputs.get("display"),
+            collection_id=inputs.get("collection_id"),
+        )
+        settings = inputs.get("visualization_settings")
+        if inputs.get("filters") and inputs.get("sql") is None:
+            raise ValueError("filters can only be given together with sql.")
+        if inputs.get("sql") is not None or settings is not None:
+            card = await _api(context, "GET", f"/card/{card_id}") or {}
+            if inputs.get("sql") is not None:
+                database_id = card.get("database_id") or (card.get("dataset_query") or {}).get("database")
+                sql = _required_text(inputs["sql"], "sql")
+                _, existing = _saved_native(card.get("dataset_query") or {})
+                tags = await _template_tags(context, sql, inputs.get("filters"), existing)
+                body["dataset_query"] = _updated_native_query(card, database_id, sql, tags)
+                await _check_new_sql(context, database_id, sql, body["dataset_query"], tags)
 
-                if settings is not None:
-                    if not isinstance(settings, dict):
-                        raise ValueError("visualization_settings must be an object")
-                    # Given keys are merged into the saved settings; a key set to null is removed.
-                    merged = {**(card.get("visualization_settings") or {}), **settings}
-                    body["visualization_settings"] = {k: v for k, v in merged.items() if v is not None}
-            if not body:
-                raise ValueError(
-                    "Give a change: name, description, sql, display, visualization_settings or collection_id."
-                )
-            card = await _api(context, "PUT", f"/card/{card_id}", json=body) or {}
-            return ActionResult(data=_card_summary(card), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="get_question"))
+            if settings is not None:
+                if not isinstance(settings, dict):
+                    raise ValueError("visualization_settings must be an object")
+                # Given keys are merged into the saved settings; a key set to null is removed.
+                merged = {**(card.get("visualization_settings") or {}), **settings}
+                body["visualization_settings"] = {k: v for k, v in merged.items() if v is not None}
+        if not body:
+            raise ValueError("Give a change: name, description, sql, display, visualization_settings or collection_id.")
+        card = await _api(context, "PUT", f"/card/{card_id}", json=body) or {}
+        return _card_summary(card)
 
 
 @metabase.action("copy_question")
 class CopyQuestionAction(ActionHandler):
     """Copy a saved question, model or metric, optionally renaming it or putting it in another collection."""
 
+    @_handled(saved_check="search")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            # The copy is new saved SQL, so the question is checked like any question saved here.
-            await _checked_parameters(context, _path_id(inputs["question_id"]), [], saving=True)
-            card = await _api(context, "POST", f"/card/{_path_id(inputs['question_id'])}/copy") or {}
-            if card.get("id") is None:
-                raise ValueError("Metabase did not return a question id")
-            changes = _with_optional({}, name=inputs.get("name"), collection_id=inputs.get("collection_id"))
-            if changes:
-                try:
-                    card = await _api(context, "PUT", f"/card/{_path_id(card['id'])}", json=changes) or card
-                except Exception as e:
-                    raise ValueError(
-                        f"The copy was made as question {card['id']} but couldn't be renamed or moved: "
-                        f"{_error_message(e, context=context)}. Change it with update_question, don't copy again."
-                    ) from None
-            return ActionResult(data=_card_summary(card), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="search"))
+        # The copy is new saved SQL, so the question is checked like any question saved here.
+        await _checked_parameters(context, _path_id(inputs["question_id"]), [], saving=True)
+        card = await _api(context, "POST", f"/card/{_path_id(inputs['question_id'])}/copy") or {}
+        _require_id(card, "a question")
+        changes = _with_optional({}, name=inputs.get("name"), collection_id=inputs.get("collection_id"))
+        if changes:
+            try:
+                card = await _api(context, "PUT", f"/card/{_path_id(card['id'])}", json=changes) or card
+            except Exception as e:
+                raise ValueError(
+                    f"The copy was made as question {card['id']} but couldn't be renamed or moved: "
+                    f"{_error_message(e, context=context)}. Change it with update_question, don't copy again."
+                ) from None
+        return _card_summary(card)
 
 
 @metabase.action("create_query_builder_question")
 class CreateQueryBuilderQuestionAction(ActionHandler):
     """Save a query-builder (point-and-click) question from a query-builder query."""
 
+    @_handled(saved_check="search")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            query = _mbql_query(inputs["query"])
-            await _check_source_questions(context, query)
-            card = await _create_card(context, inputs, "question", _mbql_dataset_query(inputs["database_id"], query))
-            return ActionResult(data=_card_summary(card), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="search"))
+        query = _mbql_query(inputs["query"])
+        await _check_source_questions(context, query)
+        card = await _create_card(context, inputs, "question", _mbql_dataset_query(inputs["database_id"], query))
+        return _card_summary(card)
 
 
 @metabase.action("create_model")
 class CreateModelAction(ActionHandler):
     """Save a model (a curated table others explore) from SQL or a query-builder query."""
 
+    @_handled(saved_check="search")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            sql, query = inputs.get("sql"), inputs.get("query")
-            if (sql is None) == (query is None):
-                raise ValueError("Give exactly one of sql or query.")
-            if sql is not None:
-                dataset_query = await _new_native_query(context, inputs["database_id"], sql, inputs.get("filters"))
-            else:
-                query = _mbql_query(query)
-                await _check_source_questions(context, query)
-                dataset_query = _mbql_dataset_query(inputs["database_id"], query)
-            card = await _create_card(context, inputs, "model", dataset_query)
-            return ActionResult(data=_card_summary(card), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="search"))
+        sql, query = inputs.get("sql"), inputs.get("query")
+        if (sql is None) == (query is None):
+            raise ValueError("Give exactly one of sql or query.")
+        if sql is not None:
+            # Metabase refuses {{ }} filters in a model; snippets and saved questions are fine.
+            names = [t for t in TEMPLATE_TAG.findall(sql) if not t.startswith(("snippet:", "#"))]
+            if names:
+                raise ValueError(
+                    f"A model can't have {{{{ }}}} filters ({', '.join(names)}); save a question for that instead."
+                )
+            dataset_query = await _new_native_query(context, inputs["database_id"], sql, None)
+        else:
+            query = _mbql_query(query)
+            await _check_source_questions(context, query)
+            dataset_query = _mbql_dataset_query(inputs["database_id"], query)
+        card = await _create_card(context, inputs, "model", dataset_query)
+        return _card_summary(card)
 
 
 @metabase.action("create_metric")
 class CreateMetricAction(ActionHandler):
     """Save a metric (an official reusable calculation) from a query-builder query with one aggregation."""
 
+    @_handled(saved_check="search")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        query = _mbql_query(inputs["query"])
+        if not isinstance(query.get("aggregation"), list) or len(query["aggregation"]) != 1:
+            raise ValueError('A metric\'s query needs exactly one aggregation, e.g. [["sum", ["field", 12, null]]].')
+        await _check_source_questions(context, query)
         try:
-            query = _mbql_query(inputs["query"])
-            if not isinstance(query.get("aggregation"), list) or len(query["aggregation"]) != 1:
-                raise ValueError(
-                    'A metric\'s query needs exactly one aggregation, e.g. [["sum", ["field", 12, null]]].'
-                )
-            await _check_source_questions(context, query)
-            try:
-                card = await _create_card(context, inputs, "metric", _mbql_dataset_query(inputs["database_id"], query))
-            except HTTPError as e:
-                if e.status != 400:
-                    raise
-                # Metabase 0.49 has no metric questions, only the older table metrics.
-                legacy = await _create_legacy_metric(context, inputs, query, e)
-                return ActionResult(data=legacy, cost_usd=0.0)
-            return ActionResult(data=_card_summary(card), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="search"))
+            card = await _create_card(context, inputs, "metric", _mbql_dataset_query(inputs["database_id"], query))
+        except HTTPError as e:
+            if e.status != 400:
+                raise
+            # Metabase 0.49 has no metric questions, only the older table metrics.
+            legacy = await _create_legacy_metric(context, inputs, query, e)
+            return legacy
+        return _card_summary(card)
 
 
 @metabase.action("export_question_results")
 class ExportQuestionResultsAction(ActionHandler):
     """Run a saved question and return its full results as CSV text or JSON rows (more than run_question's 2,000)."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            card_id = _path_id(inputs["question_id"])
-            export_format = inputs.get("format") or "csv"
-            if export_format not in ("csv", "json", "xlsx"):
-                raise ValueError("format must be csv, json or xlsx")
-            max_rows = _clamp(inputs.get("max_rows"), DEFAULT_EXPORT_ROWS, MAX_EXPORT_ROWS)
-            parameters = [_run_parameter(p) for p in inputs.get("parameters") or []]
-            parameters = await _checked_parameters(context, card_id, parameters, also_without_defaults=False)
-            # Export endpoints read their options from a form, as Metabase's own download button sends them.
-            form = {"parameters": json.dumps(parameters), "format_rows": "false"}
-            if export_format == "xlsx":
-                content = await _download(context, f"/card/{card_id}/query/xlsx", form)
-                return ActionResult(
-                    data={
-                        "format": "xlsx",
-                        "file": {
-                            "name": f"question-{inputs['question_id']}.xlsx",
-                            "contentType": XLSX_CONTENT_TYPE,
-                            "content": base64.b64encode(content).decode("ascii"),
-                        },
-                        "row_count": None,
-                        "truncated": False,
-                    },
-                    cost_usd=0.0,
-                )
-            data = await _api(
-                context,
-                "POST",
-                f"/card/{card_id}/query/{export_format}",
-                allow_text=True,
-                data=form,
-                content_type="application/x-www-form-urlencoded",
-                timeout=QUERY_TIMEOUT_SECONDS,
-            )
-            if export_format == "json" and not isinstance(data, dict):
-                rows = data if isinstance(data, list) else []
-                # Whole rows only, within the same size budget as CSV, so the result fits the response limit.
-                kept, size = [], 0
-                for row in rows[:max_rows]:
-                    size += len(json.dumps(row, default=str)) + 1
-                    if size > MAX_EXPORT_CHARS:
-                        break
-                    kept.append(row)
-                return ActionResult(
-                    data={"format": "json", "rows": kept, "row_count": len(kept), "truncated": len(rows) > len(kept)},
-                    cost_usd=0.0,
-                )
-            if isinstance(data, dict):
-                # Metabase reports a failed query as a JSON object instead of the file.
-                raise ValueError(f"Query failed: {data.get('error') or data.get('message') or 'unknown error'}")
-            data = data if isinstance(data, str) else ""
-            if data.lstrip().startswith("{"):
-                # Metabase 0.49 answers a failed CSV export with HTTP 200 and the error as JSON.
-                try:
-                    failure = json.loads(data)
-                except ValueError:
-                    failure = None
-                if isinstance(failure, dict) and (failure.get("error") or failure.get("status") == "failed"):
-                    raise ValueError(f"Query failed: {failure.get('error') or 'unknown error'}")
-            return ActionResult(data=_csv_export(data, max_rows), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        card_id = _path_id(inputs["question_id"])
+        export_format = inputs.get("format") or "csv"
+        if export_format not in ("csv", "json", "xlsx"):
+            raise ValueError("format must be csv, json or xlsx")
+        max_rows = _clamp(inputs.get("max_rows"), DEFAULT_EXPORT_ROWS, MAX_EXPORT_ROWS)
+        parameters = [_run_parameter(p) for p in inputs.get("parameters") or []]
+        parameters = await _checked_parameters(context, card_id, parameters, also_without_defaults=False)
+        # Export endpoints read their options from a form, as Metabase's own download button sends them.
+        form = {"parameters": json.dumps(parameters), "format_rows": "false"}
+        if export_format == "xlsx":
+            content = await _download(context, f"/card/{card_id}/query/xlsx", form)
+            return {
+                "format": "xlsx",
+                "file": {
+                    "name": f"question-{inputs['question_id']}.xlsx",
+                    "contentType": XLSX_CONTENT_TYPE,
+                    "content": base64.b64encode(content).decode("ascii"),
+                },
+                "row_count": None,
+                "truncated": False,
+            }
+        data = await _api(
+            context,
+            "POST",
+            f"/card/{card_id}/query/{export_format}",
+            allow_text=True,
+            data=form,
+            content_type="application/x-www-form-urlencoded",
+            timeout=QUERY_TIMEOUT_SECONDS,
+        )
+        if export_format == "json" and not isinstance(data, dict):
+            rows = data if isinstance(data, list) else []
+            # Whole rows only, within the same size budget as CSV, so the result fits the response limit.
+            kept, size = [], 0
+            for row in rows[:max_rows]:
+                size += len(json.dumps(row, default=str)) + 1
+                if size > MAX_EXPORT_CHARS:
+                    break
+                kept.append(row)
+            return {"format": "json", "rows": kept, "row_count": len(kept), "truncated": len(rows) > len(kept)}
+        if isinstance(data, dict):
+            # Metabase reports a failed query as a JSON object instead of the file.
+            raise ValueError(f"Query failed: {data.get('error') or data.get('message') or 'unknown error'}")
+        data = data if isinstance(data, str) else ""
+        if data.lstrip().startswith("{"):
+            # Metabase 0.49 answers a failed CSV export with HTTP 200 and the error as JSON.
+            try:
+                failure = json.loads(data)
+            except ValueError:
+                failure = None
+            if isinstance(failure, dict) and (failure.get("error") or failure.get("status") == "failed"):
+                raise ValueError(f"Query failed: {failure.get('error') or 'unknown error'}")
+        return _csv_export(data, max_rows)
 
 
 # ---- Segments ----
@@ -2813,59 +2718,52 @@ class ExportQuestionResultsAction(ActionHandler):
 class ListSegmentsAction(ActionHandler):
     """List saved segments (named filters), optionally for one table."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            table_id = inputs.get("table_id")
-            segments = [
-                _segment_summary(s)
-                for s in _list_data(await _api(context, "GET", "/segment"))
-                if table_id is None or s.get("table_id") == table_id
-            ]
-            return ActionResult(data={"segments": segments, "count": len(segments)}, cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        table_id = inputs.get("table_id")
+        segments = [
+            _segment_summary(s)
+            for s in _list_data(await _api(context, "GET", "/segment"))
+            if table_id is None or s.get("table_id") == table_id
+        ]
+        return {"segments": segments, "count": len(segments)}
 
 
 @metabase.action("create_segment")
 class CreateSegmentAction(ActionHandler):
     """Save a segment: a named filter on a table, such as 'Active customers'."""
 
+    @_handled(saved_check="list_segments")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            body = _with_optional(
-                {
-                    "name": _required_text(inputs["name"], "name"),
-                    "table_id": inputs["table_id"],
-                    "definition": await _segment_definition(context, inputs["table_id"], inputs["filter"]),
-                },
-                description=inputs.get("description"),
-            )
-            segment = await _save_segment(context, "POST", "/segment", body)
-            if segment.get("id") is None:
-                raise ValueError("Metabase did not return a segment id")
-            return ActionResult(data=_segment_summary(segment), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="list_segments"))
+        body = _with_optional(
+            {
+                "name": _required_text(inputs["name"], "name"),
+                "table_id": inputs["table_id"],
+                "definition": await _segment_definition(context, inputs["table_id"], inputs["filter"]),
+            },
+            description=inputs.get("description"),
+        )
+        segment = await _save_segment(context, "POST", "/segment", body)
+        _require_id(segment, "a segment")
+        return _segment_summary(segment)
 
 
 @metabase.action("update_segment")
 class UpdateSegmentAction(ActionHandler):
     """Change a segment's name, description or filter."""
 
+    @_handled(saved_check="list_segments")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            segment_id = _path_id(inputs["segment_id"])
-            body = _with_optional({}, name=inputs.get("name"), description=inputs.get("description"))
-            if inputs.get("filter") is not None:
-                segment = await _api(context, "GET", f"/segment/{segment_id}") or {}
-                body["definition"] = await _segment_definition(context, segment.get("table_id"), inputs["filter"])
-            if not body:
-                raise ValueError("Give at least one of name, description or filter.")
-            body["revision_message"] = SEGMENT_REVISION_MESSAGE
-            segment = await _save_segment(context, "PUT", f"/segment/{segment_id}", body)
-            return ActionResult(data=_segment_summary(segment), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="list_segments"))
+        segment_id = _path_id(inputs["segment_id"])
+        body = _with_optional({}, name=inputs.get("name"), description=inputs.get("description"))
+        if inputs.get("filter") is not None:
+            segment = await _api(context, "GET", f"/segment/{segment_id}") or {}
+            body["definition"] = await _segment_definition(context, segment.get("table_id"), inputs["filter"])
+        if not body:
+            raise ValueError("Give at least one of name, description or filter.")
+        body["revision_message"] = SEGMENT_REVISION_MESSAGE
+        segment = await _save_segment(context, "PUT", f"/segment/{segment_id}", body)
+        return _segment_summary(segment)
 
 
 # ---- Organising content ----
@@ -2875,79 +2773,70 @@ class UpdateSegmentAction(ActionHandler):
 class UpdateCollectionAction(ActionHandler):
     """Rename a collection, change its description, or move it into another collection."""
 
+    @_handled(saved_check="list_collections")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            body = _with_optional(
-                {},
-                name=inputs.get("name"),
-                description=inputs.get("description"),
-                parent_id=inputs.get("parent_collection_id"),
-            )
-            if inputs.get("move_to_root"):
-                if inputs.get("parent_collection_id") is not None:
-                    raise ValueError("Give either parent_collection_id or move_to_root, not both.")
-                body["parent_id"] = None
-            if not body:
-                raise ValueError("Give at least one of name, description, parent_collection_id or move_to_root.")
-            collection = await _api(context, "PUT", f"/collection/{_path_id(inputs['collection_id'])}", json=body) or {}
-            return ActionResult(
-                data={
-                    "id": collection.get("id"),
-                    "name": collection.get("name"),
-                    "description": collection.get("description"),
-                    "parent_id": _parent_from_location(collection.get("location")),
-                    "location": collection.get("location"),
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="list_collections"))
+        body = _with_optional(
+            {},
+            name=inputs.get("name"),
+            description=inputs.get("description"),
+            parent_id=inputs.get("parent_collection_id"),
+        )
+        if inputs.get("move_to_root"):
+            if inputs.get("parent_collection_id") is not None:
+                raise ValueError("Give either parent_collection_id or move_to_root, not both.")
+            body["parent_id"] = None
+        if not body:
+            raise ValueError("Give at least one of name, description, parent_collection_id or move_to_root.")
+        collection = await _api(context, "PUT", f"/collection/{_path_id(inputs['collection_id'])}", json=body) or {}
+        return {
+            "id": collection.get("id"),
+            "name": collection.get("name"),
+            "description": collection.get("description"),
+            "parent_id": _parent_from_location(collection.get("location")),
+            "location": collection.get("location"),
+        }
 
 
 @metabase.action("move_items")
 class MoveItemsAction(ActionHandler):
     """Move questions, models, metrics, dashboards or collections into a collection (or the root)."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            target = inputs.get("collection_id")
-            if (target is None) == (not inputs.get("move_to_root")):
-                raise ValueError("Give either collection_id, or move_to_root to move items to the top level.")
-            results = []
-            for item in inputs["items"]:
-                item_type = item.get("item_type") if isinstance(item, dict) else None
-                path = (
-                    ARCHIVE_PATHS.get(item_type)
-                    if item_type in ("question", "model", "metric", "dashboard", "collection")
-                    else None
-                )
-                result: Dict[str, Any] = {
-                    "item_type": item_type,
-                    "id": item.get("id") if isinstance(item, dict) else None,
-                }
-                try:
-                    if path is None:
-                        raise ValueError("item_type must be question, model, metric, dashboard or collection")
-                    if item_type == "metric" and await _has_legacy_metrics(context):
-                        raise ValueError("On Metabase 0.49 metrics belong to a table, not a collection.")
-                    key = "parent_id" if item_type == "collection" else "collection_id"
-                    body: Dict[str, Any] = {key: target}
-                    if path == "card":
-                        # A question saved inside a dashboard (Metabase 0.53+) has to leave it to move.
-                        card = await _api(context, "GET", f"/card/{_path_id(item['id'])}") or {}
-                        if card.get("dashboard_id") is not None:
-                            body["dashboard_id"] = None
-                    await _api(context, "PUT", f"/{path}/{_path_id(item['id'])}", json=body)
-                    result["moved"] = True
-                except Exception as e:
-                    result.update(moved=False, error=_error_message(e, context=context))
-                results.append(result)
-            moved = sum(1 for r in results if r["moved"])
-            return ActionResult(
-                data={"items": results, "moved_count": moved, "failed_count": len(results) - moved}, cost_usd=0.0
+        target = inputs.get("collection_id")
+        if (target is None) == (not inputs.get("move_to_root")):
+            raise ValueError("Give either collection_id, or move_to_root to move items to the top level.")
+        results = []
+        for item in inputs["items"]:
+            item_type = item.get("item_type") if isinstance(item, dict) else None
+            path = (
+                ARCHIVE_PATHS.get(item_type)
+                if item_type in ("question", "model", "metric", "dashboard", "collection")
+                else None
             )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+            result: Dict[str, Any] = {
+                "item_type": item_type,
+                "id": item.get("id") if isinstance(item, dict) else None,
+            }
+            try:
+                if path is None:
+                    raise ValueError("item_type must be question, model, metric, dashboard or collection")
+                if item_type == "metric" and await _has_legacy_metrics(context):
+                    raise ValueError("On Metabase 0.49 metrics belong to a table, not a collection.")
+                key = "parent_id" if item_type == "collection" else "collection_id"
+                body: Dict[str, Any] = {key: target}
+                if path == "card":
+                    # A question saved inside a dashboard (Metabase 0.53+) has to leave it to move.
+                    card = await _api(context, "GET", f"/card/{_path_id(item['id'])}") or {}
+                    if card.get("dashboard_id") is not None:
+                        body["dashboard_id"] = None
+                await _api(context, "PUT", f"/{path}/{_path_id(item['id'])}", json=body)
+                result["moved"] = True
+            except Exception as e:
+                result.update(moved=False, error=_error_message(e, context=context))
+            results.append(result)
+        moved = sum(1 for r in results if r["moved"])
+        return {"items": results, "moved_count": moved, "failed_count": len(results) - moved}
 
 
 async def _set_archived(context: ExecutionContext, inputs: Dict[str, Any], archived: bool) -> Dict[str, Any]:
@@ -2980,22 +2869,18 @@ async def _set_archived(context: ExecutionContext, inputs: Dict[str, Any], archi
 class ArchiveItemAction(ActionHandler):
     """Move an item to Metabase's trash (or turn an alert off). Nothing is deleted; restore_item brings it back."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            return ActionResult(data=await _set_archived(context, inputs, True), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        return await _set_archived(context, inputs, True)
 
 
 @metabase.action("restore_item")
 class RestoreItemAction(ActionHandler):
     """Bring an item back from Metabase's trash (or turn an alert back on)."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            return ActionResult(data=await _set_archived(context, inputs, False), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        return await _set_archived(context, inputs, False)
 
 
 # ---- Alerts and subscriptions ----
@@ -3005,224 +2890,206 @@ class RestoreItemAction(ActionHandler):
 class ListAlertsAction(ActionHandler):
     """List question alerts, optionally for one question."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        question_id = inputs.get("question_id")
+        include_inactive = "true" if inputs.get("include_inactive") else "false"
+        params = [
+            ("payload_type", "notification/card"),
+            ("include_inactive", include_inactive),
+            ("card_id", question_id),
+        ]
         try:
-            question_id = inputs.get("question_id")
-            include_inactive = "true" if inputs.get("include_inactive") else "false"
-            params = [
-                ("payload_type", "notification/card"),
-                ("include_inactive", include_inactive),
-                ("card_id", question_id),
-            ]
-            try:
-                data = await _api(context, "GET", _with_query("/notification", params))
-            except HTTPError as e:
-                # Metabase before 0.54 keeps alerts at /api/alert.
-                if e.status != 404:
-                    raise
-                # The old API lists either active or archived alerts, so turned-off ones are a second request.
-                data = _list_data(await _api(context, "GET", _with_query("/alert", [("archived", "false")])))
-                if inputs.get("include_inactive"):
-                    data += _list_data(await _api(context, "GET", _with_query("/alert", [("archived", "true")])))
-            alerts = [_alert_summary(a) for a in _list_data(data)]
-            alerts = [a for a in alerts if question_id is None or a["question_id"] == question_id]
-            return ActionResult(data={"alerts": alerts, "count": len(alerts)}, cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+            data = await _api(context, "GET", _with_query("/notification", params))
+        except HTTPError as e:
+            # Metabase before 0.54 keeps alerts at /api/alert.
+            if e.status != 404:
+                raise
+            # The old API lists either active or archived alerts, so turned-off ones are a second request.
+            data = _list_data(await _api(context, "GET", _with_query("/alert", [("archived", "false")])))
+            if inputs.get("include_inactive"):
+                data += _list_data(await _api(context, "GET", _with_query("/alert", [("archived", "true")])))
+        alerts = [_alert_summary(a) for a in _list_data(data)]
+        alerts = [a for a in alerts if question_id is None or a["question_id"] == question_id]
+        return {"alerts": alerts, "count": len(alerts)}
 
 
 @metabase.action("create_alert")
 class CreateAlertAction(ActionHandler):
     """Email people when a saved question has results, or goes above or below its goal line."""
 
+    @_handled(saved_check="list_alerts")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            question_id = inputs["question_id"]
-            condition = inputs.get("condition") or "has_result"
-            if condition not in ALERT_CONDITIONS:
-                raise ValueError("condition must be has_result, goal_above or goal_below")
-            frequency, hour, day = _schedule(inputs)
-            user_ids, emails = _recipients(inputs)
-            send_once = bool(inputs.get("send_once", False))
-            # Metabase runs the question on the schedule with nobody watching, so it is checked like run_question.
-            await _checked_parameters(context, _path_id(question_id), [])
-            notification = {
-                "payload_type": "notification/card",
-                "payload": {"card_id": question_id, "send_condition": condition, "send_once": send_once},
-                "handlers": [
-                    {
-                        "channel_type": "channel/email",
-                        "recipients": [{"type": "notification-recipient/user", "user_id": u} for u in user_ids]
-                        + [{"type": "notification-recipient/raw-value", "details": {"value": e}} for e in emails],
-                    }
-                ],
-                "subscriptions": [
-                    {"type": "notification-subscription/cron", "cron_schedule": _cron(frequency, hour, day)}
-                ],
-            }
-            try:
-                alert = await _api(context, "POST", "/notification", json=notification) or {}
-            except HTTPError as e:
-                # Metabase before 0.54 creates alerts at /api/alert.
-                if e.status != 404:
-                    raise
-                legacy = {
-                    "card": {"id": question_id, "include_csv": False, "include_xls": False},
-                    "alert_condition": "rows" if condition == "has_result" else "goal",
-                    "alert_above_goal": {"goal_above": True, "goal_below": False}.get(condition),
-                    "alert_first_only": send_once,
-                    "channels": [_pulse_channel(frequency, hour, day, user_ids, emails)],
+        question_id = inputs["question_id"]
+        condition = inputs.get("condition") or "has_result"
+        if condition not in ALERT_CONDITIONS:
+            raise ValueError("condition must be has_result, goal_above or goal_below")
+        frequency, hour, day = _schedule(inputs)
+        user_ids, emails = _recipients(inputs)
+        send_once = bool(inputs.get("send_once", False))
+        # Metabase runs the question on the schedule with nobody watching, so it is checked like run_question.
+        await _checked_parameters(context, _path_id(question_id), [])
+        notification = {
+            "payload_type": "notification/card",
+            "payload": {"card_id": question_id, "send_condition": condition, "send_once": send_once},
+            "handlers": [
+                {
+                    "channel_type": "channel/email",
+                    "recipients": [{"type": "notification-recipient/user", "user_id": u} for u in user_ids]
+                    + [{"type": "notification-recipient/raw-value", "details": {"value": e}} for e in emails],
                 }
-                alert = await _api(context, "POST", "/alert", json=legacy) or {}
-            if alert.get("id") is None:
-                raise ValueError("Metabase did not return an alert id")
-            return ActionResult(data=_alert_summary(alert), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="list_alerts"))
+            ],
+            "subscriptions": [{"type": "notification-subscription/cron", "cron_schedule": _cron(frequency, hour, day)}],
+        }
+        try:
+            alert = await _api(context, "POST", "/notification", json=notification) or {}
+        except HTTPError as e:
+            # Metabase before 0.54 creates alerts at /api/alert.
+            if e.status != 404:
+                raise
+            legacy = {
+                "card": {"id": question_id, "include_csv": False, "include_xls": False},
+                "alert_condition": "rows" if condition == "has_result" else "goal",
+                "alert_above_goal": {"goal_above": True, "goal_below": False}.get(condition),
+                "alert_first_only": send_once,
+                "channels": [_pulse_channel(frequency, hour, day, user_ids, emails)],
+            }
+            alert = await _api(context, "POST", "/alert", json=legacy) or {}
+        _require_id(alert, "an alert")
+        return _alert_summary(alert)
 
 
 @metabase.action("list_subscriptions")
 class ListSubscriptionsAction(ActionHandler):
     """List dashboard subscriptions (scheduled emails of a dashboard), optionally for one dashboard."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            params = [
-                ("dashboard_id", inputs.get("dashboard_id")),
-                ("archived", "true" if inputs.get("archived") else None),
-            ]
-            subscriptions = [
-                _subscription_summary(p) for p in _list_data(await _api(context, "GET", _with_query("/pulse", params)))
-            ]
-            return ActionResult(data={"subscriptions": subscriptions, "count": len(subscriptions)}, cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        params = [
+            ("dashboard_id", inputs.get("dashboard_id")),
+            ("archived", "true" if inputs.get("archived") else None),
+        ]
+        subscriptions = [
+            _subscription_summary(p) for p in _list_data(await _api(context, "GET", _with_query("/pulse", params)))
+        ]
+        return {"subscriptions": subscriptions, "count": len(subscriptions)}
 
 
 @metabase.action("create_subscription")
 class CreateSubscriptionAction(ActionHandler):
     """Email a dashboard to people on a schedule."""
 
+    @_handled(saved_check="list_subscriptions")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            dashboard = await _get_dashboard(context, inputs["dashboard_id"])
-            frequency, hour, day = _schedule(inputs)
-            user_ids, emails = _recipients(inputs)
-            cards = [
-                {"id": dc["card_id"], "dashboard_card_id": dc["id"], "include_csv": False, "include_xls": False}
-                for dc in dashboard.get("dashcards") or []
-                if dc.get("card_id") and not dc.get("action_id")
-            ]
-            if not cards:
-                raise ValueError("The dashboard has no questions to send.")
-            # Metabase runs every question (combined charts' series too) on the schedule with the dashboard's filter
-            # defaults and nobody watching, so each is checked that way first.
-            await _check_dashboard_questions(context, dashboard)
-            body = {
-                "name": inputs.get("name") or dashboard.get("name"),
-                "dashboard_id": dashboard.get("id"),
-                "cards": cards,
-                "channels": [_pulse_channel(frequency, hour, day, user_ids, emails)],
-                "skip_if_empty": bool(inputs.get("skip_if_empty", False)),
-            }
-            pulse = await _api(context, "POST", "/pulse", json=body) or {}
-            if pulse.get("id") is None:
-                raise ValueError("Metabase did not return a subscription id")
-            return ActionResult(data=_subscription_summary(pulse), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="list_subscriptions"))
+        dashboard = await _get_dashboard(context, inputs["dashboard_id"])
+        frequency, hour, day = _schedule(inputs)
+        user_ids, emails = _recipients(inputs)
+        cards = [
+            {"id": dc["card_id"], "dashboard_card_id": dc["id"], "include_csv": False, "include_xls": False}
+            for dc in dashboard.get("dashcards") or []
+            if dc.get("card_id") and not dc.get("action_id")
+        ]
+        if not cards:
+            raise ValueError("The dashboard has no questions to send.")
+        # Metabase runs every question (combined charts' series too) on the schedule with the dashboard's filter
+        # defaults and nobody watching, so each is checked that way first.
+        await _check_dashboard_questions(context, dashboard)
+        body = {
+            "name": inputs.get("name") or dashboard.get("name"),
+            "dashboard_id": dashboard.get("id"),
+            "cards": cards,
+            "channels": [_pulse_channel(frequency, hour, day, user_ids, emails)],
+            "skip_if_empty": bool(inputs.get("skip_if_empty", False)),
+        }
+        pulse = await _api(context, "POST", "/pulse", json=body) or {}
+        _require_id(pulse, "a subscription")
+        return _subscription_summary(pulse)
 
 
 @metabase.action("update_subscription")
 class UpdateSubscriptionAction(ActionHandler):
     """Change a dashboard subscription's schedule, recipients, name or skip-if-empty setting."""
 
+    @_handled(saved_check="list_subscriptions")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            path = f"/pulse/{_path_id(inputs['subscription_id'])}"
-            body = _with_optional({}, name=inputs.get("name"), skip_if_empty=inputs.get("skip_if_empty"))
-            schedule = _with_optional(
-                {}, frequency=inputs.get("frequency"), hour=inputs.get("hour"), day_of_week=inputs.get("day_of_week")
-            )
-            recipients = _with_optional(
-                {},
-                recipient_user_ids=inputs.get("recipient_user_ids"),
-                recipient_emails=inputs.get("recipient_emails"),
-            )
-            if not body and not schedule and not recipients:
-                raise ValueError("Give at least one change.")
-            pulse = await _api(context, "GET", path) or {}
-            body = {**_pulse_flags(pulse), **body}
-            if schedule or recipients:
-                channel = next((c for c in pulse.get("channels") or [] if c.get("channel_type") == "email"), {})
-                updated = dict(channel)
-                others = [c for c in pulse.get("channels") or [] if c.get("channel_type") != "email"]
-                # A subscription with no email channel yet gets one on its other channel's schedule.
-                source = channel or (others[0] if others else {})
-                current = {
-                    "frequency": source.get("schedule_type"),
-                    "hour": source.get("schedule_hour"),
-                    "day_of_week": source.get("schedule_day"),
+        path = f"/pulse/{_path_id(inputs['subscription_id'])}"
+        body = _with_optional({}, name=inputs.get("name"), skip_if_empty=inputs.get("skip_if_empty"))
+        schedule = _with_optional(
+            {}, frequency=inputs.get("frequency"), hour=inputs.get("hour"), day_of_week=inputs.get("day_of_week")
+        )
+        recipients = _with_optional(
+            {},
+            recipient_user_ids=inputs.get("recipient_user_ids"),
+            recipient_emails=inputs.get("recipient_emails"),
+        )
+        if not body and not schedule and not recipients:
+            raise ValueError("Give at least one change.")
+        pulse = await _api(context, "GET", path) or {}
+        body = {**_pulse_flags(pulse), **body}
+        if schedule or recipients:
+            channel = next((c for c in pulse.get("channels") or [] if c.get("channel_type") == "email"), {})
+            updated = dict(channel)
+            others = [c for c in pulse.get("channels") or [] if c.get("channel_type") != "email"]
+            # A subscription with no email channel yet gets one on its other channel's schedule.
+            source = channel or (others[0] if others else {})
+            current = {
+                "frequency": source.get("schedule_type"),
+                "hour": source.get("schedule_hour"),
+                "day_of_week": source.get("schedule_day"),
+            }
+            if schedule and current["frequency"] == "monthly" and "frequency" not in schedule:
+                # A monthly schedule (set in Metabase) keeps its week of the month; only the hour or day change.
+                _, hour, day = _schedule({**current, "frequency": "weekly", **schedule})
+                updated.update(
+                    schedule_hour=hour if "hour" in schedule else updated.get("schedule_hour"),
+                    schedule_day=day if "day_of_week" in schedule else updated.get("schedule_day"),
+                )
+            elif schedule:
+                updated.update(_pulse_schedule(*_schedule({**current, **schedule})))
+            # A schedule left alone (monthly ones included) is kept exactly as it is.
+            if recipients:
+                old_users = [r["id"] for r in channel.get("recipients") or [] if r.get("id")]
+                old_emails = [r["email"] for r in channel.get("recipients") or [] if not r.get("id") and r.get("email")]
+                user_ids, emails = _recipients(
+                    {"recipient_user_ids": old_users, "recipient_emails": old_emails, **recipients}
+                )
+                updated["recipients"] = _pulse_recipients(user_ids, emails)
+            if not channel and not recipients:
+                # No email channel and no one to email: the schedule change goes to the channels it has (Slack).
+                others = [{**c, **updated} for c in others]
+                updated = None
+            elif not channel:
+                # Schedule changes are already in updated; otherwise the other channel's schedule is copied.
+                schedule_fields = {
+                    k: source[k]
+                    for k in ("schedule_type", "schedule_hour", "schedule_day", "schedule_frame")
+                    if k in source
                 }
-                if schedule and current["frequency"] == "monthly" and "frequency" not in schedule:
-                    # A monthly schedule (set in Metabase) keeps its week of the month; only the hour or day change.
-                    _, hour, day = _schedule({**current, "frequency": "weekly", **schedule})
-                    updated.update(
-                        schedule_hour=hour if "hour" in schedule else updated.get("schedule_hour"),
-                        schedule_day=day if "day_of_week" in schedule else updated.get("schedule_day"),
-                    )
-                elif schedule:
-                    updated.update(_pulse_schedule(*_schedule({**current, **schedule})))
-                # A schedule left alone (monthly ones included) is kept exactly as it is.
-                if recipients:
-                    old_users = [r["id"] for r in channel.get("recipients") or [] if r.get("id")]
-                    old_emails = [
-                        r["email"] for r in channel.get("recipients") or [] if not r.get("id") and r.get("email")
-                    ]
-                    user_ids, emails = _recipients(
-                        {"recipient_user_ids": old_users, "recipient_emails": old_emails, **recipients}
-                    )
-                    updated["recipients"] = _pulse_recipients(user_ids, emails)
-                if not channel and not recipients:
-                    # No email channel and no one to email: the schedule change goes to the channels it has (Slack).
-                    others = [{**c, **updated} for c in others]
-                    updated = None
-                elif not channel:
-                    # Schedule changes are already in updated; otherwise the other channel's schedule is copied.
-                    schedule_fields = {
-                        k: source[k]
-                        for k in ("schedule_type", "schedule_hour", "schedule_day", "schedule_frame")
-                        if k in source
-                    }
-                    updated = {**_pulse_channel(*_schedule({}), *_recipients(recipients)), **schedule_fields, **updated}
-                body["channels"] = others + ([updated] if updated else [])
-            pulse = await _api(context, "PUT", path, json=body) or {}
-            return ActionResult(data=_subscription_summary(pulse), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="list_subscriptions"))
+                updated = {**_pulse_channel(*_schedule({}), *_recipients(recipients)), **schedule_fields, **updated}
+            body["channels"] = others + ([updated] if updated else [])
+        pulse = await _api(context, "PUT", path, json=body) or {}
+        return _subscription_summary(pulse)
 
 
 @metabase.action("list_users")
 class ListUsersAction(ActionHandler):
     """List Metabase users (to pick alert and subscription recipients). Needs an admin API key on most setups."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            page = _page(inputs)
-            query = str(inputs.get("query") or "").strip() or None
-            data = await _api(context, "GET", _with_query("/user", [("query", query), *page.items()]))
-            users = [
-                {
-                    "id": u.get("id"),
-                    "name": u.get("common_name"),
-                    "email": u.get("email"),
-                    "is_active": bool(u.get("is_active", True)),
-                }
-                for u in _list_data(data)
-            ]
-            return ActionResult(data=_paged("users", users, data, page), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        page = _page(inputs)
+        query = str(inputs.get("query") or "").strip() or None
+        data = await _api(context, "GET", _with_query("/user", [("query", query), *page.items()]))
+        users = [
+            {
+                "id": u.get("id"),
+                "name": u.get("common_name"),
+                "email": u.get("email"),
+                "is_active": bool(u.get("is_active", True)),
+            }
+            for u in _list_data(data)
+        ]
+        return _paged("users", users, data, page)
 
 
 # ---- Data descriptions ----
@@ -3232,59 +3099,51 @@ class ListUsersAction(ActionHandler):
 class UpdateTableAction(ActionHandler):
     """Change a table's display name or description in Metabase (not in the database)."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            body = _with_optional({}, display_name=inputs.get("display_name"), description=inputs.get("description"))
-            if not body:
-                raise ValueError("Give display_name or description.")
-            table = await _api(context, "PUT", f"/table/{_path_id(inputs['table_id'])}", json=body) or {}
-            return ActionResult(data=_table_summary(table, include_fields=False), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        body = _with_optional({}, display_name=inputs.get("display_name"), description=inputs.get("description"))
+        if not body:
+            raise ValueError("Give display_name or description.")
+        table = await _api(context, "PUT", f"/table/{_path_id(inputs['table_id'])}", json=body) or {}
+        return _table_summary(table, include_fields=False)
 
 
 @metabase.action("update_field")
 class UpdateFieldAction(ActionHandler):
     """Change a column's display name, description or semantic type in Metabase (not in the database)."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            body = _with_optional(
-                {},
-                display_name=inputs.get("display_name"),
-                description=inputs.get("description"),
-                semantic_type=inputs.get("semantic_type"),
-            )
-            if not body:
-                raise ValueError("Give display_name, description or semantic_type.")
-            field = await _api(context, "PUT", f"/field/{_path_id(inputs['field_id'])}", json=body) or {}
-            return ActionResult(data=_field_summary(field), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        body = _with_optional(
+            {},
+            display_name=inputs.get("display_name"),
+            description=inputs.get("description"),
+            semantic_type=inputs.get("semantic_type"),
+        )
+        if not body:
+            raise ValueError("Give display_name, description or semantic_type.")
+        field = await _api(context, "PUT", f"/field/{_path_id(inputs['field_id'])}", json=body) or {}
+        return _field_summary(field)
 
 
 @metabase.action("sync_database")
 class SyncDatabaseAction(ActionHandler):
     """Ask Metabase to pick up new or changed tables and columns in a database. Runs in the background."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            await _api(context, "POST", f"/database/{_path_id(inputs['database_id'])}/sync_schema")
-            return ActionResult(data={"database_id": inputs["database_id"], "started": True}, cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        await _api(context, "POST", f"/database/{_path_id(inputs['database_id'])}/sync_schema")
+        return {"database_id": inputs["database_id"], "started": True}
 
 
 @metabase.action("rescan_field_values")
 class RescanFieldValuesAction(ActionHandler):
     """Ask Metabase to refresh the values it lists in filter dropdowns for a database. Runs in the background."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            await _api(context, "POST", f"/database/{_path_id(inputs['database_id'])}/rescan_values")
-            return ActionResult(data={"database_id": inputs["database_id"], "started": True}, cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        await _api(context, "POST", f"/database/{_path_id(inputs['database_id'])}/rescan_values")
+        return {"database_id": inputs["database_id"], "started": True}
 
 
 # ---- Timelines ----
@@ -3294,100 +3153,87 @@ class RescanFieldValuesAction(ActionHandler):
 class ListTimelinesAction(ActionHandler):
     """List event timelines (markers shown on time-series charts) with their events."""
 
+    @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            collection_id = inputs.get("collection_id")
-            # The per-collection timeline URL differs between versions, so all timelines are read and filtered here.
-            params = [("include", "events"), ("archived", "true" if inputs.get("archived") else None)]
-            timelines = [
-                t
-                for t in _list_data(await _api(context, "GET", _with_query("/timeline", params)))
-                if collection_id is None or t.get("collection_id") == collection_id
-            ]
-            result = [
-                {
-                    "id": t.get("id"),
-                    "name": t.get("name"),
-                    "description": t.get("description"),
-                    "collection_id": t.get("collection_id"),
-                    "archived": bool(t.get("archived")),
-                    "events": [_timeline_event_summary(e) for e in t.get("events") or []],
-                }
-                for t in timelines
-            ]
-            return ActionResult(data={"timelines": result, "count": len(result)}, cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context))
+        collection_id = inputs.get("collection_id")
+        # The per-collection timeline URL differs between versions, so all timelines are read and filtered here.
+        params = [("include", "events"), ("archived", "true" if inputs.get("archived") else None)]
+        timelines = [
+            t
+            for t in _list_data(await _api(context, "GET", _with_query("/timeline", params)))
+            if collection_id is None or t.get("collection_id") == collection_id
+        ]
+        result = [
+            {
+                "id": t.get("id"),
+                "name": t.get("name"),
+                "description": t.get("description"),
+                "collection_id": t.get("collection_id"),
+                "archived": bool(t.get("archived")),
+                "events": [_timeline_event_summary(e) for e in t.get("events") or []],
+            }
+            for t in timelines
+        ]
+        return {"timelines": result, "count": len(result)}
 
 
 @metabase.action("create_timeline")
 class CreateTimelineAction(ActionHandler):
     """Create an event timeline in a collection."""
 
+    @_handled(saved_check="list_timelines")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            body = _with_optional(
-                {"name": _required_text(inputs["name"], "name"), "icon": inputs.get("icon") or "star"},
-                description=inputs.get("description"),
-                collection_id=inputs.get("collection_id"),
-            )
-            timeline = await _api(context, "POST", "/timeline", json=body) or {}
-            if timeline.get("id") is None:
-                raise ValueError("Metabase did not return a timeline id")
-            return ActionResult(
-                data={
-                    "id": timeline.get("id"),
-                    "name": timeline.get("name"),
-                    "collection_id": timeline.get("collection_id"),
-                },
-                cost_usd=0.0,
-            )
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="list_timelines"))
+        body = _with_optional(
+            {"name": _required_text(inputs["name"], "name"), "icon": inputs.get("icon") or "star"},
+            description=inputs.get("description"),
+            collection_id=inputs.get("collection_id"),
+        )
+        timeline = await _api(context, "POST", "/timeline", json=body) or {}
+        _require_id(timeline, "a timeline")
+        return {
+            "id": timeline.get("id"),
+            "name": timeline.get("name"),
+            "collection_id": timeline.get("collection_id"),
+        }
 
 
 @metabase.action("create_timeline_event")
 class CreateTimelineEventAction(ActionHandler):
     """Add an event (a release, campaign or incident) to a timeline, shown as a marker on time-series charts."""
 
+    @_handled(saved_check="list_timelines")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            body = _with_optional(
-                {
-                    "timeline_id": inputs["timeline_id"],
-                    "name": _required_text(inputs["name"], "name"),
-                    "timestamp": _required_text(inputs["timestamp"], "timestamp"),
-                    "timezone": inputs.get("timezone") or "UTC",
-                    "time_matters": bool(inputs.get("time_matters", False)),
-                    "icon": inputs.get("icon") or "star",
-                },
-                description=inputs.get("description"),
-            )
-            event = await _api(context, "POST", "/timeline-event", json=body) or {}
-            if event.get("id") is None:
-                raise ValueError("Metabase did not return an event id")
-            return ActionResult(data=_timeline_event_summary(event), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="list_timelines"))
+        body = _with_optional(
+            {
+                "timeline_id": inputs["timeline_id"],
+                "name": _required_text(inputs["name"], "name"),
+                "timestamp": _required_text(inputs["timestamp"], "timestamp"),
+                "timezone": inputs.get("timezone") or "UTC",
+                "time_matters": bool(inputs.get("time_matters", False)),
+                "icon": inputs.get("icon") or "star",
+            },
+            description=inputs.get("description"),
+        )
+        event = await _api(context, "POST", "/timeline-event", json=body) or {}
+        _require_id(event, "an event")
+        return _timeline_event_summary(event)
 
 
 @metabase.action("update_timeline_event")
 class UpdateTimelineEventAction(ActionHandler):
     """Change a timeline event's name, description, date or time."""
 
+    @_handled(saved_check="list_timelines")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        try:
-            body = _with_optional(
-                {},
-                name=inputs.get("name"),
-                description=inputs.get("description"),
-                timestamp=inputs.get("timestamp"),
-                timezone=inputs.get("timezone"),
-                time_matters=inputs.get("time_matters"),
-            )
-            if not body:
-                raise ValueError("Give at least one change.")
-            event = await _api(context, "PUT", f"/timeline-event/{_path_id(inputs['event_id'])}", json=body) or {}
-            return ActionResult(data=_timeline_event_summary(event), cost_usd=0.0)
-        except Exception as e:
-            return ActionError(message=_error_message(e, context=context, saved_check="list_timelines"))
+        body = _with_optional(
+            {},
+            name=inputs.get("name"),
+            description=inputs.get("description"),
+            timestamp=inputs.get("timestamp"),
+            timezone=inputs.get("timezone"),
+            time_matters=inputs.get("time_matters"),
+        )
+        if not body:
+            raise ValueError("Give at least one change.")
+        event = await _api(context, "PUT", f"/timeline-event/{_path_id(inputs['event_id'])}", json=body) or {}
+        return _timeline_event_summary(event)

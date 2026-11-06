@@ -924,6 +924,18 @@ class TestCreateModel:
         }
 
     @pytest.mark.asyncio
+    async def test_sql_filter_refused_even_if_given(self, mock_context):
+        # Metabase refuses {{ }} filters in a model, so filters isn't an input and the variable is undefined.
+        result = await metabase.execute_action(
+            "create_model",
+            {"name": "By region", "database_id": 3, "sql": "select * from orders where region = {{region}}"},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "A model can't have {{ }} filters (region); save a question for that instead."
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_query_builder_model(self, mock_context):
         mock_context.fetch.return_value = _ok({**SAMPLE_MBQL_CARD, "type": "model"})
         await metabase.execute_action(

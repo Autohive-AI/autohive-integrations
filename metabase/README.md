@@ -232,7 +232,7 @@ Saves a point-and-click question from a query-builder (MBQL) `query`, which peop
 
 #### `create_model`
 
-Saves a model, a curated table others explore with the query builder, from either `sql` (checked, with `{{ }}` filters defined in `filters`, as in `create_question`) or a query-builder `query`.
+Saves a model, a curated table others explore with the query builder, from either `sql` (checked as in `create_question`; snippets `{{snippet: name}}` and saved questions `{{#12}}` work, but Metabase doesn't allow `{{ }}` filters in a model, so make a question for those) or a query-builder `query`.
 
 #### `create_metric`
 
