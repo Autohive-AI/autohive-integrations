@@ -2130,10 +2130,11 @@ class TestUpdateSubscription:
     @pytest.mark.asyncio
     async def test_slack_only_gets_new_email_channel(self, mock_context):
         pulse = {**SAMPLE_PULSE, "channels": [SLACK_CHANNEL]}
-        mock_context.fetch.side_effect = [_ok(pulse), _ok(pulse)]
-        await metabase.execute_action(
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(SUB_DASHBOARD), *_checks(), *_checks(CHURN_CARD), _ok(pulse)]
+        result = await metabase.execute_action(
             "update_subscription", {"subscription_id": 15, "recipient_emails": ["cfo@example.com"]}, mock_context
         )
+        assert result.type == ResultType.ACTION
         channels = mock_context.fetch.call_args.kwargs["json"]["channels"]
         assert channels == [
             SLACK_CHANNEL,
@@ -2198,10 +2199,11 @@ class TestUpdateSubscription:
     async def test_new_email_channel_copies_other_schedule(self, mock_context):
         slack = {**SLACK_CHANNEL, "schedule_type": "weekly", "schedule_hour": 7, "schedule_day": "fri"}
         pulse = {**SAMPLE_PULSE, "channels": [slack]}
-        mock_context.fetch.side_effect = [_ok(pulse), _ok(pulse)]
-        await metabase.execute_action(
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(SUB_DASHBOARD), *_checks(), *_checks(CHURN_CARD), _ok(pulse)]
+        result = await metabase.execute_action(
             "update_subscription", {"subscription_id": 15, "recipient_emails": ["cfo@example.com"]}, mock_context
         )
+        assert result.type == ResultType.ACTION
         channels = mock_context.fetch.call_args.kwargs["json"]["channels"]
         assert channels[0] == slack
         assert channels[1] == {
@@ -2218,12 +2220,13 @@ class TestUpdateSubscription:
     async def test_new_email_channel_uses_given_schedule(self, mock_context):
         slack = {**SLACK_CHANNEL, "schedule_type": "weekly", "schedule_hour": 7, "schedule_day": "fri"}
         pulse = {**SAMPLE_PULSE, "channels": [slack]}
-        mock_context.fetch.side_effect = [_ok(pulse), _ok(pulse)]
-        await metabase.execute_action(
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(SUB_DASHBOARD), *_checks(), *_checks(CHURN_CARD), _ok(pulse)]
+        result = await metabase.execute_action(
             "update_subscription",
             {"subscription_id": 15, "frequency": "daily", "hour": 6, "recipient_user_ids": [5]},
             mock_context,
         )
+        assert result.type == ResultType.ACTION
         email = mock_context.fetch.call_args.kwargs["json"]["channels"][1]
         assert email["schedule_type"] == "daily"
         assert email["schedule_hour"] == 6
