@@ -817,6 +817,27 @@ class TestCreateQueryBuilderQuestion:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("key", ["NATIVE", "Native", "NaTiVe"])
+    async def test_embedded_native_in_other_case_refused(self, mock_context, key):
+        # Metabase reads MBQL keys case-insensitively, so "NATIVE" still runs as SQL.
+        query = {"source-table": 12, "joins": [{"source-query": {key: "select nextval('orders_id_seq')"}}]}
+        result = await metabase.execute_action(
+            "create_query_builder_question", {"name": "Sneaky", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "can't contain SQL" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_native_as_a_filter_value_allowed(self, mock_context):
+        query = {"source-table": 12, "filter": ["=", ["field", 7, None], "NATIVE"]}
+        mock_context.fetch.return_value = _ok({"id": 90, "name": "Natives"})
+        result = await metabase.execute_action(
+            "create_query_builder_question", {"name": "Natives", "database_id": 3, "query": query}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+
+    @pytest.mark.asyncio
     async def test_missing_source_table_refused(self, mock_context):
         result = await metabase.execute_action(
             "create_query_builder_question",
@@ -1148,7 +1169,7 @@ class TestCreateMetric:
         }
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("tag", ["v1.49.3", "v0.50.20", "1.50.1"])
+    @pytest.mark.parametrize("tag", ["v1.49.3", "v0.49.25", "1.49.1"])
     async def test_legacy_fallback_on_old_releases(self, mock_context, tag):
         mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _version(tag), _ok({"id": 8, "name": "Revenue"})]
         result = await metabase.execute_action(
@@ -1158,7 +1179,8 @@ class TestCreateMetric:
         assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/metric"
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("tag", ["v0.51.0", "v0.56.3", "v1.52.1", "v1.51.0", None])
+    # 0.50 already saves metric questions; its old table metrics moved to /api/legacy-metric.
+    @pytest.mark.parametrize("tag", ["v0.50.36", "1.50.1", "v0.51.0", "v0.56.3", "v1.52.1", "v1.51.0", None])
     async def test_400_on_newer_or_unknown_version_reports_original_error(self, mock_context, tag):
         mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _version(tag)]
         result = await metabase.execute_action(
@@ -1170,7 +1192,7 @@ class TestCreateMetric:
 
     @pytest.mark.asyncio
     async def test_legacy_metric_refuses_extra_query_parts(self, mock_context):
-        mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _version("v0.50.4")]
+        mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _version("v0.49.25")]
         query = {**METRIC_QUERY, "joins": [{"source-table": 13, "alias": "Users"}], "breakout": [["field", 34, None]]}
         result = await metabase.execute_action(
             "create_metric", {"name": "Revenue", "database_id": 3, "query": query}, mock_context
@@ -1181,7 +1203,7 @@ class TestCreateMetric:
 
     @pytest.mark.asyncio
     async def test_400_on_saved_question_source_needs_a_table(self, mock_context):
-        mock_context.fetch.side_effect = [*_saving_check_calls(), CARD_TYPE_REFUSED, _version("v0.50.4")]
+        mock_context.fetch.side_effect = [*_saving_check_calls(), CARD_TYPE_REFUSED, _version("v0.49.25")]
         query = {"source-table": "card__42", "aggregation": [["count"]]}
         result = await metabase.execute_action(
             "create_metric", {"name": "User count", "database_id": 3, "query": query}, mock_context
@@ -1195,7 +1217,7 @@ class TestCreateMetric:
     async def test_legacy_metric_404_reports_original_error(self, mock_context):
         mock_context.fetch.side_effect = [
             CARD_TYPE_REFUSED,
-            _version("v0.50.4"),
+            _version("v0.49.25"),
             HTTPError(404, "Not found", "API endpoint does not exist."),
         ]
         result = await metabase.execute_action(
@@ -1208,7 +1230,7 @@ class TestCreateMetric:
     async def test_legacy_metric_other_error_surfaces(self, mock_context):
         mock_context.fetch.side_effect = [
             CARD_TYPE_REFUSED,
-            _version("v0.50.4"),
+            _version("v0.49.25"),
             HTTPError(403, "Forbidden", {"message": "You don't have permissions to do that."}),
         ]
         result = await metabase.execute_action(
@@ -1221,7 +1243,7 @@ class TestCreateMetric:
 
     @pytest.mark.asyncio
     async def test_legacy_metric_without_id(self, mock_context):
-        mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _version("v0.50.4"), _ok({"name": "Revenue"})]
+        mock_context.fetch.side_effect = [CARD_TYPE_REFUSED, _version("v0.49.25"), _ok({"name": "Revenue"})]
         result = await metabase.execute_action(
             "create_metric", {"name": "Revenue", "database_id": 3, "query": METRIC_QUERY}, mock_context
         )
@@ -1589,14 +1611,14 @@ class TestExportQuestionResults:
 
 class TestGetRevisionHistory:
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("tag", ["v0.50.2", "v1.49.3"])
+    @pytest.mark.parametrize("tag", ["v0.49.25", "v1.49.3"])
     async def test_legacy_metric_history_refused(self, mock_context, tag):
         mock_context.fetch.side_effect = [_version(tag)]
         result = await metabase.execute_action(
             "get_revision_history", {"item_type": "metric", "item_id": 7}, mock_context
         )
         assert result.type == ResultType.ACTION_ERROR
-        assert result.result.message.startswith("Before Metabase 0.51 a metric's history")
+        assert result.result.message.startswith("On Metabase 0.49 a metric's history")
         assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/session/properties"
         assert mock_context.fetch.call_count == 1
 
@@ -1725,12 +1747,12 @@ class TestGetRevisionHistory:
 class TestRevertToRevision:
     @pytest.mark.asyncio
     async def test_legacy_metric_revert_refused(self, mock_context):
-        mock_context.fetch.side_effect = [_version("v0.50.2")]
+        mock_context.fetch.side_effect = [_version("v0.49.25")]
         result = await metabase.execute_action(
             "revert_to_revision", {"item_type": "metric", "item_id": 7, "revision_id": 3}, mock_context
         )
         assert result.type == ResultType.ACTION_ERROR
-        assert result.result.message.startswith("Before Metabase 0.51 a metric's history")
+        assert result.result.message.startswith("On Metabase 0.49 a metric's history")
         assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio

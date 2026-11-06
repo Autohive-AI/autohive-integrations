@@ -236,7 +236,7 @@ Saves a model, a curated table others explore with the query builder, from eithe
 
 #### `create_metric`
 
-Saves a metric, an official reusable calculation, from a query-builder `query` with exactly one aggregation. Metabase before 0.51 has no metric questions, so there it is saved as a table metric instead (`type: "legacy_metric"`); it must be built on a table, and its id is a metric id, edited under Admin → Table Metadata.
+Saves a metric, an official reusable calculation, from a query-builder `query` with exactly one aggregation. Metabase 0.49 has no metric questions, so there it is saved as a table metric instead (`type: "legacy_metric"`); it must be built on a table, and its id is a metric id, edited under Admin → Table Metadata.
 
 #### `export_question_results`
 
@@ -262,7 +262,7 @@ Moves `items` (each an `item_type` of `question`, `model`, `metric`, `dashboard`
 
 #### `archive_item` and `restore_item`
 
-Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash and back, or turn an alert off and on. Archiving a collection archives everything inside it. Nothing is deleted, with one exception: Metabase deletes a question's alerts when the question (or model or metric) is archived, and restoring it doesn't bring them back, so check `list_alerts` first. Before Metabase 0.51, `metric` ids are the table metric ids `create_metric` returned.
+Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash and back, or turn an alert off and on. Archiving a collection archives everything inside it. Nothing is deleted, with one exception: Metabase deletes a question's alerts when the question (or model or metric) is archived, and restoring it doesn't bring them back, so check `list_alerts` first. On Metabase 0.49, `metric` ids are the table metric ids `create_metric` returned.
 
 ### Alerts and subscriptions
 
@@ -295,7 +295,7 @@ Lists users (`query` filters by name or email), to find recipient ids. Usually n
 - **Deployment: Lambda timeout.** Set the integration's Lambda timeout to about 150 seconds. With the 30 second default, Lambda stops a slow query or saved question before Metabase answers, and the agent gets a generic error instead of the timeout message above.
 - **No deletes.** The integration never deletes Metabase content. `archive_item` moves items to Metabase's trash, where they can be restored. Every action that saves or runs SQL refuses common SQL writes (see `run_sql_query`).
 - **Exports**: CSV and JSON return at most 10,000 rows; Excel files must be under 3.5 MB (the action result is limited in size).
-- **Version differences.** Before 0.51, metrics are saved as table metrics. The `temporal-unit` filter type needs 0.50+. Alerts are created through whichever alerts API the instance has.
+- **Version differences.** On 0.49, metrics are saved as table metrics. The `temporal-unit` filter type needs 0.50+. Alerts are created through whichever alerts API the instance has.
 - **Not covered in this version:** permission changes (groups, members, data and collection permissions), inviting or deactivating users, public sharing links, settings, and bookmarks (they would belong to the API key's user, not a person).
 
 ## Troubleshooting

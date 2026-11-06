@@ -1766,8 +1766,11 @@ async def _check_new_sql(
 
 
 def _has_key(value: Any, key: str) -> bool:
+    """Whether a key appears anywhere, read as Metabase reads it: case and _ vs - don't matter ("NATIVE" is native)."""
     if isinstance(value, dict):
-        return key in value or any(_has_key(v, key) for v in value.values())
+        return any(str(k).lower().replace("_", "-") == key for k in value) or any(
+            _has_key(v, key) for v in value.values()
+        )
     if isinstance(value, list):
         return any(_has_key(v, key) for v in value)
     return False
@@ -1895,15 +1898,16 @@ async def _metabase_release(context: ExecutionContext) -> Optional[int]:
 
 
 async def _has_legacy_metrics(context: ExecutionContext) -> bool:
-    """Metabase before 0.51 keeps metrics as table metrics at /api/metric, with their own ids."""
+    """Metabase 0.49 keeps metrics as table metrics at /api/metric, with their own ids. From 0.50 a metric is a
+    question of type metric (0.50 moved the old ones to /api/legacy-metric)."""
     release = await _metabase_release(context)
-    return release is not None and release < 51
+    return release is not None and release < 50
 
 
 async def _create_legacy_metric(
     context: ExecutionContext, inputs: Dict[str, Any], query: Dict[str, Any], error: HTTPError
 ) -> Dict[str, Any]:
-    """Save a metric the way Metabase before 0.51 keeps them: on a table, at /api/metric."""
+    """Save a metric the way Metabase 0.49 keeps them: on a table, at /api/metric."""
     if not await _has_legacy_metrics(context):
         # A newer Metabase rejected the metric for another reason; that reason is the answer.
         raise ValueError(_error_message(error, context=context)) from None
@@ -1911,12 +1915,12 @@ async def _create_legacy_metric(
     unsupported = sorted(set(query) - {"source-table", "aggregation", "filter"})
     if unsupported:
         raise ValueError(
-            "Before Metabase 0.51 a metric can only have a table, one aggregation and a filter, "
+            "On Metabase 0.49 a metric can only have a table, one aggregation and a filter, "
             f"not {', '.join(unsupported)}."
         )
     if not _int_or_none(table_id):
         raise ValueError(
-            f"{_error_message(error, context=context)} Before Metabase 0.51, a metric must be built on a table."
+            f"{_error_message(error, context=context)} On Metabase 0.49, a metric must be built on a table."
         )
     body = _with_optional(
         {
@@ -1947,7 +1951,7 @@ async def _create_legacy_metric(
         "collection": None,
         "archived": bool(metric.get("archived")),
         "parameters": [],
-        "note": "Saved as a table metric (Metabase before 0.51). Its id is a metric id, not a question id; edit it "
+        "note": "Saved as a table metric (Metabase 0.49). Its id is a metric id, not a question id; edit it "
         "under Admin → Table Metadata.",
     }
 
@@ -2508,7 +2512,7 @@ async def _revision_entity(context: ExecutionContext, item_type: Any) -> str:
     if entity is None:
         raise ValueError(f"item_type must be one of {', '.join(REVISION_ENTITIES)}")
     if item_type == "metric" and await _has_legacy_metrics(context):
-        raise ValueError("Before Metabase 0.51 a metric's history is under Admin → Table Metadata, not here.")
+        raise ValueError("On Metabase 0.49 a metric's history is under Admin → Table Metadata, not here.")
     return entity
 
 
@@ -2725,7 +2729,7 @@ class CreateMetricAction(ActionHandler):
             except HTTPError as e:
                 if e.status != 400:
                     raise
-                # Metabase before 0.51 has no metric questions, only the older table metrics.
+                # Metabase 0.49 has no metric questions, only the older table metrics.
                 legacy = await _create_legacy_metric(context, inputs, query, e)
                 return ActionResult(data=legacy, cost_usd=0.0)
             return ActionResult(data=_card_summary(card), cost_usd=0.0)
@@ -2925,7 +2929,7 @@ class MoveItemsAction(ActionHandler):
                     if path is None:
                         raise ValueError("item_type must be question, model, metric, dashboard or collection")
                     if item_type == "metric" and await _has_legacy_metrics(context):
-                        raise ValueError("Before Metabase 0.51 metrics belong to a table, not a collection.")
+                        raise ValueError("On Metabase 0.49 metrics belong to a table, not a collection.")
                     key = "parent_id" if item_type == "collection" else "collection_id"
                     body: Dict[str, Any] = {key: target}
                     if path == "card":

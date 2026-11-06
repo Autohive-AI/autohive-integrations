@@ -70,7 +70,7 @@ REGION_CARD = {
     ],
 }
 SAMPLE_DATABASE = {"id": 3, "engine": "postgres"}
-OLD_METABASE = {"version": {"tag": "v0.50.20"}}
+OLD_METABASE = {"version": {"tag": "v0.49.25"}}
 NEW_METABASE = {"version": {"tag": "v0.56.3"}}
 UPGRADES_CARD = {**SAMPLE_CARD, "id": 44, "name": "Upgrades"}
 PLAN_FILTER = {"id": "f1", "name": "Plan", "slug": "plan", "type": "string/=", "default": "pro"}
@@ -883,7 +883,10 @@ class TestArchiveItem:
         mock_context.fetch.side_effect = [_ok(OLD_METABASE), _ok({"id": 3, "archived": True})]
         result = await metabase.execute_action("archive_item", {"item_type": "metric", "item_id": 3}, mock_context)
         assert result.type == ResultType.ACTION
-        assert _urls(mock_context) == [("GET", f"{BASE}/api/session/properties"), ("PUT", f"{BASE}/api/metric/3")]
+        assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/session/properties"),
+            ("PUT", f"{BASE}/api/metric/3"),
+        ]
         assert mock_context.fetch.call_args.kwargs["json"] == {
             "archived": True,
             "revision_message": SEGMENT_REVISION_MESSAGE,
@@ -987,6 +990,16 @@ class TestArchiveItem:
         result = await metabase.execute_action("archive_item", {"item_type": "dashboard", "item_id": 999}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "HTTP 404" in result.result.message
+
+
+class TestArchiveMetricOn050:
+    @pytest.mark.asyncio
+    async def test_metric_question_archived_as_a_card(self, mock_context):
+        # 0.50 saves metrics as questions, so the id create_metric returned is a question id.
+        mock_context.fetch.side_effect = [_ok({"version": {"tag": "v0.50.36"}}), _ok({"id": 27, "archived": True})]
+        await metabase.execute_action("archive_item", {"item_type": "metric", "item_id": 27}, mock_context)
+        assert _urls(mock_context)[-1] == ("PUT", f"{BASE}/api/card/27")
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True}
 
 
 class TestRestoreItem:

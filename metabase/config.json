@@ -3243,7 +3243,7 @@
         },
         "create_metric": {
             "display_name": "Create Metric",
-            "description": "Save a metric: an official, reusable calculation (such as revenue or active users) defined by a query-builder query with exactly one aggregation. On Metabase before 0.51 it is saved as a table metric instead, which must be built on a table (not a saved question).",
+            "description": "Save a metric: an official, reusable calculation (such as revenue or active users) defined by a query-builder query with exactly one aggregation. On Metabase 0.49 it is saved as a table metric instead, which must be built on a table (not a saved question).",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -3390,7 +3390,7 @@
                     },
                     "note": {
                         "type": "string",
-                        "description": "Set when the metric was saved as a table metric (Metabase before 0.51)."
+                        "description": "Set when the metric was saved as a table metric (Metabase 0.49)."
                     }
                 },
                 "required": [
