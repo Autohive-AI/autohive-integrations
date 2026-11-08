@@ -103,6 +103,20 @@ def _get_ad_text_assets(ad_data_from_row: Dict[str, Any]) -> Dict[str, list]:
     return {"headlines": headlines, "descriptions": descriptions}
 
 
+def _to_campaign_date_time(value: str, time_of_day: str) -> str:
+    """Converts YYYYMMDD or YYYY-MM-DD to the API's 'yyyy-MM-dd HH:mm:ss' format (v23+)."""
+    value = str(value).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y%m%d", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+        if fmt == "%Y-%m-%d %H:%M:%S":
+            return value
+        return f"{parsed.strftime('%Y-%m-%d')} {time_of_day}"
+    raise ValueError(f"Invalid date '{value}'. Use YYYYMMDD, YYYY-MM-DD or YYYY-MM-DD HH:MM:SS.")
+
+
 def _calculate_safe_rate(numerator_raw, denominator_raw, default_numerator=0.0, default_denominator=0.0):
     """Safely calculates a rate, handling potential non-numeric inputs."""
     try:
@@ -511,13 +525,10 @@ class CreateCampaignAction(ActionHandler):
         budget_name = inputs.get("budget_name", f"Budget for {campaign_name}")
         bidding_strategy = inputs.get("bidding_strategy", "MANUAL_CPC")
 
-        start_date = inputs.get("start_date")
-        end_date = inputs.get("end_date")
-
-        if not start_date:
-            start_date = (datetime.now() + timedelta(days=1)).strftime("%Y%m%d")
-        if not end_date:
-            end_date = (datetime.now() + timedelta(days=365)).strftime("%Y%m%d")
+        start_date = inputs.get("start_date") or (datetime.now() + timedelta(days=1)).strftime("%Y%m%d")
+        end_date = inputs.get("end_date") or (datetime.now() + timedelta(days=365)).strftime("%Y%m%d")
+        start_date_time = _to_campaign_date_time(start_date, "00:00:00")
+        end_date_time = _to_campaign_date_time(end_date, "23:59:59")
 
         try:
             # Create campaign budget
@@ -542,8 +553,8 @@ class CreateCampaignAction(ActionHandler):
             campaign.campaign_budget = budget_resource_name
             campaign.advertising_channel_type = client.enums.AdvertisingChannelTypeEnum.SEARCH
             campaign.status = client.enums.CampaignStatusEnum.PAUSED
-            campaign.start_date = start_date
-            campaign.end_date = end_date
+            campaign.start_date_time = start_date_time
+            campaign.end_date_time = end_date_time
 
             # Set bidding strategy
             # Note: For smart bidding strategies, we only set optional constraints if provided
