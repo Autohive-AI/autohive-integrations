@@ -41,7 +41,9 @@ CAMPAIGN_INPUTS = {
 def ads_client():
     """Real offline client with mocked services; captures the operations sent to each mutate call."""
     client = GoogleAdsClient(
-        credentials=AnonymousCredentials(), developer_token="test-developer-token", use_proto_plus=True
+        credentials=AnonymousCredentials(),
+        developer_token="test-developer-token",  # nosec B106
+        use_proto_plus=True,
     )
 
     budget_service = MagicMock(name="CampaignBudgetService")
