@@ -853,6 +853,17 @@ class TestUpdateDashboardFilters:
         assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
 
     @pytest.mark.asyncio
+    async def test_type_change_with_same_default_checked_for_subscriptions(self, mock_context):
+        result = await self._run(
+            mock_context,
+            [{**REGION_FILTER, "type": "string/contains", "default": ["West"]}, CATEGORY_FILTER],
+            pulses=[{"id": 15}],
+            sql="select 1, nextval('audit_seq')",
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
     async def test_new_connections_checked_for_subscriptions(self, mock_context):
         await self._run(
             mock_context,

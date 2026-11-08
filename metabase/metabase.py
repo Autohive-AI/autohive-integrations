@@ -2314,9 +2314,13 @@ class UpdateDashboardFiltersAction(ActionHandler):
         if (
             connections
             or removed
-            or any(p.get("default") != old_params.get(p["id"], {}).get("default") for p in parameters)
+            or any(
+                (p.get("default"), p.get("type"))
+                != (old_params.get(p["id"], {}).get("default"), old_params.get(p["id"], {}).get("type"))
+                for p in parameters
+            )
         ):
-            # Subscriptions run the questions with the filter defaults and connections, so new ones are checked;
+            # Subscriptions run the questions with the filter defaults, types and connections, so new ones are checked;
             # a removed filter changes what they run too.
             if await _has_subscriptions(context, dashboard.get("id")):
                 await _check_dashboard_questions(
@@ -3154,7 +3158,12 @@ class UpdateFieldAction(ActionHandler):
         )
         if not body:
             raise ValueError("Give display_name, description or semantic_type.")
-        field = await _api(context, "PUT", f"/field/{_path_id(inputs['field_id'])}", json=body) or {}
+        path = f"/field/{_path_id(inputs['field_id'])}"
+        # Metabase 0.49 clears a column's conversion (e.g. UNIX seconds shown as a date) when it isn't sent.
+        coercion = (await _api(context, "GET", path) or {}).get("coercion_strategy")
+        if coercion:
+            body["coercion_strategy"] = coercion
+        field = await _api(context, "PUT", path, json=body) or {}
         return _field_summary(field)
 
 

@@ -2393,6 +2393,19 @@ class TestUpdateField:
         assert mock_context.fetch.call_args.kwargs["json"] == {"semantic_type": "type/Email"}
 
     @pytest.mark.asyncio
+    async def test_keeps_existing_conversion(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok({"id": 120, "coercion_strategy": "Coercion/UNIXSeconds->DateTime"}),
+            _ok({"id": 120}),
+        ]
+        await metabase.execute_action("update_field", {"field_id": 120, "description": "Signed up"}, mock_context)
+        assert mock_context.fetch.call_args_list[0].kwargs["method"] == "GET"
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "description": "Signed up",
+            "coercion_strategy": "Coercion/UNIXSeconds->DateTime",
+        }
+
+    @pytest.mark.asyncio
     async def test_nothing_given(self, mock_context):
         result = await metabase.execute_action("update_field", {"field_id": 120}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
