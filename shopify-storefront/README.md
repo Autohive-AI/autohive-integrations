@@ -174,11 +174,11 @@ Remove items from cart.
 ---
 
 #### `storefront_apply_discount`
-Apply discount codes to cart.
+Apply discount codes to cart. The list replaces any codes already applied; pass an empty list to remove all codes.
 
 **Inputs:**
 - `cart_id` (string, required): Cart GraphQL ID
-- `discount_codes` (array, required): List of discount codes to apply
+- `discount_codes` (array, required): List of discount codes to apply, or `[]` to clear them
 
 **Outputs:**
 - `cart` (object): Updated cart details

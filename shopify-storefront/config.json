@@ -272,12 +272,12 @@
         },
         "storefront_apply_discount": {
             "display_name": "Apply Discount Code",
-            "description": "Apply discount codes to cart",
+            "description": "Apply discount codes to cart, or remove them by passing an empty list",
             "input_schema": {
                 "type": "object",
                 "properties": {
                     "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
-                    "discount_codes": {"type": "array", "description": "Discount codes to apply", "label": "Discount Codes", "items": {"type": "string"}}
+                    "discount_codes": {"type": "array", "description": "Discount codes to apply. Replaces any codes already on the cart; pass an empty list to remove all codes.", "label": "Discount Codes", "items": {"type": "string"}}
                 },
                 "required": ["cart_id", "discount_codes"]
             },

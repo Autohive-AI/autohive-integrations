@@ -531,6 +531,9 @@ class TestCartMutations:
 
     @pytest.mark.asyncio
     async def test_empty_list_rejected(self, mock_context, action, mutation_key, input_key, variable_key, value):
+        if action == "storefront_apply_discount":
+            pytest.skip("an empty list clears discount codes; see TestApplyDiscount")
+
         result = await shopify_storefront.execute_action(action, {"cart_id": CART_ID, input_key: []}, mock_context)
 
         assert result.type == ResultType.ACTION_ERROR
@@ -567,6 +570,28 @@ class TestCartMutations:
 
 
 # ---- Customer Actions ----
+
+
+class TestApplyDiscount:
+    @pytest.mark.asyncio
+    async def test_empty_list_clears_codes(self, mock_context):
+        mock_context.fetch.return_value = gql({"cartDiscountCodesUpdate": {"cart": SAMPLE_CART, "userErrors": []}})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_apply_discount", {"cart_id": CART_ID, "discount_codes": []}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        assert sent_variables(mock_context) == {"cartId": CART_ID, "discountCodes": []}
+
+    @pytest.mark.asyncio
+    async def test_non_list_rejected(self, mock_context):
+        result = await shopify_storefront.execute_action(
+            "storefront_apply_discount", {"cart_id": CART_ID, "discount_codes": "SAVE10"}, mock_context
+        )
+
+        assert result.type in (ResultType.ACTION_ERROR, ResultType.VALIDATION_ERROR)
+        mock_context.fetch.assert_not_called()
 
 
 class TestCreateCustomer:

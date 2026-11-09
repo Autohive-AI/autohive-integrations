@@ -846,15 +846,16 @@ class RemoveFromCartHandler(ActionHandler):
 
 @shopify_storefront.action("storefront_apply_discount")
 class ApplyDiscountHandler(ActionHandler):
-    """Apply discount codes to cart."""
+    """Apply discount codes to cart, or clear them with an empty list."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             cart_id = require_input(inputs["cart_id"], "cart_id")
             discount_codes = require_input(inputs["discount_codes"], "discount_codes")
 
-            if not isinstance(discount_codes, list) or len(discount_codes) == 0:
-                raise ValueError("discount_codes must be a non-empty array")
+            # An empty list is allowed: Shopify treats it as "remove all codes".
+            if not isinstance(discount_codes, list):
+                raise TypeError("discount_codes must be an array")
 
             variables = {"cartId": cart_id, "discountCodes": discount_codes}
             gql_result = await execute_graphql(context, MUTATION_APPLY_DISCOUNT, variables)
