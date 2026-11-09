@@ -101,7 +101,9 @@ async def test_generate_keyword_historical_metrics(live_ads, account_inputs):
 
 async def test_generate_keyword_forecast(live_ads, account_inputs):
     data = await action_data(
-        live_ads, "generate_keyword_forecast", {**account_inputs, "keywords": ["running shoes"], "forecast_days": 7}
+        live_ads,
+        "generate_keyword_forecast",
+        {**account_inputs, "keywords": [{"text": "running shoes"}], "forecast_days": 7},
     )
     assert data["keywords_count"] == 1
     assert data["forecast_period"]["days"] == 7
