@@ -2190,10 +2190,10 @@ class GenerateKeywordForecastAction(ActionHandler):
             return ActionError(message="keywords list is required")
 
         try:
-            keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService")
-            googleads_service = client.get_service("GoogleAdsService")
+            keyword_plan_idea_service = client.get_service("KeywordPlanIdeaService", version="v24")
+            googleads_service = client.get_service("GoogleAdsService", version="v24")
 
-            request = client.get_type("GenerateKeywordForecastMetricsRequest")
+            request = client.get_type("GenerateKeywordForecastMetricsRequest", version="v24")
             request.customer_id = customer_id
 
             campaign = request.campaign
@@ -2207,13 +2207,13 @@ class GenerateKeywordForecastAction(ActionHandler):
             )
             campaign.language_constants.append(googleads_service.language_constant_path(language_id))
 
-            forecast_ad_group = client.get_type("ForecastAdGroup")
+            forecast_ad_group = client.get_type("ForecastAdGroup", version="v24")
             for kw in keywords:
                 if "cpc_bid_micros" in kw:
                     return ActionError(
                         message="Keyword forecasts use a campaign-level bid. Set max_cpc_bid_micros instead."
                     )
-                keyword = client.get_type("KeywordInfo")
+                keyword = client.get_type("KeywordInfo", version="v24")
                 keyword.text = kw["text"]
                 keyword.match_type = client.enums.KeywordMatchTypeEnum[kw.get("match_type", "BROAD")]
                 forecast_ad_group.keywords.append(keyword)
