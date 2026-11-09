@@ -1,0 +1,79 @@
+{
+    "name": "workzappy",
+    "version": "1.0.0",
+    "display_name": "WorkZappy",
+    "description": "Create WorkZappy tasks from meeting action items.",
+    "entry_point": "workzappy.py",
+    "supports_billing": false,
+    "auth": {
+        "type": "custom",
+        "title": "WorkZappy Personal API Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string",
+                    "label": "Client ID",
+                    "minLength": 1
+                },
+                "secret_key": {
+                    "type": "string",
+                    "label": "Secret Key",
+                    "format": "password",
+                    "minLength": 1
+                }
+            },
+            "required": [
+                "client_id",
+                "secret_key"
+            ]
+        }
+    },
+    "actions": {
+        "create_task": {
+            "display_name": "Create Task",
+            "description": "Create one task in a WorkZappy project.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Destination project ID."
+                    },
+                    "task_type_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Task type ID configured in the destination project."
+                    },
+                    "summary": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Task title."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional action item details."
+                    }
+                },
+                "required": [
+                    "project_id",
+                    "task_type_id",
+                    "summary"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "description": "ID of the created task."
+                    }
+                },
+                "required": [
+                    "task_id"
+                ]
+            }
+        }
+    }
+}
