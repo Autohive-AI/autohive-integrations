@@ -5,6 +5,10 @@ These tests call the real Storefront API and require:
     SHOPIFY_STOREFRONT_SHOP_URL      e.g. your-test-store.myshopify.com
     SHOPIFY_STOREFRONT_PUBLIC_TOKEN  a Storefront API public access token
 
+Optional:
+    SHOPIFY_STOREFRONT_TEST_GIFT_CARD_CODE  a test-store gift card code; the gift-card
+                                            lifecycle test is skipped without it
+
 Read-only tests need at least one product and one collection in the store.
 Cart and customer tests create real carts/customer accounts and are marked destructive.
 
@@ -293,6 +297,41 @@ class TestCartLifecycle:
             )
         )["cart"]
         assert removed["totalQuantity"] == 0
+
+
+@pytest.mark.destructive
+class TestCartGiftCards:
+    async def test_add_and_remove_gift_card(self, live_context, env_credentials):
+        code = env_credentials("SHOPIFY_STOREFRONT_TEST_GIFT_CARD_CODE")
+        if not code:
+            pytest.skip("SHOPIFY_STOREFRONT_TEST_GIFT_CARD_CODE not set")
+        variant_id = await first_variant_id(live_context)
+
+        cart = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_create_cart", {"lines": [{"merchandiseId": variant_id, "quantity": 1}]}, live_context
+            )
+        )["cart"]
+        cart_id = cart["id"]
+
+        added = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_add_gift_cards", {"cart_id": cart_id, "gift_card_codes": [code]}, live_context
+            )
+        )["cart"]
+        applied = added["appliedGiftCards"]
+        assert len(applied) == 1
+        assert applied[0]["lastCharacters"].lower() == code[-4:].lower()
+
+        # Removal takes the applied gift card ID from appliedGiftCards, not the code.
+        removed = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_remove_gift_cards",
+                {"cart_id": cart_id, "applied_gift_card_ids": [applied[0]["id"]]},
+                live_context,
+            )
+        )["cart"]
+        assert removed["appliedGiftCards"] == []
 
 
 @pytest.mark.destructive

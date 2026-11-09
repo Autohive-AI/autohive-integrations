@@ -585,7 +585,7 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "first": {"type": "integer", "description": "Number of results to return (max 250)", "label": "Count", "default": 20},
+                    "first": {"type": "integer", "description": "Number of results to return (max 250)", "label": "Count", "default": 20, "minimum": 1, "maximum": 250},
                     "after": {"type": "string", "description": "Cursor for pagination", "label": "After Cursor"},
                     "query": {"type": "string", "description": "Filter query, e.g. 'title:faq'", "label": "Query Filter"}
                 },
@@ -631,7 +631,7 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "first": {"type": "integer", "description": "Number of results to return (max 250)", "label": "Count", "default": 20},
+                    "first": {"type": "integer", "description": "Number of results to return (max 250)", "label": "Count", "default": 20, "minimum": 1, "maximum": 250},
                     "after": {"type": "string", "description": "Cursor for pagination", "label": "After Cursor"},
                     "query": {"type": "string", "description": "Filter query, e.g. 'tag:news' or 'blog_title:Journal'", "label": "Query Filter"}
                 },
@@ -720,7 +720,7 @@
                 "type": "object",
                 "properties": {
                     "query": {"type": "string", "description": "Partial search text", "label": "Query"},
-                    "limit": {"type": "integer", "description": "Results per type (1-10)", "label": "Limit", "default": 10},
+                    "limit": {"type": "integer", "description": "Results per type (1-10)", "label": "Limit", "default": 10, "minimum": 1, "maximum": 10},
                     "types": {"type": "array", "description": "Result types to include; defaults to all", "label": "Types", "items": {"type": "string", "enum": ["PRODUCT", "COLLECTION", "PAGE", "ARTICLE", "QUERY"]}}
                 },
                 "required": ["query"]

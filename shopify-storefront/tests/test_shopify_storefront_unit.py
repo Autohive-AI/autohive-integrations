@@ -1372,6 +1372,26 @@ class TestListContent:
         assert result.result.data["count"] == 0
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("first", [1, 250])
+    async def test_first_at_bounds(self, mock_context, action, connection, output_key, item, first):
+        mock_context.fetch.return_value = gql({connection: {"edges": [], "pageInfo": {"hasNextPage": False}}})
+
+        result = await shopify_storefront.execute_action(action, {"first": first}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert sent_variables(mock_context)["first"] == first
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("first", [0, 251])
+    async def test_first_out_of_bounds_is_validation_error(
+        self, mock_context, action, connection, output_key, item, first
+    ):
+        result = await shopify_storefront.execute_action(action, {"first": first}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_graphql_error(self, mock_context, action, connection, output_key, item):
         mock_context.fetch.return_value = gql(errors=[{"message": "Bad query"}])
 
@@ -1563,6 +1583,28 @@ class TestPredictiveSearch:
 
         assert sent_variables(mock_context) == {"query": "snow", "limit": 10}
         assert result.result.data["products"] == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("limit", [1, 10])
+    async def test_limit_at_bounds(self, mock_context, limit):
+        mock_context.fetch.return_value = gql({"predictiveSearch": None})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_predictive_search", {"query": "snow", "limit": limit}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        assert sent_variables(mock_context)["limit"] == limit
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("limit", [0, 11])
+    async def test_limit_out_of_bounds_is_validation_error(self, mock_context, limit):
+        result = await shopify_storefront.execute_action(
+            "storefront_predictive_search", {"query": "snow", "limit": limit}, mock_context
+        )
+
+        assert result.type == ResultType.VALIDATION_ERROR
+        mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_empty_query(self, mock_context):
