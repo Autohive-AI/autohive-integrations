@@ -1408,7 +1408,7 @@
                     },
                     "daily_budget_micros": {
                         "type": "integer",
-                        "description": "Daily budget in micros for Target Spend bidding strategy."
+                        "description": "Daily budget cap in micros for Manual CPC. The campaign CPC cap still applies."
                     },
                     "max_cpc_bid_micros": {
                         "type": "integer",
