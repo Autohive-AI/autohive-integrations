@@ -50,4 +50,14 @@ Set `WORKZAPPY_CLIENT_ID` and `WORKZAPPY_SECRET_KEY` with credentials that have 
 python -m pytest workzappy/tests/test_workzappy_integration.py -m integration
 ```
 
-The test authenticates and lists projects without creating or modifying data. TeamCity maps both variables from the WorkZappy custom auth connection using `tests/teamcity.env`.
+With credentials alone, the smoke test authenticates and lists projects. TeamCity maps both variables from the WorkZappy custom auth connection using `tests/teamcity.env`.
+
+The full live suite covers all 16 actions. For all read tests, also set
+`WORKZAPPY_PROJECT_ID`, `WORKZAPPY_TASK_TYPE_ID`, and `WORKZAPPY_TASK_ID` to
+existing records in your test workspace. Grant the API key permissions for the
+actions you plan to exercise.
+
+To include writes, set `WORKZAPPY_RUN_WRITE_TESTS=1` and
+`WORKZAPPY_PROJECT_TEMPLATE_CODE` in a disposable workspace, then run the same
+command. The task test removes its own task. The project test leaves a uniquely
+named project for manual cleanup.
