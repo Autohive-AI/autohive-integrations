@@ -12,12 +12,14 @@ import os
 import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from uuid import uuid4
 from unittest.mock import MagicMock, patch
 
 import pytest
 from autohive_integrations_sdk import ResultType
 from google.ads.googleads.client import GoogleAdsClient
 from google.auth.credentials import AnonymousCredentials
+from google.auth.exceptions import RefreshError
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -30,7 +32,7 @@ from google_ads import _to_campaign_date_time, google_ads  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
-AUTH = {"auth_type": "PlatformOAuth2", "credentials": {"refresh_token": "test-refresh-token"}}  # nosec B105
+AUTH = {"auth_type": "PlatformOauth2", "credentials": {"refresh_token": uuid4().hex}}
 CAMPAIGN_INPUTS = {
     "login_customer_id": "1111111111",
     "customer_id": "2222222222",
@@ -44,7 +46,7 @@ def ads_client():
     """Real offline client with mocked services; captures the operations sent to each mutate call."""
     client = GoogleAdsClient(
         credentials=AnonymousCredentials(),
-        developer_token="test-developer-token",  # nosec B106
+        developer_token=uuid4().hex,
         use_proto_plus=True,
     )
 
@@ -189,8 +191,25 @@ async def test_create_campaign_normalises_unpadded_dates(make_context, ads_clien
 async def test_create_campaign_bad_dates_create_no_budget(make_context, ads_client, date_inputs, error):
     inputs = {**CAMPAIGN_INPUTS, **date_inputs}
 
-    with pytest.raises(ValueError, match=error):
-        await google_ads.execute_action("create_campaign", inputs, make_context(auth=AUTH))
+    result = await google_ads.execute_action("create_campaign", inputs, make_context(auth=AUTH))
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert error in result.result.message
 
     ads_client.budget.mutate_campaign_budgets.assert_not_called()
     ads_client.campaign.mutate_campaigns.assert_not_called()
+
+
+@pytest.mark.parametrize("action", ["retrieve_campaign_metrics", "retrieve_keyword_metrics"])
+async def test_failed_report_returns_safe_action_error(make_context, ads_client, action):
+    ads_client.ga.search.side_effect = RefreshError("sensitive provider response")
+    inputs = {"login_customer_id": "1111111111", "customer_id": "2222222222", "date_ranges": ["LAST_7_DAYS"]}
+
+    if action == "retrieve_keyword_metrics":
+        inputs.update(campaign_ids=[], ad_group_ids=[])
+
+    result = await google_ads.execute_action(action, inputs, make_context(auth=AUTH))
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Reconnect your Google Ads account" in result.result.message
+    assert "sensitive provider response" not in result.result.message

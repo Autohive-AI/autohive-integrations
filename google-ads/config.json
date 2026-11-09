@@ -1,6 +1,6 @@
 {
     "name": "Google Ads",
-    "version": "2.0.2",
+    "version": "3.0.0",
     "description": "Full CRUD operations for Google Ads API including campaigns, ad groups, ads, keywords, and Keyword Planner functionality.",
     "entry_point": "google_ads.py",
     "supports_billing": true,
@@ -1369,7 +1369,7 @@
         },
         "generate_keyword_forecast": {
             "display_name": "Generate Keyword Forecast",
-            "description": "Generates forecast metrics (impressions, clicks, cost) for keywords with specified budget and targeting settings.",
+            "description": "Generates forecast metrics (clicks and cost) for keywords with specified budget and targeting settings.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1398,10 +1398,6 @@
                                         "EXACT"
                                     ],
                                     "description": "Match type. Defaults to BROAD."
-                                },
-                                "cpc_bid_micros": {
-                                    "type": "integer",
-                                    "description": "CPC bid for this keyword in micros."
                                 }
                             },
                             "required": [
@@ -1412,7 +1408,7 @@
                     },
                     "daily_budget_micros": {
                         "type": "integer",
-                        "description": "Daily budget in micros for Target Spend bidding strategy."
+                        "description": "Daily budget cap in micros for Manual CPC. The campaign CPC cap still applies."
                     },
                     "max_cpc_bid_micros": {
                         "type": "integer",
@@ -1460,9 +1456,6 @@
                     "campaign_metrics": {
                         "type": "object",
                         "properties": {
-                            "impressions": {
-                                "type": "number"
-                            },
                             "clicks": {
                                 "type": "number"
                             },

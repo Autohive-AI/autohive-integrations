@@ -328,13 +328,13 @@ Retrieves historical metrics (search volume, competition, bid estimates) for spe
 ---
 
 #### `generate_keyword_forecast`
-Generates forecast metrics (impressions, clicks, cost) for keywords with specified budget and targeting settings.
+Generates forecast metrics (clicks and cost) for keywords with specified budget and targeting settings.
 
 **Inputs:**
 - `login_customer_id` (required): Manager Account ID (MCC) without dashes
 - `customer_id` (required): The Google Ads Customer ID
 - `keywords` (required): List of keywords to forecast
-- `daily_budget_micros` (optional): Daily budget in micros for Target Spend bidding strategy
+- `daily_budget_micros` (optional): Daily budget cap in micros for Manual CPC. The campaign CPC cap still applies
 - `max_cpc_bid_micros` (optional): Max CPC bid in micros for Manual CPC. Defaults to 1000000 ($1.00)
 - `language_id` (optional): Language ID. Defaults to English
 - `location_ids` (optional): List of geo target location IDs. Defaults to USA (`['2840']`)

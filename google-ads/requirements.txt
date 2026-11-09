@@ -1,5 +1,5 @@
-autohive-integrations-sdk~=1.0.2
-google-ads~=30.0
+autohive-integrations-sdk~=2.1.0
+google-ads~=30.1
 python-dotenv
 proto-plus
 tzdata
