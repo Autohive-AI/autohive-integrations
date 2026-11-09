@@ -2915,7 +2915,7 @@ class GetCompanyPropertiesActionHandler(ActionHandler):
                     "type": prop.get("type"),
                     "fieldType": prop.get("fieldType"),
                     "groupName": prop.get("groupName"),
-                    "hubspotDefined": prop.get("hubspotDefined", True),
+                    "hubspotDefined": prop.get("hubspotDefined", False),
                     "description": prop.get("description"),
                     "options": prop.get("options", []),
                 }
@@ -2925,7 +2925,7 @@ class GetCompanyPropertiesActionHandler(ActionHandler):
             # Return just property names (backward compatible)
             properties = [prop.get("name") for prop in results if prop.get("name")]
 
-        custom_count = sum(1 for prop in results if not prop.get("hubspotDefined", True))
+        custom_count = sum(1 for prop in results if not prop.get("hubspotDefined", False))
 
         return ActionResult(
             data={
@@ -2959,7 +2959,7 @@ class GetDealPropertiesActionHandler(ActionHandler):
                     "type": prop.get("type"),
                     "fieldType": prop.get("fieldType"),
                     "groupName": prop.get("groupName"),
-                    "hubspotDefined": prop.get("hubspotDefined", True),
+                    "hubspotDefined": prop.get("hubspotDefined", False),
                     "description": prop.get("description"),
                     "options": prop.get("options", []),
                 }
@@ -2969,7 +2969,7 @@ class GetDealPropertiesActionHandler(ActionHandler):
             # Return just property names
             properties = [prop.get("name") for prop in results if prop.get("name")]
 
-        custom_count = sum(1 for prop in results if not prop.get("hubspotDefined", True))
+        custom_count = sum(1 for prop in results if not prop.get("hubspotDefined", False))
 
         return ActionResult(
             data={
@@ -3003,7 +3003,7 @@ class GetContactPropertiesActionHandler(ActionHandler):
                     "type": prop.get("type"),
                     "fieldType": prop.get("fieldType"),
                     "groupName": prop.get("groupName"),
-                    "hubspotDefined": prop.get("hubspotDefined", True),
+                    "hubspotDefined": prop.get("hubspotDefined", False),
                     "description": prop.get("description"),
                     "options": prop.get("options", []),
                 }
@@ -3013,7 +3013,7 @@ class GetContactPropertiesActionHandler(ActionHandler):
             # Return just property names
             properties = [prop.get("name") for prop in results if prop.get("name")]
 
-        custom_count = sum(1 for prop in results if not prop.get("hubspotDefined", True))
+        custom_count = sum(1 for prop in results if not prop.get("hubspotDefined", False))
 
         return ActionResult(
             data={
