@@ -1369,7 +1369,7 @@
         },
         "generate_keyword_forecast": {
             "display_name": "Generate Keyword Forecast",
-            "description": "Generates forecast metrics (clicks, conversions, cost) for keywords with specified budget and targeting settings.",
+            "description": "Generates forecast metrics (clicks and cost) for keywords with specified budget and targeting settings.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1456,9 +1456,6 @@
                     "campaign_metrics": {
                         "type": "object",
                         "properties": {
-                            "conversions": {
-                                "type": "number"
-                            },
                             "clicks": {
                                 "type": "number"
                             },

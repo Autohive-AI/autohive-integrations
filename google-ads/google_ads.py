@@ -2237,7 +2237,6 @@ class GenerateKeywordForecastAction(ActionHandler):
                     "days": forecast_days,
                 },
                 "campaign_metrics": {
-                    "conversions": metrics.conversions,
                     "clicks": metrics.clicks if metrics.clicks else 0,
                     "cost_micros": metrics.cost_micros if metrics.cost_micros else 0,
                     "cost": micros_to_currency(metrics.cost_micros) if metrics.cost_micros else 0,
