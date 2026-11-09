@@ -30,7 +30,7 @@ from google_ads import _to_campaign_date_time, google_ads  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
-AUTH = {"auth_type": "PlatformOAuth2", "credentials": {"refresh_token": "test-refresh-token"}}  # nosec B105
+AUTH = {"auth_type": "PlatformOauth2", "credentials": {"refresh_token": "test-refresh-token"}}  # nosec B105
 CAMPAIGN_INPUTS = {
     "login_customer_id": "1111111111",
     "customer_id": "2222222222",

@@ -5,7 +5,7 @@ from autohive_integrations_sdk import ExecutionContext
 
 # Test configuration - replace with your actual values
 TEST_AUTH = {
-    "auth_type": "PlatformOAuth2",
+    "auth_type": "PlatformOauth2",
     "credentials": {
         "access_token": "ACCESS_TOKEN",  # nosec B105
         "refresh_token": "REFRESH_TOKEN",  # nosec B105
