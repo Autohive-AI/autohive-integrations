@@ -182,6 +182,7 @@
                 "properties": {
                     "success": {"type": "boolean"},
                     "cart": {"type": "object"},
+                    "warnings": {"type": "array", "description": "Shopify cart warnings, e.g. MERCHANDISE_OUT_OF_STOCK when a quantity was lowered", "items": {"type": "object", "properties": {"code": {"type": "string"}, "message": {"type": "string"}, "target": {"type": "string"}}}},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -223,6 +224,7 @@
                 "properties": {
                     "success": {"type": "boolean"},
                     "cart": {"type": "object"},
+                    "warnings": {"type": "array", "description": "Shopify cart warnings, e.g. MERCHANDISE_OUT_OF_STOCK when a quantity was lowered", "items": {"type": "object", "properties": {"code": {"type": "string"}, "message": {"type": "string"}, "target": {"type": "string"}}}},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]
@@ -244,6 +246,7 @@
                 "properties": {
                     "success": {"type": "boolean"},
                     "cart": {"type": "object"},
+                    "warnings": {"type": "array", "description": "Shopify cart warnings, e.g. MERCHANDISE_OUT_OF_STOCK when a quantity was lowered", "items": {"type": "object", "properties": {"code": {"type": "string"}, "message": {"type": "string"}, "target": {"type": "string"}}}},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]

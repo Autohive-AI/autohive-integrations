@@ -467,6 +467,63 @@ class TestCreateCart:
         assert result.result.message == "Variant not found"
 
 
+class TestCartWarnings:
+    STOCK_WARNING = {
+        "code": "MERCHANDISE_NOT_ENOUGH_STOCK",
+        "message": "Only 0 items were added to your cart due to stock availability.",
+        "target": "gid://shopify/CartLine/1",
+    }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "action, mutation_key, inputs",
+        [
+            ("storefront_create_cart", "cartCreate", {"lines": [{"merchandiseId": "v1", "quantity": 1}]}),
+            ("storefront_add_to_cart", "cartLinesAdd", {"cart_id": CART_ID, "lines": [{"merchandiseId": "v1"}]}),
+            (
+                "storefront_update_cart_line",
+                "cartLinesUpdate",
+                {"cart_id": CART_ID, "lines": [{"id": "l1", "quantity": 2}]},
+            ),
+        ],
+    )
+    async def test_warnings_returned(self, mock_context, action, mutation_key, inputs):
+        mock_context.fetch.return_value = gql(
+            {mutation_key: {"cart": SAMPLE_CART, "userErrors": [], "warnings": [self.STOCK_WARNING]}}
+        )
+
+        result = await shopify_storefront.execute_action(action, inputs, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data == {"success": True, "cart": SAMPLE_CART, "warnings": [self.STOCK_WARNING]}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "action, inputs",
+        [
+            ("storefront_create_cart", {}),
+            ("storefront_add_to_cart", {"cart_id": CART_ID, "lines": [{"merchandiseId": "v1"}]}),
+            ("storefront_update_cart_line", {"cart_id": CART_ID, "lines": [{"id": "l1", "quantity": 2}]}),
+        ],
+    )
+    async def test_query_requests_warnings(self, mock_context, action, inputs):
+        mock_context.fetch.return_value = gql({})
+
+        await shopify_storefront.execute_action(action, inputs, mock_context)
+
+        assert "warnings { code message target }" in mock_context.fetch.call_args.kwargs["json"]["query"]
+
+    @pytest.mark.asyncio
+    async def test_empty_warnings_omitted(self, mock_context):
+        mock_context.fetch.return_value = gql({"cartLinesAdd": {"cart": SAMPLE_CART, "userErrors": [], "warnings": []}})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_add_to_cart", {"cart_id": CART_ID, "lines": [{"merchandiseId": "v1"}]}, mock_context
+        )
+
+        assert result.result.data == {"success": True, "cart": SAMPLE_CART}
+
+
 class TestGetCart:
     @pytest.mark.asyncio
     async def test_happy_path(self, mock_context):

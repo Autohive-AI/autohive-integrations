@@ -118,6 +118,7 @@ Create a new shopping cart, optionally with initial items.
 
 **Outputs:**
 - `cart` (object): Created cart details
+- `warnings` (array, optional): Shopify cart warnings, only present when Shopify changed the request, e.g. `MERCHANDISE_OUT_OF_STOCK` or `MERCHANDISE_NOT_ENOUGH_STOCK` when a quantity was lowered
 - `success` (boolean)
 
 ---
@@ -143,6 +144,7 @@ Add items to an existing cart.
 
 **Outputs:**
 - `cart` (object): Updated cart details
+- `warnings` (array, optional): Shopify cart warnings, only present when Shopify changed the request, e.g. `MERCHANDISE_OUT_OF_STOCK` or `MERCHANDISE_NOT_ENOUGH_STOCK` when a quantity was lowered
 - `success` (boolean)
 
 ---
@@ -156,6 +158,7 @@ Update quantity of items in cart.
 
 **Outputs:**
 - `cart` (object): Updated cart details
+- `warnings` (array, optional): Shopify cart warnings, only present when Shopify changed the request, e.g. `MERCHANDISE_OUT_OF_STOCK` or `MERCHANDISE_NOT_ENOUGH_STOCK` when a quantity was lowered
 - `success` (boolean)
 
 ---

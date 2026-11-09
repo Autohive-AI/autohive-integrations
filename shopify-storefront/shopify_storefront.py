@@ -129,6 +129,22 @@ def extract_user_errors(data: Dict[str, Any], mutation_key: str, error_key: str 
     return [err.get("message", "Unknown error") for err in user_errors if err.get("message")]
 
 
+def extract_warnings(data: Dict[str, Any], mutation_key: str) -> List[Dict[str, Any]]:
+    """Extract cart warnings, e.g. a quantity Shopify lowered because of stock."""
+    if not data:
+        return []
+    return (data.get(mutation_key) or {}).get("warnings") or []
+
+
+def cart_success_response(data: Dict[str, Any], mutation_key: str) -> ActionResult:
+    """Build a cart mutation success response, including any warnings Shopify returned."""
+    payload = (data or {}).get(mutation_key) or {}
+    warnings = extract_warnings(data, mutation_key)
+    if warnings:
+        return success_response(cart=payload.get("cart"), warnings=warnings)
+    return success_response(cart=payload.get("cart"))
+
+
 async def execute_graphql(context: ExecutionContext, query: str, variables: Dict[str, Any] = None) -> Dict[str, Any]:
     """Execute a GraphQL query against the Storefront API."""
     url = get_storefront_url(context)
@@ -362,6 +378,7 @@ mutation CartCreate($input: CartInput!) {
       }
     }
     userErrors { field message code }
+    warnings { code message target }
   }
 }
 """
@@ -419,6 +436,7 @@ mutation CartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
       cost { totalAmount { amount currencyCode } }
     }
     userErrors { field message code }
+    warnings { code message target }
   }
 }
 """
@@ -437,6 +455,7 @@ mutation CartLinesUpdate($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
       cost { totalAmount { amount currencyCode } }
     }
     userErrors { field message code }
+    warnings { code message target }
   }
 }
 """
@@ -732,7 +751,7 @@ class CreateCartHandler(ActionHandler):
             if user_errors:
                 return error_response(user_errors[0]["message"])
 
-            return success_response(cart=data.get("cart"))
+            return cart_success_response({"cartCreate": data}, "cartCreate")
         except Exception as e:
             return error_response(e)
 
@@ -783,7 +802,7 @@ class AddToCartHandler(ActionHandler):
             if user_errors:
                 return error_response(user_errors)
 
-            return success_response(cart=(data or {}).get("cartLinesAdd", {}).get("cart"))
+            return cart_success_response(data, "cartLinesAdd")
         except Exception as e:
             return error_response(str(e))
 
@@ -811,7 +830,7 @@ class UpdateCartLineHandler(ActionHandler):
             if user_errors:
                 return error_response(user_errors)
 
-            return success_response(cart=(data or {}).get("cartLinesUpdate", {}).get("cart"))
+            return cart_success_response(data, "cartLinesUpdate")
         except Exception as e:
             return error_response(str(e))
 
