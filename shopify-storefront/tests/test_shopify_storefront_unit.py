@@ -1172,6 +1172,22 @@ class TestGetCartFields:
         for field in ("note", "attributes { key value }", "buyerIdentity", "appliedGiftCards"):
             assert field in query
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "action, inputs",
+        [
+            ("storefront_get_cart", {"cart_id": CART_ID}),
+            ("storefront_update_cart_note", {"cart_id": CART_ID, "note": "Hi"}),
+        ],
+    )
+    async def test_cart_reads_do_not_need_customer_scope(self, mock_context, action, inputs):
+        # buyerIdentity.customer needs unauthenticated_read_customers; ordinary cart calls must not.
+        mock_context.fetch.return_value = gql({"cart": SAMPLE_CART})
+
+        await shopify_storefront.execute_action(action, inputs, mock_context)
+
+        assert "customer {" not in sent_query(mock_context)
+
 
 # ---- Customer: logout and token renew ----
 

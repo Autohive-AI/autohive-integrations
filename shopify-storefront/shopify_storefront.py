@@ -417,7 +417,7 @@ query GetCart($cartId: ID!) {
     discountCodes { code applicable }
     note
     attributes { key value }
-    buyerIdentity { email phone countryCode customer { id email } }
+    buyerIdentity { email phone countryCode }
     appliedGiftCards { id lastCharacters amountUsed { amount currencyCode } balance { amount currencyCode } }
   }
 }
@@ -588,7 +588,7 @@ CART_DETAILS = """
       totalQuantity
       note
       attributes { key value }
-      buyerIdentity { email phone countryCode customer { id email } }
+      buyerIdentity { email phone countryCode }
       discountCodes { code applicable }
       appliedGiftCards { id lastCharacters amountUsed { amount currencyCode } balance { amount currencyCode } }
       cost {
