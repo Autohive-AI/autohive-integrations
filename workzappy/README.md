@@ -41,3 +41,13 @@ python -m pytest workzappy/
 ```
 
 The tests use mocked WorkZappy responses and require no credentials.
+
+## Run the live smoke test
+
+Set `WORKZAPPY_CLIENT_ID` and `WORKZAPPY_SECRET_KEY` with credentials that have **Get Project List** permission. From the repository root, run:
+
+```sh
+python -m pytest workzappy/tests/test_workzappy_integration.py -m integration
+```
+
+The test authenticates and lists projects without creating or modifying data. TeamCity maps both variables from the WorkZappy custom auth connection using `tests/teamcity.env`.

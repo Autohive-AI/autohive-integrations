@@ -5,7 +5,7 @@ import pytest
 from autohive_integrations_sdk import ActionError, FetchResponse
 
 from .. import workzappy as actions
-from .context import BASE_URL, CreateTask
+from ..workzappy import BASE_URL, CreateTask
 
 pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 
