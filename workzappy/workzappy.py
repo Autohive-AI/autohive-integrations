@@ -1,9 +1,10 @@
 import asyncio
+from pathlib import Path
 
 import aiohttp
 from autohive_integrations_sdk import ActionError, ActionHandler, ActionResult, ExecutionContext, HTTPError, Integration
 
-workzappy = Integration.load()
+workzappy = Integration.load(Path(__file__).with_name("config.json"))
 BASE_URL = "https://app.workzappy.com/openapi/api"
 NO_RETRY = 1_000
 
@@ -99,8 +100,15 @@ async def _request(
     if not isinstance(payload, dict) or payload.get("code") != "0":
         return _request_error(write)
     data = payload.get("data")
-    if not isinstance(data, expected_type) or (write and isinstance(data, dict) and data.get("success") is False):
+    if not isinstance(data, expected_type):
         return _request_error(write)
+    if write:
+        if method == "POST":
+            resource_id = data.get("id")
+            if type(resource_id) is not int or resource_id < 1:
+                return _request_error(write)
+        elif data.get("success") is not True:
+            return _request_error(write)
     return ActionResult(data={output: data})
 
 

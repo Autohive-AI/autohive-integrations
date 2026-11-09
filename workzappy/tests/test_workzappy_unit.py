@@ -109,11 +109,11 @@ async def test_unconfirmed_creation_returns_action_error(ctx, failure):
         ),
         (
             actions.GetTaskScheme,
-            {"project_id": 2, "task_type_id": 2},
+            {"project_id": 2, "task_type_id": 7},
             "GET",
             "/issue/issue-scheme",
             "params",
-            {"projectId": 2, "issueTypeId": 2},
+            {"projectId": 2, "issueTypeId": 7},
             "scheme",
             {"id": 42},
             False,
@@ -121,11 +121,11 @@ async def test_unconfirmed_creation_returns_action_error(ctx, failure):
         (actions.GetTask, {"task_id": 2}, "GET", "/issue/v2/get", "params", {"id": 2}, "task", {"id": 42}, False),
         (
             actions.SearchTasks,
-            {"project_id": 2, "summary": "Example", "page_number": 2, "page_size": 2},
+            {"project_id": 2, "summary": "Example", "page_number": 3, "page_size": 11},
             "POST",
             "/issue/v2/page",
             "body",
-            {"projectId": 2, "summary": "Example", "pageNumber": 2, "pageSize": 2},
+            {"projectId": 2, "summary": "Example", "pageNumber": 3, "pageSize": 11},
             "page",
             {"id": 42},
             False,
@@ -138,28 +138,38 @@ async def test_unconfirmed_creation_returns_action_error(ctx, failure):
             "body",
             {"id": 2, "data": {"summary": "Revised"}},
             "result",
-            {"id": 42},
+            {"success": True},
             True,
         ),
-        (actions.RemoveTask, {"task_id": 2}, "DELETE", "/issue/remove", "body", {"id": 2}, "result", {"id": 42}, True),
+        (
+            actions.RemoveTask,
+            {"task_id": 2},
+            "DELETE",
+            "/issue/remove",
+            "body",
+            {"id": 2},
+            "result",
+            {"success": True},
+            True,
+        ),
         (
             actions.ListTaskComments,
-            {"task_id": 2, "page_number": 2, "page_size": 2},
+            {"task_id": 2, "page_number": 3, "page_size": 11},
             "POST",
             "/comment/page",
             "body",
-            {"commentModule": "issue", "linkId": 2, "pageNumber": 2, "pageSize": 2},
+            {"commentModule": "issue", "linkId": 2, "pageNumber": 3, "pageSize": 11},
             "page",
             {"id": 42},
             False,
         ),
         (
             actions.AddTaskComment,
-            {"task_id": 2, "content": "Example", "parent_comment_id": 2},
+            {"task_id": 2, "content": "Example", "parent_comment_id": 9},
             "POST",
             "/comment/add",
             "body",
-            {"commentModule": "issue", "linkId": 2, "plainContent": "Example", "commentId": 2, "content": "Example"},
+            {"commentModule": "issue", "linkId": 2, "plainContent": "Example", "commentId": 9, "content": "Example"},
             "comment",
             {"id": 42},
             True,
@@ -205,7 +215,7 @@ async def test_unconfirmed_creation_returns_action_error(ctx, failure):
             "body",
             {"id": 2, "data": {"summary": "Revised"}},
             "result",
-            {"id": 42},
+            {"success": True},
             True,
         ),
     ],
@@ -225,3 +235,23 @@ async def test_action_contract(ctx, handler, inputs, method, path, mode, wire, o
         json=wire if mode == "body" else None,
         retry_count=1_000 if write else 0,
     )
+
+
+@pytest.mark.parametrize(
+    "handler, inputs, payloads",
+    [
+        (actions.UpdateTask, {"task_id": 1, "fields": {"summary": "New"}}, [{}, {"id": 42}, {"success": 1}]),
+        (actions.RemoveTask, {"task_id": 1}, [{}, {"success": False}]),
+        (actions.UpdateProject, {"project_id": 1, "fields": {"pname": "New"}}, [{}, {"success": "true"}]),
+        (actions.CreateProject, {"project_name": "New", "template_code": "BLANK", "leader_id": 1}, [{}, {"id": 0}]),
+        (actions.AddTaskComment, {"task_id": 1, "content": "New"}, [{}, {"id": True}]),
+    ],
+)
+async def test_write_requires_confirmation(ctx, handler, inputs, payloads):
+    for payload in payloads:
+        ctx.fetch.side_effect = [
+            response({"code": "0", "data": {"accessToken": "token"}}),
+            response({"code": "0", "data": payload}),
+        ]
+        result = await handler().execute(inputs, ctx)
+        assert isinstance(result, ActionError)
