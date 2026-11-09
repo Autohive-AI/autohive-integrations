@@ -181,6 +181,70 @@ class TestCartReads:
         assert result.type == ResultType.ACTION_ERROR
 
 
+class TestContentAndDiscovery:
+    async def test_get_shop_policies(self, live_context):
+        data = action_data(await shopify_storefront.execute_action("storefront_get_shop_policies", {}, live_context))
+        assert set(data["policies"]) == {
+            "privacy_policy",
+            "refund_policy",
+            "shipping_policy",
+            "terms_of_service",
+            "subscription_policy",
+        }
+
+    async def test_list_and_get_page(self, live_context):
+        data = action_data(await shopify_storefront.execute_action("storefront_list_pages", {"first": 1}, live_context))
+        if not data["pages"]:
+            pytest.skip("No pages available in the Storefront test store")
+        page = data["pages"][0]
+
+        fetched = action_data(
+            await shopify_storefront.execute_action("storefront_get_page", {"handle": page["handle"]}, live_context)
+        )
+        assert fetched["page"]["id"] == page["id"]
+
+    async def test_list_and_get_article(self, live_context):
+        data = action_data(
+            await shopify_storefront.execute_action("storefront_list_articles", {"first": 1}, live_context)
+        )
+        if not data["articles"]:
+            pytest.skip("No blog articles available in the Storefront test store")
+        article = data["articles"][0]
+
+        fetched = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_get_article", {"article_id": article["id"]}, live_context
+            )
+        )
+        assert fetched["article"]["id"] == article["id"]
+
+    async def test_get_main_menu(self, live_context):
+        result = await shopify_storefront.execute_action("storefront_get_menu", {"handle": "main-menu"}, live_context)
+        if result.type == ResultType.ACTION_ERROR and result.result.message == "Menu not found":
+            pytest.skip("No main-menu in the Storefront test store")
+        assert action_data(result)["menu"]["handle"] == "main-menu"
+
+    async def test_product_recommendations(self, live_context):
+        product = await first_product(live_context)
+
+        data = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_get_product_recommendations", {"product_handle": product["handle"]}, live_context
+            )
+        )
+        assert data["count"] == len(data["products"]) <= 10
+
+    async def test_predictive_search(self, live_context):
+        product = await first_product(live_context)
+
+        data = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_predictive_search", {"query": product["title"][:4], "limit": 3}, live_context
+            )
+        )
+        assert len(data["products"]) <= 3
+
+
 # ---- Destructive Tests (Write Operations) ----
 # These create carts and customer accounts in the connected store.
 # Only run with: pytest -m "integration and destructive"
@@ -232,6 +296,44 @@ class TestCartLifecycle:
 
 
 @pytest.mark.destructive
+class TestCartDetails:
+    async def test_buyer_identity_note_and_attributes(self, live_context):
+        cart_id = action_data(await shopify_storefront.execute_action("storefront_create_cart", {}, live_context))[
+            "cart"
+        ]["id"]
+
+        buyer = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_update_cart_buyer_identity", {"cart_id": cart_id, "country_code": "US"}, live_context
+            )
+        )["cart"]
+        assert buyer["buyerIdentity"]["countryCode"] == "US"
+
+        noted = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_update_cart_note", {"cart_id": cart_id, "note": "Integration test"}, live_context
+            )
+        )["cart"]
+        assert noted["note"] == "Integration test"
+
+        attributed = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_update_cart_attributes",
+                {"cart_id": cart_id, "attributes": [{"key": "source", "value": "integration-test"}]},
+                live_context,
+            )
+        )["cart"]
+        assert attributed["attributes"] == [{"key": "source", "value": "integration-test"}]
+
+        cleared = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_update_cart_attributes", {"cart_id": cart_id, "attributes": []}, live_context
+            )
+        )["cart"]
+        assert cleared["attributes"] == []
+
+
+@pytest.mark.destructive
 class TestCustomerLifecycle:
     async def test_create_login_get_update_recover(self, live_context):
         timestamp = int(time.time())
@@ -261,13 +363,32 @@ class TestCustomerLifecycle:
         )["customer"]
         assert customer["email"] == email
 
-        action_data(
+        updated = action_data(
             await shopify_storefront.execute_action(
                 "storefront_update_customer",
                 {"customer_access_token": customer_token, "first_name": "Updated"},
                 live_context,
             )
         )
+        customer_token = updated["customer_access_token"] or customer_token
+
+        renewed = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_renew_customer_token", {"customer_access_token": customer_token}, live_context
+            )
+        )
+        assert renewed["expires_at"]
+        customer_token = renewed["customer_access_token"]
+
+        action_data(
+            await shopify_storefront.execute_action(
+                "storefront_customer_logout", {"customer_access_token": customer_token}, live_context
+            )
+        )
+        signed_out = await shopify_storefront.execute_action(
+            "storefront_get_customer", {"customer_access_token": customer_token}, live_context
+        )
+        assert signed_out.type == ResultType.ACTION_ERROR
 
         action_data(
             await shopify_storefront.execute_action("storefront_recover_customer", {"email": email}, live_context)

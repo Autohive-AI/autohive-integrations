@@ -1,8 +1,8 @@
 {
     "name": "ShopifyStorefront",
-    "display_name": "Shopify Storefront API",
-    "version": "2.0.0",
-    "description": "Shopify Storefront API integration for customer-facing e-commerce operations - products, collections, cart, and customer accounts",
+    "display_name": "Shopify Storefront",
+    "version": "2.1.0",
+    "description": "Shopify Storefront API integration for customer-facing e-commerce operations - products, collections, cart, customer accounts, store content, and product discovery",
     "entry_point": "shopify_storefront.py",
     "auth": {
         "type": "custom",
@@ -403,6 +403,337 @@
                     "customer": {"type": "object"},
                     "customer_access_token": {"type": ["string", "null"]},
                     "expires_at": {"type": ["string", "null"]},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_update_cart_buyer_identity": {
+            "display_name": "Update Cart Buyer",
+            "description": "Link a cart to a logged-in customer, or set the buyer's email, phone or country. The country controls local pricing and availability.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
+                    "customer_access_token": {"type": "string", "description": "Customer access token from Customer Login", "label": "Customer Access Token"},
+                    "email": {"type": "string", "description": "Buyer email", "label": "Email"},
+                    "phone": {"type": "string", "description": "Buyer phone in E.164 format, e.g. +16135551111", "label": "Phone"},
+                    "country_code": {"type": "string", "description": "Two-letter country code, e.g. US or CA", "label": "Country Code"}
+                },
+                "required": ["cart_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "warnings": {"type": "array", "description": "Shopify cart warnings, only present when Shopify changed the request", "items": {"type": "object", "properties": {"code": {"type": "string"}, "message": {"type": "string"}, "target": {"type": "string"}}}},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_update_cart_note": {
+            "display_name": "Update Cart Note",
+            "description": "Set a note on the cart, such as a gift message or delivery instructions. Pass an empty string to clear it.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
+                    "note": {"type": "string", "description": "Note text; an empty string clears the note", "label": "Note"}
+                },
+                "required": ["cart_id", "note"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "warnings": {"type": "array", "description": "Shopify cart warnings, only present when Shopify changed the request", "items": {"type": "object", "properties": {"code": {"type": "string"}, "message": {"type": "string"}, "target": {"type": "string"}}}},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_update_cart_attributes": {
+            "display_name": "Update Cart Attributes",
+            "description": "Replace the cart's custom attributes, e.g. engraving text. Pass an empty list to remove all attributes.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
+                    "attributes": {"type": "array", "description": "Attributes [{key, value}]; replaces any existing attributes", "label": "Attributes", "items": {"type": "object", "properties": {"key": {"type": "string"}, "value": {"type": "string"}}, "required": ["key", "value"]}}
+                },
+                "required": ["cart_id", "attributes"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "warnings": {"type": "array", "description": "Shopify cart warnings, only present when Shopify changed the request", "items": {"type": "object", "properties": {"code": {"type": "string"}, "message": {"type": "string"}, "target": {"type": "string"}}}},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_add_gift_cards": {
+            "display_name": "Add Gift Cards",
+            "description": "Apply gift card codes to a cart, keeping any gift cards already applied",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
+                    "gift_card_codes": {"type": "array", "description": "Gift card codes to apply", "label": "Gift Card Codes", "items": {"type": "string"}}
+                },
+                "required": ["cart_id", "gift_card_codes"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "warnings": {"type": "array", "description": "Shopify cart warnings, only present when Shopify changed the request", "items": {"type": "object", "properties": {"code": {"type": "string"}, "message": {"type": "string"}, "target": {"type": "string"}}}},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_remove_gift_cards": {
+            "display_name": "Remove Gift Cards",
+            "description": "Remove applied gift cards from a cart. Use the IDs from the cart's appliedGiftCards, not the codes.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "cart_id": {"type": "string", "description": "Cart GraphQL ID", "label": "Cart ID"},
+                    "applied_gift_card_ids": {"type": "array", "description": "Applied gift card IDs from Get Cart (appliedGiftCards[].id)", "label": "Applied Gift Card IDs", "items": {"type": "string"}}
+                },
+                "required": ["cart_id", "applied_gift_card_ids"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "cart": {"type": "object"},
+                    "warnings": {"type": "array", "description": "Shopify cart warnings, only present when Shopify changed the request", "items": {"type": "object", "properties": {"code": {"type": "string"}, "message": {"type": "string"}, "target": {"type": "string"}}}},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_customer_logout": {
+            "display_name": "Customer Logout",
+            "description": "Sign a customer out by permanently deleting their access token",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "customer_access_token": {"type": "string", "description": "Customer access token from Customer Login", "label": "Customer Access Token"}
+                },
+                "required": ["customer_access_token"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_renew_customer_token": {
+            "display_name": "Renew Customer Token",
+            "description": "Extend a customer access token before it expires. Expired tokens need a new Customer Login.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "customer_access_token": {"type": "string", "description": "Customer access token from Customer Login", "label": "Customer Access Token"}
+                },
+                "required": ["customer_access_token"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "customer_access_token": {"type": "string"},
+                    "expires_at": {"type": "string"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_get_shop_policies": {
+            "display_name": "Get Shop Policies",
+            "description": "Get the store's privacy, refund, shipping, terms of service and subscription policies",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "policies": {"type": "object", "description": "Each policy has title, handle, url and body, or is null when not set"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_list_pages": {
+            "display_name": "List Pages",
+            "description": "List the store's content pages, such as About or FAQ",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first": {"type": "integer", "description": "Number of results to return (max 250)", "label": "Count", "default": 20},
+                    "after": {"type": "string", "description": "Cursor for pagination", "label": "After Cursor"},
+                    "query": {"type": "string", "description": "Filter query, e.g. 'title:faq'", "label": "Query Filter"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "pages": {"type": "array", "items": {"type": "object"}},
+                    "count": {"type": "integer"},
+                    "has_next_page": {"type": "boolean"},
+                    "end_cursor": {"type": ["string", "null"]},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_get_page": {
+            "display_name": "Get Page",
+            "description": "Get a content page with its full body by handle or ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "handle": {"type": "string", "description": "Page handle (URL slug)", "label": "Handle"},
+                    "page_id": {"type": "string", "description": "Page GraphQL ID", "label": "Page ID"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "page": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_list_articles": {
+            "display_name": "List Blog Articles",
+            "description": "List blog articles across all blogs, newest first",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "first": {"type": "integer", "description": "Number of results to return (max 250)", "label": "Count", "default": 20},
+                    "after": {"type": "string", "description": "Cursor for pagination", "label": "After Cursor"},
+                    "query": {"type": "string", "description": "Filter query, e.g. 'tag:news' or 'blog_title:Journal'", "label": "Query Filter"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "articles": {"type": "array", "items": {"type": "object"}},
+                    "count": {"type": "integer"},
+                    "has_next_page": {"type": "boolean"},
+                    "end_cursor": {"type": ["string", "null"]},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_get_article": {
+            "display_name": "Get Blog Article",
+            "description": "Get a blog article with its full content by ID",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "article_id": {"type": "string", "description": "Article GraphQL ID from List Blog Articles", "label": "Article ID"}
+                },
+                "required": ["article_id"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "article": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_get_menu": {
+            "display_name": "Get Menu",
+            "description": "Get a navigation menu and its items (up to three levels) by handle",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "handle": {"type": "string", "description": "Menu handle, e.g. main-menu or footer", "label": "Handle"}
+                },
+                "required": ["handle"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "menu": {"type": "object"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_get_product_recommendations": {
+            "display_name": "Get Product Recommendations",
+            "description": "Get up to 10 products recommended for a product",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "product_handle": {"type": "string", "description": "Product handle (URL slug)", "label": "Product Handle"},
+                    "product_id": {"type": "string", "description": "Product GraphQL ID", "label": "Product ID"},
+                    "intent": {"type": "string", "description": "RELATED for similar products, COMPLEMENTARY for products bought together (set up in the Search & Discovery app)", "label": "Intent", "enum": ["RELATED", "COMPLEMENTARY"], "default": "RELATED"}
+                },
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "products": {"type": "array", "items": {"type": "object"}},
+                    "count": {"type": "integer"},
+                    "message": {"type": "string"}
+                },
+                "required": ["success"]
+            }
+        },
+        "storefront_predictive_search": {
+            "display_name": "Predictive Search",
+            "description": "Search-as-you-type suggestions across products, collections, pages and articles, plus suggested search terms",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Partial search text", "label": "Query"},
+                    "limit": {"type": "integer", "description": "Results per type (1-10)", "label": "Limit", "default": 10},
+                    "types": {"type": "array", "description": "Result types to include; defaults to all", "label": "Types", "items": {"type": "string", "enum": ["PRODUCT", "COLLECTION", "PAGE", "ARTICLE", "QUERY"]}}
+                },
+                "required": ["query"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "success": {"type": "boolean"},
+                    "queries": {"type": "array", "items": {"type": "object"}},
+                    "products": {"type": "array", "items": {"type": "object"}},
+                    "collections": {"type": "array", "items": {"type": "object"}},
+                    "pages": {"type": "array", "items": {"type": "object"}},
+                    "articles": {"type": "array", "items": {"type": "object"}},
                     "message": {"type": "string"}
                 },
                 "required": ["success"]

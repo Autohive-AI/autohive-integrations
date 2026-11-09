@@ -298,7 +298,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### Shopify Storefront
 
-[shopify-storefront](shopify-storefront): Connects to the Shopify Storefront API to manage customer-facing e-commerce operations. Supports searching and retrieving products and collections, full cart management (create, update, discounts), and customer authentication.
+[shopify-storefront](shopify-storefront): Connects to the Shopify Storefront API to manage customer-facing e-commerce operations. Supports searching and retrieving products and collections, full cart management (create, update, discounts, gift cards, buyer details, notes), customer authentication, store content (policies, pages, blog articles, menus), and product recommendations and predictive search.
 
 ### Stripe
 

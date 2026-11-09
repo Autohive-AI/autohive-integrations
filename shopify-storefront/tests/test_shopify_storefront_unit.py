@@ -17,7 +17,7 @@ from shopify_storefront import (
 
 pytestmark = pytest.mark.unit
 
-STOREFRONT_URL = "https://test-store.myshopify.com/api/2024-10/graphql.json"
+STOREFRONT_URL = "https://test-store.myshopify.com/api/2026-10/graphql.json"
 CART_ID = "gid://shopify/Cart/abc123"
 FAKE_CUSTOMER_CREDENTIAL = "customer-access-value"
 FAKE_LOGIN_VALUE = "Example123!"
@@ -959,3 +959,598 @@ class TestUpdateCustomer:
 
         assert result.type == ResultType.ACTION_ERROR
         assert result.result.message == "Phone is invalid"
+
+
+def sent_query(mock_context):
+    return mock_context.fetch.call_args.kwargs["json"]["query"]
+
+
+# ---- Cart: buyer identity, note, attributes, gift cards ----
+
+NEW_CART_MUTATIONS = [
+    (
+        "storefront_update_cart_buyer_identity",
+        "cartBuyerIdentityUpdate",
+        {"country_code": "CA"},
+        {"buyerIdentity": {"countryCode": "CA"}},
+    ),
+    ("storefront_update_cart_note", "cartNoteUpdate", {"note": "Gift wrap please"}, {"note": "Gift wrap please"}),
+    (
+        "storefront_update_cart_attributes",
+        "cartAttributesUpdate",
+        {"attributes": [{"key": "Engraving", "value": "Happy Birthday"}]},
+        {"attributes": [{"key": "Engraving", "value": "Happy Birthday"}]},
+    ),
+    (
+        "storefront_add_gift_cards",
+        "cartGiftCardCodesAdd",
+        {"gift_card_codes": ["GIFT-1234"]},
+        {"giftCardCodes": ["GIFT-1234"]},
+    ),
+    (
+        "storefront_remove_gift_cards",
+        "cartGiftCardCodesRemove",
+        {"applied_gift_card_ids": ["gid://shopify/AppliedGiftCard/1"]},
+        {"appliedGiftCardIds": ["gid://shopify/AppliedGiftCard/1"]},
+    ),
+]
+
+
+@pytest.mark.parametrize("action, mutation_key, inputs, expected_variables", NEW_CART_MUTATIONS)
+class TestNewCartMutations:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context, action, mutation_key, inputs, expected_variables):
+        mock_context.fetch.return_value = gql({mutation_key: {"cart": SAMPLE_CART, "userErrors": [], "warnings": []}})
+
+        result = await shopify_storefront.execute_action(action, {"cart_id": CART_ID, **inputs}, mock_context)
+
+        assert result.type == ResultType.ACTION
+        assert result.result.data == {"success": True, "cart": SAMPLE_CART}
+
+    @pytest.mark.asyncio
+    async def test_request_variables(self, mock_context, action, mutation_key, inputs, expected_variables):
+        mock_context.fetch.return_value = gql({mutation_key: {"cart": SAMPLE_CART, "userErrors": []}})
+
+        await shopify_storefront.execute_action(action, {"cart_id": CART_ID, **inputs}, mock_context)
+
+        assert mock_context.fetch.call_args.args[0] == STOREFRONT_URL
+        assert sent_variables(mock_context) == {"cartId": CART_ID, **expected_variables}
+        assert f"{mutation_key}(" in sent_query(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_warnings_returned(self, mock_context, action, mutation_key, inputs, expected_variables):
+        warning = {"code": "PAYMENTS_GIFT_CARDS_UNAVAILABLE", "message": "Gift cards unavailable", "target": CART_ID}
+        mock_context.fetch.return_value = gql(
+            {mutation_key: {"cart": SAMPLE_CART, "userErrors": [], "warnings": [warning]}}
+        )
+
+        result = await shopify_storefront.execute_action(action, {"cart_id": CART_ID, **inputs}, mock_context)
+
+        assert result.result.data["warnings"] == [warning]
+
+    @pytest.mark.asyncio
+    async def test_user_errors_joined(self, mock_context, action, mutation_key, inputs, expected_variables):
+        mock_context.fetch.return_value = gql(
+            {mutation_key: {"cart": None, "userErrors": [{"message": "First"}, {"message": "Second"}]}}
+        )
+
+        result = await shopify_storefront.execute_action(action, {"cart_id": CART_ID, **inputs}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "First; Second"
+
+    @pytest.mark.asyncio
+    async def test_graphql_error(self, mock_context, action, mutation_key, inputs, expected_variables):
+        mock_context.fetch.return_value = gql(errors=[{"message": "Cart expired", "extensions": {"code": "GONE"}}])
+
+        result = await shopify_storefront.execute_action(action, {"cart_id": CART_ID, **inputs}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "GONE: Cart expired"
+
+    @pytest.mark.asyncio
+    async def test_empty_cart_id(self, mock_context, action, mutation_key, inputs, expected_variables):
+        result = await shopify_storefront.execute_action(action, {"cart_id": "", **inputs}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "cart_id" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_exception(self, mock_context, action, mutation_key, inputs, expected_variables):
+        mock_context.fetch.side_effect = Exception("Network down")
+
+        result = await shopify_storefront.execute_action(action, {"cart_id": CART_ID, **inputs}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Network down" in result.result.message
+
+
+class TestUpdateCartBuyerIdentity:
+    @pytest.mark.asyncio
+    async def test_maps_all_fields(self, mock_context):
+        mock_context.fetch.return_value = gql({"cartBuyerIdentityUpdate": {"cart": SAMPLE_CART, "userErrors": []}})
+
+        await shopify_storefront.execute_action(
+            "storefront_update_cart_buyer_identity",
+            {
+                "cart_id": CART_ID,
+                "customer_access_token": FAKE_CUSTOMER_CREDENTIAL,
+                "email": "jane@example.com",
+                "phone": "+16135551111",
+                "country_code": "US",
+            },
+            mock_context,
+        )
+
+        assert sent_variables(mock_context)["buyerIdentity"] == {
+            "customerAccessToken": FAKE_CUSTOMER_CREDENTIAL,
+            "email": "jane@example.com",
+            "phone": "+16135551111",
+            "countryCode": "US",
+        }
+
+    @pytest.mark.asyncio
+    async def test_blank_fields_dropped(self, mock_context):
+        mock_context.fetch.return_value = gql({"cartBuyerIdentityUpdate": {"cart": SAMPLE_CART, "userErrors": []}})
+
+        await shopify_storefront.execute_action(
+            "storefront_update_cart_buyer_identity",
+            {"cart_id": CART_ID, "email": "", "country_code": "CA"},
+            mock_context,
+        )
+
+        assert sent_variables(mock_context)["buyerIdentity"] == {"countryCode": "CA"}
+
+    @pytest.mark.asyncio
+    async def test_no_fields_rejected(self, mock_context):
+        result = await shopify_storefront.execute_action(
+            "storefront_update_cart_buyer_identity", {"cart_id": CART_ID}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "At least one buyer identity field" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+
+class TestUpdateCartNote:
+    @pytest.mark.asyncio
+    async def test_empty_note_clears(self, mock_context):
+        mock_context.fetch.return_value = gql({"cartNoteUpdate": {"cart": SAMPLE_CART, "userErrors": []}})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_update_cart_note", {"cart_id": CART_ID, "note": ""}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        assert sent_variables(mock_context) == {"cartId": CART_ID, "note": ""}
+
+    @pytest.mark.asyncio
+    async def test_missing_note_is_validation_error(self, mock_context):
+        result = await shopify_storefront.execute_action(
+            "storefront_update_cart_note", {"cart_id": CART_ID}, mock_context
+        )
+
+        assert result.type == ResultType.VALIDATION_ERROR
+
+
+class TestUpdateCartAttributes:
+    @pytest.mark.asyncio
+    async def test_empty_list_clears(self, mock_context):
+        mock_context.fetch.return_value = gql({"cartAttributesUpdate": {"cart": SAMPLE_CART, "userErrors": []}})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_update_cart_attributes", {"cart_id": CART_ID, "attributes": []}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION
+        assert sent_variables(mock_context) == {"cartId": CART_ID, "attributes": []}
+
+
+class TestGiftCards:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "action, input_key",
+        [("storefront_add_gift_cards", "gift_card_codes"), ("storefront_remove_gift_cards", "applied_gift_card_ids")],
+    )
+    async def test_empty_list_rejected(self, mock_context, action, input_key):
+        result = await shopify_storefront.execute_action(action, {"cart_id": CART_ID, input_key: []}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "non-empty array" in result.result.message
+        mock_context.fetch.assert_not_called()
+
+
+class TestGetCartFields:
+    @pytest.mark.asyncio
+    async def test_query_includes_note_attributes_buyer_and_gift_cards(self, mock_context):
+        mock_context.fetch.return_value = gql({"cart": SAMPLE_CART})
+
+        await shopify_storefront.execute_action("storefront_get_cart", {"cart_id": CART_ID}, mock_context)
+
+        query = sent_query(mock_context)
+        for field in ("note", "attributes { key value }", "buyerIdentity", "appliedGiftCards"):
+            assert field in query
+
+
+# ---- Customer: logout and token renew ----
+
+
+class TestCustomerLogout:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = gql(
+            {"customerAccessTokenDelete": {"deletedAccessToken": FAKE_CUSTOMER_CREDENTIAL, "userErrors": []}}
+        )
+
+        result = await shopify_storefront.execute_action(
+            "storefront_customer_logout", {"customer_access_token": FAKE_CUSTOMER_CREDENTIAL}, mock_context
+        )
+
+        assert result.result.data == {"success": True, "message": "Customer signed out"}
+        assert sent_variables(mock_context) == {"customerAccessToken": FAKE_CUSTOMER_CREDENTIAL}
+
+    @pytest.mark.asyncio
+    async def test_user_error(self, mock_context):
+        mock_context.fetch.return_value = gql(
+            {"customerAccessTokenDelete": {"deletedAccessToken": None, "userErrors": [{"message": "Access denied"}]}}
+        )
+
+        result = await shopify_storefront.execute_action(
+            "storefront_customer_logout", {"customer_access_token": FAKE_CUSTOMER_CREDENTIAL}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Access denied"
+
+    @pytest.mark.asyncio
+    async def test_missing_token_is_validation_error(self, mock_context):
+        result = await shopify_storefront.execute_action("storefront_customer_logout", {}, mock_context)
+
+        assert result.type == ResultType.VALIDATION_ERROR
+
+
+class TestCustomerLogoutUnknownToken:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "payload", [None, {"deletedAccessToken": None, "userErrors": []}], ids=["null_payload", "nothing_deleted"]
+    )
+    async def test_unknown_token_is_error(self, mock_context, payload):
+        mock_context.fetch.return_value = gql({"customerAccessTokenDelete": payload})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_customer_logout", {"customer_access_token": FAKE_CUSTOMER_CREDENTIAL}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Customer access token not found or already signed out"
+
+
+class TestRenewCustomerToken:
+    @pytest.mark.asyncio
+    async def test_null_payload_is_error(self, mock_context):
+        mock_context.fetch.return_value = gql({"customerAccessTokenRenew": None})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_renew_customer_token", {"customer_access_token": FAKE_CUSTOMER_CREDENTIAL}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Customer access token could not be renewed"
+
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = gql(
+            {
+                "customerAccessTokenRenew": {
+                    "customerAccessToken": {"accessToken": ROTATED_CUSTOMER_CREDENTIAL, "expiresAt": "2027-01-01"},
+                    "userErrors": [],
+                }
+            }
+        )
+
+        result = await shopify_storefront.execute_action(
+            "storefront_renew_customer_token", {"customer_access_token": FAKE_CUSTOMER_CREDENTIAL}, mock_context
+        )
+
+        assert result.result.data == {
+            "success": True,
+            "customer_access_token": ROTATED_CUSTOMER_CREDENTIAL,
+            "expires_at": "2027-01-01",
+        }
+
+    @pytest.mark.asyncio
+    async def test_expired_token_without_errors_is_error(self, mock_context):
+        mock_context.fetch.return_value = gql(
+            {"customerAccessTokenRenew": {"customerAccessToken": None, "userErrors": []}}
+        )
+
+        result = await shopify_storefront.execute_action(
+            "storefront_renew_customer_token", {"customer_access_token": FAKE_CUSTOMER_CREDENTIAL}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert "could not be renewed" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_user_error(self, mock_context):
+        mock_context.fetch.return_value = gql(
+            {"customerAccessTokenRenew": {"customerAccessToken": None, "userErrors": [{"message": "Access denied"}]}}
+        )
+
+        result = await shopify_storefront.execute_action(
+            "storefront_renew_customer_token", {"customer_access_token": FAKE_CUSTOMER_CREDENTIAL}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Access denied"
+
+
+# ---- Content ----
+
+SAMPLE_POLICY = {"title": "Refund policy", "handle": "refund-policy", "url": "https://example.com/r", "body": "30 days"}
+SAMPLE_PAGE = {"id": "gid://shopify/Page/1", "title": "FAQ", "handle": "faq"}
+SAMPLE_ARTICLE = {"id": "gid://shopify/Article/1", "title": "News", "handle": "news"}
+
+
+class TestGetShopPolicies:
+    @pytest.mark.asyncio
+    async def test_happy_path_maps_policies(self, mock_context):
+        mock_context.fetch.return_value = gql({"shop": {"refundPolicy": SAMPLE_POLICY, "privacyPolicy": None}})
+
+        result = await shopify_storefront.execute_action("storefront_get_shop_policies", {}, mock_context)
+
+        assert result.result.data == {
+            "success": True,
+            "policies": {
+                "privacy_policy": None,
+                "refund_policy": SAMPLE_POLICY,
+                "shipping_policy": None,
+                "terms_of_service": None,
+                "subscription_policy": None,
+            },
+        }
+
+    @pytest.mark.asyncio
+    async def test_graphql_error(self, mock_context):
+        mock_context.fetch.return_value = gql(errors=[{"message": "Throttled", "extensions": {"code": "THROTTLED"}}])
+
+        result = await shopify_storefront.execute_action("storefront_get_shop_policies", {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "THROTTLED: Throttled"
+
+
+@pytest.mark.parametrize(
+    "action, connection, output_key, item",
+    [
+        ("storefront_list_pages", "pages", "pages", SAMPLE_PAGE),
+        ("storefront_list_articles", "articles", "articles", SAMPLE_ARTICLE),
+    ],
+)
+class TestListContent:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context, action, connection, output_key, item):
+        mock_context.fetch.return_value = gql(
+            {connection: {"edges": [{"node": item}], "pageInfo": {"hasNextPage": True, "endCursor": "c1"}}}
+        )
+
+        result = await shopify_storefront.execute_action(action, {"first": 5, "query": "tag:news"}, mock_context)
+
+        assert result.result.data == {
+            "success": True,
+            output_key: [item],
+            "count": 1,
+            "has_next_page": True,
+            "end_cursor": "c1",
+        }
+        assert sent_variables(mock_context) == {"first": 5, "after": None, "query": "tag:news"}
+
+    @pytest.mark.asyncio
+    async def test_default_first(self, mock_context, action, connection, output_key, item):
+        mock_context.fetch.return_value = gql({connection: {"edges": [], "pageInfo": {"hasNextPage": False}}})
+
+        result = await shopify_storefront.execute_action(action, {}, mock_context)
+
+        assert sent_variables(mock_context)["first"] == 20
+        assert result.result.data["count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_graphql_error(self, mock_context, action, connection, output_key, item):
+        mock_context.fetch.return_value = gql(errors=[{"message": "Bad query"}])
+
+        result = await shopify_storefront.execute_action(action, {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Bad query"
+
+
+class TestGetPage:
+    @pytest.mark.asyncio
+    async def test_by_handle_sends_handle_only(self, mock_context):
+        mock_context.fetch.return_value = gql({"page": SAMPLE_PAGE})
+
+        result = await shopify_storefront.execute_action("storefront_get_page", {"handle": "faq"}, mock_context)
+
+        assert result.result.data == {"success": True, "page": SAMPLE_PAGE}
+        assert sent_variables(mock_context) == {"handle": "faq"}
+        assert "page(handle: $handle)" in sent_query(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_by_id_sends_id_only(self, mock_context):
+        mock_context.fetch.return_value = gql({"page": SAMPLE_PAGE})
+
+        await shopify_storefront.execute_action(
+            "storefront_get_page", {"handle": "faq", "page_id": SAMPLE_PAGE["id"]}, mock_context
+        )
+
+        assert sent_variables(mock_context) == {"id": SAMPLE_PAGE["id"]}
+        assert "page(id: $id)" in sent_query(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_not_found(self, mock_context):
+        mock_context.fetch.return_value = gql({"page": None})
+
+        result = await shopify_storefront.execute_action("storefront_get_page", {"handle": "nope"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Page not found"
+
+    @pytest.mark.asyncio
+    async def test_requires_handle_or_id(self, mock_context):
+        result = await shopify_storefront.execute_action("storefront_get_page", {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+
+class TestGetArticle:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = gql({"article": SAMPLE_ARTICLE})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_get_article", {"article_id": SAMPLE_ARTICLE["id"]}, mock_context
+        )
+
+        assert result.result.data == {"success": True, "article": SAMPLE_ARTICLE}
+        assert sent_variables(mock_context) == {"id": SAMPLE_ARTICLE["id"]}
+
+    @pytest.mark.asyncio
+    async def test_not_found(self, mock_context):
+        mock_context.fetch.return_value = gql({"article": None})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_get_article", {"article_id": "gid://shopify/Article/404"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Article not found"
+
+
+class TestGetMenu:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        menu = {"id": "gid://shopify/Menu/1", "handle": "main-menu", "items": [{"title": "Home"}]}
+        mock_context.fetch.return_value = gql({"menu": menu})
+
+        result = await shopify_storefront.execute_action("storefront_get_menu", {"handle": "main-menu"}, mock_context)
+
+        assert result.result.data == {"success": True, "menu": menu}
+        assert sent_variables(mock_context) == {"handle": "main-menu"}
+
+    @pytest.mark.asyncio
+    async def test_not_found(self, mock_context):
+        mock_context.fetch.return_value = gql({"menu": None})
+
+        result = await shopify_storefront.execute_action("storefront_get_menu", {"handle": "nope"}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Menu not found"
+
+    @pytest.mark.asyncio
+    async def test_empty_handle(self, mock_context):
+        result = await shopify_storefront.execute_action("storefront_get_menu", {"handle": ""}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+
+# ---- Discovery ----
+
+
+class TestGetProductRecommendations:
+    @pytest.mark.asyncio
+    async def test_by_handle_defaults_to_related(self, mock_context):
+        mock_context.fetch.return_value = gql({"productRecommendations": [SAMPLE_PRODUCT]})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_get_product_recommendations", {"product_handle": "t-shirt"}, mock_context
+        )
+
+        assert result.result.data == {"success": True, "products": [SAMPLE_PRODUCT], "count": 1}
+        assert sent_variables(mock_context) == {"handle": "t-shirt", "intent": "RELATED"}
+        query = sent_query(mock_context)
+        assert "productHandle: $handle" in query
+        assert "$id" not in query
+
+    @pytest.mark.asyncio
+    async def test_by_id_with_intent(self, mock_context):
+        mock_context.fetch.return_value = gql({"productRecommendations": []})
+
+        await shopify_storefront.execute_action(
+            "storefront_get_product_recommendations",
+            {"product_id": SAMPLE_PRODUCT["id"], "intent": "COMPLEMENTARY"},
+            mock_context,
+        )
+
+        assert sent_variables(mock_context) == {"id": SAMPLE_PRODUCT["id"], "intent": "COMPLEMENTARY"}
+        query = sent_query(mock_context)
+        assert "productId: $id" in query
+        assert "$handle" not in query
+
+    @pytest.mark.asyncio
+    async def test_unknown_product(self, mock_context):
+        mock_context.fetch.return_value = gql({"productRecommendations": None})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_get_product_recommendations", {"product_handle": "nope"}, mock_context
+        )
+
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message == "Product not found"
+
+    @pytest.mark.asyncio
+    async def test_requires_handle_or_id(self, mock_context):
+        result = await shopify_storefront.execute_action("storefront_get_product_recommendations", {}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
+
+
+class TestPredictiveSearch:
+    @pytest.mark.asyncio
+    async def test_happy_path(self, mock_context):
+        mock_context.fetch.return_value = gql(
+            {
+                "predictiveSearch": {
+                    "queries": [{"text": "snowboard", "styledText": "<mark>snow</mark>board"}],
+                    "products": [SAMPLE_PRODUCT],
+                    "collections": [],
+                    "pages": None,
+                    "articles": [],
+                }
+            }
+        )
+
+        result = await shopify_storefront.execute_action(
+            "storefront_predictive_search", {"query": "snow", "limit": 5, "types": ["PRODUCT", "QUERY"]}, mock_context
+        )
+
+        assert result.result.data == {
+            "success": True,
+            "queries": [{"text": "snowboard", "styledText": "<mark>snow</mark>board"}],
+            "products": [SAMPLE_PRODUCT],
+            "collections": [],
+            "pages": [],
+            "articles": [],
+        }
+        assert sent_variables(mock_context) == {"query": "snow", "limit": 5, "types": ["PRODUCT", "QUERY"]}
+
+    @pytest.mark.asyncio
+    async def test_defaults(self, mock_context):
+        mock_context.fetch.return_value = gql({"predictiveSearch": None})
+
+        result = await shopify_storefront.execute_action(
+            "storefront_predictive_search", {"query": "snow"}, mock_context
+        )
+
+        assert sent_variables(mock_context) == {"query": "snow", "limit": 10}
+        assert result.result.data["products"] == []
+
+    @pytest.mark.asyncio
+    async def test_empty_query(self, mock_context):
+        result = await shopify_storefront.execute_action("storefront_predictive_search", {"query": ""}, mock_context)
+
+        assert result.type == ResultType.ACTION_ERROR
+        mock_context.fetch.assert_not_called()
