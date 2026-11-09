@@ -8,7 +8,7 @@ In WorkZappy, open **My Settings → Personal API Keys**. Enter the client ID an
 
 ## Create Task
 
-Supply the WorkZappy project ID, task type ID, and action item title. Include relevant context in the optional description. The action returns the created task ID. The destination task type must accept these fields and supply defaults for any other required fields.
+Supply the WorkZappy project ID, task type ID, and action item title. Include relevant context in the optional description. Supply a workflow status ID when the task type has no default. The action returns the created task ID. The destination task type must accept these fields and supply defaults for any other required fields.
 
 See the [WorkZappy API reference](https://share.apidog.com/914815c2-d5fe-4c80-b298-5a6930c0d8d0/api-14974005) for the task endpoint and its project and task type lookup operations.
 
@@ -57,7 +57,7 @@ The full live suite covers all 16 actions. For all read tests, also set
 existing records in your test workspace. Grant the API key permissions for the
 actions you plan to exercise.
 
-To include writes, set `WORKZAPPY_RUN_WRITE_TESTS=1` and
-`WORKZAPPY_PROJECT_TEMPLATE_CODE` in a disposable workspace, then run the same
+To include writes, set `WORKZAPPY_RUN_WRITE_TESTS=1`, `WORKZAPPY_STATUS_ID`,
+`WORKZAPPY_PROJECT_LEADER_ID`, and `WORKZAPPY_PROJECT_TEMPLATE_CODE` in a disposable workspace, then run the same
 command. The task test removes its own task. The project test leaves a uniquely
 named project for manual cleanup.

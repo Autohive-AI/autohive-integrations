@@ -54,6 +54,11 @@
                     "description": {
                         "type": "string",
                         "description": "Optional action item details."
+                    },
+                    "status_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Workflow status ID. Required when the task type has no default status."
                     }
                 },
                 "required": [
@@ -499,7 +504,8 @@
                 },
                 "required": [
                     "project_name",
-                    "template_code"
+                    "template_code",
+                    "leader_id"
                 ]
             },
             "output_schema": {

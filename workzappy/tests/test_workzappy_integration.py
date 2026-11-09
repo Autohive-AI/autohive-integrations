@@ -85,7 +85,12 @@ async def test_task_write_lifecycle(live_auth, live_id, enable_writes):
     summary = f"Autohive integration test {uuid4().hex}"
     async with live_auth:
         created = await run_action(
-            live_auth, "create_task", project_id=project_id, task_type_id=task_type_id, summary=summary
+            live_auth,
+            "create_task",
+            project_id=project_id,
+            task_type_id=task_type_id,
+            summary=summary,
+            status_id=live_id("STATUS_ID"),
         )
         task_id = created["task_id"]
         try:
@@ -103,13 +108,19 @@ async def test_task_write_lifecycle(live_auth, live_id, enable_writes):
 
 
 @pytest.mark.destructive
-async def test_project_write_lifecycle(live_auth, env_credentials, enable_writes):
+async def test_project_write_lifecycle(live_auth, env_credentials, live_id, enable_writes):
     template_code = env_credentials("WORKZAPPY_PROJECT_TEMPLATE_CODE")
     if not template_code:
         pytest.skip("WORKZAPPY_PROJECT_TEMPLATE_CODE is required")
     name = f"Autohive integration test {uuid4().hex[:12]}"
     async with live_auth:
-        created = await run_action(live_auth, "create_project", project_name=name, template_code=template_code)
+        created = await run_action(
+            live_auth,
+            "create_project",
+            project_name=name,
+            template_code=template_code,
+            leader_id=live_id("PROJECT_LEADER_ID"),
+        )
         project_id = created["project"]["id"]
         updated = await run_action(
             live_auth, "update_project", project_id=project_id, fields={"pname": f"{name} updated"}

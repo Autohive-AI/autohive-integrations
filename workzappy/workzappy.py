@@ -16,6 +16,8 @@ class CreateTask(ActionHandler):
             return token
 
         fields = {"summary": inputs["summary"]}
+        if (status_id := inputs.get("status_id")) is not None:
+            fields["status"] = status_id
         if (description := inputs.get("description")) is not None:
             fields["description"] = description
 
@@ -217,8 +219,7 @@ class CreateProject(ActionHandler):
         payload = {"projectName": inputs["project_name"], "templateCode": inputs["template_code"]}
         if (value := inputs.get("description")) is not None:
             payload["description"] = value
-        if (value := inputs.get("leader_id")) is not None:
-            payload["leaderId"] = value
+        payload["leaderId"] = inputs["leader_id"]
         return await _request(context, "/project/add", "POST", "project", dict, body=payload, write=True)
 
 
