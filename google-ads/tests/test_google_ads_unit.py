@@ -102,6 +102,8 @@ def _sent_campaign(campaign_service):
         ("2026-11-10", "23:59:59", "2026-11-10 23:59:59"),
         (" 2026-11-10 ", "00:00:00", "2026-11-10 00:00:00"),
         ("2026-11-10 08:30:00", "00:00:00", "2026-11-10 08:30:00"),
+        ("2026-12-1 8:05:00", "00:00:00", "2026-12-01 08:05:00"),
+        ("2026-12-1", "00:00:00", "2026-12-01 00:00:00"),
         (20261110, "00:00:00", "2026-11-10 00:00:00"),
     ],
 )
@@ -163,6 +165,17 @@ async def test_create_campaign_default_end_follows_start_date(make_context, ads_
     campaign = _sent_campaign(ads_client.campaign)
     assert campaign.start_date_time == "2028-03-01 00:00:00"
     assert campaign.end_date_time == "2029-03-01 23:59:59"
+
+
+async def test_create_campaign_normalises_unpadded_dates(make_context, ads_client):
+    inputs = {**CAMPAIGN_INPUTS, "start_date": "2026-12-1 00:00:00", "end_date": "2026-12-02"}
+
+    result = await google_ads.execute_action("create_campaign", inputs, make_context(auth=AUTH))
+
+    assert result.type == ResultType.ACTION
+    campaign = _sent_campaign(ads_client.campaign)
+    assert campaign.start_date_time == "2026-12-01 00:00:00"
+    assert campaign.end_date_time == "2026-12-02 23:59:59"
 
 
 @pytest.mark.parametrize(

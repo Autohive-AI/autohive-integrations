@@ -113,7 +113,7 @@ def _to_campaign_date_time(value: str, time_of_day: str) -> str:
         except ValueError:
             continue
         if fmt == "%Y-%m-%d %H:%M:%S":
-            return value
+            return parsed.strftime("%Y-%m-%d %H:%M:%S")
         return f"{parsed.strftime('%Y-%m-%d')} {time_of_day}"
     raise ValueError(f"Invalid date '{value}'. Use YYYYMMDD, YYYY-MM-DD or YYYY-MM-DD HH:MM:SS.")
 
