@@ -620,6 +620,32 @@ class TestCopyQuestion:
         return {**SAVED_EXPORT_CARD, "dataset_query": query, "parameters": []}
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "field_type,value",
+        [("type/UUID", ["00000000-0000-0000-0000-000000000000"]), ("type/BigInteger", [1]), ("type/Text", ["x"])],
+    )
+    async def test_field_filter_stand_in_fits_the_column(self, mock_context, field_type, value):
+        # Metabase refuses to expand the SQL when a field filter's value can't be read as the column's type.
+        card = self._filtered_card(
+            "select * from orders where {{p}}", type="dimension", dimension=["field", 72, None], **{"widget-type": "id"}
+        )
+        mock_context.fetch.side_effect = [
+            _ok(card),
+            _database(),
+            _ok({"id": 72, "base_type": field_type, "effective_type": field_type}),
+            _compiled("select * from orders where id = 1"),
+            _compiled("select * from orders"),
+            _ok(SAMPLE_COPY),
+        ]
+        result = await metabase.execute_action("copy_question", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION
+        calls = mock_context.fetch.call_args_list
+        assert (calls[2].args[0], calls[2].kwargs["method"]) == (f"{BASE}/api/field/72", "GET")
+        assert calls[3].kwargs["json"]["parameters"] == [
+            {"type": "id", "target": ["dimension", ["template-tag", "p"]], "value": value}
+        ]
+
+    @pytest.mark.asyncio
     async def test_failed_expansion_without_optional_filter_refuses_copy(self, mock_context):
         # The form without the optional filter can run, so a failed check of it (a 500, say) leaves it unchecked.
         card = self._filtered_card("select 1 [[ + {{p}} --]] , nextval('audit_seq')", type="number")

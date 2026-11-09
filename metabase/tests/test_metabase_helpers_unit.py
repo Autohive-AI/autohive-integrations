@@ -2,8 +2,8 @@ import asyncio
 import json
 
 import pytest
-from unittest.mock import MagicMock
-from autohive_integrations_sdk import HTTPError
+from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse, HTTPError
 
 from metabase.metabase import (
     _card_summary,
@@ -12,6 +12,7 @@ from metabase.metabase import (
     _pulse_flags,
     _ensure_read_only_sql,
     _error_message,
+    _field_filter_types,
     _page,
     _query_result,
     _tag_stand_ins,
@@ -232,6 +233,30 @@ class TestTagStandIns:
             "target": ["dimension", ["template-tag", "f"]],
             "value": value,
         }
+
+    @pytest.mark.parametrize(
+        "field_type,value",
+        [
+            ("type/UUID", ["00000000-0000-0000-0000-000000000000"]),
+            ("type/Integer", [1]),
+            ("type/Decimal", [1]),
+            ("type/Text", ["x"]),
+        ],
+    )
+    def test_text_field_filter_value_fits_the_column(self, field_type, value):
+        (stand_in,) = _tag_stand_ins({"f": {"type": "dimension", "name": "f"}}, {"f": field_type})
+        assert stand_in["value"] == value
+
+    def test_field_filter_default_used(self):
+        tag = {"type": "dimension", "name": "f", "default": ["3f1c3a6e-1d2b-4c5e-9a7b-0e2f4d6a8b1c"]}
+        (stand_in,) = _tag_stand_ins({"f": tag}, {"f": "type/UUID"})
+        assert stand_in["value"] == ["3f1c3a6e-1d2b-4c5e-9a7b-0e2f4d6a8b1c"]
+
+    @pytest.mark.parametrize("default", [[], ""])
+    def test_empty_default_not_used(self, default):
+        # An empty value leaves the filter's optional clauses out, so they would go unchecked.
+        (stand_in,) = _tag_stand_ins({"f": {"type": "dimension", "name": "f", "default": default}}, {"f": "type/UUID"})
+        assert stand_in["value"] == ["00000000-0000-0000-0000-000000000000"]
 
     def test_boolean_filter_gets_a_value(self):
         # Metabase 0.57+ has boolean SQL filters; without a value a required one can't be expanded for the check.
@@ -758,3 +783,66 @@ class TestReadOnlySql:
             _ensure_read_only_sql("select 'it\\'s' as x", "mysql")
         with pytest.raises(ValueError, match="DELETE statements are refused"):
             _ensure_read_only_sql("delete from t where a = '\\n'", "mysql")
+
+
+class TestFieldFilterTypes:
+    @staticmethod
+    def _ctx(*responses):
+        ctx = MagicMock()
+        ctx.auth = {"auth_type": "Custom", "credentials": {"base_url": "https://mb.example.com", "api_key": "k"}}
+        ctx.fetch = AsyncMock(side_effect=list(responses))
+        return ctx
+
+    @pytest.mark.asyncio
+    async def test_newer_metabase_type_read_from_the_saved_column(self):
+        # Metabase 0.50+ saves ["field", options, id] with the type in the options, so nothing is fetched.
+        ctx = self._ctx()
+        tag = {"type": "dimension", "dimension": ["field", {"effective-type": "type/UUID"}, 72]}
+        assert await _field_filter_types(ctx, {"f": tag}) == {"f": "type/UUID"}
+        ctx.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "dimension",
+        [["field", "id", {"base-type": "type/UUID"}], ["field", {"base-type": "type/UUID"}, "id"]],
+    )
+    async def test_column_named_by_text_typed_from_options(self, dimension):
+        ctx = self._ctx()
+        assert await _field_filter_types(ctx, {"f": {"type": "dimension", "dimension": dimension}}) == {
+            "f": "type/UUID"
+        }
+        ctx.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_default_still_typed(self):
+        ctx = self._ctx()
+        tag = {"type": "dimension", "default": [], "dimension": ["field", {"effective-type": "type/UUID"}, 72]}
+        assert await _field_filter_types(ctx, {"f": tag}) == {"f": "type/UUID"}
+
+    @pytest.mark.asyncio
+    async def test_metabase_049_column_looked_up(self):
+        ctx = self._ctx(FetchResponse(status=200, headers={}, data={"id": 72, "base_type": "type/Integer"}))
+        tag = {"type": "dimension", "widget-type": "id", "dimension": ["field", 72, None]}
+        assert await _field_filter_types(ctx, {"f": tag}) == {"f": "type/Integer"}
+        assert ctx.fetch.call_args.args[0] == "https://mb.example.com/api/field/72"
+
+    @pytest.mark.asyncio
+    async def test_lookup_failure_leaves_the_text_stand_in(self):
+        ctx = self._ctx(HTTPError(403, "Forbidden", "You don't have permissions to do that."))
+        tag = {"type": "dimension", "dimension": ["field", 72, None]}
+        assert await _field_filter_types(ctx, {"f": tag}) == {}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "tag",
+        [
+            {"type": "dimension", "widget-type": "date/single", "dimension": ["field", 72, None]},
+            {"type": "dimension", "widget-type": "number/=", "dimension": ["field", 72, None]},
+            {"type": "dimension", "default": ["a"], "dimension": ["field", 72, None]},
+            {"type": "text"},
+        ],
+    )
+    async def test_filters_with_a_fitting_stand_in_skipped(self, tag):
+        ctx = self._ctx()
+        assert await _field_filter_types(ctx, {"f": tag}) == {}
+        ctx.fetch.assert_not_called()

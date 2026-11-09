@@ -986,6 +986,8 @@ class TestDataDescriptions:
             await metabase.execute_action("get_table", {"table_id": schema["tables"][0]["id"]}, live_context)
         )
         field = table["fields"][0]
+        # Metabase 0.49 clears a column's date conversion when a PUT leaves it out, so the restore sends it back.
+        coercion = (await _raw(live_context, "GET", f"/field/{field['id']}")).get("coercion_strategy")
         run_id = uuid4().hex[:8]
         try:
             updated = _assert_ok(
@@ -1003,9 +1005,16 @@ class TestDataDescriptions:
         finally:
             # Put the original descriptions back (an empty one is stored as null), trying both even if one fails.
             failures: list = []
-            for path, original in ((f"/table/{table['id']}", table), (f"/field/{field['id']}", field)):
+            restores = (
+                (f"/table/{table['id']}", {"description": table["description"]}),
+                (
+                    f"/field/{field['id']}",
+                    {"description": field["description"], **({"coercion_strategy": coercion} if coercion else {})},
+                ),
+            )
+            for path, body in restores:
                 try:
-                    await _raw(live_context, "PUT", path, {"description": original["description"]})
+                    await _raw(live_context, "PUT", path, body)
                 except Exception as exc:
                     failures.append(f"{path}: {exc}")
             if failures:

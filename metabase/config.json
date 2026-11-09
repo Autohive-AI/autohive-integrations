@@ -1789,7 +1789,7 @@
                                 },
                                 "remove": {
                                     "type": "boolean",
-                                    "description": "true removes the card from the dashboard (the question itself is kept)."
+                                    "description": "true removes the card from the dashboard. A question saved in a collection is kept; one saved inside this dashboard (Metabase 0.54+) goes to the trash with its last card, and restore_item brings it back."
                                 }
                             },
                             "required": [

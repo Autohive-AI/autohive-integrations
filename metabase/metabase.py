@@ -493,7 +493,8 @@ async def _checked_parameters(
     engine = await _database_engine(context, card.get("database_id") or dataset_query.get("database"))
     if saving:
         covered = {json.dumps(p.get("target")) for p in parameters if isinstance(p, dict)}
-        every_filter = parameters + [p for p in _tag_stand_ins(tags) if json.dumps(p["target"]) not in covered]
+        stand_ins = _tag_stand_ins(tags, await _field_filter_types(context, tags))
+        every_filter = parameters + [p for p in stand_ins if json.dumps(p["target"]) not in covered]
         await _check_compiled(context, card_id, dataset_query, every_filter, engine)
     for variant in variants:
         try:
@@ -527,8 +528,62 @@ def _missing_needed_filter(sql: Any, tags: Dict[str, Any], parameters: List[Any]
     )
 
 
-def _tag_stand_ins(tags: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """A value for every filter in a question's SQL, so expanding it includes every optional [[ ]] clause."""
+# A text-style field filter's stand-in must parse as the column's type, or Metabase refuses to expand the SQL.
+NUMBER_FIELD_TYPES = {"type/Integer", "type/BigInteger", "type/Float", "type/Decimal", "type/Number"}
+
+
+def _has_default(tag: Dict[str, Any]) -> bool:
+    return tag.get("default") not in (None, "", [])
+
+
+def _text_widget_field(tag: Dict[str, Any]) -> Any:
+    """The column a field filter shown as a text or ID box points at, as (id or name, options), or None. Metabase
+    0.49 saves the column as ["field", id, options], newer versions as ["field", options, id]."""
+    widget = str(tag.get("widget-type") or "category")
+    dimension = tag.get("dimension")
+    if (
+        tag.get("type") != "dimension"
+        or _has_default(tag)
+        or widget.startswith(("date", "number"))
+        or not isinstance(dimension, list)
+        or len(dimension) < 3
+        or dimension[0] != "field"
+    ):
+        return None
+    options, field = (dimension[1], dimension[2]) if isinstance(dimension[1], dict) else (dimension[2], dimension[1])
+    return field, options if isinstance(options, dict) else {}
+
+
+async def _field_filter_types(context: ExecutionContext, tags: Dict[str, Any]) -> Dict[str, str]:
+    """The column type behind each text or ID field filter without a default, by tag name."""
+    types = {}
+    for name, tag in tags.items():
+        column = _text_widget_field(tag)
+        if column is None:
+            continue
+        field_id, options = column
+        if not (options.get("effective-type") or options.get("base-type")):
+            if not isinstance(field_id, int):
+                continue
+            try:
+                options = await _api(context, "GET", f"/field/{field_id}") or {}
+            except HTTPError:
+                # Without the column's type the text stand-in is tried; Metabase refuses it if it doesn't fit.
+                continue
+        types[name] = str(
+            options.get("effective-type")
+            or options.get("base-type")
+            or options.get("effective_type")
+            or options.get("base_type")
+            or ""
+        )
+    return types
+
+
+def _tag_stand_ins(tags: Dict[str, Any], field_types: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
+    """A value for every filter in a question's SQL, so expanding it includes every optional [[ ]] clause.
+    field_types gives the column type behind text or ID field filters (from _field_filter_types)."""
+    field_types = field_types or {}
     params = []
     for name, tag in tags.items():
         kind = tag.get("type")
@@ -542,6 +597,13 @@ def _tag_stand_ins(tags: Dict[str, Any]) -> List[Dict[str, Any]]:
             elif widget.startswith("number"):
                 # A range filter needs both ends; Metabase 0.49 refuses one.
                 value = [1, 2] if widget == "number/between" else [1]
+            elif _has_default(tag):
+                # The saved default already fits the column; an empty one would leave optional clauses out.
+                value = tag["default"]
+            elif field_types.get(name) == "type/UUID":
+                value = ["00000000-0000-0000-0000-000000000000"]
+            elif field_types.get(name) in NUMBER_FIELD_TYPES:
+                value = [1]
             else:
                 value = ["x"]
             params.append({"type": widget, "target": ["dimension", ["template-tag", name]], "value": value})
