@@ -1,6 +1,6 @@
 # WorkZappy
 
-Create a WorkZappy task for each action item from an Autohive meeting write-up.
+Manage WorkZappy projects, tasks, and comments from Autohive workflows.
 
 ## Connect WorkZappy
 
@@ -11,6 +11,19 @@ In WorkZappy, open **My Settings → Personal API Keys**. Enter the client ID an
 Supply the WorkZappy project ID, task type ID, and action item title. Include relevant context in the optional description. The action returns the created task ID. The destination task type must accept these fields and supply defaults for any other required fields.
 
 See the [WorkZappy API reference](https://share.apidog.com/914815c2-d5fe-4c80-b298-5a6930c0d8d0/api-14974005) for the task endpoint and its project and task type lookup operations.
+
+## Available actions
+
+| Area | Actions |
+| --- | --- |
+| Projects | List Projects, Get Project, Create Project, Update Project |
+| Project setup | List Project Members, List Task Types, Get Task Scheme, List Project Phases, List Project Tags |
+| Tasks | Create Task, Get Task, Search Tasks, Update Task, Remove Task |
+| Comments | List Task Comments, Add Task Comment |
+
+Use List Projects and List Task Types to find the IDs for Create Task. Use Get Task Scheme to identify the field codes and required values for a task type. Update Task accepts WorkZappy field codes and values, such as `summary`, `assignee`, and `status`. Update Project accepts project field codes such as `pname`.
+
+Search Tasks and List Task Comments each return a page. Use `page_number` and `page_size` to retrieve subsequent pages. Enable the corresponding OpenAPI permissions for the actions you plan to use.
 
 ## Pilot with Autohive Meetings
 

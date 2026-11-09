@@ -421,7 +421,7 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 ### WorkZappy
 
-Create tasks in a WorkZappy project from Autohive workflows, including meeting follow-ups. Connect with a personal API Client ID and Secret Key. The Create Task action returns the new task ID. [WorkZappy setup and usage](workzappy/README.md)
+Manage WorkZappy projects, tasks, and comments from Autohive workflows. Look up members, task types, phases, and tags to route meeting follow-ups. Connect with a personal API Client ID and Secret Key. [WorkZappy setup and usage](workzappy/README.md)
 
 ## Template
 
