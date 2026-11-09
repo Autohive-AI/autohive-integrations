@@ -1,0 +1,331 @@
+{
+    "name": "linkedin-community-management",
+    "display_name": "LinkedIn Community Management",
+    "version": "1.0.0",
+    "description": "Manage LinkedIn member and organization communities, posts, comments, reactions, followers, and analytics.",
+    "entry_point": "linkedin_community_management.py",
+    "auth": {
+        "type": "platform",
+        "provider": "linkedin-community-management",
+        "scopes": [
+            "r_member_postAnalytics",
+            "r_organization_followers",
+            "r_organization_social",
+            "rw_organization_admin",
+            "r_organization_social_feed",
+            "w_member_social",
+            "r_member_profileAnalytics",
+            "w_organization_social",
+            "r_basicprofile",
+            "w_organization_social_feed",
+            "w_member_social_feed",
+            "r_1st_connections_size"
+        ]
+    },
+    "actions": {
+        "get_profile": {
+            "display_name": "Get Profile",
+            "description": "Retrieve the authenticated member's basic LinkedIn profile using r_basicprofile.",
+            "input_schema": {"type": "object", "properties": {}, "required": []},
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "profile": {"type": "object"}}, "required": ["result", "profile"]}
+        },
+        "list_managed_organizations": {
+            "display_name": "List Managed Organizations",
+            "description": "List organization access-control roles held by the authenticated member.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "role": {"type": "string", "description": "Optional LinkedIn organization role filter."},
+                    "state": {"type": "string", "enum": ["APPROVED", "REQUESTED", "REJECTED", "REVOKED"], "default": "APPROVED", "description": "Role state to retrieve."},
+                    "start": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset."},
+                    "count": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10, "description": "Maximum results to return."}
+                },
+                "required": []
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "organizations": {"type": "array"}, "paging": {"type": "object"}}, "required": ["result", "organizations", "paging"]}
+        },
+        "get_post": {
+            "display_name": "Get Post",
+            "description": "Retrieve a LinkedIn post by share or UGC post URN.",
+            "input_schema": {"type": "object", "properties": {"post_urn": {"type": "string", "description": "LinkedIn share or UGC post URN."}}, "required": ["post_urn"]},
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "post": {"type": "object"}}, "required": ["result", "post"]}
+        },
+        "list_posts": {
+            "display_name": "List Posts",
+            "description": "List posts authored by a LinkedIn organization or member.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "author": {"type": "string", "description": "Author ID or complete LinkedIn actor URN."},
+                    "actor_type": {"type": "string", "enum": ["PERSON", "ORGANIZATION"], "default": "ORGANIZATION", "description": "Type used when author is a bare ID."},
+                    "start": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset."},
+                    "count": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10, "description": "Maximum results to return."}
+                },
+                "required": ["author"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "posts": {"type": "array"}, "paging": {"type": "object"}}, "required": ["result", "posts", "paging"]}
+        },
+        "create_post": {
+            "display_name": "Create Post",
+            "description": "Create a text post as the authenticated member or an organization page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string", "minLength": 1, "description": "Post commentary text."},
+                    "author": {"type": "string", "description": "Optional author ID or URN; defaults to the authenticated member."},
+                    "actor_type": {"type": "string", "enum": ["PERSON", "ORGANIZATION"], "default": "PERSON", "description": "Type used when author is a bare ID."},
+                    "visibility": {"type": "string", "enum": ["PUBLIC", "CONNECTIONS"], "default": "PUBLIC", "description": "Post visibility."},
+                    "disable_reshare": {"type": "boolean", "default": false, "description": "Prevent other members from resharing this post."}
+                },
+                "required": ["text"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "post_id": {"type": ["string", "null"]}, "post_url": {"type": ["string", "null"]}}, "required": ["result", "post_id", "post_url"]}
+        },
+        "share_article": {
+            "display_name": "Share Article",
+            "description": "Create an article post as the authenticated member or an organization page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "article_url": {"type": "string", "format": "uri", "description": "Public URL of the article."},
+                    "article_title": {"type": "string", "minLength": 1, "description": "Article title."},
+                    "article_description": {"type": "string", "default": "", "description": "Article description."},
+                    "commentary": {"type": "string", "default": "", "description": "Commentary displayed with the article."},
+                    "author": {"type": "string", "description": "Optional author ID or URN; defaults to the authenticated member."},
+                    "actor_type": {"type": "string", "enum": ["PERSON", "ORGANIZATION"], "default": "PERSON", "description": "Type used when author is a bare ID."},
+                    "visibility": {"type": "string", "enum": ["PUBLIC", "CONNECTIONS"], "default": "PUBLIC", "description": "Post visibility."},
+                    "disable_reshare": {"type": "boolean", "default": false, "description": "Prevent other members from resharing this post."}
+                },
+                "required": ["article_url", "article_title"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "post_id": {"type": ["string", "null"]}, "post_url": {"type": ["string", "null"]}}, "required": ["result", "post_id", "post_url"]}
+        },
+        "reshare_post": {
+            "display_name": "Reshare Post",
+            "description": "Reshare an existing LinkedIn post as a member or organization.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "original_post_urn": {"type": "string", "description": "URN of the post to reshare."},
+                    "commentary": {"type": "string", "default": "", "description": "Optional reshare commentary."},
+                    "author": {"type": "string", "description": "Optional author ID or URN; defaults to the authenticated member."},
+                    "actor_type": {"type": "string", "enum": ["PERSON", "ORGANIZATION"], "default": "PERSON", "description": "Type used when author is a bare ID."},
+                    "visibility": {"type": "string", "enum": ["PUBLIC", "CONNECTIONS"], "default": "PUBLIC", "description": "Post visibility."},
+                    "disable_reshare": {"type": "boolean", "default": false, "description": "Prevent resharing of the new post."}
+                },
+                "required": ["original_post_urn"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "post_id": {"type": ["string", "null"]}, "post_url": {"type": ["string", "null"]}}, "required": ["result", "post_id", "post_url"]}
+        },
+        "update_post": {
+            "display_name": "Update Post",
+            "description": "Update the commentary of an existing post.",
+            "input_schema": {"type": "object", "properties": {"post_urn": {"type": "string", "description": "Post URN."}, "commentary": {"type": "string", "minLength": 1, "description": "Replacement commentary."}}, "required": ["post_urn", "commentary"]},
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "post_urn": {"type": "string"}}, "required": ["result", "post_urn"]}
+        },
+        "delete_post": {
+            "display_name": "Delete Post",
+            "description": "Delete a LinkedIn post.",
+            "input_schema": {"type": "object", "properties": {"post_urn": {"type": "string", "description": "Post URN."}}, "required": ["post_urn"]},
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "post_urn": {"type": "string"}}, "required": ["result", "post_urn"]}
+        },
+        "list_comments": {
+            "display_name": "List Comments",
+            "description": "List comments or replies on a post or comment thread.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity_urn": {"type": "string", "description": "Post or comment URN."},
+                    "start": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset."},
+                    "count": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10, "description": "Maximum results to return."}
+                },
+                "required": ["entity_urn"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "comments": {"type": "array"}, "paging": {"type": "object"}}, "required": ["result", "comments", "paging"]}
+        },
+        "create_comment": {
+            "display_name": "Create Comment",
+            "description": "Create a comment or reply as a member or organization.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "root_urn": {"type": "string", "description": "Root share or UGC post URN."},
+                    "text": {"type": "string", "minLength": 1, "description": "Comment text."},
+                    "parent_comment_urn": {"type": "string", "description": "Optional parent comment URN for a reply."},
+                    "actor": {"type": "string", "description": "Optional actor ID or URN; defaults to the authenticated member."},
+                    "actor_type": {"type": "string", "enum": ["PERSON", "ORGANIZATION"], "default": "PERSON", "description": "Type used when actor is a bare ID."}
+                },
+                "required": ["root_urn", "text"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "comment": {"type": ["object", "null"]}}, "required": ["result", "comment"]}
+        },
+        "update_comment": {
+            "display_name": "Update Comment",
+            "description": "Update a LinkedIn comment's text.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "root_urn": {"type": "string", "description": "Root post or comment URN used by the comments resource."},
+                    "comment_id": {"type": "string", "description": "LinkedIn comment ID."},
+                    "text": {"type": "string", "minLength": 1, "description": "Replacement comment text."},
+                    "actor": {"type": "string", "description": "Organization actor ID or URN when editing on its behalf."},
+                    "actor_type": {"type": "string", "enum": ["PERSON", "ORGANIZATION"], "default": "ORGANIZATION", "description": "Type used when actor is a bare ID."}
+                },
+                "required": ["root_urn", "comment_id", "text"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "comment_id": {"type": "string"}}, "required": ["result", "comment_id"]}
+        },
+        "delete_comment": {
+            "display_name": "Delete Comment",
+            "description": "Delete a LinkedIn comment.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "root_urn": {"type": "string", "description": "Root post or comment URN used by the comments resource."},
+                    "comment_id": {"type": "string", "description": "LinkedIn comment ID."},
+                    "actor": {"type": "string", "description": "Organization actor ID or URN when deleting on its behalf."},
+                    "actor_type": {"type": "string", "enum": ["PERSON", "ORGANIZATION"], "default": "ORGANIZATION", "description": "Type used when actor is a bare ID."}
+                },
+                "required": ["root_urn", "comment_id"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "comment_id": {"type": "string"}}, "required": ["result", "comment_id"]}
+        },
+        "list_reactions": {
+            "display_name": "List Reactions",
+            "description": "List reactions on a post or comment.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity_urn": {"type": "string", "description": "Post or comment URN."},
+                    "sort": {"type": "string", "enum": ["CHRONOLOGICAL", "REVERSE_CHRONOLOGICAL", "RELEVANCE"], "default": "REVERSE_CHRONOLOGICAL", "description": "Reaction sort order."},
+                    "start": {"type": "integer", "minimum": 0, "default": 0, "description": "Zero-based result offset."},
+                    "count": {"type": "integer", "minimum": 1, "maximum": 100, "default": 10, "description": "Maximum results to return."}
+                },
+                "required": ["entity_urn"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "reactions": {"type": "array"}, "paging": {"type": "object"}}, "required": ["result", "reactions", "paging"]}
+        },
+        "create_reaction": {
+            "display_name": "Create Reaction",
+            "description": "React to a post or comment as a member or organization.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity_urn": {"type": "string", "description": "Post or comment URN."},
+                    "reaction_type": {"type": "string", "enum": ["LIKE", "PRAISE", "EMPATHY", "INTEREST", "APPRECIATION", "ENTERTAINMENT"], "description": "LinkedIn reaction type."},
+                    "actor": {"type": "string", "description": "Optional actor ID or URN; defaults to the authenticated member."},
+                    "actor_type": {"type": "string", "enum": ["PERSON", "ORGANIZATION"], "default": "PERSON", "description": "Type used when actor is a bare ID."}
+                },
+                "required": ["entity_urn", "reaction_type"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "reaction": {"type": ["object", "null"]}}, "required": ["result", "reaction"]}
+        },
+        "delete_reaction": {
+            "display_name": "Delete Reaction",
+            "description": "Remove a member or organization reaction from a post or comment.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity_urn": {"type": "string", "description": "Post or comment URN."},
+                    "actor": {"type": "string", "description": "Optional actor ID or URN; defaults to the authenticated member."},
+                    "actor_type": {"type": "string", "enum": ["PERSON", "ORGANIZATION"], "default": "PERSON", "description": "Type used when actor is a bare ID."}
+                },
+                "required": ["entity_urn"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "entity_urn": {"type": "string"}}, "required": ["result", "entity_urn"]}
+        },
+        "get_social_metadata": {
+            "display_name": "Get Social Metadata",
+            "description": "Retrieve reaction totals, comment totals, and comments state for a post or comment.",
+            "input_schema": {"type": "object", "properties": {"entity_urn": {"type": "string", "description": "Post or comment URN."}}, "required": ["entity_urn"]},
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "metadata": {"type": "object"}}, "required": ["result", "metadata"]}
+        },
+        "set_comments_state": {
+            "display_name": "Set Comments State",
+            "description": "Open or close comments on a post. Closing comments permanently deletes existing comments.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "entity_urn": {"type": "string", "description": "Post URN."},
+                    "comments_state": {"type": "string", "enum": ["OPEN", "CLOSED"], "description": "Desired comments state."},
+                    "actor": {"type": "string", "description": "Optional actor ID or URN; defaults to the authenticated member."},
+                    "actor_type": {"type": "string", "enum": ["PERSON", "ORGANIZATION"], "default": "PERSON", "description": "Type used when actor is a bare ID."}
+                },
+                "required": ["entity_urn", "comments_state"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "comments_state": {"type": "string"}}, "required": ["result", "comments_state"]}
+        },
+        "search_organization_followers": {
+            "display_name": "Search Organization Followers",
+            "description": "Search organization followers who can be mentioned in a page post.",
+            "input_schema": {"type": "object", "properties": {"organization": {"type": "string", "description": "Organization ID or URN."}, "keywords": {"type": "string", "minLength": 1, "description": "Follower name prefix."}}, "required": ["organization", "keywords"]},
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "followers": {"type": "array"}, "paging": {"type": "object"}}, "required": ["result", "followers", "paging"]}
+        },
+        "get_organization_follower_statistics": {
+            "display_name": "Get Organization Follower Statistics",
+            "description": "Retrieve lifetime or time-bound follower statistics for an organization page.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "organization": {"type": "string", "description": "Organization ID or URN."},
+                    "start_ms": {"type": "integer", "minimum": 0, "description": "Inclusive start timestamp in milliseconds."},
+                    "end_ms": {"type": "integer", "minimum": 0, "description": "Exclusive end timestamp in milliseconds."},
+                    "granularity": {"type": "string", "enum": ["DAY", "WEEK", "MONTH"], "default": "DAY", "description": "Time interval granularity."}
+                },
+                "required": ["organization"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "statistics": {"type": "array"}, "paging": {"type": "object"}}, "required": ["result", "statistics", "paging"]}
+        },
+        "get_organization_post_statistics": {
+            "display_name": "Get Organization Post Statistics",
+            "description": "Retrieve organic post statistics for an organization page or a specific post.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "organization": {"type": "string", "description": "Organization ID or URN."},
+                    "post_urn": {"type": "string", "description": "Optional share or UGC post URN."},
+                    "start_ms": {"type": "integer", "minimum": 0, "description": "Inclusive start timestamp in milliseconds."},
+                    "end_ms": {"type": "integer", "minimum": 0, "description": "Exclusive end timestamp in milliseconds."},
+                    "granularity": {"type": "string", "enum": ["DAY", "MONTH"], "default": "DAY", "description": "Time interval granularity."}
+                },
+                "required": ["organization"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "statistics": {"type": "array"}, "paging": {"type": "object"}}, "required": ["result", "statistics", "paging"]}
+        },
+        "get_member_post_analytics": {
+            "display_name": "Get Member Post Analytics",
+            "description": "Retrieve a metric for one member post or all authenticated-member posts.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "metric": {"type": "string", "enum": ["IMPRESSION", "MEMBERS_REACHED", "RESHARE", "REACTION", "COMMENT", "POST_SAVE", "POST_SEND", "LINK_CLICKS", "PREMIUM_CTA_CLICKS", "FOLLOWER_GAINED_FROM_CONTENT", "PROFILE_VIEW_FROM_CONTENT"], "description": "Analytics metric to retrieve."},
+                    "post_urn": {"type": "string", "description": "Optional share or UGC post URN; omit for aggregate member analytics."},
+                    "aggregation": {"type": "string", "enum": ["TOTAL", "DAILY"], "default": "TOTAL", "description": "Metric aggregation."},
+                    "start_date": {"type": "object", "description": "Inclusive start date.", "properties": {"year": {"type": "integer", "minimum": 2000, "description": "Four-digit year."}, "month": {"type": "integer", "minimum": 1, "maximum": 12, "description": "Month number."}, "day": {"type": "integer", "minimum": 1, "maximum": 31, "description": "Day of month."}}, "required": ["year", "month", "day"]},
+                    "end_date": {"type": "object", "description": "Exclusive end date.", "properties": {"year": {"type": "integer", "minimum": 2000, "description": "Four-digit year."}, "month": {"type": "integer", "minimum": 1, "maximum": 12, "description": "Month number."}, "day": {"type": "integer", "minimum": 1, "maximum": 31, "description": "Day of month."}}, "required": ["year", "month", "day"]}
+                },
+                "required": ["metric"]
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "analytics": {"type": "array"}, "paging": {"type": "object"}}, "required": ["result", "analytics", "paging"]}
+        },
+        "get_member_follower_statistics": {
+            "display_name": "Get Member Follower Statistics",
+            "description": "Retrieve lifetime or daily follower statistics for the authenticated member.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "start_date": {"type": "object", "description": "Inclusive start date.", "properties": {"year": {"type": "integer", "minimum": 2000, "description": "Four-digit year."}, "month": {"type": "integer", "minimum": 1, "maximum": 12, "description": "Month number."}, "day": {"type": "integer", "minimum": 1, "maximum": 31, "description": "Day of month."}}, "required": ["year", "month", "day"]},
+                    "end_date": {"type": "object", "description": "Exclusive end date.", "properties": {"year": {"type": "integer", "minimum": 2000, "description": "Four-digit year."}, "month": {"type": "integer", "minimum": 1, "maximum": 12, "description": "Month number."}, "day": {"type": "integer", "minimum": 1, "maximum": 31, "description": "Day of month."}}, "required": ["year", "month", "day"]}
+                },
+                "required": []
+            },
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "statistics": {"type": "array"}, "paging": {"type": "object"}}, "required": ["result", "statistics", "paging"]}
+        },
+        "get_connection_count": {
+            "display_name": "Get Connection Count",
+            "description": "Retrieve the authenticated member's number of first-degree connections.",
+            "input_schema": {"type": "object", "properties": {"person_id": {"type": "string", "description": "Optional authenticated-member person ID; resolved from the profile when omitted."}}, "required": []},
+            "output_schema": {"type": "object", "properties": {"result": {"type": "string"}, "first_degree_size": {"type": ["integer", "null"]}}, "required": ["result", "first_degree_size"]}
+        }
+    }
+}
