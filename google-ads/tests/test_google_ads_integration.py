@@ -107,4 +107,4 @@ async def test_generate_keyword_forecast(live_ads, account_inputs):
     )
     assert data["keywords_count"] == 1
     assert data["forecast_period"]["days"] == 7
-    assert data["campaign_metrics"]["impressions"] >= 0
+    assert data["campaign_metrics"]["clicks"] >= 0

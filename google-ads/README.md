@@ -328,7 +328,7 @@ Retrieves historical metrics (search volume, competition, bid estimates) for spe
 ---
 
 #### `generate_keyword_forecast`
-Generates forecast metrics (impressions, clicks, cost) for keywords with specified budget and targeting settings.
+Generates forecast metrics (clicks, conversions, cost) for keywords with specified budget and targeting settings.
 
 **Inputs:**
 - `login_customer_id` (required): Manager Account ID (MCC) without dashes

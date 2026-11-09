@@ -1369,7 +1369,7 @@
         },
         "generate_keyword_forecast": {
             "display_name": "Generate Keyword Forecast",
-            "description": "Generates forecast metrics (impressions, clicks, cost) for keywords with specified budget and targeting settings.",
+            "description": "Generates forecast metrics (clicks, conversions, cost) for keywords with specified budget and targeting settings.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1398,10 +1398,6 @@
                                         "EXACT"
                                     ],
                                     "description": "Match type. Defaults to BROAD."
-                                },
-                                "cpc_bid_micros": {
-                                    "type": "integer",
-                                    "description": "CPC bid for this keyword in micros."
                                 }
                             },
                             "required": [
@@ -1460,7 +1456,7 @@
                     "campaign_metrics": {
                         "type": "object",
                         "properties": {
-                            "impressions": {
+                            "conversions": {
                                 "type": "number"
                             },
                             "clicks": {

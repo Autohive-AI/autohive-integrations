@@ -2196,53 +2196,32 @@ class GenerateKeywordForecastAction(ActionHandler):
             request = client.get_type("GenerateKeywordForecastMetricsRequest")
             request.customer_id = customer_id
 
-            # Configure campaign to forecast
             campaign = request.campaign
-            campaign.keyword_plan_network = client.enums.KeywordPlanNetworkEnum.GOOGLE_SEARCH
-
-            # Set bidding strategy
+            bidding = campaign.bidding_strategy.manual_cpc_bidding_strategy
+            bidding.max_cpc_bid_micros = max_cpc_bid_micros
             if daily_budget_micros:
-                campaign.bidding_strategy.target_spend_bidding_strategy.daily_target_spend_micros = daily_budget_micros
-            else:
-                campaign.bidding_strategy.manual_cpc_bidding_strategy.max_cpc_bid_micros = max_cpc_bid_micros
+                bidding.daily_budget_micros = daily_budget_micros
 
-            # Add geo modifiers
-            for loc_id in location_ids:
-                geo_modifier = client.get_type("CriterionBidModifier")
-                geo_modifier.geo_target_constant = googleads_service.geo_target_constant_path(loc_id)
-                campaign.geo_modifiers.append(geo_modifier)
-
-            # Add language
+            campaign.geo_target_constants.extend(
+                googleads_service.geo_target_constant_path(loc) for loc in location_ids
+            )
             campaign.language_constants.append(googleads_service.language_constant_path(language_id))
 
-            # Create ad group with keywords
             forecast_ad_group = client.get_type("ForecastAdGroup")
-
             for kw in keywords:
-                keyword_text = kw.get("text") if isinstance(kw, dict) else kw
-                match_type_str = kw.get("match_type", "BROAD").upper() if isinstance(kw, dict) else "BROAD"
-                kw_bid_micros = (
-                    kw.get("cpc_bid_micros", max_cpc_bid_micros) if isinstance(kw, dict) else max_cpc_bid_micros
-                )
-
-                biddable_keyword = client.get_type("BiddableKeyword")
-                biddable_keyword.keyword.text = keyword_text
-                biddable_keyword.max_cpc_bid_micros = kw_bid_micros
-
-                if match_type_str == "EXACT":
-                    biddable_keyword.keyword.match_type = client.enums.KeywordMatchTypeEnum.EXACT
-                elif match_type_str == "PHRASE":
-                    biddable_keyword.keyword.match_type = client.enums.KeywordMatchTypeEnum.PHRASE
-                else:
-                    biddable_keyword.keyword.match_type = client.enums.KeywordMatchTypeEnum.BROAD
-
-                forecast_ad_group.biddable_keywords.append(biddable_keyword)
-
+                if "cpc_bid_micros" in kw:
+                    return ActionError(
+                        message="Keyword forecasts use a campaign-level bid. Set max_cpc_bid_micros instead."
+                    )
+                keyword = client.get_type("KeywordInfo")
+                keyword.text = kw["text"]
+                keyword.match_type = client.enums.KeywordMatchTypeEnum[kw.get("match_type", "BROAD")]
+                forecast_ad_group.keywords.append(keyword)
             campaign.ad_groups.append(forecast_ad_group)
 
-            # Set forecast period
-            tomorrow = datetime.now() + timedelta(days=1)
-            end_date = datetime.now() + timedelta(days=forecast_days)
+            today = _get_account_today(client, customer_id)
+            tomorrow = today + timedelta(days=1)
+            end_date = today + timedelta(days=forecast_days)
             request.forecast_period.start_date = tomorrow.strftime("%Y-%m-%d")
             request.forecast_period.end_date = end_date.strftime("%Y-%m-%d")
 
@@ -2258,7 +2237,7 @@ class GenerateKeywordForecastAction(ActionHandler):
                     "days": forecast_days,
                 },
                 "campaign_metrics": {
-                    "impressions": metrics.impressions if metrics.impressions else 0,
+                    "conversions": metrics.conversions,
                     "clicks": metrics.clicks if metrics.clicks else 0,
                     "cost_micros": metrics.cost_micros if metrics.cost_micros else 0,
                     "cost": micros_to_currency(metrics.cost_micros) if metrics.cost_micros else 0,
