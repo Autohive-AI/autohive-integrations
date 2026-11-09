@@ -12,6 +12,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from uuid import uuid4
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -31,7 +32,7 @@ from google_ads import _to_campaign_date_time, google_ads  # noqa: E402
 
 pytestmark = pytest.mark.unit
 
-AUTH = {"auth_type": "PlatformOauth2", "credentials": {"refresh_token": "test-refresh-token"}}  # nosec B105
+AUTH = {"auth_type": "PlatformOauth2", "credentials": {"refresh_token": uuid4().hex}}
 CAMPAIGN_INPUTS = {
     "login_customer_id": "1111111111",
     "customer_id": "2222222222",
@@ -45,7 +46,7 @@ def ads_client():
     """Real offline client with mocked services; captures the operations sent to each mutate call."""
     client = GoogleAdsClient(
         credentials=AnonymousCredentials(),
-        developer_token="test-developer-token",  # nosec B106
+        developer_token=uuid4().hex,
         use_proto_plus=True,
     )
 

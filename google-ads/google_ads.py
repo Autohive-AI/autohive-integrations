@@ -64,11 +64,14 @@ def micros_to_currency(micros):
     return float(micros) / 1000000 if micros is not None else "N/A"
 
 
+GOOGLE_OAUTH_ENDPOINT = "https://oauth2.googleapis.com/token"
+
+
 def _get_google_ads_client(refresh_token: str, login_customer_id: Optional[str] = None) -> GoogleAdsClient:
     """Initialize and return a Google Ads API client."""
     credentials = {
         "developer_token": DEVELOPER_TOKEN,
-        "token_uri": "https://oauth2.googleapis.com/token",  # nosec B105
+        "token_uri": GOOGLE_OAUTH_ENDPOINT,
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "refresh_token": refresh_token,
@@ -86,8 +89,8 @@ def _validate_auth_and_inputs(inputs: Dict[str, Any], context: ExecutionContext)
     if not refresh_token:
         raise GoogleAdsInputError("Refresh token is required for authentication with Google Ads API")
 
-    login_customer_id = inputs.get("login_customer_id")
-    customer_id = inputs.get("customer_id")
+    login_customer_id = inputs["login_customer_id"]
+    customer_id = inputs["customer_id"]
 
     if not login_customer_id:
         raise GoogleAdsInputError("Manager Account ID (login_customer_id) is required")
@@ -501,8 +504,8 @@ class RetrieveKeywordMetricsAction(ActionHandler):
             raise
 
         date_ranges_input = inputs.get("date_ranges")
-        campaign_ids = inputs.get("campaign_ids", [])
-        ad_group_ids = inputs.get("ad_group_ids", [])
+        campaign_ids = inputs["campaign_ids"]
+        ad_group_ids = inputs["ad_group_ids"]
 
         if not date_ranges_input:
             return ActionError(message="'date_ranges' is required.")
@@ -539,8 +542,8 @@ class CreateCampaignAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        campaign_name = inputs.get("campaign_name")
-        budget_amount_micros = inputs.get("budget_amount_micros")
+        campaign_name = inputs["campaign_name"]
+        budget_amount_micros = inputs["budget_amount_micros"]
 
         # Validate required inputs
         if not campaign_name:
@@ -688,7 +691,7 @@ class UpdateCampaignAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        campaign_id = inputs.get("campaign_id")
+        campaign_id = inputs["campaign_id"]
         new_status = inputs.get("status")
         new_name = inputs.get("name")
 
@@ -753,7 +756,7 @@ class RemoveCampaignAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        campaign_id = inputs.get("campaign_id")
+        campaign_id = inputs["campaign_id"]
         if not campaign_id:
             return ActionError(message="campaign_id is required")
 
@@ -803,8 +806,8 @@ class CreateAdGroupAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        campaign_id = inputs.get("campaign_id")
-        ad_group_name = inputs.get("ad_group_name")
+        campaign_id = inputs["campaign_id"]
+        ad_group_name = inputs["ad_group_name"]
         cpc_bid_micros = inputs.get("cpc_bid_micros", 1000000)
         status = inputs.get("status", "PAUSED")
 
@@ -868,10 +871,10 @@ class CreateResponsiveSearchAdAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        ad_group_id = inputs.get("ad_group_id")
-        headlines = inputs.get("headlines", [])
-        descriptions = inputs.get("descriptions", [])
-        final_url = inputs.get("final_url")
+        ad_group_id = inputs["ad_group_id"]
+        headlines = inputs["headlines"]
+        descriptions = inputs["descriptions"]
+        final_url = inputs["final_url"]
         path1 = inputs.get("path1", "")
         path2 = inputs.get("path2", "")
         status = inputs.get("status", "PAUSED")
@@ -961,8 +964,8 @@ class AddKeywordsAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        ad_group_id = inputs.get("ad_group_id")
-        keywords = inputs.get("keywords", [])
+        ad_group_id = inputs["ad_group_id"]
+        keywords = inputs["keywords"]
 
         if not ad_group_id or not keywords:
             return ActionError(message="ad_group_id and keywords are required")
@@ -1125,7 +1128,7 @@ class GenerateKeywordHistoricalMetricsAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        keywords = inputs.get("keywords", [])
+        keywords = inputs["keywords"]
         language_id = inputs.get("language_id", "1000")
         location_ids = inputs.get("location_ids", ["2840"])
 
@@ -1209,7 +1212,7 @@ class RetrieveAdGroupMetricsAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        date_ranges_input = inputs.get("date_ranges")
+        date_ranges_input = inputs["date_ranges"]
         campaign_ids = inputs.get("campaign_ids", [])
 
         if not date_ranges_input:
@@ -1323,7 +1326,7 @@ class RetrieveAdMetricsAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        date_ranges_input = inputs.get("date_ranges")
+        date_ranges_input = inputs["date_ranges"]
         campaign_ids = inputs.get("campaign_ids", [])
         ad_group_ids = inputs.get("ad_group_ids", [])
 
@@ -1449,7 +1452,7 @@ class RetrieveSearchTermsAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        date_ranges_input = inputs.get("date_ranges")
+        date_ranges_input = inputs["date_ranges"]
         campaign_ids = inputs.get("campaign_ids", [])
         ad_group_ids = inputs.get("ad_group_ids", [])
 
@@ -1655,8 +1658,8 @@ class AddNegativeKeywordsToCampaignAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        campaign_id = inputs.get("campaign_id")
-        keywords = inputs.get("keywords", [])
+        campaign_id = inputs["campaign_id"]
+        keywords = inputs["keywords"]
 
         if not campaign_id or not keywords:
             return ActionError(message="campaign_id and keywords are required")
@@ -1734,8 +1737,8 @@ class AddNegativeKeywordsToAdGroupAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        ad_group_id = inputs.get("ad_group_id")
-        keywords = inputs.get("keywords", [])
+        ad_group_id = inputs["ad_group_id"]
+        keywords = inputs["keywords"]
 
         if not ad_group_id or not keywords:
             return ActionError(message="ad_group_id and keywords are required")
@@ -1816,7 +1819,7 @@ class UpdateAdGroupAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        ad_group_id = inputs.get("ad_group_id")
+        ad_group_id = inputs["ad_group_id"]
         new_status = inputs.get("status")
         new_name = inputs.get("name")
         new_cpc_bid_micros = inputs.get("cpc_bid_micros")
@@ -1886,7 +1889,7 @@ class RemoveAdGroupAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        ad_group_id = inputs.get("ad_group_id")
+        ad_group_id = inputs["ad_group_id"]
         if not ad_group_id:
             return ActionError(message="ad_group_id is required")
 
@@ -1937,8 +1940,8 @@ class UpdateKeywordAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        ad_group_id = inputs.get("ad_group_id")
-        criterion_id = inputs.get("criterion_id")
+        ad_group_id = inputs["ad_group_id"]
+        criterion_id = inputs["criterion_id"]
         new_status = inputs.get("status")
         new_cpc_bid_micros = inputs.get("cpc_bid_micros")
 
@@ -2005,8 +2008,8 @@ class RemoveKeywordAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        ad_group_id = inputs.get("ad_group_id")
-        criterion_id = inputs.get("criterion_id")
+        ad_group_id = inputs["ad_group_id"]
+        criterion_id = inputs["criterion_id"]
 
         if not ad_group_id or not criterion_id:
             return ActionError(message="ad_group_id and criterion_id are required")
@@ -2060,8 +2063,8 @@ class UpdateAdAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        ad_group_id = inputs.get("ad_group_id")
-        ad_id = inputs.get("ad_id")
+        ad_group_id = inputs["ad_group_id"]
+        ad_id = inputs["ad_id"]
         new_status = inputs.get("status")
 
         if not ad_group_id or not ad_id:
@@ -2123,8 +2126,8 @@ class RemoveAdAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        ad_group_id = inputs.get("ad_group_id")
-        ad_id = inputs.get("ad_id")
+        ad_group_id = inputs["ad_group_id"]
+        ad_id = inputs["ad_id"]
 
         if not ad_group_id or not ad_id:
             return ActionError(message="ad_group_id and ad_id are required")
@@ -2176,7 +2179,7 @@ class GenerateKeywordForecastAction(ActionHandler):
             logger.exception(f"Failed to initialize GoogleAdsClient: {str(e)}")
             raise
 
-        keywords = inputs.get("keywords", [])
+        keywords = inputs["keywords"]
         daily_budget_micros = inputs.get("daily_budget_micros")
         max_cpc_bid_micros = inputs.get("max_cpc_bid_micros", 1000000)
         language_id = inputs.get("language_id", "1000")

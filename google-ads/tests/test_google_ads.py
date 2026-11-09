@@ -1,14 +1,15 @@
 import asyncio
+import os
 from pprint import pprint
 from context import google_ads
 from autohive_integrations_sdk import ExecutionContext
 
-# Test configuration - replace with your actual values
+# Set credentials in the environment before running this manual test.
 TEST_AUTH = {
     "auth_type": "PlatformOauth2",
     "credentials": {
-        "access_token": "ACCESS_TOKEN",  # nosec B105
-        "refresh_token": "REFRESH_TOKEN",  # nosec B105
+        "access_token": os.environ.get("GOOGLE_ADS_ACCESS_TOKEN", ""),
+        "refresh_token": os.environ.get("GOOGLE_ADS_REFRESH_TOKEN", ""),
     },
 }
 
