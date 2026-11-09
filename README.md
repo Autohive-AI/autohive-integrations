@@ -419,6 +419,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [openrouteservice](openrouteservice): Geocode addresses, create exact drive-time isochrone GeoJSON polygons, and calculate labelled road-network travel-time matrices through OpenRouteService. Uses an API-key connection, defaults address searches to New Zealand, flags low-confidence matches for human confirmation, and returns rate-limit retry guidance for spatial catchment workflows.
 
+### WorkZappy
+
+Create tasks in a WorkZappy project from Autohive workflows, including meeting follow-ups. Connect with a personal API Client ID and Secret Key. The Create Task action returns the new task ID. [WorkZappy setup and usage](workzappy/README.md)
+
 ## Template
 
 Use the [starter template](https://github.com/autohive-ai/integrations-sdk/tree/master/samples/template) in the SDK repo as the starting point for new integrations.
