@@ -1,7 +1,8 @@
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, Any, Optional
+from zoneinfo import ZoneInfo
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -101,6 +102,29 @@ def _get_ad_text_assets(ad_data_from_row: Dict[str, Any]) -> Dict[str, list]:
                 descriptions.append(eta_info.get(part))
 
     return {"headlines": headlines, "descriptions": descriptions}
+
+
+def _to_campaign_date_time(value: str, time_of_day: str) -> str:
+    """Converts YYYYMMDD or YYYY-MM-DD to the API's 'yyyy-MM-dd HH:mm:ss' format (v23+)."""
+    value = str(value).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y%m%d", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+        if fmt == "%Y-%m-%d %H:%M:%S":
+            return parsed.strftime("%Y-%m-%d %H:%M:%S")
+        return f"{parsed.strftime('%Y-%m-%d')} {time_of_day}"
+    raise ValueError(f"Invalid date '{value}'. Use YYYYMMDD, YYYY-MM-DD or YYYY-MM-DD HH:MM:SS.")
+
+
+def _get_account_today(client: GoogleAdsClient, customer_id: str) -> date:
+    """Returns today's date in the Google Ads account's time zone."""
+    ga_service = client.get_service("GoogleAdsService")
+    rows = ga_service.search(customer_id=customer_id, query="SELECT customer.time_zone FROM customer LIMIT 1")
+    for row in rows:
+        return datetime.now(ZoneInfo(row.customer.time_zone)).date()
+    raise Exception(f"Could not read the time zone for customer {customer_id}")
 
 
 def _calculate_safe_rate(numerator_raw, denominator_raw, default_numerator=0.0, default_denominator=0.0):
@@ -513,11 +537,19 @@ class CreateCampaignAction(ActionHandler):
 
         start_date = inputs.get("start_date")
         end_date = inputs.get("end_date")
-
-        if not start_date:
-            start_date = (datetime.now() + timedelta(days=1)).strftime("%Y%m%d")
-        if not end_date:
-            end_date = (datetime.now() + timedelta(days=365)).strftime("%Y%m%d")
+        if start_date:
+            start_date_time = _to_campaign_date_time(start_date, "00:00:00")
+        else:
+            tomorrow = _get_account_today(client, customer_id) + timedelta(days=1)
+            start_date_time = f"{tomorrow.isoformat()} 00:00:00"
+        if end_date:
+            end_date_time = _to_campaign_date_time(end_date, "23:59:59")
+        else:
+            start_day = datetime.strptime(start_date_time[:10], "%Y-%m-%d").date()
+            end_date_time = f"{(start_day + timedelta(days=365)).isoformat()} 23:59:59"
+        # Checked before the budget is created so a bad range leaves no orphaned budget.
+        if start_date_time >= end_date_time:
+            raise ValueError(f"start_date ({start_date_time}) must be before end_date ({end_date_time}).")
 
         try:
             # Create campaign budget
@@ -542,8 +574,8 @@ class CreateCampaignAction(ActionHandler):
             campaign.campaign_budget = budget_resource_name
             campaign.advertising_channel_type = client.enums.AdvertisingChannelTypeEnum.SEARCH
             campaign.status = client.enums.CampaignStatusEnum.PAUSED
-            campaign.start_date = start_date
-            campaign.end_date = end_date
+            campaign.start_date_time = start_date_time
+            campaign.end_date_time = end_date_time
 
             # Set bidding strategy
             # Note: For smart bidding strategies, we only set optional constraints if provided
