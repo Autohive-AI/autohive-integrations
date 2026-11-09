@@ -58,8 +58,8 @@ Creates a new Google Ads Search campaign with a budget. The campaign is created 
 - `campaign_name` (required): Name for the new campaign
 - `budget_amount_micros` (required): Daily budget in micros (e.g., 1000000 = $1.00)
 - `budget_name` (optional): Name for the campaign budget
-- `start_date` (optional): Campaign start date as YYYYMMDD or YYYY-MM-DD (starts at 00:00:00 account time). Defaults to tomorrow
-- `end_date` (optional): Campaign end date as YYYYMMDD or YYYY-MM-DD (ends at 23:59:59 account time). Defaults to 1 year from now
+- `start_date` (optional): Campaign start date as YYYYMMDD or YYYY-MM-DD (starts at 00:00:00 account time). Defaults to tomorrow in the account time zone
+- `end_date` (optional): Campaign end date as YYYYMMDD or YYYY-MM-DD (ends at 23:59:59 account time). Must be after `start_date`. Defaults to 1 year after the start date
 - `bidding_strategy` (optional): Bidding strategy. Defaults to MANUAL_CPC
 - `enhanced_cpc_enabled` (optional): For MANUAL_CPC — enable enhanced CPC. Defaults to false
 - `target_spend_micros` (optional): For TARGET_SPEND — optional target spend in micros

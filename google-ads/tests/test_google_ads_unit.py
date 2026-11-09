@@ -10,6 +10,8 @@ Run with:
 
 import os
 import sys
+from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -54,11 +56,35 @@ def ads_client():
     campaign_service.mutate_campaigns.return_value.results = [
         MagicMock(resource_name="customers/2222222222/campaigns/3")
     ]
-    services = {"CampaignBudgetService": budget_service, "CampaignService": campaign_service}
+    ga_service = MagicMock(name="GoogleAdsService")
+    ga_service.search.return_value = [_customer_row("Pacific/Auckland")]
+    services = {
+        "CampaignBudgetService": budget_service,
+        "CampaignService": campaign_service,
+        "GoogleAdsService": ga_service,
+    }
     client.get_service = lambda name, **kwargs: services[name]
 
     with patch.object(google_ads_module, "_get_google_ads_client", return_value=client):
-        yield client, budget_service, campaign_service
+        yield SimpleNamespace(budget=budget_service, campaign=campaign_service, ga=ga_service)
+
+
+def _customer_row(time_zone):
+    row = MagicMock(name="GoogleAdsRow")
+    row.customer.time_zone = time_zone
+    return row
+
+
+def _freeze_utc_now(value):
+    """Patches the module's datetime so now() returns the given UTC moment."""
+
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            frozen = datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+            return frozen.astimezone(tz) if tz else frozen.replace(tzinfo=None)
+
+    return patch.object(google_ads_module, "datetime", FrozenDatetime)
 
 
 def _sent_campaign(campaign_service):
@@ -93,36 +119,65 @@ def test_to_campaign_date_time_rejects_invalid(value):
 
 
 async def test_create_campaign_sets_date_time_fields(make_context, ads_client):
-    _, _, campaign_service = ads_client
     inputs = {**CAMPAIGN_INPUTS, "start_date": "20261201", "end_date": "2026-12-31"}
 
     result = await google_ads.execute_action("create_campaign", inputs, make_context(auth=AUTH))
 
     assert result.type == ResultType.ACTION
     assert result.result.data["campaign_id"] == "3"
-    campaign = _sent_campaign(campaign_service)
+    campaign = _sent_campaign(ads_client.campaign)
     assert campaign.start_date_time == "2026-12-01 00:00:00"
     assert campaign.end_date_time == "2026-12-31 23:59:59"
+    ads_client.ga.search.assert_not_called()
 
 
-async def test_create_campaign_defaults_dates(make_context, ads_client):
-    _, _, campaign_service = ads_client
+@pytest.mark.parametrize(
+    "utc_now, time_zone, expected_start, expected_end",
+    [
+        # 21:00 UTC is already 10:00 the next day in Auckland.
+        ("2026-11-09T21:00:00", "Pacific/Auckland", "2026-11-11 00:00:00", "2027-11-11 23:59:59"),
+        # 05:00 UTC is still 21:00 the previous day in Los Angeles.
+        ("2026-11-10T05:00:00", "America/Los_Angeles", "2026-11-10 00:00:00", "2027-11-10 23:59:59"),
+    ],
+)
+async def test_create_campaign_defaults_use_account_time_zone(
+    make_context, ads_client, utc_now, time_zone, expected_start, expected_end
+):
+    ads_client.ga.search.return_value = [_customer_row(time_zone)]
 
-    result = await google_ads.execute_action("create_campaign", CAMPAIGN_INPUTS, make_context(auth=AUTH))
+    with _freeze_utc_now(utc_now):
+        result = await google_ads.execute_action("create_campaign", CAMPAIGN_INPUTS, make_context(auth=AUTH))
 
     assert result.type == ResultType.ACTION
-    campaign = _sent_campaign(campaign_service)
-    assert campaign.start_date_time.endswith(" 00:00:00")
-    assert campaign.end_date_time.endswith(" 23:59:59")
-    assert campaign.start_date_time < campaign.end_date_time
+    campaign = _sent_campaign(ads_client.campaign)
+    assert campaign.start_date_time == expected_start
+    assert campaign.end_date_time == expected_end
 
 
-async def test_create_campaign_invalid_date_creates_no_budget(make_context, ads_client):
-    _, budget_service, campaign_service = ads_client
-    inputs = {**CAMPAIGN_INPUTS, "start_date": "01/12/2026"}
+async def test_create_campaign_default_end_follows_start_date(make_context, ads_client):
+    inputs = {**CAMPAIGN_INPUTS, "start_date": "2028-03-01"}
 
-    with pytest.raises(ValueError, match="Invalid date"):
+    result = await google_ads.execute_action("create_campaign", inputs, make_context(auth=AUTH))
+
+    assert result.type == ResultType.ACTION
+    campaign = _sent_campaign(ads_client.campaign)
+    assert campaign.start_date_time == "2028-03-01 00:00:00"
+    assert campaign.end_date_time == "2029-03-01 23:59:59"
+
+
+@pytest.mark.parametrize(
+    "date_inputs, error",
+    [
+        ({"start_date": "01/12/2026"}, "Invalid date"),
+        ({"start_date": "2026-12-31", "end_date": "2026-12-01"}, "must be before end_date"),
+        ({"start_date": "2026-12-01 23:59:59", "end_date": "2026-11-30"}, "must be before end_date"),
+    ],
+)
+async def test_create_campaign_bad_dates_create_no_budget(make_context, ads_client, date_inputs, error):
+    inputs = {**CAMPAIGN_INPUTS, **date_inputs}
+
+    with pytest.raises(ValueError, match=error):
         await google_ads.execute_action("create_campaign", inputs, make_context(auth=AUTH))
 
-    budget_service.mutate_campaign_budgets.assert_not_called()
-    campaign_service.mutate_campaigns.assert_not_called()
+    ads_client.budget.mutate_campaign_budgets.assert_not_called()
+    ads_client.campaign.mutate_campaigns.assert_not_called()

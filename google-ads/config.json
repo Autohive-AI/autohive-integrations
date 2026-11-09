@@ -203,11 +203,11 @@
                     },
                     "start_date": {
                         "type": "string",
-                        "description": "Campaign start date as YYYYMMDD or YYYY-MM-DD, in the account time zone. The campaign starts at 00:00:00 on this day. Defaults to tomorrow."
+                        "description": "Campaign start date as YYYYMMDD or YYYY-MM-DD, in the account time zone. The campaign starts at 00:00:00 on this day. Defaults to tomorrow in the account time zone."
                     },
                     "end_date": {
                         "type": "string",
-                        "description": "Campaign end date as YYYYMMDD or YYYY-MM-DD, in the account time zone. The campaign ends at 23:59:59 on this day. Defaults to 1 year from now."
+                        "description": "Campaign end date as YYYYMMDD or YYYY-MM-DD, in the account time zone. The campaign ends at 23:59:59 on this day. Must be after start_date. Defaults to 1 year after the start date."
                     },
                     "bidding_strategy": {
                         "type": "string",

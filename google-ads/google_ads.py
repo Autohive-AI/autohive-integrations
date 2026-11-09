@@ -1,7 +1,8 @@
 import os
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, Any, Optional
+from zoneinfo import ZoneInfo
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -115,6 +116,15 @@ def _to_campaign_date_time(value: str, time_of_day: str) -> str:
             return value
         return f"{parsed.strftime('%Y-%m-%d')} {time_of_day}"
     raise ValueError(f"Invalid date '{value}'. Use YYYYMMDD, YYYY-MM-DD or YYYY-MM-DD HH:MM:SS.")
+
+
+def _get_account_today(client: GoogleAdsClient, customer_id: str) -> date:
+    """Returns today's date in the Google Ads account's time zone."""
+    ga_service = client.get_service("GoogleAdsService")
+    rows = ga_service.search(customer_id=customer_id, query="SELECT customer.time_zone FROM customer LIMIT 1")
+    for row in rows:
+        return datetime.now(ZoneInfo(row.customer.time_zone)).date()
+    raise Exception(f"Could not read the time zone for customer {customer_id}")
 
 
 def _calculate_safe_rate(numerator_raw, denominator_raw, default_numerator=0.0, default_denominator=0.0):
@@ -525,10 +535,21 @@ class CreateCampaignAction(ActionHandler):
         budget_name = inputs.get("budget_name", f"Budget for {campaign_name}")
         bidding_strategy = inputs.get("bidding_strategy", "MANUAL_CPC")
 
-        start_date = inputs.get("start_date") or (datetime.now() + timedelta(days=1)).strftime("%Y%m%d")
-        end_date = inputs.get("end_date") or (datetime.now() + timedelta(days=365)).strftime("%Y%m%d")
-        start_date_time = _to_campaign_date_time(start_date, "00:00:00")
-        end_date_time = _to_campaign_date_time(end_date, "23:59:59")
+        start_date = inputs.get("start_date")
+        end_date = inputs.get("end_date")
+        if start_date:
+            start_date_time = _to_campaign_date_time(start_date, "00:00:00")
+        else:
+            tomorrow = _get_account_today(client, customer_id) + timedelta(days=1)
+            start_date_time = f"{tomorrow.isoformat()} 00:00:00"
+        if end_date:
+            end_date_time = _to_campaign_date_time(end_date, "23:59:59")
+        else:
+            start_day = datetime.strptime(start_date_time[:10], "%Y-%m-%d").date()
+            end_date_time = f"{(start_day + timedelta(days=365)).isoformat()} 23:59:59"
+        # Checked before the budget is created so a bad range leaves no orphaned budget.
+        if start_date_time >= end_date_time:
+            raise ValueError(f"start_date ({start_date_time}) must be before end_date ({end_date_time}).")
 
         try:
             # Create campaign budget
