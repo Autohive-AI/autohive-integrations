@@ -378,6 +378,10 @@ Supports basic HTTP authentication and Bearer token authentication via the SDK.
 
 [shopify-customer](shopify-customer): Facilitates customer self-service through the Shopify Customer Account API. Supports authenticated customer operations, including viewing and updating profiles, managing address books (list, create, update, delete, set default), and accessing order history. Features OAuth 2.0 with PKCE authentication helpers.
 
+### SQL Database
+
+[sql-database](sql-database): Query and update Microsoft SQL Server (including Azure SQL), PostgreSQL and MySQL/MariaDB databases using a connection string. Provides a read-only `query` action with layered SQL validation and database transaction protections, and an `execute` action for INSERT, UPDATE, DELETE and MERGE with RETURNING/OUTPUT support. Includes parameter binding, row limits, timeouts, TLS options and a WHERE-clause guard. Uses custom authentication with a database type and masked connection string. Use a database login restricted to reading for connections that must never write data. Ideal for reporting, data lookups and operational record updates.
+
 ### Supabase
 
 [supabase](supabase): Backend-as-a-Service integration with Supabase for database operations, storage management, and user authentication administration. Supports full database CRUD operations via PostgREST (select with filtering/ordering/pagination, insert with upsert support, update, delete), PostgreSQL function calls (RPC), storage bucket management (list, get, create, delete buckets), file operations (list files, delete files, get public URLs), and auth user administration (list, get, delete users). Features custom API key authentication with Project URL and Service Role Secret, PostgREST filter operators (eq, neq, gt, gte, lt, lte, like, ilike, is, in), pagination support with Range headers, and comprehensive error handling. Includes 15 actions covering database operations, storage management, and auth administration. Ideal for backend automation, data management, file storage workflows, and user administration.

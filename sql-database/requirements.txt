@@ -1,0 +1,7 @@
+autohive-integrations-sdk~=2.0.1
+# Exact pin: the SQL safety checks depend on this parser version. Re-run the bypass tests before upgrading.
+sqlglot==30.25.0
+psycopg[binary]~=3.3.6
+PyMySQL[rsa]~=1.2.3
+pymssql~=2.4.6
+certifi
