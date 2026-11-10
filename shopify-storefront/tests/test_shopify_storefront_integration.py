@@ -256,18 +256,30 @@ class TestContentAndDiscovery:
         assert len(data["products"]) <= 3
 
     async def test_predictive_search_limit_applies_per_type(self, live_context):
-        data = action_data(
-            await shopify_storefront.execute_action(
-                "storefront_predictive_search",
-                {"query": "s", "limit": 2, "types": ["PRODUCT", "COLLECTION"]},
-                live_context,
+        async def search(query, types):
+            return action_data(
+                await shopify_storefront.execute_action(
+                    "storefront_predictive_search", {"query": query, "limit": 2, "types": types}, live_context
+                )
             )
-        )
-        assert len(data["products"]) <= 2
-        assert len(data["collections"]) <= 2
-        # A combined limit would cap products + collections at 2 in total.
-        if len(data["products"]) == 2:
-            assert data["collections"], "limit should apply per result type, not across all types"
+
+        collections = action_data(
+            await shopify_storefront.execute_action("storefront_list_collections", {"first": 10}, live_context)
+        )["collections"]
+        for collection in collections:
+            query = collection["title"][:4]
+            collection_only = await search(query, ["COLLECTION"])
+            if not collection_only["collections"]:
+                continue
+            mixed = await search(query, ["PRODUCT", "COLLECTION"])
+            if len(mixed["products"]) < 2:
+                continue
+            # Products already fill the limit, so a combined limit would leave no room for collections.
+            assert len(mixed["collections"]) == len(collection_only["collections"]), (
+                "limit should apply per result type, not across all types"
+            )
+            return
+        pytest.skip("No collection search term also returns enough products to tell the limit scopes apart")
 
 
 # ---- Destructive Tests (Write Operations) ----
