@@ -27,7 +27,7 @@ This integration uses **custom authentication** with a Storefront API token from
 4. In Autohive, add the Shopify Storefront integration and enter:
    - **Shop domain** — the store's permanent domain, such as `your-store.myshopify.com`
    - **Public access token**, or a **Private access token** for server-side use (the private token is used when both are set)
-   - **Buyer IP** (optional) — only sent with private-token requests
+   - **Buyer IP** (optional) — only sent with private-token requests. It is set once for the connection, so it is not each shopper's own IP
 
 ## Actions
 
@@ -193,7 +193,7 @@ Apply discount codes to cart. The list replaces any codes already applied; pass 
 ---
 
 #### `storefront_update_cart_buyer_identity`
-Link a cart to a logged-in customer, or set the buyer's email, phone or country. The country controls local pricing and availability, and a linked customer's details carry through to checkout.
+Link a cart to a logged-in customer, or set the buyer's email, phone or country. The country controls local pricing and availability. A linked customer's details carry through to checkout, but with a private token Shopify only keeps them logged in at checkout when the request carries the buyer's IP, so they may be asked to log in again.
 
 **Inputs:**
 - `cart_id` (string, required): Cart GraphQL ID
