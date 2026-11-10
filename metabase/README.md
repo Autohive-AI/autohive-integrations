@@ -210,7 +210,7 @@ Takes the full list of `filters`. Each has `name` and `type` (for example `date/
 
 #### `copy_dashboard`
 
-Copies a dashboard under a new `name`, into `collection_id` or else the original's collection. With `copy_questions: true` each question is copied too; otherwise the copy shows the same questions.
+Copies a dashboard under a new `name`, into `collection_id` or else the original's collection. With `copy_questions: true` each question is copied too; otherwise the copy shows the same questions. Metabase leaves some questions off the copy (such as ones this API key can't read, or archived ones on newer versions); they are listed in `uncopied_questions` with a `note`.
 
 #### `run_dashboard`
 

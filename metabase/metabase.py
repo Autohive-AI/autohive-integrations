@@ -2431,7 +2431,23 @@ class CopyDashboardAction(ActionHandler):
         )
         copy = await _api(context, "POST", f"/dashboard/{dashboard_id}/copy", json=body) or {}
         _require_id(copy, "a dashboard")
-        return {"id": copy.get("id"), "name": copy.get("name"), "collection_id": copy.get("collection_id")}
+        result = {"id": copy.get("id"), "name": copy.get("name"), "collection_id": copy.get("collection_id")}
+        # Metabase still makes the copy without some questions (ones this API key can't read, or archived
+        # ones) and lists them, once per card they were on.
+        uncopied = list(
+            {
+                c.get("id"): {"id": c.get("id"), "name": c.get("name")}
+                for c in copy.get("uncopied") or []
+                if isinstance(c, dict)
+            }.values()
+        )
+        if uncopied:
+            result["uncopied_questions"] = uncopied
+            result["note"] = (
+                f"Metabase left {len(uncopied)} question(s) off the copy, such as ones this API key can't read or "
+                "archived ones."
+            )
+        return result
 
 
 def _fit_rows(summary: Dict[str, Any], chars_left: int) -> int:

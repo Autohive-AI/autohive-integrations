@@ -2341,6 +2341,28 @@
                             "null"
                         ],
                         "description": "Collection id."
+                    },
+                    "uncopied_questions": {
+                        "type": "array",
+                        "description": "Questions Metabase left off the copy, such as ones this API key can't read or archived ones (only when there are any).",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "integer"
+                                },
+                                "name": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "note": {
+                        "type": "string",
+                        "description": "Says why questions are missing from the copy (only when there are any)."
                     }
                 },
                 "required": [

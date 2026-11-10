@@ -1222,6 +1222,37 @@ class TestCopyDashboard:
         assert result.result.data == {"id": 70, "name": "Sales (copy)", "collection_id": 4}
 
     @pytest.mark.asyncio
+    async def test_questions_left_off_the_copy_are_reported(self, mock_context):
+        uncopied = [
+            {"id": 42, "name": "Secret revenue", "archived": False},
+            {"id": 43, "name": None},
+            {"id": 42, "name": "Secret revenue"},
+        ]
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_DASHBOARD),
+            _ok({"id": 70, "name": "Sales (copy)", "collection_id": 4, "uncopied": uncopied}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard", {"dashboard_id": 9, "name": "Sales (copy)"}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        data = result.result.data
+        assert data["uncopied_questions"] == [{"id": 42, "name": "Secret revenue"}, {"id": 43, "name": None}]
+        assert data["note"].startswith("Metabase left 2 question(s) off the copy")
+
+    @pytest.mark.asyncio
+    async def test_full_copy_has_no_uncopied_questions_or_note(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(SAMPLE_DASHBOARD),
+            _ok({"id": 70, "name": "Sales (copy)", "uncopied": []}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard", {"dashboard_id": 9, "name": "Sales (copy)"}, mock_context
+        )
+        assert "uncopied_questions" not in result.result.data
+        assert "note" not in result.result.data
+
+    @pytest.mark.asyncio
     async def test_request_keeps_original_collection(self, mock_context):
         mock_context.fetch.side_effect = [_ok(SAMPLE_DASHBOARD), _ok({"id": 70, "name": "Sales (copy)"})]
         await metabase.execute_action("copy_dashboard", {"dashboard_id": 9, "name": "Sales (copy)"}, mock_context)
