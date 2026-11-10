@@ -1506,3 +1506,8 @@ This includes the task create/read/update/delete lifecycle. Set
 rather than empty search responses. Keep fixture IDs in the ignored local `.env`
 or your CI environment, and keep tokens out of source control. Optional fixture
 settings left blank are reported as skipped, not passed.
+
+### Log calls and update meetings
+
+- **Create Call** logs a CRM call activity. Supply a title and optionally the call timestamp, notes, duration in milliseconds, owner ID, or contact ID. It returns the created call record and does not place a phone call.
+- **Update Meeting** takes the HubSpot CRM meeting ID and at least one field to change: title, description, internal notes, location, start time, end time, or outcome. Unspecified fields are preserved. The action updates the CRM activity and returns the updated meeting record. It does not send a calendar invite.
