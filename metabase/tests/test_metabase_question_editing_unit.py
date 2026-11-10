@@ -1599,6 +1599,29 @@ class TestExportQuestionResults:
         assert data["truncated"] is False
 
     @pytest.mark.asyncio
+    async def test_csv_oversized_cell_past_max_rows_is_left_out(self, mock_context):
+        cell = "y" * 1_000_002
+        mock_context.fetch.side_effect = _export_calls(f'id,payload\n1,small\n2,"{cell}"\n')
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "max_rows": 1}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data == {
+            "format": "csv",
+            "content": "id,payload\n1,small",
+            "row_count": 1,
+            "truncated": True,
+        }
+
+    @pytest.mark.asyncio
+    async def test_csv_oversized_first_cell_truncates(self, mock_context):
+        cell = "y" * 1_000_002
+        mock_context.fetch.side_effect = _export_calls(f'id,payload\n1,"{cell}"\n')
+        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data == {"format": "csv", "content": "id,payload", "row_count": 0, "truncated": True}
+
+    @pytest.mark.asyncio
     async def test_json_all_rows(self, mock_context):
         rows = [{"id": 1, "email": "ana@example.com"}]
         mock_context.fetch.side_effect = _export_calls(rows)

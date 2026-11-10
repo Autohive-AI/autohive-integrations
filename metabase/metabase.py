@@ -1929,8 +1929,8 @@ async def _download(context: ExecutionContext, path: str, form: Dict[str, str]) 
 def _csv_export(text: str, max_rows: int) -> Dict[str, Any]:
     """Keep the header and up to max_rows CSV records, whole records only, within MAX_EXPORT_CHARS. Records are read
     with the csv module, so a value with a line break in quotes counts as one row."""
-    # A single cell may be as big as the whole export budget (csv's default limit is 131,072 characters).
-    csv.field_size_limit(max(csv.field_size_limit(), MAX_EXPORT_CHARS + 1))
+    # Any cell in the download may be read, even one past the rows kept (csv's default limit is 131,072 characters).
+    csv.field_size_limit(max(csv.field_size_limit(), len(text) + 1))
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\n")
     rows = 0
