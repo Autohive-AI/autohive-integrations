@@ -28,6 +28,7 @@ from autohive_integrations_sdk import FetchResponse
 from autohive_integrations_sdk.integration import ResultType
 
 from shopify_storefront import shopify_storefront
+from shopify_storefront import API_VERSION
 
 pytestmark = pytest.mark.integration
 
@@ -54,6 +55,12 @@ def live_context(env_credentials, make_context):
                 data = await resp.json(content_type=None)
                 if resp.status >= 400:
                     raise RuntimeError(f"Shopify Storefront API returned HTTP {resp.status}")
+                # Shopify silently serves retired versions with its oldest supported one.
+                served = resp.headers.get("X-Shopify-API-Version")
+                assert served == API_VERSION, (
+                    f"Shopify served API version {served!r} instead of {API_VERSION!r}; "
+                    "the requested version may be retired or unsupported"
+                )
                 return FetchResponse(status=resp.status, headers=dict(resp.headers), data=data)
 
     context = make_context(
@@ -247,6 +254,20 @@ class TestContentAndDiscovery:
             )
         )
         assert len(data["products"]) <= 3
+
+    async def test_predictive_search_limit_applies_per_type(self, live_context):
+        data = action_data(
+            await shopify_storefront.execute_action(
+                "storefront_predictive_search",
+                {"query": "s", "limit": 2, "types": ["PRODUCT", "COLLECTION"]},
+                live_context,
+            )
+        )
+        assert len(data["products"]) <= 2
+        assert len(data["collections"]) <= 2
+        # A combined limit would cap products + collections at 2 in total.
+        if len(data["products"]) == 2:
+            assert data["collections"], "limit should apply per result type, not across all types"
 
 
 # ---- Destructive Tests (Write Operations) ----

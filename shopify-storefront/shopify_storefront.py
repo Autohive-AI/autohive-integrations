@@ -794,7 +794,7 @@ query ProductRecommendations($handle: String, $id: ID, $intent: ProductRecommend
 
 QUERY_PREDICTIVE_SEARCH = """
 query PredictiveSearch($query: String!, $limit: Int, $types: [PredictiveSearchType!]) {
-  predictiveSearch(query: $query, limit: $limit, types: $types) {
+  predictiveSearch(query: $query, limit: $limit, limitScope: EACH, types: $types) {
     queries { text styledText }
     products {
       id

@@ -1574,6 +1574,14 @@ class TestPredictiveSearch:
         assert sent_variables(mock_context) == {"query": "snow", "limit": 5, "types": ["PRODUCT", "QUERY"]}
 
     @pytest.mark.asyncio
+    async def test_limit_applies_per_result_type(self, mock_context):
+        mock_context.fetch.return_value = gql({"predictiveSearch": None})
+
+        await shopify_storefront.execute_action("storefront_predictive_search", {"query": "snow"}, mock_context)
+
+        assert "limitScope: EACH" in sent_query(mock_context)
+
+    @pytest.mark.asyncio
     async def test_defaults(self, mock_context):
         mock_context.fetch.return_value = gql({"predictiveSearch": None})
 
