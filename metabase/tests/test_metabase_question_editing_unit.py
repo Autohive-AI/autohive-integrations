@@ -192,6 +192,28 @@ class TestUpdateQuestion:
         }
 
     @pytest.mark.asyncio
+    async def test_moving_a_dashboard_question_takes_it_out_of_the_dashboard(self, mock_context):
+        in_dashboard = {**SAMPLE_CARD, "dashboard_id": 5}
+        mock_context.fetch.side_effect = [_ok(in_dashboard), _ok({**SAMPLE_CARD, "collection_id": 9})]
+        result = await metabase.execute_action("update_question", {"question_id": 42, "collection_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args_list[0].kwargs["method"] == "GET"
+        assert mock_context.fetch.call_args.kwargs["json"] == {"collection_id": 9, "dashboard_id": None}
+
+    @pytest.mark.asyncio
+    async def test_dashboard_question_given_its_own_collection_stays_in_the_dashboard(self, mock_context):
+        mock_context.fetch.return_value = _ok({**SAMPLE_CARD, "dashboard_id": 5})
+        await metabase.execute_action("update_question", {"question_id": 42, "collection_id": 4}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"] == {"collection_id": 4}
+
+    @pytest.mark.asyncio
+    async def test_dashboard_question_renamed_stays_in_the_dashboard(self, mock_context):
+        mock_context.fetch.return_value = _ok({**SAMPLE_CARD, "dashboard_id": 5})
+        await metabase.execute_action("update_question", {"question_id": 42, "name": "Renamed"}, mock_context)
+        assert mock_context.fetch.call_count == 1
+        assert mock_context.fetch.call_args.kwargs["json"] == {"name": "Renamed"}
+
+    @pytest.mark.asyncio
     async def test_sql_checked_in_card_dialect(self, mock_context):
         mock_context.fetch.side_effect = [_ok(SAMPLE_CARD), _database("mysql"), _ok(SAMPLE_CARD)]
         sql = "select week, count(*) from signups where region = 'EU' group by week"
@@ -757,6 +779,28 @@ class TestCopyQuestion:
         ]
         await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
         assert mock_context.fetch.call_args.kwargs["json"] == {"collection_id": 9}
+
+    @pytest.mark.asyncio
+    async def test_moving_a_copy_of_a_dashboard_question_takes_it_out_of_the_dashboard(self, mock_context):
+        copy = {**SAMPLE_COPY, "dashboard_id": 5}
+        mock_context.fetch.side_effect = [
+            *_saving_check_calls(),
+            _ok(copy),
+            _ok({**SAMPLE_COPY, "collection_id": 9}),
+        ]
+        result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION
+        put = mock_context.fetch.call_args
+        assert put.args[0] == f"{BASE}/api/card/77?delete_old_dashcards=true"
+        assert put.kwargs["json"] == {"collection_id": 9, "dashboard_id": None}
+
+    @pytest.mark.asyncio
+    async def test_renaming_a_copy_of_a_dashboard_question_keeps_it_in_the_dashboard(self, mock_context):
+        copy = {**SAMPLE_COPY, "dashboard_id": 5}
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(copy), _ok({**copy, "name": "EU"})]
+        await metabase.execute_action("copy_question", {"question_id": 42, "name": "EU"}, mock_context)
+        assert mock_context.fetch.call_args.args[0] == f"{BASE}/api/card/77"
+        assert mock_context.fetch.call_args.kwargs["json"] == {"name": "EU"}
 
     @pytest.mark.asyncio
     async def test_empty_name_skips_put(self, mock_context):

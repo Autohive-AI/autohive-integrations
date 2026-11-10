@@ -2039,7 +2039,7 @@ async def _segment_definition(context: ExecutionContext, table_id: Any, filter_c
         not isinstance(filter_clause, list)
         or not filter_clause
         or not isinstance(filter_clause[0], str)
-        or '"lib/uuid"' in json.dumps(filter_clause)
+        or _has_key(filter_clause, "lib/uuid")
     ):
         raise ValueError(
             'filter must be one query-builder filter clause, e.g. [">", ["field", 12, null], 100] or '
@@ -2632,6 +2632,14 @@ class RevertToRevisionAction(ActionHandler):
 # ---- Editing questions, models and metrics ----
 
 
+def _leave_dashboard_to_move(card: Dict[str, Any], changes: Dict[str, Any]) -> None:
+    """A question saved inside a dashboard (Metabase 0.53+) has to leave it to move to another collection."""
+    if card.get("dashboard_id") is not None and changes.get("collection_id", card.get("collection_id")) != card.get(
+        "collection_id"
+    ):
+        changes["dashboard_id"] = None
+
+
 @metabase.action("update_question")
 class UpdateQuestionAction(ActionHandler):
     """Change a saved question, model or metric: name, description, SQL, chart type, chart settings or collection."""
@@ -2649,8 +2657,9 @@ class UpdateQuestionAction(ActionHandler):
         settings = inputs.get("visualization_settings")
         if inputs.get("filters") and inputs.get("sql") is None:
             raise ValueError("filters can only be given together with sql.")
-        if inputs.get("sql") is not None or settings is not None:
+        if inputs.get("sql") is not None or settings is not None or "collection_id" in body:
             card = await _api(context, "GET", f"/card/{card_id}") or {}
+            _leave_dashboard_to_move(card, body)
             if inputs.get("sql") is not None:
                 database_id = card.get("database_id") or (card.get("dataset_query") or {}).get("database")
                 sql = _required_text(inputs["sql"], "sql")
@@ -2682,9 +2691,13 @@ class CopyQuestionAction(ActionHandler):
         card = await _api(context, "POST", f"/card/{_path_id(inputs['question_id'])}/copy") or {}
         _require_id(card, "a question")
         changes = _with_optional({}, name=inputs.get("name"), collection_id=inputs.get("collection_id"))
+        # A copy of a question saved in a dashboard is saved there too, with its own card on that dashboard, which
+        # Metabase only removes as the copy leaves when asked to.
+        _leave_dashboard_to_move(card, changes)
+        path = f"/card/{_path_id(card['id'])}" + ("?delete_old_dashcards=true" if "dashboard_id" in changes else "")
         if changes:
             try:
-                card = await _api(context, "PUT", f"/card/{_path_id(card['id'])}", json=changes) or card
+                card = await _api(context, "PUT", path, json=changes) or card
             except Exception as e:
                 raise ValueError(
                     f"The copy was made as question {card['id']} but couldn't be renamed or moved: "

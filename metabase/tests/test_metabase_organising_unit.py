@@ -420,6 +420,17 @@ class TestCreateSegment:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_filter_value_that_looks_like_an_option_key_accepted(self, mock_context):
+        created = {**FULL_QUERY_SEGMENT, "id": 11, "name": "Odd tag", "table_id": 31}
+        mock_context.fetch.side_effect = [_ok(SAMPLE_TABLE), _ok(created)]
+        clause = ["=", ["field", 120, None], "lib/uuid"]
+        result = await metabase.execute_action(
+            "create_segment", {"name": "Odd tag", "table_id": 31, "filter": clause}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"]["definition"]["filter"] == clause
+
+    @pytest.mark.asyncio
     async def test_non_list_filter_rejected(self, mock_context):
         result = await metabase.execute_action(
             "create_segment", {"name": "Big orders", "table_id": 31, "filter": "total > 100"}, mock_context
