@@ -269,17 +269,19 @@ class TestContentAndDiscovery:
         for collection in collections:
             query = collection["title"][:4]
             collection_only = await search(query, ["COLLECTION"])
-            if not collection_only["collections"]:
+            product_only = await search(query, ["PRODUCT"])
+            if not collection_only["collections"] or len(product_only["products"]) < 2:
                 continue
+            # Products alone fill the limit, so a combined limit would squeeze out products or collections.
             mixed = await search(query, ["PRODUCT", "COLLECTION"])
-            if len(mixed["products"]) < 2:
-                continue
-            # Products already fill the limit, so a combined limit would leave no room for collections.
+            assert len(mixed["products"]) == len(product_only["products"]), (
+                "limit should apply per result type, not across all types"
+            )
             assert len(mixed["collections"]) == len(collection_only["collections"]), (
                 "limit should apply per result type, not across all types"
             )
             return
-        pytest.skip("No collection search term also returns enough products to tell the limit scopes apart")
+        pytest.skip("No collection search term also matches at least two products")
 
 
 # ---- Destructive Tests (Write Operations) ----
