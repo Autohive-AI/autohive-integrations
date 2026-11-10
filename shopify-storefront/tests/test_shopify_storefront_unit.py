@@ -1589,7 +1589,11 @@ class TestPredictiveSearch:
             "storefront_predictive_search", {"query": "snow"}, mock_context
         )
 
-        assert sent_variables(mock_context) == {"query": "snow", "limit": 10}
+        assert sent_variables(mock_context) == {
+            "query": "snow",
+            "limit": 10,
+            "types": ["PRODUCT", "COLLECTION", "PAGE", "ARTICLE", "QUERY"],
+        }
         assert result.result.data["products"] == []
 
     @pytest.mark.asyncio

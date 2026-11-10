@@ -1665,9 +1665,9 @@ class PredictiveSearchHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             query = require_input(inputs["query"], "query")
-            variables = {"query": query, "limit": inputs.get("limit", 10)}
-            if inputs.get("types"):
-                variables["types"] = inputs["types"]
+            # Shopify falls back to the store's search settings when types is unset, which can hide pages and articles.
+            types = inputs.get("types") or ["PRODUCT", "COLLECTION", "PAGE", "ARTICLE", "QUERY"]
+            variables = {"query": query, "limit": inputs.get("limit", 10), "types": types}
 
             gql_result = await execute_graphql(context, QUERY_PREDICTIVE_SEARCH, variables)
             data, errors = parse_graphql_response(gql_result)
