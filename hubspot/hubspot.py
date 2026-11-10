@@ -5417,14 +5417,12 @@ class CreateCallActionHandler(ActionHandler):
             "hs_call_title": inputs["title"],
             "hs_timestamp": inputs.get("timestamp") or str(int(datetime.now(timezone.utc).timestamp() * 1000)),
         }
-        for field, prop in (
-            ("body", "hs_call_body"),
-            ("duration_ms", "hs_call_duration"),
-            ("owner_id", "hubspot_owner_id"),
-        ):
-            value = inputs.get(field)
-            if value is not None:
-                properties[prop] = str(value)
+        optional_properties = {
+            "hs_call_body": inputs.get("body"),
+            "hs_call_duration": inputs.get("duration_ms"),
+            "hubspot_owner_id": inputs.get("owner_id"),
+        }
+        properties.update({key: str(value) for key, value in optional_properties.items() if value is not None})
 
         payload = {"properties": properties}
         if contact_id := inputs.get("contact_id"):
@@ -5437,15 +5435,15 @@ class UpdateMeetingActionHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         meeting_id = inputs["meeting_id"]
         fields = {
-            "title": "hs_meeting_title",
-            "body": "hs_meeting_body",
-            "internal_notes": "hs_internal_meeting_notes",
-            "location": "hs_meeting_location",
-            "start_time": "hs_meeting_start_time",
-            "end_time": "hs_meeting_end_time",
-            "outcome": "hs_meeting_outcome",
+            "hs_meeting_title": inputs.get("title"),
+            "hs_meeting_body": inputs.get("body"),
+            "hs_internal_meeting_notes": inputs.get("internal_notes"),
+            "hs_meeting_location": inputs.get("location"),
+            "hs_meeting_start_time": inputs.get("start_time"),
+            "hs_meeting_end_time": inputs.get("end_time"),
+            "hs_meeting_outcome": inputs.get("outcome"),
         }
-        properties = {prop: inputs[field] for field, prop in fields.items() if field in inputs}
+        properties = {key: value for key, value in fields.items() if value is not None}
         if not properties:
             return ActionError(message="Provide at least one meeting field to update.")
         if "hs_meeting_start_time" in properties:

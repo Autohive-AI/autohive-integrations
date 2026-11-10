@@ -2804,7 +2804,7 @@
     },
     "search_companies_by_owner_name": {
       "display_name": "Search Companies by Owner Name",
-      "description": "Search companies by owner ID, email or name. Reuse the returned owner.id on subsequent pages to avoid scanning owners again.",
+      "description": "Search companies by owner ID, email or name. Provide at least one of these identifiers. Reuse the returned owner.id on subsequent pages to avoid scanning owners again.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -2841,23 +2841,7 @@
             "description": "Exact owner email, filtered by HubSpot. Takes precedence over owner_name."
           }
         },
-        "anyOf": [
-          {
-            "required": [
-              "owner_id"
-            ]
-          },
-          {
-            "required": [
-              "owner_email"
-            ]
-          },
-          {
-            "required": [
-              "owner_name"
-            ]
-          }
-        ]
+        "required": []
       },
       "output_schema": {
         "type": "object",

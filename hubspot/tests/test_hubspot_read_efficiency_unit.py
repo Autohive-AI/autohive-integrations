@@ -220,7 +220,8 @@ async def test_owner_email_is_filtered_by_hubspot(ctx):
 
 async def test_company_owner_search_requires_an_identifier(ctx):
     result = await hubspot.execute_action("search_companies_by_owner_name", {}, ctx)
-    assert result.type == ResultType.VALIDATION_ERROR
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Provide an owner_id, owner_email or owner_name" in result.result.message
     ctx.fetch.assert_not_called()
 
 
