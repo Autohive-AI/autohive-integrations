@@ -2351,6 +2351,7 @@ class UpdateDashboardFiltersAction(ActionHandler):
             if dc.get("inline_parameters"):
                 # Filters shown on the card itself (Metabase 0.55+) go when the filter is removed.
                 dc["inline_parameters"] = [p for p in dc["inline_parameters"] if p in kept]
+        param_names = {p["id"]: p["name"] for p in parameters}
         for filter_id, conns in connections.items():
             for conn in conns:
                 original = by_dashcard.get(conn.get("dashcard_id"))
@@ -2364,6 +2365,13 @@ class UpdateDashboardFiltersAction(ActionHandler):
                 if question_id not in questions:
                     raise ValueError(f"Question {question_id} isn't shown on card {original['id']}.")
                 dc = next(d for d in dashcards if d.get("id") == original["id"])
+                if any(
+                    m["parameter_id"] == filter_id and m["card_id"] == question_id for m in dc["parameter_mappings"]
+                ):
+                    # Metabase applies only one, so the other column would quietly stay unfiltered.
+                    raise ValueError(
+                        f"Filter {param_names[filter_id]} is connected to card {original['id']} twice; pick one."
+                    )
                 dc["parameter_mappings"].append(
                     {
                         "parameter_id": filter_id,
@@ -3221,8 +3229,10 @@ class UpdateFieldAction(ActionHandler):
         if not body:
             raise ValueError("Give display_name, description or semantic_type.")
         path = f"/field/{_path_id(inputs['field_id'])}"
-        # Metabase 0.49 clears a column's conversion (e.g. UNIX seconds shown as a date) when it isn't sent.
-        coercion = (await _api(context, "GET", path) or {}).get("coercion_strategy")
+        # Metabase 0.49 clears a column's conversion (e.g. UNIX seconds shown as a date) when it isn't sent. It is read
+        # with the edit permission, so someone who can edit the data model but not query the table isn't refused.
+        editable = {"include_editable_data_model": "true"}
+        coercion = (await _api(context, "GET", path, params=editable) or {}).get("coercion_strategy")
         if coercion:
             body["coercion_strategy"] = coercion
         field = await _api(context, "PUT", path, json=body) or {}

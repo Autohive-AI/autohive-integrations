@@ -2147,6 +2147,7 @@
                                         "location/state",
                                         "location/zip_code",
                                         "location/country",
+                                        "boolean/=",
                                         "temporal-unit"
                                     ]
                                 },
@@ -2158,7 +2159,7 @@
                                         "null"
                                     ],
                                     "items": {},
-                                    "description": "Default value(s), e.g. [\"Gizmo\"] or \"past30days\". null clears it."
+                                    "description": "Default value(s), e.g. [\"Gizmo\"], \"past30days\" or [true] for a Boolean filter. null clears it."
                                 },
                                 "required": {
                                     "type": "boolean",

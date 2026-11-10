@@ -2400,6 +2400,8 @@ class TestUpdateField:
         ]
         await metabase.execute_action("update_field", {"field_id": 120, "description": "Signed up"}, mock_context)
         assert mock_context.fetch.call_args_list[0].kwargs["method"] == "GET"
+        # Read with the same permission the edit needs, so metadata-only admins aren't refused.
+        assert mock_context.fetch.call_args_list[0].kwargs["params"] == {"include_editable_data_model": "true"}
         assert mock_context.fetch.call_args.kwargs["json"] == {
             "description": "Signed up",
             "coercion_strategy": "Coercion/UNIXSeconds->DateTime",

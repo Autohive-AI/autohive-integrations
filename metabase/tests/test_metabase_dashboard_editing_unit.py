@@ -987,6 +987,22 @@ class TestUpdateDashboardFilters:
         assert "exactly one of field_id or template_tag" in result.result.message
 
     @pytest.mark.asyncio
+    async def test_two_connections_to_one_question_refused(self, mock_context):
+        # Metabase applies only one of them, so the other column would silently stay unfiltered.
+        result = await self._run(
+            mock_context,
+            [
+                {
+                    **REGION_FILTER,
+                    "connections": [{"dashcard_id": 503, "field_id": 7}, {"dashcard_id": 503, "field_id": 8}],
+                }
+            ],
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "connected to card 503 twice" in result.result.message
+        assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
     async def test_connection_to_text_card_refused(self, mock_context):
         result = await self._run(
             mock_context, [{**REGION_FILTER, "connections": [{"dashcard_id": 502, "field_id": 7}]}]
@@ -1125,6 +1141,14 @@ class TestUpdateDashboardFilters:
         assert result.type == ResultType.ACTION_ERROR
         assert "Question 43 isn't shown on card 501" in result.result.message
         assert mock_context.fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_boolean_filter_kept(self, mock_context):
+        # Dashboards can have Boolean filters, which must be listed again to keep them.
+        result = await self._run(mock_context, [{"name": "Active", "type": "boolean/=", "default": [True]}])
+        assert result.type == ResultType.ACTION
+        param = _put_body(mock_context)["parameters"][0]
+        assert (param["type"], param["sectionId"], param["default"]) == ("boolean/=", "boolean", [True])
 
     @pytest.mark.asyncio
     async def test_type_change_drops_old_default(self, mock_context):

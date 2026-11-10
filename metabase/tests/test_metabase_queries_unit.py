@@ -760,13 +760,14 @@ class TestCreateQuestion:
             _ok([{"id": 7, "name": "totals"}, {"id": 8, "name": "active orders"}]),
             _database(),
             _ok({"query": "select 1", "params": None}),
-            _ok({"id": 84}),
+            _ok({"id": 84, "name": "Totals"}),
         ]
         sql = "select {{snippet: totals}} from orders where {{snippet:active orders}}"
         result = await metabase.execute_action(
             "create_question", {"name": "Totals", "database_id": 3, "sql": sql}, mock_context
         )
-        assert result.type != ResultType.ACTION_ERROR
+        assert result.type == ResultType.ACTION
+        assert result.result.data["id"] == 84
         calls = mock_context.fetch.call_args_list
         assert calls[0].args[0] == f"{BASE}/api/native-query-snippet"
         assert sum(c.args[0].endswith("/native-query-snippet") for c in calls) == 1
