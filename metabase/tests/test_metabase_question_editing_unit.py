@@ -1053,6 +1053,16 @@ class TestCreateModel:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_commented_out_filter_is_not_refused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_model",
+            {"name": "Orders", "database_id": 3, "sql": "select * from orders -- where region = {{region}}"},
+            mock_context,
+        )
+        assert "can't have {{ }} filters" not in str(result.result)
+        assert mock_context.fetch.called
+
+    @pytest.mark.asyncio
     async def test_query_builder_model(self, mock_context):
         mock_context.fetch.return_value = _ok({**SAMPLE_MBQL_CARD, "type": "model"})
         await metabase.execute_action(

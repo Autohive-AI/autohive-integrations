@@ -2098,7 +2098,7 @@
         },
         "update_dashboard_filters": {
             "display_name": "Update Dashboard Filters",
-            "description": "Set a dashboard's filters: give the full list. Filters with an id are kept and changed (changing a filter's type clears its old default); filters without an id are created; filters left out are removed, along with their card connections. Give connections to say which column (field_id, from get_table) or SQL filter (template_tag, from get_question) each card's filter drives; when connections is left out, a kept filter keeps its existing connections.",
+            "description": "Set a dashboard's filters: give the full list. Filters with an id are kept and changed (changing a filter's type clears its old default); filters without an id are created; filters left out are removed, along with their card connections. Give connections to say which column (field_id, from get_table) or SQL filter (template_tag, from get_question) each card's filter drives; when connections is left out, a kept filter keeps its existing connections. Removing a filter that a subscription sets a value for makes Metabase turn that subscription off and email its creator.",
             "input_schema": {
                 "type": "object",
                 "properties": {

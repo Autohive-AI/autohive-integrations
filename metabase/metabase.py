@@ -511,7 +511,7 @@ async def _checked_parameters(
 def _missing_needed_filter(sql: Any, tags: Dict[str, Any], parameters: List[Any]) -> bool:
     """Whether a filter the SQL needs (used outside an optional [[ ]] clause, or marked required) has no default and
     gets no value from these parameters, so Metabase can't expand the SQL."""
-    outside = set(TEMPLATE_TAG.findall(re.sub(r"\[\[.*?\]\]", "", str(sql or ""), flags=re.S)))
+    outside = set(_placeholders(re.sub(r"\[\[.*?\]\]", "", str(sql or ""), flags=re.S)))
     given = {
         str(target[1][1])
         for p in parameters
@@ -1692,6 +1692,11 @@ async def _set_alert_active(context: ExecutionContext, alert_id: Any, active: bo
 TEMPLATE_TAG = re.compile(r"\{\{\s*([^}]*?)\s*\}\}")
 
 
+def _placeholders(sql: Any) -> List[str]:
+    """Names of the {{ }} in SQL, in order, without repeats. Metabase skips ones inside SQL comments."""
+    return list(dict.fromkeys(TEMPLATE_TAG.findall(re.sub(r"/\*.*?\*/|--[^\n]*", "", str(sql or ""), flags=re.S))))
+
+
 def _updated_native_query(card: Dict[str, Any], database_id: Any, sql: str, tags: Dict[str, Any]) -> Dict[str, Any]:
     """The question's query with new SQL, in the format the question is saved in. Metabase 0.57+ saves MBQL 5
     stages, and its filter tags (field filters) can't be sent back in the older format."""
@@ -1748,7 +1753,7 @@ async def _template_tags(context: ExecutionContext, sql: str, filters: Any, exis
         if tag["required"] and tag.get("default") is None:
             raise ValueError(f"Filter {name} is required, so it needs a default value.")
         given[name] = tag
-    used = list(dict.fromkeys(TEMPLATE_TAG.findall(sql)))
+    used = _placeholders(sql)
     unused = sorted(set(given) - set(used))
     if unused:
         raise ValueError(f"Filter {unused[0]} isn't used in the SQL; write it as {{{{{unused[0]}}}}}.")
@@ -2745,7 +2750,7 @@ class CreateModelAction(ActionHandler):
             raise ValueError("Give exactly one of sql or query.")
         if sql is not None:
             # Metabase refuses {{ }} filters in a model; snippets and saved questions are fine.
-            names = [t for t in TEMPLATE_TAG.findall(sql) if not t.startswith(("snippet:", "#"))]
+            names = [t for t in _placeholders(sql) if not t.startswith(("snippet:", "#"))]
             if names:
                 raise ValueError(
                     f"A model can't have {{{{ }}}} filters ({', '.join(names)}); save a question for that instead."
@@ -3260,8 +3265,8 @@ class UpdateFieldAction(ActionHandler):
         path = f"/field/{_path_id(inputs['field_id'])}"
         # Metabase 0.49 clears a column's conversion (e.g. UNIX seconds shown as a date) when it isn't sent. It is read
         # with the edit permission, so someone who can edit the data model but not query the table isn't refused.
-        editable = {"include_editable_data_model": "true"}
-        coercion = (await _api(context, "GET", path, params=editable) or {}).get("coercion_strategy")
+        editable = _with_query(path, [("include_editable_data_model", "true")])
+        coercion = (await _api(context, "GET", editable) or {}).get("coercion_strategy")
         if coercion:
             body["coercion_strategy"] = coercion
         field = await _api(context, "PUT", path, json=body) or {}

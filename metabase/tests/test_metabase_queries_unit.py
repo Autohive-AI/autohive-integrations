@@ -730,6 +730,30 @@ class TestCreateQuestion:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_commented_out_placeholders_are_not_filters(self, mock_context):
+        sql = "select 1 /* where region = {{region}} */\n-- and {{country}}\n"
+        mock_context.fetch.side_effect = [
+            _database(),
+            _ok({"query": "select 1", "params": None}),
+            _ok({**SAMPLE_CARD, "id": 77, "name": "New"}),
+        ]
+        result = await metabase.execute_action(
+            "create_question", {"name": "New", "database_id": 3, "sql": sql}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"]["dataset_query"]["native"]["template-tags"] == {}
+
+    @pytest.mark.asyncio
+    async def test_filter_only_in_a_comment_is_unused(self, mock_context):
+        result = await metabase.execute_action(
+            "create_question",
+            {"name": "Orders", "database_id": 3, "sql": "select 1 -- {{region}}", "filters": [{"name": "region"}]},
+            mock_context,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "isn't used in the SQL" in result.result.message
+
+    @pytest.mark.asyncio
     async def test_undefined_filter_refused(self, mock_context):
         result = await metabase.execute_action(
             "create_question",
