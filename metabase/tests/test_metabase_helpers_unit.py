@@ -10,6 +10,7 @@ from metabase.metabase import (
     _clamp,
     _fit_rows,
     _pulse_flags,
+    _placeholders,
     _ensure_read_only_sql,
     _error_message,
     _field_filter_types,
@@ -846,3 +847,22 @@ class TestFieldFilterTypes:
         ctx = self._ctx()
         assert await _field_filter_types(ctx, {"f": tag}) == {}
         ctx.fetch.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "sql, names",
+    [
+        ("select 1 /* {{a}} */ -- {{b}}\n, {{c}}", ["c"]),
+        ("SELECT '--' AS marker, {{region}}", ["region"]),
+        ("concat('--',{{x}})", ["x"]),
+        ("select '/*', {{x}} -- */ {{y}}", ["x"]),
+        ("select 1 [[ and a = 1 -- {{z}} ]], {{w}}", ["z", "w"]),
+        ("where note = 'it''s' -- {{k}}", []),
+        ("select 1 -- no newline {{q}}", []),
+        ("select 1 /* unclosed {{q}}", []),
+        ("select {{a}}, {{a}}, {{ b }}", ["a", "b"]),
+    ],
+)
+def test_placeholders_skip_sql_comments_as_metabase_does(sql, names):
+    assert _placeholders(sql) == names

@@ -1692,9 +1692,36 @@ async def _set_alert_active(context: ExecutionContext, alert_id: Any, active: bo
 TEMPLATE_TAG = re.compile(r"\{\{\s*([^}]*?)\s*\}\}")
 
 
+def _without_sql_comments(sql: str) -> str:
+    """SQL with its -- and /* */ comments removed, read as Metabase reads them: a marker inside 'quotes', a [[ ]]
+    clause or a {{ }} doesn't start a comment."""
+    out, i, quoted, optional = [], 0, False, 0
+    while i < len(sql):
+        if sql.startswith("{{", i):
+            end = sql.find("}}", i)
+            end = len(sql) if end < 0 else end + 2
+            out.append(sql[i:end])
+            i = end
+            continue
+        if not quoted and not optional and sql.startswith(("--", "/*"), i):
+            line = sql.startswith("--", i)
+            end = sql.find("\n" if line else "*/", i + 2)
+            i = len(sql) if end < 0 else end + (0 if line else 2)
+            continue
+        if sql.startswith("[[", i) or (optional and sql.startswith("]]", i)):
+            optional += 1 if sql[i] == "[" else -1
+            out.append(sql[i : i + 2])
+            i += 2
+            continue
+        quoted ^= sql[i] == "'"
+        out.append(sql[i])
+        i += 1
+    return "".join(out)
+
+
 def _placeholders(sql: Any) -> List[str]:
     """Names of the {{ }} in SQL, in order, without repeats. Metabase skips ones inside SQL comments."""
-    return list(dict.fromkeys(TEMPLATE_TAG.findall(re.sub(r"/\*.*?\*/|--[^\n]*", "", str(sql or ""), flags=re.S))))
+    return list(dict.fromkeys(TEMPLATE_TAG.findall(_without_sql_comments(str(sql or "")))))
 
 
 def _updated_native_query(card: Dict[str, Any], database_id: Any, sql: str, tags: Dict[str, Any]) -> Dict[str, Any]:
