@@ -598,7 +598,7 @@ class TestUpdateCollection:
         assert call.args[0] == f"{BASE}/api/collection/31"
         assert call.kwargs["method"] == "PUT"
         assert call.kwargs["retry_count"] == NO_RETRY
-        assert call.kwargs["json"] == {"name": "Finance team"}
+        assert call.kwargs["json"] == {"name": "Finance team", "archived": False}
 
     @pytest.mark.asyncio
     async def test_move_into_parent(self, mock_context):
@@ -606,8 +606,17 @@ class TestUpdateCollection:
         result = await metabase.execute_action(
             "update_collection", {"collection_id": 31, "parent_collection_id": 44}, mock_context
         )
-        assert mock_context.fetch.call_args.kwargs["json"] == {"parent_id": 44}
+        assert mock_context.fetch.call_args.kwargs["json"] == {"parent_id": 44, "archived": False}
         assert result.result.data["parent_id"] == 44
+
+    @pytest.mark.asyncio
+    async def test_trashed_collection_stays_in_the_trash(self, mock_context):
+        trashed = {**SAMPLE_COLLECTION, "archived": True}
+        mock_context.fetch.side_effect = [_ok(trashed), _ok({**trashed, "name": "Old team"})]
+        await metabase.execute_action("update_collection", {"collection_id": 31, "name": "Old team"}, mock_context)
+        get, put = mock_context.fetch.call_args_list
+        assert (get.kwargs["method"], get.args[0]) == ("GET", f"{BASE}/api/collection/31")
+        assert put.kwargs["json"] == {"name": "Old team", "archived": True}
 
     @pytest.mark.asyncio
     async def test_move_to_root_sends_null(self, mock_context):
@@ -615,7 +624,7 @@ class TestUpdateCollection:
         result = await metabase.execute_action(
             "update_collection", {"collection_id": 31, "move_to_root": True}, mock_context
         )
-        assert mock_context.fetch.call_args.kwargs["json"] == {"parent_id": None}
+        assert mock_context.fetch.call_args.kwargs["json"] == {"parent_id": None, "archived": False}
         assert result.result.data["parent_id"] is None
 
     @pytest.mark.asyncio
@@ -654,6 +663,7 @@ class TestMoveItems:
             _ok({"id": 44}),
             _ok({"id": 44}),
             _ok({"id": 9}),
+            _ok({"id": 31, "archived": False}),
             _ok({"id": 31}),
         ]
         items = [
@@ -677,6 +687,7 @@ class TestMoveItems:
             ("GET", f"{BASE}/api/card/44"),
             ("PUT", f"{BASE}/api/card/44"),
             ("PUT", f"{BASE}/api/dashboard/9"),
+            ("GET", f"{BASE}/api/collection/31"),
             ("PUT", f"{BASE}/api/collection/31"),
         ]
         puts = [c for c in mock_context.fetch.call_args_list if c.kwargs["method"] == "PUT"]
@@ -685,7 +696,7 @@ class TestMoveItems:
             {"collection_id": 12},
             {"collection_id": 12},
             {"collection_id": 12},
-            {"parent_id": 12},
+            {"parent_id": 12, "archived": False},
         ]
         assert all(c.kwargs["retry_count"] == NO_RETRY for c in puts)
 
@@ -707,11 +718,18 @@ class TestMoveItems:
         assert mock_context.fetch.call_args.kwargs["json"] == {"collection_id": None, "dashboard_id": None}
 
     @pytest.mark.asyncio
-    async def test_dashboards_and_collections_not_read_first(self, mock_context):
+    async def test_dashboards_not_read_first(self, mock_context):
         mock_context.fetch.return_value = _ok({"id": 1})
-        items = [{"item_type": "dashboard", "id": 9}, {"item_type": "collection", "id": 31}]
+        items = [{"item_type": "dashboard", "id": 9}]
         await metabase.execute_action("move_items", {"items": items, "collection_id": 12}, mock_context)
-        assert [method for method, _ in _urls(mock_context)] == ["PUT", "PUT"]
+        assert [method for method, _ in _urls(mock_context)] == ["PUT"]
+
+    @pytest.mark.asyncio
+    async def test_trashed_collection_moved_stays_in_the_trash(self, mock_context):
+        mock_context.fetch.side_effect = [_ok({"id": 31, "archived": True}), _ok({"id": 31})]
+        items = [{"item_type": "collection", "id": 31}]
+        await metabase.execute_action("move_items", {"items": items, "collection_id": 12}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"] == {"parent_id": 12, "archived": True}
 
     @pytest.mark.asyncio
     async def test_legacy_metric_refused_others_move(self, mock_context):
@@ -768,10 +786,8 @@ class TestMoveItems:
         mock_context.fetch.return_value = _ok({"id": 1})
         items = [{"item_type": "dashboard", "id": 9}, {"item_type": "collection", "id": 31}]
         await metabase.execute_action("move_items", {"items": items, "move_to_root": True}, mock_context)
-        assert [c.kwargs["json"] for c in mock_context.fetch.call_args_list] == [
-            {"collection_id": None},
-            {"parent_id": None},
-        ]
+        puts = [c for c in mock_context.fetch.call_args_list if c.kwargs["method"] == "PUT"]
+        assert [c.kwargs["json"] for c in puts] == [{"collection_id": None}, {"parent_id": None, "archived": False}]
 
     @pytest.mark.asyncio
     async def test_collection_id_and_move_to_root_refused(self, mock_context):
@@ -1033,6 +1049,46 @@ class TestRestoreItem:
         assert result.type == ResultType.ACTION_ERROR
         assert "Saved question 43" in result.result.message
         assert ("PUT", f"{BASE}/api/pulse/15") not in _urls(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_dashboard_with_subscription_checks_questions_then_restores(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok([SAMPLE_PULSE]),
+            _ok(SUB_DASHBOARD),
+            *_checks(),
+            *_checks(CHURN_CARD),
+            _ok({"id": 9, "archived": False}),
+        ]
+        result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
+        assert result.result.data == {"item_type": "dashboard", "item_id": 9, "archived": False}
+        assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/pulse?dashboard_id=9&archived=false"),
+            ("GET", f"{BASE}/api/dashboard/9"),
+            *_check_calls(42),
+            *_check_calls(43),
+            ("PUT", f"{BASE}/api/dashboard/9"),
+        ]
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False}
+
+    @pytest.mark.asyncio
+    async def test_dashboard_with_subscription_and_write_sql_stays_in_trash(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok([SAMPLE_PULSE]),
+            _ok(SUB_DASHBOARD),
+            *_checks(),
+            *_checks(CHURN_CARD, sql="select nextval('audit_seq')"),
+        ]
+        result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 43" in result.result.message
+        assert ("PUT", f"{BASE}/api/dashboard/9") not in _urls(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_dashboard_without_subscription_restored_directly(self, mock_context):
+        mock_context.fetch.side_effect = [_ok([]), _ok({"is_superuser": True}), _ok({"id": 9, "archived": False})]
+        await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
+        assert [m for m, _ in _urls(mock_context)] == ["GET", "GET", "PUT"]
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False}
 
     @pytest.mark.asyncio
     async def test_timeline_event_path(self, mock_context):

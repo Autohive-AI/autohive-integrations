@@ -2931,6 +2931,12 @@ class UpdateSegmentAction(ActionHandler):
 # ---- Organising content ----
 
 
+async def _collection_archived(context: ExecutionContext, path: str) -> bool:
+    """Whether a collection is in the trash. An edit sends it back, because Metabase 0.65 takes a missing archived as
+    false and would bring a trashed collection (and everything in it) back without restore_item's checks."""
+    return bool((await _api(context, "GET", path) or {}).get("archived"))
+
+
 @metabase.action("update_collection")
 class UpdateCollectionAction(ActionHandler):
     """Rename a collection, change its description, or move it into another collection."""
@@ -2949,7 +2955,9 @@ class UpdateCollectionAction(ActionHandler):
             body["parent_id"] = None
         if not body:
             raise ValueError("Give at least one of name, description, parent_collection_id or move_to_root.")
-        collection = await _api(context, "PUT", f"/collection/{_path_id(inputs['collection_id'])}", json=body) or {}
+        path = f"/collection/{_path_id(inputs['collection_id'])}"
+        body["archived"] = await _collection_archived(context, path)
+        collection = await _api(context, "PUT", path, json=body) or {}
         return {
             "id": collection.get("id"),
             "name": collection.get("name"),
@@ -2992,6 +3000,8 @@ class MoveItemsAction(ActionHandler):
                     card = await _api(context, "GET", f"/card/{_path_id(item['id'])}") or {}
                     if card.get("dashboard_id") is not None:
                         body["dashboard_id"] = None
+                if path == "collection":
+                    body["archived"] = await _collection_archived(context, f"/collection/{_path_id(item['id'])}")
                 await _api(context, "PUT", f"/{path}/{_path_id(item['id'])}", json=body)
                 result["moved"] = True
             except Exception as e:
@@ -3013,6 +3023,11 @@ async def _set_archived(context: ExecutionContext, inputs: Dict[str, Any], archi
             # it was created; the SQL may have changed while it was off.
             await _check_dashboard_questions(context, await _get_dashboard(context, pulse.get("dashboard_id")))
         await _api(context, "PUT", path, json={**_pulse_flags(pulse), "archived": archived})
+    elif item_type == "dashboard" and not archived and await _has_subscriptions(context, inputs["item_id"]):
+        # Metabase holds a trashed dashboard's subscriptions and sends them again once it's back, so its questions
+        # are checked as when a subscription is turned back on.
+        await _check_dashboard_questions(context, await _get_dashboard(context, inputs["item_id"]))
+        await _api(context, "PUT", f"/dashboard/{_path_id(inputs['item_id'])}", json={"archived": False})
     else:
         path = ARCHIVE_PATHS.get(item_type)
         if path is None:

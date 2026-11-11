@@ -254,7 +254,7 @@ List the saved versions of a question, model, metric, dashboard or segment, and 
 
 #### `update_collection`
 
-Renames a collection, changes its description, or moves it into `parent_collection_id` (or to the top level with `move_to_root`).
+Renames a collection, changes its description, or moves it into `parent_collection_id` (or to the top level with `move_to_root`). A collection in the trash stays there; use `restore_item` to bring it back.
 
 #### `move_items`
 
@@ -262,7 +262,7 @@ Moves `items` (each an `item_type` of `question`, `model`, `metric`, `dashboard`
 
 #### `archive_item` and `restore_item`
 
-Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash and back, or turn an alert off and on. Archiving a collection archives everything inside it. Nothing is deleted, with one exception: Metabase deletes a question's alerts when the question (or model or metric) is archived, and restoring it doesn't bring them back, so check `list_alerts` first. On Metabase 0.49, `metric` ids are the table metric ids `create_metric` returned.
+Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash and back, or turn an alert off and on. Archiving a collection archives everything inside it. Nothing is deleted, with one exception: Metabase deletes a question's alerts when the question (or model or metric) is archived, and restoring it doesn't bring them back, so check `list_alerts` first. On Metabase 0.49, `metric` ids are the table metric ids `create_metric` returned. Restoring a subscription, or a dashboard with one, first checks the dashboard's questions, because Metabase starts sending it again.
 
 ### Alerts and subscriptions
 
