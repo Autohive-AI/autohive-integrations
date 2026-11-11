@@ -1091,6 +1091,64 @@ class TestRestoreItem:
         assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False}
 
     @pytest.mark.asyncio
+    async def test_subscription_checked_with_its_own_filter_values(self, mock_context):
+        # Metabase Pro lets a subscription set its own filter values, which it sends with instead of the defaults.
+        filtered = {
+            **SUB_DASHBOARD,
+            "parameters": [{**PLAN_FILTER, "default": None}],
+            "dashcards": [
+                {
+                    "id": 501,
+                    "card_id": 42,
+                    "card": {"id": 42, "name": "Weekly signups"},
+                    "parameter_mappings": [{"parameter_id": "f1", "target": PLAN_TAG_TARGET}],
+                }
+            ],
+        }
+        pulse = {**SAMPLE_PULSE, "archived": True, "parameters": [{"id": "f1", "type": "string/=", "value": ["team"]}]}
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(filtered), *_checks(), _ok(SAMPLE_PULSE)]
+        result = await metabase.execute_action(
+            "restore_item", {"item_type": "subscription", "item_id": 15}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert _compiled_parameters(mock_context) == [
+            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": ["team"]}]
+        ]
+
+    @pytest.mark.asyncio
+    async def test_dashboard_hidden_while_trashed_restored_then_checked(self, mock_context):
+        # Metabase before 0.51 won't show a trashed dashboard.
+        mock_context.fetch.side_effect = [
+            _ok([SAMPLE_PULSE]),
+            _not_found(),
+            _ok({"id": 9, "archived": False}),
+            _ok(SUB_DASHBOARD),
+            *_checks(),
+            *_checks(CHURN_CARD),
+        ]
+        result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert _urls(mock_context)[2] == ("PUT", f"{BASE}/api/dashboard/9")
+        assert _urls(mock_context)[3] == ("GET", f"{BASE}/api/dashboard/9")
+
+    @pytest.mark.asyncio
+    async def test_dashboard_hidden_while_trashed_put_back_when_refused(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok([SAMPLE_PULSE]),
+            _not_found(),
+            _ok({"id": 9, "archived": False}),
+            _ok(SUB_DASHBOARD),
+            *_checks(),
+            *_checks(CHURN_CARD, sql="select nextval('audit_seq')"),
+            _ok({"id": 9, "archived": True}),
+        ]
+        result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message.startswith("Not restored: a question's SQL is refused")
+        assert _urls(mock_context)[-1] == ("PUT", f"{BASE}/api/dashboard/9")
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True}
+
+    @pytest.mark.asyncio
     async def test_timeline_event_path(self, mock_context):
         mock_context.fetch.return_value = _ok({"id": 90})
         await metabase.execute_action("restore_item", {"item_type": "timeline_event", "item_id": 90}, mock_context)

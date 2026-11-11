@@ -1320,6 +1320,23 @@ class TestCopyDashboard:
         assert post.kwargs["retry_count"] == NO_RETRY
 
     @pytest.mark.asyncio
+    async def test_deep_copy_skips_questions_the_key_cant_read(self, mock_context):
+        # Metabase shows an unreadable question as just its id and leaves it out of the copy.
+        dashcards = [*SERIES_DASHBOARD["dashcards"][:1], {**SERIES_DASHBOARD["dashcards"][1], "card": {"id": 43}}]
+        mock_context.fetch.side_effect = [
+            _ok({**SERIES_DASHBOARD, "dashcards": dashcards}),
+            *_copy_check(42),
+            *_copy_check(46),
+            _ok({"id": 71, "name": "Sales 2027", "uncopied": [{"id": 43}]}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard", {"dashboard_id": 9, "name": "Sales 2027", "copy_questions": True}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert f"{BASE}/api/card/43" not in [c.args[0] for c in mock_context.fetch.call_args_list]
+        assert result.result.data["uncopied_questions"] == [{"id": 43, "name": None}]
+
+    @pytest.mark.asyncio
     async def test_deep_copy_checks_every_filter_then_dashboard_defaults(self, mock_context):
         mock_context.fetch.side_effect = [
             _ok(SERIES_DASHBOARD),

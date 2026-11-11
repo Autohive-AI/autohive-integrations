@@ -1538,13 +1538,21 @@ def _pulse_flags(pulse: Dict[str, Any]) -> Dict[str, bool]:
 
 
 async def _check_dashboard_questions(
-    context: ExecutionContext, dashboard: Dict[str, Any], saving: bool = False
+    context: ExecutionContext, dashboard: Dict[str, Any], saving: bool = False, pulse: Optional[Dict[str, Any]] = None
 ) -> None:
-    """Check every question on a dashboard with the dashboard's filter defaults, as a scheduled send runs them.
-    saving checks them as questions about to be copied (see _checked_parameters)."""
+    """Check every question on a dashboard with the dashboard's filter defaults, as a scheduled send runs them, and
+    with a subscription's own filter values (Metabase Pro) over them when pulse is given. saving checks them as
+    questions about to be copied (see _checked_parameters)."""
     values = _default_values(dashboard)
+    for p in (pulse or {}).get("parameters") or []:
+        if isinstance(p, dict) and p.get("id") and p.get("value") is not None:
+            values[p["id"]] = {"id": p["id"], "type": p.get("type"), "value": p["value"]}
     checked = set()
-    for dc, card_id, _ in _dashboard_questions(dashboard.get("dashcards") or []):
+    for dc, card_id, name in _dashboard_questions(dashboard.get("dashcards") or []):
+        if saving and name is None:
+            # Metabase shows only the id of a question the API key can't read, and leaves it out of a copy (listed as
+            # uncopied), so there is nothing of it to check.
+            continue
         params = _card_parameters_for(dc, values, card_id)
         key = (card_id, json.dumps(params, sort_keys=True))
         if key not in checked:
@@ -3021,13 +3029,35 @@ async def _set_archived(context: ExecutionContext, inputs: Dict[str, Any], archi
         if not archived:
             # Turned back on, it runs every question on the dashboard on its schedule, so they're checked as when
             # it was created; the SQL may have changed while it was off.
-            await _check_dashboard_questions(context, await _get_dashboard(context, pulse.get("dashboard_id")))
+            await _check_dashboard_questions(
+                context, await _get_dashboard(context, pulse.get("dashboard_id")), pulse=pulse
+            )
         await _api(context, "PUT", path, json={**_pulse_flags(pulse), "archived": archived})
     elif item_type == "dashboard" and not archived and await _has_subscriptions(context, inputs["item_id"]):
         # Metabase holds a trashed dashboard's subscriptions and sends them again once it's back, so its questions
         # are checked as when a subscription is turned back on.
-        await _check_dashboard_questions(context, await _get_dashboard(context, inputs["item_id"]))
-        await _api(context, "PUT", f"/dashboard/{_path_id(inputs['item_id'])}", json={"archived": False})
+        path = f"/dashboard/{_path_id(inputs['item_id'])}"
+        try:
+            dashboard: Optional[Dict[str, Any]] = await _get_dashboard(context, inputs["item_id"])
+        except HTTPError as e:
+            # Metabase before 0.51 won't show a trashed dashboard, so there it is restored, checked, and put back in
+            # the trash if refused.
+            if e.status != 404:
+                raise
+            dashboard = None
+        if dashboard is not None:
+            await _check_dashboard_questions(context, dashboard)
+        await _api(context, "PUT", path, json={"archived": False})
+        if dashboard is None:
+            try:
+                await _check_dashboard_questions(context, await _get_dashboard(context, inputs["item_id"]))
+            except Exception as e:
+                await _api(context, "PUT", path, json={"archived": True})
+                reason = "is refused" if isinstance(e, ValueError) else "couldn't be checked"
+                raise ValueError(
+                    f"Not restored: a question's SQL {reason}, so the dashboard was put back in the trash. "
+                    f"{_error_message(e, context=context)}"
+                ) from None
     else:
         path = ARCHIVE_PATHS.get(item_type)
         if path is None:
@@ -3240,7 +3270,8 @@ class UpdateSubscriptionAction(ActionHandler):
             elif not channel:
                 # A new email channel starts sending, maybe for a subscription that was paused (its Slack channel
                 # turned off) while its questions changed, so they are checked as when it was created.
-                await _check_dashboard_questions(context, await _get_dashboard(context, pulse.get("dashboard_id")))
+                dashboard = await _get_dashboard(context, pulse.get("dashboard_id"))
+                await _check_dashboard_questions(context, dashboard, pulse=pulse)
                 # Schedule changes are already in updated; otherwise the other channel's schedule is copied.
                 schedule_fields = {
                     k: source[k]
