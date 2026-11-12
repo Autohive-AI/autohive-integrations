@@ -1,6 +1,6 @@
 {
     "name": "companies-register",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Integration for the New Zealand Companies Register API. For registered companies (status 50) use the NZBN as the identifier. For pre-incorporated companies use the UUID.",
     "entry_point": "companies_register.py",
     "auth": {

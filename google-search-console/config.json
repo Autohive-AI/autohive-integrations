@@ -1,7 +1,7 @@
 {
     "name": "Google Search Console",
     "display_name": "Google Search Console",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "description": "Access Google Search Console data including search analytics, URL inspection, sitemaps, and site verification.",
     "entry_point": "google_search_console.py",
     "auth": {

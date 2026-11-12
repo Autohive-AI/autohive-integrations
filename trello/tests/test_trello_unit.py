@@ -100,11 +100,6 @@ class TestConfigValidation:
             f"Extra handlers: {registered - defined}."
         )
 
-    def test_version_is_2_1_0(self):
-        with open(CONFIG_PATH, "r") as f:
-            config = json.load(f)
-        assert config["version"] == "2.1.0"
-
     def test_search_cards_action_present(self):
         with open(CONFIG_PATH, "r") as f:
             config = json.load(f)

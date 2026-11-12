@@ -1,7 +1,7 @@
 {
   "name": "Fergus",
   "display_name": "Fergus",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Manage jobs in Fergus for field service and trade workflows.",
   "entry_point": "fergus.py",
   "auth": {

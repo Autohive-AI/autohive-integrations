@@ -1,7 +1,7 @@
 {
   "name": "Grammarly",
   "display_name": "Grammarly",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Grammarly integration for writing quality assessment, AI detection, plagiarism checking, and analytics. Includes Writing Score API, Analytics API, AI Detection API, and Plagiarism Detection API.",
   "entry_point": "grammarly.py",
   "auth": {

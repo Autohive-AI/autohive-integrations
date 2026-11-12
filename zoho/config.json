@@ -1,7 +1,7 @@
 {
     "name": "Zoho",
     "display_name": "Zoho CRM",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Zoho CRM integration with full customer lifecycle management",
     "entry_point": "zoho.py",
     "auth": {

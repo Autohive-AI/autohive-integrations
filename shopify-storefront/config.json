@@ -1,7 +1,7 @@
 {
     "name": "ShopifyStorefront",
     "display_name": "Shopify Storefront",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "description": "Shopify Storefront API integration for customer-facing e-commerce operations - products, collections, cart, customer accounts, store content, and product discovery",
     "entry_point": "shopify_storefront.py",
     "auth": {

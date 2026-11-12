@@ -14,8 +14,7 @@ and the file naming (test_*_integration.py) is not matched by python_files.
 import os
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock
-from autohive_integrations_sdk import FetchResponse
+from autohive_integrations_sdk import ExecutionContext
 
 from humanitix import humanitix
 
@@ -25,27 +24,14 @@ API_KEY = os.environ.get("HUMANITIX_API_KEY", "")
 
 
 @pytest.fixture
-def live_context():
+async def live_context():
+    """Real SDK ExecutionContext, so requests use the same fetch as production."""
     if not API_KEY:
         pytest.skip("HUMANITIX_API_KEY not set — skipping integration tests")
 
-    # Humanitix sits behind Cloudflare, which blocks standard TLS fingerprints.
-    # curl_cffi matches a real browser's TLS profile so the API responds normally.
-    from curl_cffi.requests import AsyncSession
-
-    async def real_fetch(url, *, method="GET", json=None, headers=None, params=None, **kwargs):
-        async with AsyncSession(impersonate="chrome") as session:
-            resp = await session.request(method, url, json=json, headers=headers or {}, params=params)
-            try:
-                data = resp.json()
-            except Exception:
-                data = resp.text
-            return FetchResponse(status=resp.status_code, headers=dict(resp.headers), data=data)
-
-    ctx = MagicMock(name="ExecutionContext")
-    ctx.fetch = AsyncMock(side_effect=real_fetch)
-    ctx.auth = {"auth_type": "Custom", "credentials": {"api_key": API_KEY}}  # nosec B105
-    return ctx
+    auth = {"auth_type": "Custom", "credentials": {"api_key": API_KEY}}  # nosec B105
+    async with ExecutionContext(auth=auth) as ctx:
+        yield ctx
 
 
 class TestGetEvents:

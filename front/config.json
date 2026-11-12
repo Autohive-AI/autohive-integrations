@@ -1,7 +1,7 @@
 {
   "name": "Front",
   "display_name": "Front",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Front integration for customer communication, inbox management, and team collaboration with attachment support",
   "entry_point": "front.py",
   "auth": {

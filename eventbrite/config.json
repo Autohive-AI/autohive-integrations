@@ -1,7 +1,7 @@
 {
     "name": "Eventbrite",
     "display_name": "Eventbrite",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Eventbrite integration for managing events, attendees, orders, venues, and ticket classes",
     "entry_point": "eventbrite.py",
     "auth": {

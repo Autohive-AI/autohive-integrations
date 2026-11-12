@@ -1,7 +1,7 @@
 {
     "name": "WhatsApp Business",
     "display_name": "WhatsApp Business",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "WhatsApp Business API integration for sending text messages, pre-approved templates, and media, and checking WhatsApp Business phone-number health",
     "entry_point": "whatsapp.py",
     "auth": {

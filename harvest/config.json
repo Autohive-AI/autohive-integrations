@@ -1,7 +1,7 @@
 {
     "name": "Harvest",
     "display_name": "Harvest",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Harvest time tracking integration for managing time entries, projects, clients, tasks, and invoices.",
     "entry_point": "harvest.py",
     "auth": {

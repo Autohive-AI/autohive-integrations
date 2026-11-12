@@ -1,6 +1,6 @@
 {
     "name": "fathom_v1",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "An integration with Fathom AI to access meeting recordings, transcripts, summaries, teams, and team members.",
     "entry_point": "fathom.py",
     "auth": {

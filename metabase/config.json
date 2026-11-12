@@ -1,7 +1,7 @@
 {
     "name": "Metabase",
     "display_name": "Metabase",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Search, query and build in Metabase (Cloud or self-hosted): explore databases and tables, run SQL and saved questions, and create questions, collections and dashboards.",
     "entry_point": "metabase.py",
     "auth": {
