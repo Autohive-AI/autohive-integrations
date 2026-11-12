@@ -6,7 +6,7 @@
     "entry_point": "linkedin_community_management.py",
     "auth": {
         "type": "platform",
-        "provider": "linkedin-community-management",
+        "provider": "Linkedin community Management",
         "scopes": [
             "r_member_postAnalytics",
             "r_organization_followers",
