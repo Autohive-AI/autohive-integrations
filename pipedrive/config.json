@@ -1,7 +1,7 @@
 {
     "name": "Pipedrive",
     "display_name": "Pipedrive",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Pipedrive CRM integration for managing deals, contacts, organizations, activities, and sales pipelines",
     "entry_point": "pipedrive.py",
     "auth": {

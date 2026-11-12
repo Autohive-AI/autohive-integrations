@@ -1,7 +1,7 @@
 {
     "name": "ElevenLabs",
     "display_name": "ElevenLabs",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "ElevenLabs integration for AI voice generation, text-to-speech, voice cloning, and audio management",
     "entry_point": "elevenlabs.py",
     "auth": {

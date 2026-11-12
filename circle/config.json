@@ -1,7 +1,7 @@
 {
   "name": "Circle",
   "display_name": "Circle",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Circle community platform integration for managing posts, members, spaces, and events",
   "entry_point": "circle.py",
   "auth": {

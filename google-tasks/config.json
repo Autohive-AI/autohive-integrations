@@ -1,7 +1,7 @@
 {
     "name": "Google Tasks",
     "display_name": "Google Tasks",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Google Tasks integration for managing tasks, task lists, and to-do items with full CRUD operations",
     "entry_point": "google_tasks.py",
     "auth": {

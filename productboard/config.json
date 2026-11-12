@@ -1,7 +1,7 @@
 {
     "name": "Productboard",
     "display_name": "Productboard",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Productboard integration for managing features, products, components, notes, and feedback",
     "entry_point": "productboard.py",
     "auth": {

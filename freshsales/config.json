@@ -1,7 +1,7 @@
 {
     "name": "Freshsales",
     "display_name": "Freshsales",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Freshsales CRM integration for managing contacts, accounts, deals, tasks, appointments, and notes",
     "entry_point": "freshsales.py",
     "auth": {

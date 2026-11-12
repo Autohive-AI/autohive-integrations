@@ -1,6 +1,6 @@
 {
     "name": "Spreadsheet Tools",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Tools for working with spreadsheet files, including conversion to JSON format",
     "entry_point": "spreadsheet_tools.py",
     "actions": {

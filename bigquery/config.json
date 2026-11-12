@@ -1,7 +1,7 @@
 {
     "name": "Google BigQuery",
     "display_name": "Google BigQuery",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Google BigQuery integration for serverless data warehouse operations, SQL queries, and dataset management",
     "entry_point": "bigquery.py",
     "auth": {

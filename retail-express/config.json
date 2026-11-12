@@ -1,7 +1,7 @@
 {
     "name": "RetailExpress",
     "display_name": "Retail Express",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Retail Express integration for managing products, inventory, customers, orders, and outlets in the Retail Express POS platform",
     "entry_point": "retail_express.py",
     "supports_billing": true,
