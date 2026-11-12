@@ -1,7 +1,7 @@
 {
     "name": "linkedin-community-management",
     "display_name": "LinkedIn Community Management",
-    "version": "1.0.3",
+    "version": "1.0.0",
     "description": "Manage LinkedIn member and organization communities, posts, comments, reactions, followers, and analytics.",
     "entry_point": "linkedin_community_management.py",
     "auth": {
