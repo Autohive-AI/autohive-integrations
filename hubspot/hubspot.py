@@ -5382,3 +5382,72 @@ class SearchConversationsHandler(ActionHandler):
             },
             cost_usd=None,
         )
+
+
+async def _write_engagement(context, path, method, payload, record_type, expected_id=None):
+    try:
+        response = await fetch_with_rate_limit_retries(
+            context,
+            f"https://api.hubapi.com/crm/v3/objects/{path}",
+            resend_on_connection_error=False,
+            method=method,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+    except REQUEST_ERRORS as error:
+        if _outcome_unknown(error):
+            return ActionError(
+                message=f"HubSpot did not confirm the {record_type} write. Check the record before retrying."
+            )
+        return ActionError(message=f"HubSpot rejected the {record_type} write (HTTP {error.status}).")
+
+    record = await parse_response(response)
+    record_id = record.get("id") if isinstance(record, dict) else None
+    if not record_id or (expected_id is not None and str(record_id) != expected_id):
+        return ActionError(
+            message=f"HubSpot did not confirm the {record_type} write. Check the record before retrying."
+        )
+    return ActionResult(data={record_type: record})
+
+
+@hubspot.action("create_call")
+class CreateCallActionHandler(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        properties = {
+            "hs_call_title": inputs["title"],
+            "hs_timestamp": inputs.get("timestamp") or str(int(datetime.now(timezone.utc).timestamp() * 1000)),
+        }
+        optional_properties = {
+            "hs_call_body": inputs.get("body"),
+            "hs_call_duration": inputs.get("duration_ms"),
+            "hubspot_owner_id": inputs.get("owner_id"),
+        }
+        properties.update({key: str(value) for key, value in optional_properties.items() if value is not None})
+
+        payload = {"properties": properties}
+        if contact_id := inputs.get("contact_id"):
+            payload["associations"] = [_hubspot_defined_association(contact_id, 194)]
+        return await _write_engagement(context, "calls", "POST", payload, "call")
+
+
+@hubspot.action("update_meeting")
+class UpdateMeetingActionHandler(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
+        meeting_id = inputs["meeting_id"]
+        fields = {
+            "hs_meeting_title": inputs.get("title"),
+            "hs_meeting_body": inputs.get("body"),
+            "hs_internal_meeting_notes": inputs.get("internal_notes"),
+            "hs_meeting_location": inputs.get("location"),
+            "hs_meeting_start_time": inputs.get("start_time"),
+            "hs_meeting_end_time": inputs.get("end_time"),
+            "hs_meeting_outcome": inputs.get("outcome"),
+        }
+        properties = {key: value for key, value in fields.items() if value is not None}
+        if not properties:
+            return ActionError(message="Provide at least one meeting field to update.")
+        if "hs_meeting_start_time" in properties:
+            properties["hs_timestamp"] = properties["hs_meeting_start_time"]
+        return await _write_engagement(
+            context, f"meetings/{meeting_id}", "PATCH", {"properties": properties}, "meeting", expected_id=meeting_id
+        )
