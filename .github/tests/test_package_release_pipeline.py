@@ -121,6 +121,66 @@ class PackageReleasePipelineTests(unittest.TestCase):
         self.assertIn("release_kind=snapshot", (self.root / "outputs").read_text())
 
 
+class ReleaseTitleTests(unittest.TestCase):
+    def test_publish_limits_title_and_keeps_all_assets(self):
+        workflow = Path(__file__).resolve().parents[1] / "workflows" / "package-and-release.yml"
+        publish = workflow.read_text().split("      - name: Publish GitHub Release\n", 1)[1]
+        script = textwrap.dedent(publish.split("        run: |\n", 1)[1].split("\n      - name:", 1)[0])
+        names = [f"Integration {index}" for index in range(7)]
+        cases = [
+            (names[:5], ", ".join(names[:5])),
+            (names, ", ".join(names[:5]) + " and 2 more"),
+            (["A" * 160, "B" * 160], "A" * 160 + " and 1 more"),
+            (["A" * 300], None),
+        ]
+        for display_names, expected_summary in cases:
+            with self.subTest(expected_summary=expected_summary), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                paths = [f"package-{index}" for index in range(len(display_names))]
+                for path, name in zip(paths, display_names):
+                    (root / path).mkdir()
+                    (root / path / "config.json").write_text(json.dumps({"display_name": name}))
+                (root / "integration-paths.txt").write_text("\n".join(paths) + "\n")
+                fake_gh = root / "gh"
+                fake_gh.write_text('#!/bin/bash\nprintf "%s\\n" "$@"\n')
+                fake_gh.chmod(0o755)
+                result = subprocess.run(
+                    ["bash", "-c", script],
+                    cwd=root,
+                    env=dict(
+                        os.environ,
+                        PATH=f"{root}:{os.environ['PATH']}",
+                        RUNNER_TEMP=directory,
+                        GITHUB_OUTPUT=str(root / "outputs"),
+                        GITHUB_STEP_SUMMARY=str(root / "summary"),
+                        GITHUB_RUN_ID="123",
+                        GITHUB_RUN_ATTEMPT="1",
+                        GITHUB_SHA="0123456789abcdef",
+                        GITHUB_SERVER_URL="https://github.com",
+                        GITHUB_REPOSITORY="example/integrations",
+                        GITHUB_ACTOR="test",
+                        RELEASE_AUTHOR="Test Author",
+                        RELEASE_KIND="snapshot",
+                    ),
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=30,
+                )
+                args = result.stdout.splitlines()
+                title = args[args.index("--title") + 1]
+                if expected_summary is None:
+                    expected_title = f"Integration releases - {len(paths)} integrations - 0123456789ab"
+                else:
+                    expected_title = f"Integration releases - Test Author - {expected_summary} - 0123456789ab"
+                self.assertEqual(title, expected_title)
+                self.assertLessEqual(len(title), 256)
+                self.assertEqual(
+                    args[3 : args.index("--repo")],
+                    ["dist/autohive-manifest.json", *[f"dist/{path}.zip" for path in paths]],
+                )
+
+
 if __name__ == "__main__":
     if not shutil.which("hiveup"):
         raise SystemExit("Install the release tooling checkout and add its virtualenv bin directory to PATH.")
