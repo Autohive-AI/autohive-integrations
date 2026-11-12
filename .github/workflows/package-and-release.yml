@@ -134,8 +134,7 @@ jobs:
         run: |
           set -euo pipefail
           tag="integration-packages-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          short_sha="${GITHUB_SHA::12}"
-          integration_names=$(python - <<'PY'
+          release_title=$(python - <<'PY'
           import json
           import os
           from pathlib import Path
@@ -149,10 +148,22 @@ jobs:
               config_path = Path(integration_path) / "config.json"
               config = json.loads(config_path.read_text())
               names.append(config.get("display_name") or config.get("name") or integration_path)
-          print(", ".join(names))
+          author = os.environ["RELEASE_AUTHOR"] or os.environ["GITHUB_ACTOR"]
+          short_sha = os.environ["GITHUB_SHA"][:12]
+          max_title_length = 256
+          for visible_count in range(min(5, len(names)), 0, -1):
+              remaining_count = len(names) - visible_count
+              summary = ", ".join(names[:visible_count])
+              if remaining_count:
+                  summary += f" and {remaining_count} more"
+              title = f"Integration releases - {author} - {summary} - {short_sha}"
+              if len(title) <= max_title_length:
+                  print(title)
+                  break
+          else:
+              print(f"Integration releases - {len(names)} integrations - {short_sha}")
           PY
           )
-          release_title="Integration releases - ${RELEASE_AUTHOR:-$GITHUB_ACTOR} - ${integration_names} - ${short_sha}"
           assets=("dist/autohive-manifest.json")
           while IFS= read -r integration_path; do
             assets+=("dist/$integration_path.zip")
