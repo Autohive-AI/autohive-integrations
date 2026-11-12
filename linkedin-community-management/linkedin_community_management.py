@@ -165,7 +165,9 @@ class ListPostsAction(ActionHandler):
             "count": inputs.get("count", 10),
         }
         response = await context.fetch(
-            restli_query_url("/rest/posts", params), method="GET", headers=linkedin_headers()
+            restli_query_url("/rest/posts", params),
+            method="GET",
+            headers=linkedin_headers(**{"X-RestLi-Method": "FINDER"}),
         )
         if error := api_error("post listing", response):
             return error
@@ -590,7 +592,7 @@ class GetConnectionCountAction(ActionHandler):
                 return ActionError(message=str(exc))
         person_urn = actor_urn(person_id, "PERSON")
         response = await context.fetch(
-            preencoded_url(f"/v2/connections/{person_urn}"), method="GET", headers=linkedin_headers()
+            resource_url("/v2/connections", person_urn), method="GET", headers=linkedin_headers()
         )
         if error := api_error("connection count retrieval", response):
             return error

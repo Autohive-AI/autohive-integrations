@@ -115,6 +115,7 @@ class TestPosts:
         assert result.result.data["posts"] == [{"id": "p1"}]
         assert "author=urn%3Ali%3Aorganization%3A42" in str(mock_context.fetch.call_args.args[0])
         assert "params" not in mock_context.fetch.call_args.kwargs
+        assert mock_context.fetch.call_args.kwargs["headers"]["X-RestLi-Method"] == "FINDER"
 
     async def test_create_post_as_organization(self, mock_context):
         mock_context.fetch.return_value = response(None, status=201, headers={"x-restli-id": "urn:li:share:9"})
@@ -384,15 +385,15 @@ class TestConnections:
             "get_connection_count", {"person_id": "member-1"}, mock_context
         )
         assert result.result.data["first_degree_size"] == 504
-        assert str(mock_context.fetch.call_args.args[0]).endswith("urn:li:person:member-1")
+        assert str(mock_context.fetch.call_args.args[0]).endswith("urn%3Ali%3Aperson%3Amember-1")
 
     async def test_connection_count_accepts_person_urn(self, mock_context):
         mock_context.fetch.return_value = response({"firstDegreeSize": 504})
         await linkedin_community_management.execute_action(
             "get_connection_count", {"person_id": "urn:li:person:member-1"}, mock_context
         )
-        assert str(mock_context.fetch.call_args.args[0]).endswith("urn:li:person:member-1")
-        assert "urn:li:person:urn:li:person:" not in str(mock_context.fetch.call_args.args[0])
+        assert str(mock_context.fetch.call_args.args[0]).endswith("urn%3Ali%3Aperson%3Amember-1")
+        assert "urn%3Ali%3Aperson%3Aurn" not in str(mock_context.fetch.call_args.args[0])
 
     async def test_connection_count_resolves_profile(self, mock_context):
         mock_context.fetch.side_effect = [response({"id": "member-1"}), response({"firstDegreeSize": 12})]
