@@ -542,7 +542,7 @@ class GetMemberPostAnalyticsAction(ActionHandler):
             "aggregation": inputs.get("aggregation", "TOTAL"),
         }
         if post_urn:
-            urn_type = "ugcPost" if ":ugcPost:" in post_urn else "share"
+            urn_type = "ugc" if ":ugcPost:" in post_urn else "share"
             params["entity"] = f"({urn_type}:{encode_urn(post_urn)})"
         if date_range := restli_date_range(inputs.get("start_date"), inputs.get("end_date")):
             params["dateRange"] = date_range

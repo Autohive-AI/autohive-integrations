@@ -353,7 +353,7 @@ class TestFollowersAndAnalytics:
         assert result.result.data["analytics"][0]["count"] == 10
         url = str(mock_context.fetch.call_args.args[0])
         assert "q=entity" in url
-        assert "entity=(ugcPost:urn%3Ali%3AugcPost%3A1)" in url
+        assert "entity=(ugc:urn%3Ali%3AugcPost%3A1)" in url
 
     async def test_member_post_analytics_aggregate_with_dates(self, mock_context):
         mock_context.fetch.return_value = response({"elements": [], "paging": {}})
