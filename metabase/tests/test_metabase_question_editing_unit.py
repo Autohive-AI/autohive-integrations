@@ -2085,20 +2085,25 @@ class TestRevertToRevision:
         assert call.kwargs["json"] == {"entity": "dashboard", "id": 5, "revision_id": 8}
 
     @staticmethod
-    def _subscribed_dashboard(mock_context, sql):
+    def _subscribed_dashboard(mock_context, sql, pulse=None, dashboard=None, native=None):
         async def fetch(url, **kwargs):
             if "/api/pulse" in url:
-                return _ok([{"id": 15}])
+                return _ok([pulse or {"id": 15}])
             if "/api/revision?" in url:
                 return _ok([{"id": 20, "most_recent": True}, {"id": 8}])
             if url.endswith("/api/dashboard/5"):
-                return _ok({"id": 5, "parameters": [], "dashcards": [{"id": 1, "card_id": 42, "card": {"id": 42}}]})
+                return _ok(
+                    dashboard
+                    or {"id": 5, "parameters": [], "dashcards": [{"id": 1, "card_id": 42, "card": {"id": 42}}]}
+                )
             if url.endswith("/api/card/42"):
-                return _ok({"id": 42, "dataset_query": {"database": 1, "type": "native", "native": {"query": sql}}})
+                return _ok(
+                    {"id": 42, "dataset_query": {"database": 1, "type": "native", "native": native or {"query": sql}}}
+                )
             if url.endswith("/api/database/1"):
                 return _ok({"id": 1, "engine": "postgres"})
             if url.endswith("/api/dataset/native"):
-                return _ok({"query": sql})
+                return _ok({"query": sql(kwargs["json"]) if callable(sql) else sql})
             return _ok({"id": 5})
 
         mock_context.fetch.side_effect = fetch
@@ -2131,6 +2136,34 @@ class TestRevertToRevision:
             {"entity": "dashboard", "id": 5, "revision_id": 8},
             {"entity": "dashboard", "id": 5, "revision_id": 20},
         ]
+
+    @pytest.mark.asyncio
+    async def test_subscribed_dashboard_put_back_when_a_subscriptions_own_value_writes(self, mock_context):
+        # Metabase Pro lets a subscription send with its own filter values instead of the defaults.
+        mapping = {"parameter_id": "f1", "card_id": 42, "target": ["variable", ["template-tag", "plan"]]}
+        self._subscribed_dashboard(
+            mock_context,
+            lambda body: (
+                "select 1, nextval('audit_seq')"
+                if any(p.get("value") == ["team"] for p in body["parameters"])
+                else "select 1"
+            ),
+            pulse={"id": 15, "parameters": [{"id": "f1", "type": "string/=", "value": ["team"]}]},
+            dashboard={
+                "id": 5,
+                "parameters": [{"id": "f1", "slug": "plan", "type": "string/="}],
+                "dashcards": [{"id": 1, "card_id": 42, "card": {"id": 42}, "parameter_mappings": [mapping]}],
+            },
+            native={"query": "select 1 [[, {{plan}}]]", "template-tags": {"plan": {"name": "plan", "type": "text"}}},
+        )
+        result = await metabase.execute_action(
+            "revert_to_revision", {"item_type": "dashboard", "item_id": 5, "revision_id": 8}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        reverts = [
+            c.kwargs["json"] for c in mock_context.fetch.call_args_list if c.args[0].endswith("/revision/revert")
+        ]
+        assert reverts[-1] == {"entity": "dashboard", "id": 5, "revision_id": 20}
 
     @pytest.mark.asyncio
     async def test_segment_makes_no_check_calls(self, mock_context):

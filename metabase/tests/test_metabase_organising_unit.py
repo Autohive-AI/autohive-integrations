@@ -149,6 +149,7 @@ SUB_DASHBOARD = {
         {"id": 503, "card_id": 43, "card": {"id": 43, "name": "Churn"}},
     ],
 }
+TRASHED_DASHBOARD = {**SUB_DASHBOARD, "archived": True}
 SLACK_CHANNEL = {
     "id": 71,
     "channel_type": "slack",
@@ -1051,49 +1052,99 @@ class TestRestoreItem:
         assert ("PUT", f"{BASE}/api/pulse/15") not in _urls(mock_context)
 
     @pytest.mark.asyncio
-    async def test_dashboard_with_subscription_checks_questions_then_restores(self, mock_context):
+    async def test_dashboard_with_subscription_restored_then_checked(self, mock_context):
+        # Metabase only lists a dashboard's subscriptions once it's out of the trash.
         mock_context.fetch.side_effect = [
+            _ok(TRASHED_DASHBOARD),
+            _ok({"id": 9, "archived": False}),
             _ok([SAMPLE_PULSE]),
             _ok(SUB_DASHBOARD),
             *_checks(),
             *_checks(CHURN_CARD),
-            _ok({"id": 9, "archived": False}),
         ]
         result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
         assert result.result.data == {"item_type": "dashboard", "item_id": 9, "archived": False}
         assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/dashboard/9"),
+            ("PUT", f"{BASE}/api/dashboard/9"),
             ("GET", f"{BASE}/api/pulse?dashboard_id=9&archived=false"),
             ("GET", f"{BASE}/api/dashboard/9"),
             *_check_calls(42),
             *_check_calls(43),
-            ("PUT", f"{BASE}/api/dashboard/9"),
         ]
-        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False}
+        assert mock_context.fetch.call_args_list[1].kwargs["json"] == {"archived": False}
 
     @pytest.mark.asyncio
-    async def test_dashboard_with_subscription_and_write_sql_stays_in_trash(self, mock_context):
+    async def test_dashboard_with_subscription_and_write_sql_put_back_in_trash(self, mock_context):
         mock_context.fetch.side_effect = [
+            _ok(TRASHED_DASHBOARD),
+            _ok({"id": 9, "archived": False}),
             _ok([SAMPLE_PULSE]),
             _ok(SUB_DASHBOARD),
             *_checks(),
             *_checks(CHURN_CARD, sql="select nextval('audit_seq')"),
+            _ok(TRASHED_DASHBOARD),
         ]
         result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message.startswith("Not restored: a question's SQL is refused")
         assert "Saved question 43" in result.result.message
-        assert ("PUT", f"{BASE}/api/dashboard/9") not in _urls(mock_context)
+        assert _urls(mock_context)[-1] == ("PUT", f"{BASE}/api/dashboard/9")
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True}
 
     @pytest.mark.asyncio
-    async def test_dashboard_without_subscription_restored_directly(self, mock_context):
-        mock_context.fetch.side_effect = [_ok([]), _ok({"is_superuser": True}), _ok({"id": 9, "archived": False})]
-        await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
-        assert [m for m, _ in _urls(mock_context)] == ["GET", "GET", "PUT"]
-        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False}
+    async def test_dashboard_without_subscription_restored_without_check(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(TRASHED_DASHBOARD),
+            _ok({"id": 9, "archived": False}),
+            _ok([]),
+            _ok({"is_superuser": True}),
+        ]
+        result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert [m for m, _ in _urls(mock_context)] == ["GET", "PUT", "GET", "GET"]
+        assert _compiled_parameters(mock_context) == []
 
     @pytest.mark.asyncio
-    async def test_subscription_checked_with_its_own_filter_values(self, mock_context):
-        # Metabase Pro lets a subscription set its own filter values, which it sends with instead of the defaults.
-        filtered = {
+    async def test_dashboard_checked_with_defaults_for_non_admin_key(self, mock_context):
+        # A non-admin key isn't shown other people's subscriptions, so an empty list proves nothing.
+        mock_context.fetch.side_effect = [
+            _ok(TRASHED_DASHBOARD),
+            _ok({"id": 9, "archived": False}),
+            _ok([]),
+            _ok({"is_superuser": False}),
+            _ok(SUB_DASHBOARD),
+            *_checks(),
+            *_checks(CHURN_CARD),
+        ]
+        result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION
+        assert len(_compiled_parameters(mock_context)) == 2
+
+    @pytest.mark.asyncio
+    async def test_dashboard_not_in_trash_left_alone(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(SUB_DASHBOARD)]
+        result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
+        assert result.result.data == {"item_type": "dashboard", "item_id": 9, "archived": False}
+        assert _urls(mock_context) == [("GET", f"{BASE}/api/dashboard/9")]
+
+    @pytest.mark.asyncio
+    async def test_dashboard_put_back_when_subscriptions_cannot_be_listed(self, mock_context):
+        mock_context.fetch.side_effect = [
+            _ok(TRASHED_DASHBOARD),
+            _ok({"id": 9, "archived": False}),
+            HTTPError(500, "Server Error", "boom"),
+            _ok(TRASHED_DASHBOARD),
+        ]
+        result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert result.result.message.startswith("Not restored: a question's SQL couldn't be checked")
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True}
+
+    @staticmethod
+    def _team_filtered():
+        """A dashboard whose Plan filter has no default, and a subscription that sends it with its own value."""
+        dashboard = {
             **SUB_DASHBOARD,
             "parameters": [{**PLAN_FILTER, "default": None}],
             "dashcards": [
@@ -1105,8 +1156,19 @@ class TestRestoreItem:
                 }
             ],
         }
-        pulse = {**SAMPLE_PULSE, "archived": True, "parameters": [{"id": "f1", "type": "string/=", "value": ["team"]}]}
-        mock_context.fetch.side_effect = [_ok(pulse), _ok(filtered), *_checks(), _ok(SAMPLE_PULSE)]
+        pulse = {**SAMPLE_PULSE, "parameters": [{"id": "f1", "type": "string/=", "value": ["team"]}]}
+        return dashboard, pulse
+
+    @pytest.mark.asyncio
+    async def test_subscription_checked_with_its_own_filter_values(self, mock_context):
+        # Metabase Pro lets a subscription set its own filter values, which it sends with instead of the defaults.
+        dashboard, pulse = self._team_filtered()
+        mock_context.fetch.side_effect = [
+            _ok({**pulse, "archived": True}),
+            _ok(dashboard),
+            *_checks(),
+            _ok(SAMPLE_PULSE),
+        ]
         result = await metabase.execute_action(
             "restore_item", {"item_type": "subscription", "item_id": 15}, mock_context
         )
@@ -1116,31 +1178,49 @@ class TestRestoreItem:
         ]
 
     @pytest.mark.asyncio
+    async def test_dashboard_checked_with_its_subscriptions_own_filter_values(self, mock_context):
+        dashboard, pulse = self._team_filtered()
+        mock_context.fetch.side_effect = [
+            _ok({**dashboard, "archived": True}),
+            _ok({"id": 9, "archived": False}),
+            _ok([pulse]),
+            _ok(dashboard),
+            *_checks(sql="select nextval('audit_seq')"),
+            _ok(TRASHED_DASHBOARD),
+        ]
+        result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert _compiled_parameters(mock_context) == [
+            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": ["team"]}]
+        ]
+        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True}
+
+    @pytest.mark.asyncio
     async def test_dashboard_hidden_while_trashed_restored_then_checked(self, mock_context):
         # Metabase before 0.51 won't show a trashed dashboard.
         mock_context.fetch.side_effect = [
-            _ok([SAMPLE_PULSE]),
             _not_found(),
             _ok({"id": 9, "archived": False}),
+            _ok([SAMPLE_PULSE]),
             _ok(SUB_DASHBOARD),
             *_checks(),
             *_checks(CHURN_CARD),
         ]
         result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
         assert result.type == ResultType.ACTION
-        assert _urls(mock_context)[2] == ("PUT", f"{BASE}/api/dashboard/9")
-        assert _urls(mock_context)[3] == ("GET", f"{BASE}/api/dashboard/9")
+        assert _urls(mock_context)[1] == ("PUT", f"{BASE}/api/dashboard/9")
+        assert _urls(mock_context)[2] == ("GET", f"{BASE}/api/pulse?dashboard_id=9&archived=false")
 
     @pytest.mark.asyncio
     async def test_dashboard_hidden_while_trashed_put_back_when_refused(self, mock_context):
         mock_context.fetch.side_effect = [
-            _ok([SAMPLE_PULSE]),
             _not_found(),
             _ok({"id": 9, "archived": False}),
+            _ok([SAMPLE_PULSE]),
             _ok(SUB_DASHBOARD),
             *_checks(),
             *_checks(CHURN_CARD, sql="select nextval('audit_seq')"),
-            _ok({"id": 9, "archived": True}),
+            _ok(TRASHED_DASHBOARD),
         ]
         result = await metabase.execute_action("restore_item", {"item_type": "dashboard", "item_id": 9}, mock_context)
         assert result.type == ResultType.ACTION_ERROR

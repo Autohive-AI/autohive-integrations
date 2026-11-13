@@ -746,7 +746,7 @@ class TestUpdateDashboardFilters:
             if url.endswith("/api/database/1"):
                 return _ok(SAMPLE_DATABASE)
             if url.endswith("/api/dataset/native"):
-                return _ok({"query": sql})
+                return _ok({"query": sql(kwargs["json"]) if callable(sql) else sql})
             return _ok(dashboard)
 
         mock_context.fetch.side_effect = fetch
@@ -851,6 +851,50 @@ class TestUpdateDashboardFilters:
         assert result.type == ResultType.ACTION_ERROR
         assert "Saved question 42" in result.result.message
         assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_subscription_own_value_that_turns_on_a_write_is_refused(self, mock_context):
+        # Metabase Pro lets a subscription send with its own filter values instead of the defaults.
+        def sql(body):
+            values = [p.get("value") for p in body["parameters"]]
+            return "select 1, nextval('audit_seq')" if ["North"] in values else "select region from orders"
+
+        result = await self._run(
+            mock_context,
+            [{**REGION_FILTER, "default": ["East"]}, CATEGORY_FILTER],
+            pulses=[{"id": 15}, {"id": 16, "parameters": [{"id": "p1", "type": "string/=", "value": ["North"]}]}],
+            sql=sql,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42" in result.result.message
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_defaults_still_checked_when_seen_subscription_has_own_values(self, mock_context):
+        # A non-admin key doesn't see other people's subscriptions, which send with the defaults.
+        def sql(body):
+            values = [p.get("value") for p in body["parameters"]]
+            return "select 1, nextval('audit_seq')" if ["East"] in values else "select region from orders"
+
+        result = await self._run(
+            mock_context,
+            [{**REGION_FILTER, "default": ["East"]}, CATEGORY_FILTER],
+            pulses=[{"id": 16, "parameters": [{"id": "p1", "type": "string/=", "value": ["North"]}]}],
+            sql=sql,
+            admin=False,
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_subscriptions_without_own_values_checked_once(self, mock_context):
+        filters = [{**REGION_FILTER, "default": ["East"]}, CATEGORY_FILTER]
+        await self._run(mock_context, filters, pulses=[{"id": 15}])
+        one = len(_calls_to(mock_context, "/dataset/native"))
+        mock_context.fetch.reset_mock()
+        await self._run(mock_context, filters, pulses=[{"id": 15}, {"id": 16}])
+        assert one
+        assert len(_calls_to(mock_context, "/dataset/native")) == one
 
     @pytest.mark.asyncio
     async def test_type_change_with_same_default_checked_for_subscriptions(self, mock_context):

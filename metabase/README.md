@@ -262,7 +262,7 @@ Moves `items` (each an `item_type` of `question`, `model`, `metric`, `dashboard`
 
 #### `archive_item` and `restore_item`
 
-Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash and back, or turn an alert off and on. Archiving a collection archives everything inside it. Nothing is deleted, with one exception: Metabase deletes a question's alerts when the question (or model or metric) is archived, and restoring it doesn't bring them back, so check `list_alerts` first. On Metabase 0.49, `metric` ids are the table metric ids `create_metric` returned. Restoring a subscription, or a dashboard with one, first checks the dashboard's questions, because Metabase starts sending it again.
+Move a question, model, metric, dashboard, collection, segment, subscription, timeline or timeline event to Metabase's trash and back, or turn an alert off and on. Archiving a collection archives everything inside it. Nothing is deleted, with one exception: Metabase deletes a question's alerts when the question (or model or metric) is archived, and restoring it doesn't bring them back, so check `list_alerts` first. On Metabase 0.49, `metric` ids are the table metric ids `create_metric` returned. Restoring a subscription first checks the dashboard's questions, because Metabase starts sending it again. A dashboard with subscriptions is restored, then checked (Metabase only lists a dashboard's subscriptions once it's out of the trash), and goes back in the trash if refused. Checks use each subscription's own filter values (Metabase Pro) as well as the dashboard's defaults.
 
 ### Alerts and subscriptions
 
