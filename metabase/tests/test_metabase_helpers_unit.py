@@ -9,7 +9,7 @@ from metabase.metabase import (
     _card_summary,
     _clamp,
     _fit_rows,
-    _pulse_flags,
+    _pulse_kept,
     _placeholders,
     _ensure_read_only_sql,
     _error_message,
@@ -191,17 +191,29 @@ class TestFitRows:
         assert summary == {"error": "x" * 300}
 
 
-class TestPulseFlags:
+class TestPulseKept:
     @pytest.mark.parametrize(
         "pulse,flags",
         [
             ({"archived": True, "skip_if_empty": True}, {"archived": True, "skip_if_empty": True}),
             ({}, {"archived": False, "skip_if_empty": False}),
             ({"archived": None, "skip_if_empty": 0}, {"archived": False, "skip_if_empty": False}),
+            ({"channels": []}, {"archived": False, "skip_if_empty": False}),
         ],
     )
     def test_flags_always_sent(self, pulse, flags):
-        assert _pulse_flags(pulse) == flags
+        assert _pulse_kept(pulse) == flags
+
+    def test_channels_sent_back_as_they_are(self):
+        channels = [{"id": 70, "channel_type": "email", "enabled": False}, {"id": 71, "channel_type": "slack"}]
+        assert _pulse_kept({"channels": channels})["channels"] == channels
+
+    def test_enabled_set_on_every_channel(self):
+        channels = [{"id": 70, "enabled": False}, {"id": 71, "enabled": True}]
+        assert _pulse_kept({"channels": channels}, enabled=True)["channels"] == [
+            {"id": 70, "enabled": True},
+            {"id": 71, "enabled": True},
+        ]
 
 
 class TestTagStandIns:

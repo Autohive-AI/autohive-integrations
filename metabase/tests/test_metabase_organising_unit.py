@@ -845,15 +845,36 @@ class TestArchiveItem:
     async def test_subscription_keeps_skip_if_empty(self, mock_context, skip):
         # Metabase resets skip_if_empty when an update leaves it out; archiving runs no SQL check.
         pulse = {**SAMPLE_PULSE, "skip_if_empty": skip}
-        mock_context.fetch.side_effect = [_ok(pulse), _ok({**pulse, "archived": True})]
+        mock_context.fetch.side_effect = [_ok(pulse), _ok(NEW_METABASE), _ok({**pulse, "archived": True})]
         result = await metabase.execute_action(
             "archive_item", {"item_type": "subscription", "item_id": 15}, mock_context
         )
         assert result.result.data == {"item_type": "subscription", "item_id": 15, "archived": True}
-        assert _urls(mock_context) == [("GET", f"{BASE}/api/pulse/15"), ("PUT", f"{BASE}/api/pulse/15")]
+        assert _urls(mock_context) == [
+            ("GET", f"{BASE}/api/pulse/15"),
+            ("GET", f"{BASE}/api/session/properties"),
+            ("PUT", f"{BASE}/api/pulse/15"),
+        ]
         put = mock_context.fetch.call_args
         assert put.kwargs["retry_count"] == NO_RETRY
-        assert put.kwargs["json"] == {"archived": True, "skip_if_empty": skip}
+        # Metabase 0.50+ turns the channels off with the subscription, so they're sent that way.
+        channels = [{**SLACK_CHANNEL, "enabled": False}, {**EMAIL_CHANNEL, "enabled": False}]
+        assert put.kwargs["json"] == {"archived": True, "skip_if_empty": skip, "channels": channels}
+
+    @pytest.mark.asyncio
+    async def test_subscription_channels_left_as_they_are_on_old_metabase(self, mock_context):
+        # Metabase 0.49 leaves the channels alone when a subscription is archived.
+        mock_context.fetch.side_effect = [_ok(SAMPLE_PULSE), _ok(OLD_METABASE), _ok(SAMPLE_PULSE)]
+        await metabase.execute_action("archive_item", {"item_type": "subscription", "item_id": 15}, mock_context)
+        assert mock_context.fetch.call_args.kwargs["json"]["channels"] == [SLACK_CHANNEL, EMAIL_CHANNEL]
+
+    @pytest.mark.asyncio
+    async def test_subscription_already_archived_needs_no_version(self, mock_context):
+        archived = {**SAMPLE_PULSE, "archived": True}
+        mock_context.fetch.side_effect = [_ok(archived), _ok(archived)]
+        await metabase.execute_action("archive_item", {"item_type": "subscription", "item_id": 15}, mock_context)
+        assert [u for _, u in _urls(mock_context)] == [f"{BASE}/api/pulse/15", f"{BASE}/api/pulse/15"]
+        assert mock_context.fetch.call_args.kwargs["json"]["channels"] == [SLACK_CHANNEL, EMAIL_CHANNEL]
 
     @pytest.mark.asyncio
     async def test_segment_adds_revision_message(self, mock_context):
@@ -1003,6 +1024,7 @@ class TestRestoreItem:
             _ok(SUB_DASHBOARD),
             *_checks(),
             *_checks(CHURN_CARD),
+            _ok(NEW_METABASE),
             _ok(SAMPLE_PULSE),
         ]
         result = await metabase.execute_action(
@@ -1014,9 +1036,16 @@ class TestRestoreItem:
             ("GET", f"{BASE}/api/dashboard/9"),
             *_check_calls(42),
             *_check_calls(43),
+            ("GET", f"{BASE}/api/session/properties"),
             ("PUT", f"{BASE}/api/pulse/15"),
         ]
-        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False, "skip_if_empty": True}
+        # Metabase 0.50+ turns the channels back on with the subscription, so they're sent that way.
+        channels = [{**SLACK_CHANNEL, "enabled": True}, {**EMAIL_CHANNEL, "enabled": True}]
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "archived": False,
+            "skip_if_empty": True,
+            "channels": channels,
+        }
 
     @pytest.mark.asyncio
     async def test_subscription_with_write_sql_stays_off(self, mock_context):
@@ -1149,6 +1178,7 @@ class TestRestoreItem:
             _ok({**pulse, "archived": True}),
             _ok(dashboard),
             *_checks(),
+            _ok(NEW_METABASE),
             _ok(SAMPLE_PULSE),
         ]
         result = await metabase.execute_action(
@@ -2141,14 +2171,25 @@ class TestUpdateSubscription:
         assert _urls(mock_context) == [("GET", f"{BASE}/api/pulse/15"), ("PUT", f"{BASE}/api/pulse/15")]
         call = mock_context.fetch.call_args
         assert call.kwargs["retry_count"] == NO_RETRY
-        assert call.kwargs["json"] == {"archived": False, "skip_if_empty": True, "name": "Growth (Fri)"}
+        # The channels go back too: before 0.64 Metabase deletes them for a sandboxed or impersonated user otherwise.
+        assert call.kwargs["json"] == {
+            "archived": False,
+            "skip_if_empty": True,
+            "channels": [SLACK_CHANNEL, EMAIL_CHANNEL],
+            "name": "Growth (Fri)",
+        }
 
     @pytest.mark.asyncio
     async def test_rename_archived_stays_archived(self, mock_context):
         archived = {**SAMPLE_PULSE, "archived": True, "skip_if_empty": False}
         mock_context.fetch.side_effect = [_ok(archived), _ok(archived)]
         await metabase.execute_action("update_subscription", {"subscription_id": 15, "name": "Old"}, mock_context)
-        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": True, "skip_if_empty": False, "name": "Old"}
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "archived": True,
+            "skip_if_empty": False,
+            "channels": [SLACK_CHANNEL, EMAIL_CHANNEL],
+            "name": "Old",
+        }
 
     @pytest.mark.asyncio
     async def test_schedule_change_on_slack_only_subscription(self, mock_context):
@@ -2213,7 +2254,11 @@ class TestUpdateSubscription:
         await metabase.execute_action(
             "update_subscription", {"subscription_id": 15, "skip_if_empty": False}, mock_context
         )
-        assert mock_context.fetch.call_args.kwargs["json"] == {"archived": False, "skip_if_empty": False}
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "archived": False,
+            "skip_if_empty": False,
+            "channels": [SLACK_CHANNEL, EMAIL_CHANNEL],
+        }
         assert mock_context.fetch.call_count == 2
 
     @pytest.mark.asyncio

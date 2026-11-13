@@ -1552,9 +1552,15 @@ async def _subscriptions(context: ExecutionContext, dashboard_id: Any) -> List[O
     return [] if (await _api(context, "GET", "/user/current") or {}).get("is_superuser") else [None]
 
 
-def _pulse_flags(pulse: Dict[str, Any]) -> Dict[str, bool]:
-    """Metabase resets archived and skip_if_empty when a subscription update leaves them out, so both are sent."""
-    return {"archived": bool(pulse.get("archived")), "skip_if_empty": bool(pulse.get("skip_if_empty"))}
+def _pulse_kept(pulse: Dict[str, Any], enabled: Optional[bool] = None) -> Dict[str, Any]:
+    """What a subscription update sends back unchanged. Metabase resets archived and skip_if_empty when an update
+    leaves them out, and before 0.64 deletes every channel when the API key's user is sandboxed or uses connection
+    impersonation and the update leaves them out. enabled, when given, is set on every channel."""
+    kept: Dict[str, Any] = {"archived": bool(pulse.get("archived")), "skip_if_empty": bool(pulse.get("skip_if_empty"))}
+    channels = pulse.get("channels") or []
+    if channels:
+        kept["channels"] = [c if enabled is None else {**c, "enabled": enabled} for c in channels]
+    return kept
 
 
 async def _check_dashboard_questions(
@@ -2540,7 +2546,8 @@ class RunDashboardAction(ActionHandler):
         if tab_id is not None:
             _check_tab(tab_id, dashboard.get("tabs") or [], inputs["dashboard_id"])
         params = dashboard.get("parameters") or []
-        by_key = {p.get("id"): p for p in params} | {p.get("slug"): p for p in params}
+        # An exact id wins over another filter's slug that happens to match it.
+        by_key = {p.get("slug"): p for p in params} | {p.get("id"): p for p in params}
 
         # Filter values: the ones given (by id or slug), else each filter's default, sent explicitly so the
         # checked SQL and the run use the same values.
@@ -3050,7 +3057,11 @@ async def _set_archived(context: ExecutionContext, inputs: Dict[str, Any], archi
             await _check_dashboard_questions(
                 context, await _get_dashboard(context, pulse.get("dashboard_id")), pulses=[pulse]
             )
-        await _api(context, "PUT", path, json={**_pulse_flags(pulse), "archived": archived})
+        # Metabase 0.50+ turns every channel off when a subscription is archived (on when restored) before saving
+        # the channels sent with the change, so they are sent the same way.
+        toggled = bool(pulse.get("archived")) != archived and (await _metabase_release(context) or 50) >= 50
+        kept = _pulse_kept(pulse, enabled=not archived if toggled else None)
+        await _api(context, "PUT", path, json={**kept, "archived": archived})
     elif item_type == "dashboard" and not archived:
         # Metabase holds a trashed dashboard's subscriptions and sends them again once it's back, but only lists them
         # (and before 0.51 only shows the dashboard) once it's out of the trash. So it is restored, its questions are
@@ -3249,7 +3260,7 @@ class UpdateSubscriptionAction(ActionHandler):
         if not body and not schedule and not recipients:
             raise ValueError("Give at least one change.")
         pulse = await _api(context, "GET", path) or {}
-        body = {**_pulse_flags(pulse), **body}
+        body = {**_pulse_kept(pulse), **body}
         if schedule or recipients:
             channels = pulse.get("channels") or []
             channel = next((c for c in channels if c.get("channel_type") == "email"), {})
