@@ -924,18 +924,8 @@ class TestCreateQueryBuilderQuestion:
         assert f"{BASE}/api/card" not in [c.args[0] for c in mock_context.fetch.call_args_list]
 
     @pytest.mark.asyncio
-    async def test_embedded_native_refused(self, mock_context):
-        query = {"source-table": 12, "joins": [{"source-query": {"native": "delete from orders"}}]}
-        result = await metabase.execute_action(
-            "create_query_builder_question", {"name": "Sneaky", "database_id": 3, "query": query}, mock_context
-        )
-        assert result.type == ResultType.ACTION_ERROR
-        assert "can't contain SQL" in result.result.message
-        mock_context.fetch.assert_not_called()
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize("key", ["NATIVE", "Native", "NaTiVe"])
-    async def test_embedded_native_in_other_case_refused(self, mock_context, key):
+    @pytest.mark.parametrize("key", ["native", "NATIVE", "Native", "NaTiVe"])
+    async def test_embedded_native_refused(self, mock_context, key):
         # Metabase reads MBQL keys case-insensitively, so "NATIVE" still runs as SQL.
         query = {"source-table": 12, "joins": [{"source-query": {key: "select nextval('orders_id_seq')"}}]}
         result = await metabase.execute_action(
@@ -946,11 +936,18 @@ class TestCreateQueryBuilderQuestion:
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_native_as_a_filter_value_allowed(self, mock_context):
-        query = {"source-table": 12, "filter": ["=", ["field", 7, None], "NATIVE"]}
-        mock_context.fetch.return_value = _ok({"id": 90, "name": "Natives"})
+    @pytest.mark.parametrize(
+        "name,field_id,value,created",
+        [
+            ("Natives", 7, "NATIVE", {"id": 90, "name": "Natives"}),
+            ("Native app signups", 56, "native", SAMPLE_MBQL_CARD),
+        ],
+    )
+    async def test_native_as_a_filter_value_allowed(self, mock_context, name, field_id, value, created):
+        query = {"source-table": 12, "filter": ["=", ["field", field_id, None], value]}
+        mock_context.fetch.return_value = _ok(created)
         result = await metabase.execute_action(
-            "create_query_builder_question", {"name": "Natives", "database_id": 3, "query": query}, mock_context
+            "create_query_builder_question", {"name": name, "database_id": 3, "query": query}, mock_context
         )
         assert result.type == ResultType.ACTION
 
@@ -1005,17 +1002,6 @@ class TestCreateQueryBuilderQuestion:
             "create_query_builder_question", {"name": "Orders", "database_id": 3}, mock_context
         )
         assert result.type == ResultType.VALIDATION_ERROR
-
-    @pytest.mark.asyncio
-    async def test_filter_value_native_allowed(self, mock_context):
-        mock_context.fetch.return_value = _ok(SAMPLE_MBQL_CARD)
-        query = {"source-table": 12, "filter": ["=", ["field", 56, None], "native"]}
-        result = await metabase.execute_action(
-            "create_query_builder_question",
-            {"name": "Native app signups", "database_id": 3, "query": query},
-            mock_context,
-        )
-        assert result.type != ResultType.ACTION_ERROR
 
 
 class TestCreateModel:
@@ -1096,17 +1082,9 @@ class TestCreateModel:
         assert mock_context.fetch.call_args_list[0].args[0] == f"{BASE}/api/card/42"
 
     @pytest.mark.asyncio
-    async def test_both_sql_and_query_refused(self, mock_context):
-        result = await metabase.execute_action(
-            "create_model", {"name": "X", "database_id": 3, "sql": "select 1", "query": SAMPLE_MBQL}, mock_context
-        )
-        assert result.type == ResultType.ACTION_ERROR
-        assert "exactly one of sql or query" in result.result.message
-        mock_context.fetch.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_neither_sql_nor_query_refused(self, mock_context):
-        result = await metabase.execute_action("create_model", {"name": "X", "database_id": 3}, mock_context)
+    @pytest.mark.parametrize("extra", [{"sql": "select 1", "query": SAMPLE_MBQL}, {}])
+    async def test_not_exactly_one_of_sql_or_query_refused(self, mock_context, extra):
+        result = await metabase.execute_action("create_model", {"name": "X", "database_id": 3, **extra}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "exactly one of sql or query" in result.result.message
         mock_context.fetch.assert_not_called()
@@ -1219,30 +1197,20 @@ class TestCreateMetric:
         assert mock_context.fetch.call_args.kwargs["json"]["display"] == "line"
 
     @pytest.mark.asyncio
-    async def test_two_aggregations_refused(self, mock_context):
-        query = {"source-table": 12, "aggregation": [["count"], ["sum", ["field", 78, None]]]}
+    @pytest.mark.parametrize(
+        "query",
+        [
+            {"source-table": 12, "aggregation": [["count"], ["sum", ["field", 78, None]]]},
+            {"source-table": 12},
+            {"source-table": 12, "aggregation": "count"},
+        ],
+    )
+    async def test_not_exactly_one_aggregation_refused(self, mock_context, query):
         result = await metabase.execute_action(
             "create_metric", {"name": "Revenue", "database_id": 3, "query": query}, mock_context
         )
         assert result.type == ResultType.ACTION_ERROR
         assert "exactly one aggregation" in result.result.message
-        mock_context.fetch.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_no_aggregation_refused(self, mock_context):
-        result = await metabase.execute_action(
-            "create_metric", {"name": "Revenue", "database_id": 3, "query": {"source-table": 12}}, mock_context
-        )
-        assert result.type == ResultType.ACTION_ERROR
-        assert "exactly one aggregation" in result.result.message
-
-    @pytest.mark.asyncio
-    async def test_aggregation_not_a_list_refused(self, mock_context):
-        query = {"source-table": 12, "aggregation": "count"}
-        result = await metabase.execute_action(
-            "create_metric", {"name": "Revenue", "database_id": 3, "query": query}, mock_context
-        )
-        assert result.type == ResultType.ACTION_ERROR
         mock_context.fetch.assert_not_called()
 
     @pytest.mark.asyncio
@@ -1468,10 +1436,14 @@ class TestExportQuestionResults:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "body",
-        ['{"status": "failed", "error": "Table not found"}', ' {"error": "Table not found", "row_count": 0}'],
+        [
+            '{"status": "failed", "error": "Table not found"}',
+            ' {"error": "Table not found", "row_count": 0}',
+            {"status": "failed", "error": "Table not found"},
+        ],
     )
     async def test_csv_body_with_json_error(self, mock_context, body):
-        # Metabase 0.49 answers a failed CSV export with HTTP 200 and the error as JSON text.
+        # Metabase 0.49 answers a failed CSV export with HTTP 200 and the error as JSON text (or a parsed object).
         mock_context.fetch.side_effect = _export_calls(body)
         result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
@@ -1661,17 +1633,15 @@ class TestExportQuestionResults:
         assert all("/query/" not in c.args[0] for c in mock_context.fetch.call_args_list)
 
     @pytest.mark.asyncio
-    async def test_html_response_rejected(self, mock_context):
-        mock_context.fetch.side_effect = _export_calls("<!DOCTYPE html><html><body>Sign in</body></html>")
+    @pytest.mark.parametrize(
+        "body",
+        ["<!DOCTYPE html><html><body>Sign in</body></html>", "\n  <html><head><title>Login</title></head></html>"],
+    )
+    async def test_html_response_rejected(self, mock_context, body):
+        mock_context.fetch.side_effect = _export_calls(body)
         result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "isn't JSON" in result.result.message
-
-    @pytest.mark.asyncio
-    async def test_html_tag_response_rejected(self, mock_context):
-        mock_context.fetch.side_effect = _export_calls("\n  <html><head><title>Login</title></head></html>")
-        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
-        assert result.type == ResultType.ACTION_ERROR
 
     @pytest.mark.asyncio
     async def test_csv_header_starting_with_angle_bracket_accepted(self, mock_context):
@@ -2226,13 +2196,6 @@ class TestQuestionEditingFixes:
         assert result.result.data["content"] == 'id,note\n1,"a\nb"'
         assert result.result.data["row_count"] == 1
         assert result.result.data["truncated"] is True
-
-    @pytest.mark.asyncio
-    async def test_export_error_object_is_an_error(self, mock_context):
-        mock_context.fetch.side_effect = _export_calls({"status": "failed", "error": "Table not found"})
-        result = await metabase.execute_action("export_question_results", {"question_id": 42}, mock_context)
-        assert result.type == ResultType.ACTION_ERROR
-        assert "Table not found" in result.result.message
 
 
 class _FakeResponse:

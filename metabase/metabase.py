@@ -8,6 +8,7 @@ from autohive_integrations_sdk import (
 )
 import asyncio
 import base64
+import contextlib
 import csv
 import io
 import json
@@ -123,32 +124,44 @@ def get_auth_headers(context: ExecutionContext) -> Dict[str, str]:
     return headers
 
 
+REDIRECT_ERROR = "Metabase redirected the request. Use the final HTTPS Metabase URL."
+# A gateway's error body isn't passed on: it may echo the secret header.
+GATEWAY_ERROR = "Request failed. Check gateway and Metabase access."
+
+
+@contextlib.asynccontextmanager
+async def _direct_session(timeout: aiohttp.ClientTimeout):
+    """An aiohttp session for the requests the SDK's fetch can't make safely. aiohttp retries a request on
+    disconnect, but these aren't safe to repeat (creating a dashcard, an export that reruns the question)."""
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            session._retry_connection = False
+            yield session
+    except aiohttp.ClientError:
+        raise ValueError("Could not connect to Metabase. Check the URL, TLS certificate and gateway access.") from None
+
+
 async def _gateway_request(
     url: str, method: str, headers: Dict[str, str], allow_text: bool = False, **kwargs: Any
 ) -> Any:
     # SDK fetch follows redirects and logs error bodies; neither is safe for a gateway secret.
     timeout = aiohttp.ClientTimeout(total=kwargs.pop("timeout", 30))
     kwargs.pop("retry_count", None)
-    try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            # aiohttp retries PUT on disconnect, but creating a Metabase dashcard is not idempotent.
-            session._retry_connection = False
-            async with session.request(method, url, headers=headers, allow_redirects=False, **kwargs) as response:
-                if 300 <= response.status < 400:
-                    raise ValueError("Metabase redirected the request. Use the final HTTPS Metabase URL.")
-                if response.status >= 400:
-                    raise HTTPError(response.status, "Request failed. Check gateway and Metabase access.", {})
-                # CSV exports are text, even when the CSV happens to read as JSON (a lone "2024" header).
-                if allow_text and "json" not in response.headers.get("Content-Type", ""):
+    async with _direct_session(timeout) as session:
+        async with session.request(method, url, headers=headers, allow_redirects=False, **kwargs) as response:
+            if 300 <= response.status < 400:
+                raise ValueError(REDIRECT_ERROR)
+            if response.status >= 400:
+                raise HTTPError(response.status, GATEWAY_ERROR, {})
+            # CSV exports are text, even when the CSV happens to read as JSON (a lone "2024" header).
+            if allow_text and "json" not in response.headers.get("Content-Type", ""):
+                return await response.text(errors="replace")
+            try:
+                return await response.json(content_type=None)
+            except (ValueError, UnicodeError):
+                if allow_text:
                     return await response.text(errors="replace")
-                try:
-                    return await response.json(content_type=None)
-                except (ValueError, UnicodeError):
-                    if allow_text:
-                        return await response.text(errors="replace")
-                    raise ValueError("Metabase returned a response that isn't JSON. Check the Metabase URL.") from None
-    except aiohttp.ClientError:
-        raise ValueError("Could not connect to Metabase. Check the URL, TLS certificate and gateway access.") from None
+                raise ValueError("Metabase returned a response that isn't JSON. Check the Metabase URL.") from None
 
 
 def _path_id(value: Any) -> str:
@@ -695,8 +708,8 @@ def _saved_query_as_run(card_id: str, dataset_query: Dict[str, Any]) -> Optional
     )
 
 
-def _native_query(database_id: Any, sql: str) -> Dict[str, Any]:
-    return {"database": database_id, "type": "native", "native": {"query": sql, "template-tags": {}}}
+def _native_query(database_id: Any, sql: str, tags: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    return {"database": database_id, "type": "native", "native": {"query": sql, "template-tags": tags or {}}}
 
 
 def _with_optional(body: Dict[str, Any], **values: Any) -> Dict[str, Any]:
@@ -714,6 +727,13 @@ def _error_message(
         for secret in sorted((s for s in secrets if isinstance(s, str) and s), key=len, reverse=True):
             message = message.replace(secret, "[REDACTED]")
     return message[:MAX_ERROR_LENGTH]
+
+
+def _undone_error(message: str, error: Exception, context: ExecutionContext) -> ValueError:
+    """The error for a change undone because its check refused it, or couldn't run (an unchecked change isn't known
+    to be safe). message has a {reason} slot."""
+    reason = "is refused" if isinstance(error, ValueError) else "couldn't be checked"
+    return ValueError(f"{message.replace('{reason}', reason)} {_error_message(error, context=context)}")
 
 
 def _require_id(item: Dict[str, Any], what: str) -> None:
@@ -1268,9 +1288,7 @@ class GetDashboardAction(ActionHandler):
 
     @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        dashboard_id = _path_id(inputs["dashboard_id"])
-        dashboard = await _api(context, "GET", f"/dashboard/{dashboard_id}") or {}
-        summary = _dashboard_summary(dashboard)
+        summary = _dashboard_summary(await _get_dashboard(context, inputs["dashboard_id"]))
         return {k: v for k, v in summary.items() if k not in ("width", "auto_apply_filters")}
 
 
@@ -1315,7 +1333,7 @@ class AddQuestionToDashboardAction(ActionHandler):
             # Metabase adds the question to the dashboard's subscriptions, which then run it with nobody watching.
             await _checked_parameters(context, _path_id(inputs["question_id"]), [])
 
-        updated, added = await _put_new_dashcard(context, inputs["dashboard_id"], existing, dashcards, tabs)
+        updated, added = await _put_new_dashcard(context, inputs["dashboard_id"], dashcards, tabs)
         return {
             "dashboard_id": updated.get("id") or dashboard.get("id"),
             "dashcard_id": added.get("id"),
@@ -1382,10 +1400,11 @@ def _tabs_for_put(tabs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 async def _put_dashboard_layout(
     context: ExecutionContext, dashboard_id: Any, dashcards: List[Dict[str, Any]], tabs: List[Dict[str, Any]], **extra
 ) -> Dict[str, Any]:
-    """PUT the dashboard's full card and tab lists (Metabase replaces both on every update)."""
+    """PUT the dashboard's full card and tab lists (Metabase replaces both on every update). tabs are as GET returns
+    them."""
     body: Dict[str, Any] = {"dashcards": dashcards, **extra}
     if tabs:
-        body["tabs"] = tabs
+        body["tabs"] = _tabs_for_put(tabs)
     return await _api(context, "PUT", f"/dashboard/{_path_id(dashboard_id)}", json=body) or {}
 
 
@@ -1410,11 +1429,11 @@ def _new_dashcard(
 
 
 async def _put_new_dashcard(
-    context: ExecutionContext, dashboard_id: Any, existing: List[Dict[str, Any]], dashcards: List[Dict[str, Any]], tabs
+    context: ExecutionContext, dashboard_id: Any, dashcards: List[Dict[str, Any]], tabs
 ) -> tuple:
     """PUT the cards with one new card (the last) and return the updated dashboard and the card Metabase created."""
-    updated = await _put_dashboard_layout(context, dashboard_id, dashcards, _tabs_for_put(tabs))
-    known_ids = {dc.get("id") for dc in existing}
+    updated = await _put_dashboard_layout(context, dashboard_id, dashcards, tabs)
+    known_ids = {dc.get("id") for dc in dashcards[:-1]}
     card_id = dashcards[-1]["card_id"]
     added = next(
         (dc for dc in updated.get("dashcards") or [] if dc.get("id") not in known_ids and dc.get("card_id") == card_id),
@@ -1432,7 +1451,7 @@ def _dashboard_summary(dashboard: Dict[str, Any]) -> Dict[str, Any]:
         "width": dashboard.get("width"),
         "auto_apply_filters": dashboard.get("auto_apply_filters"),
         "archived": bool(dashboard.get("archived")),
-        "tabs": [{"id": t.get("id"), "name": t.get("name")} for t in dashboard.get("tabs") or []],
+        "tabs": _tabs_for_put(dashboard.get("tabs") or []),
         "parameters": [
             {"id": p.get("id"), "name": p.get("name"), "slug": p.get("slug"), "type": p.get("type")}
             for p in dashboard.get("parameters") or []
@@ -1482,11 +1501,10 @@ def _filter_target(dashcard: Dict[str, Any], question: Dict[str, Any], connectio
 
 
 def _card_parameters_for(
-    dashcard: Dict[str, Any], values: Dict[str, Dict[str, Any]], card_id: Any = None
+    dashcard: Dict[str, Any], values: Dict[str, Dict[str, Any]], card_id: Any
 ) -> List[Dict[str, Any]]:
     """Dashboard filter values as the parameters of one question on a card (the card's own question, or one of a
     combined chart's extra series), through that question's filter connections."""
-    card_id = dashcard.get("card_id") if card_id is None else card_id
     params = []
     for mapping in dashcard.get("parameter_mappings") or []:
         # Each question on a combined chart has its own connections; one without a card id is the card's own.
@@ -1750,9 +1768,7 @@ def _updated_native_query(card: Dict[str, Any], database_id: Any, sql: str, tags
         stage["template-tags"] = list(tags.values()) if isinstance(saved_tags, list) else tags
         # Steps after the SQL (summarize, filter) are kept.
         return {**dataset_query, "stages": [stage, *stages[1:]]}
-    query = _native_query(database_id, sql)
-    query["native"]["template-tags"] = tags
-    return query
+    return _native_query(database_id, sql, tags)
 
 
 # Filter types create_question and update_question can define, and the Metabase tag type each is saved as.
@@ -1848,12 +1864,15 @@ def _stand_in_parameters(tags: Dict[str, Any]) -> List[Dict[str, Any]]:
     return params
 
 
-async def _new_native_query(context: ExecutionContext, database_id: Any, sql: Any, filters: Any) -> Dict[str, Any]:
-    """A new SQL question or model's query, with its {{ }} filters defined and its SQL checked."""
+async def _new_native_query(
+    context: ExecutionContext, database_id: Any, sql: Any, filters: Any, card: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """A query with new SQL, its {{ }} filters defined and its SQL checked: for a new SQL question or model, or for
+    card, a saved question whose SQL is replaced (its filters are kept and its saved format used)."""
     sql = _required_text(sql, "sql")
-    dataset_query = _native_query(database_id, sql)
-    tags = await _template_tags(context, sql, filters, {})
-    dataset_query["native"]["template-tags"] = tags
+    _, existing = _saved_native((card or {}).get("dataset_query") or {})
+    tags = await _template_tags(context, sql, filters, existing)
+    dataset_query = _updated_native_query(card or {}, database_id, sql, tags)
     await _check_new_sql(context, database_id, sql, dataset_query, tags)
     return dataset_query
 
@@ -1933,42 +1952,36 @@ async def _download(context: ExecutionContext, path: str, form: Dict[str, str]) 
     gateway = bool(_credentials(context).get("gateway_header_name"))
     timeout = aiohttp.ClientTimeout(total=QUERY_TIMEOUT_SECONDS)
     content = bytearray()
-    try:
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            # aiohttp retries a request on disconnect; an export reruns the question, so it is sent once.
-            session._retry_connection = False
-            async with session.post(
-                f"{get_base_url(context)}/api{path}", data=form, headers=headers, allow_redirects=False
-            ) as response:
-                if response.status >= 300:
-                    if gateway:
-                        # As in _gateway_request, a gateway's error body isn't passed on.
-                        raise HTTPError(response.status, "Request failed. Check gateway and Metabase access.", {})
-                    if 300 <= response.status < 400:
-                        raise ValueError("Metabase redirected the request. Use the final HTTPS Metabase URL.")
-                    text = await response.text(errors="replace")
-                    try:
-                        data: Any = json.loads(text)
-                    except ValueError:
-                        data = text[:MAX_ERROR_LENGTH]
-                    raise HTTPError(response.status, text[:MAX_ERROR_LENGTH], data)
-                if "spreadsheetml" not in response.headers.get("Content-Type", ""):
-                    # Metabase reports a failed query as JSON instead of the file.
-                    text = (await response.text(errors="replace"))[:MAX_ERROR_LENGTH]
-                    raise ValueError(f"Query failed: {text}")
-                async for chunk in response.content.iter_chunked(64 * 1024):
-                    content += chunk
-                    if content[:1] == b"{":
-                        # Metabase 0.49 sends a failed export's error as JSON under the spreadsheet content type.
-                        content += await response.content.read()
-                        failure = json.loads(content.decode("utf-8", "replace"))
-                        raise ValueError(f"Query failed: {failure.get('error') or 'unknown error'}")
-                    if len(content) > MAX_XLSX_BYTES:
-                        raise ValueError(
-                            "The Excel file is over 3.5 MB, too big to return. Filter the question or export as csv."
-                        )
-    except aiohttp.ClientError:
-        raise ValueError("Could not connect to Metabase. Check the URL, TLS certificate and gateway access.") from None
+    async with _direct_session(timeout) as session:
+        async with session.post(
+            f"{get_base_url(context)}/api{path}", data=form, headers=headers, allow_redirects=False
+        ) as response:
+            if response.status >= 300:
+                if gateway:
+                    raise HTTPError(response.status, GATEWAY_ERROR, {})
+                if 300 <= response.status < 400:
+                    raise ValueError(REDIRECT_ERROR)
+                text = await response.text(errors="replace")
+                try:
+                    data: Any = json.loads(text)
+                except ValueError:
+                    data = text[:MAX_ERROR_LENGTH]
+                raise HTTPError(response.status, text[:MAX_ERROR_LENGTH], data)
+            if "spreadsheetml" not in response.headers.get("Content-Type", ""):
+                # Metabase reports a failed query as JSON instead of the file.
+                text = (await response.text(errors="replace"))[:MAX_ERROR_LENGTH]
+                raise ValueError(f"Query failed: {text}")
+            async for chunk in response.content.iter_chunked(64 * 1024):
+                content += chunk
+                if content[:1] == b"{":
+                    # Metabase 0.49 sends a failed export's error as JSON under the spreadsheet content type.
+                    content += await response.content.read()
+                    failure = json.loads(content.decode("utf-8", "replace"))
+                    raise ValueError(f"Query failed: {failure.get('error') or 'unknown error'}")
+                if len(content) > MAX_XLSX_BYTES:
+                    raise ValueError(
+                        "The Excel file is over 3.5 MB, too big to return. Filter the question or export as csv."
+                    )
     return bytes(content)
 
 
@@ -2196,7 +2209,7 @@ class UpdateDashboardCardsAction(ActionHandler):
                 dc["visualization_settings"] = settings
             dashcards.append(dc)
 
-        updated = await _put_dashboard_layout(context, inputs["dashboard_id"], dashcards, _tabs_for_put(tabs))
+        updated = await _put_dashboard_layout(context, inputs["dashboard_id"], dashcards, tabs)
         return _dashboard_summary(updated)
 
 
@@ -2241,7 +2254,7 @@ class AddTextToDashboardAction(ActionHandler):
         else:
             settings["text"] = text
         dashcards = _dashcards_for_put(existing) + [_new_dashcard(None, row, col, size_x, size_y, tab_id, settings)]
-        updated, added = await _put_new_dashcard(context, inputs["dashboard_id"], existing, dashcards, tabs)
+        updated, added = await _put_new_dashcard(context, inputs["dashboard_id"], dashcards, tabs)
         return {
             "dashboard_id": updated.get("id") or dashboard.get("id"),
             "dashcard_id": added.get("id"),
@@ -2447,7 +2460,7 @@ class UpdateDashboardFiltersAction(ActionHandler):
             context,
             inputs["dashboard_id"],
             dashcards,
-            _tabs_for_put(dashboard.get("tabs") or []),
+            dashboard.get("tabs") or [],
             parameters=parameters,
         )
         return _dashboard_summary(updated)
@@ -2680,10 +2693,10 @@ class RevertToRevisionAction(ActionHandler):
                 # one that couldn't be checked isn't known to be safe, so either way it is put back.
                 if current is not None:
                     await _revert(context, {**body, "revision_id": current})
-                reason = "is refused" if isinstance(e, ValueError) else "couldn't be checked"
-                raise ValueError(
-                    f"Not reverted: that version's SQL {reason}, so the {inputs['item_type']} was put back. "
-                    f"{_error_message(e, context=context)}"
+                raise _undone_error(
+                    f"Not reverted: that version's SQL {{reason}}, so the {inputs['item_type']} was put back.",
+                    e,
+                    context,
                 ) from None
         return {
             "item_type": inputs["item_type"],
@@ -2726,11 +2739,9 @@ class UpdateQuestionAction(ActionHandler):
             _leave_dashboard_to_move(card, body)
             if inputs.get("sql") is not None:
                 database_id = card.get("database_id") or (card.get("dataset_query") or {}).get("database")
-                sql = _required_text(inputs["sql"], "sql")
-                _, existing = _saved_native(card.get("dataset_query") or {})
-                tags = await _template_tags(context, sql, inputs.get("filters"), existing)
-                body["dataset_query"] = _updated_native_query(card, database_id, sql, tags)
-                await _check_new_sql(context, database_id, sql, body["dataset_query"], tags)
+                body["dataset_query"] = await _new_native_query(
+                    context, database_id, inputs["sql"], inputs.get("filters"), card
+                )
 
             if settings is not None:
                 if not isinstance(settings, dict):
@@ -2823,8 +2834,7 @@ class CreateMetricAction(ActionHandler):
             if e.status != 400:
                 raise
             # Metabase 0.49 has no metric questions, only the older table metrics.
-            legacy = await _create_legacy_metric(context, inputs, query, e)
-            return legacy
+            return await _create_legacy_metric(context, inputs, query, e)
         return _card_summary(card)
 
 
@@ -3062,10 +3072,8 @@ async def _set_archived(context: ExecutionContext, inputs: Dict[str, Any], archi
                     )
             except Exception as e:
                 await _api(context, "PUT", path, json={"archived": True})
-                reason = "is refused" if isinstance(e, ValueError) else "couldn't be checked"
-                raise ValueError(
-                    f"Not restored: a question's SQL {reason}, so the dashboard was put back in the trash. "
-                    f"{_error_message(e, context=context)}"
+                raise _undone_error(
+                    "Not restored: a question's SQL {reason}, so the dashboard was put back in the trash.", e, context
                 ) from None
     else:
         path = ARCHIVE_PATHS.get(item_type)

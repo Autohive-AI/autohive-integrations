@@ -539,10 +539,11 @@ class TestCreateQuestion:
         }
 
     @pytest.mark.asyncio
-    async def test_defaults(self, mock_context):
+    @pytest.mark.parametrize("extra", [{}, {"description": ""}])
+    async def test_defaults(self, mock_context, extra):
         mock_context.fetch.side_effect = [_database(), _ok({"id": 78, "name": "N"})]
         await metabase.execute_action(
-            "create_question", {"name": "N", "database_id": 3, "sql": "select 1"}, mock_context
+            "create_question", {"name": "N", "database_id": 3, "sql": "select 1", **extra}, mock_context
         )
         body = mock_context.fetch.call_args.kwargs["json"]
         assert body["display"] == "table"
@@ -586,14 +587,6 @@ class TestCreateQuestion:
         )
         assert result.type == ResultType.ACTION_ERROR
         assert "did not return a question id" in result.result.message
-
-    @pytest.mark.asyncio
-    async def test_empty_description_omitted(self, mock_context):
-        mock_context.fetch.side_effect = [_database(), _ok({"id": 79, "name": "N"})]
-        await metabase.execute_action(
-            "create_question", {"name": "N", "database_id": 3, "sql": "select 1", "description": ""}, mock_context
-        )
-        assert "description" not in mock_context.fetch.call_args.kwargs["json"]
 
     @pytest.mark.asyncio
     async def test_mbql5_response_sql_returned(self, mock_context):

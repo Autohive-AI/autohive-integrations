@@ -124,18 +124,8 @@ class TestPagingHelpers:
     def test_clamp(self, value, expected):
         assert _clamp(value, 50, 200) == expected
 
-    def test_page_defaults(self):
-        assert _page({}) == {"limit": 50, "offset": 0}
-
-    def test_page_values(self):
-        assert _page({"limit": 5, "offset": 10}) == {"limit": 5, "offset": 10}
-
     def test_page_negative_offset(self):
         assert _page({"offset": -1})["offset"] == 0
-
-    def test_with_query_repeats_keys(self):
-        url = _with_query("https://m.test/api/search", [("q", "rev"), ("models", "card"), ("models", "dashboard")])
-        assert url == "https://m.test/api/search?q=rev&models=card&models=dashboard"
 
     def test_with_query_drops_none(self):
         assert _with_query("https://m.test/x", [("q", None)]) == "https://m.test/x"

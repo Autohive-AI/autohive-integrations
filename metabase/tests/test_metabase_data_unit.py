@@ -391,6 +391,7 @@ class TestNewerItemTypes:
         assert "models=card" in url and "metric" not in url and "document" not in url
         assert result.result.data["results"][0]["id"] == 1
         assert "metric, document" in result.result.data["note"]
+        assert mock_context.fetch.call_count == 3
 
     @pytest.mark.asyncio
     async def test_metric_kept_when_only_document_is_rejected(self, mock_context):
@@ -401,15 +402,6 @@ class TestNewerItemTypes:
         assert "models=metric" in mock_context.fetch.call_args.args[0]
         assert result.result.data["results"][0]["id"] == 3
         assert result.result.data["note"] == "Left out item types this Metabase doesn't support: document."
-
-    @pytest.mark.asyncio
-    async def test_metric_dropped_too_when_still_rejected(self, mock_context):
-        mock_context.fetch.side_effect = [self.REJECTED, self.REJECTED, _ok({"data": [], "total": 0})]
-        result = await metabase.execute_action("search", {"models": ["card", "metric", "document"]}, mock_context)
-        url = mock_context.fetch.call_args.args[0]
-        assert "models=card" in url and "metric" not in url
-        assert "metric, document" in result.result.data["note"]
-        assert mock_context.fetch.call_count == 3
 
     @pytest.mark.asyncio
     async def test_accepted_types_sent_once(self, mock_context):

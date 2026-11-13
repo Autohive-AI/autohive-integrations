@@ -124,9 +124,10 @@ class TestCreateDashboard:
         assert call.kwargs["json"] == {"name": "Agent KPIs", "description": "d", "collection_id": 4}
 
     @pytest.mark.asyncio
-    async def test_minimal_body(self, mock_context):
+    @pytest.mark.parametrize("extra", [{}, {"description": ""}])
+    async def test_minimal_body(self, mock_context, extra):
         mock_context.fetch.return_value = _ok({"id": 61, "name": "X"})
-        await metabase.execute_action("create_dashboard", {"name": "X"}, mock_context)
+        await metabase.execute_action("create_dashboard", {"name": "X", **extra}, mock_context)
         assert mock_context.fetch.call_args.kwargs["json"] == {"name": "X"}
 
     @pytest.mark.asyncio
@@ -134,12 +135,6 @@ class TestCreateDashboard:
         mock_context.fetch.return_value = _ok({"id": 62, "name": "X"})
         await metabase.execute_action("create_dashboard", {"name": "X"}, mock_context)
         assert mock_context.fetch.call_args.kwargs["retry_count"] == NO_RETRY
-
-    @pytest.mark.asyncio
-    async def test_empty_description_omitted(self, mock_context):
-        mock_context.fetch.return_value = _ok({"id": 63, "name": "X"})
-        await metabase.execute_action("create_dashboard", {"name": "X", "description": ""}, mock_context)
-        assert mock_context.fetch.call_args.kwargs["json"] == {"name": "X"}
 
     @pytest.mark.asyncio
     async def test_blank_name(self, mock_context):
@@ -435,6 +430,8 @@ class TestAddQuestionToDashboard:
     async def test_put_error(self, mock_context):
         mock_context.fetch.side_effect = [
             _ok(SAMPLE_DASHBOARD),
+            _ok([]),
+            _ok(ADMIN),
             HTTPError(400, "x", {"message": "Card 77 does not exist"}),
         ]
         result = await metabase.execute_action(
@@ -442,6 +439,11 @@ class TestAddQuestionToDashboard:
         )
         assert result.type == ResultType.ACTION_ERROR
         assert "Card 77 does not exist" in result.result.message
+        # The failing call is the PUT, not one of the reads before it.
+        assert mock_context.fetch.call_count == 4
+        failed = mock_context.fetch.call_args
+        assert failed.args[0] == f"{BASE}/api/dashboard/9"
+        assert failed.kwargs["method"] == "PUT"
 
     @pytest.mark.asyncio
     async def test_width_over_grid_rejected(self, mock_context):

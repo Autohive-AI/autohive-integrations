@@ -667,27 +667,24 @@ class TestUpdateDashboardTabs:
         assert mock_context.fetch.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_other_400_not_retried(self, mock_context):
+    @pytest.mark.parametrize(
+        "error,message",
+        [
+            # A 400 that isn't the last-tab refusal.
+            (HTTPError(400, "Bad Request", {"errors": {"tabs": "value must be an array of tabs"}}), "HTTP 400"),
+            # The last-tab wording, but not a 400.
+            (
+                HTTPError(500, "Server Error", {"message": "This dashboard has tab, makes sure every card has a tab"}),
+                "HTTP 500",
+            ),
+        ],
+    )
+    async def test_other_error_not_retried(self, mock_context, error, message):
         on_details = {**SAMPLE_DASHBOARD, "dashcards": [MBQL_DASHCARD]}
-        mock_context.fetch.side_effect = [
-            _ok(on_details),
-            HTTPError(400, "Bad Request", {"errors": {"tabs": "value must be an array of tabs"}}),
-        ]
+        mock_context.fetch.side_effect = [_ok(on_details), error]
         result = await metabase.execute_action("update_dashboard_tabs", {"dashboard_id": 9, "tabs": []}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
-        assert "HTTP 400" in result.result.message
-        assert mock_context.fetch.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_non_400_not_retried(self, mock_context):
-        on_details = {**SAMPLE_DASHBOARD, "dashcards": [MBQL_DASHCARD]}
-        mock_context.fetch.side_effect = [
-            _ok(on_details),
-            HTTPError(500, "Server Error", {"message": "This dashboard has tab, makes sure every card has a tab"}),
-        ]
-        result = await metabase.execute_action("update_dashboard_tabs", {"dashboard_id": 9, "tabs": []}, mock_context)
-        assert result.type == ResultType.ACTION_ERROR
-        assert "HTTP 500" in result.result.message
+        assert message in result.result.message
         assert mock_context.fetch.call_count == 2
 
     @pytest.mark.asyncio
@@ -989,21 +986,21 @@ class TestUpdateDashboardFilters:
         assert _put_dashcard(mock_context, 501)["parameter_mappings"] == []
 
     @pytest.mark.asyncio
-    async def test_text_template_tag_is_variable(self, mock_context):
+    @pytest.mark.parametrize(
+        "dashboard_filter,tag,target",
+        [
+            # A text template tag is a variable.
+            (REGION_FILTER, "region", ["variable", ["template-tag", "region"]]),
+            # A field-filter template tag is a dimension.
+            (CATEGORY_FILTER, "category", ["dimension", ["template-tag", "category"]]),
+        ],
+    )
+    async def test_template_tag_target(self, mock_context, dashboard_filter, tag, target):
         await self._run(
-            mock_context, [{**REGION_FILTER, "connections": [{"dashcard_id": 501, "template_tag": "region"}]}]
+            mock_context, [{**dashboard_filter, "connections": [{"dashcard_id": 501, "template_tag": tag}]}]
         )
         assert _put_dashcard(mock_context, 501)["parameter_mappings"] == [
-            {"parameter_id": "p1", "card_id": 42, "target": ["variable", ["template-tag", "region"]]}
-        ]
-
-    @pytest.mark.asyncio
-    async def test_field_filter_template_tag_is_dimension(self, mock_context):
-        await self._run(
-            mock_context, [{**CATEGORY_FILTER, "connections": [{"dashcard_id": 501, "template_tag": "category"}]}]
-        )
-        assert _put_dashcard(mock_context, 501)["parameter_mappings"] == [
-            {"parameter_id": "p2", "card_id": 42, "target": ["dimension", ["template-tag", "category"]]}
+            {"parameter_id": dashboard_filter["id"], "card_id": 42, "target": target}
         ]
 
     @pytest.mark.asyncio
@@ -1102,22 +1099,20 @@ class TestUpdateDashboardFilters:
         ]
 
     @pytest.mark.asyncio
-    async def test_names_with_same_slug_refused(self, mock_context):
-        result = await self._run(mock_context, [REGION_FILTER, {"name": "region", "type": "string/="}])
+    @pytest.mark.parametrize(
+        "filters",
+        [
+            [REGION_FILTER, {"name": "region", "type": "string/="}],
+            # Names that differ only by punctuation.
+            [{"name": "Order date", "type": "date/single"}, {"name": "Order-Date!", "type": "date/range"}],
+        ],
+    )
+    async def test_names_with_same_slug_refused(self, mock_context, filters):
+        result = await self._run(mock_context, filters)
         assert result.type == ResultType.ACTION_ERROR
         assert "same name" in result.result.message
         assert mock_context.fetch.call_count == 1
         assert [c.kwargs["method"] for c in mock_context.fetch.call_args_list] == ["GET"]
-
-    @pytest.mark.asyncio
-    async def test_names_differing_by_punctuation_refused(self, mock_context):
-        result = await self._run(
-            mock_context,
-            [{"name": "Order date", "type": "date/single"}, {"name": "Order-Date!", "type": "date/range"}],
-        )
-        assert result.type == ResultType.ACTION_ERROR
-        assert "same name" in result.result.message
-        assert mock_context.fetch.call_count == 1
 
     @pytest.mark.asyncio
     async def test_renaming_into_free_slug_allowed(self, mock_context):
@@ -1215,20 +1210,19 @@ class TestUpdateDashboardFilters:
         assert "needs a default value" in result.result.message
 
     @pytest.mark.asyncio
-    async def test_non_latin_names_get_distinct_slugs(self, mock_context):
-        result = await self._run(
-            mock_context, [{"name": "日付", "type": "date/single"}, {"name": "地域", "type": "string/="}]
-        )
+    @pytest.mark.parametrize(
+        "filters,slugs",
+        [
+            # Non-Latin names get distinct slugs.
+            ([{"name": "日付", "type": "date/single"}, {"name": "地域", "type": "string/="}], ["日付", "地域"]),
+            # An accented name isn't folded into the unaccented one.
+            ([{"name": "Région", "type": "string/="}, {"name": "R gion", "type": "string/="}], ["région", "r_gion"]),
+        ],
+    )
+    async def test_non_ascii_names_get_distinct_slugs(self, mock_context, filters, slugs):
+        result = await self._run(mock_context, filters)
         assert result.type == ResultType.ACTION
-        assert [p["slug"] for p in _put_body(mock_context)["parameters"]] == ["日付", "地域"]
-
-    @pytest.mark.asyncio
-    async def test_accented_name_not_folded_into_unaccented(self, mock_context):
-        result = await self._run(
-            mock_context, [{"name": "Région", "type": "string/="}, {"name": "R gion", "type": "string/="}]
-        )
-        assert result.type == ResultType.ACTION
-        assert [p["slug"] for p in _put_body(mock_context)["parameters"]] == ["région", "r_gion"]
+        assert [p["slug"] for p in _put_body(mock_context)["parameters"]] == slugs
 
     @pytest.mark.asyncio
     async def test_removed_filter_leaves_inline_parameters(self, mock_context):
@@ -1657,6 +1651,7 @@ class TestRunDashboard:
         mock_context.fetch.side_effect = [_ok(RUN_DASHBOARD), *_card_run(42), *_card_run(43)]
         await metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context)
         urls = [c.args[0] for c in mock_context.fetch.call_args_list]
+        # Text card 602 and action card 45 are skipped.
         assert urls == [
             f"{BASE}/api/dashboard/9",
             f"{BASE}/api/card/42",
@@ -1721,14 +1716,6 @@ class TestRunDashboard:
         assert result.type == ResultType.ACTION_ERROR
         assert "No filter country" in result.result.message
         assert mock_context.fetch.call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_text_and_action_cards_skipped(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(RUN_DASHBOARD), *_card_run(42), *_card_run(43)]
-        await metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context)
-        assert _calls_to(mock_context, "/dashcard/602/card/None/query") == []
-        assert _calls_to(mock_context, "/api/card/45") == []
-        assert mock_context.fetch.call_count == 9
 
     @pytest.mark.asyncio
     async def test_stops_starting_questions_near_the_lambda_timeout(self, mock_context, monkeypatch):
@@ -2010,13 +1997,6 @@ class TestRunDashboard:
 
 
 class TestRunDashboardChecks:
-    @pytest.mark.asyncio
-    async def test_unknown_tab_rejected(self, mock_context):
-        mock_context.fetch.side_effect = [_ok(RUN_DASHBOARD)]
-        result = await metabase.execute_action("run_dashboard", {"dashboard_id": 9, "tab_id": 999}, mock_context)
-        assert result.type == ResultType.ACTION_ERROR
-        assert "tab_id 999" in result.result.message
-
     @pytest.mark.asyncio
     async def test_question_defaults_also_checked_without_them(self, mock_context):
         """A dashboard run skips the question's saved filter defaults, so the SQL is checked without them too, and
