@@ -334,6 +334,26 @@ class TestFollowersAndAnalytics:
             mock_context.fetch.call_args.args[0]
         )
 
+    async def test_organization_follower_statistics_start_only(self, mock_context):
+        mock_context.fetch.return_value = response({"elements": [], "paging": {}})
+        await linkedin_community_management.execute_action(
+            "get_organization_follower_statistics",
+            {"organization": "42", "start_ms": 1000, "granularity": "DAY"},
+            mock_context,
+        )
+        assert "timeIntervals=(timeRange:(start:1000),timeGranularityType:DAY)" in str(
+            mock_context.fetch.call_args.args[0]
+        )
+
+    async def test_organization_follower_statistics_rejects_end_only(self, mock_context):
+        result = await linkedin_community_management.execute_action(
+            "get_organization_follower_statistics",
+            {"organization": "42", "end_ms": 2000},
+            mock_context,
+        )
+        assert result.result.message == "start_ms is required when end_ms is provided for follower statistics"
+        mock_context.fetch.assert_not_awaited()
+
     async def test_organization_post_statistics_specific_share(self, mock_context):
         mock_context.fetch.return_value = response({"elements": [{"totalShareStatistics": {}}], "paging": {}})
         await linkedin_community_management.execute_action(
@@ -342,6 +362,28 @@ class TestFollowersAndAnalytics:
             mock_context,
         )
         assert "shares=List(urn%3Ali%3Ashare%3A1)" in str(mock_context.fetch.call_args.args[0])
+
+    async def test_organization_post_statistics_start_only(self, mock_context):
+        mock_context.fetch.return_value = response({"elements": [], "paging": {}})
+        await linkedin_community_management.execute_action(
+            "get_organization_post_statistics",
+            {"organization": "42", "start_ms": 1000, "granularity": "DAY"},
+            mock_context,
+        )
+        assert "timeIntervals=(timeRange:(start:1000),timeGranularityType:DAY)" in str(
+            mock_context.fetch.call_args.args[0]
+        )
+
+    async def test_organization_post_statistics_end_only(self, mock_context):
+        mock_context.fetch.return_value = response({"elements": [], "paging": {}})
+        await linkedin_community_management.execute_action(
+            "get_organization_post_statistics",
+            {"organization": "42", "end_ms": 2000, "granularity": "MONTH"},
+            mock_context,
+        )
+        assert "timeIntervals=(timeRange:(end:2000),timeGranularityType:MONTH)" in str(
+            mock_context.fetch.call_args.args[0]
+        )
 
     async def test_member_post_analytics_for_post(self, mock_context):
         mock_context.fetch.return_value = response({"elements": [{"count": 10}], "paging": {}})

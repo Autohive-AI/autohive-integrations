@@ -269,7 +269,7 @@
                 "properties": {
                     "organization": {"type": "string", "description": "Organization ID or URN."},
                     "start_ms": {"type": "integer", "minimum": 0, "description": "Inclusive start timestamp in milliseconds."},
-                    "end_ms": {"type": "integer", "minimum": 0, "description": "Exclusive end timestamp in milliseconds."},
+                    "end_ms": {"type": "integer", "minimum": 0, "description": "Optional exclusive end timestamp in milliseconds; requires start_ms."},
                     "granularity": {"type": "string", "enum": ["DAY", "WEEK", "MONTH"], "default": "DAY", "description": "Time interval granularity."}
                 },
                 "required": ["organization"]

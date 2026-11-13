@@ -75,8 +75,14 @@ def restli_date_range(start: dict[str, int] | None, end: dict[str, int] | None) 
     return f"({','.join(parts)})"
 
 
-def restli_time_intervals(start_ms: int, end_ms: int, granularity: str) -> str:
-    return f"(timeRange:(start:{start_ms},end:{end_ms}),timeGranularityType:{granularity})"
+def restli_time_intervals(start_ms: int | None, end_ms: int | None, granularity: str) -> str:
+    """Build a Rest.li time interval from whichever bounds were supplied."""
+    bounds = []
+    if start_ms is not None:
+        bounds.append(f"start:{start_ms}")
+    if end_ms is not None:
+        bounds.append(f"end:{end_ms}")
+    return f"(timeRange:({','.join(bounds)}),timeGranularityType:{granularity})"
 
 
 def api_error(operation: str, response: Any) -> ActionError | None:
@@ -477,10 +483,12 @@ class GetOrganizationFollowerStatisticsAction(ActionHandler):
             "q": "organizationalEntity",
             "organizationalEntity": encode_urn(actor_urn(inputs["organization"], "ORGANIZATION")),
         }
-        if inputs.get("start_ms") is not None and inputs.get("end_ms") is not None:
-            params["timeIntervals"] = restli_time_intervals(
-                inputs["start_ms"], inputs["end_ms"], inputs.get("granularity", "DAY")
-            )
+        start_ms = inputs.get("start_ms")
+        end_ms = inputs.get("end_ms")
+        if start_ms is not None:
+            params["timeIntervals"] = restli_time_intervals(start_ms, end_ms, inputs.get("granularity", "DAY"))
+        elif end_ms is not None:
+            return ActionError(message="start_ms is required when end_ms is provided for follower statistics")
         response = await context.fetch(
             restli_query_url("/rest/organizationalEntityFollowerStatistics", params),
             method="GET",
@@ -508,9 +516,9 @@ class GetOrganizationPostStatisticsAction(ActionHandler):
         if inputs.get("post_urn"):
             key = "ugcPosts" if ":ugcPost:" in inputs["post_urn"] else "shares"
             params[key] = f"List({encode_urn(inputs['post_urn'])})"
-        elif inputs.get("start_ms") is not None and inputs.get("end_ms") is not None:
+        elif inputs.get("start_ms") is not None or inputs.get("end_ms") is not None:
             params["timeIntervals"] = restli_time_intervals(
-                inputs["start_ms"], inputs["end_ms"], inputs.get("granularity", "DAY")
+                inputs.get("start_ms"), inputs.get("end_ms"), inputs.get("granularity", "DAY")
             )
         response = await context.fetch(
             restli_query_url("/rest/organizationalEntityShareStatistics", params),
