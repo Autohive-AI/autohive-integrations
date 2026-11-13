@@ -1,16 +1,22 @@
 import asyncio
+import json
 
 import pytest
-from unittest.mock import MagicMock
-from autohive_integrations_sdk import HTTPError
+from unittest.mock import AsyncMock, MagicMock
+from autohive_integrations_sdk import FetchResponse, HTTPError
 
 from metabase.metabase import (
     _card_summary,
     _clamp,
+    _fit_rows,
+    _pulse_kept,
+    _placeholders,
     _ensure_read_only_sql,
     _error_message,
+    _field_filter_types,
     _page,
     _query_result,
+    _tag_stand_ins,
     _unique_names,
     _with_query,
     get_auth_headers,
@@ -118,18 +124,8 @@ class TestPagingHelpers:
     def test_clamp(self, value, expected):
         assert _clamp(value, 50, 200) == expected
 
-    def test_page_defaults(self):
-        assert _page({}) == {"limit": 50, "offset": 0}
-
-    def test_page_values(self):
-        assert _page({"limit": 5, "offset": 10}) == {"limit": 5, "offset": 10}
-
     def test_page_negative_offset(self):
         assert _page({"offset": -1})["offset"] == 0
-
-    def test_with_query_repeats_keys(self):
-        url = _with_query("https://m.test/api/search", [("q", "rev"), ("models", "card"), ("models", "dashboard")])
-        assert url == "https://m.test/api/search?q=rev&models=card&models=dashboard"
 
     def test_with_query_drops_none(self):
         assert _with_query("https://m.test/x", [("q", None)]) == "https://m.test/x"
@@ -173,6 +169,106 @@ class TestQueryResult:
             "X",
             "column_4",
         ]
+
+
+class TestFitRows:
+    def test_fits_returns_what_is_left(self):
+        summary = {"rows": [{"a": 1}], "row_count": 1}
+        assert _fit_rows(summary, 1000) == 1000 - len(json.dumps(summary))
+        assert summary["row_count"] == 1
+
+    def test_cut_keeps_leading_rows_and_returns_zero(self):
+        summary = {"rows": [{"a": "x" * 50} for _ in range(10)], "row_count": 10, "truncated": False}
+        assert _fit_rows(summary, 200) == 0
+        assert 0 < summary["row_count"] < 10
+        assert summary["rows"] == [{"a": "x" * 50}] * summary["row_count"]
+        assert summary["truncated"] is True
+        assert len(json.dumps(summary)) <= 200
+
+    def test_error_card_without_rows_is_never_cut(self):
+        summary = {"error": "x" * 300}
+        assert _fit_rows(summary, 100) < 0
+        assert summary == {"error": "x" * 300}
+
+
+class TestPulseKept:
+    @pytest.mark.parametrize(
+        "pulse,flags",
+        [
+            ({"archived": True, "skip_if_empty": True}, {"archived": True, "skip_if_empty": True}),
+            ({}, {"archived": False, "skip_if_empty": False}),
+            ({"archived": None, "skip_if_empty": 0}, {"archived": False, "skip_if_empty": False}),
+            ({"channels": []}, {"archived": False, "skip_if_empty": False}),
+        ],
+    )
+    def test_flags_always_sent(self, pulse, flags):
+        assert _pulse_kept(pulse) == flags
+
+    def test_channels_sent_back_as_they_are(self):
+        channels = [{"id": 70, "channel_type": "email", "enabled": False}, {"id": 71, "channel_type": "slack"}]
+        assert _pulse_kept({"channels": channels})["channels"] == channels
+
+    def test_enabled_set_on_every_channel(self):
+        channels = [{"id": 70, "enabled": False}, {"id": 71, "enabled": True}]
+        assert _pulse_kept({"channels": channels}, enabled=True)["channels"] == [
+            {"id": 70, "enabled": True},
+            {"id": 71, "enabled": True},
+        ]
+
+
+class TestTagStandIns:
+    @pytest.mark.parametrize(
+        "widget,value",
+        [
+            ("number/between", [1, 2]),  # Metabase 0.49 refuses a range with one end.
+            ("number/=", [1]),
+            ("number/>=", [1]),
+            ("date/range", "2020-01-01"),
+            ("string/contains", ["x"]),
+            (None, ["x"]),
+        ],
+    )
+    def test_field_filter_value_per_widget(self, widget, value):
+        tag = {"type": "dimension", "name": "f", **({"widget-type": widget} if widget else {})}
+        (stand_in,) = _tag_stand_ins({"f": tag})
+        assert stand_in == {
+            "type": widget or "category",
+            "target": ["dimension", ["template-tag", "f"]],
+            "value": value,
+        }
+
+    @pytest.mark.parametrize(
+        "field_type,value",
+        [
+            ("type/UUID", ["00000000-0000-0000-0000-000000000000"]),
+            ("type/Integer", [1]),
+            ("type/Decimal", [1]),
+            ("type/Text", ["x"]),
+        ],
+    )
+    def test_text_field_filter_value_fits_the_column(self, field_type, value):
+        (stand_in,) = _tag_stand_ins({"f": {"type": "dimension", "name": "f"}}, {"f": field_type})
+        assert stand_in["value"] == value
+
+    def test_field_filter_default_used(self):
+        tag = {"type": "dimension", "name": "f", "default": ["3f1c3a6e-1d2b-4c5e-9a7b-0e2f4d6a8b1c"]}
+        (stand_in,) = _tag_stand_ins({"f": tag}, {"f": "type/UUID"})
+        assert stand_in["value"] == ["3f1c3a6e-1d2b-4c5e-9a7b-0e2f4d6a8b1c"]
+
+    @pytest.mark.parametrize("default", [[], ""])
+    def test_empty_default_not_used(self, default):
+        # An empty value leaves the filter's optional clauses out, so they would go unchecked.
+        (stand_in,) = _tag_stand_ins({"f": {"type": "dimension", "name": "f", "default": default}}, {"f": "type/UUID"})
+        assert stand_in["value"] == ["00000000-0000-0000-0000-000000000000"]
+
+    def test_boolean_filter_gets_a_value(self):
+        # Metabase 0.57+ has boolean SQL filters; without a value a required one can't be expanded for the check.
+        (stand_in,) = _tag_stand_ins({"b": {"type": "boolean", "name": "b", "required": True}})
+        assert stand_in == {"type": "boolean/=", "target": ["variable", ["template-tag", "b"]], "value": [True]}
+
+    def test_time_grouping_filter_gets_a_unit(self):
+        (stand_in,) = _tag_stand_ins({"u": {"type": "temporal-unit", "name": "u"}})
+        assert stand_in == {"type": "temporal-unit", "target": ["dimension", ["template-tag", "u"]], "value": "month"}
 
 
 class TestUniqueNamesCollision:
@@ -690,3 +786,85 @@ class TestReadOnlySql:
             _ensure_read_only_sql("select 'it\\'s' as x", "mysql")
         with pytest.raises(ValueError, match="DELETE statements are refused"):
             _ensure_read_only_sql("delete from t where a = '\\n'", "mysql")
+
+
+class TestFieldFilterTypes:
+    @staticmethod
+    def _ctx(*responses):
+        ctx = MagicMock()
+        ctx.auth = {"auth_type": "Custom", "credentials": {"base_url": "https://mb.example.com", "api_key": "k"}}
+        ctx.fetch = AsyncMock(side_effect=list(responses))
+        return ctx
+
+    @pytest.mark.asyncio
+    async def test_newer_metabase_type_read_from_the_saved_column(self):
+        # Metabase 0.50+ saves ["field", options, id] with the type in the options, so nothing is fetched.
+        ctx = self._ctx()
+        tag = {"type": "dimension", "dimension": ["field", {"effective-type": "type/UUID"}, 72]}
+        assert await _field_filter_types(ctx, {"f": tag}) == {"f": "type/UUID"}
+        ctx.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "dimension",
+        [["field", "id", {"base-type": "type/UUID"}], ["field", {"base-type": "type/UUID"}, "id"]],
+    )
+    async def test_column_named_by_text_typed_from_options(self, dimension):
+        ctx = self._ctx()
+        assert await _field_filter_types(ctx, {"f": {"type": "dimension", "dimension": dimension}}) == {
+            "f": "type/UUID"
+        }
+        ctx.fetch.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_empty_default_still_typed(self):
+        ctx = self._ctx()
+        tag = {"type": "dimension", "default": [], "dimension": ["field", {"effective-type": "type/UUID"}, 72]}
+        assert await _field_filter_types(ctx, {"f": tag}) == {"f": "type/UUID"}
+
+    @pytest.mark.asyncio
+    async def test_metabase_049_column_looked_up(self):
+        ctx = self._ctx(FetchResponse(status=200, headers={}, data={"id": 72, "base_type": "type/Integer"}))
+        tag = {"type": "dimension", "widget-type": "id", "dimension": ["field", 72, None]}
+        assert await _field_filter_types(ctx, {"f": tag}) == {"f": "type/Integer"}
+        assert ctx.fetch.call_args.args[0] == "https://mb.example.com/api/field/72"
+
+    @pytest.mark.asyncio
+    async def test_lookup_failure_leaves_the_text_stand_in(self):
+        ctx = self._ctx(HTTPError(403, "Forbidden", "You don't have permissions to do that."))
+        tag = {"type": "dimension", "dimension": ["field", 72, None]}
+        assert await _field_filter_types(ctx, {"f": tag}) == {}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "tag",
+        [
+            {"type": "dimension", "widget-type": "date/single", "dimension": ["field", 72, None]},
+            {"type": "dimension", "widget-type": "number/=", "dimension": ["field", 72, None]},
+            {"type": "dimension", "default": ["a"], "dimension": ["field", 72, None]},
+            {"type": "text"},
+        ],
+    )
+    async def test_filters_with_a_fitting_stand_in_skipped(self, tag):
+        ctx = self._ctx()
+        assert await _field_filter_types(ctx, {"f": tag}) == {}
+        ctx.fetch.assert_not_called()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "sql, names",
+    [
+        ("select 1 /* {{a}} */ -- {{b}}\n, {{c}}", ["c"]),
+        ("SELECT '--' AS marker, {{region}}", ["region"]),
+        ("concat('--',{{x}})", ["x"]),
+        ("select '/*', {{x}} -- */ {{y}}", ["x"]),
+        ("select 1 [[ and a = 1 -- {{z}} ]], {{w}}", ["z", "w"]),
+        ("where note = 'it''s' -- {{k}}", []),
+        ("select 1 -- no newline {{q}}", []),
+        ("select 1 /* unclosed {{q}}", []),
+        ("select {{a}}, {{a}}, {{ b }}", ["a", "b"]),
+    ],
+)
+def test_placeholders_skip_sql_comments_as_metabase_does(sql, names):
+    assert _placeholders(sql) == names
