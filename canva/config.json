@@ -1,7 +1,7 @@
 {
     "name": "canva",
     "display_name": "Canva",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Canva integration for managing assets, designs, and folders",
     "entry_point": "canva.py",
     "supports_connected_account": true,

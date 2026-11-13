@@ -1,7 +1,7 @@
 {
     "name": "LinkedIn Ads",
     "display_name": "LinkedIn Ads",
-    "version": "2.1.0",
+    "version": "2.1.1",
     "description": "Integration with LinkedIn Marketing API for managing ad accounts, campaigns, creatives, and analytics.",
     "entry_point": "linkedin_ads.py",
     "auth": {

@@ -1,7 +1,7 @@
 {
   "name": "HubSpot",
   "display_name": "HubSpot CRM",
-  "version": "4.0.0",
+  "version": "4.1.1",
   "description": "HubSpot CRM integration for managing contacts, companies, deals, and support tickets with advanced pipeline analytics and UTC date handling",
   "entry_point": "hubspot.py",
   "auth": {
@@ -32,6 +32,138 @@
     ]
   },
   "actions": {
+    "create_call": {
+      "display_name": "Create Call",
+      "description": "Log a call activity in HubSpot CRM. Optionally link it to a contact.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Call title.",
+            "minLength": 1
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "Time of the call. UTC ISO 8601 or Unix milliseconds as a string. Defaults to now."
+          },
+          "body": {
+            "type": "string",
+            "description": "Call notes."
+          },
+          "duration_ms": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Call duration in milliseconds."
+          },
+          "owner_id": {
+            "type": "string",
+            "description": "HubSpot owner ID.",
+            "pattern": "^[0-9]+$"
+          },
+          "contact_id": {
+            "type": "string",
+            "description": "HubSpot contact ID to associate with the call.",
+            "pattern": "^[0-9]+$"
+          }
+        },
+        "required": [
+          "title"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "call": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        },
+        "required": [
+          "call"
+        ]
+      }
+    },
+    "update_meeting": {
+      "display_name": "Update Meeting",
+      "description": "Update fields on an existing HubSpot CRM meeting activity.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "meeting_id": {
+            "type": "string",
+            "description": "HubSpot CRM meeting record ID.",
+            "pattern": "^[0-9]+$"
+          },
+          "title": {
+            "type": "string",
+            "description": "Meeting title."
+          },
+          "body": {
+            "type": "string",
+            "description": "Meeting description."
+          },
+          "internal_notes": {
+            "type": "string",
+            "description": "Internal meeting notes."
+          },
+          "location": {
+            "type": "string",
+            "description": "Meeting location."
+          },
+          "start_time": {
+            "type": "string",
+            "description": "Meeting start time. UTC ISO 8601 or Unix milliseconds as a string.",
+            "minLength": 1
+          },
+          "end_time": {
+            "type": "string",
+            "description": "Meeting end time. UTC ISO 8601 or Unix milliseconds as a string.",
+            "minLength": 1
+          },
+          "outcome": {
+            "type": "string",
+            "description": "Meeting outcome.",
+            "enum": [
+              "SCHEDULED",
+              "COMPLETED",
+              "RESCHEDULED",
+              "NO_SHOW",
+              "CANCELED"
+            ]
+          }
+        },
+        "required": [
+          "meeting_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "meeting": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        },
+        "required": [
+          "meeting"
+        ]
+      }
+    },
     "get_contact": {
       "display_name": "Get Contact",
       "description": "Retrieve a HubSpot contact by ID or email address. Supports custom properties. Use the ID for contacts linked to tasks, deals or companies",
@@ -2672,7 +2804,7 @@
     },
     "search_companies_by_owner_name": {
       "display_name": "Search Companies by Owner Name",
-      "description": "Search companies by owner ID, email or name. Reuse the returned owner.id on subsequent pages to avoid scanning owners again.",
+      "description": "Search companies by owner ID, email or name. Provide at least one of these identifiers. Reuse the returned owner.id on subsequent pages to avoid scanning owners again.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -2709,23 +2841,7 @@
             "description": "Exact owner email, filtered by HubSpot. Takes precedence over owner_name."
           }
         },
-        "anyOf": [
-          {
-            "required": [
-              "owner_id"
-            ]
-          },
-          {
-            "required": [
-              "owner_email"
-            ]
-          },
-          {
-            "required": [
-              "owner_name"
-            ]
-          }
-        ]
+        "required": []
       },
       "output_schema": {
         "type": "object",

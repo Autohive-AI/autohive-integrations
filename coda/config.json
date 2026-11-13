@@ -1,6 +1,6 @@
 {
   "name": "coda",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Coda integration for managing documents, pages, tables, and rows",
   "entry_point": "coda.py",
   "auth": {

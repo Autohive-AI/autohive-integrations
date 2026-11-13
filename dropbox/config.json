@@ -1,7 +1,7 @@
 {
     "name": "Dropbox",
     "display_name": "Dropbox",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Dropbox integration for reading and modifying files, folders, and account information",
     "entry_point": "dropbox.py",
     "auth": {

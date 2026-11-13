@@ -1,7 +1,7 @@
 {
   "name": "Google Forms",
   "display_name": "Google Forms",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "entry_point": "google_forms.py",
   "description": "Create and manage Google Forms, add questions, and read responses.",
   "auth": {

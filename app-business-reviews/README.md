@@ -169,53 +169,54 @@ If you're migrating from the standalone integrations (`appstore_reviews`, `googl
 ### Example 1: Get iOS App Reviews
 ```python
 # Search for the app
-search_result = await serpapi.execute_action("search_apps_ios", {
-    "term": "WhatsApp",
-    "country": "us"
-}, context)
+search_result = await serpapi.execute_action("search_apps_ios", {"term": "WhatsApp", "country": "us"}, context)
 
 # Get reviews using app ID
-reviews_result = await serpapi.execute_action("get_reviews_app_store", {
-    "product_id": "310633997",
-    "country": "us",
-    "sort": "mostrecent",
-    "max_pages": 5
-}, context)
+reviews_result = await serpapi.execute_action(
+    "get_reviews_app_store", {"product_id": "310633997", "country": "us", "sort": "mostrecent", "max_pages": 5}, context
+)
 ```
 
 ### Example 2: Get Android App Reviews by Name
 ```python
 # Automatically resolves app ID from name
-reviews_result = await serpapi.execute_action("get_reviews_google_play", {
-    "app_name": "WhatsApp",
-    "rating": 5,
-    "sort_by": 2,  # Newest first
-    "max_pages": 3
-}, context)
+reviews_result = await serpapi.execute_action(
+    "get_reviews_google_play",
+    {
+        "app_name": "WhatsApp",
+        "rating": 5,
+        "sort_by": 2,  # Newest first
+        "max_pages": 3,
+    },
+    context,
+)
 ```
 
 ### Example 3: Get Google Maps Reviews by Business Name
 ```python
 # Automatically resolves place ID from query
 # IMPORTANT: Use simple business name only, not full address
-reviews_result = await serpapi.execute_action("get_reviews_google_maps", {
-    "query": "Starbucks Reserve Roastery",  # Just business name
-    "location": "Seattle, WA",  # City and state/country
-    "sort_by": "newestFirst",
-    "num_reviews": 20,
-    "max_pages": 5
-}, context)
+reviews_result = await serpapi.execute_action(
+    "get_reviews_google_maps",
+    {
+        "query": "Starbucks Reserve Roastery",  # Just business name
+        "location": "Seattle, WA",  # City and state/country
+        "sort_by": "newestFirst",
+        "num_reviews": 20,
+        "max_pages": 5,
+    },
+    context,
+)
 ```
 
 ### Example 4: Get Google Maps Reviews by Place ID (Recommended)
 ```python
 # Most reliable method - use place_id directly
-reviews_result = await serpapi.execute_action("get_reviews_google_maps", {
-    "place_id": "ChIJdwFEqNmvOG0RDdhA0UWZgiw",
-    "sort_by": "newestFirst",
-    "num_reviews": 10,
-    "max_pages": 3
-}, context)
+reviews_result = await serpapi.execute_action(
+    "get_reviews_google_maps",
+    {"place_id": "ChIJdwFEqNmvOG0RDdhA0UWZgiw", "sort_by": "newestFirst", "num_reviews": 10, "max_pages": 3},
+    context,
+)
 ```
 
 ## Best Practices
@@ -238,24 +239,17 @@ reviews_result = await serpapi.execute_action("get_reviews_google_maps", {
 
 ❌ BAD:
 ```python
-{
-    "query": "Yor Yak Thai Eatery on Cuba Street at Te Aro, Wellington"
-}
+{"query": "Yor Yak Thai Eatery on Cuba Street at Te Aro, Wellington"}
 ```
 
 ✅ GOOD:
 ```python
-{
-    "query": "Yor Yak Thai Eatery",
-    "location": "Wellington, New Zealand"
-}
+{"query": "Yor Yak Thai Eatery", "location": "Wellington, New Zealand"}
 ```
 
 ✅ BEST:
 ```python
-{
-    "place_id": "ChIJdwFEqNmvOG0RDdhA0UWZgiw"
-}
+{"place_id": "ChIJdwFEqNmvOG0RDdhA0UWZgiw"}
 ```
 
 ## Error Handling

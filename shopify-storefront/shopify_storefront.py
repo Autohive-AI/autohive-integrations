@@ -7,15 +7,18 @@ Provides access to Shopify's Storefront API for customer-facing operations.
 Supported Operations:
 - Products: list, get, search
 - Collections: list, get
-- Cart: create, get, add items, update, remove items, apply discount
-- Customer: create, login, get profile, update, recover password
+- Cart: create, get, add items, update, remove items, apply discount, buyer identity,
+  note, attributes, gift cards
+- Customer: create, login, logout, renew token, get profile, update, recover password
+- Content: shop policies, pages, articles, menus
+- Discovery: product recommendations, predictive search
 
 Authentication:
 - Public Access Token: X-Shopify-Storefront-Access-Token
 - Private Access Token: Shopify-Storefront-Private-Token
 
 Protocol: GraphQL only
-API Version: 2024-10
+API Version: 2026-10
 """
 
 from autohive_integrations_sdk import (
@@ -23,6 +26,7 @@ from autohive_integrations_sdk import (
     ExecutionContext,
     ActionHandler,
     ActionResult,
+    ActionError,
 )
 from typing import Dict, Any, List
 
@@ -31,7 +35,7 @@ from typing import Dict, Any, List
 shopify_storefront = Integration.load()
 
 # Shopify API version
-API_VERSION = "2024-10"
+API_VERSION = "2026-10"
 
 
 # ============================================================================
@@ -70,31 +74,27 @@ def get_storefront_url(context: ExecutionContext) -> str:
 
 
 def build_headers(context: ExecutionContext) -> Dict[str, str]:
-    """Build headers for Storefront API requests."""
+    """Build headers for Storefront API requests, preferring the private token when one is set."""
     credentials = context.auth.get("credentials", {})
-    auth_type = context.auth.get("auth_type", "StorefrontPublic")
 
     headers = {"Content-Type": "application/json"}
 
-    if auth_type == "StorefrontPrivate":
-        private_token = credentials.get("private_token")
-        if not private_token:
-            raise ValueError("Missing required credential: private_token for StorefrontPrivate auth")
+    private_token = credentials.get("private_token")
+    public_token = credentials.get("public_token")
+    if private_token:
         headers["Shopify-Storefront-Private-Token"] = private_token
         if credentials.get("buyer_ip"):
             headers["Shopify-Storefront-Buyer-IP"] = credentials["buyer_ip"]
-    else:
-        public_token = credentials.get("public_token")
-        if not public_token:
-            raise ValueError("Missing required credential: public_token")
+    elif public_token:
         headers["X-Shopify-Storefront-Access-Token"] = public_token
+    else:
+        raise ValueError("Missing required credential: public_token or private_token")
 
     return headers
 
 
-def require_input(inputs: Dict[str, Any], key: str) -> Any:
-    """Validate that a required input is present and non-empty."""
-    value = inputs.get(key)
+def require_input(value: Any, key: str) -> Any:
+    """Validate that a required input value is present and non-empty."""
     if value is None or value == "":
         raise ValueError(f"Missing required parameter: {key}")
     return value
@@ -108,19 +108,19 @@ def require_one_of(inputs: Dict[str, Any], *keys: str) -> None:
     raise ValueError(f"At least one of these parameters is required: {', '.join(keys)}")
 
 
-def parse_graphql_response(response: Dict[str, Any]) -> tuple:
+def parse_graphql_response(gql_result: Dict[str, Any]) -> tuple:
     """Parse GraphQL response and extract errors."""
     errors = []
 
-    if not isinstance(response, dict):
+    if not isinstance(gql_result, dict):
         return None, ["Invalid response type from API"]
 
-    for err in response.get("errors", []) or []:
+    for err in gql_result.get("errors", []) or []:
         msg = err.get("message", "GraphQL error")
         code = (err.get("extensions") or {}).get("code")
         errors.append(f"{code}: {msg}" if code else msg)
 
-    return response.get("data"), errors
+    return gql_result.get("data"), errors
 
 
 def extract_user_errors(data: Dict[str, Any], mutation_key: str, error_key: str = "userErrors") -> List[str]:
@@ -130,6 +130,22 @@ def extract_user_errors(data: Dict[str, Any], mutation_key: str, error_key: str 
     mutation_data = data.get(mutation_key, {}) or {}
     user_errors = mutation_data.get(error_key, []) or []
     return [err.get("message", "Unknown error") for err in user_errors if err.get("message")]
+
+
+def extract_warnings(data: Dict[str, Any], mutation_key: str) -> List[Dict[str, Any]]:
+    """Extract cart warnings, e.g. a quantity Shopify lowered because of stock."""
+    if not data:
+        return []
+    return (data.get(mutation_key) or {}).get("warnings") or []
+
+
+def cart_success_response(data: Dict[str, Any], mutation_key: str) -> ActionResult:
+    """Build a cart mutation success response, including any warnings Shopify returned."""
+    payload = (data or {}).get(mutation_key) or {}
+    warnings = extract_warnings(data, mutation_key)
+    if warnings:
+        return success_response(cart=payload.get("cart"), warnings=warnings)
+    return success_response(cart=payload.get("cart"))
 
 
 async def execute_graphql(context: ExecutionContext, query: str, variables: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -142,7 +158,7 @@ async def execute_graphql(context: ExecutionContext, query: str, variables: Dict
         payload["variables"] = variables
 
     response = await context.fetch(url, method="POST", json=payload, headers=headers)
-    return response
+    return response.data
 
 
 def success_response(**kwargs) -> ActionResult:
@@ -150,13 +166,20 @@ def success_response(**kwargs) -> ActionResult:
     return ActionResult(data={"success": True, **kwargs}, cost_usd=0)
 
 
-def error_response(message: str, **kwargs) -> ActionResult:
+def error_response(message: Any) -> ActionError:
     """Build standardized error response."""
     if isinstance(message, list):
         message = "; ".join(message) if message else "Unknown error"
-    data = {"success": False, "message": str(message)}
-    data.update(kwargs)
-    return ActionResult(data=data, cost_usd=0)
+    return ActionError(message=str(message))
+
+
+def lookup_query(query: str, use_id: bool) -> str:
+    """Keep only the id or handle lookup argument; Shopify rejects both, even when one is null."""
+    if use_id:
+        return query.replace("$handle: String, $id: ID", "$id: ID").replace("handle: $handle, id: $id", "id: $id")
+    return query.replace("$handle: String, $id: ID", "$handle: String").replace(
+        "handle: $handle, id: $id", "handle: $handle"
+    )
 
 
 def extract_edges(data: Dict, path: str) -> List[Dict]:
@@ -358,6 +381,7 @@ mutation CartCreate($input: CartInput!) {
       }
     }
     userErrors { field message code }
+    warnings { code message target }
   }
 }
 """
@@ -391,6 +415,10 @@ query GetCart($cartId: ID!) {
       totalTaxAmount { amount currencyCode }
     }
     discountCodes { code applicable }
+    note
+    attributes { key value }
+    buyerIdentity { email phone countryCode }
+    appliedGiftCards { id lastCharacters amountUsed { amount currencyCode } balance { amount currencyCode } }
   }
 }
 """
@@ -415,6 +443,7 @@ mutation CartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
       cost { totalAmount { amount currencyCode } }
     }
     userErrors { field message code }
+    warnings { code message target }
   }
 }
 """
@@ -433,6 +462,7 @@ mutation CartLinesUpdate($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
       cost { totalAmount { amount currencyCode } }
     }
     userErrors { field message code }
+    warnings { code message target }
   }
 }
 """
@@ -551,6 +581,235 @@ mutation CustomerUpdate($customerAccessToken: String!, $customer: CustomerUpdate
 }
 """
 
+CART_DETAILS = """
+    cart {
+      id
+      checkoutUrl
+      totalQuantity
+      note
+      attributes { key value }
+      buyerIdentity { email phone countryCode }
+      discountCodes { code applicable }
+      appliedGiftCards { id lastCharacters amountUsed { amount currencyCode } balance { amount currencyCode } }
+      cost {
+        totalAmount { amount currencyCode }
+        subtotalAmount { amount currencyCode }
+        totalTaxAmount { amount currencyCode }
+      }
+    }
+    userErrors { field message code }
+    warnings { code message target }
+"""
+
+MUTATION_UPDATE_BUYER_IDENTITY = (
+    """
+mutation CartBuyerIdentityUpdate($cartId: ID!, $buyerIdentity: CartBuyerIdentityInput!) {
+  cartBuyerIdentityUpdate(cartId: $cartId, buyerIdentity: $buyerIdentity) {"""
+    + CART_DETAILS
+    + """  }
+}
+"""
+)
+
+MUTATION_UPDATE_CART_NOTE = (
+    """
+mutation CartNoteUpdate($cartId: ID!, $note: String!) {
+  cartNoteUpdate(cartId: $cartId, note: $note) {"""
+    + CART_DETAILS
+    + """  }
+}
+"""
+)
+
+MUTATION_UPDATE_CART_ATTRIBUTES = (
+    """
+mutation CartAttributesUpdate($cartId: ID!, $attributes: [AttributeInput!]!) {
+  cartAttributesUpdate(cartId: $cartId, attributes: $attributes) {"""
+    + CART_DETAILS
+    + """  }
+}
+"""
+)
+
+MUTATION_ADD_GIFT_CARDS = (
+    """
+mutation CartGiftCardCodesAdd($cartId: ID!, $giftCardCodes: [String!]!) {
+  cartGiftCardCodesAdd(cartId: $cartId, giftCardCodes: $giftCardCodes) {"""
+    + CART_DETAILS
+    + """  }
+}
+"""
+)
+
+MUTATION_REMOVE_GIFT_CARDS = (
+    """
+mutation CartGiftCardCodesRemove($cartId: ID!, $appliedGiftCardIds: [ID!]!) {
+  cartGiftCardCodesRemove(cartId: $cartId, appliedGiftCardIds: $appliedGiftCardIds) {"""
+    + CART_DETAILS
+    + """  }
+}
+"""
+)
+
+MUTATION_CUSTOMER_LOGOUT = """
+mutation CustomerAccessTokenDelete($customerAccessToken: String!) {
+  customerAccessTokenDelete(customerAccessToken: $customerAccessToken) {
+    deletedAccessToken
+    userErrors { field message }
+  }
+}
+"""
+
+MUTATION_CUSTOMER_RENEW_ACCESS = """
+mutation CustomerAccessTokenRenew($customerAccessToken: String!) {
+  customerAccessTokenRenew(customerAccessToken: $customerAccessToken) {
+    customerAccessToken {
+      accessToken
+      expiresAt
+    }
+    userErrors { field message }
+  }
+}
+"""
+
+QUERY_SHOP_POLICIES = """
+query ShopPolicies {
+  shop {
+    privacyPolicy { title handle url body }
+    refundPolicy { title handle url body }
+    shippingPolicy { title handle url body }
+    termsOfService { title handle url body }
+    subscriptionPolicy { title handle url body }
+  }
+}
+"""
+
+QUERY_LIST_PAGES = """
+query ListPages($first: Int!, $after: String, $query: String) {
+  pages(first: $first, after: $after, query: $query) {
+    edges {
+      node { id title handle bodySummary onlineStoreUrl updatedAt }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"""
+
+QUERY_GET_PAGE = """
+query GetPage($handle: String, $id: ID) {
+  page(handle: $handle, id: $id) {
+    id
+    title
+    handle
+    body
+    bodySummary
+    onlineStoreUrl
+    createdAt
+    updatedAt
+  }
+}
+"""
+
+QUERY_LIST_ARTICLES = """
+query ListArticles($first: Int!, $after: String, $query: String) {
+  articles(first: $first, after: $after, query: $query, sortKey: PUBLISHED_AT, reverse: true) {
+    edges {
+      node {
+        id
+        title
+        handle
+        excerpt
+        publishedAt
+        tags
+        onlineStoreUrl
+        authorV2 { name }
+        blog { id title handle }
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+}
+"""
+
+QUERY_GET_ARTICLE = """
+query GetArticle($id: ID!) {
+  article(id: $id) {
+    id
+    title
+    handle
+    content
+    contentHtml
+    excerpt
+    publishedAt
+    tags
+    onlineStoreUrl
+    authorV2 { name }
+    image { url altText }
+    blog { id title handle }
+  }
+}
+"""
+
+QUERY_GET_MENU = """
+query GetMenu($handle: String!) {
+  menu(handle: $handle) {
+    id
+    handle
+    title
+    items {
+      id
+      title
+      type
+      url
+      resourceId
+      items {
+        id
+        title
+        type
+        url
+        resourceId
+        items { id title type url resourceId }
+      }
+    }
+  }
+}
+"""
+
+QUERY_PRODUCT_RECOMMENDATIONS = """
+query ProductRecommendations($handle: String, $id: ID, $intent: ProductRecommendationIntent) {
+  productRecommendations(LOOKUP_ARGUMENT, intent: $intent) {
+    id
+    title
+    handle
+    availableForSale
+    priceRange {
+      minVariantPrice { amount currencyCode }
+    }
+    images(first: 1) {
+      edges { node { url altText } }
+    }
+  }
+}
+"""
+
+QUERY_PREDICTIVE_SEARCH = """
+query PredictiveSearch($query: String!, $limit: Int, $types: [PredictiveSearchType!]) {
+  predictiveSearch(query: $query, limit: $limit, limitScope: EACH, types: $types) {
+    queries { text styledText }
+    products {
+      id
+      title
+      handle
+      availableForSale
+      priceRange { minVariantPrice { amount currencyCode } }
+    }
+    collections { id title handle }
+    pages { id title handle }
+    articles { id title handle }
+  }
+}
+"""
+
 
 # ============================================================================
 # Product Actions
@@ -569,12 +828,12 @@ class ListProductsHandler(ActionHandler):
                 "query": inputs.get("query"),
             }
 
-            response = await execute_graphql(context, QUERY_LIST_PRODUCTS, variables)
+            gql_result = await execute_graphql(context, QUERY_LIST_PRODUCTS, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], products=[])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"])
 
-            data = response.get("data", {})
+            data = gql_result.get("data", {})
             products = extract_edges(data, "products")
             page_info = data.get("products", {}).get("pageInfo", {})
 
@@ -585,7 +844,7 @@ class ListProductsHandler(ActionHandler):
                 end_cursor=page_info.get("endCursor"),
             )
         except Exception as e:
-            return error_response(e, products=[], count=0)
+            return error_response(e)
 
 
 @shopify_storefront.action("storefront_get_product")
@@ -596,21 +855,22 @@ class GetProductHandler(ActionHandler):
         try:
             require_one_of(inputs, "handle", "product_id")
 
-            variables = {"handle": inputs.get("handle"), "id": inputs.get("product_id")}
+            product_id = inputs.get("product_id")
+            variables = {"id": product_id} if product_id else {"handle": inputs.get("handle")}
 
-            response = await execute_graphql(context, QUERY_GET_PRODUCT, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, lookup_query(QUERY_GET_PRODUCT, bool(product_id)), variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, product=None)
+                return error_response(errors)
 
             product = (data or {}).get("product")
             if not product:
-                return error_response("Product not found", product=None)
+                return error_response("Product not found")
 
             return success_response(product=product)
         except Exception as e:
-            return error_response(str(e), product=None)
+            return error_response(str(e))
 
 
 @shopify_storefront.action("storefront_search_products")
@@ -621,18 +881,18 @@ class SearchProductsHandler(ActionHandler):
         try:
             variables = {"query": inputs["query"], "first": inputs.get("first", 20)}
 
-            response = await execute_graphql(context, QUERY_SEARCH_PRODUCTS, variables)
+            gql_result = await execute_graphql(context, QUERY_SEARCH_PRODUCTS, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], products=[])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"])
 
-            data = response.get("data", {})
+            data = gql_result.get("data", {})
             products = extract_edges(data, "search")
             total_count = data.get("search", {}).get("totalCount", 0)
 
             return success_response(products=products, count=len(products), total_count=total_count)
         except Exception as e:
-            return error_response(e, products=[], count=0)
+            return error_response(e)
 
 
 # ============================================================================
@@ -648,12 +908,12 @@ class ListCollectionsHandler(ActionHandler):
         try:
             variables = {"first": inputs.get("first", 20), "after": inputs.get("after")}
 
-            response = await execute_graphql(context, QUERY_LIST_COLLECTIONS, variables)
+            gql_result = await execute_graphql(context, QUERY_LIST_COLLECTIONS, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], collections=[])
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"])
 
-            data = response.get("data", {})
+            data = gql_result.get("data", {})
             collections = extract_edges(data, "collections")
             page_info = data.get("collections", {}).get("pageInfo", {})
 
@@ -664,7 +924,7 @@ class ListCollectionsHandler(ActionHandler):
                 end_cursor=page_info.get("endCursor"),
             )
         except Exception as e:
-            return error_response(e, collections=[], count=0)
+            return error_response(e)
 
 
 @shopify_storefront.action("storefront_get_collection")
@@ -675,25 +935,25 @@ class GetCollectionHandler(ActionHandler):
         try:
             require_one_of(inputs, "handle", "collection_id")
 
-            variables = {
-                "handle": inputs.get("handle"),
-                "id": inputs.get("collection_id"),
-                "first": inputs.get("products_first", 20),
-            }
+            collection_id = inputs.get("collection_id")
+            variables = {"id": collection_id} if collection_id else {"handle": inputs.get("handle")}
+            variables["first"] = inputs.get("products_first", 20)
 
-            response = await execute_graphql(context, QUERY_GET_COLLECTION, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(
+                context, lookup_query(QUERY_GET_COLLECTION, bool(collection_id)), variables
+            )
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, collection=None)
+                return error_response(errors)
 
             collection = (data or {}).get("collection")
             if not collection:
-                return error_response("Collection not found", collection=None)
+                return error_response("Collection not found")
 
             return success_response(collection=collection)
         except Exception as e:
-            return error_response(str(e), collection=None)
+            return error_response(str(e))
 
 
 # ============================================================================
@@ -716,20 +976,20 @@ class CreateCartHandler(ActionHandler):
                 cart_input["buyerIdentity"] = inputs["buyer_identity"]
 
             variables = {"input": cart_input}
-            response = await execute_graphql(context, MUTATION_CREATE_CART, variables)
+            gql_result = await execute_graphql(context, MUTATION_CREATE_CART, variables)
 
-            if "errors" in response:
-                return error_response(response["errors"][0]["message"], cart=None)
+            if "errors" in gql_result:
+                return error_response(gql_result["errors"][0]["message"])
 
-            data = response.get("data", {}).get("cartCreate", {})
+            data = gql_result.get("data", {}).get("cartCreate", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
-                return error_response(user_errors[0]["message"], cart=None)
+                return error_response(user_errors[0]["message"])
 
-            return success_response(cart=data.get("cart"))
+            return cart_success_response({"cartCreate": data}, "cartCreate")
         except Exception as e:
-            return error_response(e, cart=None)
+            return error_response(e)
 
 
 @shopify_storefront.action("storefront_get_cart")
@@ -738,21 +998,21 @@ class GetCartHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            cart_id = require_input(inputs, "cart_id")
+            cart_id = require_input(inputs["cart_id"], "cart_id")
             variables = {"cartId": cart_id}
-            response = await execute_graphql(context, QUERY_GET_CART, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, QUERY_GET_CART, variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, cart=None)
+                return error_response(errors)
 
             cart = (data or {}).get("cart")
             if not cart:
-                return error_response("Cart not found", cart=None)
+                return error_response("Cart not found")
 
             return success_response(cart=cart)
         except Exception as e:
-            return error_response(str(e), cart=None)
+            return error_response(str(e))
 
 
 @shopify_storefront.action("storefront_add_to_cart")
@@ -761,26 +1021,26 @@ class AddToCartHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            cart_id = require_input(inputs, "cart_id")
-            lines = require_input(inputs, "lines")
+            cart_id = require_input(inputs["cart_id"], "cart_id")
+            lines = require_input(inputs["lines"], "lines")
 
             if not isinstance(lines, list) or len(lines) == 0:
                 raise ValueError("lines must be a non-empty array")
 
             variables = {"cartId": cart_id, "lines": lines}
-            response = await execute_graphql(context, MUTATION_ADD_TO_CART, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, MUTATION_ADD_TO_CART, variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, cart=None)
+                return error_response(errors)
 
             user_errors = extract_user_errors(data, "cartLinesAdd")
             if user_errors:
-                return error_response(user_errors, cart=None)
+                return error_response(user_errors)
 
-            return success_response(cart=(data or {}).get("cartLinesAdd", {}).get("cart"))
+            return cart_success_response(data, "cartLinesAdd")
         except Exception as e:
-            return error_response(str(e), cart=None)
+            return error_response(str(e))
 
 
 @shopify_storefront.action("storefront_update_cart_line")
@@ -789,26 +1049,26 @@ class UpdateCartLineHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            cart_id = require_input(inputs, "cart_id")
-            lines = require_input(inputs, "lines")
+            cart_id = require_input(inputs["cart_id"], "cart_id")
+            lines = require_input(inputs["lines"], "lines")
 
             if not isinstance(lines, list) or len(lines) == 0:
                 raise ValueError("lines must be a non-empty array")
 
             variables = {"cartId": cart_id, "lines": lines}
-            response = await execute_graphql(context, MUTATION_UPDATE_CART, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, MUTATION_UPDATE_CART, variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, cart=None)
+                return error_response(errors)
 
             user_errors = extract_user_errors(data, "cartLinesUpdate")
             if user_errors:
-                return error_response(user_errors, cart=None)
+                return error_response(user_errors)
 
-            return success_response(cart=(data or {}).get("cartLinesUpdate", {}).get("cart"))
+            return cart_success_response(data, "cartLinesUpdate")
         except Exception as e:
-            return error_response(str(e), cart=None)
+            return error_response(str(e))
 
 
 @shopify_storefront.action("storefront_remove_from_cart")
@@ -817,54 +1077,171 @@ class RemoveFromCartHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            cart_id = require_input(inputs, "cart_id")
-            line_ids = require_input(inputs, "line_ids")
+            cart_id = require_input(inputs["cart_id"], "cart_id")
+            line_ids = require_input(inputs["line_ids"], "line_ids")
 
             if not isinstance(line_ids, list) or len(line_ids) == 0:
                 raise ValueError("line_ids must be a non-empty array")
 
             variables = {"cartId": cart_id, "lineIds": line_ids}
-            response = await execute_graphql(context, MUTATION_REMOVE_FROM_CART, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, MUTATION_REMOVE_FROM_CART, variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, cart=None)
+                return error_response(errors)
 
             user_errors = extract_user_errors(data, "cartLinesRemove")
             if user_errors:
-                return error_response(user_errors, cart=None)
+                return error_response(user_errors)
 
             return success_response(cart=(data or {}).get("cartLinesRemove", {}).get("cart"))
         except Exception as e:
-            return error_response(str(e), cart=None)
+            return error_response(str(e))
 
 
 @shopify_storefront.action("storefront_apply_discount")
 class ApplyDiscountHandler(ActionHandler):
-    """Apply discount codes to cart."""
+    """Apply discount codes to cart, or clear them with an empty list."""
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            cart_id = require_input(inputs, "cart_id")
-            discount_codes = require_input(inputs, "discount_codes")
+            cart_id = require_input(inputs["cart_id"], "cart_id")
+            discount_codes = require_input(inputs["discount_codes"], "discount_codes")
 
-            if not isinstance(discount_codes, list) or len(discount_codes) == 0:
-                raise ValueError("discount_codes must be a non-empty array")
+            # An empty list is allowed: Shopify treats it as "remove all codes".
+            if not isinstance(discount_codes, list):
+                raise TypeError("discount_codes must be an array")
 
             variables = {"cartId": cart_id, "discountCodes": discount_codes}
-            response = await execute_graphql(context, MUTATION_APPLY_DISCOUNT, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, MUTATION_APPLY_DISCOUNT, variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, cart=None)
+                return error_response(errors)
 
             user_errors = extract_user_errors(data, "cartDiscountCodesUpdate")
             if user_errors:
-                return error_response(user_errors, cart=None)
+                return error_response(user_errors)
 
             return success_response(cart=(data or {}).get("cartDiscountCodesUpdate", {}).get("cart"))
         except Exception as e:
-            return error_response(str(e), cart=None)
+            return error_response(str(e))
+
+
+async def run_cart_mutation(
+    context: ExecutionContext, mutation: str, mutation_key: str, variables: Dict[str, Any]
+) -> ActionResult:
+    """Run a cart mutation and return the updated cart, any warnings, or the user errors."""
+    gql_result = await execute_graphql(context, mutation, variables)
+    data, errors = parse_graphql_response(gql_result)
+
+    if errors:
+        return error_response(errors)
+
+    user_errors = extract_user_errors(data, mutation_key)
+    if user_errors:
+        return error_response(user_errors)
+
+    return cart_success_response(data, mutation_key)
+
+
+@shopify_storefront.action("storefront_update_cart_buyer_identity")
+class UpdateCartBuyerIdentityHandler(ActionHandler):
+    """Link a cart to a customer, email, phone or country."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            cart_id = require_input(inputs["cart_id"], "cart_id")
+
+            fields = {
+                "customerAccessToken": inputs.get("customer_access_token"),
+                "email": inputs.get("email"),
+                "phone": inputs.get("phone"),
+                "countryCode": inputs.get("country_code"),
+            }
+            buyer_identity = {key: value for key, value in fields.items() if value not in (None, "")}
+
+            if not buyer_identity:
+                raise ValueError("At least one buyer identity field must be provided")
+
+            variables = {"cartId": cart_id, "buyerIdentity": buyer_identity}
+            return await run_cart_mutation(
+                context, MUTATION_UPDATE_BUYER_IDENTITY, "cartBuyerIdentityUpdate", variables
+            )
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_update_cart_note")
+class UpdateCartNoteHandler(ActionHandler):
+    """Set the cart note, or clear it with an empty string."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            cart_id = require_input(inputs["cart_id"], "cart_id")
+            note = inputs["note"]
+
+            if not isinstance(note, str):
+                raise TypeError("note must be a string")
+
+            variables = {"cartId": cart_id, "note": note}
+            return await run_cart_mutation(context, MUTATION_UPDATE_CART_NOTE, "cartNoteUpdate", variables)
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_update_cart_attributes")
+class UpdateCartAttributesHandler(ActionHandler):
+    """Replace the cart's custom attributes."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            cart_id = require_input(inputs["cart_id"], "cart_id")
+            attributes = inputs["attributes"]
+
+            if not isinstance(attributes, list):
+                raise TypeError("attributes must be an array")
+
+            variables = {"cartId": cart_id, "attributes": attributes}
+            return await run_cart_mutation(context, MUTATION_UPDATE_CART_ATTRIBUTES, "cartAttributesUpdate", variables)
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_add_gift_cards")
+class AddGiftCardsHandler(ActionHandler):
+    """Apply gift card codes to a cart, keeping any already applied."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            cart_id = require_input(inputs["cart_id"], "cart_id")
+            codes = require_input(inputs["gift_card_codes"], "gift_card_codes")
+
+            if not isinstance(codes, list) or len(codes) == 0:
+                raise ValueError("gift_card_codes must be a non-empty array")
+
+            variables = {"cartId": cart_id, "giftCardCodes": codes}
+            return await run_cart_mutation(context, MUTATION_ADD_GIFT_CARDS, "cartGiftCardCodesAdd", variables)
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_remove_gift_cards")
+class RemoveGiftCardsHandler(ActionHandler):
+    """Remove applied gift cards from a cart by their applied gift card IDs."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            cart_id = require_input(inputs["cart_id"], "cart_id")
+            gift_card_ids = require_input(inputs["applied_gift_card_ids"], "applied_gift_card_ids")
+
+            if not isinstance(gift_card_ids, list) or len(gift_card_ids) == 0:
+                raise ValueError("applied_gift_card_ids must be a non-empty array")
+
+            variables = {"cartId": cart_id, "appliedGiftCardIds": gift_card_ids}
+            return await run_cart_mutation(context, MUTATION_REMOVE_GIFT_CARDS, "cartGiftCardCodesRemove", variables)
+        except Exception as e:
+            return error_response(str(e))
 
 
 # ============================================================================
@@ -878,33 +1255,38 @@ class CreateCustomerHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            email = require_input(inputs, "email")
-            password = require_input(inputs, "password")
+            email = require_input(inputs["email"], "email")
+            password = require_input(inputs["password"], "password")
 
             customer_input = {"email": email, "password": password}
 
-            optional_fields = ["firstName", "lastName", "phone", "acceptsMarketing"]
-            for field in optional_fields:
-                snake_field = "".join(["_" + c.lower() if c.isupper() else c for c in field]).lstrip("_")
-                if snake_field in inputs:
-                    customer_input[field] = inputs[snake_field]
-                elif field in inputs:
-                    customer_input[field] = inputs[field]
+            optional_fields = {
+                "firstName": inputs.get("first_name"),
+                "lastName": inputs.get("last_name"),
+                "phone": inputs.get("phone"),
+                "acceptsMarketing": inputs.get("accepts_marketing"),
+            }
+            for field, value in optional_fields.items():
+                # Older callers sent the camelCase GraphQL names; keep accepting them.
+                if value is None:
+                    value = inputs.get(field)
+                if value is not None:
+                    customer_input[field] = value
 
             variables = {"input": customer_input}
-            response = await execute_graphql(context, MUTATION_CREATE_CUSTOMER, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, MUTATION_CREATE_CUSTOMER, variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, customer=None)
+                return error_response(errors)
 
             user_errors = extract_user_errors(data, "customerCreate", "customerUserErrors")
             if user_errors:
-                return error_response(user_errors, customer=None)
+                return error_response(user_errors)
 
             return success_response(customer=(data or {}).get("customerCreate", {}).get("customer"))
         except Exception as e:
-            return error_response(str(e), customer=None)
+            return error_response(str(e))
 
 
 @shopify_storefront.action("storefront_customer_login")
@@ -913,19 +1295,19 @@ class CustomerLoginHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            email = require_input(inputs, "email")
-            password = require_input(inputs, "password")
+            email = require_input(inputs["email"], "email")
+            password = require_input(inputs["password"], "password")
 
             variables = {"input": {"email": email, "password": password}}
-            response = await execute_graphql(context, MUTATION_CUSTOMER_LOGIN, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, MUTATION_CUSTOMER_LOGIN, variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, customer_access_token=None)
+                return error_response(errors)
 
             user_errors = extract_user_errors(data, "customerAccessTokenCreate", "customerUserErrors")
             if user_errors:
-                return error_response(user_errors, customer_access_token=None)
+                return error_response(user_errors)
 
             token_data = (data or {}).get("customerAccessTokenCreate", {}).get("customerAccessToken")
             return success_response(
@@ -933,7 +1315,7 @@ class CustomerLoginHandler(ActionHandler):
                 expires_at=token_data.get("expiresAt") if token_data else None,
             )
         except Exception as e:
-            return error_response(str(e), customer_access_token=None)
+            return error_response(str(e))
 
 
 @shopify_storefront.action("storefront_get_customer")
@@ -942,21 +1324,21 @@ class GetCustomerHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            access_token = require_input(inputs, "customer_access_token")
+            access_token = require_input(inputs["customer_access_token"], "customer_access_token")
             variables = {"customerAccessToken": access_token}
-            response = await execute_graphql(context, QUERY_GET_CUSTOMER, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, QUERY_GET_CUSTOMER, variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, customer=None)
+                return error_response(errors)
 
             customer = (data or {}).get("customer")
             if not customer:
-                return error_response("Customer not found or invalid token", customer=None)
+                return error_response("Customer not found or invalid token")
 
             return success_response(customer=customer)
         except Exception as e:
-            return error_response(str(e), customer=None)
+            return error_response(str(e))
 
 
 @shopify_storefront.action("storefront_recover_customer")
@@ -965,10 +1347,10 @@ class RecoverCustomerHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            email = require_input(inputs, "email")
+            email = require_input(inputs["email"], "email")
             variables = {"email": email}
-            response = await execute_graphql(context, MUTATION_CUSTOMER_RECOVER, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, MUTATION_CUSTOMER_RECOVER, variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
                 return error_response(errors)
@@ -988,21 +1370,17 @@ class UpdateCustomerHandler(ActionHandler):
 
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
-            access_token = require_input(inputs, "customer_access_token")
+            access_token = require_input(inputs["customer_access_token"], "customer_access_token")
 
-            customer_input = {}
-            field_mappings = {
-                "first_name": "firstName",
-                "last_name": "lastName",
-                "phone": "phone",
-                "email": "email",
-                "password": "password",  # nosec B105
-                "accepts_marketing": "acceptsMarketing",
+            fields = {
+                "firstName": inputs.get("first_name"),
+                "lastName": inputs.get("last_name"),
+                "phone": inputs.get("phone"),
+                "email": inputs.get("email"),
+                "password": inputs.get("password"),
+                "acceptsMarketing": inputs.get("accepts_marketing"),
             }
-
-            for snake_key, camel_key in field_mappings.items():
-                if snake_key in inputs and inputs[snake_key] is not None:
-                    customer_input[camel_key] = inputs[snake_key]
+            customer_input = {key: value for key, value in fields.items() if value is not None}
 
             if not customer_input:
                 raise ValueError("At least one customer field must be provided for update")
@@ -1011,15 +1389,15 @@ class UpdateCustomerHandler(ActionHandler):
                 "customerAccessToken": access_token,
                 "customer": customer_input,
             }
-            response = await execute_graphql(context, MUTATION_CUSTOMER_UPDATE, variables)
-            data, errors = parse_graphql_response(response)
+            gql_result = await execute_graphql(context, MUTATION_CUSTOMER_UPDATE, variables)
+            data, errors = parse_graphql_response(gql_result)
 
             if errors:
-                return error_response(errors, customer=None)
+                return error_response(errors)
 
             user_errors = extract_user_errors(data, "customerUpdate", "customerUserErrors")
             if user_errors:
-                return error_response(user_errors, customer=None)
+                return error_response(user_errors)
 
             update_data = (data or {}).get("customerUpdate", {})
             token_data = update_data.get("customerAccessToken")
@@ -1030,4 +1408,280 @@ class UpdateCustomerHandler(ActionHandler):
                 expires_at=token_data.get("expiresAt") if token_data else None,
             )
         except Exception as e:
-            return error_response(str(e), customer=None)
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_customer_logout")
+class CustomerLogoutHandler(ActionHandler):
+    """Sign a customer out by deleting their access token."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            access_token = require_input(inputs["customer_access_token"], "customer_access_token")
+            variables = {"customerAccessToken": access_token}
+            gql_result = await execute_graphql(context, MUTATION_CUSTOMER_LOGOUT, variables)
+            data, errors = parse_graphql_response(gql_result)
+
+            if errors:
+                return error_response(errors)
+
+            user_errors = extract_user_errors(data, "customerAccessTokenDelete")
+            if user_errors:
+                return error_response(user_errors)
+
+            if not ((data or {}).get("customerAccessTokenDelete") or {}).get("deletedAccessToken"):
+                return error_response("Customer access token not found or already signed out")
+
+            return success_response(message="Customer signed out")
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_renew_customer_token")
+class RenewCustomerTokenHandler(ActionHandler):
+    """Extend a customer access token before it expires."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            access_token = require_input(inputs["customer_access_token"], "customer_access_token")
+            variables = {"customerAccessToken": access_token}
+            gql_result = await execute_graphql(context, MUTATION_CUSTOMER_RENEW_ACCESS, variables)
+            data, errors = parse_graphql_response(gql_result)
+
+            if errors:
+                return error_response(errors)
+
+            user_errors = extract_user_errors(data, "customerAccessTokenRenew")
+            if user_errors:
+                return error_response(user_errors)
+
+            token_data = ((data or {}).get("customerAccessTokenRenew") or {}).get("customerAccessToken")
+            if not token_data:
+                return error_response("Customer access token could not be renewed")
+
+            return success_response(
+                customer_access_token=token_data.get("accessToken"),
+                expires_at=token_data.get("expiresAt"),
+            )
+        except Exception as e:
+            return error_response(str(e))
+
+
+# ============================================================================
+# Content Actions
+# ============================================================================
+
+
+@shopify_storefront.action("storefront_get_shop_policies")
+class GetShopPoliciesHandler(ActionHandler):
+    """Get the store's privacy, refund, shipping, terms and subscription policies."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            gql_result = await execute_graphql(context, QUERY_SHOP_POLICIES, {})
+            data, errors = parse_graphql_response(gql_result)
+
+            if errors:
+                return error_response(errors)
+
+            shop = (data or {}).get("shop") or {}
+            policies = {
+                "privacy_policy": shop.get("privacyPolicy"),
+                "refund_policy": shop.get("refundPolicy"),
+                "shipping_policy": shop.get("shippingPolicy"),
+                "terms_of_service": shop.get("termsOfService"),
+                "subscription_policy": shop.get("subscriptionPolicy"),
+            }
+            return success_response(policies=policies)
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_list_pages")
+class ListPagesHandler(ActionHandler):
+    """List the store's content pages."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            variables = {
+                "first": inputs.get("first", 20),
+                "after": inputs.get("after"),
+                "query": inputs.get("query"),
+            }
+            gql_result = await execute_graphql(context, QUERY_LIST_PAGES, variables)
+            data, errors = parse_graphql_response(gql_result)
+
+            if errors:
+                return error_response(errors)
+
+            pages = extract_edges(data, "pages")
+            page_info = ((data or {}).get("pages") or {}).get("pageInfo", {})
+            return success_response(
+                pages=pages,
+                count=len(pages),
+                has_next_page=page_info.get("hasNextPage", False),
+                end_cursor=page_info.get("endCursor"),
+            )
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_get_page")
+class GetPageHandler(ActionHandler):
+    """Get a content page by handle or ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            require_one_of(inputs, "handle", "page_id")
+
+            page_id = inputs.get("page_id")
+            variables = {"id": page_id} if page_id else {"handle": inputs.get("handle")}
+            gql_result = await execute_graphql(context, lookup_query(QUERY_GET_PAGE, bool(page_id)), variables)
+            data, errors = parse_graphql_response(gql_result)
+
+            if errors:
+                return error_response(errors)
+
+            page = (data or {}).get("page")
+            if not page:
+                return error_response("Page not found")
+
+            return success_response(page=page)
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_list_articles")
+class ListArticlesHandler(ActionHandler):
+    """List blog articles across all blogs, newest first."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            variables = {
+                "first": inputs.get("first", 20),
+                "after": inputs.get("after"),
+                "query": inputs.get("query"),
+            }
+            gql_result = await execute_graphql(context, QUERY_LIST_ARTICLES, variables)
+            data, errors = parse_graphql_response(gql_result)
+
+            if errors:
+                return error_response(errors)
+
+            articles = extract_edges(data, "articles")
+            page_info = ((data or {}).get("articles") or {}).get("pageInfo", {})
+            return success_response(
+                articles=articles,
+                count=len(articles),
+                has_next_page=page_info.get("hasNextPage", False),
+                end_cursor=page_info.get("endCursor"),
+            )
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_get_article")
+class GetArticleHandler(ActionHandler):
+    """Get a blog article by ID."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            article_id = require_input(inputs["article_id"], "article_id")
+            gql_result = await execute_graphql(context, QUERY_GET_ARTICLE, {"id": article_id})
+            data, errors = parse_graphql_response(gql_result)
+
+            if errors:
+                return error_response(errors)
+
+            article = (data or {}).get("article")
+            if not article:
+                return error_response("Article not found")
+
+            return success_response(article=article)
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_get_menu")
+class GetMenuHandler(ActionHandler):
+    """Get a navigation menu by handle."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            handle = require_input(inputs["handle"], "handle")
+            gql_result = await execute_graphql(context, QUERY_GET_MENU, {"handle": handle})
+            data, errors = parse_graphql_response(gql_result)
+
+            if errors:
+                return error_response(errors)
+
+            menu = (data or {}).get("menu")
+            if not menu:
+                return error_response("Menu not found")
+
+            return success_response(menu=menu)
+        except Exception as e:
+            return error_response(str(e))
+
+
+# ============================================================================
+# Discovery Actions
+# ============================================================================
+
+
+@shopify_storefront.action("storefront_get_product_recommendations")
+class GetProductRecommendationsHandler(ActionHandler):
+    """Get up to 10 recommended products for a product."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            require_one_of(inputs, "product_handle", "product_id")
+
+            product_id = inputs.get("product_id")
+            variables = {"id": product_id} if product_id else {"handle": inputs.get("product_handle")}
+            variables["intent"] = inputs.get("intent", "RELATED")
+
+            argument = "productId: $id" if product_id else "productHandle: $handle"
+            query = lookup_query(QUERY_PRODUCT_RECOMMENDATIONS, bool(product_id)).replace("LOOKUP_ARGUMENT", argument)
+            gql_result = await execute_graphql(context, query, variables)
+            data, errors = parse_graphql_response(gql_result)
+
+            if errors:
+                return error_response(errors)
+
+            products = (data or {}).get("productRecommendations")
+            if products is None:
+                return error_response("Product not found")
+
+            return success_response(products=products, count=len(products))
+        except Exception as e:
+            return error_response(str(e))
+
+
+@shopify_storefront.action("storefront_predictive_search")
+class PredictiveSearchHandler(ActionHandler):
+    """Search-as-you-type suggestions across products, collections, pages and articles."""
+
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            query = require_input(inputs["query"], "query")
+            # Shopify falls back to the store's search settings when types is unset, which can hide pages and articles.
+            types = inputs.get("types") or ["PRODUCT", "COLLECTION", "PAGE", "ARTICLE", "QUERY"]
+            variables = {"query": query, "limit": inputs.get("limit", 10), "types": types}
+
+            gql_result = await execute_graphql(context, QUERY_PREDICTIVE_SEARCH, variables)
+            data, errors = parse_graphql_response(gql_result)
+
+            if errors:
+                return error_response(errors)
+
+            results = (data or {}).get("predictiveSearch") or {}
+            return success_response(
+                queries=results.get("queries") or [],
+                products=results.get("products") or [],
+                collections=results.get("collections") or [],
+                pages=results.get("pages") or [],
+                articles=results.get("articles") or [],
+            )
+        except Exception as e:
+            return error_response(str(e))

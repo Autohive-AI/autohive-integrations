@@ -1,7 +1,7 @@
 {
   "name": "Microsoft Excel",
   "display_name": "Microsoft Excel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "entry_point": "microsoft_excel.py",
   "description": "Read, write, and manipulate Excel workbooks stored in OneDrive/SharePoint via Microsoft Graph API.",
   "auth": {

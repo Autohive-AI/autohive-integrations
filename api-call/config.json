@@ -1,6 +1,6 @@
 {
     "name": "api-call",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "description": "Generic API integration for making GET and POST requests to any API endpoint",
     "entry_point": "api_call.py",
     "actions": {

@@ -1,7 +1,7 @@
 {
   "name": "GitLab",
   "display_name": "GitLab",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Integration with GitLab for accessing projects, issues, merge requests, branches, pipelines, repositories, and container registry",
   "entry_point": "gitlab.py",
   "auth": {

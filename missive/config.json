@@ -1,6 +1,6 @@
 {
   "name": "Missive",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Missive integration for managing conversations, messages, drafts, contacts, and analytics in your team inbox.",
   "display_name": "Missive",
   "supports_connected_account": false,

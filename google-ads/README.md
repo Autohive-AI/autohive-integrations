@@ -58,8 +58,8 @@ Creates a new Google Ads Search campaign with a budget. The campaign is created 
 - `campaign_name` (required): Name for the new campaign
 - `budget_amount_micros` (required): Daily budget in micros (e.g., 1000000 = $1.00)
 - `budget_name` (optional): Name for the campaign budget
-- `start_date` (optional): Campaign start date in YYYYMMDD format. Defaults to tomorrow
-- `end_date` (optional): Campaign end date in YYYYMMDD format. Defaults to 1 year from now
+- `start_date` (optional): Campaign start date as YYYYMMDD or YYYY-MM-DD (starts at 00:00:00 account time). Defaults to tomorrow in the account time zone
+- `end_date` (optional): Campaign end date as YYYYMMDD or YYYY-MM-DD (ends at 23:59:59 account time). Must be after `start_date`. Defaults to 1 year after the start date
 - `bidding_strategy` (optional): Bidding strategy. Defaults to MANUAL_CPC
 - `enhanced_cpc_enabled` (optional): For MANUAL_CPC — enable enhanced CPC. Defaults to false
 - `target_spend_micros` (optional): For TARGET_SPEND — optional target spend in micros
@@ -328,13 +328,13 @@ Retrieves historical metrics (search volume, competition, bid estimates) for spe
 ---
 
 #### `generate_keyword_forecast`
-Generates forecast metrics (impressions, clicks, cost) for keywords with specified budget and targeting settings.
+Generates forecast metrics (clicks and cost) for keywords with specified budget and targeting settings.
 
 **Inputs:**
 - `login_customer_id` (required): Manager Account ID (MCC) without dashes
 - `customer_id` (required): The Google Ads Customer ID
 - `keywords` (required): List of keywords to forecast
-- `daily_budget_micros` (optional): Daily budget in micros for Target Spend bidding strategy
+- `daily_budget_micros` (optional): Daily budget cap in micros for Manual CPC. The campaign CPC cap still applies
 - `max_cpc_bid_micros` (optional): Max CPC bid in micros for Manual CPC. Defaults to 1000000 ($1.00)
 - `language_id` (optional): Language ID. Defaults to English
 - `location_ids` (optional): List of geo target location IDs. Defaults to USA (`['2840']`)

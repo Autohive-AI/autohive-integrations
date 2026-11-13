@@ -98,3 +98,20 @@ Uses Notion platform authentication (OAuth) with automatic token management.
 ## Version History
 
 - **1.0.0** - Initial release with comprehensive CRUD operations for pages, blocks, and database properties
+## Live tests
+
+Run the read-only tests with a connected account's `NOTION_ACCESS_TOKEN`:
+
+```bash
+pytest notion/tests/test_notion_integration.py -m "integration and not destructive"
+```
+
+TeamCity supplies the OAuth token. Share at least one page with that Notion
+connection and enable read-content and read-comments capabilities. The tests
+discover a shared page automatically; optionally set `NOTION_TEST_PAGE_ID`
+to select one. They cover search, page-size limits, page retrieval, child blocks,
+and comments without creating, updating, or deleting content.
+
+Missing credentials skip all live tests. With no shared pages, only the three
+page-dependent tests skip. Authentication, permission, and other API errors fail
+the tests rather than being accepted as empty results.

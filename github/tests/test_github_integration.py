@@ -10,6 +10,7 @@ Run manually with:
     pytest github/tests/test_github_integration.py -m integration
 """
 
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock
 
 import aiohttp
@@ -80,8 +81,12 @@ class TestGitHubReadOnlyActions:
         assert "sha" in result.result.data[0]
 
     async def test_list_issues_returns_issues(self, live_context):
+        # Keep this smoke test below the pagination cap as the public repository grows.
+        since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
         result = await github.execute_action(
-            "list_issues", {"owner": PUBLIC_OWNER, "repo": PUBLIC_REPO, "state": "all"}, live_context
+            "list_issues",
+            {"owner": PUBLIC_OWNER, "repo": PUBLIC_REPO, "state": "all", "since": since},
+            live_context,
         )
 
         assert result.type == ResultType.ACTION

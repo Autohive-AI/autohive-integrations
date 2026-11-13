@@ -1609,3 +1609,35 @@ async def test_reads_known_catalog_fixture(live_context, object_type):
     )
     assert result.type == ResultType.ACTION, result.result
     assert result.result.data["results"][0]["id"] == record_id
+
+
+@pytest.mark.destructive
+async def test_create_call_activity(live_context):
+    result = await hubspot.execute_action("create_call", {"title": "Autohive integration test call"}, live_context)
+    assert result.type == ResultType.ACTION, result.result
+    call_id = result.result.data["call"]["id"]
+    try:
+        assert result.result.data["call"]["properties"]["hs_call_title"] == "Autohive integration test call"
+    finally:
+        await live_context.fetch(f"https://api.hubapi.com/crm/v3/objects/calls/{call_id}", method="DELETE")
+
+
+@pytest.mark.destructive
+async def test_update_meeting_activity(live_context):
+    url = "https://api.hubapi.com/crm/v3/objects/meetings"
+    created = await live_context.fetch(
+        url,
+        method="POST",
+        json={
+            "properties": {"hs_timestamp": datetime.now(timezone.utc).isoformat(), "hs_meeting_title": "Autohive test"}
+        },
+    )
+    meeting_id = created.data["id"]
+    try:
+        result = await hubspot.execute_action(
+            "update_meeting", {"meeting_id": meeting_id, "title": "Autohive test updated"}, live_context
+        )
+        assert result.type == ResultType.ACTION, result.result
+        assert result.result.data["meeting"]["properties"]["hs_meeting_title"] == "Autohive test updated"
+    finally:
+        await live_context.fetch(f"{url}/{meeting_id}", method="DELETE")

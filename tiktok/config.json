@@ -1,6 +1,6 @@
 {
     "name": "TikTok",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "TikTok integration for video posting and user profile management",
     "display_name": "TikTok",
     "supports_connected_account": true,

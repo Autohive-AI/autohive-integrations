@@ -1,0 +1,557 @@
+{
+    "name": "workzappy",
+    "version": "1.0.1",
+    "display_name": "WorkZappy",
+    "description": "Create WorkZappy tasks from meeting action items.",
+    "entry_point": "workzappy.py",
+    "supports_billing": false,
+    "auth": {
+        "type": "custom",
+        "title": "WorkZappy Personal API Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "client_id": {
+                    "type": "string",
+                    "label": "Client ID",
+                    "minLength": 1
+                },
+                "secret_key": {
+                    "type": "string",
+                    "label": "Secret Key",
+                    "format": "password",
+                    "minLength": 1
+                }
+            },
+            "required": [
+                "client_id",
+                "secret_key"
+            ]
+        }
+    },
+    "actions": {
+        "create_task": {
+            "display_name": "Create Task",
+            "description": "Create one task in a WorkZappy project.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Destination project ID."
+                    },
+                    "task_type_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Task type ID configured in the destination project."
+                    },
+                    "summary": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Task title."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Optional action item details."
+                    },
+                    "status_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Workflow status ID. Required when the task type has no default status."
+                    }
+                },
+                "required": [
+                    "project_id",
+                    "task_type_id",
+                    "summary"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "description": "ID of the created task."
+                    }
+                },
+                "required": [
+                    "task_id"
+                ]
+            }
+        },
+        "list_projects": {
+            "display_name": "List Projects",
+            "description": "List Projects in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "projects": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "required": [
+                    "projects"
+                ]
+            }
+        },
+        "get_project": {
+            "display_name": "Get Project",
+            "description": "Get Project in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "project_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "project"
+                ]
+            }
+        },
+        "list_project_members": {
+            "display_name": "List Project Members",
+            "description": "List Project Members in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "project_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "members": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "required": [
+                    "members"
+                ]
+            }
+        },
+        "list_task_types": {
+            "display_name": "List Task Types",
+            "description": "List Task Types in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "project_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task_types": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "required": [
+                    "task_types"
+                ]
+            }
+        },
+        "get_task_scheme": {
+            "display_name": "Get Task Scheme",
+            "description": "Get Task Scheme in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "task_type_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "project_id",
+                    "task_type_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "scheme": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "scheme"
+                ]
+            }
+        },
+        "get_task": {
+            "display_name": "Get Task",
+            "description": "Get Task in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "task_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "task"
+                ]
+            }
+        },
+        "search_tasks": {
+            "display_name": "Search Tasks",
+            "description": "Search Tasks in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "summary": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "project_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "page"
+                ]
+            }
+        },
+        "update_task": {
+            "display_name": "Update Task",
+            "description": "Update Task in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "fields": {
+                        "type": "object",
+                        "minProperties": 1,
+                        "description": "WorkZappy field codes and their values, such as summary or assignee for a task, or pname for a project."
+                    }
+                },
+                "required": [
+                    "task_id",
+                    "fields"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "remove_task": {
+            "display_name": "Remove Task",
+            "description": "Remove Task in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "task_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        },
+        "list_task_comments": {
+            "display_name": "List Task Comments",
+            "description": "List Task Comments in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "page_number": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "task_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "page"
+                ]
+            }
+        },
+        "add_task_comment": {
+            "display_name": "Add Task Comment",
+            "description": "Add Task Comment in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "content": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "parent_comment_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "task_id",
+                    "content"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "comment": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "comment"
+                ]
+            }
+        },
+        "list_project_phases": {
+            "display_name": "List Project Phases",
+            "description": "List Project Phases in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "project_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "phases": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "required": [
+                    "phases"
+                ]
+            }
+        },
+        "list_project_tags": {
+            "display_name": "List Project Tags",
+            "description": "List Project Tags in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "project_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                },
+                "required": [
+                    "tags"
+                ]
+            }
+        },
+        "create_project": {
+            "display_name": "Create Project",
+            "description": "Create Project in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_name": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "template_code": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "description": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "leader_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "project_name",
+                    "template_code",
+                    "leader_id"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "project": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "project"
+                ]
+            }
+        },
+        "update_project": {
+            "display_name": "Update Project",
+            "description": "Update Project in WorkZappy.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "project_id": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "fields": {
+                        "type": "object",
+                        "minProperties": 1,
+                        "description": "WorkZappy field codes and their values, such as summary or assignee for a task, or pname for a project."
+                    }
+                },
+                "required": [
+                    "project_id",
+                    "fields"
+                ]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "object"
+                    }
+                },
+                "required": [
+                    "result"
+                ]
+            }
+        }
+    }
+}

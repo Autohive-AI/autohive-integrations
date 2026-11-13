@@ -1,6 +1,6 @@
 {
     "name": "Mailchimp",
-    "version": "2.0.0",
+    "version": "2.0.1",
     "description": "Mailchimp integration for managing email lists, campaigns, and audience members.",
     "entry_point": "mailchimp.py",
     "supports_billing": false,

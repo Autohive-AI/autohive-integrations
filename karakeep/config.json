@@ -1,7 +1,7 @@
 {
     "name": "Karakeep",
     "display_name": "Karakeep",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "description": "Save bookmarks and manage tags in Karakeep (Cloud or self-hosted).",
     "entry_point": "karakeep.py",
     "auth": {

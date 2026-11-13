@@ -1,7 +1,7 @@
 {
     "name": "Substack",
     "display_name": "Substack",
-    "version": "2.0.0",
+    "version": "2.0.2",
     "description": "Search Substack publications, read posts and comments. No authentication required.",
     "entry_point": "substack.py",
     "actions": {
