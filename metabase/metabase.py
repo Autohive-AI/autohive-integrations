@@ -1519,17 +1519,23 @@ def _card_parameters_for(
 
 
 def _dashboard_questions(dashcards: List[Dict[str, Any]]) -> List[tuple]:
-    """(dashcard, question id, name) for every question shown: each card's own question and a combined chart's extra
-    series, which Metabase runs too."""
+    """(dashcard, question id, question) for every question shown: each card's own question and a combined chart's
+    extra series, which Metabase runs too."""
     questions = []
     for dc in dashcards:
         if not dc.get("card_id") or dc.get("action_id"):
             continue
-        questions.append((dc, dc["card_id"], (dc.get("card") or {}).get("name")))
-        questions.extend(
-            (dc, series["id"], series.get("name")) for series in dc.get("series") or [] if series.get("id")
-        )
+        questions.append((dc, dc["card_id"], dc.get("card") or {}))
+        questions.extend((dc, series["id"], series) for series in dc.get("series") or [] if series.get("id"))
     return questions
+
+
+def _copied_by_deep_copy(card: Dict[str, Any]) -> bool:
+    """Whether a dashboard's deep copy copies this question. Metabase leaves out ones the API key can't read (shown
+    as just their id, with no name) and keeps models as they are, so the copy uses the original. Before 0.50 a
+    combined chart's extra series don't say whether they are models, so those are checked all the same."""
+    is_model = card.get("type") == "model" or card.get("dataset") is True
+    return card.get("name") is not None and not is_model
 
 
 def _default_values(dashboard: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
@@ -1566,16 +1572,18 @@ def _pulse_kept(pulse: Dict[str, Any], enabled: Optional[bool] = None) -> Dict[s
 async def _check_dashboard_questions(
     context: ExecutionContext,
     dashboard: Dict[str, Any],
-    saving: bool = False,
+    deep_copy: bool = False,
     pulses: Sequence[Optional[Dict[str, Any]]] = (None,),
 ) -> None:
     """Check every question on a dashboard with the dashboard's filter defaults, as a scheduled send runs them, with
-    each given subscription's own filter values (Metabase Pro) over them. saving checks them as questions about to be
-    copied (see _checked_parameters)."""
+    each given subscription's own filter values (Metabase Pro) over them. deep_copy checks only the questions a deep
+    copy copies, as questions about to be saved (see _checked_parameters)."""
     defaults = _default_values(dashboard)
-    # Metabase shows only the id of a question the API key can't read, and leaves it out of a copy (listed as
-    # uncopied), so there is nothing of it to check.
-    questions = [q for q in _dashboard_questions(dashboard.get("dashcards") or []) if not (saving and q[2] is None)]
+    questions = [
+        (dc, card_id, card)
+        for dc, card_id, card in _dashboard_questions(dashboard.get("dashcards") or [])
+        if not deep_copy or _copied_by_deep_copy(card)
+    ]
     checked = set()
     for pulse in pulses:
         values = dict(defaults)
@@ -1587,7 +1595,7 @@ async def _check_dashboard_questions(
             key = (card_id, json.dumps(params, sort_keys=True))
             if key not in checked:
                 checked.add(key)
-                await _checked_parameters(context, _path_id(card_id), params, saving=saving)
+                await _checked_parameters(context, _path_id(card_id), params, saving=deep_copy)
 
 
 def _cron(frequency: str, hour: int, day: str) -> str:
@@ -2489,7 +2497,7 @@ class CopyDashboardAction(ActionHandler):
                 collection_id = original.get("collection_id")
             if copy_questions:
                 # Copies of the questions are new saved SQL, so they are checked like any question saved here.
-                await _check_dashboard_questions(context, original, saving=True)
+                await _check_dashboard_questions(context, original, deep_copy=True)
         body = _with_optional(
             {"is_deep_copy": copy_questions, "name": name},
             description=inputs.get("description"),
@@ -2568,11 +2576,11 @@ class RunDashboardAction(ActionHandler):
         loop = asyncio.get_running_loop()
         deadline = loop.time() + DASHBOARD_RUN_SECONDS
         chars_left = MAX_DASHBOARD_RESULT_CHARS
-        for dc, card_id, card_name in questions[:MAX_DASHBOARD_CARDS_RUN]:
+        for dc, card_id, card in questions[:MAX_DASHBOARD_CARDS_RUN]:
             seconds_left = deadline - loop.time()
             if seconds_left < MIN_DASHBOARD_CARD_SECONDS or chars_left <= 0:
                 break
-            summary = {"dashcard_id": dc.get("id"), "card_id": card_id, "card_name": card_name}
+            summary = {"dashcard_id": dc.get("id"), "card_id": card_id, "card_name": card.get("name")}
 
             async def run() -> Any:
                 card_params = _card_parameters_for(dc, values, card_id)

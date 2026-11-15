@@ -1375,6 +1375,25 @@ class TestCopyDashboard:
         assert result.result.data["uncopied_questions"] == [{"id": 43, "name": None}]
 
     @pytest.mark.asyncio
+    async def test_deep_copy_skips_models(self, mock_context):
+        # Metabase keeps models on the copy as they are (type on 0.50+, dataset on 0.49), so nothing new is saved.
+        dashcards = [
+            {**SERIES_DASHBOARD["dashcards"][0], "series": [{"id": 46, "name": "Returns", "type": "model"}]},
+            {**SERIES_DASHBOARD["dashcards"][1], "card": {"id": 43, "name": "Orders model", "dataset": True}},
+        ]
+        mock_context.fetch.side_effect = [
+            _ok({**SERIES_DASHBOARD, "dashcards": dashcards}),
+            *_copy_check(42),
+            _ok({"id": 71, "name": "Sales 2027"}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard", {"dashboard_id": 9, "name": "Sales 2027", "copy_questions": True}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert _calls_to(mock_context, "/api/card/46") == []
+        assert _calls_to(mock_context, "/api/card/43") == []
+
+    @pytest.mark.asyncio
     async def test_deep_copy_checks_every_filter_then_dashboard_defaults(self, mock_context):
         mock_context.fetch.side_effect = [
             _ok(SERIES_DASHBOARD),

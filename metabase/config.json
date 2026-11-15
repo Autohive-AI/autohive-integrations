@@ -3057,7 +3057,7 @@
         },
         "create_model": {
             "display_name": "Create Model",
-            "description": "Save a model: a curated table, built from SQL or a query-builder query, that others explore with the query builder. Give exactly one of sql or query. SQL is checked, and its {{ }} filters defined, the same way as create_question.",
+            "description": "Save a model: a curated table, built from SQL or a query-builder query, that others explore with the query builder. Give exactly one of sql or query. SQL is checked as in create_question; models cannot have {{ }} filters, but snippets and saved-question references are supported. Use create_question for filtered SQL.",
             "input_schema": {
                 "type": "object",
                 "properties": {
