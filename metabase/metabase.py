@@ -2952,7 +2952,8 @@ class ExportQuestionResultsAction(ActionHandler):
             context,
             "POST",
             f"/card/{card_id}/query/{export_format}",
-            allow_text=True,
+            # Only CSV is text; a text answer to a JSON export is an error page, not an empty result.
+            allow_text=export_format == "csv",
             data=form,
             content_type="application/x-www-form-urlencoded",
             timeout=QUERY_TIMEOUT_SECONDS,

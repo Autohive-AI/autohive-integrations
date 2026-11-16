@@ -1648,6 +1648,15 @@ class TestExportQuestionResults:
         assert data == {"format": "json", "rows": rows[:3], "row_count": 3, "truncated": True}
 
     @pytest.mark.asyncio
+    async def test_json_export_text_answer_is_an_error(self, mock_context):
+        mock_context.fetch.side_effect = _export_calls("Service temporarily unavailable")
+        result = await metabase.execute_action(
+            "export_question_results", {"question_id": 42, "format": "json"}, mock_context
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "isn't JSON" in result.result.message
+
+    @pytest.mark.asyncio
     async def test_json_whole_rows_within_size_budget(self, mock_context):
         # Each row is 400,000+ characters as JSON, so only two fit in the 1,000,000-character budget.
         rows = [{"id": i, "note": "x" * 400_000} for i in range(4)]
