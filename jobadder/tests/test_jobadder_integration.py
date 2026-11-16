@@ -7,10 +7,12 @@ the corresponding JOBADDER_TEST_*_ID value.
 Run safely with:
     pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 
-The ten write actions are intentionally excluded because JobAdder has no delete
+Write actions are intentionally excluded because JobAdder has no general delete
 endpoint for reliably cleaning up candidates, applications, candidate attachments,
 or job attachments created by tests. Profile, status, and attachment updates also
 cannot be safely restored without mutating persistent customer data.
+Job writes and task creation are also excluded because they cannot be reliably
+restored here.
 """
 
 import asyncio
@@ -81,6 +83,8 @@ def resource_ids(env_credentials):
         "note": env_credentials("JOBADDER_TEST_NOTE_ID"),
         "application": env_credentials("JOBADDER_TEST_APPLICATION_ID"),
         "placement": env_credentials("JOBADDER_TEST_PLACEMENT_ID"),
+        "job_activity": env_credentials("JOBADDER_TEST_JOB_ACTIVITY_ID"),
+        "job_task": env_credentials("JOBADDER_TEST_JOB_TASK_ID"),
     }
 
 
@@ -145,6 +149,59 @@ class TestJobs:
         assert file["name"]
         assert file["contentType"]
         assert base64.b64decode(file["content"], validate=True)
+
+
+class TestAdditionalJobReads:
+    @pytest.mark.parametrize(
+        "action,key",
+        [
+            ("list_job_sources", "sources"),
+            ("list_job_activity_settings", "activity_settings"),
+            ("list_job_custom_fields", "custom_fields"),
+            ("list_deleted_jobs", "jobs"),
+        ],
+    )
+    async def test_unpaginated_job_lists(self, live_context, action, key):
+        result = await jobadder.execute_action(action, {}, live_context)
+        assert_list_result(result, key, max_items=None)
+
+    async def test_get_job_activity_setting(self, live_context):
+        listed = await jobadder.execute_action("list_job_activity_settings", {}, live_context)
+        assert listed.type == ResultType.ACTION
+        settings = listed.result.data["activity_settings"]
+        if not settings:
+            pytest.skip("The account has no job activity settings")
+        setting_id = settings[0]["settingId"]
+        result = await jobadder.execute_action("get_job_activity_setting", {"setting_id": setting_id}, live_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["activity_setting"]["settingId"] == setting_id
+
+    async def test_get_job_activity(self, live_context, resource_ids):
+        job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
+        if resource_ids["job_activity"]:
+            activity_id = require_integer_id(resource_ids["job_activity"], "JOBADDER_TEST_JOB_ACTIVITY_ID")
+        else:
+            listed = await jobadder.execute_action("list_job_activities", {"job_id": job_id}, live_context)
+            assert listed.type == ResultType.ACTION
+            activities = listed.result.data["activities"]
+            if not activities:
+                pytest.skip(
+                    "The configured job has no structured activities; create a sandbox activity or set "
+                    "JOBADDER_TEST_JOB_ACTIVITY_ID for an activity on JOBADDER_TEST_JOB_ID"
+                )
+            activity_id = activities[0]["activityId"]
+        result = await jobadder.execute_action(
+            "get_job_activity", {"job_id": job_id, "activity_id": activity_id}, live_context
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["activity"]["activityId"] == activity_id
+
+    async def test_get_job_task(self, live_context, resource_ids):
+        job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
+        task_id = require_integer_id(resource_ids["job_task"], "JOBADDER_TEST_JOB_TASK_ID")
+        result = await jobadder.execute_action("get_job_task", {"job_id": job_id, "task_id": task_id}, live_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["task"]["taskId"] == task_id
 
 
 class TestCandidates:

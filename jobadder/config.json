@@ -1,7 +1,7 @@
 {
   "name": "JobAdder",
   "display_name": "JobAdder",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "JobAdder recruitment integration for jobs, candidates, contacts, companies, notes, applications, placements, and connected-user discovery.",
   "entry_point": "jobadder.py",
   "auth": {
@@ -2578,6 +2578,1724 @@
           "placement": {"type": "object", "description": "Placement details"}
         },
         "required": ["placement"]
+      }
+    },
+    "create_job": {
+      "display_name": "Create Job",
+      "description": "Creates a JobAdder job using existing write_job access.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Job title; required by JobAdder for both creation and update"
+          },
+          "company_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Job company id"
+          },
+          "contact_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Job contact id"
+          },
+          "job_description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Job job description"
+          },
+          "status_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Job status"
+          },
+          "user_favourite": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Job is a favourite for the current user"
+          },
+          "category": {
+            "required": [
+              "categoryId"
+            ],
+            "type": "object",
+            "properties": {
+              "categoryId": {
+                "type": "integer"
+              },
+              "subCategoryId": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job category. Nested fields use JobAdder field names."
+          },
+          "location": {
+            "required": [
+              "locationId"
+            ],
+            "type": "object",
+            "properties": {
+              "locationId": {
+                "type": "integer"
+              },
+              "areaId": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job location. Nested fields use JobAdder field names."
+          },
+          "workplace_address_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Workplace Address Id",
+            "format": "uuid"
+          },
+          "start": {
+            "type": "object",
+            "properties": {
+              "immediate": {
+                "type": "boolean"
+              },
+              "relative": {
+                "type": "object",
+                "properties": {
+                  "period": {
+                    "type": "integer"
+                  },
+                  "unit": {
+                    "enum": [
+                      "Week",
+                      "Month"
+                    ],
+                    "type": "string",
+                    "format": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "date": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The specific date that the job starts",
+                "format": "date"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job start. Nested fields use JobAdder field names."
+          },
+          "duration": {
+            "type": "object",
+            "properties": {
+              "period": {
+                "type": "integer"
+              },
+              "unit": {
+                "enum": [
+                  "Hour",
+                  "Day",
+                  "Week",
+                  "Month"
+                ],
+                "type": "string",
+                "format": "string"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job duration. Nested fields use JobAdder field names."
+          },
+          "work_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Job work type id"
+          },
+          "salary": {
+            "type": "object",
+            "properties": {
+              "ratePer": {
+                "enum": [
+                  "Hour",
+                  "Day",
+                  "Week",
+                  "Month",
+                  "Year"
+                ],
+                "type": "string",
+                "format": "string"
+              },
+              "rateLow": {
+                "maximum": 999999999999,
+                "minimum": 0,
+                "type": "number"
+              },
+              "rateHigh": {
+                "maximum": 999999999999,
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "currency": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Optional ISO 4217 3-letter alphabetic currency code"
+              },
+              "timePerWeek": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Number of days per week for a daily rate,\r\nhours per day for an hourly rate with a 'Day' duration unit or\r\nhours per day for an hourly rate with a 'Week' duration unit."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job salary. Nested fields use JobAdder field names."
+          },
+          "fee": {
+            "type": "object",
+            "properties": {
+              "rateType": {
+                "enum": [
+                  "Percent",
+                  "Fixed",
+                  "Margin"
+                ],
+                "type": "string",
+                "format": "string"
+              },
+              "rate": {
+                "type": "number"
+              },
+              "estimatedTotal": {
+                "type": "number",
+                "description": "Optional estimated total fee. If not specified it will be calculated from the duration, salary and fee rate."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job fee. Nested fields use JobAdder field names."
+          },
+          "number_of_jobs": {
+            "type": "integer",
+            "description": "Job number of jobs"
+          },
+          "source": {
+            "maxLength": 50,
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Job source"
+          },
+          "custom_fields": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "required": [
+                "fieldId"
+              ],
+              "type": "object",
+              "properties": {
+                "fieldId": {
+                  "type": "integer"
+                },
+                "value": {
+                  "description": "Text, List or Date ([ISO full-date](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6)) value for this custom field (depending on the field `type`)"
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": "Job custom fields"
+          },
+          "skill_tags": {
+            "type": "object",
+            "properties": {
+              "matchAll": {
+                "type": "boolean"
+              },
+              "tags": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job skill tags. Nested fields use JobAdder field names."
+          },
+          "owner_user_id": {
+            "type": "integer",
+            "description": "User Id - Owner of this job"
+          },
+          "recruiter_user_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "User Id - Optional list of recruiters assigned to the job"
+          },
+          "workflow_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Job workflow id"
+          },
+          "work_shift": {
+            "type": "object",
+            "properties": {
+              "startTime": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "TimeSpan with format: HH:mm\r\nExample: 17:21"
+              },
+              "endTime": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "TimeSpan with format: HH:mm\r\nExample: 14:21"
+              },
+              "workDays": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "description": "Day of week: Sunday, Monday,Tuesday, Wednesday, Thursday, Friday, Saturday"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job work shift. Nested fields use JobAdder field names."
+          },
+          "end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The specific date that the job end",
+            "format": "date"
+          }
+        },
+        "required": [
+          "job_title"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "job"
+        ]
+      }
+    },
+    "update_job": {
+      "display_name": "Update Job",
+      "description": "Updates supplied job fields. JobAdder requires job_title on every update; provide the current title if unchanged.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "job_title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Job title; required by JobAdder for both creation and update"
+          },
+          "company_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Job company id"
+          },
+          "contact_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Job contact id"
+          },
+          "job_description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Job job description"
+          },
+          "status_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Job status"
+          },
+          "user_favourite": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Job is a favourite for the current user"
+          },
+          "category": {
+            "required": [
+              "categoryId"
+            ],
+            "type": "object",
+            "properties": {
+              "categoryId": {
+                "type": "integer"
+              },
+              "subCategoryId": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job category. Nested fields use JobAdder field names."
+          },
+          "location": {
+            "required": [
+              "locationId"
+            ],
+            "type": "object",
+            "properties": {
+              "locationId": {
+                "type": "integer"
+              },
+              "areaId": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job location. Nested fields use JobAdder field names."
+          },
+          "workplace_address_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Workplace Address Id",
+            "format": "uuid"
+          },
+          "start": {
+            "type": "object",
+            "properties": {
+              "immediate": {
+                "type": "boolean"
+              },
+              "relative": {
+                "type": "object",
+                "properties": {
+                  "period": {
+                    "type": "integer"
+                  },
+                  "unit": {
+                    "enum": [
+                      "Week",
+                      "Month"
+                    ],
+                    "type": "string",
+                    "format": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "date": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The specific date that the job starts",
+                "format": "date"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job start. Nested fields use JobAdder field names."
+          },
+          "duration": {
+            "type": "object",
+            "properties": {
+              "period": {
+                "type": "integer"
+              },
+              "unit": {
+                "enum": [
+                  "Hour",
+                  "Day",
+                  "Week",
+                  "Month"
+                ],
+                "type": "string",
+                "format": "string"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job duration. Nested fields use JobAdder field names."
+          },
+          "work_type_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Job work type id"
+          },
+          "salary": {
+            "type": "object",
+            "properties": {
+              "ratePer": {
+                "enum": [
+                  "Hour",
+                  "Day",
+                  "Week",
+                  "Month",
+                  "Year"
+                ],
+                "type": "string",
+                "format": "string"
+              },
+              "rateLow": {
+                "maximum": 999999999999,
+                "minimum": 0,
+                "type": "number"
+              },
+              "rateHigh": {
+                "maximum": 999999999999,
+                "minimum": 0,
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "currency": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Optional ISO 4217 3-letter alphabetic currency code"
+              },
+              "timePerWeek": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Number of days per week for a daily rate,\r\nhours per day for an hourly rate with a 'Day' duration unit or\r\nhours per day for an hourly rate with a 'Week' duration unit."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job salary. Nested fields use JobAdder field names."
+          },
+          "fee": {
+            "type": "object",
+            "properties": {
+              "rateType": {
+                "enum": [
+                  "Percent",
+                  "Fixed",
+                  "Margin"
+                ],
+                "type": "string",
+                "format": "string"
+              },
+              "rate": {
+                "type": "number"
+              },
+              "estimatedTotal": {
+                "type": "number",
+                "description": "Optional estimated total fee. If not specified it will be calculated from the duration, salary and fee rate."
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job fee. Nested fields use JobAdder field names."
+          },
+          "number_of_jobs": {
+            "type": "integer",
+            "description": "Job number of jobs"
+          },
+          "source": {
+            "maxLength": 50,
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Job source"
+          },
+          "custom_fields": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "required": [
+                "fieldId"
+              ],
+              "type": "object",
+              "properties": {
+                "fieldId": {
+                  "type": "integer"
+                },
+                "value": {
+                  "description": "Text, List or Date ([ISO full-date](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6)) value for this custom field (depending on the field `type`)"
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": "Job custom fields"
+          },
+          "skill_tags": {
+            "type": "object",
+            "properties": {
+              "matchAll": {
+                "type": "boolean"
+              },
+              "tags": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job skill tags. Nested fields use JobAdder field names."
+          },
+          "owner_user_id": {
+            "type": "integer",
+            "description": "User Id - Owner of this job"
+          },
+          "recruiter_user_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "User Id - Optional list of recruiters assigned to the job"
+          },
+          "workflow_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Job workflow id"
+          },
+          "work_shift": {
+            "type": "object",
+            "properties": {
+              "startTime": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "TimeSpan with format: HH:mm\r\nExample: 17:21"
+              },
+              "endTime": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "TimeSpan with format: HH:mm\r\nExample: 14:21"
+              },
+              "workDays": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "description": "Day of week: Sunday, Monday,Tuesday, Wednesday, Thursday, Friday, Saturday"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Job work shift. Nested fields use JobAdder field names."
+          },
+          "end_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The specific date that the job end",
+            "format": "date"
+          }
+        },
+        "required": [
+          "job_id",
+          "job_title"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          },
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          }
+        },
+        "required": [
+          "updated",
+          "job_id"
+        ]
+      }
+    },
+    "set_job_status": {
+      "display_name": "Set Job Status",
+      "description": "Changes job status and optionally adds a note using write_job access.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "status_id": {
+            "type": "integer",
+            "description": "Target job status ID"
+          },
+          "note_type": {
+            "type": "string",
+            "description": "Optional note type"
+          },
+          "note_text": {
+            "type": "string",
+            "description": "Optional note text"
+          }
+        },
+        "required": [
+          "job_id",
+          "status_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "updated": {
+            "type": "boolean"
+          },
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "status_id": {
+            "type": "integer",
+            "description": "Assigned status ID"
+          }
+        },
+        "required": [
+          "updated",
+          "job_id",
+          "status_id"
+        ]
+      }
+    },
+    "submit_candidate_to_evergreen_job": {
+      "display_name": "Submit Candidate To Evergreen Job",
+      "description": "Submits candidate details to an evergreen job and returns the application. Requires first name, last name and email.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Candidate source. Nested fields use JobAdder field names."
+          },
+          "first_name": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string",
+            "description": "Candidate first name. Nested fields use JobAdder field names."
+          },
+          "last_name": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string",
+            "description": "Candidate last name. Nested fields use JobAdder field names."
+          },
+          "salutation": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Candidate salutation. Nested fields use JobAdder field names."
+          },
+          "email": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string",
+            "description": "Candidate email. Nested fields use JobAdder field names."
+          },
+          "phone": {
+            "maxLength": 50,
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Candidate phone. Nested fields use JobAdder field names."
+          },
+          "mobile": {
+            "maxLength": 50,
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Candidate mobile. Nested fields use JobAdder field names."
+          },
+          "address": {
+            "type": "object",
+            "properties": {
+              "street": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "city": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "postalCode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "countryCode": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false,
+            "description": "Candidate address. Nested fields use JobAdder field names."
+          },
+          "social": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Candidate social. Nested fields use JobAdder field names."
+          },
+          "employment": {
+            "type": "object",
+            "properties": {
+              "current": {
+                "type": "object",
+                "properties": {
+                  "employer": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "position": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "workTypeId": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "salary": {
+                    "type": "object",
+                    "properties": {
+                      "ratePer": {
+                        "enum": [
+                          "Hour",
+                          "Day",
+                          "Week",
+                          "Month",
+                          "Year"
+                        ],
+                        "type": "string",
+                        "format": "string"
+                      },
+                      "rate": {
+                        "maximum": 99999999,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "currency": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Optional ISO 4217 3-letter alphabetic currency code"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "ideal": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "workTypeId": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "salary": {
+                    "type": "object",
+                    "properties": {
+                      "ratePer": {
+                        "enum": [
+                          "Hour",
+                          "Day",
+                          "Week",
+                          "Month",
+                          "Year"
+                        ],
+                        "type": "string",
+                        "format": "string"
+                      },
+                      "rateLow": {
+                        "maximum": 999999999999,
+                        "minimum": 0,
+                        "type": "number"
+                      },
+                      "rateHigh": {
+                        "maximum": 999999999999,
+                        "minimum": 0,
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "currency": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Optional ISO 4217 3-letter alphabetic currency code"
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "other": {
+                    "type": [
+                      "array",
+                      "null"
+                    ],
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "workTypeId": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "salary": {
+                          "type": "object",
+                          "properties": {
+                            "ratePer": {
+                              "enum": [
+                                "Hour",
+                                "Day",
+                                "Week",
+                                "Month",
+                                "Year"
+                              ],
+                              "type": "string",
+                              "format": "string"
+                            },
+                            "rateLow": {
+                              "maximum": 999999999999,
+                              "minimum": 0,
+                              "type": "number"
+                            },
+                            "rateHigh": {
+                              "maximum": 999999999999,
+                              "minimum": 0,
+                              "type": [
+                                "number",
+                                "null"
+                              ]
+                            },
+                            "currency": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "Optional ISO 4217 3-letter alphabetic currency code"
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "history": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "employer": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Name of the employer"
+                    },
+                    "position": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "start": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Year, month or date employment started.<br />\r\nYear must be formatted as [ISO date-fullyear](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6), the 4 digit year the course was completed, e.g. 2017<br />\r\nMonth must be formatted as [ISO date-fullyear](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6) \"-\" [ISO date-month](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6), e.g. 2017-07<br />\r\nDate must be formatted as [ISO full-date](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6), e.g. 2017-07-31"
+                    },
+                    "end": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Year, month or date employment finished, or \"Present\" for a current role.<br />\r\nYear must be formatted as [ISO date-fullyear](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6), the 4 digit year the course was completed, e.g. 2017<br />\r\nMonth must be formatted as [ISO date-fullyear](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6) \"-\" [ISO date-month](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6), e.g. 2017-07<br />\r\nDate must be formatted as [ISO full-date](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6), e.g. 2017-07-31"
+                    },
+                    "description": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Description of responsibilities and achievements."
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false,
+            "description": "Candidate employment. Nested fields use JobAdder field names."
+          },
+          "availability": {
+            "type": "object",
+            "properties": {
+              "immediate": {
+                "type": "boolean",
+                "description": "The candidate is available for an immediate start"
+              },
+              "relative": {
+                "type": "object",
+                "properties": {
+                  "period": {
+                    "type": "integer"
+                  },
+                  "unit": {
+                    "enum": [
+                      "Week",
+                      "Month"
+                    ],
+                    "type": "string",
+                    "format": "string"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "date": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The specific date that a job starts or a candidate is available",
+                "format": "date"
+              }
+            },
+            "additionalProperties": false,
+            "description": "The date the candidate is available to start. Specify ONE OF immediate, relative or date."
+          },
+          "education": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "properties": {
+                "institution": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "course": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "date": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Year, month or date completed.<br />\r\nYear must be formatted as [ISO date-fullyear](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6), the 4 digit year the course was completed, e.g. 2017<br />\r\nMonth must be formatted as [ISO date-fullyear](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6) \"-\" [ISO date-month](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6), e.g. 2017-07<br />\r\nDate must be formatted as [ISO full-date](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6), e.g. 2017-07-31"
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": "Candidate education. Nested fields use JobAdder field names."
+          },
+          "skill_tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Candidate skill tags. Nested fields use JobAdder field names."
+          },
+          "screening": {
+            "type": "object",
+            "properties": {
+              "answers": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "question": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "answer": {
+                      "description": "Text or List value answer for this screening question (depending on the question `answerType`)"
+                    },
+                    "score": {
+                      "maximum": 100,
+                      "minimum": 0,
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "Optional score for this answer"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "score": {
+                "maximum": 100,
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Optional overall score for these screening results"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Candidate screening. Nested fields use JobAdder field names."
+          },
+          "custom_fields": {
+            "type": "object",
+            "properties": {
+              "candidate": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "required": [
+                    "fieldId"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "fieldId": {
+                      "type": "integer"
+                    },
+                    "value": {
+                      "description": "Text, List or Date ([ISO full-date](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6)) value for this custom field (depending on the field `type`)"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "description": "Candidate custom field values"
+              },
+              "application": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "required": [
+                    "fieldId"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "fieldId": {
+                      "type": "integer"
+                    },
+                    "value": {
+                      "description": "Text, List or Date ([ISO full-date](https://www.rfc-editor.org/rfc/rfc3339.html#section-5.6)) value for this custom field (depending on the field `type`)"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "description": "Job application custom field values"
+              }
+            },
+            "additionalProperties": false,
+            "description": "Candidate and job application custom field values"
+          }
+        },
+        "required": [
+          "job_id",
+          "first_name",
+          "last_name",
+          "email"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "application": {
+            "type": "object",
+            "description": "Unmodified JobAdder response, including related context and links"
+          }
+        },
+        "required": [
+          "application"
+        ]
+      }
+    },
+    "list_job_invoices": {
+      "display_name": "List Job Invoices",
+      "description": "Lists job invoices with their job context. This endpoint does not support pagination.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "job": {
+            "type": "object"
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "job",
+          "invoices"
+        ]
+      }
+    },
+    "get_job_invoice": {
+      "display_name": "Get Job Invoice",
+      "description": "Retrieves a job invoice, preserving the provider invoice, job and links in the response.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "invoice_id": {
+            "type": "integer",
+            "description": "JobAdder invoice ID"
+          }
+        },
+        "required": [
+          "job_id",
+          "invoice_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "invoice": {
+            "type": "object",
+            "description": "Unmodified JobAdder response, including related context and links"
+          }
+        },
+        "required": [
+          "invoice"
+        ]
+      }
+    },
+    "list_job_sources": {
+      "display_name": "List Job Sources",
+      "description": "Lists configured job sources, optionally filtered by name.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Filter by source name"
+          }
+        },
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "sources": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Returned records"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Provider total count, or returned record count for unpaginated endpoints"
+          },
+          "links": {
+            "type": "object",
+            "description": "Pagination links when returned by JobAdder"
+          }
+        },
+        "required": [
+          "sources",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "get_job_activity": {
+      "display_name": "Get Job Activity",
+      "description": "Retrieves a structured activity linked to a job.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "activity_id": {
+            "type": "integer",
+            "description": "Activity ID"
+          }
+        },
+        "required": [
+          "job_id",
+          "activity_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "activity": {
+            "type": "object",
+            "description": "Unmodified JobAdder response, including related context and links"
+          }
+        },
+        "required": [
+          "activity"
+        ]
+      }
+    },
+    "list_job_activity_settings": {
+      "display_name": "List Job Activity Settings",
+      "description": "Lists job activity setting definitions. This endpoint does not accept pagination or filters.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "activity_settings": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Returned records"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Provider total count, or returned record count for unpaginated endpoints"
+          },
+          "links": {
+            "type": "object",
+            "description": "Pagination links when returned by JobAdder"
+          }
+        },
+        "required": [
+          "activity_settings",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "get_job_activity_setting": {
+      "display_name": "Get Job Activity Setting",
+      "description": "Retrieves a job activity definition, including its questions and available answers/statuses.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "setting_id": {
+            "type": "integer",
+            "description": "Activity setting ID"
+          }
+        },
+        "required": [
+          "setting_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "activity_setting": {
+            "type": "object",
+            "description": "Unmodified JobAdder response, including related context and links"
+          }
+        },
+        "required": [
+          "activity_setting"
+        ]
+      }
+    },
+    "create_job_task": {
+      "display_name": "Create Job Task",
+      "description": "Creates a follow-up task linked to a job using existing write_job access. Task updates/completion require additional scopes and are not supported.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Task title"
+          },
+          "start_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Task start at"
+          },
+          "end_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Task end at"
+          },
+          "all_day": {
+            "type": "boolean",
+            "description": "Task all day"
+          },
+          "assignee_user_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 1,
+            "description": "JobAdder user IDs assigned to the task"
+          },
+          "priority": {
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer",
+            "description": "Task priority"
+          },
+          "candidate_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Task candidate ids"
+          },
+          "job_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Task job ids"
+          },
+          "placement_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Task placement ids"
+          },
+          "company_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Task company ids"
+          },
+          "contact_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Task contact ids"
+          },
+          "application_ids": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer"
+            },
+            "description": "Task application ids"
+          }
+        },
+        "required": [
+          "job_id",
+          "title",
+          "assignee_user_ids"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "task"
+        ]
+      }
+    },
+    "get_job_task": {
+      "display_name": "Get Job Task",
+      "description": "Retrieves a task through its associated job using existing read_job access.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "description": "JobAdder job ID"
+          },
+          "task_id": {
+            "type": "integer",
+            "description": "Task ID"
+          }
+        },
+        "required": [
+          "job_id",
+          "task_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "task": {
+            "type": "object",
+            "description": "Unmodified JobAdder response, including related context and links"
+          }
+        },
+        "required": [
+          "task"
+        ]
+      }
+    },
+    "list_job_custom_fields": {
+      "display_name": "List Job Custom Fields",
+      "description": "Lists job custom-field definitions, including required flags and allowed list values. Does not modify field definitions.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "custom_fields": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Returned records"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Provider total count, or returned record count for unpaginated endpoints"
+          },
+          "links": {
+            "type": "object",
+            "description": "Pagination links when returned by JobAdder"
+          }
+        },
+        "required": [
+          "custom_fields",
+          "total_count",
+          "links"
+        ]
+      }
+    },
+    "list_deleted_jobs": {
+      "display_name": "List Deleted Jobs",
+      "description": "Lists jobs deleted in the last 14 days. This endpoint does not accept pagination or date filters.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            },
+            "description": "Returned records"
+          },
+          "total_count": {
+            "type": "integer",
+            "description": "Provider total count, or returned record count for unpaginated endpoints"
+          },
+          "links": {
+            "type": "object",
+            "description": "Pagination links when returned by JobAdder"
+          }
+        },
+        "required": [
+          "jobs",
+          "total_count",
+          "links"
+        ]
       }
     }
   }

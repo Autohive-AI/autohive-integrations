@@ -1,0 +1,407 @@
+import pytest
+from autohive_integrations_sdk import FetchResponse, HTTPError
+from autohive_integrations_sdk.integration import ResultType
+
+from jobadder.jobadder import jobadder
+
+
+pytestmark = pytest.mark.unit
+BASE = "https://au-api.jobadder.com/v2"
+
+
+def response(data=None, status=200):
+    return FetchResponse(status=status, headers={}, data=data)
+
+
+# Provider-shaped fixtures distinguish invoices, detail objects and list envelopes.
+ACTION_CASES = [
+    ("create_job", {"job_title": "Engineer"}, "POST", "/jobs", {"jobId": 11}, {"job": {"jobId": 11}}),
+    (
+        "update_job",
+        {"job_id": 11, "job_title": "Engineer"},
+        "PUT",
+        "/jobs/11",
+        None,
+        {"updated": True, "job_id": 11},
+    ),
+    (
+        "set_job_status",
+        {"job_id": 11, "status_id": 3},
+        "PUT",
+        "/jobs/11/status",
+        None,
+        {"updated": True, "job_id": 11, "status_id": 3},
+    ),
+    (
+        "submit_candidate_to_evergreen_job",
+        {"job_id": 11, "first_name": "Alex", "last_name": "Lee", "email": "alex@example.com"},
+        "POST",
+        "/jobs/11/applications/submit",
+        {"applicationId": 31},
+        {"application": {"applicationId": 31}},
+    ),
+    (
+        "list_job_invoices",
+        {"job_id": 11},
+        "GET",
+        "/jobs/11/invoices",
+        {"job": {"jobId": 11}, "invoices": [{"invoiceId": 8}]},
+        {"job": {"jobId": 11}, "invoices": [{"invoiceId": 8}]},
+    ),
+    (
+        "get_job_invoice",
+        {"job_id": 11, "invoice_id": 8},
+        "GET",
+        "/jobs/11/invoices/8",
+        {"job": {"jobId": 11}, "invoice": {"invoiceId": 8}, "links": {"self": "invoice-url"}},
+        {"invoice": {"job": {"jobId": 11}, "invoice": {"invoiceId": 8}, "links": {"self": "invoice-url"}}},
+    ),
+    (
+        "get_job_activity",
+        {"job_id": 11, "activity_id": 7},
+        "GET",
+        "/jobs/11/activities/7",
+        {"activityId": 7, "details": {"textAnswers": []}},
+        {"activity": {"activityId": 7, "details": {"textAnswers": []}}},
+    ),
+    (
+        "get_job_activity_setting",
+        {"setting_id": 2},
+        "GET",
+        "/jobs/activitysettings/2",
+        {"settingId": 2, "questions": []},
+        {"activity_setting": {"settingId": 2, "questions": []}},
+    ),
+    (
+        "create_job_task",
+        {"job_id": 11, "title": "Call hiring manager", "assignee_user_ids": [4]},
+        "POST",
+        "/jobs/11/usertasks",
+        {"taskId": 9, "jobId": 11},
+        {"task": {"taskId": 9, "jobId": 11}},
+    ),
+    (
+        "get_job_task",
+        {"job_id": 11, "task_id": 9},
+        "GET",
+        "/jobs/11/usertasks/9",
+        {"taskId": 9, "complete": False},
+        {"task": {"taskId": 9, "complete": False}},
+    ),
+]
+LIST_CASES = [
+    ("list_job_sources", "/jobs/lists/source", "sources"),
+    ("list_job_activity_settings", "/jobs/activitysettings", "activity_settings"),
+    ("list_job_custom_fields", "/jobs/fields/custom", "custom_fields"),
+    ("list_deleted_jobs", "/jobs/deleted", "jobs"),
+]
+
+
+@pytest.mark.parametrize("action,inputs,method,path,payload,expected", ACTION_CASES)
+async def test_action_request_and_provider_response(mock_context, action, inputs, method, path, payload, expected):
+    mock_context.fetch.return_value = response(payload)
+    result = await jobadder.execute_action(action, inputs, mock_context)
+
+    assert result.type == ResultType.ACTION
+    assert result.result.data == expected
+    mock_context.fetch.assert_awaited_once()
+    assert mock_context.fetch.call_args.args == (BASE + path,)
+    assert mock_context.fetch.call_args.kwargs["method"] == method
+
+
+@pytest.mark.parametrize("action,path,key", LIST_CASES)
+async def test_list_response_and_supported_parameters(mock_context, action, path, key):
+    mock_context.fetch.return_value = response({"items": [{"name": "Example"}]})
+    result = await jobadder.execute_action(action, {}, mock_context)
+
+    assert result.type == ResultType.ACTION
+    assert result.result.data == {key: [{"name": "Example"}], "total_count": 1, "links": {}}
+    expected = {"method": "GET"}
+    mock_context.fetch.assert_awaited_once_with(BASE + path, **expected)
+
+
+ALL_ACTION_INPUTS = [(case[0], case[1]) for case in ACTION_CASES] + [(case[0], {}) for case in LIST_CASES]
+
+
+@pytest.mark.parametrize("action,inputs", ALL_ACTION_INPUTS)
+async def test_provider_errors_are_returned(mock_context, action, inputs):
+    mock_context.fetch.side_effect = HTTPError(403, "JobAdder denied this operation")
+    result = await jobadder.execute_action(action, inputs, mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "JobAdder denied this operation" in result.result.message
+
+
+@pytest.mark.parametrize("action,inputs", ALL_ACTION_INPUTS)
+async def test_missing_tenant_prevents_requests(mock_context, action, inputs):
+    mock_context.metadata = {}
+    result = await jobadder.execute_action(action, inputs, mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "reconnect" in result.result.message.lower()
+    mock_context.fetch.assert_not_awaited()
+
+
+JOB_FIELDS = {
+    "job_title": "Engineer",
+    "company_id": 5,
+    "contact_id": 6,
+    "job_description": "Develop software",
+    "status_id": 3,
+    "user_favourite": False,
+    "category": {"categoryId": 10, "subCategoryId": None},
+    "location": {"locationId": 12, "areaId": 13},
+    "workplace_address_id": "3e9ffaf1-ee5d-48c3-9378-5f88d8e03401",
+    "start": {"immediate": False, "date": "2026-12-01"},
+    "duration": {"period": 2},
+    "work_type_id": 14,
+    "salary": {"rateLow": 0, "rateHigh": None, "currency": "NZD"},
+    "fee": {"rate": 0, "estimatedTotal": 0},
+    "number_of_jobs": 0,
+    "source": "Autohive",
+    "custom_fields": [{"fieldId": 1, "value": "North"}],
+    "skill_tags": {"matchAll": False, "tags": ["Python"]},
+    "owner_user_id": 4,
+    "recruiter_user_ids": [],
+    "workflow_id": None,
+    "work_shift": {},
+    "end_date": None,
+}
+JOB_BODY = {
+    "jobTitle": "Engineer",
+    "companyId": 5,
+    "contactId": 6,
+    "jobDescription": "Develop software",
+    "statusId": 3,
+    "userFavourite": False,
+    "category": {"categoryId": 10, "subCategoryId": None},
+    "location": {"locationId": 12, "areaId": 13},
+    "workplaceAddressId": "3e9ffaf1-ee5d-48c3-9378-5f88d8e03401",
+    "start": {"immediate": False, "date": "2026-12-01"},
+    "duration": {"period": 2},
+    "workTypeId": 14,
+    "salary": {"rateLow": 0, "rateHigh": None, "currency": "NZD"},
+    "fee": {"rate": 0, "estimatedTotal": 0},
+    "numberOfJobs": 0,
+    "source": "Autohive",
+    "custom": [{"fieldId": 1, "value": "North"}],
+    "skillTags": {"matchAll": False, "tags": ["Python"]},
+    "ownerUserId": 4,
+    "recruiterUserId": [],
+    "workflowId": None,
+    "workShift": {},
+    "endDate": None,
+}
+
+
+@pytest.mark.parametrize("action,method,path", [("create_job", "POST", "/jobs"), ("update_job", "PUT", "/jobs/11")])
+async def test_job_fields_preserve_nested_data_false_zero_and_null(mock_context, action, method, path):
+    mock_context.fetch.return_value = response({"jobId": 11})
+    inputs = dict(JOB_FIELDS)
+    if action == "update_job":
+        inputs["job_id"] = 11
+    result = await jobadder.execute_action(action, inputs, mock_context)
+
+    assert result.type == ResultType.ACTION
+    mock_context.fetch.assert_awaited_once_with(
+        BASE + path, method=method, headers={"Content-Type": "application/json"}, json=JOB_BODY
+    )
+
+
+@pytest.mark.parametrize("action,inputs", [("create_job", {}), ("update_job", {"job_id": 11})])
+async def test_job_title_required_before_request(mock_context, action, inputs):
+    result = await jobadder.execute_action(action, inputs, mock_context)
+
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+async def test_job_update_only_sends_supplied_fields(mock_context):
+    mock_context.fetch.return_value = response()
+    await jobadder.execute_action(
+        "update_job", {"job_id": 11, "job_title": "Engineer", "contact_id": None}, mock_context
+    )
+
+    assert mock_context.fetch.call_args.kwargs["json"] == {"jobTitle": "Engineer", "contactId": None}
+
+
+@pytest.mark.parametrize("fields", [{"category": {}}, {"location": {}}, {"salary": {"rateLow": -1}}, {"start": None}])
+async def test_invalid_nested_job_fields_rejected(mock_context, fields):
+    result = await jobadder.execute_action("create_job", {"job_title": "Engineer", **fields}, mock_context)
+
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("http_status", [200, 202])
+async def test_status_change_handles_optional_note_and_already_assigned(mock_context, http_status):
+    mock_context.fetch.return_value = response(status=http_status)
+    result = await jobadder.execute_action(
+        "set_job_status",
+        {"job_id": 11, "status_id": 3, "note_type": "General", "note_text": "Role closed"},
+        mock_context,
+    )
+
+    assert result.type == ResultType.ACTION
+    assert mock_context.fetch.call_args.kwargs["json"] == {
+        "statusId": 3,
+        "note": {"type": "General", "text": "Role closed"},
+    }
+
+
+async def test_status_change_omits_unsupplied_note(mock_context):
+    mock_context.fetch.return_value = response(status=202)
+    await jobadder.execute_action("set_job_status", {"job_id": 11, "status_id": 3}, mock_context)
+
+    assert mock_context.fetch.call_args.kwargs["json"] == {"statusId": 3}
+
+
+async def test_evergreen_submission_maps_candidate_fields(mock_context):
+    mock_context.fetch.return_value = response({"applicationId": 31}, 201)
+    inputs = {
+        "job_id": 11,
+        "first_name": "Alex",
+        "last_name": "Lee",
+        "email": "alex@example.com",
+        "source": "Autohive",
+        "salutation": None,
+        "phone": "012345678",
+        "mobile": None,
+        "address": {},
+        "social": {},
+        "employment": {},
+        "availability": {},
+        "education": [],
+        "skill_tags": ["Python"],
+        "screening": {},
+        "custom_fields": {},
+    }
+    result = await jobadder.execute_action("submit_candidate_to_evergreen_job", inputs, mock_context)
+
+    assert result.type == ResultType.ACTION
+    mock_context.fetch.assert_awaited_once_with(
+        BASE + "/jobs/11/applications/submit",
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        json={
+            "firstName": "Alex",
+            "lastName": "Lee",
+            "email": "alex@example.com",
+            "source": "Autohive",
+            "salutation": None,
+            "phone": "012345678",
+            "mobile": None,
+            "address": {},
+            "social": {},
+            "employment": {},
+            "availability": {},
+            "education": [],
+            "skillTags": ["Python"],
+            "screening": {},
+            "custom": {},
+        },
+    )
+
+
+@pytest.mark.parametrize("missing", ["first_name", "last_name", "email"])
+async def test_evergreen_submission_requires_candidate_identity(mock_context, missing):
+    inputs = {"job_id": 11, "first_name": "Alex", "last_name": "Lee", "email": "alex@example.com"}
+    inputs.pop(missing)
+    result = await jobadder.execute_action("submit_candidate_to_evergreen_job", inputs, mock_context)
+
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("invoices", [[], None])
+async def test_empty_invoices_preserve_job_context(mock_context, invoices):
+    mock_context.fetch.return_value = response({"job": {"jobId": 11}, "invoices": invoices})
+    result = await jobadder.execute_action("list_job_invoices", {"job_id": 11}, mock_context)
+
+    assert result.result.data == {"job": {"jobId": 11}, "invoices": []}
+
+
+@pytest.mark.parametrize(
+    "action,inputs,path",
+    [
+        ("list_job_invoices", {"job_id": 99}, "/jobs/99/invoices"),
+        ("get_job_invoice", {"job_id": 99, "invoice_id": 8}, "/jobs/99/invoices/8"),
+    ],
+)
+async def test_invoice_actions_preserve_not_found_errors(mock_context, action, inputs, path):
+    mock_context.fetch.side_effect = HTTPError(404, "Requested job's invoices were not found")
+
+    result = await jobadder.execute_action(action, inputs, mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "invoices were not found" in result.result.message
+    mock_context.fetch.assert_awaited_once_with(BASE + path, method="GET")
+
+
+@pytest.mark.parametrize("action,path,key", LIST_CASES)
+async def test_empty_list_results(mock_context, action, path, key):
+    mock_context.fetch.return_value = response({"items": None})
+    result = await jobadder.execute_action(action, {}, mock_context)
+
+    assert result.result.data == {key: [], "total_count": 0, "links": {}}
+
+
+async def test_source_name_filter(mock_context):
+    mock_context.fetch.return_value = response({"items": [{"name": "Referral"}]})
+    await jobadder.execute_action("list_job_sources", {"name": "Referral"}, mock_context)
+
+    mock_context.fetch.assert_awaited_once_with(BASE + "/jobs/lists/source", method="GET", params={"name": "Referral"})
+
+
+async def test_task_maps_assignees_dates_and_linked_records(mock_context):
+    mock_context.fetch.return_value = response({"taskId": 9}, 201)
+    result = await jobadder.execute_action(
+        "create_job_task",
+        {
+            "job_id": 11,
+            "title": "Call hiring manager",
+            "assignee_user_ids": [4, 5],
+            "start_at": "2026-11-17T00:00:00Z",
+            "end_at": "2026-11-17T01:00:00Z",
+            "all_day": False,
+            "priority": 0,
+            "candidate_ids": [21],
+            "job_ids": [11],
+            "placement_ids": [],
+            "company_ids": [6],
+            "contact_ids": [8],
+            "application_ids": [31],
+        },
+        mock_context,
+    )
+
+    assert result.type == ResultType.ACTION
+    mock_context.fetch.assert_awaited_once_with(
+        BASE + "/jobs/11/usertasks",
+        method="POST",
+        headers={"Content-Type": "application/json"},
+        json={
+            "title": "Call hiring manager",
+            "assignees": [4, 5],
+            "startAt": "2026-11-17T00:00:00Z",
+            "endAt": "2026-11-17T01:00:00Z",
+            "allDay": False,
+            "priority": 0,
+            "candidates": [21],
+            "jobs": [11],
+            "placements": [],
+            "companies": [6],
+            "contacts": [8],
+            "applications": [31],
+        },
+    )
+
+
+@pytest.mark.parametrize("fields", [{"assignee_user_ids": []}, {"priority": 4}, {"title": ""}])
+async def test_task_invalid_inputs_rejected(mock_context, fields):
+    result = await jobadder.execute_action(
+        "create_job_task", {"job_id": 11, "title": "Follow up", "assignee_user_ids": [4], **fields}, mock_context
+    )
+
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_context.fetch.assert_not_awaited()

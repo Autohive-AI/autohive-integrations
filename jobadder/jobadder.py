@@ -13,6 +13,36 @@ MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024
 _DOWNLOAD_CHUNK_BYTES = 64 * 1024
 
 
+def _job_body(inputs: dict[str, Any]) -> dict[str, Any]:
+    """Map supplied job fields, preserving explicit nulls, false and zero."""
+    fields = {
+        "jobTitle": ("job_title", inputs["job_title"]),
+        "companyId": ("company_id", inputs.get("company_id")),
+        "contactId": ("contact_id", inputs.get("contact_id")),
+        "jobDescription": ("job_description", inputs.get("job_description")),
+        "statusId": ("status_id", inputs.get("status_id")),
+        "userFavourite": ("user_favourite", inputs.get("user_favourite")),
+        "category": ("category", inputs.get("category")),
+        "location": ("location", inputs.get("location")),
+        "workplaceAddressId": ("workplace_address_id", inputs.get("workplace_address_id")),
+        "start": ("start", inputs.get("start")),
+        "duration": ("duration", inputs.get("duration")),
+        "workTypeId": ("work_type_id", inputs.get("work_type_id")),
+        "salary": ("salary", inputs.get("salary")),
+        "fee": ("fee", inputs.get("fee")),
+        "numberOfJobs": ("number_of_jobs", inputs.get("number_of_jobs")),
+        "source": ("source", inputs.get("source")),
+        "custom": ("custom_fields", inputs.get("custom_fields")),
+        "skillTags": ("skill_tags", inputs.get("skill_tags")),
+        "ownerUserId": ("owner_user_id", inputs.get("owner_user_id")),
+        "recruiterUserId": ("recruiter_user_ids", inputs.get("recruiter_user_ids")),
+        "workflowId": ("workflow_id", inputs.get("workflow_id")),
+        "workShift": ("work_shift", inputs.get("work_shift")),
+        "endDate": ("end_date", inputs.get("end_date")),
+    }
+    return {provider: value for provider, (field, value) in fields.items() if field in inputs}
+
+
 def get_api_base_url(context: ExecutionContext) -> str:
     """Return and validate the tenant API URL supplied by JobAdder OAuth."""
     metadata = context.metadata or {}
@@ -1501,5 +1531,220 @@ class GetPlacementAction(ActionHandler):
                 f"{get_api_base_url(context)}/placements/{inputs['placement_id']}", method="GET"
             )
             return ActionResult(data={"placement": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("create_job")
+class CreateJobAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/jobs",
+                method="POST",
+                headers={"Content-Type": "application/json"},
+                json=_job_body(inputs),
+            )
+            return ActionResult(data={"job": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("update_job")
+class UpdateJobAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            await context.fetch(
+                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}",
+                method="PUT",
+                headers={"Content-Type": "application/json"},
+                json=_job_body(inputs),
+            )
+            return ActionResult(data={"updated": True, "job_id": inputs["job_id"]})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("set_job_status")
+class SetJobStatusAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            body: dict[str, Any] = {"statusId": inputs["status_id"]}
+            note = {}
+            if "note_type" in inputs:
+                note["type"] = inputs.get("note_type")
+            if "note_text" in inputs:
+                note["text"] = inputs.get("note_text")
+            if note:
+                body["note"] = note
+            await context.fetch(
+                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/status",
+                method="PUT",
+                headers={"Content-Type": "application/json"},
+                json=body,
+            )
+            return ActionResult(data={"updated": True, "job_id": inputs["job_id"], "status_id": inputs["status_id"]})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("submit_candidate_to_evergreen_job")
+class SubmitCandidateToEvergreenJobAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            fields = {
+                "firstName": ("first_name", inputs["first_name"]),
+                "lastName": ("last_name", inputs["last_name"]),
+                "email": ("email", inputs["email"]),
+                "source": ("source", inputs.get("source")),
+                "salutation": ("salutation", inputs.get("salutation")),
+                "phone": ("phone", inputs.get("phone")),
+                "mobile": ("mobile", inputs.get("mobile")),
+                "address": ("address", inputs.get("address")),
+                "social": ("social", inputs.get("social")),
+                "employment": ("employment", inputs.get("employment")),
+                "availability": ("availability", inputs.get("availability")),
+                "education": ("education", inputs.get("education")),
+                "skillTags": ("skill_tags", inputs.get("skill_tags")),
+                "screening": ("screening", inputs.get("screening")),
+                "custom": ("custom_fields", inputs.get("custom_fields")),
+            }
+            body = {provider: value for provider, (field, value) in fields.items() if field in inputs}
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/applications/submit",
+                method="POST",
+                headers={"Content-Type": "application/json"},
+                json=body,
+            )
+            return ActionResult(data={"application": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_invoices")
+class ListJobInvoicesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/invoices", method="GET"
+            )
+            # Unlike other lists, this endpoint returns {job, invoices}, not {items}.
+            payload = response.data
+            return ActionResult(data={"job": payload.get("job") or {}, "invoices": payload.get("invoices") or []})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("get_job_invoice")
+class GetJobInvoiceAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/invoices/{inputs['invoice_id']}", method="GET"
+            )
+            # Preserve the provider's invoice, job and links together.
+            return ActionResult(data={"invoice": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_sources")
+class ListJobSourcesAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, "/jobs/lists/source", "sources", {"name": inputs.get("name")})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("get_job_activity")
+class GetJobActivityAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/activities/{inputs['activity_id']}", method="GET"
+            )
+            return ActionResult(data={"activity": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_activity_settings")
+class ListJobActivitySettingsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, "/jobs/activitysettings", "activity_settings")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("get_job_activity_setting")
+class GetJobActivitySettingAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/jobs/activitysettings/{inputs['setting_id']}", method="GET"
+            )
+            return ActionResult(data={"activity_setting": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("create_job_task")
+class CreateJobTaskAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            fields = {
+                "title": ("title", inputs["title"]),
+                "assignees": ("assignee_user_ids", inputs["assignee_user_ids"]),
+                "startAt": ("start_at", inputs.get("start_at")),
+                "endAt": ("end_at", inputs.get("end_at")),
+                "allDay": ("all_day", inputs.get("all_day")),
+                "priority": ("priority", inputs.get("priority")),
+                "candidates": ("candidate_ids", inputs.get("candidate_ids")),
+                "jobs": ("job_ids", inputs.get("job_ids")),
+                "placements": ("placement_ids", inputs.get("placement_ids")),
+                "companies": ("company_ids", inputs.get("company_ids")),
+                "contacts": ("contact_ids", inputs.get("contact_ids")),
+                "applications": ("application_ids", inputs.get("application_ids")),
+            }
+            body = {provider: value for provider, (field, value) in fields.items() if field in inputs}
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/usertasks",
+                method="POST",
+                headers={"Content-Type": "application/json"},
+                json=body,
+            )
+            return ActionResult(data={"task": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("get_job_task")
+class GetJobTaskAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            response = await context.fetch(
+                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/usertasks/{inputs['task_id']}", method="GET"
+            )
+            return ActionResult(data={"task": response.data})
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_job_custom_fields")
+class ListJobCustomFieldsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, "/jobs/fields/custom", "custom_fields")
+        except Exception as exc:
+            return ActionError(message=str(exc))
+
+
+@jobadder.action("list_deleted_jobs")
+class ListDeletedJobsAction(ActionHandler):
+    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
+        try:
+            return await _fetch_list(context, "/jobs/deleted", "jobs")
         except Exception as exc:
             return ActionError(message=str(exc))

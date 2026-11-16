@@ -1,6 +1,6 @@
 # JobAdder Integration
 
-Connect Autohive workflows to JobAdder's recruitment management API. The integration covers the core recruitment lifecycle plus client relationship reporting: finding jobs, candidates, contacts and companies; reading contact activity; adding candidates to jobs; inspecting applications; and reporting on placements.
+Connect Autohive workflows to JobAdder's recruitment management API. Manage jobs, find candidates and client records, inspect invoices and recruitment activity, create follow-up tasks, manage applications, and report on placements. Version 1.4.0 provides 83 actions, including 14 new job actions, using the existing OAuth scopes.
 
 ## Authentication
 
@@ -40,6 +40,31 @@ API access requires a JobAdder developer application and approval. See the [JobA
 - `update_job_attachment` — assign or clear a job document's native type, tenant category, or expiry date. To upload a custom-category document, upload it first and then update the returned attachment ID.
 - `list_job_notes` and `list_job_activities` — retrieve a job's full-text notes and activity records. Note lists support type, reference, creation/update date, sorting, and pagination filters.
 - `list_job_note_types` — list the note types configured for job records.
+
+Version 1.4.0 adds the following 14 job actions using the existing `read_job`, `write_job`, and `write_jobapplication` scopes. It does not request additional OAuth scopes.
+
+| Action | Inputs and behavior | Output |
+| --- | --- | --- |
+| `create_job` | Required `job_title`; optional company/contact IDs, description, status, category/location, start/duration, salary/fee, owner/recruiters, custom fields, skills, workflow, shift, and end date. | `job`: full created record |
+| `update_job` | Required `job_id` and `job_title`; sends only supplied job fields. Provide the current title if it is unchanged. Explicit `null` clears fields whose schemas permit it. | `updated`, `job_id` |
+| `set_job_status` | Required `job_id`, `status_id`; optional `note_type`, `note_text`. The optional status-change note is supported by `write_job`. | `updated`, `job_id`, `status_id` |
+| `submit_candidate_to_evergreen_job` | Required `job_id`, `first_name`, `last_name`, `email`; optional contact/profile data, source, screening answers, skills and application custom fields. Submits candidate details rather than existing candidate IDs. | `application`: full provider record |
+| `list_job_invoices` | Required `job_id`; returns all invoices and their job context, without pagination. | `job`, `invoices` |
+| `get_job_invoice` | Required `job_id`, `invoice_id`. | `invoice`: provider response containing `job`, `invoice`, and `links` |
+| `list_job_sources` | Optional `name` filter. | `sources`, `total_count`, `links` |
+| `get_job_activity` | Required `job_id`, `activity_id`; retrieves the activity and its details. | `activity` |
+| `list_job_activity_settings` | No inputs; discovers structured activity definitions. | `activity_settings`, `total_count`, `links` |
+| `get_job_activity_setting` | Required `setting_id`; retrieves the questions, statuses and answer options for a structured activity definition. | `activity_setting` |
+| `create_job_task` | Required `job_id`, `title`, nonempty `assignee_user_ids`; optional start/end, all-day flag, priority (0–3), and linked candidate/job/placement/company/contact/application IDs. | `task` |
+| `get_job_task` | Required `job_id`, `task_id`; retrieves the task through its associated job. | `task` |
+| `list_job_custom_fields` | No inputs; discovers field IDs, required flags and allowed values. | `custom_fields`, `total_count`, `links` |
+| `list_deleted_jobs` | No inputs; returns jobs deleted during the last 14 days. | `jobs`, `total_count`, `links` |
+
+Nested job and candidate-submission objects use JobAdder's field names, as documented in the input schemas. For example, `category` accepts `{"categoryId": 10, "subCategoryId": 20}`.
+
+Job task creation and retrieval use job scopes; task update/completion actions are excluded because they require additional scopes. Rate-card assignments, structured activity creation, individual custom-field definition retrieval, and cross-job structured activity search are excluded. Job status definition lookups and job submission-history endpoints are also excluded while their scope requirements remain unverified.
+
+These new list actions are unpaginated. For unpaginated lists, `total_count` is the number of returned items when JobAdder does not provide a total, and `links` is empty when the provider supplies none.
 
 ### Candidates
 
@@ -129,7 +154,7 @@ Run the mocked suite from the repository root:
 pytest jobadder/tests -m unit -v
 ```
 
-The unit tests cover every action, request URLs and methods, query and body mapping, false and zero values, pagination defaults, tenant URL validation, response mapping, and provider-error conversion.
+The mocked suite contains 308 tests and covers every action, request URLs and methods, query and body mapping, false and zero values, pagination defaults, tenant URL validation, response mapping, and provider-error conversion.
 
 Read-only live tests are opt-in and require the `JOBADDER_ACCESS_TOKEN` and `JOBADDER_API_URL` values documented in the repository-root `.env.example`. The access token expires after 60 minutes, so obtain a fresh token before running them. Detail tests also require IDs for existing test records.
 
@@ -137,12 +162,30 @@ Read-only live tests are opt-in and require the `JOBADDER_ACCESS_TOKEN` and `JOB
 pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 ```
 
-The ten write actions are deliberately excluded from live tests. JobAdder does not expose matching delete operations for candidates, applications, candidate attachments, or job attachments. Candidate/contact updates, status changes, and attachment updates also mutate persistent customer data, so these tests could not reliably restore the account to its original state.
+Write actions are deliberately excluded from live tests. JobAdder does not expose matching general delete operations for jobs, candidates, applications, candidate attachments, or job attachments. Profile/status changes and task creation also mutate persistent customer data, so tests could not reliably restore the account to its original state. Their request contracts and provider-shaped responses are covered by mocked tests against the [official API schema](https://api.jobadder.com/v2/openapi.json).
+
+The independent live suite collects 66 read-only tests, including seven new job read cases: source, activity-setting, custom-field and deleted-job lists; activity-setting detail; activity detail; and task detail. It discovers activity-setting IDs where possible. Optional IDs are collected by `resource_ids` without validation; only the consuming test validates its ID, so missing optional values do not skip unrelated tests.
+
+The following existing sandbox records were inspected in the JobAdder UI and configured in `tests/teamcity.env`:
+
+| Fixture | Configured value | UI evidence |
+| --- | --- | --- |
+| `JOBADDER_TEST_JOB_ID` | `21722` | Inside Sales Consultant; has a document and a structured activity. |
+| `JOBADDER_TEST_JOB_ACTIVITY_ID` | `407` | Existing Close Job activity on job `21722`. |
+| `JOBADDER_TEST_JOB_TASK_ID` | `2604` | Existing Autohive live-test fixture task whose primary record is Inside Sales Consultant. |
+
+These are UI-verified fixture IDs; their API detail tests still require a new live run. The shared job restores the existing attachment-download fixture as well. `JOBADDER_TEST_JOB_ACTIVITY_ID` is optional locally: if unset, the test discovers an activity on `JOBADDER_TEST_JOB_ID`.
+
+### Live coverage limitations
+
+Invoice list/detail actions have mocked coverage but no live tests in the current suite. The latest sandbox UI inspection found a pending invoice on retained test job `22302`, with a billing contact and a 30-day payment term configured. This UI evidence has not been verified through the invoice API actions, so their live behavior remains unverified. The suite does not read an invoice fixture environment variable.
+
+Configure non-secret IDs from the same sandbox account in `tests/teamcity.env`. All variables are documented in root `.env.example`. TeamCity supplies the platform OAuth token; do not commit one. Run `pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive" -v -rs` or rerun TeamCity to verify the configured fixtures. Missing credentials or prerequisites cause skips; configured IDs that produce provider errors fail their tests.
 
 ## Important limitations
 
 - API access is controlled by JobAdder and may require partner/developer approval.
 - Rate limits are applied per JobAdder account. The SDK handles ordinary request transport and errors, but workflows should avoid unnecessarily aggressive polling.
-- Candidate and contact profiles and statuses can be updated, and candidate and job attachments can be uploaded and updated. Other related-record actions remain read-only; the integration does not create contacts or update companies, notes, activities, application or placement attachments, placements, or timesheets.
+- Candidate and contact profiles and statuses can be updated, and candidate and job attachments can be uploaded and updated. Job management, structured activity retrieval, and follow-up tasks are supported as described above. The integration does not create contacts or update companies, existing notes/activities, application or placement attachments, placements, or timesheets.
 - JobAdder restricts attachment file extensions and returns HTTP 422 for unsupported files. See [Attachments - File Type restrictions](https://jobadderapi.zendesk.com/hc/en-us/articles/4407420419353-Attachments-File-Type-restrictions).
-- The integration does not manage job records, application statuses, requisitions, job ads, partner actions, or webhooks.
+- The integration does not manage application statuses, requisitions, job ads, partner actions, or webhooks. It does not create standalone job notes, update tasks, or modify custom-field definitions.
