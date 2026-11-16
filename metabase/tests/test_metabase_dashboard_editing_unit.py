@@ -1061,7 +1061,7 @@ class TestUpdateDashboardFilters:
     async def test_connection_needs_field_or_tag(self, mock_context):
         result = await self._run(mock_context, [{**REGION_FILTER, "connections": [{"dashcard_id": 503}]}])
         assert result.type == ResultType.ACTION_ERROR
-        assert "exactly one of field_id or template_tag" in result.result.message
+        assert "exactly one of field_id, template_tag or target" in result.result.message
 
     @pytest.mark.asyncio
     async def test_connection_with_both_field_and_tag(self, mock_context):
@@ -1070,7 +1070,7 @@ class TestUpdateDashboardFilters:
             [{**REGION_FILTER, "connections": [{"dashcard_id": 501, "field_id": 7, "template_tag": "region"}]}],
         )
         assert result.type == ResultType.ACTION_ERROR
-        assert "exactly one of field_id or template_tag" in result.result.message
+        assert "exactly one of field_id, template_tag or target" in result.result.message
 
     @pytest.mark.asyncio
     async def test_two_connections_to_one_question_refused(self, mock_context):

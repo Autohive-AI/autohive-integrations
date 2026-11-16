@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from autohive_integrations_sdk import HTTPError, ResultType
 
-from metabase.metabase import NO_RETRY, XLSX_CONTENT_TYPE, _download, metabase
+from metabase.metabase import NO_RETRY, XLSX_CONTENT_TYPE, _download, _error_message, metabase
 from metabase.tests.conftest import BASE, ok as _ok
 
 pytestmark = pytest.mark.unit
@@ -774,13 +774,14 @@ class TestCopyQuestion:
         # Metabase's own copy lands in the original's collection first, which the key may only be able to view.
         original = {**SAMPLE_CARD, "parameter_mappings": [], "result_metadata": [{"name": "week"}], "cache_ttl": None}
         made = {**SAMPLE_COPY, "name": "Signups (EU)", "collection_id": 9}
-        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(original), _ok(made)]
+        mock_context.fetch.side_effect = [*_saving_check_calls(card=original), _ok(made)]
         result = await metabase.execute_action(
             "copy_question", {"question_id": 42, "name": "Signups (EU)", "collection_id": 9}, mock_context
         )
-        get, post = mock_context.fetch.call_args_list[-2:]
-        assert (get.kwargs["method"], get.args[0]) == ("GET", f"{BASE}/api/card/42")
+        post = mock_context.fetch.call_args
         assert (post.kwargs["method"], post.args[0]) == ("POST", f"{BASE}/api/card")
+        # The question is read once, so the copy is the version that was checked.
+        assert _calls(mock_context).count(("GET", f"{BASE}/api/card/42")) == 1
         assert post.kwargs["json"] == {
             "name": "Signups (EU)",
             "collection_id": 9,
@@ -801,8 +802,7 @@ class TestCopyQuestion:
     @pytest.mark.asyncio
     async def test_only_collection_given_names_it_like_metabase(self, mock_context):
         mock_context.fetch.side_effect = [
-            *_saving_check_calls(),
-            _ok(SAMPLE_CARD),
+            *_saving_check_calls(card=SAMPLE_CARD),
             _ok({**SAMPLE_COPY, "collection_id": 9}),
         ]
         await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
@@ -813,7 +813,7 @@ class TestCopyQuestion:
     @pytest.mark.asyncio
     async def test_copy_of_a_model_stays_a_model(self, mock_context):
         model = {**SAMPLE_CARD, "type": "model", "description": None}
-        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(model), _ok({**SAMPLE_COPY, "type": "model"})]
+        mock_context.fetch.side_effect = [*_saving_check_calls(card=model), _ok({**SAMPLE_COPY, "type": "model"})]
         await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
         body = mock_context.fetch.call_args.kwargs["json"]
         assert body["type"] == "model"
@@ -823,8 +823,7 @@ class TestCopyQuestion:
     async def test_copy_of_a_dashboard_question_to_another_collection_is_an_ordinary_question(self, mock_context):
         in_dashboard = {**SAMPLE_CARD, "dashboard_id": 5}
         mock_context.fetch.side_effect = [
-            *_saving_check_calls(),
-            _ok(in_dashboard),
+            *_saving_check_calls(card=in_dashboard),
             _ok({**SAMPLE_COPY, "collection_id": 9}),
         ]
         result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
@@ -836,8 +835,7 @@ class TestCopyQuestion:
     @pytest.mark.asyncio
     async def test_copy_refused_in_destination_leaves_nothing_behind(self, mock_context):
         mock_context.fetch.side_effect = [
-            *_saving_check_calls(),
-            _ok(SAMPLE_CARD),
+            *_saving_check_calls(card=SAMPLE_CARD),
             HTTPError(403, "Forbidden", "You don't have permissions to do that."),
             _ok({"id": 9, "can_write": False}),
         ]
@@ -845,19 +843,14 @@ class TestCopyQuestion:
         assert result.type == ResultType.ACTION_ERROR
         assert "HTTP 403" in result.result.message
         assert "update_question" not in result.result.message
-        assert _calls(mock_context)[-3:] == [
-            ("GET", f"{BASE}/api/card/42"),
-            ("POST", f"{BASE}/api/card"),
-            ("GET", f"{BASE}/api/collection/9"),
-        ]
+        assert _calls(mock_context)[-2:] == [("POST", f"{BASE}/api/card"), ("GET", f"{BASE}/api/collection/9")]
 
     @pytest.mark.asyncio
     async def test_key_that_cant_write_sql_copies_and_moves(self, mock_context):
         # Saving a new SQL question needs permission to write SQL; Metabase's copy and a move only need the
         # collections, so a key that can run the question but not write SQL still gets its copy.
         mock_context.fetch.side_effect = [
-            *_saving_check_calls(),
-            _ok(SAMPLE_CARD),
+            *_saving_check_calls(card=SAMPLE_CARD),
             HTTPError(403, "Forbidden", "You don't have permissions to do that."),
             _ok({"id": 9, "can_write": True}),
             _ok(SAMPLE_COPY),
@@ -879,8 +872,7 @@ class TestCopyQuestion:
     @pytest.mark.asyncio
     async def test_other_errors_making_the_copy_dont_fall_back(self, mock_context):
         mock_context.fetch.side_effect = [
-            *_saving_check_calls(),
-            _ok(SAMPLE_CARD),
+            *_saving_check_calls(card=SAMPLE_CARD),
             HTTPError(400, "Bad Request", {"errors": {"display": "invalid"}}),
         ]
         result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
@@ -891,19 +883,13 @@ class TestCopyQuestion:
     @pytest.mark.asyncio
     async def test_copy_to_its_own_collection_uses_metabase_copy(self, mock_context):
         mock_context.fetch.side_effect = [
-            *_saving_check_calls(),
-            _ok(SAMPLE_CARD),
+            *_saving_check_calls(card=SAMPLE_CARD),
             _ok(SAMPLE_COPY),
             _ok({**SAMPLE_COPY, "name": "EU"}),
         ]
         inputs = {"question_id": 42, "name": "EU", "collection_id": 4}
         await metabase.execute_action("copy_question", inputs, mock_context)
-        calls = [(c.kwargs["method"], c.args[0]) for c in mock_context.fetch.call_args_list[-3:]]
-        assert calls == [
-            ("GET", f"{BASE}/api/card/42"),
-            ("POST", f"{BASE}/api/card/42/copy"),
-            ("PUT", f"{BASE}/api/card/77"),
-        ]
+        assert _calls(mock_context)[-2:] == [("POST", f"{BASE}/api/card/42/copy"), ("PUT", f"{BASE}/api/card/77")]
         assert mock_context.fetch.call_args.kwargs["json"] == {"name": "EU", "collection_id": 4}
 
     @pytest.mark.asyncio
@@ -2407,12 +2393,14 @@ class TestDownload:
     async def test_gateway_page_secret_hidden_before_the_text_is_cut(self, mock_context):
         secret = "gw-secret-" * 10
         mock_context.auth["credentials"].update(gateway_header_name="X-Gateway-Secret", gateway_header_value=secret)
-        response = _FakeResponse(content_type="text/html", text="x" * 480 + secret)
+        response = _FakeResponse(content_type="text/html", text="x" * 380 + secret)
         session, patched = _fake_aiohttp(response)
         with patched, pytest.raises(ValueError) as error:
             await _download(mock_context, "/card/42/query/xlsx", FORM)
-        assert "gw-secret" not in str(error.value)
-        assert str(error.value).endswith("[REDACTED]")
+        # The whole page reaches the action error, which hides secrets before cutting it to length.
+        message = _error_message(error.value, context=mock_context)
+        assert "gw-secret" not in message
+        assert message.endswith("[REDACTED]")
 
     @pytest.mark.asyncio
     async def test_json_body_is_a_failed_query(self, mock_context):
