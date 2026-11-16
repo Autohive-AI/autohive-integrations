@@ -283,6 +283,10 @@ class TestRunQuestion:
             {"database": 3, "type": "query", "query": {"source-table": "card__7"}},
             {"database": 3, "stages": [{"lib/type": "mbql.stage/mbql", "source-card": 7}]},
             {"database": 3, "type": "query", "query": {"source-query": {"native": "delete from t"}}},
+            # Metabase reads keys whatever their case, and _ as -.
+            {"database": 3, "type": "query", "query": {"source-query": {"NATIVE": "delete from t"}}},
+            {"database": 3, "type": "query", "query": {"source-query": {"Native": "delete from t"}}},
+            {"database": 3, "stages": [{"lib/type": "mbql.stage/mbql", "source_card": 7}]},
         ],
     )
     async def test_without_native_permission_unknown_sql_is_not_run(self, mock_context, dataset_query):

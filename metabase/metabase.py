@@ -697,7 +697,12 @@ def _saved_query_as_run(card_id: str, dataset_query: Dict[str, Any]) -> Optional
     reads (None). Anything else can't be checked without native query permission."""
     sql, _ = _saved_native(dataset_query)
     if sql is None:
-        uses_other_questions = re.search(r'card__\d|"source[-_]card"|"native"', json.dumps(dataset_query))
+        # Keys are read as Metabase reads them ("NATIVE" is native, source_card is source-card).
+        uses_other_questions = (
+            _has_key(dataset_query, "native")
+            or _has_key(dataset_query, "source-card")
+            or re.search(r"card__\d", json.dumps(dataset_query))
+        )
         if not uses_other_questions:
             return None
     elif "{{" not in sql and "[[" not in sql:
@@ -2737,6 +2742,25 @@ def _leave_dashboard_to_move(card: Dict[str, Any], changes: Dict[str, Any]) -> N
         changes["dashboard_id"] = None
 
 
+def _copy_of(card: Dict[str, Any], name: Optional[str], collection_id: Any) -> Dict[str, Any]:
+    """A new question with everything Metabase's own copy keeps. A question saved inside a dashboard becomes an
+    ordinary one in the collection, as when it is moved."""
+    body = {
+        "name": name or f"Copy of {card.get('name')}",
+        "collection_id": collection_id,
+        **{key: card.get(key) for key in ("type", "display", "dataset_query")},
+        "visualization_settings": card.get("visualization_settings") or {},
+        "parameters": card.get("parameters") or [],
+        "parameter_mappings": card.get("parameter_mappings") or [],
+    }
+    return _with_optional(
+        body,
+        description=card.get("description"),
+        result_metadata=card.get("result_metadata"),
+        cache_ttl=card.get("cache_ttl"),
+    )
+
+
 @metabase.action("update_question")
 class UpdateQuestionAction(ActionHandler):
     """Change a saved question, model or metric: name, description, SQL, chart type, chart settings or collection."""
@@ -2781,8 +2805,18 @@ class CopyQuestionAction(ActionHandler):
     @_handled(saved_check="search")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         # The copy is new saved SQL, so the question is checked like any question saved here.
-        await _checked_parameters(context, _path_id(inputs["question_id"]), [], saving=True)
-        card = await _api(context, "POST", f"/card/{_path_id(inputs['question_id'])}/copy") or {}
+        question_id = _path_id(inputs["question_id"])
+        await _checked_parameters(context, question_id, [], saving=True)
+        collection_id = inputs.get("collection_id")
+        if collection_id is not None:
+            original = await _api(context, "GET", f"/card/{question_id}") or {}
+            if collection_id != original.get("collection_id"):
+                # Metabase's copy is made in the original's collection first, so copying out of a collection the key
+                # can only view would fail (0.65) or leave a copy stuck there (0.49). It is made where it goes instead.
+                card = await _api(context, "POST", "/card", json=_copy_of(original, inputs.get("name"), collection_id))
+                _require_id(card, "a question")
+                return _card_summary(card)
+        card = await _api(context, "POST", f"/card/{question_id}/copy") or {}
         _require_id(card, "a question")
         changes = _with_optional({}, name=inputs.get("name"), collection_id=inputs.get("collection_id"))
         # A copy of a question saved in a dashboard is saved there too, with its own card on that dashboard, which

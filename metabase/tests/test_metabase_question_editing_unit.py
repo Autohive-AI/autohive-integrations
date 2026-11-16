@@ -766,43 +766,99 @@ class TestCopyQuestion:
         assert all("/copy" not in c.args[0] for c in mock_context.fetch.call_args_list)
 
     @pytest.mark.asyncio
-    async def test_rename_and_move_copy(self, mock_context):
-        renamed = {**SAMPLE_COPY, "name": "Signups (EU)", "collection_id": 9}
-        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(SAMPLE_COPY), _ok(renamed)]
+    async def test_copy_to_another_collection_is_made_there(self, mock_context):
+        # Metabase's own copy lands in the original's collection first, which the key may only be able to view.
+        original = {**SAMPLE_CARD, "parameter_mappings": [], "result_metadata": [{"name": "week"}], "cache_ttl": None}
+        made = {**SAMPLE_COPY, "name": "Signups (EU)", "collection_id": 9}
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(original), _ok(made)]
         result = await metabase.execute_action(
             "copy_question", {"question_id": 42, "name": "Signups (EU)", "collection_id": 9}, mock_context
         )
-        put = mock_context.fetch.call_args
-        assert put.args[0] == f"{BASE}/api/card/77"
-        assert put.kwargs["method"] == "PUT"
-        assert put.kwargs["json"] == {"name": "Signups (EU)", "collection_id": 9}
-        assert put.kwargs["retry_count"] == NO_RETRY
+        get, post = mock_context.fetch.call_args_list[-2:]
+        assert (get.kwargs["method"], get.args[0]) == ("GET", f"{BASE}/api/card/42")
+        assert (post.kwargs["method"], post.args[0]) == ("POST", f"{BASE}/api/card")
+        assert post.kwargs["json"] == {
+            "name": "Signups (EU)",
+            "collection_id": 9,
+            "type": "question",
+            "display": "line",
+            "dataset_query": SAMPLE_CARD["dataset_query"],
+            "visualization_settings": SAMPLE_CARD["visualization_settings"],
+            "parameters": [],
+            "parameter_mappings": [],
+            "description": "Signups per week",
+            "result_metadata": [{"name": "week"}],
+        }
+        assert post.kwargs["retry_count"] == NO_RETRY
+        assert not any(c.args[0].endswith("/copy") for c in mock_context.fetch.call_args_list)
         assert result.result.data["name"] == "Signups (EU)"
         assert result.result.data["collection_id"] == 9
 
     @pytest.mark.asyncio
-    async def test_only_collection_given(self, mock_context):
+    async def test_only_collection_given_names_it_like_metabase(self, mock_context):
         mock_context.fetch.side_effect = [
             *_saving_check_calls(),
-            _ok(SAMPLE_COPY),
+            _ok(SAMPLE_CARD),
             _ok({**SAMPLE_COPY, "collection_id": 9}),
         ]
         await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
-        assert mock_context.fetch.call_args.kwargs["json"] == {"collection_id": 9}
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["name"] == "Copy of Weekly signups"
+        assert body["collection_id"] == 9
 
     @pytest.mark.asyncio
-    async def test_moving_a_copy_of_a_dashboard_question_takes_it_out_of_the_dashboard(self, mock_context):
-        copy = {**SAMPLE_COPY, "dashboard_id": 5}
+    async def test_copy_of_a_model_stays_a_model(self, mock_context):
+        model = {**SAMPLE_CARD, "type": "model", "description": None}
+        mock_context.fetch.side_effect = [*_saving_check_calls(), _ok(model), _ok({**SAMPLE_COPY, "type": "model"})]
+        await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["type"] == "model"
+        assert "description" not in body
+
+    @pytest.mark.asyncio
+    async def test_copy_of_a_dashboard_question_to_another_collection_is_an_ordinary_question(self, mock_context):
+        in_dashboard = {**SAMPLE_CARD, "dashboard_id": 5}
         mock_context.fetch.side_effect = [
             *_saving_check_calls(),
-            _ok(copy),
+            _ok(in_dashboard),
             _ok({**SAMPLE_COPY, "collection_id": 9}),
         ]
         result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
         assert result.type == ResultType.ACTION
-        put = mock_context.fetch.call_args
-        assert put.args[0] == f"{BASE}/api/card/77?delete_old_dashcards=true"
-        assert put.kwargs["json"] == {"collection_id": 9, "dashboard_id": None}
+        post = mock_context.fetch.call_args
+        assert post.args[0] == f"{BASE}/api/card"
+        assert "dashboard_id" not in post.kwargs["json"]
+
+    @pytest.mark.asyncio
+    async def test_copy_refused_in_destination_leaves_nothing_behind(self, mock_context):
+        mock_context.fetch.side_effect = [
+            *_saving_check_calls(),
+            _ok(SAMPLE_CARD),
+            HTTPError(403, "Forbidden", "You don't have permissions to do that."),
+        ]
+        result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 403" in result.result.message
+        assert "update_question" not in result.result.message
+        assert [c.kwargs["method"] for c in mock_context.fetch.call_args_list[-2:]] == ["GET", "POST"]
+
+    @pytest.mark.asyncio
+    async def test_copy_to_its_own_collection_uses_metabase_copy(self, mock_context):
+        mock_context.fetch.side_effect = [
+            *_saving_check_calls(),
+            _ok(SAMPLE_CARD),
+            _ok(SAMPLE_COPY),
+            _ok({**SAMPLE_COPY, "name": "EU"}),
+        ]
+        inputs = {"question_id": 42, "name": "EU", "collection_id": 4}
+        await metabase.execute_action("copy_question", inputs, mock_context)
+        calls = [(c.kwargs["method"], c.args[0]) for c in mock_context.fetch.call_args_list[-3:]]
+        assert calls == [
+            ("GET", f"{BASE}/api/card/42"),
+            ("POST", f"{BASE}/api/card/42/copy"),
+            ("PUT", f"{BASE}/api/card/77"),
+        ]
+        assert mock_context.fetch.call_args.kwargs["json"] == {"name": "EU", "collection_id": 4}
 
     @pytest.mark.asyncio
     async def test_renaming_a_copy_of_a_dashboard_question_keeps_it_in_the_dashboard(self, mock_context):
@@ -852,7 +908,7 @@ class TestCopyQuestion:
             _ok(SAMPLE_COPY),
             HTTPError(403, "Forbidden", "You don't have permissions."),
         ]
-        result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
+        result = await metabase.execute_action("copy_question", {"question_id": 42, "name": "EU"}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         message = result.result.message
         assert "HTTP 403" in message
