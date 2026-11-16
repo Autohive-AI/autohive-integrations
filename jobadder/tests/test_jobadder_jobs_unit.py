@@ -3,7 +3,6 @@ from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from jobadder.jobadder import jobadder
-from jobadder.tests import test_jobadder_integration as live_tests
 
 
 pytestmark = pytest.mark.unit
@@ -366,6 +365,23 @@ async def test_empty_invoices_preserve_job_context(mock_context, invoices):
     assert result.result.data == {"job": {"jobId": 11}, "invoices": []}
 
 
+@pytest.mark.parametrize(
+    "action,inputs,path",
+    [
+        ("list_job_invoices", {"job_id": 99}, "/jobs/99/invoices"),
+        ("get_job_invoice", {"job_id": 99, "invoice_id": 8}, "/jobs/99/invoices/8"),
+    ],
+)
+async def test_invoice_actions_preserve_not_found_errors(mock_context, action, inputs, path):
+    mock_context.fetch.side_effect = HTTPError(404, "Requested job's invoices were not found")
+
+    result = await jobadder.execute_action(action, inputs, mock_context)
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "invoices were not found" in result.result.message
+    mock_context.fetch.assert_awaited_once_with(BASE + path, method="GET")
+
+
 @pytest.mark.parametrize("action,path,key", LIST_CASES)
 async def test_empty_list_results(mock_context, action, path, key):
     mock_context.fetch.return_value = response({"items": None})
@@ -399,30 +415,6 @@ async def test_structured_activity_answer_payload(mock_context):
 
     assert result.type == ResultType.ACTION
     assert mock_context.fetch.call_args.kwargs["json"] == {"activitySettingId": 2, "statusId": None, "answers": answers}
-
-
-@pytest.mark.parametrize("method_name", ["test_list_job_invoices", "test_get_job_invoice"])
-async def test_live_invoice_tests_use_dedicated_job_and_do_not_hide_404(mock_context, method_name):
-    mock_context.fetch.side_effect = HTTPError(404, "Requested job's invoices were not found")
-    method = getattr(live_tests.TestAdditionalJobReads(), method_name)
-
-    with pytest.raises(AssertionError):
-        await method(mock_context, invoice_job_id=99)
-
-    mock_context.fetch.assert_awaited_once_with(BASE + "/jobs/99/invoices", method="GET")
-
-
-def test_live_invoice_fixture_skips_when_not_configured():
-    with pytest.raises(pytest.skip.Exception, match="JOBADDER_TEST_INVOICE_JOB_ID not set"):
-        live_tests.invoice_job_id.__wrapped__(lambda name: None)
-
-
-def test_live_invoice_fixture_uses_its_own_variable():
-    def credentials(name):
-        assert name == "JOBADDER_TEST_INVOICE_JOB_ID"
-        return "99"
-
-    assert live_tests.invoice_job_id.__wrapped__(credentials) == 99
 
 
 async def test_task_maps_assignees_dates_and_linked_records(mock_context):

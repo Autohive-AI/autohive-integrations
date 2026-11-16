@@ -83,13 +83,12 @@ def resource_ids(env_credentials):
         "note": env_credentials("JOBADDER_TEST_NOTE_ID"),
         "application": env_credentials("JOBADDER_TEST_APPLICATION_ID"),
         "placement": env_credentials("JOBADDER_TEST_PLACEMENT_ID"),
+        "invoice_job": env_credentials("JOBADDER_TEST_INVOICE_JOB_ID"),
+        "job_activity": env_credentials("JOBADDER_TEST_JOB_ACTIVITY_ID"),
+        "job_custom_field": env_credentials("JOBADDER_TEST_JOB_CUSTOM_FIELD_ID"),
+        "job_task": env_credentials("JOBADDER_TEST_JOB_TASK_ID"),
+        "rate_card_job": env_credentials("JOBADDER_TEST_RATE_CARD_JOB_ID"),
     }
-
-
-@pytest.fixture
-def invoice_job_id(env_credentials):
-    """Invoice coverage requires an explicitly configured job with invoice data."""
-    return require_integer_id(env_credentials("JOBADDER_TEST_INVOICE_JOB_ID"), "JOBADDER_TEST_INVOICE_JOB_ID")
 
 
 def assert_list_result(result, records_key: str, max_items: int | None = 2) -> None:
@@ -169,14 +168,15 @@ class TestAdditionalJobReads:
         result = await jobadder.execute_action(action, {}, live_context)
         assert_list_result(result, key, max_items=None)
 
-    async def test_list_job_invoices(self, live_context, invoice_job_id):
-        result = await jobadder.execute_action("list_job_invoices", {"job_id": invoice_job_id}, live_context)
+    async def test_list_job_invoices(self, live_context, resource_ids):
+        job_id = require_integer_id(resource_ids["invoice_job"], "JOBADDER_TEST_INVOICE_JOB_ID")
+        result = await jobadder.execute_action("list_job_invoices", {"job_id": job_id}, live_context)
         assert result.type == ResultType.ACTION
         assert isinstance(result.result.data["job"], dict)
         assert isinstance(result.result.data["invoices"], list)
 
-    async def test_get_job_invoice(self, live_context, invoice_job_id):
-        job_id = invoice_job_id
+    async def test_get_job_invoice(self, live_context, resource_ids):
+        job_id = require_integer_id(resource_ids["invoice_job"], "JOBADDER_TEST_INVOICE_JOB_ID")
         listed = await jobadder.execute_action("list_job_invoices", {"job_id": job_id}, live_context)
         assert listed.type == ResultType.ACTION
         invoices = listed.result.data["invoices"]
@@ -211,41 +211,50 @@ class TestAdditionalJobReads:
         ],
     )
     async def test_get_discovered_definition(
-        self, live_context, list_action, list_key, id_field, get_action, input_field, output_key
+        self, live_context, resource_ids, list_action, list_key, id_field, get_action, input_field, output_key
     ):
-        listed = await jobadder.execute_action(list_action, {}, live_context)
-        assert listed.type == ResultType.ACTION
-        records = listed.result.data[list_key]
-        if not records:
-            pytest.skip("The account has no configured definitions for this action")
-        record_id = records[0][id_field]
+        if get_action == "get_job_custom_field" and resource_ids["job_custom_field"]:
+            record_id = require_integer_id(resource_ids["job_custom_field"], "JOBADDER_TEST_JOB_CUSTOM_FIELD_ID")
+        else:
+            listed = await jobadder.execute_action(list_action, {}, live_context)
+            assert listed.type == ResultType.ACTION
+            records = listed.result.data[list_key]
+            if not records:
+                pytest.skip(f"No {list_key} definitions in this account; {get_action} remains unverified")
+            record_id = records[0][id_field]
         result = await jobadder.execute_action(get_action, {input_field: record_id}, live_context)
         assert result.type == ResultType.ACTION
         assert result.result.data[output_key][id_field] == record_id
 
     async def test_get_job_activity(self, live_context, resource_ids):
         job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
-        listed = await jobadder.execute_action("list_job_activities", {"job_id": job_id}, live_context)
-        assert listed.type == ResultType.ACTION
-        activities = listed.result.data["activities"]
-        if not activities:
-            pytest.skip("The configured job has no structured activities")
-        activity_id = activities[0]["activityId"]
+        if resource_ids["job_activity"]:
+            activity_id = require_integer_id(resource_ids["job_activity"], "JOBADDER_TEST_JOB_ACTIVITY_ID")
+        else:
+            listed = await jobadder.execute_action("list_job_activities", {"job_id": job_id}, live_context)
+            assert listed.type == ResultType.ACTION
+            activities = listed.result.data["activities"]
+            if not activities:
+                pytest.skip(
+                    "The configured job has no structured activities; create a sandbox activity or set "
+                    "JOBADDER_TEST_JOB_ACTIVITY_ID for an activity on JOBADDER_TEST_JOB_ID"
+                )
+            activity_id = activities[0]["activityId"]
         result = await jobadder.execute_action(
             "get_job_activity", {"job_id": job_id, "activity_id": activity_id}, live_context
         )
         assert result.type == ResultType.ACTION
         assert result.result.data["activity"]["activityId"] == activity_id
 
-    async def test_get_job_task(self, live_context, resource_ids, env_credentials):
+    async def test_get_job_task(self, live_context, resource_ids):
         job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
-        task_id = require_integer_id(env_credentials("JOBADDER_TEST_JOB_TASK_ID"), "JOBADDER_TEST_JOB_TASK_ID")
+        task_id = require_integer_id(resource_ids["job_task"], "JOBADDER_TEST_JOB_TASK_ID")
         result = await jobadder.execute_action("get_job_task", {"job_id": job_id, "task_id": task_id}, live_context)
         assert result.type == ResultType.ACTION
         assert result.result.data["task"]["taskId"] == task_id
 
-    async def test_get_job_rate_card(self, live_context, env_credentials):
-        job_id = require_integer_id(env_credentials("JOBADDER_TEST_RATE_CARD_JOB_ID"), "JOBADDER_TEST_RATE_CARD_JOB_ID")
+    async def test_get_job_rate_card(self, live_context, resource_ids):
+        job_id = require_integer_id(resource_ids["rate_card_job"], "JOBADDER_TEST_RATE_CARD_JOB_ID")
         result = await jobadder.execute_action("get_job_rate_card", {"job_id": job_id}, live_context)
         assert result.type == ResultType.ACTION
         assert result.result.data["rate_card"]["jobOrderId"] == job_id

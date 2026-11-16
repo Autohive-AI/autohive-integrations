@@ -174,6 +174,22 @@ The new read-only job tests discover existing invoice/activity/setting/custom-fi
 
 Task detail tests optionally use `JOBADDER_TEST_JOB_TASK_ID` associated with `JOBADDER_TEST_JOB_ID`; rate-card tests optionally use `JOBADDER_TEST_RATE_CARD_JOB_ID` for a job with a configured Astute/RateCalc assignment. All variables are documented in the repository-root `.env.example`. Missing credentials, IDs, or empty discovery results cause the relevant tests to skip.
 
+The optional IDs are collected by `resource_ids` without validation. Only the test consuming an ID validates it; an unset invoice/task/rate-card ID does not skip unrelated tests. `JOBADDER_TEST_JOB_ACTIVITY_ID` can select an existing structured activity on `JOBADDER_TEST_JOB_ID`; otherwise the test discovers one on that job. `JOBADDER_TEST_JOB_CUSTOM_FIELD_ID` can select an existing custom-field definition; otherwise it is discovered from the account's definitions. Configured IDs that produce provider errors fail their tests.
+
+### Live coverage still requiring sandbox fixtures
+
+The reported TeamCity run (build 61630) passed 64 tests and skipped the six cases below. Those skips are coverage gaps, not proof that the actions work. No authenticated sandbox access was available for provisioning or a local live run during this review. None of these features has been established as unavailable in the sandbox account.
+
+| Unverified live case | Fixture needed to close the gap |
+| --- | --- |
+| Invoice list and detail (two cases) | A sandbox job with accessible retained-job invoice data and at least one invoice; set `JOBADDER_TEST_INVOICE_JOB_ID`. Confirm the sandbox account supports this invoicing feature. |
+| Custom-field detail | An existing job custom-field definition; discover it or set `JOBADDER_TEST_JOB_CUSTOM_FIELD_ID`. If none exists, a sandbox administrator must create one. Reading definitions uses the existing scopes; changing definitions requires separate management access. |
+| Structured activity detail | An existing structured activity on `JOBADDER_TEST_JOB_ID`; discover it or set `JOBADDER_TEST_JOB_ACTIVITY_ID`. A labelled sandbox activity can be created with `create_job_activity` after selecting an account activity setting. |
+| Task detail | An existing follow-up task attached to `JOBADDER_TEST_JOB_ID`; set `JOBADDER_TEST_JOB_TASK_ID`. A labelled sandbox task can be created with `create_job_task` and a valid sandbox assignee. |
+| Rate-card retrieval | A sandbox job with an actual RateCalc/Astute Payroll rate-card assignment; set `JOBADDER_TEST_RATE_CARD_JOB_ID`. Confirm this external feature is available; assigning an invented ID does not establish coverage. |
+
+Configure non-secret IDs from the same sandbox account in `tests/teamcity.env` (the unresolved entries are commented placeholders). Do not add OAuth tokens to that file: TeamCity supplies the platform token. After provisioning fixtures, run `pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive" -v -rs` or rerun TeamCity, and record the real results. If an account feature is genuinely unavailable, record that verified limitation explicitly instead of presenting a skipped test as coverage.
+
 ## Important limitations
 
 - API access is controlled by JobAdder and may require partner/developer approval.
