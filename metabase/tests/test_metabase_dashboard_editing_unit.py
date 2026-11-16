@@ -1389,6 +1389,23 @@ class TestCopyDashboard:
         assert result.result.data["uncopied_questions"] == [{"id": 43, "name": None}]
 
     @pytest.mark.asyncio
+    async def test_deep_copy_skips_series_of_a_chart_left_out(self, mock_context):
+        # Metabase leaves out a combined chart whose own question the key can't read, its extra series too.
+        dashcards = [{**SERIES_DASHBOARD["dashcards"][0], "card": {"id": 42}}, *SERIES_DASHBOARD["dashcards"][1:]]
+        mock_context.fetch.side_effect = [
+            _ok({**SERIES_DASHBOARD, "dashcards": dashcards}),
+            *_copy_check(43),
+            _ok({"id": 71, "name": "Sales 2027", "uncopied": [{"id": 42}, {"id": 46}]}),
+        ]
+        result = await metabase.execute_action(
+            "copy_dashboard", {"dashboard_id": 9, "name": "Sales 2027", "copy_questions": True}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        urls = [c.args[0] for c in mock_context.fetch.call_args_list]
+        assert f"{BASE}/api/card/46" not in urls
+        assert f"{BASE}/api/card/42" not in urls
+
+    @pytest.mark.asyncio
     async def test_deep_copy_skips_models(self, mock_context):
         # Metabase keeps models on the copy as they are (type on 0.50+, dataset on 0.49), so nothing new is saved.
         dashcards = [

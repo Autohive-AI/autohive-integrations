@@ -1629,7 +1629,8 @@ async def _check_dashboard_questions(
     questions = [
         (dc, card_id, card)
         for dc, card_id, card in _dashboard_questions(dashboard.get("dashcards") or [])
-        if not deep_copy or _copied_by_deep_copy(card)
+        # A chart whose own question the key can't read is left out whole, extra series included.
+        if not deep_copy or (_copied_by_deep_copy(card) and (dc.get("card") or {}).get("name") is not None)
     ]
     checked = set()
     for pulse in pulses:

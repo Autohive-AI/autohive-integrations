@@ -2390,9 +2390,18 @@ class TestDownload:
     @pytest.mark.asyncio
     async def test_over_size_limit(self, mock_context):
         chunk = b"x" * 1_000_000
-        session, patched = _fake_aiohttp(_FakeResponse(chunks=(chunk, chunk, chunk, chunk)))
+        served = []
+
+        def chunks():
+            for c in (chunk, chunk, chunk, chunk, b"after the limit"):
+                served.append(c)
+                yield c
+
+        session, patched = _fake_aiohttp(_FakeResponse(chunks=chunks()))
         with patched, pytest.raises(ValueError, match="over 3.5 MB"):
             await _download(mock_context, "/card/42/query/xlsx", FORM)
+        # It stops reading as soon as the limit is passed, instead of holding the whole file first.
+        assert b"after the limit" not in served
 
     @pytest.mark.asyncio
     async def test_gateway_page_secret_hidden_before_the_text_is_cut(self, mock_context):
