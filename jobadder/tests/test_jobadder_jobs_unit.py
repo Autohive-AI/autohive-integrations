@@ -57,14 +57,6 @@ ACTION_CASES = [
         {"invoice": {"job": {"jobId": 11}, "invoice": {"invoiceId": 8}, "links": {"self": "invoice-url"}}},
     ),
     (
-        "create_job_activity",
-        {"job_id": 11, "activity_setting_id": 2},
-        "POST",
-        "/jobs/11/activities",
-        {"activityId": 7, "jobId": 11},
-        {"activity": {"activityId": 7, "jobId": 11}},
-    ),
-    (
         "get_job_activity",
         {"job_id": 11, "activity_id": 7},
         "GET",
@@ -95,14 +87,6 @@ ACTION_CASES = [
         "/jobs/11/usertasks/9",
         {"taskId": 9, "complete": False},
         {"task": {"taskId": 9, "complete": False}},
-    ),
-    (
-        "get_job_custom_field",
-        {"field_id": 2},
-        "GET",
-        "/jobs/fields/custom/2",
-        {"fieldId": 2, "name": "Region", "type": "List", "values": ["North", "South"]},
-        {"custom_field": {"fieldId": 2, "name": "Region", "type": "List", "values": ["North", "South"]}},
     ),
 ]
 LIST_CASES = [
@@ -367,26 +351,6 @@ async def test_source_name_filter(mock_context):
     await jobadder.execute_action("list_job_sources", {"name": "Referral"}, mock_context)
 
     mock_context.fetch.assert_awaited_once_with(BASE + "/jobs/lists/source", method="GET", params={"name": "Referral"})
-
-
-async def test_structured_activity_answer_payload(mock_context):
-    mock_context.fetch.return_value = response({"activityId": 7}, 201)
-    answers = {
-        "textAnswers": [{"questionId": 1, "text": "Discussed role"}],
-        "listValueAnswers": [{"questionId": 2, "values": ["Yes"]}],
-        "dateRangeValueAnswers": [
-            {"questionId": 3, "startDate": "2026-11-16T00:00:00Z", "endDate": "2026-11-17T00:00:00Z"}
-        ],
-        "ratingValueAnswers": [{"questionId": 4, "rating": 0}],
-    }
-    result = await jobadder.execute_action(
-        "create_job_activity",
-        {"job_id": 11, "activity_setting_id": 2, "status_id": None, "answers": answers},
-        mock_context,
-    )
-
-    assert result.type == ResultType.ACTION
-    assert mock_context.fetch.call_args.kwargs["json"] == {"activitySettingId": 2, "statusId": None, "answers": answers}
 
 
 async def test_task_maps_assignees_dates_and_linked_records(mock_context):

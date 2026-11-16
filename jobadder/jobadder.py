@@ -1657,26 +1657,6 @@ class ListJobSourcesAction(ActionHandler):
             return ActionError(message=str(exc))
 
 
-@jobadder.action("create_job_activity")
-class CreateJobActivityAction(ActionHandler):
-    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
-        try:
-            body: dict[str, Any] = {"activitySettingId": inputs["activity_setting_id"]}
-            if "status_id" in inputs:
-                body["statusId"] = inputs.get("status_id")
-            if "answers" in inputs:
-                body["answers"] = inputs.get("answers")
-            response = await context.fetch(
-                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/activities",
-                method="POST",
-                headers={"Content-Type": "application/json"},
-                json=body,
-            )
-            return ActionResult(data={"activity": response.data})
-        except Exception as exc:
-            return ActionError(message=str(exc))
-
-
 @jobadder.action("get_job_activity")
 class GetJobActivityAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
@@ -1757,18 +1737,6 @@ class ListJobCustomFieldsAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
             return await _fetch_list(context, "/jobs/fields/custom", "custom_fields")
-        except Exception as exc:
-            return ActionError(message=str(exc))
-
-
-@jobadder.action("get_job_custom_field")
-class GetJobCustomFieldAction(ActionHandler):
-    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
-        try:
-            response = await context.fetch(
-                f"{get_api_base_url(context)}/jobs/fields/custom/{inputs['field_id']}", method="GET"
-            )
-            return ActionResult(data={"custom_field": response.data})
         except Exception as exc:
             return ActionError(message=str(exc))
 
