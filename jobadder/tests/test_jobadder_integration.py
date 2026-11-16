@@ -83,7 +83,6 @@ def resource_ids(env_credentials):
         "note": env_credentials("JOBADDER_TEST_NOTE_ID"),
         "application": env_credentials("JOBADDER_TEST_APPLICATION_ID"),
         "placement": env_credentials("JOBADDER_TEST_PLACEMENT_ID"),
-        "invoice_job": env_credentials("JOBADDER_TEST_INVOICE_JOB_ID"),
         "job_activity": env_credentials("JOBADDER_TEST_JOB_ACTIVITY_ID"),
         "job_custom_field": env_credentials("JOBADDER_TEST_JOB_CUSTOM_FIELD_ID"),
         "job_task": env_credentials("JOBADDER_TEST_JOB_TASK_ID"),
@@ -167,27 +166,6 @@ class TestAdditionalJobReads:
     async def test_unpaginated_job_lists(self, live_context, action, key):
         result = await jobadder.execute_action(action, {}, live_context)
         assert_list_result(result, key, max_items=None)
-
-    async def test_list_job_invoices(self, live_context, resource_ids):
-        job_id = require_integer_id(resource_ids["invoice_job"], "JOBADDER_TEST_INVOICE_JOB_ID")
-        result = await jobadder.execute_action("list_job_invoices", {"job_id": job_id}, live_context)
-        assert result.type == ResultType.ACTION
-        assert isinstance(result.result.data["job"], dict)
-        assert isinstance(result.result.data["invoices"], list)
-
-    async def test_get_job_invoice(self, live_context, resource_ids):
-        job_id = require_integer_id(resource_ids["invoice_job"], "JOBADDER_TEST_INVOICE_JOB_ID")
-        listed = await jobadder.execute_action("list_job_invoices", {"job_id": job_id}, live_context)
-        assert listed.type == ResultType.ACTION
-        invoices = listed.result.data["invoices"]
-        if not invoices:
-            pytest.skip("The configured job has no invoices")
-        invoice_id = invoices[0]["invoiceId"]
-        result = await jobadder.execute_action(
-            "get_job_invoice", {"job_id": job_id, "invoice_id": invoice_id}, live_context
-        )
-        assert result.type == ResultType.ACTION
-        assert result.result.data["invoice"]["invoice"]["invoiceId"] == invoice_id
 
     @pytest.mark.parametrize(
         "list_action,list_key,id_field,get_action,input_field,output_key",

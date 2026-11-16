@@ -170,25 +170,30 @@ pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destr
 
 Write actions are deliberately excluded from live tests. JobAdder does not expose matching general delete operations for jobs, candidates, applications, candidate attachments, or job attachments. Profile/status changes, rate-card assignments, task creation and structured activity creation also mutate persistent customer data, so tests could not reliably restore the account to its original state. Their request contracts and provider-shaped responses are covered by mocked tests against the [official API schema](https://api.jobadder.com/v2/openapi.json).
 
-The new read-only job tests discover existing invoice/activity/setting/custom-field IDs where possible. Invoice tests require `JOBADDER_TEST_INVOICE_JOB_ID`, a job with accessible invoice data, independently of the general `JOBADDER_TEST_JOB_ID`. These endpoints use retained-job invoice models; an ordinary job may return HTTP 404 rather than an empty invoice list. Leave the invoice job ID unset when the test account has no suitable job. The two invoice tests then skip; a configured invoice job returning an API error still fails the tests.
+The read-only job tests discover activity-setting and custom-field IDs where possible. Optional IDs are collected by `resource_ids` without validation; only the consuming test validates its ID, so missing optional values do not skip unrelated tests.
 
-Task detail tests optionally use `JOBADDER_TEST_JOB_TASK_ID` associated with `JOBADDER_TEST_JOB_ID`; rate-card tests optionally use `JOBADDER_TEST_RATE_CARD_JOB_ID` for a job with a configured Astute/RateCalc assignment. All variables are documented in the repository-root `.env.example`. Missing credentials, IDs, or empty discovery results cause the relevant tests to skip.
+The following existing sandbox records were inspected in the JobAdder UI and configured in `tests/teamcity.env`:
 
-The optional IDs are collected by `resource_ids` without validation. Only the test consuming an ID validates it; an unset invoice/task/rate-card ID does not skip unrelated tests. `JOBADDER_TEST_JOB_ACTIVITY_ID` can select an existing structured activity on `JOBADDER_TEST_JOB_ID`; otherwise the test discovers one on that job. `JOBADDER_TEST_JOB_CUSTOM_FIELD_ID` can select an existing custom-field definition; otherwise it is discovered from the account's definitions. Configured IDs that produce provider errors fail their tests.
+| Fixture | Configured value | UI evidence |
+| --- | --- | --- |
+| `JOBADDER_TEST_JOB_ID` | `21722` | Inside Sales Consultant; has a document and a structured activity. |
+| `JOBADDER_TEST_JOB_ACTIVITY_ID` | `407` | Existing Close Job activity on job `21722`. |
+| `JOBADDER_TEST_JOB_TASK_ID` | `2604` | Existing Autohive live-test fixture task whose primary record is Inside Sales Consultant. |
 
-### Live coverage still requiring sandbox fixtures
+These are UI-verified fixture IDs; their API detail tests still require a new live run. The shared job restores the existing attachment-download fixture as well. `JOBADDER_TEST_JOB_ACTIVITY_ID` is optional locally: if unset, the test discovers an activity on `JOBADDER_TEST_JOB_ID`.
 
-The reported TeamCity run (build 61630) passed 64 tests and skipped the six cases below. Those skips are coverage gaps, not proof that the actions work. No authenticated sandbox access was available for provisioning or a local live run during this review. None of these features has been established as unavailable in the sandbox account.
+### Live coverage limitations
 
-| Unverified live case | Fixture needed to close the gap |
+The invoice list/detail live tests are excluded because the inspected retained test job `22302` has no invoices, and JobAdder blocks invoice setup with a “Necessary Setup Missing” notice requiring account billing contacts and company payment terms. No billing settings were changed. The invoice actions remain available with mocked success, response-shape, and provider-error coverage; their live behavior remains unverified. There is no invoice job environment variable while those live tests are excluded.
+
+Two other live cases still require suitable sandbox resources:
+
+| Unverified live case | Missing prerequisite |
 | --- | --- |
-| Invoice list and detail (two cases) | A sandbox job with accessible retained-job invoice data and at least one invoice; set `JOBADDER_TEST_INVOICE_JOB_ID`. Confirm the sandbox account supports this invoicing feature. |
-| Custom-field detail | An existing job custom-field definition; discover it or set `JOBADDER_TEST_JOB_CUSTOM_FIELD_ID`. If none exists, a sandbox administrator must create one. Reading definitions uses the existing scopes; changing definitions requires separate management access. |
-| Structured activity detail | An existing structured activity on `JOBADDER_TEST_JOB_ID`; discover it or set `JOBADDER_TEST_JOB_ACTIVITY_ID`. A labelled sandbox activity can be created with `create_job_activity` after selecting an account activity setting. |
-| Task detail | An existing follow-up task attached to `JOBADDER_TEST_JOB_ID`; set `JOBADDER_TEST_JOB_TASK_ID`. A labelled sandbox task can be created with `create_job_task` and a valid sandbox assignee. |
-| Rate-card retrieval | A sandbox job with an actual RateCalc/Astute Payroll rate-card assignment; set `JOBADDER_TEST_RATE_CARD_JOB_ID`. Confirm this external feature is available; assigning an invented ID does not establish coverage. |
+| Custom-field detail | The account returned no job custom-field definitions in the reported TeamCity run. Discover a definition or configure `JOBADDER_TEST_JOB_CUSTOM_FIELD_ID` once one exists; none was verified in the UI inspection. |
+| Rate-card retrieval | No genuine RateCalc/Astute Payroll assignment was identified. Configure `JOBADDER_TEST_RATE_CARD_JOB_ID` only for a job with an actual assignment. Feature unavailability has not been established. |
 
-Configure non-secret IDs from the same sandbox account in `tests/teamcity.env` (the unresolved entries are commented placeholders). Do not add OAuth tokens to that file: TeamCity supplies the platform token. After provisioning fixtures, run `pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive" -v -rs` or rerun TeamCity, and record the real results. If an account feature is genuinely unavailable, record that verified limitation explicitly instead of presenting a skipped test as coverage.
+Configure non-secret IDs from the same sandbox account in `tests/teamcity.env`; unresolved entries remain commented placeholders. All variables are documented in root `.env.example`. TeamCity supplies the platform OAuth token; do not commit one. Run `pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive" -v -rs` or rerun TeamCity to verify the configured fixtures. Missing credentials or prerequisites cause skips; configured IDs that produce provider errors fail their tests.
 
 ## Important limitations
 
