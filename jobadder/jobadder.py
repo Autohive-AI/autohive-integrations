@@ -1648,52 +1648,6 @@ class GetJobInvoiceAction(ActionHandler):
             return ActionError(message=str(exc))
 
 
-@jobadder.action("get_job_rate_card")
-class GetJobRateCardAction(ActionHandler):
-    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
-        try:
-            response = await context.fetch(
-                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/ratecard", method="GET"
-            )
-            return ActionResult(data={"rate_card": response.data})
-        except Exception as exc:
-            return ActionError(message=str(exc))
-
-
-@jobadder.action("add_job_rate_card")
-class AddJobRateCardAction(ActionHandler):
-    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
-        try:
-            response = await context.fetch(
-                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/ratecard/{inputs['rate_card_id']}", method="POST"
-            )
-            return ActionResult(data={"rate_card": response.data})
-        except Exception as exc:
-            return ActionError(message=str(exc))
-
-
-@jobadder.action("update_job_rate_card")
-class UpdateJobRateCardAction(ActionHandler):
-    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
-        try:
-            response = await context.fetch(
-                f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/ratecard/{inputs['rate_card_id']}", method="PUT"
-            )
-            return ActionResult(data={"rate_card": response.data})
-        except Exception as exc:
-            return ActionError(message=str(exc))
-
-
-@jobadder.action("remove_job_rate_card")
-class RemoveJobRateCardAction(ActionHandler):
-    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
-        try:
-            await context.fetch(f"{get_api_base_url(context)}/jobs/{inputs['job_id']}/ratecard", method="DELETE")
-            return ActionResult(data={"removed": True, "job_id": inputs["job_id"]})
-        except Exception as exc:
-            return ActionError(message=str(exc))
-
-
 @jobadder.action("list_job_sources")
 class ListJobSourcesAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):

@@ -57,31 +57,6 @@ ACTION_CASES = [
         {"invoice": {"job": {"jobId": 11}, "invoice": {"invoiceId": 8}, "links": {"self": "invoice-url"}}},
     ),
     (
-        "get_job_rate_card",
-        {"job_id": 11},
-        "GET",
-        "/jobs/11/ratecard",
-        {"jobOrderId": 11, "rateCard": "101"},
-        {"rate_card": {"jobOrderId": 11, "rateCard": "101"}},
-    ),
-    (
-        "add_job_rate_card",
-        {"job_id": 11, "rate_card_id": 101},
-        "POST",
-        "/jobs/11/ratecard/101",
-        {"jobOrderId": 11, "rateCard": "101"},
-        {"rate_card": {"jobOrderId": 11, "rateCard": "101"}},
-    ),
-    (
-        "update_job_rate_card",
-        {"job_id": 11, "rate_card_id": 101},
-        "PUT",
-        "/jobs/11/ratecard/101",
-        {"jobOrderId": 11, "rateCard": "101"},
-        {"rate_card": {"jobOrderId": 11, "rateCard": "101"}},
-    ),
-    ("remove_job_rate_card", {"job_id": 11}, "DELETE", "/jobs/11/ratecard", None, {"removed": True, "job_id": 11}),
-    (
         "create_job_activity",
         {"job_id": 11, "activity_setting_id": 2},
         "POST",
@@ -140,7 +115,7 @@ LIST_CASES = [
 
 @pytest.mark.parametrize("action,inputs,method,path,payload,expected", ACTION_CASES)
 async def test_action_request_and_provider_response(mock_context, action, inputs, method, path, payload, expected):
-    mock_context.fetch.return_value = response(payload, 204 if action == "remove_job_rate_card" else 200)
+    mock_context.fetch.return_value = response(payload)
     result = await jobadder.execute_action(action, inputs, mock_context)
 
     assert result.type == ResultType.ACTION
@@ -148,9 +123,6 @@ async def test_action_request_and_provider_response(mock_context, action, inputs
     mock_context.fetch.assert_awaited_once()
     assert mock_context.fetch.call_args.args == (BASE + path,)
     assert mock_context.fetch.call_args.kwargs["method"] == method
-    if "rate_card" in action:
-        # Assignment IDs go in the path; the provider does not accept a JSON body.
-        assert mock_context.fetch.call_args.kwargs == {"method": method}
 
 
 @pytest.mark.parametrize("action,path,key", LIST_CASES)

@@ -11,7 +11,7 @@ Write actions are intentionally excluded because JobAdder has no general delete
 endpoint for reliably cleaning up candidates, applications, candidate attachments,
 or job attachments created by tests. Profile, status, and attachment updates also
 cannot be safely restored without mutating persistent customer data.
-Job writes, rate-card assignment changes, task creation and structured activity
+Job writes, task creation and structured activity
 creation are also excluded because they cannot be reliably restored here.
 """
 

@@ -51,10 +51,6 @@ Version 1.4.0 adds the following job actions using the existing `read_job`, `wri
 | `submit_candidate_to_evergreen_job` | Required `job_id`, `first_name`, `last_name`, `email`; optional contact/profile data, source, screening answers, skills and application custom fields. Submits candidate details rather than existing candidate IDs. | `application`: full provider record |
 | `list_job_invoices` | Required `job_id`; returns all invoices and their job context, without pagination. | `job`, `invoices` |
 | `get_job_invoice` | Required `job_id`, `invoice_id`. | `invoice`: provider response containing `job`, `invoice`, and `links` |
-| `get_job_rate_card` | Required `job_id`. | `rate_card`: provider assignment, including `jobOrderId` and `rateCard` |
-| `add_job_rate_card` | Required `job_id`, `rate_card_id`; assigns an existing RateCalc-generated ID. | `rate_card` |
-| `update_job_rate_card` | Required `job_id`, `rate_card_id`; changes the assignment. | `rate_card` |
-| `remove_job_rate_card` | Required `job_id`; removes the assignment, not the rate card itself. | `removed`, `job_id` |
 | `list_job_sources` | Optional `name` filter. | `sources`, `total_count`, `links` |
 | `create_job_activity` | Required `job_id`, `activity_setting_id`; optional `status_id`, `answers`. Creates a structured activity, distinct from a text note. | `activity` |
 | `get_job_activity` | Required `job_id`, `activity_id`; retrieves the activity and its details. | `activity` |
@@ -68,7 +64,7 @@ Version 1.4.0 adds the following job actions using the existing `read_job`, `wri
 
 Nested job, candidate-submission and activity-answer objects use JobAdder's field names, as documented in the input schemas. For example, `category` accepts `{"categoryId": 10, "subCategoryId": 20}`, and activity `answers` can contain `textAnswers`, `listValueAnswers`, `dateRangeValueAnswers`, and `ratingValueAnswers`.
 
-Rate-card actions apply only to RateCalc-generated rate-card IDs for Astute Payroll. They do not create or edit rate-card contents. Job task creation and retrieval use job scopes; task update/completion actions are excluded because they require additional scopes. Cross-job structured activity search is excluded. Job status definition lookups and job submission-history endpoints are also excluded while their scope requirements remain unverified.
+Job task creation and retrieval use job scopes; task update/completion actions are excluded because they require additional scopes. Cross-job structured activity search is excluded. Job status definition lookups and job submission-history endpoints are also excluded while their scope requirements remain unverified.
 
 These new list actions are unpaginated. For unpaginated lists, `total_count` is the number of returned items when JobAdder does not provide a total, and `links` is empty when the provider supplies none.
 
@@ -168,7 +164,7 @@ Read-only live tests are opt-in and require the `JOBADDER_ACCESS_TOKEN` and `JOB
 pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 ```
 
-Write actions are deliberately excluded from live tests. JobAdder does not expose matching general delete operations for jobs, candidates, applications, candidate attachments, or job attachments. Profile/status changes, rate-card assignments, task creation and structured activity creation also mutate persistent customer data, so tests could not reliably restore the account to its original state. Their request contracts and provider-shaped responses are covered by mocked tests against the [official API schema](https://api.jobadder.com/v2/openapi.json).
+Write actions are deliberately excluded from live tests. JobAdder does not expose matching general delete operations for jobs, candidates, applications, candidate attachments, or job attachments. Profile/status changes, task creation and structured activity creation also mutate persistent customer data, so tests could not reliably restore the account to its original state. Their request contracts and provider-shaped responses are covered by mocked tests against the [official API schema](https://api.jobadder.com/v2/openapi.json).
 
 The read-only job tests discover activity-setting IDs where possible. Optional IDs are collected by `resource_ids` without validation; only the consuming test validates its ID, so missing optional values do not skip unrelated tests.
 
@@ -186,14 +182,13 @@ These are UI-verified fixture IDs; their API detail tests still require a new li
 
 The invoice list/detail live tests are excluded because the inspected retained test job `22302` has no invoices, and JobAdder blocks invoice setup with a “Necessary Setup Missing” notice requiring account billing contacts and company payment terms. No billing settings were changed. The invoice actions remain available with mocked success, response-shape, and provider-error coverage; their live behavior remains unverified. There is no invoice job environment variable while those live tests are excluded.
 
-Two other live cases are excluded because suitable sandbox resources were not found:
+The custom-field detail live case is excluded because a suitable sandbox resource was not found:
 
 | Excluded live case | Missing prerequisite |
 | --- | --- |
 | Custom-field detail | The account returned no job custom-field definitions in the reported TeamCity run, and none was verified in the UI inspection. |
-| Rate-card retrieval | No genuine RateCalc/Astute Payroll assignment was identified. Feature unavailability has not been established. |
 
-The custom-field detail and rate-card actions remain available with unit coverage; only their live tests and unused environment variables were removed. Their live behavior remains unverified. The custom-field list and activity-setting detail live tests remain.
+The custom-field detail action remains available with unit coverage; its live test and unused environment variable were removed. Its live behavior remains unverified. The custom-field list and activity-setting detail live tests remain.
 
 Configure non-secret IDs from the same sandbox account in `tests/teamcity.env`. All variables are documented in root `.env.example`. TeamCity supplies the platform OAuth token; do not commit one. Run `pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive" -v -rs` or rerun TeamCity to verify the configured fixtures. Missing credentials or prerequisites cause skips; configured IDs that produce provider errors fail their tests.
 
@@ -201,6 +196,6 @@ Configure non-secret IDs from the same sandbox account in `tests/teamcity.env`. 
 
 - API access is controlled by JobAdder and may require partner/developer approval.
 - Rate limits are applied per JobAdder account. The SDK handles ordinary request transport and errors, but workflows should avoid unnecessarily aggressive polling.
-- Candidate and contact profiles and statuses can be updated, and candidate and job attachments can be uploaded and updated. Job records, structured job activities, follow-up tasks, and rate-card assignments are supported as described above. The integration does not create contacts or update companies, existing notes/activities, application or placement attachments, placements, or timesheets.
+- Candidate and contact profiles and statuses can be updated, and candidate and job attachments can be uploaded and updated. Job records, structured job activities, and follow-up tasks are supported as described above. The integration does not create contacts or update companies, existing notes/activities, application or placement attachments, placements, or timesheets.
 - JobAdder restricts attachment file extensions and returns HTTP 422 for unsupported files. See [Attachments - File Type restrictions](https://jobadderapi.zendesk.com/hc/en-us/articles/4407420419353-Attachments-File-Type-restrictions).
 - The integration does not manage application statuses, requisitions, job ads, partner actions, or webhooks. It does not create standalone job notes, update tasks, or modify custom-field definitions.
