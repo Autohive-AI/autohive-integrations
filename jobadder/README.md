@@ -58,7 +58,6 @@ Version 1.4.0 adds the following job actions using the existing `read_job`, `wri
 | `list_job_sources` | Optional `name` filter. | `sources`, `total_count`, `links` |
 | `create_job_activity` | Required `job_id`, `activity_setting_id`; optional `status_id`, `answers`. Creates a structured activity, distinct from a text note. | `activity` |
 | `get_job_activity` | Required `job_id`, `activity_id`; retrieves the activity and its details. | `activity` |
-| `search_job_activities` | Requires at least one nonempty date boundary: `created_at_from`, `created_at_to`, `updated_at_from`, or `updated_at_to`. Optional `include_details`, `offset`, `limit`. Searches across jobs; date boundaries are inclusive. | `activities`, `total_count`, `links` |
 | `list_job_activity_settings` | No inputs; discovers structured activity definitions. | `activity_settings`, `total_count`, `links` |
 | `get_job_activity_setting` | Required `setting_id`; discovers questions, statuses and answer options before activity creation. | `activity_setting` |
 | `create_job_task` | Required `job_id`, `title`, nonempty `assignee_user_ids`; optional start/end, all-day flag, priority (0–3), and linked candidate/job/placement/company/contact/application IDs. | `task` |
@@ -69,11 +68,9 @@ Version 1.4.0 adds the following job actions using the existing `read_job`, `wri
 
 Nested job, candidate-submission and activity-answer objects use JobAdder's field names, as documented in the input schemas. For example, `category` accepts `{"categoryId": 10, "subCategoryId": 20}`, and activity `answers` can contain `textAnswers`, `listValueAnswers`, `dateRangeValueAnswers`, and `ratingValueAnswers`.
 
-Rate-card actions apply only to RateCalc-generated rate-card IDs for Astute Payroll. They do not create or edit rate-card contents. Job task creation and retrieval use job scopes; task update/completion actions are excluded because they require additional scopes. Job status definition lookups and job submission-history endpoints are also excluded while their scope requirements remain unverified.
+Rate-card actions apply only to RateCalc-generated rate-card IDs for Astute Payroll. They do not create or edit rate-card contents. Job task creation and retrieval use job scopes; task update/completion actions are excluded because they require additional scopes. Cross-job structured activity search is excluded. Job status definition lookups and job submission-history endpoints are also excluded while their scope requirements remain unverified.
 
-Only `search_job_activities` among these new list actions accepts pagination. For unpaginated lists, `total_count` is the number of returned items when JobAdder does not provide a total, and `links` is empty when the provider supplies none.
-
-Activity searches send the query names exactly as documented by JobAdder: `CreatedAt`, `UpdatedAt`, `IncludeDetails`, `Offset`, and `Limit`. Date ranges use repeated query parameters, preserving both boundaries and explicit UTC offsets. Transport regression tests inspect the composed HTTP query through the SDK and the live-test adapter.
+These new list actions are unpaginated. For unpaginated lists, `total_count` is the number of returned items when JobAdder does not provide a total, and `links` is empty when the provider supplies none.
 
 ### Candidates
 
@@ -173,7 +170,7 @@ pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destr
 
 Write actions are deliberately excluded from live tests. JobAdder does not expose matching general delete operations for jobs, candidates, applications, candidate attachments, or job attachments. Profile/status changes, rate-card assignments, task creation and structured activity creation also mutate persistent customer data, so tests could not reliably restore the account to its original state. Their request contracts and provider-shaped responses are covered by mocked tests against the [official API schema](https://api.jobadder.com/v2/openapi.json).
 
-The new read-only job tests discover existing invoice/activity/setting/custom-field IDs where possible. Activity search uses a rolling 30-day creation filter because JobAdder rejects searches without a creation or update boundary. Invoice tests require `JOBADDER_TEST_INVOICE_JOB_ID`, a job with accessible invoice data, independently of the general `JOBADDER_TEST_JOB_ID`. These endpoints use retained-job invoice models; an ordinary job may return HTTP 404 rather than an empty invoice list. Leave the invoice job ID unset when the test account has no suitable job. The two invoice tests then skip; a configured invoice job returning an API error still fails the tests.
+The new read-only job tests discover existing invoice/activity/setting/custom-field IDs where possible. Invoice tests require `JOBADDER_TEST_INVOICE_JOB_ID`, a job with accessible invoice data, independently of the general `JOBADDER_TEST_JOB_ID`. These endpoints use retained-job invoice models; an ordinary job may return HTTP 404 rather than an empty invoice list. Leave the invoice job ID unset when the test account has no suitable job. The two invoice tests then skip; a configured invoice job returning an API error still fails the tests.
 
 Task detail tests optionally use `JOBADDER_TEST_JOB_TASK_ID` associated with `JOBADDER_TEST_JOB_ID`; rate-card tests optionally use `JOBADDER_TEST_RATE_CARD_JOB_ID` for a job with a configured Astute/RateCalc assignment. All variables are documented in the repository-root `.env.example`. Missing credentials, IDs, or empty discovery results cause the relevant tests to skip.
 

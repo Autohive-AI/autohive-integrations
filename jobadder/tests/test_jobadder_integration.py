@@ -17,7 +17,6 @@ creation are also excluded because they cannot be reliably restored here.
 
 import asyncio
 import base64
-from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -169,15 +168,6 @@ class TestAdditionalJobReads:
     async def test_unpaginated_job_lists(self, live_context, action, key):
         result = await jobadder.execute_action(action, {}, live_context)
         assert_list_result(result, key, max_items=None)
-
-    async def test_search_job_activities(self, live_context):
-        created_from = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-        result = await jobadder.execute_action(
-            "search_job_activities",
-            {"created_at_from": created_from, "limit": 2, "include_details": True},
-            live_context,
-        )
-        assert_list_result(result, "activities")
 
     async def test_list_job_invoices(self, live_context, invoice_job_id):
         result = await jobadder.execute_action("list_job_invoices", {"job_id": invoice_job_id}, live_context)

@@ -1735,31 +1735,6 @@ class GetJobActivityAction(ActionHandler):
             return ActionError(message=str(exc))
 
 
-@jobadder.action("search_job_activities")
-class SearchJobActivitiesAction(ActionHandler):
-    async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
-        try:
-            created_at = _date_range(inputs.get("created_at_from"), inputs.get("created_at_to"))
-            updated_at = _date_range(inputs.get("updated_at_from"), inputs.get("updated_at_to"))
-            if not created_at and not updated_at:
-                return ActionError(
-                    message="Provide at least one date boundary: created_at_from, created_at_to, "
-                    "updated_at_from, or updated_at_to. JobAdder requires a CreatedAt or UpdatedAt filter."
-                )
-            # This activity endpoint documents PascalCase query names. Do not
-            # assume the camelCase names used by other JobAdder endpoints bind here.
-            params = {
-                "CreatedAt": created_at,
-                "UpdatedAt": updated_at,
-                "IncludeDetails": _boolean_query_value(inputs.get("include_details")),
-                "Offset": inputs.get("offset", 0),
-                "Limit": inputs.get("limit", 100),
-            }
-            return await _fetch_list(context, "/jobs/activities", "activities", params)
-        except Exception as exc:
-            return ActionError(message=str(exc))
-
-
 @jobadder.action("list_job_activity_settings")
 class ListJobActivitySettingsAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
