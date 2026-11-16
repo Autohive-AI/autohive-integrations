@@ -1580,9 +1580,23 @@ def _card_parameters_for(
         value = values.get(mapping.get("parameter_id"))
         if value is not None and mapping.get("target"):
             params.append(
-                {"id": value["id"], "type": value.get("type"), "target": mapping["target"], "value": value["value"]}
+                {
+                    "id": value["id"],
+                    "type": value.get("type"),
+                    "target": mapping["target"],
+                    "value": _dashboard_run_value(value.get("type"), value["value"]),
+                }
             )
     return params
+
+
+def _dashboard_run_value(param_type: Any, value: Any) -> Any:
+    """A filter value as Metabase runs it on a dashboard or a subscription: a lone value for an operator filter
+    (number/..., string/..., boolean/=) is put in a list. That changes what the SQL gets (a lone false counts as no
+    value, [false] as a value), so the question is checked with the value as it will run."""
+    is_operator = isinstance(param_type, str) and param_type.startswith(("number/", "string/", "boolean/="))
+    blank = value is None or (isinstance(value, str) and not value.strip())
+    return [value] if is_operator and not blank and not isinstance(value, list) else value
 
 
 def _dashboard_questions(dashcards: List[Dict[str, Any]]) -> List[tuple]:

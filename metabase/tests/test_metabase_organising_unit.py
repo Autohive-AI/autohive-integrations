@@ -2016,7 +2016,7 @@ class TestCreateSubscription:
         )
         assert result.type == ResultType.ACTION
         assert _compiled_parameters(mock_context) == [
-            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": "pro"}]
+            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": ["pro"]}]
         ]
 
     @pytest.mark.asyncio
@@ -2039,7 +2039,7 @@ class TestCreateSubscription:
         )
         assert result.type == ResultType.ACTION_ERROR
         assert ("POST", f"{BASE}/api/pulse") not in _urls(mock_context)
-        assert _compiled_parameters(mock_context)[0][0]["value"] == "pro"
+        assert _compiled_parameters(mock_context)[0][0]["value"] == ["pro"]
 
     @pytest.mark.asyncio
     async def test_filter_without_default_sends_nothing(self, mock_context):
@@ -2086,8 +2086,8 @@ class TestCreateSubscription:
         )
         assert result.type == ResultType.ACTION
         assert _compiled_parameters(mock_context) == [
-            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": "pro"}],
-            [{"id": "f1", "type": "string/=", "target": PLAN_FIELD_TARGET, "value": "pro"}],
+            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": ["pro"]}],
+            [{"id": "f1", "type": "string/=", "target": PLAN_FIELD_TARGET, "value": ["pro"]}],
         ]
 
     @pytest.mark.asyncio
@@ -2111,7 +2111,7 @@ class TestCreateSubscription:
             "create_subscription", {"dashboard_id": 9, "recipient_user_ids": [5]}, mock_context
         )
         assert _compiled_parameters(mock_context) == [
-            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": "pro"}],
+            [{"id": "f1", "type": "string/=", "target": PLAN_TAG_TARGET, "value": ["pro"]}],
             [],
         ]
 

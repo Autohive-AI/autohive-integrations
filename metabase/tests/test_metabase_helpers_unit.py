@@ -8,6 +8,7 @@ from autohive_integrations_sdk import FetchResponse, HTTPError
 from metabase.metabase import (
     _card_summary,
     _clamp,
+    _dashboard_run_value,
     _fit_rows,
     _pulse_kept,
     _placeholders,
@@ -189,6 +190,27 @@ class TestFitRows:
         summary = {"error": "x" * 300}
         assert _fit_rows(summary, 100) < 0
         assert summary == {"error": "x" * 300}
+
+
+class TestDashboardRunValue:
+    @pytest.mark.parametrize(
+        "param_type,value,expected",
+        [
+            ("string/=", False, [False]),
+            ("string/=", "West", ["West"]),
+            ("number/=", 0, [0]),
+            ("number/between", [1, 2], [1, 2]),
+            ("boolean/=", True, [True]),
+            ("string/contains", "", ""),
+            ("string/=", "  ", "  "),
+            ("string/=", None, None),
+            ("category", "Gizmo", "Gizmo"),
+            ("date/single", "2026-11-01", "2026-11-01"),
+            (None, False, False),
+        ],
+    )
+    def test_lone_operator_values_put_in_a_list(self, param_type, value, expected):
+        assert _dashboard_run_value(param_type, value) == expected
 
 
 class TestPulseKept:

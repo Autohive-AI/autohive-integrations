@@ -1831,6 +1831,32 @@ class TestRunDashboard:
         assert query_42.kwargs["json"] == {"parameters": [{"id": "p1", "type": "string/=", "value": ["East"]}]}
 
     @pytest.mark.asyncio
+    async def test_lone_value_checked_in_a_list_like_metabase_runs_it(self, mock_context):
+        # Metabase puts a lone value for a string/= filter in a list on a dashboard run; a lone false would otherwise
+        # be checked as no value, leaving an optional clause the run includes unchecked.
+        mock_context.fetch.side_effect = [_ok(RUN_DASHBOARD), *_card_run(42), *_card_run(43)]
+        await metabase.execute_action(
+            "run_dashboard", {"dashboard_id": 9, "filters": [{"filter": "region", "value": False}]}, mock_context
+        )
+        native_42 = _calls_to(mock_context, "/dataset/native")[0]
+        assert native_42.kwargs["json"]["parameters"] == [
+            {"id": "p1", "type": "string/=", "target": REGION_TARGET, "value": [False]}
+        ]
+        query_42 = _calls_to(mock_context, "/query")[0]
+        assert query_42.kwargs["json"] == {"parameters": [{"id": "p1", "type": "string/=", "value": False}]}
+
+    @pytest.mark.asyncio
+    async def test_lone_value_of_non_operator_filter_checked_as_given(self, mock_context):
+        mock_context.fetch.side_effect = [_ok(RUN_DASHBOARD), *_card_run(42), *_card_run(43)]
+        await metabase.execute_action(
+            "run_dashboard", {"dashboard_id": 9, "filters": [{"filter": "category", "value": "Gizmo"}]}, mock_context
+        )
+        native_43 = _calls_to(mock_context, "/dataset/native")[1]
+        assert native_43.kwargs["json"]["parameters"] == [
+            {"id": "p2", "type": "category", "target": CATEGORY_TARGET, "value": "Gizmo"}
+        ]
+
+    @pytest.mark.asyncio
     async def test_filter_id_wins_over_another_filters_matching_slug(self, mock_context):
         params = [{**p, "slug": "p1"} if p["id"] == "p2" else p for p in RUN_DASHBOARD["parameters"]]
         mock_context.fetch.side_effect = [_ok({**RUN_DASHBOARD, "parameters": params}), *_card_run(42), *_card_run(43)]
