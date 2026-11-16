@@ -981,6 +981,20 @@ class TestUpdateDashboardFilters:
         ]
 
     @pytest.mark.asyncio
+    async def test_connection_listed_again_keeps_its_target(self, mock_context):
+        # Extending a filter to another card means listing its existing connections (from get_dashboard) again;
+        # those keep Metabase's target, with options such as a linked table's column, rather than a bare field.
+        rich = ["dimension", ["field", 8, {"source-field": 3}]]
+        mbql = {**MBQL_DASHCARD, "parameter_mappings": [{"parameter_id": "p2", "card_id": 43, "target": rich}]}
+        dashboard = {**SAMPLE_DASHBOARD, "dashcards": [SQL_DASHCARD, TEXT_DASHCARD, mbql]}
+        connections = [{"dashcard_id": 503, "field_id": 8}, {"dashcard_id": 503, "question_id": 44, "field_id": 8}]
+        await self._run(mock_context, [REGION_FILTER, {**CATEGORY_FILTER, "connections": connections}], dashboard)
+        assert _put_dashcard(mock_context, 503)["parameter_mappings"] == [
+            {"parameter_id": "p2", "card_id": 43, "target": rich},
+            {"parameter_id": "p2", "card_id": 44, "target": ["dimension", ["field", 8, None]]},
+        ]
+
+    @pytest.mark.asyncio
     async def test_empty_connections_disconnect(self, mock_context):
         await self._run(mock_context, [{**REGION_FILTER, "connections": []}])
         assert _put_dashcard(mock_context, 501)["parameter_mappings"] == []

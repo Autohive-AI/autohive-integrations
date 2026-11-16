@@ -1314,7 +1314,7 @@
         },
         "get_dashboard": {
             "display_name": "Get Dashboard",
-            "description": "Get a dashboard with its cards (questions), tabs and filters.",
+            "description": "Get a dashboard with its cards (questions), tabs and filters, and which filters each card is connected to.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -2174,7 +2174,7 @@
                                 },
                                 "connections": {
                                     "type": "array",
-                                    "description": "Cards this filter drives, replacing its earlier connections (list each question of a combined chart you want kept). Each needs dashcard_id and exactly one of field_id or template_tag.",
+                                    "description": "Cards this filter drives, replacing its earlier connections: to add a card, list the existing ones too (each card's filter_connections in get_dashboard), including each question of a combined chart you want kept. Each needs dashcard_id and exactly one of field_id or template_tag.",
                                     "items": {
                                         "type": "object",
                                         "properties": {

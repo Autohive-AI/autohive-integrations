@@ -68,7 +68,34 @@ class TestGetDashboard:
             "size_y": 6,
             "dashboard_tab_id": None,
             "series": [],
+            "filter_connections": [{"filter_id": "p1", "question_id": 42, "template_tag": "x"}],
         }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "mapping,connection",
+        [
+            # Metabase 0.49 writes a column as ["field", id, options], 0.50+ as ["field", {options}, id].
+            ({"card_id": 42, "target": ["dimension", ["field", 7, {"join-alias": "P"}]]}, {"field_id": 7}),
+            ({"card_id": 42, "target": ["dimension", ["field", {"base-type": "type/Text"}, 7]]}, {"field_id": 7}),
+            ({"card_id": 42, "target": ["dimension", ["template-tag", "category"]]}, {"template_tag": "category"}),
+            # A combined chart's other question, and a mapping that leaves the card's own question implied.
+            ({"card_id": 47, "target": ["variable", ["template-tag", "r"]]}, {"question_id": 47, "template_tag": "r"}),
+            ({"target": ["variable", ["template-tag", "r"]]}, {"template_tag": "r"}),
+            # Anything else (a custom column) is shown as Metabase's own target.
+            (
+                {"card_id": 42, "target": ["dimension", ["expression", "Margin"]]},
+                {"target": ["dimension", ["expression", "Margin"]]},
+            ),
+        ],
+    )
+    async def test_filter_connections_in_update_shape(self, mock_context, mapping, connection):
+        card = {**SAMPLE_DASHBOARD["dashcards"][0], "parameter_mappings": [{"parameter_id": "p1", **mapping}]}
+        mock_context.fetch.return_value = _ok({**SAMPLE_DASHBOARD, "dashcards": [card]})
+        result = await metabase.execute_action("get_dashboard", {"dashboard_id": 9}, mock_context)
+        assert result.result.data["cards"][0]["filter_connections"] == [
+            {"filter_id": "p1", "question_id": 42, **connection}
+        ]
 
     @pytest.mark.asyncio
     async def test_combined_chart_lists_its_other_questions(self, mock_context):

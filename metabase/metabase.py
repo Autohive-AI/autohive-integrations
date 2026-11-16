@@ -1001,7 +1001,30 @@ def _dashcard_summary(dashcard: Dict[str, Any]) -> Dict[str, Any]:
         "dashboard_tab_id": dashcard.get("dashboard_tab_id"),
         # A combined chart's other questions; filter connections take their id as question_id.
         "series": [{"id": sr.get("id"), "name": sr.get("name")} for sr in dashcard.get("series") or []],
+        # In update_dashboard_filters' connection shape, so a filter's existing connections can be listed again.
+        "filter_connections": [
+            {
+                "filter_id": m.get("parameter_id"),
+                "question_id": m.get("card_id") or dashcard.get("card_id"),
+                **(_connection_ref(m.get("target")) or {"target": m.get("target")}),
+            }
+            for m in dashcard.get("parameter_mappings") or []
+        ],
     }
+
+
+def _connection_ref(target: Any) -> Dict[str, Any]:
+    """The column (field_id) or SQL filter (template_tag) a filter target points at; empty for other targets, such as
+    a custom column. Metabase 0.50+ writes a column as ["field", {options}, id], older ones as
+    ["field", id, options]."""
+    ref = target[1] if isinstance(target, list) and len(target) > 1 and isinstance(target[1], list) else []
+    if ref[:1] == ["template-tag"] and len(ref) > 1:
+        return {"template_tag": ref[1]}
+    if ref[:1] == ["field"]:
+        field_id = next((x for x in ref[1:] if isinstance(x, int) and not isinstance(x, bool)), None)
+        if field_id is not None:
+            return {"field_id": field_id}
+    return {}
 
 
 def _dashcards_for_put(existing: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -2473,13 +2496,20 @@ class UpdateDashboardFiltersAction(ActionHandler):
                     raise ValueError(
                         f"Filter {param_names[filter_id]} is connected to card {original['id']} twice; pick one."
                     )
-                dc["parameter_mappings"].append(
-                    {
-                        "parameter_id": filter_id,
-                        "card_id": question_id,
-                        "target": _filter_target(original, questions[question_id], conn),
-                    }
+                target = _filter_target(original, questions[question_id], conn)
+                # A connection listed again keeps Metabase's own target, with options such as a join or a time unit.
+                target = next(
+                    (
+                        m["target"]
+                        for m in original.get("parameter_mappings") or []
+                        if m.get("parameter_id") == filter_id
+                        and (m.get("card_id") or original["card_id"]) == question_id
+                        and m.get("target")
+                        and _connection_ref(m["target"]) == _connection_ref(target)
+                    ),
+                    target,
                 )
+                dc["parameter_mappings"].append({"parameter_id": filter_id, "card_id": question_id, "target": target})
 
         removed = set(old_params) - kept
         if (
