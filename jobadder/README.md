@@ -170,7 +170,7 @@ pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destr
 
 Write actions are deliberately excluded from live tests. JobAdder does not expose matching general delete operations for jobs, candidates, applications, candidate attachments, or job attachments. Profile/status changes, rate-card assignments, task creation and structured activity creation also mutate persistent customer data, so tests could not reliably restore the account to its original state. Their request contracts and provider-shaped responses are covered by mocked tests against the [official API schema](https://api.jobadder.com/v2/openapi.json).
 
-The read-only job tests discover activity-setting and custom-field IDs where possible. Optional IDs are collected by `resource_ids` without validation; only the consuming test validates its ID, so missing optional values do not skip unrelated tests.
+The read-only job tests discover activity-setting IDs where possible. Optional IDs are collected by `resource_ids` without validation; only the consuming test validates its ID, so missing optional values do not skip unrelated tests.
 
 The following existing sandbox records were inspected in the JobAdder UI and configured in `tests/teamcity.env`:
 
@@ -186,14 +186,16 @@ These are UI-verified fixture IDs; their API detail tests still require a new li
 
 The invoice list/detail live tests are excluded because the inspected retained test job `22302` has no invoices, and JobAdder blocks invoice setup with a “Necessary Setup Missing” notice requiring account billing contacts and company payment terms. No billing settings were changed. The invoice actions remain available with mocked success, response-shape, and provider-error coverage; their live behavior remains unverified. There is no invoice job environment variable while those live tests are excluded.
 
-Two other live cases still require suitable sandbox resources:
+Two other live cases are excluded because suitable sandbox resources were not found:
 
-| Unverified live case | Missing prerequisite |
+| Excluded live case | Missing prerequisite |
 | --- | --- |
-| Custom-field detail | The account returned no job custom-field definitions in the reported TeamCity run. Discover a definition or configure `JOBADDER_TEST_JOB_CUSTOM_FIELD_ID` once one exists; none was verified in the UI inspection. |
-| Rate-card retrieval | No genuine RateCalc/Astute Payroll assignment was identified. Configure `JOBADDER_TEST_RATE_CARD_JOB_ID` only for a job with an actual assignment. Feature unavailability has not been established. |
+| Custom-field detail | The account returned no job custom-field definitions in the reported TeamCity run, and none was verified in the UI inspection. |
+| Rate-card retrieval | No genuine RateCalc/Astute Payroll assignment was identified. Feature unavailability has not been established. |
 
-Configure non-secret IDs from the same sandbox account in `tests/teamcity.env`; unresolved entries remain commented placeholders. All variables are documented in root `.env.example`. TeamCity supplies the platform OAuth token; do not commit one. Run `pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive" -v -rs` or rerun TeamCity to verify the configured fixtures. Missing credentials or prerequisites cause skips; configured IDs that produce provider errors fail their tests.
+The custom-field detail and rate-card actions remain available with unit coverage; only their live tests and unused environment variables were removed. Their live behavior remains unverified. The custom-field list and activity-setting detail live tests remain.
+
+Configure non-secret IDs from the same sandbox account in `tests/teamcity.env`. All variables are documented in root `.env.example`. TeamCity supplies the platform OAuth token; do not commit one. Run `pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive" -v -rs` or rerun TeamCity to verify the configured fixtures. Missing credentials or prerequisites cause skips; configured IDs that produce provider errors fail their tests.
 
 ## Important limitations
 

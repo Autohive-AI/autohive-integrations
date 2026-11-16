@@ -84,9 +84,7 @@ def resource_ids(env_credentials):
         "application": env_credentials("JOBADDER_TEST_APPLICATION_ID"),
         "placement": env_credentials("JOBADDER_TEST_PLACEMENT_ID"),
         "job_activity": env_credentials("JOBADDER_TEST_JOB_ACTIVITY_ID"),
-        "job_custom_field": env_credentials("JOBADDER_TEST_JOB_CUSTOM_FIELD_ID"),
         "job_task": env_credentials("JOBADDER_TEST_JOB_TASK_ID"),
-        "rate_card_job": env_credentials("JOBADDER_TEST_RATE_CARD_JOB_ID"),
     }
 
 
@@ -167,42 +165,16 @@ class TestAdditionalJobReads:
         result = await jobadder.execute_action(action, {}, live_context)
         assert_list_result(result, key, max_items=None)
 
-    @pytest.mark.parametrize(
-        "list_action,list_key,id_field,get_action,input_field,output_key",
-        [
-            (
-                "list_job_activity_settings",
-                "activity_settings",
-                "settingId",
-                "get_job_activity_setting",
-                "setting_id",
-                "activity_setting",
-            ),
-            (
-                "list_job_custom_fields",
-                "custom_fields",
-                "fieldId",
-                "get_job_custom_field",
-                "field_id",
-                "custom_field",
-            ),
-        ],
-    )
-    async def test_get_discovered_definition(
-        self, live_context, resource_ids, list_action, list_key, id_field, get_action, input_field, output_key
-    ):
-        if get_action == "get_job_custom_field" and resource_ids["job_custom_field"]:
-            record_id = require_integer_id(resource_ids["job_custom_field"], "JOBADDER_TEST_JOB_CUSTOM_FIELD_ID")
-        else:
-            listed = await jobadder.execute_action(list_action, {}, live_context)
-            assert listed.type == ResultType.ACTION
-            records = listed.result.data[list_key]
-            if not records:
-                pytest.skip(f"No {list_key} definitions in this account; {get_action} remains unverified")
-            record_id = records[0][id_field]
-        result = await jobadder.execute_action(get_action, {input_field: record_id}, live_context)
+    async def test_get_job_activity_setting(self, live_context):
+        listed = await jobadder.execute_action("list_job_activity_settings", {}, live_context)
+        assert listed.type == ResultType.ACTION
+        settings = listed.result.data["activity_settings"]
+        if not settings:
+            pytest.skip("The account has no job activity settings")
+        setting_id = settings[0]["settingId"]
+        result = await jobadder.execute_action("get_job_activity_setting", {"setting_id": setting_id}, live_context)
         assert result.type == ResultType.ACTION
-        assert result.result.data[output_key][id_field] == record_id
+        assert result.result.data["activity_setting"]["settingId"] == setting_id
 
     async def test_get_job_activity(self, live_context, resource_ids):
         job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
@@ -230,12 +202,6 @@ class TestAdditionalJobReads:
         result = await jobadder.execute_action("get_job_task", {"job_id": job_id, "task_id": task_id}, live_context)
         assert result.type == ResultType.ACTION
         assert result.result.data["task"]["taskId"] == task_id
-
-    async def test_get_job_rate_card(self, live_context, resource_ids):
-        job_id = require_integer_id(resource_ids["rate_card_job"], "JOBADDER_TEST_RATE_CARD_JOB_ID")
-        result = await jobadder.execute_action("get_job_rate_card", {"job_id": job_id}, live_context)
-        assert result.type == ResultType.ACTION
-        assert result.result.data["rate_card"]["jobOrderId"] == job_id
 
 
 class TestCandidates:
