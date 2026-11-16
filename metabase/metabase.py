@@ -466,6 +466,7 @@ async def _checked_parameters(
     parameters: List[Any],
     also_without_defaults: bool = True,
     saving: bool = False,
+    dashboard_ids: bool = False,
 ) -> List[Any]:
     """Refuse to run a saved question whose SQL can write, and return the filters to run it with.
 
@@ -477,7 +478,10 @@ async def _checked_parameters(
 
     saving is for actions that save the question's SQL somewhere new (copies, reverts, questions built on it) without
     running it: the SQL is also checked with every filter set, so no optional clause goes unchecked, and a question
-    that can't be expanded without filter values isn't refused for that."""
+    that can't be expanded without filter values isn't refused for that.
+
+    dashboard_ids is for parameters from a dashboard: their ids are the dashboard's filters, already resolved to their
+    targets on the question, so they aren't matched against the question's own filter ids."""
     card = await _api(context, "GET", f"/card/{card_id}") or {}
     dataset_query = card.get("dataset_query") or {}
     sql, tags = _saved_native(dataset_query)
@@ -488,10 +492,11 @@ async def _checked_parameters(
         for p in _merge_parameters(card.get("parameters") or [], _template_tag_parameters(tags))
         if p.get("id") and p.get("target")
     }
-    parameters = [
-        {**p, "target": targets[str(p["id"])]} if isinstance(p, dict) and str(p.get("id")) in targets else p
-        for p in parameters
-    ]
+    if not dashboard_ids:
+        parameters = [
+            {**p, "target": targets[str(p["id"])]} if isinstance(p, dict) and str(p.get("id")) in targets else p
+            for p in parameters
+        ]
     # A filter can be sent by id or by target; either one overrides the saved default.
     supplied = {str(p.get(key)) for p in parameters if isinstance(p, dict) for key in ("id", "target") if p.get(key)}
     defaults = [
@@ -734,11 +739,18 @@ def _error_message(
     error: Exception, saved_check: Optional[str] = None, context: Optional[ExecutionContext] = None
 ) -> str:
     message = _format_error_message(error, saved_check)
-    if context is not None and _credentials(context).get("gateway_header_name"):
+    if context is not None:
+        message = _redacted(message, context)
+    return message[:MAX_ERROR_LENGTH]
+
+
+def _redacted(text: str, context: ExecutionContext) -> str:
+    """Text with the API key and gateway secret hidden, when a gateway (which could echo them) is set up."""
+    if _credentials(context).get("gateway_header_name"):
         secrets = [_credentials(context).get(key) for key in ("api_key", "gateway_header_value")]
         for secret in sorted((s for s in secrets if isinstance(s, str) and s), key=len, reverse=True):
-            message = message.replace(secret, "[REDACTED]")
-    return message[:MAX_ERROR_LENGTH]
+            text = text.replace(secret, "[REDACTED]")
+    return text
 
 
 def _undone_error(message: str, error: Exception, context: ExecutionContext) -> ValueError:
@@ -1600,14 +1612,19 @@ async def _check_dashboard_questions(
     for pulse in pulses:
         values = dict(defaults)
         for p in (pulse or {}).get("parameters") or []:
-            if isinstance(p, dict) and p.get("id") and p.get("value") is not None:
+            if not isinstance(p, dict) or not p.get("id") or "value" not in p:
+                continue
+            if p["value"] is None:
+                # A subscription's saved empty value clears the dashboard default when it is sent.
+                values.pop(p["id"], None)
+            else:
                 values[p["id"]] = {"id": p["id"], "type": p.get("type"), "value": p["value"]}
         for dc, card_id, _ in questions:
             params = _card_parameters_for(dc, values, card_id)
             key = (card_id, json.dumps(params, sort_keys=True))
             if key not in checked:
                 checked.add(key)
-                await _checked_parameters(context, _path_id(card_id), params, saving=deep_copy)
+                await _checked_parameters(context, _path_id(card_id), params, saving=deep_copy, dashboard_ids=True)
 
 
 def _cron(frequency: str, hour: int, day: str) -> str:
@@ -1995,7 +2012,8 @@ async def _download(context: ExecutionContext, path: str, form: Dict[str, str]) 
                 raise HTTPError(response.status, text[:MAX_ERROR_LENGTH], data)
             if "spreadsheetml" not in response.headers.get("Content-Type", ""):
                 # Metabase reports a failed query as JSON instead of the file.
-                text = (await response.text(errors="replace"))[:MAX_ERROR_LENGTH]
+                # Secrets are hidden before the text is cut, so a gateway page can't show part of one.
+                text = _redacted(await response.text(errors="replace"), context)[:MAX_ERROR_LENGTH]
                 raise ValueError(f"Query failed: {text}")
             async for chunk in response.content.iter_chunked(64 * 1024):
                 content += chunk
@@ -2596,7 +2614,7 @@ class RunDashboardAction(ActionHandler):
                 card_params = _card_parameters_for(dc, values, card_id)
                 # A dashboard run applies a SQL filter's own default but not the question's saved filter
                 # defaults, so the question is also checked without those.
-                await _checked_parameters(context, _path_id(card_id), card_params)
+                await _checked_parameters(context, _path_id(card_id), card_params, dashboard_ids=True)
                 used = [values[p] for p in dict.fromkeys(p["id"] for p in card_params)]
                 return await _api(
                     context,
@@ -2813,9 +2831,21 @@ class CopyQuestionAction(ActionHandler):
             if collection_id != original.get("collection_id"):
                 # Metabase's copy is made in the original's collection first, so copying out of a collection the key
                 # can only view would fail (0.65) or leave a copy stuck there (0.49). It is made where it goes instead.
-                card = await _api(context, "POST", "/card", json=_copy_of(original, inputs.get("name"), collection_id))
-                _require_id(card, "a question")
-                return _card_summary(card)
+                try:
+                    card = await _api(
+                        context, "POST", "/card", json=_copy_of(original, inputs.get("name"), collection_id)
+                    )
+                except HTTPError as e:
+                    # Saving a new question also needs permission to write its query (SQL), which Metabase's copy
+                    # doesn't; a key without it still copies and moves when it can write the destination.
+                    if e.status != 403:
+                        raise
+                    destination = await _api(context, "GET", f"/collection/{_path_id(collection_id)}") or {}
+                    if not destination.get("can_write"):
+                        raise e from None
+                else:
+                    _require_id(card, "a question")
+                    return _card_summary(card)
         card = await _api(context, "POST", f"/card/{question_id}/copy") or {}
         _require_id(card, "a question")
         changes = _with_optional({}, name=inputs.get("name"), collection_id=inputs.get("collection_id"))

@@ -618,6 +618,10 @@ class TestUpdateQuestion:
         assert all(c.kwargs["method"] != "PUT" for c in mock_context.fetch.call_args_list)
 
 
+def _calls(mock_context):
+    return [(c.kwargs["method"], c.args[0]) for c in mock_context.fetch.call_args_list]
+
+
 class TestCopyQuestion:
     @pytest.mark.asyncio
     async def test_copy_without_changes(self, mock_context):
@@ -835,12 +839,54 @@ class TestCopyQuestion:
             *_saving_check_calls(),
             _ok(SAMPLE_CARD),
             HTTPError(403, "Forbidden", "You don't have permissions to do that."),
+            _ok({"id": 9, "can_write": False}),
         ]
         result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
         assert "HTTP 403" in result.result.message
         assert "update_question" not in result.result.message
-        assert [c.kwargs["method"] for c in mock_context.fetch.call_args_list[-2:]] == ["GET", "POST"]
+        assert _calls(mock_context)[-3:] == [
+            ("GET", f"{BASE}/api/card/42"),
+            ("POST", f"{BASE}/api/card"),
+            ("GET", f"{BASE}/api/collection/9"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_key_that_cant_write_sql_copies_and_moves(self, mock_context):
+        # Saving a new SQL question needs permission to write SQL; Metabase's copy and a move only need the
+        # collections, so a key that can run the question but not write SQL still gets its copy.
+        mock_context.fetch.side_effect = [
+            *_saving_check_calls(),
+            _ok(SAMPLE_CARD),
+            HTTPError(403, "Forbidden", "You don't have permissions to do that."),
+            _ok({"id": 9, "can_write": True}),
+            _ok(SAMPLE_COPY),
+            _ok({**SAMPLE_COPY, "name": "EU", "collection_id": 9}),
+        ]
+        result = await metabase.execute_action(
+            "copy_question", {"question_id": 42, "name": "EU", "collection_id": 9}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["collection_id"] == 9
+        assert _calls(mock_context)[-4:] == [
+            ("POST", f"{BASE}/api/card"),
+            ("GET", f"{BASE}/api/collection/9"),
+            ("POST", f"{BASE}/api/card/42/copy"),
+            ("PUT", f"{BASE}/api/card/77"),
+        ]
+        assert mock_context.fetch.call_args.kwargs["json"] == {"name": "EU", "collection_id": 9}
+
+    @pytest.mark.asyncio
+    async def test_other_errors_making_the_copy_dont_fall_back(self, mock_context):
+        mock_context.fetch.side_effect = [
+            *_saving_check_calls(),
+            _ok(SAMPLE_CARD),
+            HTTPError(400, "Bad Request", {"errors": {"display": "invalid"}}),
+        ]
+        result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 400" in result.result.message
+        assert _calls(mock_context)[-1] == ("POST", f"{BASE}/api/card")
 
     @pytest.mark.asyncio
     async def test_copy_to_its_own_collection_uses_metabase_copy(self, mock_context):
@@ -2338,6 +2384,17 @@ class TestDownload:
         session, patched = _fake_aiohttp(_FakeResponse(chunks=(chunk, chunk, chunk, chunk)))
         with patched, pytest.raises(ValueError, match="over 3.5 MB"):
             await _download(mock_context, "/card/42/query/xlsx", FORM)
+
+    @pytest.mark.asyncio
+    async def test_gateway_page_secret_hidden_before_the_text_is_cut(self, mock_context):
+        secret = "gw-secret-" * 10
+        mock_context.auth["credentials"].update(gateway_header_name="X-Gateway-Secret", gateway_header_value=secret)
+        response = _FakeResponse(content_type="text/html", text="x" * 480 + secret)
+        session, patched = _fake_aiohttp(response)
+        with patched, pytest.raises(ValueError) as error:
+            await _download(mock_context, "/card/42/query/xlsx", FORM)
+        assert "gw-secret" not in str(error.value)
+        assert str(error.value).endswith("[REDACTED]")
 
     @pytest.mark.asyncio
     async def test_json_body_is_a_failed_query(self, mock_context):

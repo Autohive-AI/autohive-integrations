@@ -2050,3 +2050,23 @@ class TestRunDashboardChecks:
         assert [p["id"] for p in with_default.kwargs["json"]["parameters"]] == ["p1", "t1"]
         assert [p["id"] for p in without_default.kwargs["json"]["parameters"]] == ["p1"]
         assert _calls_to(mock_context, "/query") == []
+
+    @pytest.mark.asyncio
+    async def test_dashboard_filter_sharing_a_question_filter_id_keeps_its_own_target(self, mock_context):
+        # Metabase resolves a dashboard filter through the card's mapping, not the question's filter with that id.
+        card = {
+            **_card(42),
+            "parameters": [{"id": "p1", "type": "number/=", "target": ["variable", ["template-tag", "other"]]}],
+        }
+        dashboard = {**RUN_DASHBOARD, "dashcards": [RUN_DASHBOARD["dashcards"][0]]}
+        mock_context.fetch.side_effect = [
+            _ok(dashboard),
+            _ok(card),
+            _ok(SAMPLE_DATABASE),
+            _ok(SELECT_SQL),
+            _ok(SAMPLE_QUERY_RESULT),
+        ]
+        result = await metabase.execute_action("run_dashboard", {"dashboard_id": 9}, mock_context)
+        assert "error" not in result.result.data["cards"][0]
+        (check,) = _calls_to(mock_context, "/dataset/native")
+        assert [p["target"] for p in check.kwargs["json"]["parameters"]] == [REGION_TARGET]

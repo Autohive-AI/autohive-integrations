@@ -1214,6 +1214,25 @@ class TestRestoreItem:
         ]
 
     @pytest.mark.asyncio
+    async def test_subscription_empty_value_clears_the_dashboard_default(self, mock_context):
+        # A saved empty value is sent as no value at all (Metabase Pro), not the dashboard default.
+        dashboard, _ = self._team_filtered()
+        dashboard = {**dashboard, "parameters": [{**PLAN_FILTER, "default": ["free"]}]}
+        pulse = {**SAMPLE_PULSE, "parameters": [{"id": "f1", "type": "string/=", "value": None}]}
+        mock_context.fetch.side_effect = [
+            _ok({**pulse, "archived": True}),
+            _ok(dashboard),
+            *_checks(),
+            _ok(NEW_METABASE),
+            _ok(SAMPLE_PULSE),
+        ]
+        result = await metabase.execute_action(
+            "restore_item", {"item_type": "subscription", "item_id": 15}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert _compiled_parameters(mock_context) == [[]]
+
+    @pytest.mark.asyncio
     async def test_dashboard_checked_with_its_subscriptions_own_filter_values(self, mock_context):
         dashboard, pulse = self._team_filtered()
         mock_context.fetch.side_effect = [
