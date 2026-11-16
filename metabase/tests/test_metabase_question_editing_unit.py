@@ -800,6 +800,18 @@ class TestCopyQuestion:
         assert result.result.data["collection_id"] == 9
 
     @pytest.mark.asyncio
+    async def test_copy_to_another_collection_keeps_filters_and_caching(self, mock_context):
+        filters = [{"id": "t1", "type": "category", "target": ["variable", ["template-tag", "region"]]}]
+        original = {**SAMPLE_CARD, "parameters": filters, "cache_ttl": 6, "description": ""}
+        mock_context.fetch.side_effect = [*_saving_check_calls(card=original), _ok({**SAMPLE_COPY, "collection_id": 9})]
+        await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
+        body = mock_context.fetch.call_args.kwargs["json"]
+        assert body["parameters"] == filters
+        assert body["cache_ttl"] == 6
+        # Metabase refuses an empty description, so none is sent.
+        assert "description" not in body
+
+    @pytest.mark.asyncio
     async def test_only_collection_given_names_it_like_metabase(self, mock_context):
         mock_context.fetch.side_effect = [
             *_saving_check_calls(card=SAMPLE_CARD),
@@ -2535,6 +2547,16 @@ class TestSavedQuestionCheck:
         assert "Saved question 42 wasn't run" in result.result.message
         assert _compile_calls(mock_context)[0].kwargs["json"]["parameters"][0]["target"] == P_TARGET
         assert all("/query/" not in c.args[0] for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
+    async def test_run_question_by_id_checked_with_real_target(self, mock_context):
+        # run_question, like exports, sends filters by the question's own ids, which Metabase runs on their own target.
+        _route(mock_context, when_set="select 1; delete from t where x = 'EU'")
+        decoy = {"id": "t1", "type": "category", "target": ["variable", ["template-tag", "decoy"]], "value": "EU"}
+        result = await metabase.execute_action("run_question", {"question_id": 42, "parameters": [decoy]}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "Saved question 42 wasn't run" in result.result.message
+        assert _compile_calls(mock_context)[0].kwargs["json"]["parameters"][0]["target"] == P_TARGET
 
     @pytest.mark.asyncio
     async def test_run_by_id_sends_real_target(self, mock_context):
