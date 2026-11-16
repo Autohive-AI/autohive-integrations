@@ -213,3 +213,55 @@ async def test_committed_put_is_not_replayed_after_disconnect(mock_context):
         with pytest.raises(ValueError, match="Could not connect"):
             await _gateway_request(base, "PUT", get_auth_headers(configure(mock_context)), json=body)
     assert committed == [body]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("body", ["2024\n", "null\n", "id,email\n1,ana@example.com\n"])
+async def test_csv_exports_come_back_as_text(mock_context, body):
+    """A CSV export is text even when it happens to read as JSON (a lone "2024" header)."""
+
+    async def handler(request):
+        return web.Response(text=body, content_type="text/csv")
+
+    async with server(handler) as base:
+        data = await _gateway_request(base, "POST", get_auth_headers(configure(mock_context)), allow_text=True)
+    assert data == body
+
+
+@pytest.mark.asyncio
+async def test_json_exports_still_parse_with_allow_text(mock_context):
+    async def handler(request):
+        return web.json_response([{"id": 1}])
+
+    async with server(handler) as base:
+        data = await _gateway_request(base, "POST", get_auth_headers(configure(mock_context)), allow_text=True)
+    assert data == [{"id": 1}]
+
+
+@pytest.mark.asyncio
+async def test_export_form_body_reaches_gateway_with_form_content_type(mock_context, monkeypatch):
+    seen = {}
+
+    async def handler(request):
+        seen["content_type"] = request.headers.get("Content-Type")
+        seen["gateway"] = request.headers.get("X-Gateway-Secret")
+        seen["form"] = dict(await request.post())
+        return web.Response(text="x\n1\n", content_type="text/csv")
+
+    async with server(handler) as base:
+        monkeypatch.setattr(importlib.import_module("metabase.metabase"), "get_base_url", lambda context: base)
+        data = await _api(
+            configure(mock_context),
+            "POST",
+            "/card/42/query/csv",
+            allow_text=True,
+            data={"parameters": "[]", "format_rows": "false"},
+            content_type="application/x-www-form-urlencoded",
+        )
+    assert data == "x\n1\n"
+    assert seen == {
+        "content_type": "application/x-www-form-urlencoded",
+        "gateway": GATEWAY_SECRET,
+        "form": {"parameters": "[]", "format_rows": "false"},
+    }
+    mock_context.fetch.assert_not_called()
