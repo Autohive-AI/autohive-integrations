@@ -995,6 +995,37 @@ class TestUpdateDashboardFilters:
         ]
 
     @pytest.mark.asyncio
+    async def test_custom_column_connection_listed_again_as_its_target(self, mock_context):
+        # get_dashboard can only show a custom-column connection as Metabase's target; it can be kept as it is.
+        margin = ["dimension", ["expression", "Margin"]]
+        mbql = {**MBQL_DASHCARD, "parameter_mappings": [{"parameter_id": "p2", "card_id": 43, "target": margin}]}
+        dashboard = {**SAMPLE_DASHBOARD, "dashcards": [SQL_DASHCARD, TEXT_DASHCARD, mbql]}
+        connections = [{"dashcard_id": 503, "target": margin}, {"dashcard_id": 503, "question_id": 44, "field_id": 8}]
+        result = await self._run(
+            mock_context, [REGION_FILTER, {**CATEGORY_FILTER, "connections": connections}], dashboard
+        )
+        assert result.type == ResultType.ACTION
+        assert _put_dashcard(mock_context, 503)["parameter_mappings"] == [
+            {"parameter_id": "p2", "card_id": 43, "target": margin},
+            {"parameter_id": "p2", "card_id": 44, "target": ["dimension", ["field", 8, None]]},
+        ]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "connection,message",
+        [
+            # Not one of this filter's connections on that card: a target can't be made up.
+            ({"dashcard_id": 503, "target": ["dimension", ["expression", "Profit"]]}, "has no such connection"),
+            ({"dashcard_id": 503, "target": ["dimension", ["field", 8, None]], "field_id": 8}, "exactly one of"),
+        ],
+    )
+    async def test_target_only_lists_an_existing_connection(self, mock_context, connection, message):
+        result = await self._run(mock_context, [REGION_FILTER, {**CATEGORY_FILTER, "connections": [connection]}])
+        assert result.type == ResultType.ACTION_ERROR
+        assert message in result.result.message
+        assert not any(c.kwargs.get("method") == "PUT" for c in mock_context.fetch.call_args_list)
+
+    @pytest.mark.asyncio
     async def test_empty_connections_disconnect(self, mock_context):
         await self._run(mock_context, [{**REGION_FILTER, "connections": []}])
         assert _put_dashcard(mock_context, 501)["parameter_mappings"] == []

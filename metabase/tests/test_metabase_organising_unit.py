@@ -2672,6 +2672,16 @@ class TestUpdateField:
         }
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("extra", [{}, {"display_name": "Plan"}])
+    async def test_empty_semantic_type_clears_it(self, mock_context, extra):
+        mock_context.fetch.return_value = _ok({"id": 120})
+        result = await metabase.execute_action(
+            "update_field", {"field_id": 120, "semantic_type": "", **extra}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"] == {**extra, "semantic_type": None}
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("extra", [{}, {"semantic_type": "type/Email"}])
     async def test_empty_description_clears_it(self, mock_context, extra):
         mock_context.fetch.return_value = _ok({"id": 120})

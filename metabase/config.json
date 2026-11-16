@@ -2174,7 +2174,7 @@
                                 },
                                 "connections": {
                                     "type": "array",
-                                    "description": "Cards this filter drives, replacing its earlier connections: to add a card, list the existing ones too (each card's filter_connections in get_dashboard), including each question of a combined chart you want kept. Each needs dashcard_id and exactly one of field_id or template_tag.",
+                                    "description": "Cards this filter drives, replacing its earlier connections: to add a card, list the existing ones too (each card's filter_connections in get_dashboard), including each question of a combined chart you want kept. Each needs dashcard_id and exactly one of field_id, template_tag or target.",
                                     "items": {
                                         "type": "object",
                                         "properties": {
@@ -2189,6 +2189,11 @@
                                             "template_tag": {
                                                 "type": "string",
                                                 "description": "Name of the SQL question's filter variable, e.g. category for {{category}}."
+                                            },
+                                            "target": {
+                                                "type": "array",
+                                                "description": "A connection get_dashboard shows only as Metabase's own target (such as a custom column), copied as is to keep it. Only lists an existing connection of this filter again.",
+                                                "items": {}
                                             },
                                             "question_id": {
                                                 "type": "integer",
@@ -4668,7 +4673,7 @@
                     },
                     "semantic_type": {
                         "type": "string",
-                        "description": "What the column means to Metabase, e.g. type/Email, type/Currency, type/Category, type/FK, type/PK, type/City."
+                        "description": "What the column means to Metabase, e.g. type/Email, type/Currency, type/Category, type/FK, type/PK, type/City (an empty string clears it)."
                     }
                 },
                 "required": [

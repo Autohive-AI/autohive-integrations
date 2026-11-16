@@ -2497,19 +2497,31 @@ class UpdateDashboardFiltersAction(ActionHandler):
                     raise ValueError(
                         f"Filter {param_names[filter_id]} is connected to card {original['id']} twice; pick one."
                     )
-                target = _filter_target(original, questions[question_id], conn)
-                # A connection listed again keeps Metabase's own target, with options such as a join or a time unit.
-                target = next(
-                    (
-                        m["target"]
-                        for m in original.get("parameter_mappings") or []
-                        if m.get("parameter_id") == filter_id
-                        and (m.get("card_id") or original["card_id"]) == question_id
-                        and m.get("target")
-                        and _connection_ref(m["target"]) == _connection_ref(target)
-                    ),
-                    target,
-                )
+                existing = [
+                    m["target"]
+                    for m in original.get("parameter_mappings") or []
+                    if m.get("parameter_id") == filter_id
+                    and (m.get("card_id") or original["card_id"]) == question_id
+                    and m.get("target")
+                ]
+                if "target" in conn:
+                    # A connection get_dashboard can only show as Metabase's own target (a custom column, say) can be
+                    # listed again as it is, but not made up.
+                    if conn.get("field_id") or conn.get("template_tag"):
+                        raise ValueError(
+                            "Each filter connection needs exactly one of field_id, template_tag or target."
+                        )
+                    if conn["target"] not in existing:
+                        raise ValueError(
+                            f"Filter {param_names[filter_id]} has no such connection on card {original['id']}; "
+                            "target only lists an existing one again (from get_dashboard)."
+                        )
+                    target = conn["target"]
+                else:
+                    target = _filter_target(original, questions[question_id], conn)
+                    # A connection listed again keeps Metabase's own target, with options such as a join or a time
+                    # unit.
+                    target = next((t for t in existing if _connection_ref(t) == _connection_ref(target)), target)
                 dc["parameter_mappings"].append({"parameter_id": filter_id, "card_id": question_id, "target": target})
 
         removed = set(old_params) - kept
@@ -3462,11 +3474,10 @@ class UpdateFieldAction(ActionHandler):
 
     @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        body = _with_optional(
-            _with_description({}, inputs),
-            display_name=inputs.get("display_name"),
-            semantic_type=inputs.get("semantic_type"),
-        )
+        body = _with_optional(_with_description({}, inputs), display_name=inputs.get("display_name"))
+        if inputs.get("semantic_type") is not None:
+            # An empty semantic type clears it.
+            body["semantic_type"] = inputs["semantic_type"] or None
         if not body:
             raise ValueError("Give display_name, description or semantic_type.")
         path = f"/field/{_path_id(inputs['field_id'])}"
