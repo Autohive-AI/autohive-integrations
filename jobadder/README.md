@@ -73,6 +73,8 @@ Rate-card actions apply only to RateCalc-generated rate-card IDs for Astute Payr
 
 Only `search_job_activities` among these new list actions accepts pagination. For unpaginated lists, `total_count` is the number of returned items when JobAdder does not provide a total, and `links` is empty when the provider supplies none.
 
+Activity searches send the query names exactly as documented by JobAdder: `CreatedAt`, `UpdatedAt`, `IncludeDetails`, `Offset`, and `Limit`. Date ranges use repeated query parameters, preserving both boundaries and explicit UTC offsets. Transport regression tests inspect the composed HTTP query through the SDK and the live-test adapter.
+
 ### Candidates
 
 - `list_candidates` — search by name, email, phone, resume keywords, status, recruiter, creation/update time, and sort order.

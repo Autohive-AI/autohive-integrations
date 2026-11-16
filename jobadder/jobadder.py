@@ -1746,14 +1746,15 @@ class SearchJobActivitiesAction(ActionHandler):
                     message="Provide at least one date boundary: created_at_from, created_at_to, "
                     "updated_at_from, or updated_at_to. JobAdder requires a CreatedAt or UpdatedAt filter."
                 )
-            params = _pagination(inputs)
-            params.update(
-                {
-                    "createdAt": created_at,
-                    "updatedAt": updated_at,
-                    "includeDetails": _boolean_query_value(inputs.get("include_details")),
-                }
-            )
+            # This activity endpoint documents PascalCase query names. Do not
+            # assume the camelCase names used by other JobAdder endpoints bind here.
+            params = {
+                "CreatedAt": created_at,
+                "UpdatedAt": updated_at,
+                "IncludeDetails": _boolean_query_value(inputs.get("include_details")),
+                "Offset": inputs.get("offset", 0),
+                "Limit": inputs.get("limit", 100),
+            }
             return await _fetch_list(context, "/jobs/activities", "activities", params)
         except Exception as exc:
             return ActionError(message=str(exc))

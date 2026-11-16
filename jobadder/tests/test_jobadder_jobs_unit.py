@@ -168,8 +168,8 @@ async def test_list_response_and_supported_parameters(mock_context, action, path
     assert result.result.data == {key: [{"name": "Example"}], "total_count": 1, "links": {}}
     expected = {"method": "GET"}
     if action == "search_job_activities":
-        expected["params"] = {"offset": 0, "limit": 100}
-        path += "?createdAt=%3E2026-11-01T00%3A00%3A00Z"
+        expected["params"] = {"Offset": 0, "Limit": 100}
+        path += "?CreatedAt=%3E2026-11-01T00%3A00%3A00Z"
     mock_context.fetch.assert_awaited_once_with(BASE + path, **expected)
 
 
@@ -430,10 +430,10 @@ async def test_activity_search_encodes_both_date_boundaries_and_false(mock_conte
     call = mock_context.fetch.call_args
     assert urlparse(call.args[0]).path == "/v2/jobs/activities"
     assert parse_qs(urlparse(call.args[0]).query) == {
-        "createdAt": [">2026-11-01T00:00:00Z", "<2026-11-15T23:59:59Z"],
-        "updatedAt": [">2026-11-02T00:00:00Z", "<2026-11-16T23:59:59Z"],
+        "CreatedAt": [">2026-11-01T00:00:00Z", "<2026-11-15T23:59:59Z"],
+        "UpdatedAt": [">2026-11-02T00:00:00Z", "<2026-11-16T23:59:59Z"],
     }
-    assert call.kwargs == {"method": "GET", "params": {"offset": 5, "limit": 0, "includeDetails": "false"}}
+    assert call.kwargs == {"method": "GET", "params": {"Offset": 5, "Limit": 0, "IncludeDetails": "false"}}
     assert result.result.data == {"activities": [], "total_count": 45, "links": {"next": "next-page"}}
 
 
@@ -458,10 +458,10 @@ async def test_activity_search_requires_nonempty_date_boundary(mock_context, inp
 @pytest.mark.parametrize(
     "field,query_key,prefix",
     [
-        ("created_at_from", "createdAt", ">"),
-        ("created_at_to", "createdAt", "<"),
-        ("updated_at_from", "updatedAt", ">"),
-        ("updated_at_to", "updatedAt", "<"),
+        ("created_at_from", "CreatedAt", ">"),
+        ("created_at_to", "CreatedAt", "<"),
+        ("updated_at_from", "UpdatedAt", ">"),
+        ("updated_at_to", "UpdatedAt", "<"),
     ],
 )
 async def test_activity_search_accepts_each_date_boundary(mock_context, field, query_key, prefix):
@@ -479,11 +479,11 @@ async def test_live_activity_search_supplies_recent_creation_boundary(mock_conte
 
     call = mock_context.fetch.call_args
     query = parse_qs(urlparse(call.args[0]).query)
-    assert query["createdAt"][0].startswith(">")
-    boundary = datetime.fromisoformat(query["createdAt"][0][1:])
+    assert query["CreatedAt"][0].startswith(">")
+    boundary = datetime.fromisoformat(query["CreatedAt"][0][1:])
     now = datetime.now(timezone.utc)
     assert now - timedelta(days=31) < boundary < now - timedelta(days=29)
-    assert call.kwargs["params"] == {"offset": 0, "limit": 2, "includeDetails": "true"}
+    assert call.kwargs["params"] == {"Offset": 0, "Limit": 2, "IncludeDetails": "true"}
 
 
 @pytest.mark.parametrize("method_name", ["test_list_job_invoices", "test_get_job_invoice"])
