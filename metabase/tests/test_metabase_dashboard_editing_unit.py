@@ -1011,6 +1011,48 @@ class TestUpdateDashboardFilters:
         ]
 
     @pytest.mark.asyncio
+    async def test_text_card_connection_listed_again(self, mock_context):
+        # A heading or text card showing the filter's value keeps its connection when the filter's list is given.
+        tag = ["text-tag", "region"]
+        text = {**TEXT_DASHCARD, "parameter_mappings": [{"parameter_id": "p1", "target": tag}]}
+        dashboard = {**SAMPLE_DASHBOARD, "dashcards": [SQL_DASHCARD, text, MBQL_DASHCARD]}
+        connections = [{"dashcard_id": 502, "target": tag}, {"dashcard_id": 503, "field_id": 7}]
+        result = await self._run(
+            mock_context, [{**REGION_FILTER, "connections": connections}, CATEGORY_FILTER], dashboard
+        )
+        assert result.type == ResultType.ACTION
+        assert _put_dashcard(mock_context, 502)["parameter_mappings"] == [{"parameter_id": "p1", "target": tag}]
+
+    @pytest.mark.asyncio
+    async def test_text_card_needs_its_existing_target(self, mock_context):
+        result = await self._run(
+            mock_context, [{**REGION_FILTER, "connections": [{"dashcard_id": 502, "field_id": 7}]}]
+        )
+        assert result.type == ResultType.ACTION_ERROR
+        assert "not a question card" in result.result.message
+
+    @pytest.mark.asyncio
+    async def test_action_button_connection_listed_again_by_its_tag(self, mock_context):
+        # An action button's parameter isn't a filter of its model, so it is matched to the existing connection.
+        target = ["variable", ["template-tag", "region-param"]]
+        button = {
+            **MBQL_DASHCARD,
+            "id": 505,
+            "action_id": 5,
+            "series": [],
+            "parameter_mappings": [{"parameter_id": "p1", "card_id": 43, "target": target}],
+        }
+        dashboard = {**SAMPLE_DASHBOARD, "dashcards": [SQL_DASHCARD, TEXT_DASHCARD, button]}
+        connections = [{"dashcard_id": 505, "template_tag": "region-param"}]
+        result = await self._run(
+            mock_context, [{**REGION_FILTER, "connections": connections}, CATEGORY_FILTER], dashboard
+        )
+        assert result.type == ResultType.ACTION
+        assert _put_dashcard(mock_context, 505)["parameter_mappings"] == [
+            {"parameter_id": "p1", "card_id": 43, "target": target}
+        ]
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "connection,message",
         [

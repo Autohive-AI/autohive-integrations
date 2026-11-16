@@ -853,6 +853,7 @@ class TestCopyQuestion:
             *_saving_check_calls(card=SAMPLE_CARD),
             HTTPError(403, "Forbidden", "You don't have permissions to do that."),
             _ok({"id": 9, "can_write": True}),
+            _ok({"id": 4, "can_write": True}),
             _ok(SAMPLE_COPY),
             _ok({**SAMPLE_COPY, "name": "EU", "collection_id": 9}),
         ]
@@ -861,13 +862,30 @@ class TestCopyQuestion:
         )
         assert result.type == ResultType.ACTION
         assert result.result.data["collection_id"] == 9
-        assert _calls(mock_context)[-4:] == [
+        assert _calls(mock_context)[-5:] == [
             ("POST", f"{BASE}/api/card"),
             ("GET", f"{BASE}/api/collection/9"),
+            ("GET", f"{BASE}/api/collection/4"),
             ("POST", f"{BASE}/api/card/42/copy"),
             ("PUT", f"{BASE}/api/card/77"),
         ]
         assert mock_context.fetch.call_args.kwargs["json"] == {"name": "EU", "collection_id": 9}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("collection_id,path", [(4, "/collection/4"), (None, "/collection/root")])
+    async def test_no_fallback_when_the_original_collection_is_view_only(self, mock_context, collection_id, path):
+        # Metabase 0.49 makes its copy in the original's collection without checking, and it couldn't be moved out.
+        mock_context.fetch.side_effect = [
+            *_saving_check_calls(card={**SAMPLE_CARD, "collection_id": collection_id}),
+            HTTPError(403, "Forbidden", "You don't have permissions to do that."),
+            _ok({"id": 9, "can_write": True}),
+            _ok({"id": collection_id or "root", "can_write": False}),
+        ]
+        result = await metabase.execute_action("copy_question", {"question_id": 42, "collection_id": 9}, mock_context)
+        assert result.type == ResultType.ACTION_ERROR
+        assert "HTTP 403" in result.result.message
+        assert _calls(mock_context)[-1] == ("GET", f"{BASE}/api{path}")
+        assert not any(c.args[0].endswith("/copy") for c in mock_context.fetch.call_args_list)
 
     @pytest.mark.asyncio
     async def test_other_errors_making_the_copy_dont_fall_back(self, mock_context):

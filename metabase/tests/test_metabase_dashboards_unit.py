@@ -87,6 +87,11 @@ class TestGetDashboard:
                 {"card_id": 42, "target": ["dimension", ["expression", "Margin"]]},
                 {"target": ["dimension", ["expression", "Margin"]]},
             ),
+            # A SQL filter given by id rather than name is shown as Metabase's own target too.
+            (
+                {"card_id": 42, "target": ["dimension", ["template-tag", {"id": "t1"}]]},
+                {"target": ["dimension", ["template-tag", {"id": "t1"}]]},
+            ),
         ],
     )
     async def test_filter_connections_in_update_shape(self, mock_context, mapping, connection):
@@ -95,6 +100,18 @@ class TestGetDashboard:
         result = await metabase.execute_action("get_dashboard", {"dashboard_id": 9}, mock_context)
         assert result.result.data["cards"][0]["filter_connections"] == [
             {"filter_id": "p1", "question_id": 42, **connection}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_text_card_connection_has_no_question(self, mock_context):
+        text = {
+            **SAMPLE_DASHBOARD["dashcards"][1],
+            "parameter_mappings": [{"parameter_id": "p1", "target": ["text-tag", "region"]}],
+        }
+        mock_context.fetch.return_value = _ok({**SAMPLE_DASHBOARD, "dashcards": [text]})
+        result = await metabase.execute_action("get_dashboard", {"dashboard_id": 9}, mock_context)
+        assert result.result.data["cards"][0]["filter_connections"] == [
+            {"filter_id": "p1", "target": ["text-tag", "region"]}
         ]
 
     @pytest.mark.asyncio

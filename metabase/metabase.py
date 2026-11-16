@@ -1001,7 +1001,8 @@ def _dashcard_summary(dashcard: Dict[str, Any]) -> Dict[str, Any]:
         "filter_connections": [
             {
                 "filter_id": m.get("parameter_id"),
-                "question_id": _mapping_question(m, dashcard),
+                # A text card's connection has no question.
+                **({"question_id": _mapping_question(m, dashcard)} if _mapping_question(m, dashcard) else {}),
                 **(_connection_ref(m.get("target")) or {"target": m.get("target")}),
             }
             for m in dashcard.get("parameter_mappings") or []
@@ -1010,11 +1011,10 @@ def _dashcard_summary(dashcard: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _connection_ref(target: Any) -> Dict[str, Any]:
-    """The column (field_id) or SQL filter (template_tag) a filter target points at; empty for other targets, such as
-    a custom column. Metabase 0.50+ writes a column as ["field", {options}, id], older ones as
-    ["field", id, options]."""
+    """The column (field_id) or SQL filter (template_tag, by name) a filter target points at; empty for other targets,
+    such as a custom column, a text card's tag or a SQL filter given by id."""
     ref = target[1] if isinstance(target, list) and len(target) > 1 and isinstance(target[1], list) else []
-    if ref[:1] == ["template-tag"] and len(ref) > 1:
+    if ref[:1] == ["template-tag"] and len(ref) > 1 and isinstance(ref[1], str):
         return {"template_tag": ref[1]}
     if ref[:1] == ["field"]:
         field_id = next((x for x in ref[1:] if isinstance(x, int) and not isinstance(x, bool)), None)
@@ -1548,16 +1548,18 @@ def _filter_target(
                 "one again (from get_dashboard)."
             )
         return connection["target"]
+    ref = {"field_id": field_id} if field_id else {"template_tag": tag}
+    kept = next((t for t in existing if _connection_ref(t) == ref), None)
+    if kept is not None:
+        # Checked before the question's own filters: an action button's parameter isn't one of its model's.
+        return kept
     if field_id:
-        target = ["dimension", ["field", field_id, None]]
-    else:
-        _, tags = _saved_native(question.get("dataset_query") or {})
-        if tag not in tags:
-            raise ValueError(f"Card {dashcard.get('id')} has no SQL filter named {tag}.")
-        kind = "dimension" if tags[tag].get("type") in ("dimension", "temporal-unit") else "variable"
-        target = [kind, ["template-tag", tag]]
-    ref = _connection_ref(target)
-    return next((t for t in existing if _connection_ref(t) == ref), target)
+        return ["dimension", ["field", field_id, None]]
+    _, tags = _saved_native(question.get("dataset_query") or {})
+    if tag not in tags:
+        raise ValueError(f"Card {dashcard.get('id')} has no SQL filter named {tag}.")
+    kind = "dimension" if tags[tag].get("type") in ("dimension", "temporal-unit") else "variable"
+    return [kind, ["template-tag", tag]]
 
 
 def _mapping_question(mapping: Dict[str, Any], dashcard: Dict[str, Any]) -> Any:
@@ -2503,18 +2505,19 @@ class UpdateDashboardFiltersAction(ActionHandler):
         for filter_id, conns in connections.items():
             for conn in conns:
                 original = by_dashcard.get(conn.get("dashcard_id"))
-                if not original or not original.get("card_id"):
+                # A text card's existing connection can only be listed again, as its target.
+                if not original or not (original.get("card_id") or "target" in conn):
                     raise ValueError(f"Card {conn.get('dashcard_id')} is not a question card on this dashboard.")
                 # A combined chart's other questions are connected by giving their question_id.
-                questions = {original["card_id"]: original.get("card") or {}} | {
+                questions = {original.get("card_id"): original.get("card") or {}} | {
                     sr.get("id"): sr for sr in original.get("series") or []
                 }
-                question_id = conn.get("question_id") or original["card_id"]
+                question_id = conn.get("question_id") or original.get("card_id")
                 if question_id not in questions:
                     raise ValueError(f"Question {question_id} isn't shown on card {original['id']}.")
                 dc = next(d for d in dashcards if d.get("id") == original["id"])
                 if any(
-                    m["parameter_id"] == filter_id and m["card_id"] == question_id for m in dc["parameter_mappings"]
+                    m["parameter_id"] == filter_id and m.get("card_id") == question_id for m in dc["parameter_mappings"]
                 ):
                     # Metabase applies only one, so the other column would quietly stay unfiltered.
                     raise ValueError(
@@ -2528,7 +2531,8 @@ class UpdateDashboardFiltersAction(ActionHandler):
                     and m.get("target")
                 ]
                 target = _filter_target(original, questions[question_id], conn, existing)
-                dc["parameter_mappings"].append({"parameter_id": filter_id, "card_id": question_id, "target": target})
+                question = {"card_id": question_id} if question_id else {}
+                dc["parameter_mappings"].append({"parameter_id": filter_id, **question, "target": target})
 
         removed = set(old_params) - kept
         if (
@@ -2876,25 +2880,24 @@ class CopyQuestionAction(ActionHandler):
         original = await _api(context, "GET", f"/card/{question_id}") or {}
         await _checked_parameters(context, question_id, [], saving=True, card=original)
         collection_id = inputs.get("collection_id")
-        if collection_id is not None:
-            if collection_id != original.get("collection_id"):
-                # Metabase's copy is made in the original's collection first, so copying out of a collection the key
-                # can only view would fail (0.65) or leave a copy stuck there (0.49). It is made where it goes instead.
-                try:
-                    card = await _api(
-                        context, "POST", "/card", json=_copy_of(original, inputs.get("name"), collection_id)
-                    )
-                except HTTPError as e:
-                    # Saving a new question also needs permission to write its query (SQL), which Metabase's copy
-                    # doesn't; a key without it still copies and moves when it can write the destination.
-                    if e.status != 403:
-                        raise
-                    destination = await _api(context, "GET", f"/collection/{_path_id(collection_id)}") or {}
-                    if not destination.get("can_write"):
+        if collection_id is not None and collection_id != original.get("collection_id"):
+            # Metabase's copy is made in the original's collection first, so copying out of a collection the key
+            # can only view would fail (0.65) or leave a copy stuck there (0.49). It is made where it goes instead.
+            try:
+                card = await _api(context, "POST", "/card", json=_copy_of(original, inputs.get("name"), collection_id))
+            except HTTPError as e:
+                # Saving a new question also needs permission to write its query (SQL), which Metabase's copy
+                # doesn't; a key without it still copies and moves when it can write both collections (0.49 makes
+                # the copy in the original's collection unchecked, and it couldn't be moved out of there).
+                if e.status != 403:
+                    raise
+                for coll in (collection_id, original.get("collection_id")):
+                    path = f"/collection/{'root' if coll is None else _path_id(coll)}"
+                    if not (await _api(context, "GET", path) or {}).get("can_write"):
                         raise e from None
-                else:
-                    _require_id(card, "a question")
-                    return _card_summary(card)
+            else:
+                _require_id(card, "a question")
+                return _card_summary(card)
         card = await _api(context, "POST", f"/card/{question_id}/copy") or {}
         _require_id(card, "a question")
         changes = _with_optional({}, name=inputs.get("name"), collection_id=collection_id)
@@ -3010,7 +3013,7 @@ class ExportQuestionResultsAction(ActionHandler):
             timeout=QUERY_TIMEOUT_SECONDS,
         )
         if export_format == "json" and not isinstance(data, dict):
-            rows = data if isinstance(data, list) else []
+            rows = data
             # Whole rows only, within the same size budget as CSV, so the result fits the response limit.
             kept, size = [], 0
             for row in rows[:max_rows]:

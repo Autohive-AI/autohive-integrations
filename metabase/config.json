@@ -1479,6 +1479,14 @@
                                         "additionalProperties": true
                                     },
                                     "description": "A combined chart's other questions (id, name); use id as question_id in update_dashboard_filters connections."
+                                },
+                                "filter_connections": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": true
+                                    },
+                                    "description": "Filters this card is connected to (filter_id, question_id, and field_id, template_tag or target), in the shape update_dashboard_filters takes, so a filter's existing connections can be listed again with dashcard_id added."
                                 }
                             }
                         },
@@ -2174,7 +2182,7 @@
                                 },
                                 "connections": {
                                     "type": "array",
-                                    "description": "Cards this filter drives, replacing its earlier connections: to add a card, list the existing ones too (each card's filter_connections in get_dashboard), including each question of a combined chart you want kept. Each needs dashcard_id and exactly one of field_id, template_tag or target.",
+                                    "description": "Cards this filter drives, replacing its earlier connections: to add a card, list the existing ones too (each card's filter_connections in get_dashboard), including each question of a combined chart you want kept. Each needs dashcard_id and exactly one of field_id, template_tag or target (text cards: target only).",
                                     "items": {
                                         "type": "object",
                                         "properties": {
