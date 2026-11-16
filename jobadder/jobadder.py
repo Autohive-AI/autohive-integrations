@@ -1739,11 +1739,18 @@ class GetJobActivityAction(ActionHandler):
 class SearchJobActivitiesAction(ActionHandler):
     async def execute(self, inputs: dict[str, Any], context: ExecutionContext):
         try:
+            created_at = _date_range(inputs.get("created_at_from"), inputs.get("created_at_to"))
+            updated_at = _date_range(inputs.get("updated_at_from"), inputs.get("updated_at_to"))
+            if not created_at and not updated_at:
+                return ActionError(
+                    message="Provide at least one date boundary: created_at_from, created_at_to, "
+                    "updated_at_from, or updated_at_to. JobAdder requires a CreatedAt or UpdatedAt filter."
+                )
             params = _pagination(inputs)
             params.update(
                 {
-                    "createdAt": _date_range(inputs.get("created_at_from"), inputs.get("created_at_to")),
-                    "updatedAt": _date_range(inputs.get("updated_at_from"), inputs.get("updated_at_to")),
+                    "createdAt": created_at,
+                    "updatedAt": updated_at,
                     "includeDetails": _boolean_query_value(inputs.get("include_details")),
                 }
             )

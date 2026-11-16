@@ -17,6 +17,7 @@ creation are also excluded because they cannot be reliably restored here.
 
 import asyncio
 import base64
+from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -84,6 +85,12 @@ def resource_ids(env_credentials):
         "application": env_credentials("JOBADDER_TEST_APPLICATION_ID"),
         "placement": env_credentials("JOBADDER_TEST_PLACEMENT_ID"),
     }
+
+
+@pytest.fixture
+def invoice_job_id(env_credentials):
+    """Invoice coverage requires an explicitly configured job with invoice data."""
+    return require_integer_id(env_credentials("JOBADDER_TEST_INVOICE_JOB_ID"), "JOBADDER_TEST_INVOICE_JOB_ID")
 
 
 def assert_list_result(result, records_key: str, max_items: int | None = 2) -> None:
@@ -164,20 +171,22 @@ class TestAdditionalJobReads:
         assert_list_result(result, key, max_items=None)
 
     async def test_search_job_activities(self, live_context):
+        created_from = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         result = await jobadder.execute_action(
-            "search_job_activities", {"limit": 2, "include_details": True}, live_context
+            "search_job_activities",
+            {"created_at_from": created_from, "limit": 2, "include_details": True},
+            live_context,
         )
         assert_list_result(result, "activities")
 
-    async def test_list_job_invoices(self, live_context, resource_ids):
-        job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
-        result = await jobadder.execute_action("list_job_invoices", {"job_id": job_id}, live_context)
+    async def test_list_job_invoices(self, live_context, invoice_job_id):
+        result = await jobadder.execute_action("list_job_invoices", {"job_id": invoice_job_id}, live_context)
         assert result.type == ResultType.ACTION
         assert isinstance(result.result.data["job"], dict)
         assert isinstance(result.result.data["invoices"], list)
 
-    async def test_get_job_invoice(self, live_context, resource_ids):
-        job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
+    async def test_get_job_invoice(self, live_context, invoice_job_id):
+        job_id = invoice_job_id
         listed = await jobadder.execute_action("list_job_invoices", {"job_id": job_id}, live_context)
         assert listed.type == ResultType.ACTION
         invoices = listed.result.data["invoices"]

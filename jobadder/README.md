@@ -58,7 +58,7 @@ Version 1.4.0 adds the following job actions using the existing `read_job`, `wri
 | `list_job_sources` | Optional `name` filter. | `sources`, `total_count`, `links` |
 | `create_job_activity` | Required `job_id`, `activity_setting_id`; optional `status_id`, `answers`. Creates a structured activity, distinct from a text note. | `activity` |
 | `get_job_activity` | Required `job_id`, `activity_id`; retrieves the activity and its details. | `activity` |
-| `search_job_activities` | Optional `created_at_from`, `created_at_to`, `updated_at_from`, `updated_at_to`, `include_details`, `offset`, `limit`. Searches across jobs; date boundaries are inclusive. | `activities`, `total_count`, `links` |
+| `search_job_activities` | Requires at least one nonempty date boundary: `created_at_from`, `created_at_to`, `updated_at_from`, or `updated_at_to`. Optional `include_details`, `offset`, `limit`. Searches across jobs; date boundaries are inclusive. | `activities`, `total_count`, `links` |
 | `list_job_activity_settings` | No inputs; discovers structured activity definitions. | `activity_settings`, `total_count`, `links` |
 | `get_job_activity_setting` | Required `setting_id`; discovers questions, statuses and answer options before activity creation. | `activity_setting` |
 | `create_job_task` | Required `job_id`, `title`, nonempty `assignee_user_ids`; optional start/end, all-day flag, priority (0–3), and linked candidate/job/placement/company/contact/application IDs. | `task` |
@@ -171,7 +171,9 @@ pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destr
 
 Write actions are deliberately excluded from live tests. JobAdder does not expose matching general delete operations for jobs, candidates, applications, candidate attachments, or job attachments. Profile/status changes, rate-card assignments, task creation and structured activity creation also mutate persistent customer data, so tests could not reliably restore the account to its original state. Their request contracts and provider-shaped responses are covered by mocked tests against the [official API schema](https://api.jobadder.com/v2/openapi.json).
 
-The new read-only job tests discover existing invoice/activity/setting/custom-field IDs where possible. Task detail tests optionally use `JOBADDER_TEST_JOB_TASK_ID` associated with `JOBADDER_TEST_JOB_ID`; rate-card tests optionally use `JOBADDER_TEST_RATE_CARD_JOB_ID` for a job with a configured Astute/RateCalc assignment. All variables are documented in the repository-root `.env.example`. Missing credentials, IDs, or empty discovery results cause the relevant tests to skip.
+The new read-only job tests discover existing invoice/activity/setting/custom-field IDs where possible. Activity search uses a rolling 30-day creation filter because JobAdder rejects searches without a creation or update boundary. Invoice tests require `JOBADDER_TEST_INVOICE_JOB_ID`, a job with accessible invoice data, independently of the general `JOBADDER_TEST_JOB_ID`. These endpoints use retained-job invoice models; an ordinary job may return HTTP 404 rather than an empty invoice list. Leave the invoice job ID unset when the test account has no suitable job. The two invoice tests then skip; a configured invoice job returning an API error still fails the tests.
+
+Task detail tests optionally use `JOBADDER_TEST_JOB_TASK_ID` associated with `JOBADDER_TEST_JOB_ID`; rate-card tests optionally use `JOBADDER_TEST_RATE_CARD_JOB_ID` for a job with a configured Astute/RateCalc assignment. All variables are documented in the repository-root `.env.example`. Missing credentials, IDs, or empty discovery results cause the relevant tests to skip.
 
 ## Important limitations
 

@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -5,6 +6,7 @@ from autohive_integrations_sdk import FetchResponse, HTTPError
 from autohive_integrations_sdk.integration import ResultType
 
 from jobadder.jobadder import jobadder
+from jobadder.tests import test_jobadder_integration as live_tests
 
 
 pytestmark = pytest.mark.unit
@@ -139,6 +141,7 @@ LIST_CASES = [
     ("list_job_custom_fields", "/jobs/fields/custom", "custom_fields"),
     ("list_deleted_jobs", "/jobs/deleted", "jobs"),
 ]
+LIST_INPUTS = {"search_job_activities": {"created_at_from": "2026-11-01T00:00:00Z"}}
 
 
 @pytest.mark.parametrize("action,inputs,method,path,payload,expected", ACTION_CASES)
@@ -159,17 +162,20 @@ async def test_action_request_and_provider_response(mock_context, action, inputs
 @pytest.mark.parametrize("action,path,key", LIST_CASES)
 async def test_list_response_and_supported_parameters(mock_context, action, path, key):
     mock_context.fetch.return_value = response({"items": [{"name": "Example"}]})
-    result = await jobadder.execute_action(action, {}, mock_context)
+    result = await jobadder.execute_action(action, LIST_INPUTS.get(action, {}), mock_context)
 
     assert result.type == ResultType.ACTION
     assert result.result.data == {key: [{"name": "Example"}], "total_count": 1, "links": {}}
     expected = {"method": "GET"}
     if action == "search_job_activities":
         expected["params"] = {"offset": 0, "limit": 100}
+        path += "?createdAt=%3E2026-11-01T00%3A00%3A00Z"
     mock_context.fetch.assert_awaited_once_with(BASE + path, **expected)
 
 
-ALL_ACTION_INPUTS = [(case[0], case[1]) for case in ACTION_CASES] + [(case[0], {}) for case in LIST_CASES]
+ALL_ACTION_INPUTS = [(case[0], case[1]) for case in ACTION_CASES] + [
+    (case[0], LIST_INPUTS.get(case[0], {})) for case in LIST_CASES
+]
 
 
 @pytest.mark.parametrize("action,inputs", ALL_ACTION_INPUTS)
@@ -373,7 +379,7 @@ async def test_empty_invoices_preserve_job_context(mock_context, invoices):
 @pytest.mark.parametrize("action,path,key", LIST_CASES)
 async def test_empty_list_results(mock_context, action, path, key):
     mock_context.fetch.return_value = response({"items": None})
-    result = await jobadder.execute_action(action, {}, mock_context)
+    result = await jobadder.execute_action(action, LIST_INPUTS.get(action, {}), mock_context)
 
     assert result.result.data == {key: [], "total_count": 0, "links": {}}
 
@@ -429,6 +435,79 @@ async def test_activity_search_encodes_both_date_boundaries_and_false(mock_conte
     }
     assert call.kwargs == {"method": "GET", "params": {"offset": 5, "limit": 0, "includeDetails": "false"}}
     assert result.result.data == {"activities": [], "total_count": 45, "links": {"next": "next-page"}}
+
+
+@pytest.mark.parametrize(
+    "inputs,expected_type",
+    [
+        ({}, ResultType.ACTION_ERROR),
+        ({"limit": 2}, ResultType.ACTION_ERROR),
+        ({"created_at_from": ""}, ResultType.VALIDATION_ERROR),
+        ({"updated_at_to": ""}, ResultType.VALIDATION_ERROR),
+    ],
+)
+async def test_activity_search_requires_nonempty_date_boundary(mock_context, inputs, expected_type):
+    result = await jobadder.execute_action("search_job_activities", inputs, mock_context)
+
+    assert result.type == expected_type
+    if expected_type == ResultType.ACTION_ERROR:
+        assert "JobAdder requires a CreatedAt or UpdatedAt filter" in result.result.message
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "field,query_key,prefix",
+    [
+        ("created_at_from", "createdAt", ">"),
+        ("created_at_to", "createdAt", "<"),
+        ("updated_at_from", "updatedAt", ">"),
+        ("updated_at_to", "updatedAt", "<"),
+    ],
+)
+async def test_activity_search_accepts_each_date_boundary(mock_context, field, query_key, prefix):
+    mock_context.fetch.return_value = response({"items": []})
+    date = "2026-11-01T00:00:00Z"
+    result = await jobadder.execute_action("search_job_activities", {field: date}, mock_context)
+
+    assert result.type == ResultType.ACTION
+    assert parse_qs(urlparse(mock_context.fetch.call_args.args[0]).query) == {query_key: [prefix + date]}
+
+
+async def test_live_activity_search_supplies_recent_creation_boundary(mock_context):
+    mock_context.fetch.return_value = response({"items": [], "totalCount": 0})
+    await live_tests.TestAdditionalJobReads().test_search_job_activities(mock_context)
+
+    call = mock_context.fetch.call_args
+    query = parse_qs(urlparse(call.args[0]).query)
+    assert query["createdAt"][0].startswith(">")
+    boundary = datetime.fromisoformat(query["createdAt"][0][1:])
+    now = datetime.now(timezone.utc)
+    assert now - timedelta(days=31) < boundary < now - timedelta(days=29)
+    assert call.kwargs["params"] == {"offset": 0, "limit": 2, "includeDetails": "true"}
+
+
+@pytest.mark.parametrize("method_name", ["test_list_job_invoices", "test_get_job_invoice"])
+async def test_live_invoice_tests_use_dedicated_job_and_do_not_hide_404(mock_context, method_name):
+    mock_context.fetch.side_effect = HTTPError(404, "Requested job's invoices were not found")
+    method = getattr(live_tests.TestAdditionalJobReads(), method_name)
+
+    with pytest.raises(AssertionError):
+        await method(mock_context, invoice_job_id=99)
+
+    mock_context.fetch.assert_awaited_once_with(BASE + "/jobs/99/invoices", method="GET")
+
+
+def test_live_invoice_fixture_skips_when_not_configured():
+    with pytest.raises(pytest.skip.Exception, match="JOBADDER_TEST_INVOICE_JOB_ID not set"):
+        live_tests.invoice_job_id.__wrapped__(lambda name: None)
+
+
+def test_live_invoice_fixture_uses_its_own_variable():
+    def credentials(name):
+        assert name == "JOBADDER_TEST_INVOICE_JOB_ID"
+        return "99"
+
+    assert live_tests.invoice_job_id.__wrapped__(credentials) == 99
 
 
 async def test_task_maps_assignees_dates_and_linked_records(mock_context):

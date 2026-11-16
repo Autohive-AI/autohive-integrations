@@ -4280,29 +4280,33 @@
     },
     "search_job_activities": {
       "display_name": "Search Job Activities",
-      "description": "Searches structured job activities across jobs by creation/update date range, with optional details and pagination.",
+      "description": "Searches structured job activities across jobs. At least one nonempty creation or update date boundary is required; supports optional details and pagination.",
       "input_schema": {
         "type": "object",
         "properties": {
           "created_at_from": {
             "type": "string",
             "format": "date-time",
-            "description": "Inclusive creation lower boundary (UTC)"
+            "description": "Inclusive creation lower boundary (UTC)",
+            "minLength": 1
           },
           "created_at_to": {
             "type": "string",
             "format": "date-time",
-            "description": "Inclusive creation upper boundary (UTC)"
+            "description": "Inclusive creation upper boundary (UTC)",
+            "minLength": 1
           },
           "updated_at_from": {
             "type": "string",
             "format": "date-time",
-            "description": "Inclusive update lower boundary (UTC)"
+            "description": "Inclusive update lower boundary (UTC)",
+            "minLength": 1
           },
           "updated_at_to": {
             "type": "string",
             "format": "date-time",
-            "description": "Inclusive update upper boundary (UTC)"
+            "description": "Inclusive update upper boundary (UTC)",
+            "minLength": 1
           },
           "include_details": {
             "type": "boolean",
