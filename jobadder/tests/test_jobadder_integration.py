@@ -7,10 +7,12 @@ the corresponding JOBADDER_TEST_*_ID value.
 Run safely with:
     pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 
-The ten write actions are intentionally excluded because JobAdder has no delete
+Write actions are intentionally excluded because JobAdder has no general delete
 endpoint for reliably cleaning up candidates, applications, candidate attachments,
 or job attachments created by tests. Profile, status, and attachment updates also
 cannot be safely restored without mutating persistent customer data.
+Job writes, rate-card assignment changes, task creation and structured activity
+creation are also excluded because they cannot be reliably restored here.
 """
 
 import asyncio
@@ -145,6 +147,109 @@ class TestJobs:
         assert file["name"]
         assert file["contentType"]
         assert base64.b64decode(file["content"], validate=True)
+
+
+class TestAdditionalJobReads:
+    @pytest.mark.parametrize(
+        "action,key",
+        [
+            ("list_job_sources", "sources"),
+            ("list_job_activity_settings", "activity_settings"),
+            ("list_job_custom_fields", "custom_fields"),
+            ("list_deleted_jobs", "jobs"),
+        ],
+    )
+    async def test_unpaginated_job_lists(self, live_context, action, key):
+        result = await jobadder.execute_action(action, {}, live_context)
+        assert_list_result(result, key, max_items=None)
+
+    async def test_search_job_activities(self, live_context):
+        result = await jobadder.execute_action(
+            "search_job_activities", {"limit": 2, "include_details": True}, live_context
+        )
+        assert_list_result(result, "activities")
+
+    async def test_list_job_invoices(self, live_context, resource_ids):
+        job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
+        result = await jobadder.execute_action("list_job_invoices", {"job_id": job_id}, live_context)
+        assert result.type == ResultType.ACTION
+        assert isinstance(result.result.data["job"], dict)
+        assert isinstance(result.result.data["invoices"], list)
+
+    async def test_get_job_invoice(self, live_context, resource_ids):
+        job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
+        listed = await jobadder.execute_action("list_job_invoices", {"job_id": job_id}, live_context)
+        assert listed.type == ResultType.ACTION
+        invoices = listed.result.data["invoices"]
+        if not invoices:
+            pytest.skip("The configured job has no invoices")
+        invoice_id = invoices[0]["invoiceId"]
+        result = await jobadder.execute_action(
+            "get_job_invoice", {"job_id": job_id, "invoice_id": invoice_id}, live_context
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["invoice"]["invoice"]["invoiceId"] == invoice_id
+
+    @pytest.mark.parametrize(
+        "list_action,list_key,id_field,get_action,input_field,output_key",
+        [
+            (
+                "list_job_activity_settings",
+                "activity_settings",
+                "settingId",
+                "get_job_activity_setting",
+                "setting_id",
+                "activity_setting",
+            ),
+            (
+                "list_job_custom_fields",
+                "custom_fields",
+                "fieldId",
+                "get_job_custom_field",
+                "field_id",
+                "custom_field",
+            ),
+        ],
+    )
+    async def test_get_discovered_definition(
+        self, live_context, list_action, list_key, id_field, get_action, input_field, output_key
+    ):
+        listed = await jobadder.execute_action(list_action, {}, live_context)
+        assert listed.type == ResultType.ACTION
+        records = listed.result.data[list_key]
+        if not records:
+            pytest.skip("The account has no configured definitions for this action")
+        record_id = records[0][id_field]
+        result = await jobadder.execute_action(get_action, {input_field: record_id}, live_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data[output_key][id_field] == record_id
+
+    async def test_get_job_activity(self, live_context, resource_ids):
+        job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
+        listed = await jobadder.execute_action("list_job_activities", {"job_id": job_id}, live_context)
+        assert listed.type == ResultType.ACTION
+        activities = listed.result.data["activities"]
+        if not activities:
+            pytest.skip("The configured job has no structured activities")
+        activity_id = activities[0]["activityId"]
+        result = await jobadder.execute_action(
+            "get_job_activity", {"job_id": job_id, "activity_id": activity_id}, live_context
+        )
+        assert result.type == ResultType.ACTION
+        assert result.result.data["activity"]["activityId"] == activity_id
+
+    async def test_get_job_task(self, live_context, resource_ids, env_credentials):
+        job_id = require_integer_id(resource_ids["job"], "JOBADDER_TEST_JOB_ID")
+        task_id = require_integer_id(env_credentials("JOBADDER_TEST_JOB_TASK_ID"), "JOBADDER_TEST_JOB_TASK_ID")
+        result = await jobadder.execute_action("get_job_task", {"job_id": job_id, "task_id": task_id}, live_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["task"]["taskId"] == task_id
+
+    async def test_get_job_rate_card(self, live_context, env_credentials):
+        job_id = require_integer_id(env_credentials("JOBADDER_TEST_RATE_CARD_JOB_ID"), "JOBADDER_TEST_RATE_CARD_JOB_ID")
+        result = await jobadder.execute_action("get_job_rate_card", {"job_id": job_id}, live_context)
+        assert result.type == ResultType.ACTION
+        assert result.result.data["rate_card"]["jobOrderId"] == job_id
 
 
 class TestCandidates:

@@ -1,6 +1,6 @@
 # JobAdder Integration
 
-Connect Autohive workflows to JobAdder's recruitment management API. The integration covers the core recruitment lifecycle plus client relationship reporting: finding jobs, candidates, contacts and companies; reading contact activity; adding candidates to jobs; inspecting applications; and reporting on placements.
+Connect Autohive workflows to JobAdder's recruitment management API. The integration covers the core recruitment lifecycle plus client relationship reporting: creating and managing jobs; finding candidates, contacts and companies; reading contact activity; adding candidates to jobs; inspecting applications; and reporting on placements.
 
 ## Authentication
 
@@ -40,6 +40,38 @@ API access requires a JobAdder developer application and approval. See the [JobA
 - `update_job_attachment` — assign or clear a job document's native type, tenant category, or expiry date. To upload a custom-category document, upload it first and then update the returned attachment ID.
 - `list_job_notes` and `list_job_activities` — retrieve a job's full-text notes and activity records. Note lists support type, reference, creation/update date, sorting, and pagination filters.
 - `list_job_note_types` — list the note types configured for job records.
+
+Version 1.4.0 adds the following job actions using the existing `read_job`, `write_job`, and `write_jobapplication` scopes. It does not request additional OAuth scopes.
+
+| Action | Inputs and behavior | Output |
+| --- | --- | --- |
+| `create_job` | Required `job_title`; optional company/contact IDs, description, status, category/location, start/duration, salary/fee, owner/recruiters, custom fields, skills, workflow, shift, and end date. | `job`: full created record |
+| `update_job` | Required `job_id` and `job_title`; sends only supplied job fields. Provide the current title if it is unchanged. Explicit `null` clears fields whose schemas permit it. | `updated`, `job_id` |
+| `set_job_status` | Required `job_id`, `status_id`; optional `note_type`, `note_text`. The optional status-change note is supported by `write_job`. | `updated`, `job_id`, `status_id` |
+| `submit_candidate_to_evergreen_job` | Required `job_id`, `first_name`, `last_name`, `email`; optional contact/profile data, source, screening answers, skills and application custom fields. Submits candidate details rather than existing candidate IDs. | `application`: full provider record |
+| `list_job_invoices` | Required `job_id`; returns all invoices and their job context, without pagination. | `job`, `invoices` |
+| `get_job_invoice` | Required `job_id`, `invoice_id`. | `invoice`: provider response containing `job`, `invoice`, and `links` |
+| `get_job_rate_card` | Required `job_id`. | `rate_card`: provider assignment, including `jobOrderId` and `rateCard` |
+| `add_job_rate_card` | Required `job_id`, `rate_card_id`; assigns an existing RateCalc-generated ID. | `rate_card` |
+| `update_job_rate_card` | Required `job_id`, `rate_card_id`; changes the assignment. | `rate_card` |
+| `remove_job_rate_card` | Required `job_id`; removes the assignment, not the rate card itself. | `removed`, `job_id` |
+| `list_job_sources` | Optional `name` filter. | `sources`, `total_count`, `links` |
+| `create_job_activity` | Required `job_id`, `activity_setting_id`; optional `status_id`, `answers`. Creates a structured activity, distinct from a text note. | `activity` |
+| `get_job_activity` | Required `job_id`, `activity_id`; retrieves the activity and its details. | `activity` |
+| `search_job_activities` | Optional `created_at_from`, `created_at_to`, `updated_at_from`, `updated_at_to`, `include_details`, `offset`, `limit`. Searches across jobs; date boundaries are inclusive. | `activities`, `total_count`, `links` |
+| `list_job_activity_settings` | No inputs; discovers structured activity definitions. | `activity_settings`, `total_count`, `links` |
+| `get_job_activity_setting` | Required `setting_id`; discovers questions, statuses and answer options before activity creation. | `activity_setting` |
+| `create_job_task` | Required `job_id`, `title`, nonempty `assignee_user_ids`; optional start/end, all-day flag, priority (0–3), and linked candidate/job/placement/company/contact/application IDs. | `task` |
+| `get_job_task` | Required `job_id`, `task_id`; retrieves the task through its associated job. | `task` |
+| `list_job_custom_fields` | No inputs; discovers field IDs, required flags and allowed values. | `custom_fields`, `total_count`, `links` |
+| `get_job_custom_field` | Required `field_id`. | `custom_field` |
+| `list_deleted_jobs` | No inputs; returns jobs deleted during the last 14 days. | `jobs`, `total_count`, `links` |
+
+Nested job, candidate-submission and activity-answer objects use JobAdder's field names, as documented in the input schemas. For example, `category` accepts `{"categoryId": 10, "subCategoryId": 20}`, and activity `answers` can contain `textAnswers`, `listValueAnswers`, `dateRangeValueAnswers`, and `ratingValueAnswers`.
+
+Rate-card actions apply only to RateCalc-generated rate-card IDs for Astute Payroll. They do not create or edit rate-card contents. Job task creation and retrieval use job scopes; task update/completion actions are excluded because they require additional scopes. Job status definition lookups and job submission-history endpoints are also excluded while their scope requirements remain unverified.
+
+Only `search_job_activities` among these new list actions accepts pagination. For unpaginated lists, `total_count` is the number of returned items when JobAdder does not provide a total, and `links` is empty when the provider supplies none.
 
 ### Candidates
 
@@ -137,12 +169,14 @@ Read-only live tests are opt-in and require the `JOBADDER_ACCESS_TOKEN` and `JOB
 pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive"
 ```
 
-The ten write actions are deliberately excluded from live tests. JobAdder does not expose matching delete operations for candidates, applications, candidate attachments, or job attachments. Candidate/contact updates, status changes, and attachment updates also mutate persistent customer data, so these tests could not reliably restore the account to its original state.
+Write actions are deliberately excluded from live tests. JobAdder does not expose matching general delete operations for jobs, candidates, applications, candidate attachments, or job attachments. Profile/status changes, rate-card assignments, task creation and structured activity creation also mutate persistent customer data, so tests could not reliably restore the account to its original state. Their request contracts and provider-shaped responses are covered by mocked tests against the [official API schema](https://api.jobadder.com/v2/openapi.json).
+
+The new read-only job tests discover existing invoice/activity/setting/custom-field IDs where possible. Task detail tests optionally use `JOBADDER_TEST_JOB_TASK_ID` associated with `JOBADDER_TEST_JOB_ID`; rate-card tests optionally use `JOBADDER_TEST_RATE_CARD_JOB_ID` for a job with a configured Astute/RateCalc assignment. All variables are documented in the repository-root `.env.example`. Missing credentials, IDs, or empty discovery results cause the relevant tests to skip.
 
 ## Important limitations
 
 - API access is controlled by JobAdder and may require partner/developer approval.
 - Rate limits are applied per JobAdder account. The SDK handles ordinary request transport and errors, but workflows should avoid unnecessarily aggressive polling.
-- Candidate and contact profiles and statuses can be updated, and candidate and job attachments can be uploaded and updated. Other related-record actions remain read-only; the integration does not create contacts or update companies, notes, activities, application or placement attachments, placements, or timesheets.
+- Candidate and contact profiles and statuses can be updated, and candidate and job attachments can be uploaded and updated. Job records, structured job activities, follow-up tasks, and rate-card assignments are supported as described above. The integration does not create contacts or update companies, existing notes/activities, application or placement attachments, placements, or timesheets.
 - JobAdder restricts attachment file extensions and returns HTTP 422 for unsupported files. See [Attachments - File Type restrictions](https://jobadderapi.zendesk.com/hc/en-us/articles/4407420419353-Attachments-File-Type-restrictions).
-- The integration does not manage job records, application statuses, requisitions, job ads, partner actions, or webhooks.
+- The integration does not manage application statuses, requisitions, job ads, partner actions, or webhooks. It does not create standalone job notes, update tasks, or modify custom-field definitions.
