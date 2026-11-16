@@ -37,13 +37,14 @@ No additional configuration fields are required as authentication is handled thr
 
 ## Actions
 
-The integration exposes 22 actions across messages, threads, drafts, labels, and settings.
+The integration exposes 23 actions across messages, threads, drafts, labels, and settings.
 
 ### Messages
 
 | Action | Description |
 |---|---|
 | `send_email` | Send a new email (text or HTML) with optional CC/BCC and attachments |
+| `import_email` | Import an existing email from its base64url-encoded source and return its Gmail message ID |
 | `read_email` | Retrieve a single message by ID, including body (text/plain part, or HTML converted to Markdown-formatted text; 20,000 characters per call, with `body_offset` to read on), headers, and attachments |
 | `read_inbox` | List inbox messages, filtered by read/unread, with pagination (25 per page by default) |
 | `read_all_mail` | List messages across the entire mailbox with read/unread filtering and pagination (25 per page by default) |
@@ -51,6 +52,10 @@ The integration exposes 22 actions across messages, threads, drafts, labels, and
 | `mark_emails_as_unread` | Mark one or more messages as unread |
 | `archive_emails` | Remove messages from the inbox (archive) |
 | `get_user_info` | Get profile information for the authenticated Gmail user |
+
+To import an email, export or save the original message as an `.eml` file, then base64url-encode the entire file. Pass that string as `raw` to `import_email`. If the source is the Gmail API, you can also pass the `raw` field from a message retrieved with `format=RAW` directly.
+
+Gmail scans and classifies the imported message, uses its original `Date` header for mailbox ordering when valid, and returns the Gmail message ID as `id`. The action uses the existing `gmail.modify` scope. See the [Gmail import API](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/import).
 
 ### Threads
 

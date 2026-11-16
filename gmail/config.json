@@ -1,7 +1,7 @@
 {
     "name": "Gmail",
     "display_name": "Gmail",
-    "version": "2.4.2",
+    "version": "2.5.0",
     "description": "Send, read, and manage emails with labels and threads.",
     "entry_point": "gmail.py",
     "auth": {
@@ -437,6 +437,31 @@
                 "required": [
                     "id"
                 ]
+            }
+        },
+        "import_email": {
+            "display_name": "Import Email",
+            "description": "Import one existing email into the connected Gmail mailbox without sending it.",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "raw": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The complete RFC 2822 email encoded as base64url, including its headers, body, and any MIME attachments."
+                    }
+                },
+                "required": ["raw"]
+            },
+            "output_schema": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The Gmail ID of the imported message."
+                    }
+                },
+                "required": ["id"]
             }
         },
         "read_inbox": {
