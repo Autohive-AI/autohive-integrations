@@ -1,6 +1,6 @@
 # JobAdder Integration
 
-Connect Autohive workflows to JobAdder's recruitment management API. The integration covers the core recruitment lifecycle plus client relationship reporting: creating and managing jobs; finding candidates, contacts and companies; reading contact activity; adding candidates to jobs; inspecting applications; and reporting on placements.
+Connect Autohive workflows to JobAdder's recruitment management API. Manage jobs, find candidates and client records, inspect invoices and recruitment activity, create follow-up tasks, manage applications, and report on placements. Version 1.4.0 provides 83 actions, including 14 new job actions, using the existing OAuth scopes.
 
 ## Authentication
 
@@ -41,7 +41,7 @@ API access requires a JobAdder developer application and approval. See the [JobA
 - `list_job_notes` and `list_job_activities` — retrieve a job's full-text notes and activity records. Note lists support type, reference, creation/update date, sorting, and pagination filters.
 - `list_job_note_types` — list the note types configured for job records.
 
-Version 1.4.0 adds the following job actions using the existing `read_job`, `write_job`, and `write_jobapplication` scopes. It does not request additional OAuth scopes.
+Version 1.4.0 adds the following 14 job actions using the existing `read_job`, `write_job`, and `write_jobapplication` scopes. It does not request additional OAuth scopes.
 
 | Action | Inputs and behavior | Output |
 | --- | --- | --- |
@@ -62,7 +62,7 @@ Version 1.4.0 adds the following job actions using the existing `read_job`, `wri
 
 Nested job and candidate-submission objects use JobAdder's field names, as documented in the input schemas. For example, `category` accepts `{"categoryId": 10, "subCategoryId": 20}`.
 
-Job task creation and retrieval use job scopes; task update/completion actions are excluded because they require additional scopes. Cross-job structured activity search is excluded. Job status definition lookups and job submission-history endpoints are also excluded while their scope requirements remain unverified.
+Job task creation and retrieval use job scopes; task update/completion actions are excluded because they require additional scopes. Rate-card assignments, structured activity creation, individual custom-field definition retrieval, and cross-job structured activity search are excluded. Job status definition lookups and job submission-history endpoints are also excluded while their scope requirements remain unverified.
 
 These new list actions are unpaginated. For unpaginated lists, `total_count` is the number of returned items when JobAdder does not provide a total, and `links` is empty when the provider supplies none.
 
@@ -154,7 +154,7 @@ Run the mocked suite from the repository root:
 pytest jobadder/tests -m unit -v
 ```
 
-The unit tests cover every action, request URLs and methods, query and body mapping, false and zero values, pagination defaults, tenant URL validation, response mapping, and provider-error conversion.
+The mocked suite contains 308 tests and covers every action, request URLs and methods, query and body mapping, false and zero values, pagination defaults, tenant URL validation, response mapping, and provider-error conversion.
 
 Read-only live tests are opt-in and require the `JOBADDER_ACCESS_TOKEN` and `JOBADDER_API_URL` values documented in the repository-root `.env.example`. The access token expires after 60 minutes, so obtain a fresh token before running them. Detail tests also require IDs for existing test records.
 
@@ -164,7 +164,7 @@ pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destr
 
 Write actions are deliberately excluded from live tests. JobAdder does not expose matching general delete operations for jobs, candidates, applications, candidate attachments, or job attachments. Profile/status changes and task creation also mutate persistent customer data, so tests could not reliably restore the account to its original state. Their request contracts and provider-shaped responses are covered by mocked tests against the [official API schema](https://api.jobadder.com/v2/openapi.json).
 
-The read-only job tests discover activity-setting IDs where possible. Optional IDs are collected by `resource_ids` without validation; only the consuming test validates its ID, so missing optional values do not skip unrelated tests.
+The independent live suite collects 66 read-only tests, including seven new job read cases: source, activity-setting, custom-field and deleted-job lists; activity-setting detail; activity detail; and task detail. It discovers activity-setting IDs where possible. Optional IDs are collected by `resource_ids` without validation; only the consuming test validates its ID, so missing optional values do not skip unrelated tests.
 
 The following existing sandbox records were inspected in the JobAdder UI and configured in `tests/teamcity.env`:
 
@@ -178,7 +178,7 @@ These are UI-verified fixture IDs; their API detail tests still require a new li
 
 ### Live coverage limitations
 
-The invoice list/detail live tests are excluded because the inspected retained test job `22302` has no invoices, and JobAdder blocks invoice setup with a “Necessary Setup Missing” notice requiring account billing contacts and company payment terms. No billing settings were changed. The invoice actions remain available with mocked success, response-shape, and provider-error coverage; their live behavior remains unverified. There is no invoice job environment variable while those live tests are excluded.
+Invoice list/detail actions have mocked coverage but no live tests in the current suite. The latest sandbox UI inspection found a pending invoice on retained test job `22302`, with a billing contact and a 30-day payment term configured. This UI evidence has not been verified through the invoice API actions, so their live behavior remains unverified. The suite does not read an invoice fixture environment variable.
 
 Configure non-secret IDs from the same sandbox account in `tests/teamcity.env`. All variables are documented in root `.env.example`. TeamCity supplies the platform OAuth token; do not commit one. Run `pytest jobadder/tests/test_jobadder_integration.py -m "integration and not destructive" -v -rs` or rerun TeamCity to verify the configured fixtures. Missing credentials or prerequisites cause skips; configured IDs that produce provider errors fail their tests.
 
