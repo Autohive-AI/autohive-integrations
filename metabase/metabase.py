@@ -718,6 +718,13 @@ def _with_optional(body: Dict[str, Any], **values: Any) -> Dict[str, Any]:
     return body
 
 
+def _with_description(body: Dict[str, Any], inputs: Dict[str, Any]) -> Dict[str, Any]:
+    """Add the description for an edit when given. An empty one clears it: Metabase takes null, not ''."""
+    if inputs.get("description") is not None:
+        body["description"] = inputs["description"] or None
+    return body
+
+
 def _error_message(
     error: Exception, saved_check: Optional[str] = None, context: Optional[ExecutionContext] = None
 ) -> str:
@@ -2173,9 +2180,7 @@ class UpdateDashboardAction(ActionHandler):
             width=inputs.get("width"),
             auto_apply_filters=inputs.get("auto_apply_filters"),
         )
-        if inputs.get("description") is not None:
-            # An empty description clears it.
-            body["description"] = inputs["description"] or None
+        _with_description(body, inputs)
         if not body:
             raise ValueError("Give at least one of name, description, collection_id, width or auto_apply_filters.")
         dashboard = await _api(context, "PUT", f"/dashboard/{dashboard_id}", json=body) or {}
@@ -2740,9 +2745,8 @@ class UpdateQuestionAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         card_id = _path_id(inputs["question_id"])
         body = _with_optional(
-            {},
+            _with_description({}, inputs),
             name=inputs.get("name"),
-            description=inputs.get("description"),
             display=inputs.get("display"),
             collection_id=inputs.get("collection_id"),
         )
@@ -2958,7 +2962,7 @@ class UpdateSegmentAction(ActionHandler):
     @_handled(saved_check="list_segments")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         segment_id = _path_id(inputs["segment_id"])
-        body = _with_optional({}, name=inputs.get("name"), description=inputs.get("description"))
+        body = _with_optional(_with_description({}, inputs), name=inputs.get("name"))
         if inputs.get("filter") is not None:
             segment = await _api(context, "GET", f"/segment/{segment_id}") or {}
             body["definition"] = await _segment_definition(context, segment.get("table_id"), inputs["filter"])
@@ -2985,9 +2989,8 @@ class UpdateCollectionAction(ActionHandler):
     @_handled(saved_check="list_collections")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         body = _with_optional(
-            {},
+            _with_description({}, inputs),
             name=inputs.get("name"),
-            description=inputs.get("description"),
             parent_id=inputs.get("parent_collection_id"),
         )
         if inputs.get("move_to_root"):
@@ -3350,7 +3353,7 @@ class UpdateTableAction(ActionHandler):
 
     @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
-        body = _with_optional({}, display_name=inputs.get("display_name"), description=inputs.get("description"))
+        body = _with_optional(_with_description({}, inputs), display_name=inputs.get("display_name"))
         if not body:
             raise ValueError("Give display_name or description.")
         table = await _api(context, "PUT", f"/table/{_path_id(inputs['table_id'])}", json=body) or {}
@@ -3364,9 +3367,8 @@ class UpdateFieldAction(ActionHandler):
     @_handled()
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         body = _with_optional(
-            {},
+            _with_description({}, inputs),
             display_name=inputs.get("display_name"),
-            description=inputs.get("description"),
             semantic_type=inputs.get("semantic_type"),
         )
         if not body:
@@ -3482,9 +3484,8 @@ class UpdateTimelineEventAction(ActionHandler):
     @_handled(saved_check="list_timelines")
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext):
         body = _with_optional(
-            {},
+            _with_description({}, inputs),
             name=inputs.get("name"),
-            description=inputs.get("description"),
             timestamp=inputs.get("timestamp"),
             timezone=inputs.get("timezone"),
             time_matters=inputs.get("time_matters"),

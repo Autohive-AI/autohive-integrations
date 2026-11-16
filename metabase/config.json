@@ -2585,7 +2585,7 @@
                     },
                     "description": {
                         "type": "string",
-                        "description": "New description."
+                        "description": "New description (an empty string clears it)."
                     },
                     "sql": {
                         "type": "string",
@@ -3637,7 +3637,7 @@
                     },
                     "description": {
                         "type": "string",
-                        "description": "New description."
+                        "description": "New description (an empty string clears it)."
                     },
                     "filter": {
                         "type": "array",
@@ -3711,7 +3711,7 @@
                     },
                     "description": {
                         "type": "string",
-                        "description": "New description."
+                        "description": "New description (an empty string clears it)."
                     },
                     "parent_collection_id": {
                         "type": "integer",
@@ -4600,7 +4600,7 @@
                     },
                     "description": {
                         "type": "string",
-                        "description": "Description shown in Metabase."
+                        "description": "Description shown in Metabase (an empty string clears it)."
                     }
                 },
                 "required": [
@@ -4664,7 +4664,7 @@
                     },
                     "description": {
                         "type": "string",
-                        "description": "Description shown in Metabase."
+                        "description": "Description shown in Metabase (an empty string clears it)."
                     },
                     "semantic_type": {
                         "type": "string",
@@ -5007,7 +5007,7 @@
                     },
                     "description": {
                         "type": "string",
-                        "description": "New description."
+                        "description": "New description (an empty string clears it)."
                     },
                     "timestamp": {
                         "type": "string",

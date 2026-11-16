@@ -192,6 +192,16 @@ class TestUpdateQuestion:
         }
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("extra", [{}, {"name": "Signups"}])
+    async def test_empty_description_clears_it(self, mock_context, extra):
+        mock_context.fetch.return_value = _ok({**SAMPLE_CARD, "description": None})
+        result = await metabase.execute_action(
+            "update_question", {"question_id": 42, "description": "", **extra}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"] == {"description": None, **extra}
+
+    @pytest.mark.asyncio
     async def test_moving_a_dashboard_question_takes_it_out_of_the_dashboard(self, mock_context):
         in_dashboard = {**SAMPLE_CARD, "dashboard_id": 5}
         mock_context.fetch.side_effect = [_ok(in_dashboard), _ok({**SAMPLE_CARD, "collection_id": 9})]

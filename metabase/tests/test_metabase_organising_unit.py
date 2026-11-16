@@ -526,6 +526,20 @@ class TestUpdateSegment:
         }
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("extra", [{}, {"name": "Big"}])
+    async def test_empty_description_clears_it(self, mock_context, extra):
+        mock_context.fetch.return_value = _ok({**SAMPLE_SEGMENT, "description": None})
+        result = await metabase.execute_action(
+            "update_segment", {"segment_id": 7, "description": "", **extra}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"] == {
+            "description": None,
+            **extra,
+            "revision_message": SEGMENT_REVISION_MESSAGE,
+        }
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("extra", [{}, {"name": ""}])
     async def test_nothing_given(self, mock_context, extra):
         result = await metabase.execute_action("update_segment", {"segment_id": 7, **extra}, mock_context)
@@ -589,6 +603,16 @@ class TestUpdateCollection:
         assert call.kwargs["method"] == "PUT"
         assert call.kwargs["retry_count"] == NO_RETRY
         assert call.kwargs["json"] == {"name": "Finance team", "archived": False}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("extra, sent", [({}, {}), ({"name": "Finance team"}, {"name": "Finance team"})])
+    async def test_empty_description_clears_it(self, mock_context, extra, sent):
+        mock_context.fetch.return_value = _ok({**SAMPLE_COLLECTION, "description": None})
+        result = await metabase.execute_action(
+            "update_collection", {"collection_id": 31, "description": "", **extra}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"] == {"description": None, **sent, "archived": False}
 
     @pytest.mark.asyncio
     async def test_move_into_parent(self, mock_context):
@@ -2546,6 +2570,16 @@ class TestUpdateTable:
         assert mock_context.fetch.call_args.kwargs["json"] == {"description": "All orders"}
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize("extra", [{}, {"display_name": "Orders"}])
+    async def test_empty_description_clears_it(self, mock_context, extra):
+        mock_context.fetch.return_value = _ok(SAMPLE_TABLE)
+        result = await metabase.execute_action(
+            "update_table", {"table_id": 31, "description": "", **extra}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"] == {"description": None, **extra}
+
+    @pytest.mark.asyncio
     async def test_nothing_given(self, mock_context):
         result = await metabase.execute_action("update_table", {"table_id": 31, "display_name": ""}, mock_context)
         assert result.type == ResultType.ACTION_ERROR
@@ -2617,6 +2651,16 @@ class TestUpdateField:
             "description": "Signed up",
             "coercion_strategy": "Coercion/UNIXSeconds->DateTime",
         }
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("extra", [{}, {"semantic_type": "type/Email"}])
+    async def test_empty_description_clears_it(self, mock_context, extra):
+        mock_context.fetch.return_value = _ok({"id": 120})
+        result = await metabase.execute_action(
+            "update_field", {"field_id": 120, "description": "", **extra}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"] == {"description": None, **extra}
 
     @pytest.mark.asyncio
     async def test_nothing_given(self, mock_context):
@@ -2935,6 +2979,16 @@ class TestUpdateTimelineEvent:
         mock_context.fetch.return_value = _ok(SAMPLE_EVENT)
         await metabase.execute_action("update_timeline_event", {"event_id": 90, "time_matters": False}, mock_context)
         assert mock_context.fetch.call_args.kwargs["json"] == {"time_matters": False}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("extra", [{}, {"name": "v2.0 launch"}])
+    async def test_empty_description_clears_it(self, mock_context, extra):
+        mock_context.fetch.return_value = _ok(SAMPLE_EVENT)
+        result = await metabase.execute_action(
+            "update_timeline_event", {"event_id": 90, "description": "", **extra}, mock_context
+        )
+        assert result.type == ResultType.ACTION
+        assert mock_context.fetch.call_args.kwargs["json"] == {"description": None, **extra}
 
     @pytest.mark.asyncio
     async def test_nothing_given(self, mock_context):
