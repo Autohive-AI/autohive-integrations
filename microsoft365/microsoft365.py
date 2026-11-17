@@ -564,6 +564,11 @@ class CreateCalendarEventAction(ActionHandler):
 @microsoft365.action("upload_file")
 class UploadFileAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        return await self._upload(inputs, context, "/me/drive")
+
+    async def _upload(
+        self, inputs: Dict[str, Any], context: ExecutionContext, drive_path: str, *, query: str = ""
+    ) -> ActionResult:
         try:
             file_obj = inputs.get("file")
             text_content = inputs.get("content")
@@ -592,12 +597,12 @@ class UploadFileAction(ActionHandler):
             encoded_filename = urllib.parse.quote(filename, safe="")
             if folder_path:
                 encoded_folder = _encode_drive_path(folder_path)
-                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_folder}/{encoded_filename}:/content"
+                upload_url = f"{GRAPH_API_BASE}{drive_path}/root:/{encoded_folder}/{encoded_filename}:/content"
             else:
-                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_filename}:/content"
+                upload_url = f"{GRAPH_API_BASE}{drive_path}/root:/{encoded_filename}:/content"
 
             resp = await context.fetch(
-                upload_url,
+                upload_url + query,
                 method="PUT",
                 data=file_content,
                 headers={"Content-Type": content_type},
@@ -616,6 +621,20 @@ class UploadFileAction(ActionHandler):
 
         except Exception as e:
             return ActionError(message=str(e))
+
+
+@microsoft365.action("upload_sharepoint_file")
+class UploadSharePointFileAction(UploadFileAction):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        drive_id = inputs.get("drive_id")
+        if not isinstance(drive_id, str) or not drive_id.strip():
+            return ActionError(message="'drive_id' is required for SharePoint uploads")
+        return await self._upload(
+            inputs,
+            context,
+            f"/drives/{_encode_path_segment(drive_id)}",
+            query="?@microsoft.graph.conflictBehavior=fail",
+        )
 
 
 @microsoft365.action("list_files")

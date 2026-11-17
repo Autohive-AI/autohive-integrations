@@ -155,6 +155,37 @@ async def test_upload_file(mock_context):
 
 
 @pytest.mark.asyncio
+async def test_upload_sharepoint_file_targets_library_and_prevents_overwrite(mock_context):
+    payload = b"report\x00\xff"
+    response = {"id": "file1", "webUrl": "https://example.sharepoint.com/Reports/report.pdf", "size": len(payload)}
+    mock_context.fetch = make_fetch(response)
+    inputs = make_file_input(payload, "quarter #1.pdf", "application/pdf") | {
+        "drive_id": "b!library",
+        "folder_path": "Team Reports/2026",
+    }
+
+    result = await microsoft365.execute_action("upload_sharepoint_file", inputs, mock_context)
+
+    assert result.type != ResultType.ACTION_ERROR
+    assert result.result.data == response
+    mock_context.fetch.assert_awaited_once_with(
+        "https://graph.microsoft.com/v1.0/drives/b%21library/root:/Team%20Reports/2026/"
+        "quarter%20%231.pdf:/content?@microsoft.graph.conflictBehavior=fail",
+        method="PUT",
+        data=payload,
+        headers={"Content-Type": "application/pdf"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_upload_sharepoint_file_requires_library_id(mock_context):
+    result = await microsoft365.execute_action("upload_sharepoint_file", make_file_input(), mock_context)
+
+    assert result.type == ResultType.VALIDATION_ERROR
+    mock_context.fetch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_upload_file_uses_folder_path_and_encodes_name(mock_context):
     mock_context.fetch = make_fetch({"id": "file1", "webUrl": "https://onedrive.com/f1", "size": 100})
     inputs = make_file_input(name="my report.txt") | {"folder_path": "/Reports/2026"}

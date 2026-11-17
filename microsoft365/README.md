@@ -17,7 +17,7 @@ Users need to connect their Microsoft 365 account through the Autohive platform.
 Required Microsoft Graph API permissions:
 - `Mail.ReadWrite` — Read and send emails
 - `Mail.Send` — Send emails on behalf of user
-- `Files.ReadWrite` — Access OneDrive files
+- `Files.ReadWrite.All` — Read and write OneDrive and SharePoint files the connected user can access
 - `Calendars.ReadWrite` — Manage calendar events
 - `Calendars.Read.Shared` — Suggest meeting times with `findMeetingTimes`
 - `Contacts.Read` — Read user contacts
@@ -589,6 +589,16 @@ List all document libraries (drives) in a SharePoint site.
 - `total_libraries`: Total number of libraries found
 
 ---
+
+### `upload_sharepoint_file`
+
+Create a file in a SharePoint document library using [Microsoft Graph simple upload](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0). The connected user needs permission to add files to the library. Reauthorize an existing connection to grant `Files.ReadWrite.All`.
+
+- `drive_id` (required) is the library ID from `list_sharepoint_libraries`.
+- `folder_path` defaults to the library root. Use a path relative to the library for an existing subfolder.
+- Provide a platform `file` object or supply text in `content` with a `filename`. An attached file keeps its original bytes. You can override its name with `filename` and its MIME type with `content_type`.
+
+Returns the file `id`, `webUrl`, and `size` in bytes. The upload fails if the destination filename already exists. Graph simple upload supports files up to 250 MB.
 
 ### `search_sharepoint_documents`
 

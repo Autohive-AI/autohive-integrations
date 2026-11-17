@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Copilot 365",
-  "version": "3.2.2",
+  "version": "3.3.0",
   "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, Calendar, SharePoint, and intelligent meeting scheduling",
   "entry_point": "microsoft365.py",
   "auth": {
@@ -10,7 +10,7 @@
       "offline_access",
       "Mail.ReadWrite",
       "Mail.Send",
-      "Files.ReadWrite",
+      "Files.ReadWrite.All",
       "Calendars.ReadWrite",
       "Calendars.Read.Shared",
       "Contacts.Read",
@@ -2111,6 +2111,85 @@
           "site_id",
           "libraries",
           "total_libraries"
+        ]
+      }
+    },
+    "upload_sharepoint_file": {
+      "display_name": "Upload File to SharePoint",
+      "description": "Upload an attached file or create a text file in a SharePoint document library. Fails if the destination filename already exists.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "drive_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The destination library ID from List SharePoint Document Libraries"
+          },
+          "file": {
+            "type": "object",
+            "description": "The file to upload, preserving its original bytes. Use this for attached or generated files such as PDF, DOCX, XLSX, and images.",
+            "properties": {
+              "content": {
+                "type": "string",
+                "description": "Base64 encoded file content"
+              },
+              "name": {
+                "type": "string",
+                "description": "File name including extension"
+              },
+              "contentType": {
+                "type": "string",
+                "description": "MIME type of the file"
+              }
+            },
+            "required": [
+              "content",
+              "name",
+              "contentType"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "description": "Text content for a new text file. Use only when there is no file to attach; requires 'filename'."
+          },
+          "filename": {
+            "type": "string",
+            "description": "Name to save the file as in SharePoint. Optional when 'file' is given (defaults to the file's own name), required with 'content'."
+          },
+          "content_type": {
+            "type": "string",
+            "description": "Override the MIME type. Defaults to the file's own contentType, or text/plain for text content."
+          },
+          "folder_path": {
+            "type": "string",
+            "description": "Destination folder path relative to the library root (default: root)",
+            "default": "/"
+          }
+        },
+        "required": [
+          "drive_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID of the uploaded file"
+          },
+          "webUrl": {
+            "type": "string",
+            "description": "Web URL to access the file"
+          },
+          "size": {
+            "type": "integer",
+            "description": "File size in bytes"
+          }
+        },
+        "required": [
+          "id",
+          "webUrl",
+          "size"
         ]
       }
     },
