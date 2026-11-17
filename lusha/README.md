@@ -159,11 +159,27 @@ python ../autohive-integrations-tooling/scripts/check_code.py --base-ref origin/
 
 Unit tests mock `context.fetch` using SDK `FetchResponse` objects and cover every action, request payloads, authentication, validation boundaries, error handling, pagination, partial batches and waterfall states.
 
-Optional live tests use the real SDK HTTP client and skip without credentials. Set `LUSHA_API_KEY` in local `.env` to verify account access. Setting `LUSHA_TEST_COMPANY_DOMAIN` explicitly opts into a **credit-consuming** lookup of a known public company. Both variables are documented in the root `.env.example`.
+Live tests use the real SDK HTTP client and cover all 12 actions across five files:
+
+| File | Actions |
+| --- | --- |
+| `tests/test_lusha_integration.py` | Account usage and enrichment job status |
+| `tests/test_lusha_contacts_integration.py` | Contact search, enrichment, and combined search/enrichment |
+| `tests/test_lusha_companies_integration.py` | Company search, enrichment, and combined search/enrichment |
+| `tests/test_lusha_prospecting_integration.py` | Both prospecting actions, plus a separate optional DNC-filter check |
+| `tests/test_lusha_filters_integration.py` | Filter type discovery and value lookup for both entity types |
+
+Set `LUSHA_API_KEY` in local `.env` to run account and filter checks. Explicitly set `LUSHA_RUN_PAID_TESTS=1` to authorize credit-consuming tests, and provide `LUSHA_TEST_COMPANY_DOMAIN`. Contact tests require `LUSHA_TEST_CONTACT_ID` or `LUSHA_TEST_CONTACT_EMAIL` for a permitted dedicated-test contact with a known available work email. Supplying only an email causes one extra search to resolve its ID for standalone enrichment. No contact fixtures are hardcoded into the public repository.
+
+`LUSHA_TEST_ENRICHMENT_JOB_ID` must be a real, unexpired job from the same account. Job tests skip when it is absent. Compliance-restricted contacts, unsupported DNC access, and a combined enrichment result blocked by `WATERFALL_NOT_IN_PLAN` are reported as explicit skips, not successful live verification. Missing emails without that known plan restriction fail the corresponding test.
+
+All variables have blank templates in root `.env.example`. The suite collects 15 live cases, including entity variants; default unit-test runs do not collect them.
 
 ```powershell
-python -m pytest lusha/tests/test_lusha_integration.py -m integration -v
+python -m pytest lusha/tests -o python_files=test_*_integration.py -m "integration and not destructive" -v
 ```
+
+TeamCity reads `tests/teamcity.env`, not local `.env`. The committed `LUSHA_API_KEY=ah:customAuth:api_key` marker resolves the dedicated test connection for **Lusha API Key**; the actual key stays outside Git. The file enables paid tests against the public `lusha.com` domain. Before running the suite there, connect the dedicated test account and configure a permitted test-contact ID (or provision the email securely with `ah:secret`). The commented job ID is optional and needs a Waterfall-entitled account. Until those fixtures exist, the corresponding scenarios remain skipped or blocked; adding tests cannot supply a missing plan entitlement.
 
 No live API success is claimed until these tests pass with a real account. Mocked fixtures use synthetic records and placeholder credentials.
 

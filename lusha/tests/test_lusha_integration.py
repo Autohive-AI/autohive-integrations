@@ -1,35 +1,34 @@
-"""Optional live checks; explicitly invoked and excluded from default CI tests."""
+"""Live account and Waterfall job checks. Job testing requires a real job ID."""
 
 import pytest
-from autohive_integrations_sdk import ExecutionContext, ResultType
+from autohive_integrations_sdk import ResultType
 
 from lusha.lusha import lusha
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.fixture
-async def live_context(env_credentials):
-    api_key = env_credentials("LUSHA_API_KEY")
-    if not api_key:
-        pytest.skip("LUSHA_API_KEY is not set")
-    async with ExecutionContext(auth={"auth_type": "Custom", "credentials": {"api_key": api_key}}) as context:
-        yield context
-
-
-async def test_account_usage(live_context):
+async def test_get_account_usage(live_context):
     result = await lusha.execute_action("get_account_usage", {}, live_context)
     assert result.type == ResultType.ACTION
-    assert isinstance(result.result.data["credits"]["remaining"], (int, float))
+    data = result.result.data
+    assert isinstance(data.get("credits"), dict)
+    assert isinstance(data["credits"].get("remaining"), (int, float))
+    for key in ("rateLimits", "plan", "pricing"):
+        assert isinstance(data.get(key), dict)
 
 
-async def test_company_search(live_context, env_credentials):
-    # Setting this optional domain explicitly opts into a credit-consuming lookup.
-    domain = env_credentials("LUSHA_TEST_COMPANY_DOMAIN")
-    if not domain:
-        pytest.skip("Set LUSHA_TEST_COMPANY_DOMAIN to opt into a credit-consuming company lookup")
-    result = await lusha.execute_action("search_companies", {"companies": [{"domain": domain}]}, live_context)
-    assert result.type == ResultType.ACTION
-    assert isinstance(result.result.data["results"], list)
-    assert len(result.result.data["results"]) == 1
-    assert result.result.data["results"][0].get("id")
+async def test_get_contact_enrichment_job(live_context, env_credentials):
+    job_id = env_credentials("LUSHA_TEST_ENRICHMENT_JOB_ID")
+    if not job_id:
+        pytest.skip("No real Waterfall job ID configured; this requires an entitled plan and an unexpired job")
+    result = await lusha.execute_action("get_contact_enrichment_job", {"job_id": job_id}, live_context)
+    assert result.type == ResultType.ACTION, "The configured job could not be read; check its account and expiry"
+    data = result.result.data
+    assert data["jobId"] == job_id
+    assert data["status"] in {"processing", "complete", "expired", "failed"}
+    if data["status"] == "processing":
+        assert isinstance(data.get("retryAfter"), (int, float))
+        assert data["retryAfter"] >= 0
+    else:
+        assert isinstance(data.get("contacts", []), list)
