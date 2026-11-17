@@ -871,6 +871,11 @@ and optional test variables as blank entries; keep real values in local `.env`.
 Obtain a valid access token with the scopes in `config.json` through the Autohive
 platform OAuth flow. Refresh expired access tokens through the same flow.
 
-The SharePoint write test creates a uniquely named folder and a nested folder in the configured test library, verifies binary uploads and downloads in both, checks that duplicate folder and file names are rejected, and deletes the test folder and its contents. Site provisioning is covered with mocked Graph responses. Live verification requires an isolated tenant with admin consent and a way to remove the provisioned site.
+The SharePoint write test creates a uniquely named folder and a nested folder in the configured test library, verifies binary uploads and downloads in both, checks that duplicate folder and file names are rejected, and deletes the test folder and its contents. The provisioning test creates a uniquely named communication site, polls its status, and checks that its document libraries are available. Run it separately with a test tenant and a Graph token that has delegated `Sites.Create.All` and `Sites.Read.All`. The test prints the requested URL before submitting the create request. Remove that URL from the test tenant in the SharePoint admin center after the run, including if polling times out.
+
+```bash
+export MICROSOFT365_TEST_SHAREPOINT_PROVISIONING_HOST="testtenant.sharepoint.com"
+python -m pytest tests/test_microsoft365_integration.py -s -v -m "integration and destructive" -k test_provision_sharepoint_site_live
+```
 
 A separate destructive live test creates a new draft with a binary attachment, verifies the saved bytes, and deletes the unsent draft without sending it.

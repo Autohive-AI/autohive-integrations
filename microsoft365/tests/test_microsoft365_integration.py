@@ -1,7 +1,7 @@
 """Live Microsoft Graph integration tests for all Microsoft 365 actions.
 
 Read-only tests require ``MICROSOFT365_ACCESS_TOKEN``. Tests marked
-``destructive`` create and clean up their own mail, calendar, OneDrive, or SharePoint data
+``destructive`` create mail, calendar, OneDrive, or SharePoint data
 and must be explicitly selected with ``-m "integration and destructive"``.
 Mail tests require ``MICROSOFT365_TEST_MAILBOX_EMAIL`` to be the authenticated
 mailbox because they deliver to and clean up messages through ``/me``.
@@ -10,6 +10,7 @@ mailbox because they deliver to and clean up messages through ``/me``.
 import asyncio
 import base64
 import os
+import re
 import sys
 import time
 from uuid import uuid4
@@ -30,6 +31,7 @@ TEST_MAILBOX = os.getenv("MICROSOFT365_TEST_MAILBOX_EMAIL", "")
 TEST_ATTENDEE = os.getenv("MICROSOFT365_TEST_ATTENDEE_EMAIL", "")
 TEST_SCHEDULE_EMAIL = os.getenv("MICROSOFT365_TEST_SCHEDULE_EMAIL", "")
 TEST_SHAREPOINT_DRIVE_ID = os.getenv("MICROSOFT365_TEST_SHAREPOINT_DRIVE_ID", "")
+TEST_SHAREPOINT_PROVISIONING_HOST = os.getenv("MICROSOFT365_TEST_SHAREPOINT_PROVISIONING_HOST", "")
 TEST_SHAREPOINT_SITE_ID = os.getenv("MICROSOFT365_TEST_SHAREPOINT_SITE_ID", "")
 TEST_RUN_ID = str(int(time.time() * 1000))
 TEST_DRAFT_SUBJECT = f"[Autohive Integration Test {TEST_RUN_ID}] Draft"
@@ -847,6 +849,51 @@ async def test_upload_sharepoint_file_live(live_context):
     finally:
         cleanup = await live_context.fetch(folder_url, method="DELETE")
         assert cleanup.status == 204, f"SharePoint test folder cleanup returned HTTP {cleanup.status}"
+
+
+@skip_if_no_creds
+@pytest.mark.skipif(
+    not TEST_SHAREPOINT_PROVISIONING_HOST,
+    reason="MICROSOFT365_TEST_SHAREPOINT_PROVISIONING_HOST required for disposable site provisioning",
+)
+@pytest.mark.destructive
+@pytest.mark.asyncio
+async def test_provision_sharepoint_site_live(live_context):
+    host = TEST_SHAREPOINT_PROVISIONING_HOST
+    assert re.fullmatch(r"[a-zA-Z0-9-]+\.sharepoint\.com", host), "Expected a test tenant hostname"
+    site_name = f"autohive-test-{uuid4().hex}"
+    site_url = f"https://{host}/sites/{site_name}"
+    print(f"Remove the disposable SharePoint site after the run: {site_url}")
+    created = await microsoft365.execute_action(
+        "create_sharepoint_site",
+        {"name": site_name, "web_url": site_url, "template": "sitepagepublishing"},
+        live_context,
+    )
+    assert created.type == ResultType.ACTION, getattr(created.result, "message", created.result)
+    assert created.result.data["web_url"] == site_url
+
+    deadline = time.monotonic() + 300
+    while time.monotonic() < deadline:
+        result = await microsoft365.execute_action(
+            "get_sharepoint_site_creation_status",
+            {"operation_id": created.result.data["operation_id"]},
+            live_context,
+        )
+        assert result.type == ResultType.ACTION, getattr(result.result, "message", result.result)
+        operation = result.result.data
+        if operation["status"] == "succeeded":
+            break
+        assert operation["status"] in {"notStarted", "running"}, f"Provisioning {site_url}: {operation}"
+        await asyncio.sleep(5)
+    else:
+        pytest.fail(f"SharePoint provisioning timed out for {site_url}")
+
+    assert operation["site_id"], f"SharePoint did not return a site ID for {site_url}"
+    libraries = await microsoft365.execute_action(
+        "list_sharepoint_libraries", {"site_id": operation["site_id"]}, live_context
+    )
+    assert libraries.type == ResultType.ACTION, getattr(libraries.result, "message", libraries.result)
+    assert any(library["drive_type"] == "documentLibrary" for library in libraries.result.data["libraries"])
 
 
 @skip_if_no_creds

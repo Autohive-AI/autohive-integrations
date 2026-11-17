@@ -215,6 +215,22 @@ async def test_create_sharepoint_site_returns_operation_from_accepted_response(m
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("headers", [{}, {"Location": "https://other.example/getOperationStatus(operationId='abc')"}])
+async def test_create_sharepoint_site_reports_unusable_operation_location(mock_context, headers):
+    mock_context.fetch.return_value = FetchResponse(status=202, headers=headers, data=None)
+
+    result = await microsoft365.execute_action(
+        "create_sharepoint_site",
+        {"name": "Test", "web_url": "https://example.sharepoint.com/sites/test", "template": "sts"},
+        mock_context,
+    )
+
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Graph accepted site creation" in result.result.message
+    mock_context.fetch.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "status,error", [("running", None), ("failed", {"code": "siteExists", "message": "Site exists"})]
 )
