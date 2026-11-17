@@ -561,75 +561,76 @@ class CreateCalendarEventAction(ActionHandler):
             return ActionError(message=str(e))
 
 
+async def _upload_drive_file(
+    inputs: Dict[str, Any], context: ExecutionContext, drive_path: str, *, query: str = ""
+) -> ActionResult:
+    try:
+        file_obj = inputs.get("file")
+        text_content = inputs.get("content")
+        folder_path = (inputs.get("folder_path") or "/").strip("/")
+
+        if file_obj:
+            # OneDrive/SharePoint stores the raw bytes, so the base64 the platform hands
+            # us (or the bytes behind the pre-signed URL for larger files) is decoded
+            # rather than re-encoded as text.
+            file_content = _resolve_file_bytes(file_obj)
+            filename = inputs.get("filename") or file_obj.get("name")
+            content_type = inputs.get("content_type") or file_obj.get("contentType") or "application/octet-stream"
+        elif text_content is not None:
+            # Text path, kept for workflows written against the original schema.
+            file_content = text_content.encode("utf-8")
+            filename = inputs.get("filename")
+            content_type = inputs.get("content_type") or "text/plain"
+        else:
+            raise ValueError("provide either 'file' (an attached or generated file) or 'content' with 'filename'")
+
+        if not filename:
+            raise ValueError("'filename' is required when uploading text content")
+        if len(file_content) > MAX_SIMPLE_UPLOAD_BYTES:
+            raise ValueError("file exceeds the Microsoft Graph simple-upload limit of 250 MB")
+
+        encoded_filename = urllib.parse.quote(filename, safe="")
+        if folder_path:
+            encoded_folder = _encode_drive_path(folder_path)
+            upload_url = f"{GRAPH_API_BASE}{drive_path}/root:/{encoded_folder}/{encoded_filename}:/content"
+        else:
+            upload_url = f"{GRAPH_API_BASE}{drive_path}/root:/{encoded_filename}:/content"
+
+        resp = await context.fetch(
+            upload_url + query,
+            method="PUT",
+            data=file_content,
+            headers={"Content-Type": content_type},
+        )
+        response = resp.data
+        _check_response(response, "id", "webUrl", "size")
+
+        return ActionResult(
+            data={
+                "id": response["id"],
+                "webUrl": response["webUrl"],
+                "size": response["size"],
+            },
+            cost_usd=0.0,
+        )
+
+    except Exception as e:
+        return ActionError(message=str(e))
+
+
 @microsoft365.action("upload_file")
 class UploadFileAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
-        return await self._upload(inputs, context, "/me/drive")
-
-    async def _upload(
-        self, inputs: Dict[str, Any], context: ExecutionContext, drive_path: str, *, query: str = ""
-    ) -> ActionResult:
-        try:
-            file_obj = inputs.get("file")
-            text_content = inputs.get("content")
-            folder_path = (inputs.get("folder_path") or "/").strip("/")
-
-            if file_obj:
-                # OneDrive/SharePoint stores the raw bytes, so the base64 the platform hands
-                # us (or the bytes behind the pre-signed URL for larger files) is decoded
-                # rather than re-encoded as text.
-                file_content = _resolve_file_bytes(file_obj)
-                filename = inputs.get("filename") or file_obj.get("name")
-                content_type = inputs.get("content_type") or file_obj.get("contentType") or "application/octet-stream"
-            elif text_content is not None:
-                # Text path, kept for workflows written against the original schema.
-                file_content = text_content.encode("utf-8")
-                filename = inputs.get("filename")
-                content_type = inputs.get("content_type") or "text/plain"
-            else:
-                raise ValueError("provide either 'file' (an attached or generated file) or 'content' with 'filename'")
-
-            if not filename:
-                raise ValueError("'filename' is required when uploading text content")
-            if len(file_content) > MAX_SIMPLE_UPLOAD_BYTES:
-                raise ValueError("file exceeds the Microsoft Graph simple-upload limit of 250 MB")
-
-            encoded_filename = urllib.parse.quote(filename, safe="")
-            if folder_path:
-                encoded_folder = _encode_drive_path(folder_path)
-                upload_url = f"{GRAPH_API_BASE}{drive_path}/root:/{encoded_folder}/{encoded_filename}:/content"
-            else:
-                upload_url = f"{GRAPH_API_BASE}{drive_path}/root:/{encoded_filename}:/content"
-
-            resp = await context.fetch(
-                upload_url + query,
-                method="PUT",
-                data=file_content,
-                headers={"Content-Type": content_type},
-            )
-            response = resp.data
-            _check_response(response, "id", "webUrl", "size")
-
-            return ActionResult(
-                data={
-                    "id": response["id"],
-                    "webUrl": response["webUrl"],
-                    "size": response["size"],
-                },
-                cost_usd=0.0,
-            )
-
-        except Exception as e:
-            return ActionError(message=str(e))
+        return await _upload_drive_file(inputs, context, "/me/drive")
 
 
 @microsoft365.action("upload_sharepoint_file")
-class UploadSharePointFileAction(UploadFileAction):
+class UploadSharePointFileAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
-        drive_id = inputs.get("drive_id")
-        if not isinstance(drive_id, str) or not drive_id.strip():
+        drive_id = inputs["drive_id"]
+        if not drive_id.strip():
             return ActionError(message="'drive_id' is required for SharePoint uploads")
-        return await self._upload(
+        return await _upload_drive_file(
             inputs,
             context,
             f"/drives/{_encode_path_segment(drive_id)}",
