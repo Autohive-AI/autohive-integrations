@@ -17,14 +17,15 @@ Users need to connect their Microsoft 365 account through the Autohive platform.
 Required Microsoft Graph API permissions:
 - `Mail.ReadWrite` — Read and send emails
 - `Mail.Send` — Send emails on behalf of user
-- `Files.ReadWrite` — Access OneDrive files
+- `Files.ReadWrite.All` — Read and write OneDrive and SharePoint files the connected user can access
 - `Calendars.ReadWrite` — Manage calendar events
 - `Calendars.Read.Shared` — Suggest meeting times with `findMeetingTimes`
 - `Contacts.Read` — Read user contacts
 - `Sites.Read.All` — Access SharePoint sites and document libraries
+- `Sites.Create.All` — Provision SharePoint sites through Microsoft Graph beta. Requires tenant admin consent.
 - `Place.Read.All` — List and query meeting rooms and room lists
 
-Version 3.0.0 changes the requested OAuth permissions. Existing connections must reconnect once so Microsoft can grant `Calendars.Read.Shared`.
+Reconnect existing Microsoft 365 connections when upgrading to v4 so Microsoft can grant `Files.ReadWrite.All` for SharePoint uploads and folder creation, and `Sites.Create.All` for site provisioning. Connections upgrading from before v3 also grant `Calendars.Read.Shared` for meeting suggestions.
 
 ## Actions
 
@@ -546,6 +547,16 @@ Read and search contacts from Outlook.
 
 ---
 
+### `create_sharepoint_site`
+
+Start provisioning a communication site (`sitepagepublishing`) or standalone team site (`sts`). Supply the site display `name`, full SharePoint `web_url`, and `template`. Optionally set the `locale` (default `en-US`), `description`, and `owner_email`. Tenant admin consent for delegated `Sites.Create.All` and a reauthorized connection are required. Microsoft documents [this Graph endpoint](https://learn.microsoft.com/en-us/graph/api/site-post-sites?view=graph-rest-beta) as beta and does not support it for production use.
+
+The response returns the requested `web_url` and an `operation_id` after Microsoft accepts the request.
+
+### `get_sharepoint_site_creation_status`
+
+Pass the `operation_id` returned by site creation. The action returns Microsoft's provisioning status and any error details. Once the status is `succeeded`, use the returned `site_id` with `list_sharepoint_libraries`.
+
 ### `search_sharepoint_sites`
 
 Search for SharePoint sites across your organization. Searches top-level site collections; use `list_sharepoint_subsites` to discover child sites under a known parent.
@@ -590,12 +601,23 @@ List all document libraries (drives) in a SharePoint site.
 
 ---
 
+### `upload_sharepoint_file`
+
+Create a file in a SharePoint document library using [Microsoft Graph simple upload](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0). The connected user needs permission to add files to the library. Reauthorize an existing connection to grant `Files.ReadWrite.All`.
+
+- `drive_id` (required) is the library ID from `list_sharepoint_libraries`.
+- `folder_path` defaults to the library root. Use a path relative to the library for an existing subfolder.
+- Provide a platform `file` object or supply text in `content` with a `filename`. An attached file keeps its original bytes. You can override its name with `filename` and its MIME type with `content_type`.
+
+Returns the file `id`, `webUrl`, and `size` in bytes. The upload fails if the destination filename already exists. Graph simple upload supports files up to 250 MB.
+
 ### `search_sharepoint_documents`
 
-Search for documents across all document libraries in a SharePoint site.
+Find documents by keyword using Microsoft Graph search. Pass a known library ID to search that library directly. Otherwise, the action discovers the site's document libraries and searches them in turn.
 
 **Inputs:**
 - `site_id` (required): The ID of the SharePoint site
+- `drive_id` (optional): ID of a known document library on the supplied site
 - `query` (required): Search query to find documents
 - `limit` (optional): Maximum number of documents (default: 10)
 
@@ -605,7 +627,7 @@ Search for documents across all document libraries in a SharePoint site.
 - `files`: List of matching documents with drive information
 - `total_files`: Total number of files found
 - `drives_searched`: Number of libraries searched
-- `total_drives`: Total number of libraries in the site
+- `total_drives`: Number of candidate libraries. One when searching a known library.
 - `search_errors`: Errors encountered during search (if any)
 
 ---
@@ -674,6 +696,16 @@ List all subsites (child sites) under a SharePoint site.
 - `has_more`: Whether the requested limit stopped pagination before all subsites were returned
 
 ---
+
+### `create_sharepoint_folder`
+
+Create a folder in a SharePoint document library. The connected user needs permission to add folders. The action fails if the name is already in use in the destination.
+
+- `drive_id` (required) is the library ID from `list_sharepoint_libraries`.
+- `name` (required) is the new folder name.
+- `parent_folder_id` is the optional ID of an existing parent folder from `list_sharepoint_folder_contents`. Omit it to create the folder at the library root.
+
+Returns the new folder's `id`, `name`, and `webUrl`. To upload into it, pass its path relative to the library root as `folder_path` in `upload_sharepoint_file`.
 
 ### `list_sharepoint_folder_contents`
 
@@ -825,6 +857,7 @@ export MICROSOFT365_ACCESS_TOKEN="<your-access-token>"
 export MICROSOFT365_TEST_MAILBOX_EMAIL="you@example.com"    # authenticated mailbox; required for mail tests
 export MICROSOFT365_TEST_ATTENDEE_EMAIL="you@example.com"    # required for find_meeting_times
 export MICROSOFT365_TEST_SCHEDULE_EMAIL="you@tenant.onmicrosoft.com"  # required for get_schedule
+export MICROSOFT365_TEST_SHAREPOINT_DRIVE_ID="<writable-test-library-id>"  # required for the SharePoint write test
 export MICROSOFT365_TEST_SHAREPOINT_SITE_ID="tenant.sharepoint.com,site-collection-id,site-id"  # optional stable test site
 python -m pytest tests/test_microsoft365_integration.py -v -m "integration and destructive"
 ```
@@ -837,5 +870,12 @@ and optional test variables as blank entries; keep real values in local `.env`.
 
 Obtain a valid access token with the scopes in `config.json` through the Autohive
 platform OAuth flow. Refresh expired access tokens through the same flow.
+
+The SharePoint write test creates a uniquely named folder and a nested folder in the configured test library, verifies binary uploads and downloads in both, checks that duplicate folder and file names are rejected, and deletes the test folder and its contents. The provisioning test creates a uniquely named communication site, polls its status, and checks that its document libraries are available. Run it separately with a test tenant and a Graph token that has delegated `Sites.Create.All` and `Sites.Read.All`. The test prints the requested URL before submitting the create request. Remove that URL from the test tenant in the SharePoint admin center after the run, including if polling times out.
+
+```bash
+export MICROSOFT365_TEST_SHAREPOINT_PROVISIONING_HOST="testtenant.sharepoint.com"
+python -m pytest tests/test_microsoft365_integration.py -s -v -m "integration and destructive" -k test_provision_sharepoint_site_live
+```
 
 A separate destructive live test creates a new draft with a binary attachment, verifies the saved bytes, and deletes the unsent draft without sending it.

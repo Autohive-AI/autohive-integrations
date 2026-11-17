@@ -1,6 +1,6 @@
 {
   "name": "Microsoft Copilot 365",
-  "version": "3.2.2",
+  "version": "4.0.0",
   "description": "Microsoft Copilot 365 integration for Outlook, OneDrive, Calendar, SharePoint, and intelligent meeting scheduling",
   "entry_point": "microsoft365.py",
   "auth": {
@@ -10,11 +10,12 @@
       "offline_access",
       "Mail.ReadWrite",
       "Mail.Send",
-      "Files.ReadWrite",
+      "Files.ReadWrite.All",
       "Calendars.ReadWrite",
       "Calendars.Read.Shared",
       "Contacts.Read",
       "Sites.Read.All",
+      "Sites.Create.All",
       "Place.Read.All"
     ]
   },
@@ -1885,6 +1886,112 @@
         ]
       }
     },
+    "create_sharepoint_site": {
+      "display_name": "Create SharePoint Site (Preview)",
+      "description": "Start provisioning a SharePoint communication or standalone team site using Microsoft Graph beta. Use Get SharePoint Site Creation Status to check when it is ready.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name for the new site",
+            "minLength": 1
+          },
+          "web_url": {
+            "type": "string",
+            "description": "Full HTTPS URL for the new site on your SharePoint tenant",
+            "pattern": "^https://[a-zA-Z0-9-]+\\.sharepoint\\.com/(?:sites|teams)/[^/?#\\s]+$"
+          },
+          "template": {
+            "type": "string",
+            "description": "Site template. sitepagepublishing creates a communication site. sts creates a standalone team site.",
+            "enum": [
+              "sitepagepublishing",
+              "sts"
+            ]
+          },
+          "locale": {
+            "type": "string",
+            "description": "Site language locale",
+            "default": "en-US"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description for the new site"
+          },
+          "owner_email": {
+            "type": "string",
+            "description": "Optional email of the site owner",
+            "format": "email"
+          }
+        },
+        "required": [
+          "name",
+          "web_url",
+          "template"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "description": "Pass this to Get SharePoint Site Creation Status"
+          },
+          "web_url": {
+            "type": "string",
+            "description": "Requested site URL"
+          }
+        },
+        "required": [
+          "operation_id",
+          "web_url"
+        ]
+      }
+    },
+    "get_sharepoint_site_creation_status": {
+      "display_name": "Get SharePoint Site Creation Status (Preview)",
+      "description": "Check a SharePoint site creation operation and get the site ID when Graph finishes provisioning it.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "description": "Operation ID from Create SharePoint Site",
+            "pattern": "^[a-zA-Z0-9+/_=-]+$"
+          }
+        },
+        "required": [
+          "operation_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Status reported by Microsoft Graph"
+          },
+          "site_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The new site ID when Graph returns one"
+          },
+          "error": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Provider error details when provisioning fails"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      }
+    },
     "search_sharepoint_sites": {
       "display_name": "Search SharePoint Sites",
       "description": "Search for SharePoint sites across the organization. Note: this searches top-level site collections only and may not return subsites. To discover subsites, first find the parent site with this action, then use list_sharepoint_subsites to enumerate its child sites.",
@@ -2114,15 +2221,99 @@
         ]
       }
     },
+    "upload_sharepoint_file": {
+      "display_name": "Upload File to SharePoint",
+      "description": "Upload an attached file or create a text file in a SharePoint document library. Fails if the destination filename already exists.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "drive_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The destination library ID from List SharePoint Document Libraries"
+          },
+          "file": {
+            "type": "object",
+            "description": "The file to upload, preserving its original bytes. Use this for attached or generated files such as PDF, DOCX, XLSX, and images.",
+            "properties": {
+              "content": {
+                "type": "string",
+                "description": "Base64 encoded file content"
+              },
+              "name": {
+                "type": "string",
+                "description": "File name including extension"
+              },
+              "contentType": {
+                "type": "string",
+                "description": "MIME type of the file"
+              }
+            },
+            "required": [
+              "content",
+              "name",
+              "contentType"
+            ]
+          },
+          "content": {
+            "type": "string",
+            "description": "Text content for a new text file. Use only when there is no file to attach; requires 'filename'."
+          },
+          "filename": {
+            "type": "string",
+            "description": "Name to save the file as in SharePoint. Optional when 'file' is given (defaults to the file's own name), required with 'content'."
+          },
+          "content_type": {
+            "type": "string",
+            "description": "Override the MIME type. Defaults to the file's own contentType, or text/plain for text content."
+          },
+          "folder_path": {
+            "type": "string",
+            "description": "Destination folder path relative to the library root (default: root)",
+            "default": "/"
+          }
+        },
+        "required": [
+          "drive_id"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The ID of the uploaded file"
+          },
+          "webUrl": {
+            "type": "string",
+            "description": "Web URL to access the file"
+          },
+          "size": {
+            "type": "integer",
+            "description": "File size in bytes"
+          }
+        },
+        "required": [
+          "id",
+          "webUrl",
+          "size"
+        ]
+      }
+    },
     "search_sharepoint_documents": {
       "display_name": "Search SharePoint Documents",
-      "description": "Search for documents within a SharePoint site's document libraries",
+      "description": "Find matching documents by keyword. Pass a known drive_id to search that library directly, or search the site's libraries.",
       "input_schema": {
         "type": "object",
         "properties": {
           "site_id": {
             "type": "string",
             "description": "The ID of the SharePoint site"
+          },
+          "drive_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional ID of a document library belonging to the supplied site. Searches that library directly."
           },
           "query": {
             "type": "string",
@@ -2198,7 +2389,7 @@
           },
           "total_drives": {
             "type": "integer",
-            "description": "Total number of document libraries in the site"
+            "description": "Number of candidate libraries. One for a direct library search."
           },
           "search_errors": {
             "type": "array",
@@ -2571,9 +2762,59 @@
         ]
       }
     },
+    "create_sharepoint_folder": {
+      "display_name": "Create SharePoint Folder",
+      "description": "Create a folder in a SharePoint document library or an existing folder. Fails if the name is already in use.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "drive_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The library ID from List SharePoint Document Libraries"
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[^/\\\\]*[^/\\\\\\s][^/\\\\]*$",
+            "description": "Name of the new folder"
+          },
+          "parent_folder_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Optional parent folder ID from List SharePoint Folder Contents. Defaults to the library root."
+          }
+        },
+        "required": [
+          "drive_id",
+          "name"
+        ]
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The new folder ID"
+          },
+          "name": {
+            "type": "string",
+            "description": "The new folder name"
+          },
+          "webUrl": {
+            "type": "string",
+            "description": "Web URL to open the folder"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "webUrl"
+        ]
+      }
+    },
     "list_sharepoint_folder_contents": {
       "display_name": "List SharePoint Folder Contents",
-      "description": "List files and folders within a SharePoint document library or folder. Use without folder_id to list root contents, or with folder_id to browse into subfolders.",
+      "description": "Browse files and folders in a SharePoint library or folder. For keyword lookups, use Search SharePoint Documents with the library ID.",
       "input_schema": {
         "type": "object",
         "properties": {

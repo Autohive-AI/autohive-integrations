@@ -21,6 +21,7 @@ microsoft365 = Integration.load()
 
 # Microsoft Graph API Base URL
 GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
+GRAPH_SITE_PROVISIONING_URL = "https://graph.microsoft.com/beta/sites"
 MAX_SIMPLE_UPLOAD_BYTES = 250 * 1024 * 1024
 MAX_DRAFT_ATTACHMENT_BYTES = 3_000_000
 DEFAULT_CONTACT_SEARCH_SCAN_LIMIT = 1000
@@ -561,61 +562,82 @@ class CreateCalendarEventAction(ActionHandler):
             return ActionError(message=str(e))
 
 
+async def _upload_drive_file(
+    inputs: Dict[str, Any], context: ExecutionContext, drive_path: str, *, query: str = ""
+) -> ActionResult:
+    try:
+        file_obj = inputs.get("file")
+        text_content = inputs.get("content")
+        folder_path = (inputs.get("folder_path") or "/").strip("/")
+
+        if file_obj:
+            # OneDrive/SharePoint stores the raw bytes, so the base64 the platform hands
+            # us (or the bytes behind the pre-signed URL for larger files) is decoded
+            # rather than re-encoded as text.
+            file_content = _resolve_file_bytes(file_obj)
+            filename = inputs.get("filename") or file_obj.get("name")
+            content_type = inputs.get("content_type") or file_obj.get("contentType") or "application/octet-stream"
+        elif text_content is not None:
+            # Text path, kept for workflows written against the original schema.
+            file_content = text_content.encode("utf-8")
+            filename = inputs.get("filename")
+            content_type = inputs.get("content_type") or "text/plain"
+        else:
+            raise ValueError("provide either 'file' (an attached or generated file) or 'content' with 'filename'")
+
+        if not filename:
+            raise ValueError("'filename' is required when uploading text content")
+        if len(file_content) > MAX_SIMPLE_UPLOAD_BYTES:
+            raise ValueError("file exceeds the Microsoft Graph simple-upload limit of 250 MB")
+
+        encoded_filename = urllib.parse.quote(filename, safe="")
+        if folder_path:
+            encoded_folder = _encode_drive_path(folder_path)
+            upload_url = f"{GRAPH_API_BASE}{drive_path}/root:/{encoded_folder}/{encoded_filename}:/content"
+        else:
+            upload_url = f"{GRAPH_API_BASE}{drive_path}/root:/{encoded_filename}:/content"
+
+        resp = await context.fetch(
+            upload_url + query,
+            method="PUT",
+            data=file_content,
+            headers={"Content-Type": content_type},
+        )
+        _check_fetch_success(resp)
+        response = resp.data
+        _check_response(response, "id", "webUrl", "size")
+
+        return ActionResult(
+            data={
+                "id": response["id"],
+                "webUrl": response["webUrl"],
+                "size": response["size"],
+            },
+            cost_usd=0.0,
+        )
+
+    except Exception as e:
+        return ActionError(message=str(e))
+
+
 @microsoft365.action("upload_file")
 class UploadFileAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
-        try:
-            file_obj = inputs.get("file")
-            text_content = inputs.get("content")
-            folder_path = (inputs.get("folder_path") or "/").strip("/")
+        return await _upload_drive_file(inputs, context, "/me/drive")
 
-            if file_obj:
-                # OneDrive/SharePoint stores the raw bytes, so the base64 the platform hands
-                # us (or the bytes behind the pre-signed URL for larger files) is decoded
-                # rather than re-encoded as text.
-                file_content = _resolve_file_bytes(file_obj)
-                filename = inputs.get("filename") or file_obj.get("name")
-                content_type = inputs.get("content_type") or file_obj.get("contentType") or "application/octet-stream"
-            elif text_content is not None:
-                # Text path, kept for workflows written against the original schema.
-                file_content = text_content.encode("utf-8")
-                filename = inputs.get("filename")
-                content_type = inputs.get("content_type") or "text/plain"
-            else:
-                raise ValueError("provide either 'file' (an attached or generated file) or 'content' with 'filename'")
 
-            if not filename:
-                raise ValueError("'filename' is required when uploading text content")
-            if len(file_content) > MAX_SIMPLE_UPLOAD_BYTES:
-                raise ValueError("file exceeds the Microsoft Graph simple-upload limit of 250 MB")
-
-            encoded_filename = urllib.parse.quote(filename, safe="")
-            if folder_path:
-                encoded_folder = _encode_drive_path(folder_path)
-                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_folder}/{encoded_filename}:/content"
-            else:
-                upload_url = f"{GRAPH_API_BASE}/me/drive/root:/{encoded_filename}:/content"
-
-            resp = await context.fetch(
-                upload_url,
-                method="PUT",
-                data=file_content,
-                headers={"Content-Type": content_type},
-            )
-            response = resp.data
-            _check_response(response, "id", "webUrl", "size")
-
-            return ActionResult(
-                data={
-                    "id": response["id"],
-                    "webUrl": response["webUrl"],
-                    "size": response["size"],
-                },
-                cost_usd=0.0,
-            )
-
-        except Exception as e:
-            return ActionError(message=str(e))
+@microsoft365.action("upload_sharepoint_file")
+class UploadSharePointFileAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        drive_id = inputs["drive_id"]
+        if not drive_id.strip():
+            return ActionError(message="'drive_id' is required for SharePoint uploads")
+        return await _upload_drive_file(
+            inputs,
+            context,
+            f"/drives/{_encode_path_segment(drive_id)}",
+            query="?@microsoft.graph.conflictBehavior=fail",
+        )
 
 
 @microsoft365.action("list_files")
@@ -1861,6 +1883,66 @@ class SearchEmailsAction(ActionHandler):
             return ActionError(message=str(e))
 
 
+@microsoft365.action("create_sharepoint_site")
+class CreateSharePointSiteAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            web_url = inputs["web_url"]
+            body = {
+                "name": inputs["name"],
+                "webUrl": web_url,
+                "template": inputs["template"],
+                "locale": inputs.get("locale", "en-US"),
+                "shareByEmailEnabled": False,
+            }
+            if description := inputs.get("description"):
+                body["description"] = description
+            if owner_email := inputs.get("owner_email"):
+                body["ownerIdentityToResolve"] = {"email": owner_email}
+
+            resp = await context.fetch(GRAPH_SITE_PROVISIONING_URL, method="POST", json=body)
+            _check_fetch_success(resp)
+            if resp.status != 202:
+                raise ValueError(f"Expected HTTP 202 for SharePoint site creation, received {resp.status}")
+            location = next((value for key, value in resp.headers.items() if key.lower() == "location"), "")
+            operation = re.fullmatch(
+                re.escape(GRAPH_SITE_PROVISIONING_URL) + r"/getOperationStatus\(operationId='([^']+)'\)",
+                location,
+            )
+            if operation is None:
+                raise ValueError(f"Graph accepted site creation for {web_url} without a usable operation location")
+            return ActionResult(
+                data={"operation_id": urllib.parse.unquote(operation[1]), "web_url": web_url},
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@microsoft365.action("get_sharepoint_site_creation_status")
+class GetSharePointSiteCreationStatusAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            operation_id = _encode_path_segment(inputs["operation_id"])
+            resp = await context.fetch(
+                f"{GRAPH_SITE_PROVISIONING_URL}/getOperationStatus(operationId='{operation_id}')"
+            )
+            # A successful operation response can include its own provisioning error.
+            if resp.status != 200 or not isinstance(resp.data, dict) or not resp.data.get("status"):
+                _check_fetch_success(resp)
+                raise ValueError(f"Microsoft Graph returned an invalid site operation response (HTTP {resp.status})")
+            return ActionResult(
+                data={
+                    "status": resp.data["status"],
+                    "site_id": resp.data.get("resourceId"),
+                    "error": resp.data.get("error"),
+                },
+                cost_usd=0.0,
+            )
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
 @microsoft365.action("search_sharepoint_sites")
 class SearchSharePointSitesAction(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
@@ -2028,10 +2110,13 @@ class SearchSharePointDocumentsAction(ActionHandler):
             search_query = inputs["query"]
             limit = inputs.get("limit", 10)
 
-            drives, _ = await _fetch_collection(
-                context,
-                f"{GRAPH_API_BASE}/sites/{_encode_path_segment(site_id)}/drives",
-            )
+            if drive_id := inputs.get("drive_id"):
+                drives = [{"id": drive_id}]
+            else:
+                drives, _ = await _fetch_collection(
+                    context,
+                    f"{GRAPH_API_BASE}/sites/{_encode_path_segment(site_id)}/drives",
+                )
             if not drives:
                 return ActionResult(
                     data={
@@ -2333,6 +2418,29 @@ class ListSharePointSubsitesAction(ActionHandler):
                 cost_usd=0.0,
             )
 
+        except Exception as e:
+            return ActionError(message=str(e))
+
+
+@microsoft365.action("create_sharepoint_folder")
+class CreateSharePointFolderAction(ActionHandler):
+    async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
+        try:
+            drive_id = _encode_path_segment(inputs["drive_id"])
+            name = inputs["name"]
+            parent_id = inputs.get("parent_folder_id")
+            parent = f"items/{_encode_path_segment(parent_id)}" if parent_id else "root"
+            resp = await context.fetch(
+                f"{GRAPH_API_BASE}/drives/{drive_id}/{parent}/children",
+                method="POST",
+                json={"name": name, "folder": {}, "@microsoft.graph.conflictBehavior": "fail"},
+            )
+            _check_fetch_success(resp)
+            _check_response(resp.data, "id", "name", "webUrl")
+            return ActionResult(
+                data={"id": resp.data["id"], "name": resp.data["name"], "webUrl": resp.data["webUrl"]},
+                cost_usd=0.0,
+            )
         except Exception as e:
             return ActionError(message=str(e))
 
