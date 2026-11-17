@@ -134,7 +134,7 @@ The action does not sleep, poll in a loop or merge records automatically. Pollin
 
 Lusha documents a default limit of 25 requests/second, shared at account level, and a stricter five requests/minute for usage checks. Your account's hourly/daily quotas also apply. Avoid checking usage before every action.
 
-HTTP failures return `ActionError` with guidance for invalid inputs (400), authentication (401), insufficient credits (402), plan/permission restrictions (403), missing resources (404), rate limits (429) and unavailable services (503). Rate-limit errors include the SDK's retry-after delay. The integration does not automatically repeat credit-consuming requests; the SDK retains its standard network-error retry behavior. Raw HTTP error bodies are not included in user-facing action errors.
+HTTP failures return `ActionError` with guidance for invalid inputs (400), authentication (401), insufficient credits (402), plan/permission restrictions (403), missing resources (404), rate limits (429) and unavailable services (503). Rate-limit errors include the SDK's retry-after delay. Automatic network retries are disabled for credit-consuming POST requests. If a connection fails or times out, the outcome is uncertain: Lusha may have processed the request and charged credits. Check your account usage and results before retrying manually, as another request may incur additional charges. Read-only GET requests retain the SDK's standard network-error retries. Raw HTTP error bodies are not included in user-facing action errors.
 
 This release covers discovery and enrichment workflows. Tables, webhook management, recommendations, conversations, lookalikes, dedicated signal retrieval, and legacy v2 endpoints are outside its scope.
 

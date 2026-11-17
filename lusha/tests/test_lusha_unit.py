@@ -1,9 +1,11 @@
 """Contract tests for Lusha v3. All records and credentials are synthetic."""
 
 import copy
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
-from autohive_integrations_sdk import FetchResponse, HTTPError, RateLimitError, ResultType
+from autohive_integrations_sdk import ExecutionContext, FetchResponse, HTTPError, RateLimitError, ResultType
 
 from lusha.lusha import lusha, request
 
@@ -362,3 +364,53 @@ async def test_populated_prospecting_criteria_preserve_zero_and_exclusions(mock_
     assert result.type == ResultType.ACTION
     mock_context.fetch.assert_awaited_once()
     assert mock_context.fetch.call_args.kwargs["json"]["filters"] == inputs["filters"]
+
+
+@pytest.mark.parametrize("action,inputs,path", CASES[:8])
+@pytest.mark.parametrize("failure", [TimeoutError, aiohttp.ClientConnectionError, aiohttp.ClientPayloadError])
+@pytest.mark.parametrize("max_retries", [3, 7])
+async def test_paid_post_lost_response_is_not_retried(action, inputs, path, failure, max_retries):
+    context = ExecutionContext(
+        auth={"auth_type": "Custom", "credentials": {"api_key": "test-api-key"}},  # nosec B105
+        request_config={"max_retries": max_retries, "timeout": 30},
+    )
+    session = MagicMock()
+    session.request.return_value.__aenter__.side_effect = failure("simulated lost response")
+    context._session = session
+    with patch("autohive_integrations_sdk.integration.asyncio.sleep", new_callable=AsyncMock) as sleep:
+        result = await lusha.execute_action(action, inputs, context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "may have completed and charged credits" in result.result.message
+    assert "before retrying" in result.result.message
+    session.request.assert_called_once()
+    assert session.request.call_args.kwargs["method"] == "POST"
+    sleep.assert_not_awaited()
+
+
+async def test_read_only_get_keeps_sdk_network_retries():
+    context = ExecutionContext(
+        auth={"auth_type": "Custom", "credentials": {"api_key": "test-api-key"}},  # nosec B105
+        request_config={"max_retries": 1, "timeout": 30},
+    )
+    response = MagicMock()
+    response.status = 200
+    response.ok = True
+    response.headers = {"Content-Type": "application/json"}
+    response.json = AsyncMock(return_value={"credits": {"remaining": 100}})
+    session = MagicMock()
+    session.request.return_value.__aenter__.side_effect = [TimeoutError("lost response"), response]
+    context._session = session
+    with patch("autohive_integrations_sdk.integration.asyncio.sleep", new_callable=AsyncMock) as sleep:
+        result = await lusha.execute_action("get_account_usage", {}, context)
+    assert result.type == ResultType.ACTION
+    assert result.result.data["credits"]["remaining"] == 100
+    assert session.request.call_count == 2
+    sleep.assert_awaited_once()
+
+
+async def test_exhausted_get_network_error_returns_guidance(mock_context):
+    mock_context.fetch.side_effect = aiohttp.ClientConnectionError("private connection details")
+    result = await lusha.execute_action("get_account_usage", {}, mock_context)
+    assert result.type == ResultType.ACTION_ERROR
+    assert "Check your connection" in result.result.message
+    assert "private connection details" not in result.result.message

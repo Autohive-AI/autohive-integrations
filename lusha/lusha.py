@@ -1,9 +1,11 @@
 """Lusha v3 contact and company discovery and enrichment."""
 
+import asyncio
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+import aiohttp
 from autohive_integrations_sdk import (
     ActionError,
     ActionHandler,
@@ -36,6 +38,8 @@ async def request(
             headers={"api_key": api_key, "Accept": "application/json"},
             json=payload,
             params=params,
+            # Start at the SDK retry limit: paid requests must never be replayed after a lost response.
+            retry_count=context.config["max_retries"] if method == "POST" else 0,
         )
     except RateLimitError as exc:
         return ActionError(message=f"Lusha rate limit exceeded. Retry after {exc.retry_after} seconds.")
@@ -50,6 +54,13 @@ async def request(
             503: "Lusha is temporarily unavailable. Retry later; an enrichment job may still exist.",
         }
         return ActionError(message=messages.get(exc.status, f"Lusha API request failed (HTTP {exc.status})."))
+    except (aiohttp.ClientError, asyncio.TimeoutError):
+        if method == "POST":
+            return ActionError(
+                message="Lusha did not confirm the request. It may have completed and charged credits. "
+                "Check your Lusha account usage and results before retrying; another request may incur more charges."
+            )
+        return ActionError(message="Could not reach Lusha. Check your connection and try again later.")
     if not isinstance(response.data, dict):
         return ActionError(message="Lusha returned an unexpected response; expected a JSON object.")
     return ActionResult(data=response.data)
