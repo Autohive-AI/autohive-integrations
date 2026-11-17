@@ -10,11 +10,20 @@ Key capabilities:
 - **Profile Management**: View and update personal information.
 - **Address Book**: List, create, update, delete, and set default addresses.
 - **Order History**: View past orders and order details.
-- **Authentication**: Helper actions for implementing OAuth 2.0 with PKCE flow.
+- **Authentication**: Custom-auth connection fields plus helper actions for Shopify's OAuth 2.0 PKCE flow.
 
 ## Setup & Authentication
 
-This integration uses **OAuth 2.0 with PKCE** (Proof Key for Code Exchange) as it acts on behalf of a specific customer.
+This integration uses **custom authentication** because Autohive does not operate a shared Shopify customer-account OAuth app. Each connection is configured with credentials for a merchant-owned Shopify app or Headless storefront and acts on behalf of one authenticated buyer.
+
+Configure the connection with:
+
+- **Shop domain** — the permanent `your-store.myshopify.com` domain.
+- **Customer Account API client ID** — from the app or Headless storefront's Customer Account API settings.
+- **Client secret** (optional) — only for a confidential server-side client.
+- **Customer access token** — the buyer token returned by Shopify OAuth. It is required by profile, address, and order actions, but can be left blank while using the OAuth helper actions to obtain the first token.
+
+The Shopify app must have Customer Account API access and approved protected-customer-data access for the fields it reads. Configure the callback URL in Shopify before starting the flow.
 
 **Scopes Required (OIDC-style for Customer Account API):**
 - `openid`
@@ -22,12 +31,16 @@ This integration uses **OAuth 2.0 with PKCE** (Proof Key for Code Exchange) as i
 - `customer-account-api:full`
 
 ### OAuth Flow Implementation
-Since this integration runs on behalf of a customer, you will typically need to:
+
+For a public client using PKCE:
+
 1. Use `customer_generate_oauth_url` to get the login URL and `code_verifier`.
 2. Redirect the user to the `authorization_url`.
-3. Handle the callback to get the `code`.
+3. Handle the callback, verify the returned `state`, and get the `code`.
 4. Use `customer_exchange_code` with the `code` and `code_verifier` to get tokens.
-5. Use `customer_refresh_token` to maintain access when the token expires.
+5. Save the returned `access_token` in the connection's custom-auth fields.
+
+Shopify app clients using PKCE do not receive refresh tokens. Renew those sessions by repeating the authorization flow with Shopify's silent-login support. `customer_refresh_token` is only for shop-configured customer account clients, such as eligible Headless storefront clients, that actually receive a refresh token.
 
 ## Actions
 
@@ -51,7 +64,6 @@ Update the customer's profile information.
 **Inputs:**
 - `first_name` (string, optional)
 - `last_name` (string, optional)
-- `phone` (string, optional)
 - `accepts_marketing` (boolean, optional)
 
 **Outputs:**
@@ -165,7 +177,6 @@ Get detailed information about a specific order.
 Generate the URL to redirect the user to for login, along with PKCE values.
 
 **Inputs:**
-- `client_id` (string, required)
 - `redirect_uri` (string, required)
 - `scopes` (array, optional): Default scopes provided if omitted
 
@@ -182,9 +193,8 @@ Exchange the auth code received in the callback for access tokens.
 
 **Inputs:**
 - `code` (string, required): From the callback URL
-- `code_verifier` (string, required): Generated in the previous step
+- `code_verifier` (string, optional): Required for public clients; generated in the previous step
 - `redirect_uri` (string, required)
-- `client_id` (string, required)
 
 **Outputs:**
 - `access_token` (string)
@@ -195,11 +205,10 @@ Exchange the auth code received in the callback for access tokens.
 ---
 
 #### `customer_refresh_token`
-Get a fresh access token using a refresh token.
+Get a fresh access token for a shop-configured customer account client that received a refresh token.
 
 **Inputs:**
 - `refresh_token` (string, required)
-- `client_id` (string, required)
 
 **Outputs:**
 - `access_token` (string)
@@ -209,7 +218,13 @@ Get a fresh access token using a refresh token.
 
 ## Requirements
 
-- `autohive-integrations-sdk`
+- `autohive-integrations-sdk~=2.0.1`
+- Shopify Customer Account API version `2026-10`
+
+## Official API Documentation
+
+- [Customer Account API](https://shopify.dev/docs/api/customer/latest)
+- [Customer Account authentication](https://shopify.dev/docs/api/customer/latest#authentication)
 
 ## Usage Examples
 
@@ -217,7 +232,6 @@ Get a fresh access token using a refresh token.
 ```python
 # 1. Generate URL
 auth_data = await shopify_customer.execute_action("customer_generate_oauth_url", {
-    "client_id": "your_client_id",
     "redirect_uri": "https://yourapp.com/callback"
 }, context)
 
@@ -227,8 +241,7 @@ auth_data = await shopify_customer.execute_action("customer_generate_oauth_url",
 tokens = await shopify_customer.execute_action("customer_exchange_code", {
     "code": "received_auth_code",
     "code_verifier": auth_data.data["code_verifier"],
-    "redirect_uri": "https://yourapp.com/callback",
-    "client_id": "your_client_id"
+    "redirect_uri": "https://yourapp.com/callback"
 }, context)
 
 # Store tokens.data["access_token"] for future calls
@@ -241,7 +254,7 @@ result = await shopify_customer.execute_action("customer_list_orders", {
 }, context)
 
 for order in result.data["orders"]:
-    print(f"Order {order['orderNumber']} - {order['totalPrice']['amount']} {order['totalPrice']['currencyCode']}")
+    print(f"Order {order['number']} - {order['totalPrice']['amount']} {order['totalPrice']['currencyCode']}")
 ```
 
 ### Example 3: Update Default Address

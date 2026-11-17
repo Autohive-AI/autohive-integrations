@@ -10,11 +10,12 @@ Supported Operations:
 - Orders: list, get
 
 Authentication:
-- OAuth 2.0 + PKCE flow
-- Bearer token: Authorization: Bearer {access_token}
+- Custom auth with a Shopify customer access token
+- OAuth 2.0 + PKCE helper actions for obtaining customer access tokens
+- Header: Authorization: {access_token}
 
 Protocol: GraphQL only
-API Version: 2024-10
+API Version: 2026-10
 
 Note: Uses Shopify Customer Account API (not Admin API).
 Endpoint: https://{shop}/customer/api/{version}/graphql
@@ -27,18 +28,20 @@ from autohive_integrations_sdk import (
     ActionResult,
     ActionError,
 )
-from typing import Dict, Any, List
-import secrets
-import hashlib
 import base64
-
+import hashlib
+import re
+import secrets
+from typing import Any, Dict, List
 from urllib.parse import urlencode
 
 # Load integration using config.json in the same directory as this file
 shopify_customer = Integration.load()
 
 # Shopify API version
-API_VERSION = "2024-10"
+API_VERSION = "2026-10"
+SHOP_DOMAIN_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*\.myshopify\.com$", re.IGNORECASE)
+DEFAULT_SCOPES = ["openid", "email", "customer-account-api:full"]
 
 
 # ============================================================================
@@ -46,13 +49,23 @@ API_VERSION = "2024-10"
 # ============================================================================
 
 
-def get_shop_url(context: ExecutionContext) -> str:
-    """Extract the shop URL from context credentials."""
+def get_credentials(context: ExecutionContext) -> Dict[str, Any]:
+    """Return custom auth fields from the platform auth envelope."""
     credentials = context.auth.get("credentials", {})
-    shop_url = credentials.get("shop_url", "")
-    if shop_url:
-        shop_url = shop_url.replace("https://", "").replace("http://", "")
-        shop_url = shop_url.rstrip("/")
+    return credentials if isinstance(credentials, dict) else {}
+
+
+def get_shop_url(context: ExecutionContext) -> str:
+    """Return and validate the store's permanent myshopify.com domain."""
+    shop_url = str(get_credentials(context).get("shop_url", "")).strip().lower()
+    if shop_url.startswith("https://"):
+        shop_url = shop_url[len("https://") :]
+    elif shop_url.startswith("http://"):
+        shop_url = shop_url[len("http://") :]
+    shop_url = shop_url.rstrip("/")
+
+    if not SHOP_DOMAIN_PATTERN.fullmatch(shop_url):
+        raise ValueError("Shop domain must use the format your-store.myshopify.com")
     return shop_url
 
 
@@ -68,11 +81,12 @@ def get_customer_api_url(context: ExecutionContext) -> str:
 
 def build_headers(context: ExecutionContext) -> Dict[str, str]:
     """Build headers for Customer Account API requests."""
-    credentials = context.auth.get("credentials", {})
-    access_token = credentials.get("access_token", "")
+    access_token = str(get_credentials(context).get("access_token", "")).strip()
+    if not access_token:
+        raise ValueError("Missing Shopify customer access token")
 
     return {
-        "Authorization": f"Bearer {access_token}",
+        "Authorization": access_token,
         "Content-Type": "application/json",
     }
 
@@ -155,6 +169,24 @@ def build_authorization_url(
     return f"https://{shop_url}/authentication/oauth/authorize?{urlencode(params)}"
 
 
+def get_client_id(context: ExecutionContext) -> str:
+    """Return the configured Customer Account API client ID."""
+    client_id = str(get_credentials(context).get("client_id", "")).strip()
+    if not client_id:
+        raise ValueError("Missing Shopify Customer Account API client ID")
+    return client_id
+
+
+def build_token_headers(context: ExecutionContext) -> Dict[str, str]:
+    """Build token endpoint headers for public or confidential clients."""
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    client_secret = str(get_credentials(context).get("client_secret", "")).strip()
+    if client_secret:
+        credentials = f"{get_client_id(context)}:{client_secret}".encode()
+        headers["Authorization"] = f"Basic {base64.b64encode(credentials).decode()}"
+    return headers
+
+
 # ============================================================================
 # GraphQL Queries
 # ============================================================================
@@ -163,23 +195,27 @@ QUERY_GET_PROFILE = """
 query GetCustomerProfile {
   customer {
     id
-    email
+    emailAddress {
+      emailAddress
+      marketingState
+    }
     firstName
     lastName
-    phone
-    acceptsMarketing
-    createdAt
+    phoneNumber {
+      phoneNumber
+    }
+    creationDate
     defaultAddress {
       id
       address1
       address2
       city
       province
-      provinceCode
+      zoneCode
       country
       countryCode
       zip
-      phone
+      phoneNumber
       company
     }
   }
@@ -198,11 +234,11 @@ query ListAddresses($first: Int!, $after: String) {
           address2
           city
           province
-          provinceCode
+          zoneCode
           country
           countryCode
           zip
-          phone
+          phoneNumber
           company
           firstName
           lastName
@@ -229,7 +265,7 @@ query ListOrders($first: Int!, $after: String) {
         node {
           id
           name
-          orderNumber
+          number
           processedAt
           fulfillmentStatus
           financialStatus
@@ -252,7 +288,7 @@ query ListOrders($first: Int!, $after: String) {
           lineItems(first: 10) {
             edges {
               node {
-                title
+                name
                 quantity
                 price {
                   amount
@@ -274,71 +310,54 @@ query ListOrders($first: Int!, $after: String) {
 
 QUERY_GET_ORDER = """
 query GetOrder($orderId: ID!) {
-  customer {
-    order(id: $orderId) {
-      id
-      name
-      orderNumber
-      processedAt
-      fulfillmentStatus
-      financialStatus
-      totalPrice {
-        amount
-        currencyCode
-      }
-      subtotal {
-        amount
-        currencyCode
-      }
-      totalShipping {
-        amount
-        currencyCode
-      }
-      totalTax {
-        amount
-        currencyCode
-      }
-      shippingAddress {
-        address1
-        address2
-        city
-        province
-        country
-        zip
-        phone
-      }
-      billingAddress {
-        address1
-        address2
-        city
-        province
-        country
-        zip
-      }
-      lineItems(first: 50) {
-        edges {
-          node {
-            title
-            quantity
-            price {
-              amount
-              currencyCode
-            }
-            variant {
-              id
-              title
-              image {
-                url
-              }
-            }
-          }
+  order(id: $orderId) {
+    id
+    name
+    number
+    processedAt
+    fulfillmentStatus
+    financialStatus
+    totalPrice { amount currencyCode }
+    subtotal { amount currencyCode }
+    totalShipping { amount currencyCode }
+    totalTax { amount currencyCode }
+    shippingAddress {
+      address1
+      address2
+      city
+      province
+      country
+      zip
+      phoneNumber
+    }
+    billingAddress {
+      address1
+      address2
+      city
+      province
+      country
+      zip
+    }
+    lineItems(first: 50) {
+      edges {
+        node {
+          name
+          quantity
+          price { amount currencyCode }
+          variantId
+          variantTitle
+          image { url }
         }
       }
-      fulfillments {
-        trackingCompany
-        trackingNumber
-        trackingUrl
-        status
+    }
+    fulfillments(first: 50) {
+      edges {
+        node {
+          id
+          status
+          latestShipmentStatus
+          trackingInformation { company number url }
+        }
       }
     }
   }
@@ -350,17 +369,36 @@ mutation UpdateCustomer($input: CustomerUpdateInput!) {
   customerUpdate(input: $input) {
     customer {
       id
-      email
+      emailAddress {
+        emailAddress
+        marketingState
+      }
       firstName
       lastName
-      phone
-      acceptsMarketing
     }
     userErrors {
       field
       message
       code
     }
+  }
+}
+"""
+
+MUTATION_SUBSCRIBE_MARKETING = """
+mutation SubscribeToEmailMarketing {
+  customerEmailMarketingSubscribe {
+    emailAddress { emailAddress marketingState }
+    userErrors { field message code }
+  }
+}
+"""
+
+MUTATION_UNSUBSCRIBE_MARKETING = """
+mutation UnsubscribeFromEmailMarketing {
+  customerEmailMarketingUnsubscribe {
+    emailAddress { emailAddress marketingState }
+    userErrors { field message code }
   }
 }
 """
@@ -374,9 +412,11 @@ mutation CreateAddress($address: CustomerAddressInput!) {
       address2
       city
       province
+      zoneCode
       country
+      countryCode
       zip
-      phone
+      phoneNumber
     }
     userErrors {
       field
@@ -396,9 +436,11 @@ mutation UpdateAddress($addressId: ID!, $address: CustomerAddressInput!) {
       address2
       city
       province
+      zoneCode
       country
+      countryCode
       zip
-      phone
+      phoneNumber
     }
     userErrors {
       field
@@ -424,12 +466,8 @@ mutation DeleteAddress($addressId: ID!) {
 
 MUTATION_SET_DEFAULT_ADDRESS = """
 mutation SetDefaultAddress($addressId: ID!) {
-  customerDefaultAddressUpdate(addressId: $addressId) {
-    customer {
-      defaultAddress {
-        id
-      }
-    }
+  customerAddressUpdate(addressId: $addressId, defaultAddress: true) {
+    customerAddress { id }
     userErrors {
       field
       message
@@ -472,35 +510,50 @@ class UpdateProfileHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             customer_input = {}
-
-            # Map input fields to GraphQL input
-            field_mapping = {
-                "first_name": "firstName",
-                "last_name": "lastName",
-                "phone": "phone",
-                "accepts_marketing": "acceptsMarketing",
-            }
+            field_mapping = {"first_name": "firstName", "last_name": "lastName"}
 
             for input_field, graphql_field in field_mapping.items():
                 if input_field in inputs:
                     customer_input[graphql_field] = inputs[input_field]
 
-            if not customer_input:
+            marketing_preference = inputs.get("accepts_marketing")
+            if not customer_input and marketing_preference is None:
                 return error_response("No fields to update", customer=None)
 
-            variables = {"input": customer_input}
-            gql_result = await execute_graphql(context, MUTATION_UPDATE_PROFILE, variables)
+            customer = None
+            if customer_input:
+                variables = {"input": customer_input}
+                gql_result = await execute_graphql(context, MUTATION_UPDATE_PROFILE, variables)
+                if "errors" in gql_result:
+                    return error_response(gql_result["errors"][0]["message"], customer=None)
 
-            if "errors" in gql_result:
-                return error_response(gql_result["errors"][0]["message"], customer=None)
+                data = gql_result.get("data", {}).get("customerUpdate", {})
+                user_errors = data.get("userErrors", [])
+                if user_errors:
+                    return error_response(user_errors[0]["message"], customer=None)
+                customer = data.get("customer")
 
-            data = gql_result.get("data", {}).get("customerUpdate", {})
-            user_errors = data.get("userErrors", [])
+            if marketing_preference is not None:
+                mutation = MUTATION_SUBSCRIBE_MARKETING if marketing_preference else MUTATION_UNSUBSCRIBE_MARKETING
+                mutation_key = (
+                    "customerEmailMarketingSubscribe" if marketing_preference else "customerEmailMarketingUnsubscribe"
+                )
+                gql_result = await execute_graphql(context, mutation)
+                if "errors" in gql_result:
+                    return error_response(gql_result["errors"][0]["message"], customer=customer)
 
-            if user_errors:
-                return error_response(user_errors[0]["message"], customer=None)
+                marketing_data = gql_result.get("data", {}).get(mutation_key, {})
+                user_errors = marketing_data.get("userErrors", [])
+                if user_errors:
+                    return error_response(user_errors[0]["message"], customer=customer)
 
-            return success_response(customer=data.get("customer"))
+                email_address = marketing_data.get("emailAddress")
+                if customer is None:
+                    customer = {"emailAddress": email_address}
+                else:
+                    customer["emailAddress"] = email_address
+
+            return success_response(customer=customer)
         except Exception as e:
             return error_response(e, customer=None)
 
@@ -555,10 +608,10 @@ class CreateAddressHandler(ActionHandler):
                 "address1": "address1",
                 "address2": "address2",
                 "city": "city",
-                "province": "province",
-                "country": "country",
+                "province": "zoneCode",
+                "country": "countryCode",
                 "zip": "zip",
-                "phone": "phone",
+                "phone": "phoneNumber",
                 "company": "company",
                 "first_name": "firstName",
                 "last_name": "lastName",
@@ -601,10 +654,10 @@ class UpdateAddressHandler(ActionHandler):
                 "address1": "address1",
                 "address2": "address2",
                 "city": "city",
-                "province": "province",
-                "country": "country",
+                "province": "zoneCode",
+                "country": "countryCode",
                 "zip": "zip",
-                "phone": "phone",
+                "phone": "phoneNumber",
                 "company": "company",
                 "first_name": "firstName",
                 "last_name": "lastName",
@@ -677,13 +730,13 @@ class SetDefaultAddressHandler(ActionHandler):
             if "errors" in gql_result:
                 return error_response(gql_result["errors"][0]["message"])
 
-            data = gql_result.get("data", {}).get("customerDefaultAddressUpdate", {})
+            data = gql_result.get("data", {}).get("customerAddressUpdate", {})
             user_errors = data.get("userErrors", [])
 
             if user_errors:
                 return error_response(user_errors[0]["message"])
 
-            default_id = data.get("customer", {}).get("defaultAddress", {}).get("id")
+            default_id = (data.get("customerAddress") or {}).get("id")
             return success_response(default_address_id=default_id)
         except Exception as e:
             return error_response(e)
@@ -737,7 +790,7 @@ class GetOrderHandler(ActionHandler):
             if "errors" in gql_result:
                 return error_response(gql_result["errors"][0]["message"], order=None)
 
-            order = gql_result.get("data", {}).get("customer", {}).get("order")
+            order = gql_result.get("data", {}).get("order")
             if not order:
                 return error_response("Order not found", order=None)
 
@@ -758,13 +811,10 @@ class GenerateOAuthUrlHandler(ActionHandler):
     async def execute(self, inputs: Dict[str, Any], context: ExecutionContext) -> ActionResult:
         try:
             shop_url = get_shop_url(context)
-            client_id = inputs.get("client_id")
+            client_id = get_client_id(context)
             redirect_uri = inputs.get("redirect_uri")
-            # Use OIDC-style scopes for Customer Account API
-            scopes = inputs.get("scopes", ["openid", "email", "customer-account-api:full"])
+            scopes = inputs.get("scopes", DEFAULT_SCOPES)
 
-            if not client_id:
-                return error_response("client_id is required")
             if not redirect_uri:
                 return error_response("redirect_uri is required")
 
@@ -801,10 +851,12 @@ class ExchangeCodeHandler(ActionHandler):
             code = inputs.get("code")
             code_verifier = inputs.get("code_verifier")
             redirect_uri = inputs.get("redirect_uri")
-            client_id = inputs.get("client_id")
+            client_id = get_client_id(context)
 
-            if not all([code, code_verifier, redirect_uri, client_id]):
-                return error_response("code, code_verifier, redirect_uri, and client_id are required")
+            if not all([code, redirect_uri]):
+                return error_response("code and redirect_uri are required")
+            if not code_verifier and not get_credentials(context).get("client_secret"):
+                return error_response("code_verifier is required for public clients")
 
             # Use the standard OIDC token endpoint
             url = f"https://{shop_url}/authentication/oauth/token"
@@ -812,15 +864,16 @@ class ExchangeCodeHandler(ActionHandler):
                 "client_id": client_id,
                 "code": code,
                 "redirect_uri": redirect_uri,
-                "code_verifier": code_verifier,
                 "grant_type": "authorization_code",
             }
+            if code_verifier:
+                data["code_verifier"] = code_verifier
 
             response = await context.fetch(
                 url,
                 method="POST",
                 data=data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers=build_token_headers(context),
             )
 
             token_data = response.data
@@ -828,14 +881,12 @@ class ExchangeCodeHandler(ActionHandler):
             if "error" in token_data:
                 return ActionError(message=token_data.get("error_description", token_data["error"]))
 
-            return success_response(
-                access_token=token_data.get("access_token"),
-                refresh_token=token_data.get("refresh_token"),
-                id_token=token_data.get("id_token"),
-                token_type=token_data.get("token_type"),
-                expires_in=token_data.get("expires_in"),
-                scope=token_data.get("scope"),
-            )
+            token_result = {
+                key: token_data.get(key)
+                for key in ("access_token", "refresh_token", "id_token", "token_type", "expires_in", "scope")
+                if token_data.get(key) is not None
+            }
+            return success_response(**token_result)
         except Exception as e:
             return ActionError(message=str(e))
 
@@ -848,13 +899,10 @@ class RefreshTokenHandler(ActionHandler):
         try:
             shop_url = get_shop_url(context)
             refresh_token = inputs.get("refresh_token")
-            client_id = inputs.get("client_id")
+            client_id = get_client_id(context)
 
             if not refresh_token:
                 return error_response("refresh_token is required")
-            if not client_id:
-                return error_response("client_id is required")
-
             # Use the standard OIDC token endpoint
             url = f"https://{shop_url}/authentication/oauth/token"
             data = {
@@ -867,7 +915,7 @@ class RefreshTokenHandler(ActionHandler):
                 url,
                 method="POST",
                 data=data,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers=build_token_headers(context),
             )
 
             token_data = response.data
@@ -875,11 +923,11 @@ class RefreshTokenHandler(ActionHandler):
             if "error" in token_data:
                 return ActionError(message=token_data.get("error_description", token_data["error"]))
 
-            return success_response(
-                access_token=token_data.get("access_token"),
-                refresh_token=token_data.get("refresh_token"),
-                token_type=token_data.get("token_type"),
-                expires_in=token_data.get("expires_in"),
-            )
+            token_result = {
+                key: token_data.get(key)
+                for key in ("access_token", "refresh_token", "token_type", "expires_in")
+                if token_data.get(key) is not None
+            }
+            return success_response(**token_result)
         except Exception as e:
             return ActionError(message=str(e))

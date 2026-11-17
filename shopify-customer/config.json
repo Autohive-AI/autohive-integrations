@@ -1,17 +1,40 @@
 {
     "name": "ShopifyCustomer",
-    "display_name": "Shopify Customer Account API",
-    "version": "2.0.0",
+    "display_name": "Shopify Customer Account",
+    "version": "2.1.0",
     "description": "Shopify Customer Account API integration for customer self-service - profile, addresses, and order history",
     "entry_point": "shopify_customer.py",
     "auth": {
-        "type": "oauth2_pkce",
-        "provider": "ShopifyCustomerAccount",
-        "scopes": [
-            "openid",
-            "email",
-            "customer-account-api:full"
-        ]
+        "type": "custom",
+        "title": "Shopify Customer Account Credentials",
+        "fields": {
+            "type": "object",
+            "properties": {
+                "shop_url": {
+                    "type": "string",
+                    "label": "Shop domain",
+                    "help_text": "Your permanent Shopify domain, for example your-store.myshopify.com."
+                },
+                "client_id": {
+                    "type": "string",
+                    "label": "Customer Account API client ID",
+                    "help_text": "The client ID configured for the app or Headless storefront's Customer Account API."
+                },
+                "client_secret": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Client secret",
+                    "help_text": "Optional. Use only for a confidential Customer Account API client."
+                },
+                "access_token": {
+                    "type": "string",
+                    "format": "password",
+                    "label": "Customer access token",
+                    "help_text": "A buyer access token obtained through Shopify Customer Account OAuth. Required for profile, address, and order actions."
+                }
+            },
+            "required": ["shop_url", "client_id"]
+        }
     },
     "actions": {
         "customer_get_profile": {
@@ -40,7 +63,6 @@
                 "properties": {
                     "first_name": {"type": "string", "description": "First name", "label": "First Name"},
                     "last_name": {"type": "string", "description": "Last name", "label": "Last Name"},
-                    "phone": {"type": "string", "description": "Phone number", "label": "Phone"},
                     "accepts_marketing": {"type": "boolean", "description": "Accept marketing emails", "label": "Accepts Marketing"}
                 },
                 "required": []
@@ -70,7 +92,7 @@
                 "type": "object",
                 "properties": {
                     "success": {"type": "boolean"},
-                    "addresses": {"type": "array"},
+                    "addresses": {"type": "array", "items": {"type": "object"}},
                     "count": {"type": "integer"},
                     "has_next_page": {"type": "boolean"},
                     "end_cursor": {"type": "string"},
@@ -195,7 +217,7 @@
                 "type": "object",
                 "properties": {
                     "success": {"type": "boolean"},
-                    "orders": {"type": "array"},
+                    "orders": {"type": "array", "items": {"type": "object"}},
                     "count": {"type": "integer"},
                     "has_next_page": {"type": "boolean"},
                     "end_cursor": {"type": "string"},
@@ -230,11 +252,10 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "client_id": {"type": "string", "description": "OAuth client ID", "label": "Client ID"},
                     "redirect_uri": {"type": "string", "description": "OAuth redirect URI", "label": "Redirect URI"},
                     "scopes": {"type": "array", "description": "Requested scopes", "label": "Scopes", "items": {"type": "string"}}
                 },
-                "required": ["client_id", "redirect_uri"]
+                "required": ["redirect_uri"]
             },
             "output_schema": {
                 "type": "object",
@@ -256,10 +277,9 @@
                 "properties": {
                     "code": {"type": "string", "description": "Authorization code from callback", "label": "Code"},
                     "code_verifier": {"type": "string", "description": "PKCE code verifier", "label": "Code Verifier"},
-                    "redirect_uri": {"type": "string", "description": "OAuth redirect URI", "label": "Redirect URI"},
-                    "client_id": {"type": "string", "description": "OAuth client ID", "label": "Client ID"}
+                    "redirect_uri": {"type": "string", "description": "OAuth redirect URI", "label": "Redirect URI"}
                 },
-                "required": ["code", "code_verifier", "redirect_uri", "client_id"]
+                "required": ["code", "redirect_uri"]
             },
             "output_schema": {
                 "type": "object",
@@ -282,10 +302,9 @@
             "input_schema": {
                 "type": "object",
                 "properties": {
-                    "refresh_token": {"type": "string", "description": "Refresh token", "label": "Refresh Token"},
-                    "client_id": {"type": "string", "description": "OAuth client ID", "label": "Client ID"}
+                    "refresh_token": {"type": "string", "description": "Refresh token (available only to shop-configured customer account clients)", "label": "Refresh Token"}
                 },
-                "required": ["refresh_token", "client_id"]
+                "required": ["refresh_token"]
             },
             "output_schema": {
                 "type": "object",

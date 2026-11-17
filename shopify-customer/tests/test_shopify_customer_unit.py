@@ -23,6 +23,7 @@ shopify_customer = _mod.shopify_customer
 get_shop_url = _mod.get_shop_url
 get_customer_api_url = _mod.get_customer_api_url
 build_headers = _mod.build_headers
+build_token_headers = _mod.build_token_headers
 generate_pkce_pair = _mod.generate_pkce_pair
 build_authorization_url = _mod.build_authorization_url
 extract_edges = _mod.extract_edges
@@ -40,11 +41,12 @@ def mock_context():
     ctx = MagicMock(name="ExecutionContext")
     ctx.fetch = AsyncMock(name="fetch")
     ctx.auth = {
+        "auth_type": "Custom",
         "credentials": {
             "access_token": "test_token_123",  # nosec B105
             "shop_url": "test-store.myshopify.com",
             "client_id": "test_client_id",
-        }
+        },
     }
     return ctx
 
@@ -74,15 +76,33 @@ class TestHelpers:
         ctx = MagicMock()
         ctx.auth = {"credentials": {"shop_url": "test-store.myshopify.com"}}
         result = get_customer_api_url(ctx)
-        assert result == "https://test-store.myshopify.com/customer/api/2024-10/graphql"
+        assert result == "https://test-store.myshopify.com/customer/api/2026-10/graphql"
         assert "/account/" not in result
 
     def test_build_headers(self):
         ctx = MagicMock()
         ctx.auth = {"credentials": {"access_token": "test_token"}}  # nosec B105
         result = build_headers(ctx)
-        assert result["Authorization"] == "Bearer test_token"
+        assert result["Authorization"] == "test_token"
         assert result["Content-Type"] == "application/json"
+
+    def test_build_headers_requires_access_token(self):
+        ctx = MagicMock()
+        ctx.auth = {"credentials": {}}
+        with pytest.raises(ValueError, match="access token"):
+            build_headers(ctx)
+
+    def test_get_shop_url_rejects_non_shopify_domain(self):
+        ctx = MagicMock()
+        ctx.auth = {"credentials": {"shop_url": "example.com"}}
+        with pytest.raises(ValueError, match="myshopify.com"):
+            get_shop_url(ctx)
+
+    def test_build_token_headers_uses_basic_auth_for_confidential_client(self):
+        ctx = MagicMock()
+        ctx.auth = {"credentials": {"client_id": "client", "client_secret": "secret"}}  # nosec B105
+        headers = build_token_headers(ctx)
+        assert headers["Authorization"] == "Basic Y2xpZW50OnNlY3JldA=="
 
 
 # ============================================================================
@@ -202,6 +222,33 @@ class TestGetProfile:
         assert result.type == ResultType.ACTION_ERROR
 
 
+class TestUpdateProfile:
+    @pytest.mark.asyncio
+    async def test_marketing_preference_uses_current_marketing_mutation(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "data": {
+                    "customerEmailMarketingSubscribe": {
+                        "emailAddress": {
+                            "emailAddress": "test@example.com",
+                            "marketingState": "SUBSCRIBED",
+                        },
+                        "userErrors": [],
+                    }
+                }
+            },
+        )
+
+        result = await shopify_customer.execute_action(
+            "customer_update_profile", {"accepts_marketing": True}, mock_context
+        )
+
+        assert result.result.data["customer"]["emailAddress"]["marketingState"] == "SUBSCRIBED"
+        assert "customerEmailMarketingSubscribe" in mock_context.fetch.await_args.kwargs["json"]["query"]
+
+
 # ============================================================================
 # Action: customer_list_addresses
 # ============================================================================
@@ -275,14 +322,20 @@ class TestCreateAddress:
             {
                 "address1": "456 Oak Ave",
                 "city": "Los Angeles",
+                "province": "CA",
                 "country": "US",
                 "zip": "90001",
+                "phone": "+12135550123",
             },
             mock_context,
         )
 
         assert result.result.data["success"] is True
         assert result.result.data["address"]["city"] == "Los Angeles"
+        variables = mock_context.fetch.await_args.kwargs["json"]["variables"]
+        assert variables["address"]["countryCode"] == "US"
+        assert variables["address"]["zoneCode"] == "CA"
+        assert variables["address"]["phoneNumber"] == "+12135550123"
 
     @pytest.mark.asyncio
     async def test_user_error(self, mock_context):
@@ -370,13 +423,11 @@ class TestGetOrder:
             headers={},
             data={
                 "data": {
-                    "customer": {
-                        "order": {
-                            "id": "gid://shopify/Order/456",
-                            "orderNumber": 1002,
-                            "fulfillmentStatus": "FULFILLED",
-                            "totalPrice": {"amount": "49.99", "currencyCode": "USD"},
-                        }
+                    "order": {
+                        "id": "gid://shopify/Order/456",
+                        "number": 1002,
+                        "fulfillmentStatus": "FULFILLED",
+                        "totalPrice": {"amount": "49.99", "currencyCode": "USD"},
                     }
                 }
             },
@@ -389,13 +440,11 @@ class TestGetOrder:
         )
 
         assert result.result.data["success"] is True
-        assert result.result.data["order"]["orderNumber"] == 1002
+        assert result.result.data["order"]["number"] == 1002
 
     @pytest.mark.asyncio
     async def test_not_found(self, mock_context):
-        mock_context.fetch.return_value = FetchResponse(
-            status=200, headers={}, data={"data": {"customer": {"order": None}}}
-        )
+        mock_context.fetch.return_value = FetchResponse(status=200, headers={}, data={"data": {"order": None}})
 
         result = await shopify_customer.execute_action(
             "customer_get_order",
@@ -418,8 +467,8 @@ class TestSetDefaultAddress:
             headers={},
             data={
                 "data": {
-                    "customerDefaultAddressUpdate": {
-                        "customer": {"defaultAddress": {"id": "gid://shopify/CustomerAddress/1"}},
+                    "customerAddressUpdate": {
+                        "customerAddress": {"id": "gid://shopify/CustomerAddress/1"},
                         "userErrors": [],
                     }
                 }
@@ -442,8 +491,8 @@ class TestSetDefaultAddress:
             headers={},
             data={
                 "data": {
-                    "customerDefaultAddressUpdate": {
-                        "customer": {"defaultAddress": None},
+                    "customerAddressUpdate": {
+                        "customerAddress": None,
                         "userErrors": [{"field": "addressId", "message": "Address not found"}],
                     }
                 }
@@ -469,7 +518,6 @@ class TestGenerateOAuthUrl:
         result = await shopify_customer.execute_action(
             "customer_generate_oauth_url",
             {
-                "client_id": "test_client",
                 "redirect_uri": "https://example.com/callback",
             },
             mock_context,
@@ -482,7 +530,8 @@ class TestGenerateOAuthUrl:
         assert "/authentication/oauth/authorize" in result.result.data["authorization_url"]
 
     @pytest.mark.asyncio
-    async def test_missing_client_id(self, mock_context):
+    async def test_missing_configured_client_id(self, mock_context):
+        mock_context.auth["credentials"].pop("client_id")
         result = await shopify_customer.execute_action(
             "customer_generate_oauth_url",
             {"redirect_uri": "https://example.com/callback"},
@@ -494,10 +543,42 @@ class TestGenerateOAuthUrl:
     async def test_missing_redirect_uri(self, mock_context):
         result = await shopify_customer.execute_action(
             "customer_generate_oauth_url",
-            {"client_id": "test_client"},
+            {},
             mock_context,
         )
         assert result.type == ResultType.VALIDATION_ERROR
+
+
+class TestOAuthTokenActions:
+    @pytest.mark.asyncio
+    async def test_exchange_code_uses_configured_client(self, mock_context):
+        mock_context.fetch.return_value = FetchResponse(
+            status=200,
+            headers={},
+            data={
+                "access_token": "buyer_access_token",  # nosec B105
+                "id_token": "buyer_id_token",  # nosec B105
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "scope": "openid email customer-account-api:full",
+            },
+        )
+
+        result = await shopify_customer.execute_action(
+            "customer_exchange_code",
+            {
+                "code": "authorization_code",
+                "code_verifier": "pkce_verifier",
+                "redirect_uri": "https://example.com/callback",
+            },
+            mock_context,
+        )
+
+        assert result.result.data["success"] is True
+        request = mock_context.fetch.await_args
+        assert request.kwargs["data"]["client_id"] == "test_client_id"
+        assert request.kwargs["data"]["code_verifier"] == "pkce_verifier"
+        assert "Authorization" not in request.kwargs["headers"]
 
 
 # ============================================================================
